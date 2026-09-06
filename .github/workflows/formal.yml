@@ -19,13 +19,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Require the committed dependency graph
+        run: cargo metadata --locked --format-version 1 --manifest-path formal/Cargo.toml --no-deps >/dev/null
       - name: Run pinned Kani proofs
         uses: model-checking/kani-github-action@f838096619a707b0f6b2118cf435eaccfa33e51f # v1.1
         with:
           kani-version: "0.67.0"
           command: cargo-kani
           working-directory: formal
-          args: --locked --output-format=terse
+          args: --output-format=terse
       - name: Prove Kani rejects a real counterexample
         run: |
           result_file="${RUNNER_TEMP}/kani-negative.log"

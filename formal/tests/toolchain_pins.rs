@@ -22,7 +22,9 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
             .contains("model-checking/kani-github-action@f838096619a707b0f6b2118cf435eaccfa33e51f")
     );
     assert!(WORKFLOW.contains("kani-version: \"0.67.0\""));
-    assert!(WORKFLOW.contains("args: --locked --output-format=terse"));
+    assert!(WORKFLOW.contains(
+        "cargo metadata --locked --format-version 1 --manifest-path formal/Cargo.toml --no-deps >/dev/null"
+    ));
     assert!(WORKFLOW.contains("toolchain install 1.93.0"));
     assert!(WORKFLOW.contains("ubuntu-24.04-arm"));
 }
