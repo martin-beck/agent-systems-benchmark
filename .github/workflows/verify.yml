@@ -44,10 +44,25 @@ jobs:
           target/release/asb invalid-command || code=$?
           test "$code" -eq 2
       - name: DCO certification
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE: ${{ github.event.before }}
         run: |
-          while IFS= read -r revision; do
-            expected=$(git show -s --format='Signed-off-by: %an <%ae>' "$revision")
-            git show -s --format=%B "$revision" | grep -Fx -- "$expected"
-          done < <(git rev-list HEAD)
+          head="${GITHUB_SHA}"
+          base=
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            base="$PR_BASE"
+            head="$PR_HEAD"
+          elif [[ "$PUSH_BASE" =~ ^[0-9a-f]{40}$ ]] &&
+               [[ "$PUSH_BASE" != 0000000000000000000000000000000000000000 ]]; then
+            base="$PUSH_BASE"
+          fi
+          args=(--head "$head")
+          if [[ -n "$base" ]]; then
+            args+=(--base "$base")
+          fi
+          python3 tools/quality/check_dco.py "${args[@]}"
       - name: Clean generated state
         run: git diff --exit-code

@@ -1,0 +1,89 @@
+name: Repository quality
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Policy, coverage, and supply chain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal --component llvm-tools-preview
+      - name: Install pinned Rust quality tools
+        uses: taiki-e/install-action@7b8d4719ee4aaa279bdf55df38dacb9ebfe12a6c
+        with:
+          tool: cargo-audit@0.22.2,cargo-deny@0.20.2,cargo-llvm-cov@0.9.0
+      - name: Install digest-pinned repository analyzers
+        run: |
+          bin_dir="$(tools/quality/install-external-tools.sh)"
+          printf 'ASB_QUALITY_BIN=%s\n' "$bin_dir" >> "$GITHUB_ENV"
+      - name: Determine introduced commit range
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          head="${GITHUB_SHA}"
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            base="$PR_BASE"
+            head="$PR_HEAD"
+          elif [[ "$PUSH_BASE" =~ ^[0-9a-f]{40}$ ]] &&
+               [[ "$PUSH_BASE" != 0000000000000000000000000000000000000000 ]]; then
+            base="$PUSH_BASE"
+          else
+            base="$(git rev-list --max-parents=0 HEAD)"
+            if [[ "$base" == "${GITHUB_SHA}" ]]; then
+              base=
+            fi
+          fi
+          printf 'base=%s\n' "$base" >> "$GITHUB_OUTPUT"
+          printf 'head=%s\n' "$head" >> "$GITHUB_OUTPUT"
+      - name: Enforce repository and commit policy
+        env:
+          RANGE_BASE: ${{ steps.range.outputs.base }}
+          RANGE_HEAD: ${{ steps.range.outputs.head }}
+        run: |
+          args=(--head "$RANGE_HEAD")
+          if [[ -n "$RANGE_BASE" ]]; then
+            args+=(--base "$RANGE_BASE")
+          fi
+          python3 tools/quality/repository_policy.py "${args[@]}"
+      - name: Validate GitHub workflows
+        run: |
+          "$ASB_QUALITY_BIN/actionlint" -config-file .github/actionlint.yaml
+          "$ASB_QUALITY_BIN/zizmor" --pedantic .
+      - name: Scan complete introduced history for secrets
+        env:
+          RANGE_BASE: ${{ steps.range.outputs.base }}
+          RANGE_HEAD: ${{ steps.range.outputs.head }}
+        run: |
+          log_opts="$RANGE_HEAD"
+          if [[ -n "$RANGE_BASE" ]]; then
+            log_opts="$RANGE_BASE..$RANGE_HEAD"
+          fi
+          "$ASB_QUALITY_BIN/gitleaks" git --redact --no-banner --log-opts="$log_opts" .
+      - name: Check dependency policy and advisories
+        run: |
+          cargo deny --locked check
+          cargo audit --deny warnings
+      - name: Enforce coverage floors
+        run: python3 tools/quality/check_coverage.py
+      - name: Prove gates reject controlled defects
+        run: python3 tools/quality/test_failure_paths.py --bin-dir "$ASB_QUALITY_BIN"
+      - name: Verify clean tree
+        run: git diff --exit-code
