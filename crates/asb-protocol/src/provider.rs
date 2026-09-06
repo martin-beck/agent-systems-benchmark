@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -85,10 +85,12 @@ pub enum CredentialSource {
 /// Credential provenance without secret values, names, or paths.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = credential_provenance_schema)]
 pub struct CredentialProvenance {
     /// Lookup mechanism used at the adapter boundary.
     pub source: CredentialSource,
     /// Digest of the stable lookup reference, absent only for no credential.
+    #[serde(deserialize_with = "required_option")]
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
     pub reference_sha256: Option<String>,
 }
@@ -107,22 +109,29 @@ pub struct EndpointProvenance {
 /// Explicit inference settings; absence requires proven omission.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = provider_settings_schema)]
 pub struct ProviderSettings {
     /// Temperature multiplied by 1,000.
+    #[serde(deserialize_with = "required_option")]
     #[schemars(range(max = 2000))]
     pub temperature_milli: Option<u16>,
     /// Top-p multiplied by 1,000,000.
+    #[serde(deserialize_with = "required_option")]
     #[schemars(range(max = 1000000))]
     pub top_p_millionth: Option<u32>,
     /// Deterministic provider seed.
+    #[serde(deserialize_with = "required_option")]
     pub seed: Option<u64>,
     /// Requested maximum output tokens.
+    #[serde(deserialize_with = "required_option")]
     #[schemars(range(min = 1))]
     pub max_output_tokens: Option<u32>,
     /// Provider-independent reasoning-effort name.
+    #[serde(deserialize_with = "required_option")]
     #[schemars(length(min = 1, max = 1024))]
     pub reasoning_effort: Option<String>,
     /// Digest of the canonical credential-free provider-specific remainder.
+    #[serde(deserialize_with = "required_option")]
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
     pub additional_settings_sha256: Option<String>,
 }
@@ -151,6 +160,7 @@ pub struct ProviderTransportLimits {
 /// Complete v1 credential-free provider configuration.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = provider_profile_schema)]
 pub struct ProviderProfileV1 {
     /// Contract generation.
     pub version: ProviderProfileVersion,
@@ -548,6 +558,87 @@ fn digest(value: &str, field: &'static str) -> Result<(), ProviderProfileError> 
     Ok(())
 }
 
+fn required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
+fn provider_profile_schema(schema: &mut schemars::Schema) {
+    schema.ensure_object().insert(
+        "allOf".into(),
+        serde_json::json!([
+            {
+                "properties": {
+                    "version": {
+                        "properties": {
+                            "major": {"const": 1},
+                            "minor": {"const": 0}
+                        },
+                        "required": ["major", "minor"]
+                    }
+                }
+            },
+            {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "credential": {
+                                "properties": {
+                                    "source": {"const": "none"},
+                                    "reference_sha256": {"type": "null"}
+                                },
+                                "required": ["source", "reference_sha256"]
+                            }
+                        }
+                    },
+                    {
+                        "properties": {
+                            "credential": {
+                                "properties": {
+                                    "source": {
+                                        "enum": ["environment", "file_descriptor", "helper"]
+                                    },
+                                    "reference_sha256": {
+                                        "type": "string",
+                                        "minLength": 64,
+                                        "maxLength": 64,
+                                        "pattern": "^[0-9a-f]{64}$"
+                                    }
+                                },
+                                "required": ["source", "reference_sha256"]
+                            }
+                        }
+                    }
+                ]
+            }
+        ]),
+    );
+}
+
+fn credential_provenance_schema(schema: &mut schemars::Schema) {
+    schema.ensure_object().insert(
+        "required".into(),
+        serde_json::json!(["source", "reference_sha256"]),
+    );
+}
+
+fn provider_settings_schema(schema: &mut schemars::Schema) {
+    schema.ensure_object().insert(
+        "required".into(),
+        serde_json::json!([
+            "temperature_milli",
+            "top_p_millionth",
+            "seed",
+            "max_output_tokens",
+            "reasoning_effort",
+            "additional_settings_sha256"
+        ]),
+    );
+}
+
 fn provider_tag(value: ProviderKind) -> u8 {
     match value {
         ProviderKind::OpenAi => 0,
@@ -799,6 +890,16 @@ mod tests {
             .unwrap()
             .insert("future".into(), true.into());
         assert!(serde_json::from_value::<ProviderProfileV1>(json).is_err());
+
+        let mut missing = serde_json::to_value(profile()).unwrap();
+        missing["settings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("temperature_milli");
+        assert!(serde_json::from_value::<ProviderProfileV1>(missing).is_err());
+        let mut explicit = serde_json::to_value(profile()).unwrap();
+        explicit["settings"]["temperature_milli"] = serde_json::Value::Null;
+        assert!(serde_json::from_value::<ProviderProfileV1>(explicit).is_ok());
     }
 
     #[test]
@@ -824,6 +925,42 @@ mod tests {
             newer.compute_settings_sha256(),
             Err(ProviderProfileError::UnsupportedVersion(_))
         ));
+    }
+
+    #[test]
+    fn generated_schema_requires_explicit_omissions_and_consistent_provenance() {
+        let schema = serde_json::to_value(schemars::schema_for!(ProviderProfileV1)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let fixture = serde_json::to_value(profile()).unwrap();
+        assert!(validator.is_valid(&fixture));
+
+        let mut missing = fixture.clone();
+        missing["settings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("temperature_milli");
+        assert!(!validator.is_valid(&missing));
+
+        let mut future = fixture.clone();
+        future["version"]["minor"] = 1.into();
+        assert!(!validator.is_valid(&future));
+
+        let mut inconsistent = fixture.clone();
+        inconsistent["credential"]["source"] = "none".into();
+        assert!(!validator.is_valid(&inconsistent));
+
+        let mut no_credential = fixture.clone();
+        no_credential["credential"]["source"] = "none".into();
+        no_credential["credential"]["reference_sha256"] = serde_json::Value::Null;
+        let errors: Vec<_> = validator
+            .iter_errors(&no_credential)
+            .map(|error| error.to_string())
+            .collect();
+        assert!(errors.is_empty(), "{errors:?}");
+
+        let mut temperature = fixture;
+        temperature["settings"]["temperature_milli"] = 2_001.into();
+        assert!(!validator.is_valid(&temperature));
     }
 
     #[test]
