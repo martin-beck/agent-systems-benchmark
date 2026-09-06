@@ -49,6 +49,7 @@ name = "asb-store"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "libc",
  "serde",
  "serde_json",
  "sha2",

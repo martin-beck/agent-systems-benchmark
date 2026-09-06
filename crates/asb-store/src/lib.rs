@@ -170,7 +170,9 @@ impl AtomicStore {
         let root = root.as_ref().to_path_buf();
         private_dir(&root)?;
         private_dir(&root.join("runs"))?;
-        let _lock = private_file(&root.join("store.lock"), false)?;
+        let lock = private_file(&root.join("store.lock"), false)?;
+        lock.sync_all()?;
+        sync_dir(&root)?;
         Ok(Self { root, limits })
     }
 
@@ -337,7 +339,14 @@ impl AtomicStore {
 
     fn run_dir(&self, run_id: &str) -> Result<PathBuf, StoreError> {
         validate_component("run_id", run_id)?;
-        Ok(self.root.join("runs").join(run_id))
+        validate_directory(&self.root)?;
+        let runs = self.root.join("runs");
+        validate_directory(&runs)?;
+        let run = runs.join(run_id);
+        if run.exists() {
+            validate_directory(&run)?;
+        }
+        Ok(run)
     }
 
     fn load_manifest_unlocked(&self, run_id: &str) -> Result<RunManifest, StoreError> {
@@ -505,6 +514,9 @@ pub enum StoreError {
     /// Deterministic storage fault used by assurance tests.
     #[error("injected storage fault: {0}")]
     Injected(&'static str),
+    /// A path is a symbolic link or not the required object type.
+    #[error("unsafe store path")]
+    UnsafePath,
 }
 
 fn require_version(kind: &'static str, actual: u16, supported: u16) -> Result<(), StoreError> {
@@ -699,23 +711,44 @@ fn read_bounded(path: &Path, maximum: u64, kind: &'static str) -> Result<Vec<u8>
 }
 
 fn private_dir(path: &Path) -> Result<(), StoreError> {
-    fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(path)?;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+    let created = match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(StoreError::UnsafePath);
+            }
+            false
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::DirBuilder::new().mode(0o700).create(path)?;
+            true
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let directory = open_directory(path)?;
+    directory.set_permissions(fs::Permissions::from_mode(0o700))?;
+    directory.sync_all()?;
+    if created {
+        let parent = path.parent().ok_or(StoreError::UnsafePath)?;
+        sync_dir(parent)?;
+    }
     Ok(())
 }
 
 fn private_file(path: &Path, create_new: bool) -> Result<File, StoreError> {
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && (metadata.file_type().is_symlink() || !metadata.is_file())
+    {
+        return Err(StoreError::UnsafePath);
+    }
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(!create_new)
         .create_new(create_new)
         .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)?;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    file.set_permissions(fs::Permissions::from_mode(0o600))?;
     Ok(file)
 }
 
@@ -766,8 +799,23 @@ fn temporary_path(parent: &Path, stem: &str, suffix: &str) -> PathBuf {
 }
 
 fn sync_dir(path: &Path) -> Result<(), StoreError> {
-    File::open(path)?.sync_all()?;
+    open_directory(path)?.sync_all()?;
     Ok(())
+}
+
+fn open_directory(path: &Path) -> Result<File, StoreError> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    if !file.metadata()?.is_dir() {
+        return Err(StoreError::UnsafePath);
+    }
+    Ok(file)
+}
+
+fn validate_directory(path: &Path) -> Result<(), StoreError> {
+    open_directory(path).map(|_| ())
 }
 
 fn hex_digest(bytes: &[u8]) -> String {
@@ -802,6 +850,7 @@ fn verify_artifact(path: &Path, size: u64, digest: &str) -> Result<(), StoreErro
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::os::unix::fs::symlink;
     use std::sync::{Arc, Barrier};
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1146,5 +1195,39 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn symlink_roots_locks_and_runs_fail_closed() {
+        let root = TestDir::new("symlinks");
+        let actual = root.0.join("actual");
+        fs::create_dir(&actual).unwrap();
+        let linked = root.0.join("linked");
+        symlink(&actual, &linked).unwrap();
+        assert!(matches!(
+            AtomicStore::open(&linked, StoreLimits::default()),
+            Err(StoreError::UnsafePath)
+        ));
+
+        let store_root = root.0.join("store");
+        let store = AtomicStore::open(&store_root, StoreLimits::default()).unwrap();
+        store.create_run(&manifest("run-1")).unwrap();
+        let outside = root.0.join("outside");
+        fs::write(&outside, b"outside").unwrap();
+        fs::remove_file(store_root.join("store.lock")).unwrap();
+        symlink(&outside, store_root.join("store.lock")).unwrap();
+        assert!(matches!(
+            store.load_manifest("run-1"),
+            Err(StoreError::UnsafePath)
+        ));
+        fs::remove_file(store_root.join("store.lock")).unwrap();
+        fs::write(store_root.join("store.lock"), b"").unwrap();
+
+        let run = store_root.join("runs/run-1");
+        let saved = store_root.join("saved-run");
+        fs::rename(&run, &saved).unwrap();
+        symlink(&actual, &run).unwrap();
+        assert!(store.load_manifest("run-1").is_err());
+        assert_eq!(fs::read(outside).unwrap(), b"outside");
     }
 }

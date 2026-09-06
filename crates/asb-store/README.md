@@ -9,6 +9,9 @@ Recovery is conservative: a journal ending in `running` or `collecting`
 returns `needs_reconciliation`; it never authorizes another execution. Invalid
 paths, unknown schema versions, broken transition order, checksum mismatches,
 truncation, and configured size limits fail closed.
+Store paths are private and final file and directory opens reject symbolic
+links. The fault suite deterministically injects partial-write/disk-full-like
+and rename-boundary failures; it is not evidence from a real ENOSPC filesystem.
 
 The store records durable intent and evidence. Inspecting live processes,
 cgroups, and remote effects before resolving an uncertain attempt belongs to
