@@ -3,6 +3,8 @@
 
 /// Rootless namespace isolation and dedicated resource leases.
 pub mod sandbox;
+/// Bounded closed-loop and open-loop experiment scheduling.
+pub mod scheduler;
 
 #[cfg(not(target_os = "linux"))]
 compile_error!("asb-runtime currently supports Linux process semantics only");
