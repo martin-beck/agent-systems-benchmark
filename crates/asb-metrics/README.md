@@ -22,3 +22,7 @@ does not infer workload byte counts. Pressure totals are cumulative stall time, 
 
 The collector does not claim attribution for activity outside the selected process or cgroup,
 does not provide privileged perf/eBPF data, and does not infer missing kernel capabilities.
+Files are read sequentially, so one collection is not an atomic kernel snapshot. The v1 result
+contract stores numeric samples as IEEE-754 doubles; integer counters above 2^53 may lose unit
+precision. A zero descriptor resolution means that the kernel source does not publish a temporal
+resolution, not that the measurement is exact.
