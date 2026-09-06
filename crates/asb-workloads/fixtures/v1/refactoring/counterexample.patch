@@ -1,0 +1,8 @@
+diff --git a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,4 +1,4 @@
+ pub fn label(input: &str) -> String {
+-    slug(input)
++    input.to_ascii_lowercase()
+ }

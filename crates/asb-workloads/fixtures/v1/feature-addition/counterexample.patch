@@ -1,0 +1,8 @@
+diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -5,4 +5,5 @@ func main() {
+     message := "hello"
+-    fmt.Println(message)
++    fmt.Printf("{\\\"message\\\":\\\"%s\\\"}\\n", message)
+ }

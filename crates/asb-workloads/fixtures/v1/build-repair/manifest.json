@@ -1,0 +1,15 @@
+{
+  "workload_id": "original.build-repair",
+  "version": "1.0.0",
+  "license": "MIT",
+  "source_revision": "asb-original-v1",
+  "content_sha256": "9794df3a27e68e9801d4fa5a9b82a325a6f33b719ddad8c079cebd7169b355c8",
+  "architectures": ["aarch64", "x86_64"],
+  "operating_systems": ["linux"],
+  "fixture_bytes": 188,
+  "timeout_ms": 30000,
+  "cpu_count": 1,
+  "memory_bytes": 268435456,
+  "scoring_version": "asb-original-static-v1",
+  "allowed_network_destinations": []
+}

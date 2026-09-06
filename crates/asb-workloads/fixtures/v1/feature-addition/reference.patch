@@ -1,0 +1,16 @@
+diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -3 +3,5 @@
+-import "fmt"
++import (
++    "encoding/json"
++    "fmt"
++    "os"
++)
+@@ -6,0 +11,5 @@
++    switch os.Args[1:] {
++    case []string{"--json"}:
++        json.NewEncoder(os.Stdout).Encode(map[string]string{"message": message})
++        return
++    }

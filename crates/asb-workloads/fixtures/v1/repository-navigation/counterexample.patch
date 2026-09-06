@@ -1,0 +1,6 @@
+diff --git a/answer.json b/answer.json
+--- a/answer.json
++++ b/answer.json
+@@ -1 +1 @@
+-{}
++{"entrypoint":"src/config.rs","parser":"cmd/main.rs","symbol":"load","call_chain":["load","main"]}
