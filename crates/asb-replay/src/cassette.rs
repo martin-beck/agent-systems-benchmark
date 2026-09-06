@@ -407,6 +407,15 @@ pub fn decode_cassette(bytes: &[u8], limits: CassetteLimits) -> Result<Cassette,
     NoDuplicateJson::deserialize(&mut duplicate_check).map_err(CassetteError::InvalidJson)?;
     duplicate_check.end().map_err(CassetteError::InvalidJson)?;
     let cassette: Cassette = serde_json::from_slice(bytes).map_err(CassetteError::InvalidJson)?;
+    validate_cassette_value(&cassette, limits)?;
+    Ok(cassette)
+}
+
+pub(crate) fn validate_cassette_value(
+    cassette: &Cassette,
+    limits: CassetteLimits,
+) -> Result<(), CassetteError> {
+    let limits = limits.validate()?;
     validate_contents(&cassette.contents, limits)?;
     if cassette.integrity.algorithm != "sha256" || !valid_digest(&cassette.integrity.digest) {
         return Err(CassetteError::Integrity);
@@ -415,7 +424,7 @@ pub fn decode_cassette(bytes: &[u8], limits: CassetteLimits) -> Result<Cassette,
     if cassette.integrity.digest != hex_digest(&Sha256::digest(canonical)) {
         return Err(CassetteError::Integrity);
     }
-    Ok(cassette)
+    Ok(())
 }
 
 /// Read arbitrary transport chunks into the same bounded cassette decoder.
@@ -764,6 +773,13 @@ pub fn canonical_contents_bytes(contents: &CassetteContents) -> Result<Vec<u8>, 
 pub(crate) fn canonical_value_digest(value: &Value) -> Result<String, CassetteError> {
     let bytes = canonical_json_bytes(value)?;
     Ok(hex_digest(&Sha256::digest(bytes)))
+}
+
+pub(crate) fn decode_json_value_no_duplicates(bytes: &[u8]) -> Result<Value, CassetteError> {
+    let mut duplicate_check = serde_json::Deserializer::from_slice(bytes);
+    NoDuplicateJson::deserialize(&mut duplicate_check).map_err(CassetteError::InvalidJson)?;
+    duplicate_check.end().map_err(CassetteError::InvalidJson)?;
+    serde_json::from_slice(bytes).map_err(CassetteError::InvalidJson)
 }
 
 fn canonical_contents_bounded(
