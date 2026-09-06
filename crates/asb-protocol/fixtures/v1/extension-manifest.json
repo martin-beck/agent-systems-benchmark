@@ -1,0 +1,8 @@
+{
+  "extension_id": "org.asb.example",
+  "kind": "agent",
+  "implementation_version": "0.1.0",
+  "protocol": { "major": 1, "minor": 0 },
+  "capabilities": ["cancellation", "offline"],
+  "executable_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

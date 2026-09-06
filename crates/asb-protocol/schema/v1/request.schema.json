@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RpcRequest",
+  "description": "A strict JSON-RPC request envelope.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Correlates exactly one response.",
+      "$ref": "#/$defs/RequestId"
+    },
+    "jsonrpc": {
+      "description": "Must equal [`JSONRPC_VERSION`].",
+      "$ref": "#/$defs/JsonRpcVersion"
+    },
+    "method": {
+      "description": "Typed protocol method.",
+      "$ref": "#/$defs/Method"
+    },
+    "params": {
+      "description": "Method parameters."
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "jsonrpc",
+    "id",
+    "method",
+    "params"
+  ],
+  "$defs": {
+    "JsonRpcVersion": {
+      "description": "Valid JSON-RPC envelope discriminator.",
+      "oneOf": [
+        {
+          "description": "JSON-RPC version 2.0.",
+          "type": "string",
+          "const": "2.0"
+        }
+      ]
+    },
+    "Method": {
+      "description": "Methods in protocol v1.",
+      "oneOf": [
+        {
+          "description": "Negotiate protocol version, bounds and capabilities.",
+          "type": "string",
+          "const": "negotiate"
+        },
+        {
+          "description": "Describe an extension.",
+          "type": "string",
+          "const": "describe"
+        },
+        {
+          "description": "Probe environmental support.",
+          "type": "string",
+          "const": "probe"
+        },
+        {
+          "description": "Prepare resources.",
+          "type": "string",
+          "const": "prepare"
+        },
+        {
+          "description": "Start an agent, collector or execution backend.",
+          "type": "string",
+          "const": "start"
+        },
+        {
+          "description": "Cancel an active attempt.",
+          "type": "string",
+          "const": "cancel"
+        },
+        {
+          "description": "Collect terminal agent/backend evidence.",
+          "type": "string",
+          "const": "collect"
+        },
+        {
+          "description": "Clean up resources.",
+          "type": "string",
+          "const": "cleanup"
+        },
+        {
+          "description": "Acquire workload content.",
+          "type": "string",
+          "const": "acquire"
+        },
+        {
+          "description": "Produce the workload prompt.",
+          "type": "string",
+          "const": "prompt"
+        },
+        {
+          "description": "Independently evaluate workload output.",
+          "type": "string",
+          "const": "evaluate"
+        },
+        {
+          "description": "Sample a collector.",
+          "type": "string",
+          "const": "sample"
+        },
+        {
+          "description": "Stop a collector.",
+          "type": "string",
+          "const": "stop"
+        }
+      ]
+    },
+    "RequestId": {
+      "description": "JSON-RPC request identity; null is deliberately not accepted.",
+      "anyOf": [
+        {
+          "description": "Decimal integer identity.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        {
+          "description": "String identity.",
+          "type": "string"
+        }
+      ]
+    }
+  }
+}

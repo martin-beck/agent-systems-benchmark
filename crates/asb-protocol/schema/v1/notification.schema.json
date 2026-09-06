@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RpcNotification",
+  "description": "A JSON-RPC notification has no request identity or response.",
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "description": "Must equal [`JSONRPC_VERSION`].",
+      "$ref": "#/$defs/JsonRpcVersion"
+    },
+    "method": {
+      "description": "Typed notification method.",
+      "$ref": "#/$defs/NotificationMethod"
+    },
+    "params": {
+      "description": "Event with session, attempt and sequence identity.",
+      "$ref": "#/$defs/ExtensionEvent"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "jsonrpc",
+    "method",
+    "params"
+  ],
+  "$defs": {
+    "Event": {
+      "description": "Agent and runtime lifecycle events.",
+      "oneOf": [
+        {
+          "description": "Extension is ready to accept work.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ready"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "A provider request started.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "request_started"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "First response byte or event arrived.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "first_response"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "A tool invocation started.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "Tool name reported by the agent.",
+                  "type": "string"
+                },
+                "tool_call_id": {
+                  "description": "Stable causal tool-call identity.",
+                  "$ref": "#/$defs/Id"
+                }
+              },
+              "required": [
+                "tool_call_id",
+                "name"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "tool_started"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ]
+        },
+        {
+          "description": "A tool invocation finished.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "description": "Whether the tool reported success.",
+                  "type": "boolean"
+                },
+                "tool_call_id": {
+                  "description": "Stable causal tool-call identity.",
+                  "$ref": "#/$defs/Id"
+                }
+              },
+              "required": [
+                "tool_call_id",
+                "success"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "tool_finished"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ]
+        },
+        {
+          "description": "Usage evidence was emitted.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Usage"
+            },
+            "type": {
+              "type": "string",
+              "const": "usage"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ]
+        },
+        {
+          "description": "Attempt completed normally.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "completed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Attempt failed.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RpcError"
+            },
+            "type": {
+              "type": "string",
+              "const": "failed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ]
+        }
+      ]
+    },
+    "ExtensionEvent": {
+      "description": "Ordered event notification emitted by an extension.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "description": "Stable attempt identity.",
+          "$ref": "#/$defs/Id"
+        },
+        "event": {
+          "description": "Event-specific value.",
+          "$ref": "#/$defs/Event"
+        },
+        "sequence": {
+          "description": "Strictly increasing sequence within the attempt.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "session_id": {
+          "description": "Stable session identity.",
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "attempt_id",
+        "sequence",
+        "event"
+      ]
+    },
+    "Id": {
+      "description": "Stable identifier transported without host-specific meaning.",
+      "type": "string"
+    },
+    "JsonRpcVersion": {
+      "description": "Valid JSON-RPC envelope discriminator.",
+      "oneOf": [
+        {
+          "description": "JSON-RPC version 2.0.",
+          "type": "string",
+          "const": "2.0"
+        }
+      ]
+    },
+    "NotificationMethod": {
+      "description": "Method names reserved for server-to-caller notifications.",
+      "oneOf": [
+        {
+          "description": "Ordered extension lifecycle event.",
+          "type": "string",
+          "const": "event"
+        }
+      ]
+    },
+    "RpcError": {
+      "description": "JSON-RPC error with stable code and optional structured evidence.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "Standard JSON-RPC or ASB application code.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "data": {
+          "description": "Optional structured, privacy-reviewed data."
+        },
+        "message": {
+          "description": "Safe diagnostic summary.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "Usage": {
+      "description": "Usage telemetry; unavailable values remain absent, never zero-filled.",
+      "type": "object",
+      "properties": {
+        "cost_micros": {
+          "description": "Monetary cost in micros of the manifest currency when known.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "currency": {
+          "description": "ISO 4217 currency code when cost is known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_tokens": {
+          "description": "Provider input tokens when reported.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "description": "Provider output tokens when reported.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

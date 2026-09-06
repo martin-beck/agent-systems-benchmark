@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExtensionManifest",
+  "description": "A content-pinned external extension description.",
+  "type": "object",
+  "properties": {
+    "capabilities": {
+      "description": "Explicitly implemented capabilities.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Capability"
+      },
+      "uniqueItems": true
+    },
+    "executable_sha256": {
+      "description": "Lowercase SHA-256 of the executable or package.",
+      "type": "string"
+    },
+    "extension_id": {
+      "description": "Stable extension identity.",
+      "$ref": "#/$defs/Id"
+    },
+    "implementation_version": {
+      "description": "Extension implementation version.",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Extension contract family.",
+      "$ref": "#/$defs/ExtensionKind"
+    },
+    "protocol": {
+      "description": "Protocol implemented by the executable.",
+      "$ref": "#/$defs/ProtocolVersion"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "extension_id",
+    "kind",
+    "implementation_version",
+    "protocol",
+    "capabilities",
+    "executable_sha256"
+  ],
+  "$defs": {
+    "Capability": {
+      "description": "Capabilities must be explicitly negotiated; an absent value is unavailable.",
+      "oneOf": [
+        {
+          "description": "The peer can cancel an active attempt.",
+          "type": "string",
+          "const": "cancellation"
+        },
+        {
+          "description": "The peer emits incremental events.",
+          "type": "string",
+          "const": "streaming_events"
+        },
+        {
+          "description": "The peer reports token or monetary usage.",
+          "type": "string",
+          "const": "usage"
+        },
+        {
+          "description": "The peer can execute without network access after preparation.",
+          "type": "string",
+          "const": "offline"
+        },
+        {
+          "description": "An extension-defined capability that remains unavailable unless requested verbatim.",
+          "type": "object",
+          "properties": {
+            "other": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "other"
+          ]
+        }
+      ]
+    },
+    "ExtensionKind": {
+      "description": "Extension families with distinct lifecycle methods.",
+      "oneOf": [
+        {
+          "description": "AI coding-agent adapter.",
+          "type": "string",
+          "const": "agent"
+        },
+        {
+          "description": "Workload and independent grader.",
+          "type": "string",
+          "const": "workload"
+        },
+        {
+          "description": "Measurement collector.",
+          "type": "string",
+          "const": "collector"
+        },
+        {
+          "description": "Execution backend.",
+          "type": "string",
+          "const": "execution_backend"
+        }
+      ]
+    },
+    "Id": {
+      "description": "Stable identifier transported without host-specific meaning.",
+      "type": "string"
+    },
+    "ProtocolVersion": {
+      "description": "A major/minor protocol version.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking protocol generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible feature generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    }
+  }
+}
