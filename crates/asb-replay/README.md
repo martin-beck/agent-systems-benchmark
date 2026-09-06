@@ -2,8 +2,9 @@
 
 `asb-replay` defines the immutable, versioned, privacy-reviewed response
 cassette boundary and a strict inbound-only replay service. AR-0503 adds
-per-session matching and immediate buffered/SSE delivery; it does not provide
-pacing, transparent interception, or a real-client compatibility claim.
+per-session matching and immediate buffered/SSE delivery. AR-0504 adds a
+monotonic pacing and calibration boundary. Neither provides transparent
+interception or a real-client compatibility claim.
 
 ## Version 1 invariants
 
@@ -118,3 +119,33 @@ The returned status lets the coordinator distinguish a served interaction from
 a fail-closed local error without inspecting captured payloads. Read and write
 timeouts are tightenable in `(0, 30 seconds]`; successful writes mean bytes were
 accepted by the local kernel, not that the peer consumed them.
+
+## Pacing and replay headroom
+
+`write_paced_segments` supports four explicit modes. Immediate mode adds no
+intentional delay. Fixed mode declares time to first segment and inter-segment
+cadence. Original mode uses each cassette event's nondecreasing monotonic offset.
+Seeded synthetic mode uses the documented version-one SplitMix64 schedule and an
+optional declared failure index; its results are classified `SyntheticScenario`,
+while the other modes are `RecordedResponse`. Pacing evidence records desired,
+write-start, write-complete, and lateness offsets for every completed segment.
+It does not claim wall-clock determinism or transport-packet fidelity.
+Every generated or recorded desired offset is capped at five minutes, including
+the cumulative fixed and seeded schedules, and segment count is capped by the
+cassette event limit before the schedule vector is allocated.
+
+Waiting uses a monotonic clock and observes cooperative cancellation at a bounded
+poll interval. Segment write and lateness ceilings fail closed. The loopback TCP
+service enforces one absolute deadline over each complete head or semantic-segment
+write, including a peer that makes only slow partial progress. The standalone
+generic Rust `Write` API cannot interrupt a blocked implementation; its caller
+must provide an equivalent transport deadline. Partial bytes and failed or
+cancelled runs remain failures and do not prove peer consumption.
+
+`assess_replay_headroom` consumes calibration samples collected independently of
+the client sweep. It requires at least one strictly higher replay concurrency,
+retains the highest point satisfying completion, queue-delay, pacing-lateness and
+CPU/wall limits, and records the first saturated point. A sufficient verdict means
+only that the supplied bounded observations show replay-service headroom above the
+declared client concurrency. It does not collect CPU/queue data, validate platform
+support, or prove that later co-located runs remain uncontaminated.
