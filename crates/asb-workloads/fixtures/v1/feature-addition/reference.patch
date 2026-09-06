@@ -4,12 +4,12 @@ diff --git a/main.go b/main.go
 @@ -3 +3,5 @@
 -import "fmt"
 +import (
-+    "encoding/json"
-+    "fmt"
-+    "os"
++	"encoding/json"
++	"fmt"
++	"os"
 +)
 @@ -6,0 +11,5 @@
-+    if len(os.Args) == 2 && os.Args[1] == "--json" {
-+        json.NewEncoder(os.Stdout).Encode(map[string]string{"message": message})
-+        return
-+    }
++	if len(os.Args) == 2 && os.Args[1] == "--json" {
++		json.NewEncoder(os.Stdout).Encode(map[string]string{"message": message})
++		return
++	}

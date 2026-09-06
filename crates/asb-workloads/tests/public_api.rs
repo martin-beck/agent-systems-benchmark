@@ -44,8 +44,9 @@ fn public_lifecycle_is_offline_content_free_and_clean() {
         assert!(prepared.workspace().starts_with(&root));
         assert!(!prepared.workspace().join("reference.patch").exists());
         let initial = prepared.evaluate().unwrap();
-        assert!(!initial.passed);
-        assert!(initial.failed_checks.iter().all(|item| item.is_ascii()));
+        assert!(!initial.passed());
+        assert!(initial.failed_checks().iter().all(|item| item.is_ascii()));
+        assert_eq!(initial.scoring_version(), "asb-original-oracle-v1");
         prepared.reset().unwrap();
         prepared.cleanup().unwrap();
         assert!(!root.exists());

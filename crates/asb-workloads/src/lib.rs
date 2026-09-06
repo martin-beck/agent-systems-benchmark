@@ -73,15 +73,53 @@ impl From<io::Error> for WorkloadError {
     }
 }
 
-/// Content-free result of an independent protected grader.
+/// Content-free result produced only by an independent protected grader.
+///
+/// Callers can inspect but cannot construct or mutate grading evidence. For
+/// example, forging a passing report is rejected outside this crate:
+///
+/// ```compile_fail
+/// use asb_workloads::GradeReport;
+///
+/// let _forged = GradeReport {
+///     passed: true,
+///     failed_checks: Vec::new(),
+///     scoring_version: "forged".to_owned(),
+/// };
+/// ```
+///
+/// Existing reports cannot have their outcome reassigned either:
+///
+/// ```compile_fail
+/// # fn forge(mut report: asb_workloads::GradeReport) {
+/// report.passed = true;
+/// # }
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GradeReport {
+    passed: bool,
+    failed_checks: Vec<&'static str>,
+    scoring_version: String,
+}
+
+impl GradeReport {
     /// True only when every named check passed.
-    pub passed: bool,
-    /// Stable check identifiers that failed; submitted content is never copied.
-    pub failed_checks: Vec<&'static str>,
+    #[must_use]
+    pub const fn passed(&self) -> bool {
+        self.passed
+    }
+
+    /// Stable failed-check identifiers; submitted content is never copied.
+    #[must_use]
+    pub fn failed_checks(&self) -> &[&'static str] {
+        &self.failed_checks
+    }
+
     /// Independently versioned scorer identity from the workload manifest.
-    pub scoring_version: String,
+    #[must_use]
+    pub fn scoring_version(&self) -> &str {
+        &self.scoring_version
+    }
 }
 
 /// A prepared attempt root with an agent-writable workspace child.
@@ -587,7 +625,7 @@ const FEATURE_INITIAL: &[(&str, &str)] = &[
         "no arguments prints hello followed by newline\n--json prints a JSON object with message=hello\n",
     ),
 ];
-const FEATURE_EXPECTED_SOURCE: &str = "package main\n\nimport (\n    \"encoding/json\"\n    \"fmt\"\n    \"os\"\n)\n\nfunc main() {\n    message := \"hello\"\n    if len(os.Args) == 2 && os.Args[1] == \"--json\" {\n        json.NewEncoder(os.Stdout).Encode(map[string]string{\"message\": message})\n        return\n    }\n    fmt.Println(message)\n}\n";
+const FEATURE_EXPECTED_SOURCE: &str = "package main\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n\tmessage := \"hello\"\n\tif len(os.Args) == 2 && os.Args[1] == \"--json\" {\n\t\tjson.NewEncoder(os.Stdout).Encode(map[string]string{\"message\": message})\n\t\treturn\n\t}\n\tfmt.Println(message)\n}\n";
 const REFACTOR_INITIAL: &[(&str, &str)] = &[
     (
         "src/lib.rs",
@@ -885,7 +923,7 @@ mod tests {
             assert!(!prepared.workspace().join("reference.patch").exists());
             apply(&prepared.workspace(), fixture.reference_patch);
             assert_eq!(
-                prepared.evaluate().unwrap().failed_checks,
+                prepared.evaluate().unwrap().failed_checks(),
                 Vec::<&str>::new(),
                 "{}",
                 fixture.id
@@ -896,7 +934,7 @@ mod tests {
                 let fail_root = root("counterexample");
                 let prepared = OriginalWorkloads::prepare(fixture.id, &fail_root).unwrap();
                 apply(&prepared.workspace(), counterexample);
-                assert!(!prepared.evaluate().unwrap().passed, "{}", fixture.id);
+                assert!(!prepared.evaluate().unwrap().passed(), "{}", fixture.id);
                 prepared.cleanup().unwrap();
             }
         }
@@ -1002,7 +1040,7 @@ mod tests {
         .unwrap();
         let report = prepared.evaluate().unwrap();
         assert_eq!(
-            report.failed_checks,
+            report.failed_checks(),
             vec!["workspace.inventory", "parser.crlf_only"]
         );
         fs::write(prepared.workspace().join("answer.txt"), [0xff]).unwrap();
