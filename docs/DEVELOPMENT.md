@@ -31,7 +31,7 @@ creation, run the command from the canonical checkout under the claimed task.
 Worktree names and feature branches are declared by each AR.
 
 ```sh
-../agent-systems-benchmark-state/tools/handoffctl run AR-NNNN --owner WORKER_ID -- COMMAND ARGUMENTS
+../agent-systems-benchmark-state/tools/handoffctl run --owner WORKER_ID AR-NNNN -- COMMAND ARGUMENTS
 ```
 
 Heartbeat at least hourly and before lease expiry. Publish concise evidence after
