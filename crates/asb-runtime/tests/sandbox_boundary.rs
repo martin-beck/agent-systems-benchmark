@@ -400,16 +400,19 @@ fn cleanup_failure_retains_lease_until_drop_retry_cleans_descendant() {
     )
     .unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-    let backend = SandboxBackend::new(
-        ToolPin::new(PathBuf::from("/usr/bin/bwrap"), BWRAP_VERSION.into()).unwrap(),
+    let (Ok(bubblewrap), Ok(systemd_run), Ok(systemctl), Ok(taskset)) = (
+        ToolPin::new(PathBuf::from("/usr/bin/bwrap"), BWRAP_VERSION.into()),
         ToolPin::new(
             PathBuf::from("/usr/bin/systemd-run"),
             SYSTEMD_VERSION.into(),
-        )
-        .unwrap(),
-        ToolPin::new(wrapper, SYSTEMD_VERSION.into()).unwrap(),
-        ToolPin::new(PathBuf::from("/usr/bin/taskset"), TASKSET_VERSION.into()).unwrap(),
-    );
+        ),
+        ToolPin::new(wrapper, SYSTEMD_VERSION.into()),
+        ToolPin::new(PathBuf::from("/usr/bin/taskset"), TASKSET_VERSION.into()),
+    ) else {
+        fs::remove_dir_all(root).unwrap();
+        return;
+    };
+    let backend = SandboxBackend::new(bubblewrap, systemd_run, systemctl, taskset);
     if backend.probe().is_err() {
         fs::remove_dir_all(root).unwrap();
         return;
