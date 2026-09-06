@@ -41,13 +41,39 @@ impl std::error::Error for TargetError {}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CollectionEvidence {
     /// Number of metric values attempted.
-    pub attempted_values: u64,
+    attempted_values: u64,
     /// Number backed by kernel evidence.
-    pub available_values: u64,
+    available_values: u64,
     /// Number explicitly unavailable.
-    pub unavailable_values: u64,
+    unavailable_values: u64,
     /// Monotonic time spent reading and parsing.
-    pub collection_time_ns: u64,
+    collection_time_ns: u64,
+}
+
+impl CollectionEvidence {
+    /// Number of metric values attempted.
+    #[must_use]
+    pub const fn attempted_values(self) -> u64 {
+        self.attempted_values
+    }
+
+    /// Number of values backed by kernel evidence.
+    #[must_use]
+    pub const fn available_values(self) -> u64 {
+        self.available_values
+    }
+
+    /// Number of explicitly unavailable values.
+    #[must_use]
+    pub const fn unavailable_values(self) -> u64 {
+        self.unavailable_values
+    }
+
+    /// Monotonic time spent reading and parsing.
+    #[must_use]
+    pub const fn collection_time_ns(self) -> u64 {
+        self.collection_time_ns
+    }
 }
 
 /// A complete collector response.
@@ -86,19 +112,78 @@ impl Collection {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct SamplingEvidence {
     /// Declared slots in the schedule.
-    pub scheduled_samples: u64,
+    scheduled_samples: u64,
     /// Slots with completed collection.
-    pub collected_samples: u64,
+    collected_samples: u64,
     /// Slots explicitly skipped or lost.
-    pub lost_samples: u64,
+    lost_samples: u64,
     /// Available values across completed collections.
-    pub available_values: u64,
+    available_values: u64,
     /// Unavailable values across completed collections.
-    pub unavailable_values: u64,
+    unavailable_values: u64,
     /// Sum of measured collector execution time.
-    pub collection_time_ns: u64,
+    collection_time_ns: u64,
     /// Largest collector execution time.
-    pub max_collection_time_ns: u64,
+    max_collection_time_ns: u64,
+}
+
+/// A sampling event would violate the declared schedule.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SamplingError {
+    /// Collected and lost samples already cover every scheduled slot.
+    ScheduleExhausted,
+}
+
+impl fmt::Display for SamplingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("sampling schedule is exhausted")
+    }
+}
+
+impl std::error::Error for SamplingError {}
+
+impl SamplingEvidence {
+    /// Declared slots in the schedule.
+    #[must_use]
+    pub const fn scheduled_samples(self) -> u64 {
+        self.scheduled_samples
+    }
+
+    /// Slots with completed collection.
+    #[must_use]
+    pub const fn collected_samples(self) -> u64 {
+        self.collected_samples
+    }
+
+    /// Slots explicitly skipped or lost.
+    #[must_use]
+    pub const fn lost_samples(self) -> u64 {
+        self.lost_samples
+    }
+
+    /// Available values across completed collections.
+    #[must_use]
+    pub const fn available_values(self) -> u64 {
+        self.available_values
+    }
+
+    /// Unavailable values across completed collections.
+    #[must_use]
+    pub const fn unavailable_values(self) -> u64 {
+        self.unavailable_values
+    }
+
+    /// Sum of measured collector execution time.
+    #[must_use]
+    pub const fn collection_time_ns(self) -> u64 {
+        self.collection_time_ns
+    }
+
+    /// Largest collector execution time.
+    #[must_use]
+    pub const fn max_collection_time_ns(self) -> u64 {
+        self.max_collection_time_ns
+    }
 }
 
 impl SamplingEvidence {
@@ -117,7 +202,8 @@ impl SamplingEvidence {
     }
 
     /// Record a completed collection.
-    pub fn record_collection(&mut self, collection: &Collection) {
+    pub fn record_collection(&mut self, collection: &Collection) -> Result<(), SamplingError> {
+        self.reserve_slot()?;
         self.collected_samples = self.collected_samples.saturating_add(1);
         self.available_values = self
             .available_values
@@ -131,17 +217,28 @@ impl SamplingEvidence {
         self.max_collection_time_ns = self
             .max_collection_time_ns
             .max(collection.evidence.collection_time_ns);
+        Ok(())
     }
 
     /// Record a schedule slot without a collection.
-    pub fn record_lost_sample(&mut self) {
+    pub fn record_lost_sample(&mut self) -> Result<(), SamplingError> {
+        self.reserve_slot()?;
         self.lost_samples = self.lost_samples.saturating_add(1);
+        Ok(())
     }
 
     /// Whether collected and lost slots exactly cover the declared schedule.
     #[must_use]
     pub const fn is_complete(self) -> bool {
         self.collected_samples.saturating_add(self.lost_samples) == self.scheduled_samples
+    }
+
+    fn reserve_slot(self) -> Result<(), SamplingError> {
+        if self.collected_samples.saturating_add(self.lost_samples) >= self.scheduled_samples {
+            Err(SamplingError::ScheduleExhausted)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -735,11 +832,15 @@ mod tests {
             },
         };
         let mut evidence = SamplingEvidence::new(2);
-        evidence.record_collection(&collection);
-        evidence.record_lost_sample();
+        evidence.record_collection(&collection).unwrap();
+        evidence.record_lost_sample().unwrap();
         assert!(evidence.is_complete());
-        assert_eq!(evidence.unavailable_values, 1);
-        assert_eq!(evidence.collection_time_ns, 17);
-        assert_eq!(evidence.max_collection_time_ns, 17);
+        assert_eq!(evidence.unavailable_values(), 1);
+        assert_eq!(evidence.collection_time_ns(), 17);
+        assert_eq!(evidence.max_collection_time_ns(), 17);
+        assert_eq!(
+            evidence.record_lost_sample(),
+            Err(SamplingError::ScheduleExhausted)
+        );
     }
 }

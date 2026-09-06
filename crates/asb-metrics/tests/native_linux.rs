@@ -49,8 +49,8 @@ fn unique_root(label: &str) -> std::path::PathBuf {
 fn permission_denied_child() {
     let root = std::env::var_os("ASB_PERMISSION_ROOT").expect("fixture root");
     let collection = LinuxCollector::with_roots(root, "/unused").collect_process(99, 0);
-    assert_eq!(collection.evidence.available_values, 0);
-    assert_eq!(collection.evidence.unavailable_values, 7);
+    assert_eq!(collection.evidence.available_values(), 0);
+    assert_eq!(collection.evidence.unavailable_values(), 7);
     assert!(collection.samples.iter().all(|sample| {
         matches!(
             &sample.value,
@@ -129,7 +129,7 @@ fn controlled_cgroup_fixture_preserves_values_units_and_scope() {
     fs::remove_dir_all(root).unwrap();
 
     assert_eq!(collection.samples.len(), 18);
-    assert_eq!(collection.evidence.available_values, 18);
+    assert_eq!(collection.evidence.available_values(), 18);
     assert_eq!(value(&collection, "cgroup.cpu.usage"), Some(100_000.0));
     assert_eq!(
         value(&collection, "cgroup.cpu.throttled_time"),
@@ -155,9 +155,9 @@ fn absent_cgroup_files_are_unavailable_never_zero() {
         .collect_cgroup("missing", 0)
         .unwrap();
     fs::remove_dir(root).unwrap();
-    assert_eq!(collection.evidence.attempted_values, 18);
-    assert_eq!(collection.evidence.available_values, 0);
-    assert_eq!(collection.evidence.unavailable_values, 18);
+    assert_eq!(collection.evidence.attempted_values(), 18);
+    assert_eq!(collection.evidence.available_values(), 0);
+    assert_eq!(collection.evidence.unavailable_values(), 18);
     assert!(collection.samples.iter().all(|sample| {
         matches!(
             &sample.value,
@@ -224,29 +224,31 @@ fn real_cgroup_and_overhead_evidence_are_observable() {
     let collector = LinuxCollector::host();
     let cgroup = collector.collect_self_cgroup(0).expect("unified cgroup v2");
     assert_eq!(cgroup.samples.len(), 18);
-    assert!(cgroup.evidence.available_values >= 16);
-    assert!(cgroup.evidence.collection_time_ns > 0);
+    assert!(cgroup.evidence.available_values() >= 16);
+    assert!(cgroup.evidence.collection_time_ns() > 0);
 
     let mut evidence = SamplingEvidence::new(64);
     for offset in 0..64 {
-        evidence.record_collection(&collector.collect_process(std::process::id(), offset));
+        evidence
+            .record_collection(&collector.collect_process(std::process::id(), offset))
+            .unwrap();
     }
     assert!(evidence.is_complete());
-    assert_eq!(evidence.lost_samples, 0);
-    assert_eq!(evidence.unavailable_values, 0);
-    assert!(evidence.collection_time_ns > 0);
-    assert!(evidence.max_collection_time_ns > 0);
+    assert_eq!(evidence.lost_samples(), 0);
+    assert_eq!(evidence.unavailable_values(), 0);
+    assert!(evidence.collection_time_ns() > 0);
+    assert!(evidence.max_collection_time_ns() > 0);
     eprintln!(
         "sampling scheduled={} collected={} lost={} available_values={} unavailable_values={} \
          total_collection_ns={} max_collection_ns={} cgroup_available={} cgroup_unavailable={}",
-        evidence.scheduled_samples,
-        evidence.collected_samples,
-        evidence.lost_samples,
-        evidence.available_values,
-        evidence.unavailable_values,
-        evidence.collection_time_ns,
-        evidence.max_collection_time_ns,
-        cgroup.evidence.available_values,
-        cgroup.evidence.unavailable_values,
+        evidence.scheduled_samples(),
+        evidence.collected_samples(),
+        evidence.lost_samples(),
+        evidence.available_values(),
+        evidence.unavailable_values(),
+        evidence.collection_time_ns(),
+        evidence.max_collection_time_ns(),
+        cgroup.evidence.available_values(),
+        cgroup.evidence.unavailable_values(),
     );
 }
