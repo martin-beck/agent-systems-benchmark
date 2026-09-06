@@ -938,6 +938,8 @@ impl std::error::Error for SandboxError {}
 mod tests {
     use super::*;
 
+    static FAKE_TOOL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn scratch(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../target")
@@ -949,8 +951,17 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let tool = root.join("systemctl");
-        fs::write(&tool, format!("#!/bin/sh\nstate=\"$0.state\"\n{body}\n")).unwrap();
-        fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
+        let pending = root.join("systemctl.pending");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o700)
+            .open(&pending)
+            .unwrap();
+        write!(file, "#!/bin/sh\nstate=\"$0.state\"\n{body}\n").unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+        fs::rename(pending, &tool).unwrap();
         let pin = ToolPin::new(tool, "fake-systemctl".into()).unwrap();
         (root, pin)
     }
@@ -1030,6 +1041,7 @@ mod tests {
 
     #[test]
     fn scope_ownership_metadata_is_bounded_and_fail_closed() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let (root, pin) = fake_systemctl("ownership-empty", "exit 0");
         assert!(!scope_owns_nonce(&pin, "unit", "nonce", 1).unwrap());
         fs::remove_dir_all(root).unwrap();
@@ -1381,17 +1393,8 @@ mod tests {
 
     #[test]
     fn cleanup_failure_is_typed_and_bounded() {
-        let root = scratch("cleanup-error");
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
-        let tool = root.join("systemctl");
-        fs::write(
-            &tool,
-            "#!/bin/sh\nif [ \"$1\" = --version ]; then echo fake-systemctl; exit 0; fi\necho cleanup-rejected >&2\nexit 2\n",
-        )
-        .unwrap();
-        fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
-        let pin = ToolPin::new(tool, "fake-systemctl".into()).unwrap();
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let (root, pin) = fake_systemctl("cleanup-error", "echo cleanup-rejected >&2; exit 2");
         assert!(matches!(
             stop_scope(&pin, "unit"),
             Err(SandboxError::ScopeCleanup {
@@ -1404,6 +1407,7 @@ mod tests {
 
     #[test]
     fn scope_cleanup_handles_completion_races_and_command_failures() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let (root, pin) = fake_systemctl(
             "cleanup-race",
             "case \"$2\" in\n  is-active) if [ -e \"$state\" ]; then echo inactive; exit 4; else echo active; exit 0; fi;;\n  kill) touch \"$state\"; exit 1;;\nesac\nexit 2",
@@ -1440,6 +1444,7 @@ mod tests {
 
     #[test]
     fn successful_short_scope_waits_through_terminal_state_transition() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let (root, pin) = fake_systemctl(
             "ownership-terminal-transition",
             "case \"$2\" in\n  show) exit 1;;\n  is-active) if [ -e \"$state\" ]; then echo inactive; exit 3; else touch \"$state\"; echo deactivating; exit 3; fi;;\nesac\nexit 2",
@@ -1451,6 +1456,7 @@ mod tests {
 
     #[test]
     fn unowned_live_process_is_cancelled_at_ownership_deadline() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let (root, pin) = fake_systemctl("ownership-timeout", "exit 1");
         let mut command = Command::new("/usr/bin/sleep");
         command.arg("30");
@@ -1470,6 +1476,7 @@ mod tests {
 
     #[test]
     fn scope_cleanup_waits_for_inactive_and_rejects_unknown_state() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let (root, pin) = fake_systemctl(
             "cleanup-transition",
             "case \"$2\" in\n  is-active) if [ -e \"$state.stop\" ]; then if [ -e \"$state.polled\" ]; then echo inactive; exit 4; else touch \"$state.polled\"; echo deactivating; exit 3; fi; else echo active; exit 0; fi;;\n  kill) exit 0;;\n  --no-block) touch \"$state.stop\"; exit 0;;\nesac\nexit 2",
@@ -1481,18 +1488,23 @@ mod tests {
             "cleanup-unknown",
             "case \"$2\" in\n  is-active) if [ -e \"$state\" ]; then echo mystery; exit 2; else echo active; exit 0; fi;;\n  kill) exit 0;;\n  --no-block) touch \"$state\"; exit 0;;\nesac\nexit 2",
         );
-        assert!(matches!(
-            stop_scope(&pin, "unit"),
-            Err(SandboxError::ScopeCleanup {
-                exit_code: Some(2),
-                ..
-            })
-        ));
+        let result = stop_scope(&pin, "unit");
+        assert!(
+            matches!(
+                result,
+                Err(SandboxError::ScopeCleanup {
+                    exit_code: Some(2),
+                    ..
+                })
+            ),
+            "unexpected cleanup result: {result:?}"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn scope_cleanup_has_a_hard_poll_deadline() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let (root, pin) = fake_systemctl(
             "cleanup-timeout",
             "case \"$2\" in\n  is-active) echo active; exit 0;;\n  kill|--no-block) exit 0;;\nesac\nexit 2",
@@ -1511,6 +1523,7 @@ mod tests {
 
     #[test]
     fn cleanup_uncertainty_quarantines_lease_and_drop_retries_terminal_scope() {
+        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
         let body = concat!(
             "case \"$2\" in\n",
             "  is-active) echo active; exit 0;;\n",
