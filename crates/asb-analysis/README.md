@@ -11,8 +11,11 @@ a conservative bound instead of substituting a narrower asymptotic interval.
 
 The checked-in reference vectors were independently calculated from the published
 type-7, Wilson, DKW, and Student t formulas. They are fixtures, not values generated
-by this crate. The implementation does not interpolate between capacity points or
-assume throughput and quality are monotonic with offered load.
+by this crate. Both a finite DKW p95 upper bound and a sample too small to identify
+one are covered. Reproduce them with the exact packages in
+`tests/reference-requirements.txt` by running `tests/validate_reference_vectors.py`.
+The implementation does not interpolate between capacity points or assume
+throughput and quality are monotonic with offered load.
 
 The current boundary uses 95 percent intervals and floating-point arithmetic. It
 does not claim autocorrelation correction, sequential-testing correction, bootstrap

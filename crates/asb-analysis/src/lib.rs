@@ -59,16 +59,49 @@ pub enum IntervalMethod {
 }
 
 /// Point estimate and two-sided 95 percent interval.
+///
+/// Values are constructible only by this crate's validated statistical
+/// routines. In particular, a caller cannot inject a well-shaped but
+/// unsupported interval into [`assess_slo`].
+///
+/// ```compile_fail
+/// use asb_analysis::{EstimateInterval, IntervalMethod};
+///
+/// let forged = EstimateInterval {
+///     estimate: 1.0,
+///     lower: 1.0,
+///     upper: 1.0,
+///     method: IntervalMethod::StudentT,
+/// };
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EstimateInterval {
-    /// Point estimate.
-    pub estimate: f64,
-    /// Inclusive lower bound.
-    pub lower: f64,
-    /// Inclusive upper bound.
-    pub upper: f64,
-    /// Construction method.
-    pub method: IntervalMethod,
+    estimate: f64,
+    lower: f64,
+    upper: f64,
+    method: IntervalMethod,
+}
+
+impl EstimateInterval {
+    /// Return the point estimate.
+    pub fn estimate(self) -> f64 {
+        self.estimate
+    }
+
+    /// Return the inclusive lower confidence bound.
+    pub fn lower(self) -> f64 {
+        self.lower
+    }
+
+    /// Return the inclusive upper confidence bound.
+    pub fn upper(self) -> f64 {
+        self.upper
+    }
+
+    /// Return the interval construction method.
+    pub fn method(self) -> IntervalMethod {
+        self.method
+    }
 }
 
 /// Nonparametric p95 estimate and DKW confidence bounds.
@@ -100,14 +133,41 @@ pub struct LatencySummary {
 }
 
 /// Complete attempt analysis. Missing evidence remains explicit.
+///
+/// The fields are private so callers cannot replace validated Wilson or DKW
+/// evidence before assessment.
+///
+/// ```compile_fail
+/// use asb_analysis::{AttemptAnalysis, AttemptCounts};
+///
+/// let forged = AttemptAnalysis {
+///     counts: AttemptCounts::default(),
+///     quality: None,
+///     latency: None,
+/// };
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AttemptAnalysis {
-    /// Outcome and missing-evidence counts.
-    pub counts: AttemptCounts,
-    /// Successful proportion interval, absent when there are no attempts.
-    pub quality: Option<EstimateInterval>,
-    /// Successful-latency summary, absent when no latency was measured.
-    pub latency: Option<LatencySummary>,
+    counts: AttemptCounts,
+    quality: Option<EstimateInterval>,
+    latency: Option<LatencySummary>,
+}
+
+impl AttemptAnalysis {
+    /// Return outcome and missing-evidence counts.
+    pub fn counts(self) -> AttemptCounts {
+        self.counts
+    }
+
+    /// Return the successful-proportion interval, if any attempts exist.
+    pub fn quality(self) -> Option<EstimateInterval> {
+        self.quality
+    }
+
+    /// Return the successful-latency summary, if any latency was measured.
+    pub fn latency(self) -> Option<LatencySummary> {
+        self.latency
+    }
 }
 
 /// One fixed-duration throughput window.
@@ -579,6 +639,37 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_dkw_reference_vectors_match() {
+        for line in include_str!("../tests/fixtures/dkw-reference-vectors.tsv").lines() {
+            if line.starts_with('#') {
+                continue;
+            }
+            let fields: Vec<&str> = line.split('\t').collect();
+            let range: Vec<u64> = fields[0]
+                .strip_prefix("range:")
+                .unwrap()
+                .split(':')
+                .map(|value| value.parse().unwrap())
+                .collect();
+            let confidence: f64 = fields[2].parse().unwrap();
+            assert_eq!(confidence, 0.95);
+            let observations: Vec<AttemptObservation> = (range[0]..=range[1])
+                .map(|latency_ns| AttemptObservation {
+                    outcome: AttemptOutcome::Completed,
+                    latency_ns: Some(latency_ns),
+                })
+                .collect();
+            let actual = analyze_attempts(&observations).latency.unwrap().p95_ns;
+            close(actual.estimate, fields[3].parse().unwrap());
+            close(actual.lower, fields[4].parse().unwrap());
+            match fields[5] {
+                "none" => assert_eq!(actual.upper, None),
+                value => close(actual.upper.unwrap(), value.parse().unwrap()),
+            }
+        }
+    }
+
+    #[test]
     fn failures_and_censoring_remain_in_quality_denominator() {
         let analysis = analyze_attempts(&[
             AttemptObservation {
@@ -605,6 +696,15 @@ mod tests {
         assert_eq!(analysis.counts.cancelled, 1);
         close(analysis.quality.unwrap().estimate, 0.25);
         assert_eq!(analysis.latency.unwrap().samples, 1);
+
+        let counts = analysis.counts();
+        assert_eq!(counts.total, 4);
+        let quality = analysis.quality().unwrap();
+        close(quality.estimate(), 0.25);
+        assert!(quality.lower() < quality.estimate());
+        assert!(quality.upper() > quality.estimate());
+        assert_eq!(quality.method(), IntervalMethod::WilsonScore);
+        assert_eq!(analysis.latency().unwrap().samples, 1);
     }
 
     #[test]
