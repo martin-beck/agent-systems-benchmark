@@ -23,7 +23,8 @@ SPDX headers, local Markdown links and workflow immutability without network
 access.
 
 The commit gate checks every introduced commit. Each requires a
-`Signed-off-by: Name <address>` line exactly matching its author and an SSH
+`Signed-off-by: Name <address>` entry exactly matching its author in the final
+Git trailer block, plus an SSH
 signature accepted by [allowed_signers](../config/allowed_signers). GitHub's
 branch `required_signatures` rule is not the source of truth because GitHub
 rejected a locally valid SSH-signed GMX-identity commit. The CI gate uses Git's

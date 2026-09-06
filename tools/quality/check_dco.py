@@ -27,8 +27,11 @@ def validate_dco(root: Path, revisions: list[str]) -> None:
         ).strip()
         body = subprocess.check_output(
             ["git", "-C", str(root), "show", "-s", "--format=%B", revision], text=True
+        )
+        trailers = subprocess.check_output(
+            ["git", "interpret-trailers", "--parse"], input=body, text=True
         ).splitlines()
-        if f"Signed-off-by: {author}" not in body:
+        if f"Signed-off-by: {author}" not in trailers:
             raise ValueError(f"{revision} lacks a matching Signed-off-by trailer")
 
 

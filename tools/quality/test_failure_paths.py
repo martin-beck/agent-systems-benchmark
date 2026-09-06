@@ -80,6 +80,22 @@ def main() -> int:
             cwd=missing_dco,
         )
 
+        misplaced_dco = temp / "misplaced-dco"
+        misplaced_dco.mkdir()
+        init_git(misplaced_dco)
+        (misplaced_dco / "change").write_text("change\n", encoding="utf-8")
+        git(misplaced_dco, "add", "change")
+        git(
+            misplaced_dco,
+            "commit",
+            "-qm",
+            "misplaced DCO fixture\n\nSigned-off-by: Fixture <fixture@example.invalid>\n\nnon-trailer prose",
+        )
+        must_fail(
+            "misplaced DCO trailer",
+            ["python3", str(ROOT / "tools/quality/check_dco.py"), "--root", str(misplaced_dco), "--head", "HEAD"],
+        )
+
         unsigned = temp / "unsigned"
         shutil.copytree(ROOT, unsigned, ignore=shutil.ignore_patterns(".git", "target"))
         init_git(unsigned)
