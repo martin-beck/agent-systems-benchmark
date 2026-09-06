@@ -2,7 +2,7 @@
 #![cfg(target_os = "linux")]
 #![allow(missing_docs)]
 
-use asb_metrics::{Collection, LinuxCollector, SamplingEvidence};
+use asb_metrics::{Collection, LinuxCollector, SamplingEvidence, TargetError};
 use asb_protocol::MetricValue;
 use std::fs::{self, File};
 use std::hint::black_box;
@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime};
 
 fn value(collection: &Collection, id: &str) -> Option<f64> {
     collection
-        .samples
+        .samples()
         .iter()
         .find(|sample| sample.descriptor.metric_id.0 == id)
         .and_then(|sample| match sample.value {
@@ -49,9 +49,9 @@ fn unique_root(label: &str) -> std::path::PathBuf {
 fn permission_denied_child() {
     let root = std::env::var_os("ASB_PERMISSION_ROOT").expect("fixture root");
     let collection = LinuxCollector::with_roots(root, "/unused").collect_process(99, 0);
-    assert_eq!(collection.evidence.available_values(), 0);
-    assert_eq!(collection.evidence.unavailable_values(), 7);
-    assert!(collection.samples.iter().all(|sample| {
+    assert_eq!(collection.evidence().available_values(), 0);
+    assert_eq!(collection.evidence().unavailable_values(), 7);
+    assert!(collection.samples().iter().all(|sample| {
         matches!(
             &sample.value,
             MetricValue::Unavailable { reason }
@@ -128,8 +128,8 @@ fn controlled_cgroup_fixture_preserves_values_units_and_scope() {
         .unwrap();
     fs::remove_dir_all(root).unwrap();
 
-    assert_eq!(collection.samples.len(), 18);
-    assert_eq!(collection.evidence.available_values(), 18);
+    assert_eq!(collection.samples().len(), 18);
+    assert_eq!(collection.evidence().available_values(), 18);
     assert_eq!(value(&collection, "cgroup.cpu.usage"), Some(100_000.0));
     assert_eq!(
         value(&collection, "cgroup.cpu.throttled_time"),
@@ -139,7 +139,7 @@ fn controlled_cgroup_fixture_preserves_values_units_and_scope() {
     assert_eq!(value(&collection, "cgroup.io.read"), Some(17.0));
     assert_eq!(value(&collection, "cgroup.io.write"), Some(29.0));
     assert_eq!(value(&collection, "cgroup.pressure.io.full"), Some(2_000.0));
-    assert!(collection.samples.iter().all(|sample| {
+    assert!(collection.samples().iter().all(|sample| {
         sample.offset_ns == 77
             && sample.descriptor.scope == "cgroup"
             && !sample.descriptor.unit.is_empty()
@@ -155,15 +155,25 @@ fn absent_cgroup_files_are_unavailable_never_zero() {
         .collect_cgroup("missing", 0)
         .unwrap();
     fs::remove_dir(root).unwrap();
-    assert_eq!(collection.evidence.attempted_values(), 18);
-    assert_eq!(collection.evidence.available_values(), 0);
-    assert_eq!(collection.evidence.unavailable_values(), 18);
-    assert!(collection.samples.iter().all(|sample| {
+    assert_eq!(collection.evidence().attempted_values(), 18);
+    assert_eq!(collection.evidence().available_values(), 0);
+    assert_eq!(collection.evidence().unavailable_values(), 18);
+    assert!(collection.samples().iter().all(|sample| {
         matches!(
             &sample.value,
             MetricValue::Unavailable { reason } if reason == "kernel metric source is absent"
         )
     }));
+}
+
+#[test]
+fn oversized_self_cgroup_membership_fails_closed() {
+    let proc_root = unique_root("oversized-membership");
+    fs::create_dir_all(proc_root.join("self")).unwrap();
+    fs::write(proc_root.join("self/cgroup"), vec![b'x'; 1024 * 1024 + 1]).unwrap();
+    let result = LinuxCollector::with_roots(&proc_root, "/unused").collect_self_cgroup(0);
+    fs::remove_dir_all(proc_root).unwrap();
+    assert_eq!(result, Err(TargetError::UnifiedCgroupUnavailable));
 }
 
 #[test]
@@ -223,9 +233,9 @@ fn real_procfs_observes_controlled_cpu_memory_fault_and_io_work() {
 fn real_cgroup_and_overhead_evidence_are_observable() {
     let collector = LinuxCollector::host();
     let cgroup = collector.collect_self_cgroup(0).expect("unified cgroup v2");
-    assert_eq!(cgroup.samples.len(), 18);
-    assert!(cgroup.evidence.available_values() >= 16);
-    assert!(cgroup.evidence.collection_time_ns() > 0);
+    assert_eq!(cgroup.samples().len(), 18);
+    assert!(cgroup.evidence().available_values() >= 16);
+    assert!(cgroup.evidence().collection_time_ns() > 0);
 
     let mut evidence = SamplingEvidence::new(64);
     for offset in 0..64 {
@@ -248,7 +258,7 @@ fn real_cgroup_and_overhead_evidence_are_observable() {
         evidence.unavailable_values(),
         evidence.collection_time_ns(),
         evidence.max_collection_time_ns(),
-        cgroup.evidence.available_values(),
-        cgroup.evidence.unavailable_values(),
+        cgroup.evidence().available_values(),
+        cgroup.evidence().unavailable_values(),
     );
 }

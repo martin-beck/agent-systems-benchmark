@@ -7,7 +7,7 @@
 use asb_protocol::{Aggregation, Id, MetricDescriptor, MetricSample, MetricValue};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 use std::time::Instant;
@@ -78,15 +78,45 @@ impl CollectionEvidence {
 }
 
 /// A complete collector response.
+///
+/// Its samples and evidence are constructor-controlled so callers cannot pair
+/// genuine accounting with forged metric values.
+///
+/// ```compile_fail
+/// # fn collected() -> asb_metrics::Collection { unimplemented!() }
+/// let genuine = collected();
+/// let _forged = asb_metrics::Collection {
+///     samples: Vec::new(),
+///     evidence: *genuine.evidence(),
+/// };
+/// ```
+///
+/// ```compile_fail
+/// # fn collected() -> asb_metrics::Collection { unimplemented!() }
+/// let mut collection = collected();
+/// collection.samples = Vec::new();
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Collection {
     /// Metric samples in stable metric-ID order.
-    pub samples: Vec<MetricSample>,
+    samples: Vec<MetricSample>,
     /// Overhead and availability evidence.
-    pub evidence: CollectionEvidence,
+    evidence: CollectionEvidence,
 }
 
 impl Collection {
+    /// Metric samples in stable metric-ID order.
+    #[must_use]
+    pub fn samples(&self) -> &[MetricSample] {
+        &self.samples
+    }
+
+    /// Overhead and availability evidence for these exact samples.
+    #[must_use]
+    pub const fn evidence(&self) -> &CollectionEvidence {
+        &self.evidence
+    }
+
     fn new(mut samples: Vec<MetricSample>, started: Instant) -> Self {
         samples.sort_by(|a, b| a.descriptor.metric_id.0.cmp(&b.descriptor.metric_id.0));
         let attempted = u64::try_from(samples.len()).unwrap_or(u64::MAX);
@@ -474,7 +504,7 @@ impl LinuxCollector {
 
     /// Resolve and collect the calling process's unified cgroup.
     pub fn collect_self_cgroup(&self, offset_ns: u64) -> Result<Collection, TargetError> {
-        let membership = fs::read_to_string(self.proc_root.join("self/cgroup"))
+        let membership = read_text(self.proc_root.join("self/cgroup"))
             .map_err(|_| TargetError::UnifiedCgroupUnavailable)?;
         self.collect_cgroup(parse_unified_cgroup(&membership)?, offset_ns)
     }
