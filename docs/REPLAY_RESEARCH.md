@@ -4,6 +4,10 @@ Research snapshot: 2026-09-06. These are source/documentation assessments,
 not successful compatibility tests. AR-0501 must pin revisions, inspect licenses
 and run the same conformance suite before choosing dependencies or importing code.
 
+The pinned-code and bounded-spike assessment is recorded in
+[REPLAY_EVALUATION.md](REPLAY_EVALUATION.md). It selects a small safe Rust
+implementation and makes no provider or native-platform support claim.
+
 ## Literature
 
 [AgentRR: Get Experience from Practice: LLM Agents with Record & Replay](https://arxiv.org/abs/2505.17716)
