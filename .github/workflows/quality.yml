@@ -85,5 +85,9 @@ jobs:
         run: python3 tools/quality/check_coverage.py
       - name: Prove gates reject controlled defects
         run: python3 tools/quality/test_failure_paths.py --bin-dir "$ASB_QUALITY_BIN"
+      - name: Validate platform manifests and failure fixtures
+        run: |
+          python3 tools/platforms/validate_manifests.py
+          python3 -m unittest discover -s tests/platforms -p "test_*.py"
       - name: Verify clean tree
         run: git diff --exit-code

@@ -1,0 +1,174 @@
+{
+  "format_version": 1,
+  "observed_at": "2026-09-06",
+  "evidence_statuses": ["planned", "build-only", "simulated", "native-tested", "unsupported"],
+  "combination_policy": {
+    "agents_manifest": "agents.json",
+    "workload_set_status": "planned",
+    "default_evidence_status": "planned",
+    "statement": "No agent or workload runtime cell is supported until a later AR records exact native evidence."
+  },
+  "platforms": [
+    {
+      "id": "ubuntu-24.04",
+      "family": "ubuntu",
+      "release": "24.04.4 LTS",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/library/ubuntu:24.04",
+        "index": "docker.io/library/ubuntu@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517"
+      },
+      "libc": {"family": "glibc", "version": "2.39", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:95fa486768020359141f1318720f43e7982ef926c792891d984aef9aaf05e7ea", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/_/ubuntu"
+    },
+    {
+      "id": "debian-13",
+      "family": "debian",
+      "release": "13.6 (trixie)",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/library/debian:13-slim",
+        "index": "docker.io/library/debian@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132"
+      },
+      "libc": {"family": "glibc", "version": "2.41", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:7215f78f35ffe58fe13f244fac9c4f21326d55187271fbb3e1a8aa5cc7e387ab", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/_/debian"
+    },
+    {
+      "id": "fedora-44",
+      "family": "fedora",
+      "release": "44",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/library/fedora:44",
+        "index": "docker.io/library/fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80"
+      },
+      "libc": {"family": "glibc", "version": "2.43", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:be9d65e2344d805cc11114319c685ecaa96b6d9b4350a0a6460cdb931babbd19", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:e402cca673711fee025f9ce21c6c08b1bd25ee26b3c482119c8675fbaaedbc85", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/_/fedora"
+    },
+    {
+      "id": "rocky-9.7",
+      "family": "rocky",
+      "release": "9.7",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/rockylinux/rockylinux:9.7",
+        "index": "docker.io/rockylinux/rockylinux@sha256:53f4c6dcb34e1403bd93207351f0af9a593610faeb7165cb8a037346765199b0"
+      },
+      "libc": {"family": "glibc", "version": "2.34", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:ee90dc0e23c2f59af63886aed78c495fc847c8f0af7e825f48746547ddb7fbe2", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:82847b8539626b7b8b9cc3e6d9a576e4ae6f680090c10d275d09fc08b8bf139a", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/r/rockylinux/rockylinux"
+    },
+    {
+      "id": "alma-9.7",
+      "family": "alma",
+      "release": "9.7",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/library/almalinux:9.7",
+        "index": "docker.io/library/almalinux@sha256:2d57aea965da8fbda97736ec5125c1b683ce271438038ea1906b2391e89b77d2"
+      },
+      "libc": {"family": "glibc", "version": "2.34", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:7b72041988f07ef5020f7f5da036a9aad9165d996d02946bce29c9a38e99ba59", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:3e6f36ca4f1725d7c08c578d3f5eac1a122026748218b56651ec136c700128c1", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/_/almalinux"
+    },
+    {
+      "id": "opensuse-leap-16.0",
+      "family": "opensuse-leap",
+      "release": "16.0",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/opensuse/leap:16.0",
+        "index": "docker.io/opensuse/leap@sha256:f239b4819f4dd322d99509f1b5b14f2107bf23857f9ccd3c14333f0928a2bcc6"
+      },
+      "libc": {"family": "glibc", "version": "2.40", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:77732aa024f765ecdb4067affdea9e386d68056d0d281608ce4665d8fb0b4edd", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:c16e5cfcb40b32d6060a10c89dd3c284bf20401a89cd1a2c9be19cdd7061137f", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/r/opensuse/leap"
+    },
+    {
+      "id": "opensuse-tumbleweed-20260904",
+      "family": "opensuse-tumbleweed",
+      "release": "20260904",
+      "release_kind": "snapshot",
+      "image": {
+        "tag": "docker.io/opensuse/tumbleweed:latest",
+        "index": "docker.io/opensuse/tumbleweed@sha256:52696090fefe79733b145cbe73af11f340c1138f7c62f955764a28fb322eee99"
+      },
+      "libc": {"family": "glibc", "version": "2.44", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:1ea7c9cd0f0efec6e925f0afca174a4e02cca36e5ae98751022b95a195e549eb", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:8876e4cba5485f114bb4920e4ee0bf7fbed864a88cc67169977a71eddb36c234", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/r/opensuse/tumbleweed"
+    },
+    {
+      "id": "arch-20260830",
+      "family": "arch",
+      "release": "20260830.0.582275",
+      "release_kind": "snapshot",
+      "image": {
+        "tag": "docker.io/library/archlinux:base",
+        "index": "docker.io/library/archlinux@sha256:82b1b08faae9d61e3e7e13d562f4d09114d939105b0d59ff34140f3bd418593a"
+      },
+      "libc": {"family": "glibc", "version": "2.44", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:818793c894d94534c22f2149154a39ebaee57e4e67321023b0866a1d5722036c", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": null, "user_space": "unsupported", "native_kernel": "unsupported"}
+      },
+      "source": "https://hub.docker.com/_/archlinux"
+    },
+    {
+      "id": "alpine-3.24",
+      "family": "alpine",
+      "release": "3.24.1",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/library/alpine:3.24",
+        "index": "docker.io/library/alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
+      },
+      "libc": {"family": "musl", "version": "1.2.6", "observed_from": "linux/amd64 image package database"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:79ff19e9084a00eece421b2523fb93e22d730e2c0e525905de047e848e56d95f", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:e7a1a92a5bfeee40966aea60f0796b0e7917cc35591542701834f03a68fa3d18", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/_/alpine"
+    },
+    {
+      "id": "openeuler-24.03-lts-sp2",
+      "family": "openeuler",
+      "release": "24.03 LTS-SP2",
+      "release_kind": "fixed",
+      "image": {
+        "tag": "docker.io/openeuler/openeuler:24.03-lts-sp2",
+        "index": "docker.io/openeuler/openeuler@sha256:990f5a8528dc3375a358629bcb5500351f433a49922dca3588bcf32ecc5b7022"
+      },
+      "libc": {"family": "glibc", "version": "2.38", "observed_from": "linux/amd64 image filesystem"},
+      "architectures": {
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:bae965e7fd50cef2e1280e0512f15f38261bf3b504e5ac1f5aa658dd409705b8", "user_space": "planned", "native_kernel": "planned"},
+        "aarch64": {"oci": "arm64", "image_digest": "sha256:21a2530ef2a831bdec31ca0c8c2eb337c9754bce82c05c184e320bb61823065c", "user_space": "planned", "native_kernel": "planned"}
+      },
+      "source": "https://hub.docker.com/r/openeuler/openeuler"
+    }
+  ],
+  "unverified_host_capabilities": ["cgroup-v2-delegation", "systemd", "SELinux", "AppArmor", "perf-permissions", "PSI", "BTF"]
+}

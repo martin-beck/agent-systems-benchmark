@@ -1,0 +1,7 @@
+{
+  "expected_error": "native-tested requires bound native-run evidence",
+  "mutations": [
+    {"path": ["platforms", 0, "architectures", "x86_64", "native_kernel"], "value": "native-tested"},
+    {"path": ["platforms", 0, "architectures", "x86_64", "native_evidence"], "value": {"kind": "container-registry"}}
+  ]
+}

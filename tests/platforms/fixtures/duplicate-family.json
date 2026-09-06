@@ -1,0 +1,6 @@
+{
+  "expected_error": "exactly one row per required family",
+  "mutations": [
+    {"path": ["platforms", 1, "family"], "value": "ubuntu"}
+  ]
+}

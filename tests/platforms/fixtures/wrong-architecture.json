@@ -1,0 +1,6 @@
+{
+  "expected_error": "OCI architecture alias mismatch",
+  "mutations": [
+    {"path": ["platforms", 0, "architectures", "aarch64", "oci"], "value": "amd64"}
+  ]
+}

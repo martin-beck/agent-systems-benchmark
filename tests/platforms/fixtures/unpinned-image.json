@@ -1,0 +1,6 @@
+{
+  "expected_error": "image index must be digest-pinned",
+  "mutations": [
+    {"path": ["platforms", 0, "image", "index"], "value": "docker.io/library/ubuntu:24.04"}
+  ]
+}
