@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "asb-formal-models"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+license = "MIT"
+publish = false
+
+[dependencies]
+asb-analysis = { path = "../crates/asb-analysis", version = "=0.1.0" }
+asb-core = { path = "../crates/asb-core", version = "=0.1.0" }
+
+[dev-dependencies]
+asb-metrics = { path = "../crates/asb-metrics", version = "=0.1.0" }
+asb-protocol = { path = "../crates/asb-protocol", version = "=0.1.0" }
+asb-replay = { path = "../crates/asb-replay", version = "=0.1.0" }
+asb-runtime = { path = "../crates/asb-runtime", version = "=0.1.0" }
+loom = "=0.7.2"
+serde_json = "=1.0.143"
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+warnings = "deny"
+unexpected_cfgs = { level = "deny", check-cfg = ["cfg(kani)"] }
+
+[lints.clippy]
+all = "deny"

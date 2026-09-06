@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+schema_version = 1
+kani_version = "0.67.0"
+kani_release = "https://github.com/model-checking/kani/releases/tag/kani-0.67.0"
+kani_x86_64_sha256 = "3b5f7afd3b51603ee720db7bc1bc4fe46b5a4f5d36daad9939c4b4c658b51ac0"
+kani_aarch64_sha256 = "974128f44dd43618a06d21e5fe6d9ff67188de5986fe0bc57b534b0e4639efb9"
+kani_rust_toolchain = "nightly-2025-11-21-x86_64-unknown-linux-gnu"
+kani_action_commit = "f838096619a707b0f6b2118cf435eaccfa33e51f"
+loom_version = "0.7.2"
+loom_source_commit = "a7033ee06a97c52eb2f8131c095fbea6c6eecba3"
