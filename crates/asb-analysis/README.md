@@ -22,3 +22,11 @@ does not claim autocorrelation correction, sequential-testing correction, bootst
 inference, or a substitute for repeated independent trials.
 When a finite two-sided DKW p95 upper bound is not identifiable at the configured
 confidence, the upper bound is absent and a maximum-latency SLO cannot pass.
+
+Experiment comparison validates both content-addressed manifests before examining
+them. It reports a deterministic list of mismatched required dimensions and
+permits an unqualified comparison only when that list is empty. Reports expose
+field identities rather than raw settings or provenance values. A comparable
+classification establishes matched recorded configuration, not causal equivalence:
+unrecorded hardware, service, environmental, or temporal effects can still
+confound a result and require experimental controls.

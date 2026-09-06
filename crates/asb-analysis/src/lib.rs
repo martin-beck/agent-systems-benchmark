@@ -4,6 +4,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod comparison;
+
+pub use comparison::*;
+
 use std::error::Error;
 use std::fmt;
 

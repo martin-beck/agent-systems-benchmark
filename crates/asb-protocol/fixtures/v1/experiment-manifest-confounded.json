@@ -1,0 +1,62 @@
+{
+  "version": "1",
+  "experiment_sha256": "1b483c8e17f70ba613b783bf3b86c632e428fde09b1c96fd3ddcf7eed006dfa9",
+  "agent": {
+    "implementation": "asb-other",
+    "revision": "2.0.0",
+    "binary_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "model": {
+    "provider": "other",
+    "model": "model-v2",
+    "settings": {
+      "temperature_milli": 500,
+      "top_p_millionth": 900000,
+      "seed": 8,
+      "max_output_tokens": 8192,
+      "reasoning_effort": "high",
+      "additional_settings_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  },
+  "tool_policy": {
+    "policy": "restricted",
+    "revision": "2",
+    "content_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "workload": {
+    "workload": "debug",
+    "workload_revision": "fed321",
+    "workload_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "scorer_revision": "654cba",
+    "scorer_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "execution": {
+    "image_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "dependencies_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "platform": {
+    "kernel_release": "6.13.0",
+    "distribution": "openEuler",
+    "distribution_version": "24.03-LTS-SP2",
+    "architecture": "aarch64",
+    "cpu_model": "other-cpu",
+    "logical_cpu_count": 16,
+    "numa_node_count": 2,
+    "scaling_governor": "powersave"
+  },
+  "controls": {
+    "cache_state": "warm",
+    "load_policy": "controlled-load-v2",
+    "retry": {
+      "limit": 1,
+      "strategy": "fixed",
+      "backoff_ms": 100
+    },
+    "replay": {
+      "mode": "live",
+      "cassette_sha256": null,
+      "pacing": "provider",
+      "cancellation_timeout_ms": 20000
+    }
+  }
+}

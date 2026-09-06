@@ -2,7 +2,8 @@
 //! Generated-schema and fixture conformance checks.
 
 use asb_protocol::{
-    ExtensionManifest, ExtensionResult, RpcNotification, RpcRequest, WorkloadManifest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, RpcNotification, RpcRequest,
+    WorkloadManifest,
 };
 use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
@@ -15,6 +16,10 @@ const SCHEMAS: &[(&str, &str)] = &[
     (
         "workload-manifest.schema.json",
         include_str!("../schema/v1/workload-manifest.schema.json"),
+    ),
+    (
+        "experiment-manifest.schema.json",
+        include_str!("../schema/v1/experiment-manifest.schema.json"),
     ),
     (
         "request.schema.json",
@@ -34,9 +39,10 @@ const SCHEMAS: &[(&str, &str)] = &[
 fn checked_in_schemas_equal_rust_types() {
     assert_schema::<ExtensionManifest>(SCHEMAS[0].1);
     assert_schema::<WorkloadManifest>(SCHEMAS[1].1);
-    assert_schema::<RpcRequest>(SCHEMAS[2].1);
-    assert_schema::<RpcNotification>(SCHEMAS[3].1);
-    assert_schema::<ExtensionResult>(SCHEMAS[4].1);
+    assert_schema::<ExperimentManifestV1>(SCHEMAS[2].1);
+    assert_schema::<RpcRequest>(SCHEMAS[3].1);
+    assert_schema::<RpcNotification>(SCHEMAS[4].1);
+    assert_schema::<ExtensionResult>(SCHEMAS[5].1);
 }
 
 #[test]
@@ -51,24 +57,111 @@ fn positive_fixtures_validate() {
     );
     validate_fixture(
         SCHEMAS[2].1,
-        include_str!("../fixtures/v1/negotiate-request.json"),
+        include_str!("../fixtures/v1/experiment-manifest.json"),
+    );
+    validate_fixture(
+        SCHEMAS[2].1,
+        include_str!("../fixtures/v1/experiment-manifest-confounded.json"),
     );
     validate_fixture(
         SCHEMAS[3].1,
+        include_str!("../fixtures/v1/negotiate-request.json"),
+    );
+    validate_fixture(
+        SCHEMAS[4].1,
         include_str!("../fixtures/v1/event-notification.json"),
     );
-    validate_fixture(SCHEMAS[4].1, include_str!("../fixtures/v1/result.json"));
+    validate_fixture(SCHEMAS[5].1, include_str!("../fixtures/v1/result.json"));
+
+    let manifest: ExperimentManifestV1 =
+        serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
+    manifest.validate().unwrap();
+    let confounded: ExperimentManifestV1 = serde_json::from_str(include_str!(
+        "../fixtures/v1/experiment-manifest-confounded.json"
+    ))
+    .unwrap();
+    confounded.validate().unwrap();
 }
 
 #[test]
 fn malformed_and_unknown_fields_fail_schema_validation() {
-    let schema: Value = serde_json::from_str(SCHEMAS[2].1).unwrap();
+    let schema: Value = serde_json::from_str(SCHEMAS[3].1).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let bad_version = serde_json::json!({"jsonrpc":"1.0","id":1,"method":"describe","params":{}});
     let unknown_field =
         serde_json::json!({"jsonrpc":"2.0","id":1,"method":"describe","params":{},"secret":true});
     assert!(!validator.is_valid(&bad_version));
     assert!(!validator.is_valid(&unknown_field));
+}
+
+#[test]
+fn malformed_experiment_hash_and_unknown_fields_fail_schema_validation() {
+    let schema: Value = serde_json::from_str(SCHEMAS[2].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let mut fixture: Value =
+        serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
+    fixture["experiment_sha256"] = Value::String("abcd".into());
+    assert!(!validator.is_valid(&fixture));
+    fixture["experiment_sha256"] = Value::String("a".repeat(64));
+    fixture["private_prompt"] = Value::String("must never be accepted".into());
+    assert!(!validator.is_valid(&fixture));
+}
+
+#[test]
+fn experiment_schema_rejects_feasible_text_and_setting_bounds() {
+    let schema: Value = serde_json::from_str(SCHEMAS[2].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let fixture: Value =
+        serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
+
+    let mut empty = fixture.clone();
+    empty["agent"]["implementation"] = Value::String(String::new());
+    assert!(!validator.is_valid(&empty));
+
+    let mut oversized = fixture.clone();
+    oversized["platform"]["cpu_model"] = Value::String("x".repeat(1_025));
+    assert!(!validator.is_valid(&oversized));
+
+    let mut temperature = fixture.clone();
+    temperature["model"]["settings"]["temperature_milli"] = Value::from(2_001);
+    assert!(!validator.is_valid(&temperature));
+
+    let mut top_p = fixture.clone();
+    top_p["model"]["settings"]["top_p_millionth"] = Value::from(1_000_001);
+    assert!(!validator.is_valid(&top_p));
+
+    let mut output = fixture.clone();
+    output["model"]["settings"]["max_output_tokens"] = Value::from(0);
+    assert!(!validator.is_valid(&output));
+
+    let mut reasoning = fixture.clone();
+    reasoning["model"]["settings"]["reasoning_effort"] = Value::String(String::new());
+    assert!(!validator.is_valid(&reasoning));
+
+    let mut additional_digest = fixture.clone();
+    additional_digest["model"]["settings"]["additional_settings_sha256"] =
+        Value::String("bad".into());
+    assert!(!validator.is_valid(&additional_digest));
+
+    let mut cassette_digest = fixture.clone();
+    cassette_digest["controls"]["replay"]["cassette_sha256"] = Value::String("bad".into());
+    assert!(!validator.is_valid(&cassette_digest));
+
+    let mut live_with_cassette = fixture.clone();
+    live_with_cassette["controls"]["replay"]["mode"] = Value::String("live".into());
+    assert!(!validator.is_valid(&live_with_cassette));
+
+    let mut replay_without_cassette = fixture;
+    replay_without_cassette["controls"]["replay"]["cassette_sha256"] = Value::Null;
+    assert!(!validator.is_valid(&replay_without_cassette));
+}
+
+#[test]
+fn well_shaped_but_stale_experiment_address_fails_runtime_validation() {
+    let mut fixture: ExperimentManifestV1 =
+        serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
+    fixture.experiment_sha256 = "a".repeat(64);
+    assert!(fixture.validate().is_err());
 }
 
 fn assert_schema<T: JsonSchema>(checked_in: &str) {
