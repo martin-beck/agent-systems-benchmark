@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExtensionResult",
+  "description": "Versioned terminal result contract.",
+  "type": "object",
+  "properties": {
+    "artifacts": {
+      "description": "Content-addressed outputs.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      }
+    },
+    "attempt_id": {
+      "description": "Stable attempt identity.",
+      "$ref": "#/$defs/Id"
+    },
+    "error": {
+      "description": "Failure evidence, required by policy when status is failed.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RpcError"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metrics": {
+      "description": "Measurements including explicit unavailable values.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MetricSample"
+      }
+    },
+    "schema_version": {
+      "description": "Schema generation for durable readers.",
+      "$ref": "#/$defs/ProtocolVersion"
+    },
+    "session_id": {
+      "description": "Stable session identity.",
+      "$ref": "#/$defs/Id"
+    },
+    "status": {
+      "description": "Terminal state.",
+      "$ref": "#/$defs/TerminalStatus"
+    },
+    "usage": {
+      "description": "Usage including explicit absence.",
+      "$ref": "#/$defs/Usage"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "attempt_id",
+    "status",
+    "artifacts",
+    "metrics",
+    "usage"
+  ],
+  "$defs": {
+    "Aggregation": {
+      "description": "Metric aggregation semantics.",
+      "oneOf": [
+        {
+          "description": "Point-in-time gauge.",
+          "type": "string",
+          "const": "gauge"
+        },
+        {
+          "description": "Monotonic cumulative counter.",
+          "type": "string",
+          "const": "counter"
+        },
+        {
+          "description": "Sample distribution.",
+          "type": "string",
+          "const": "distribution"
+        }
+      ]
+    },
+    "ArtifactRef": {
+      "description": "Content-addressed artifact emitted by an attempt.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Relative logical artifact path.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of content.",
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "Byte length.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "size_bytes",
+        "sha256"
+      ]
+    },
+    "Id": {
+      "description": "Stable identifier transported without host-specific meaning.",
+      "type": "string"
+    },
+    "MetricDescriptor": {
+      "description": "Complete metric meaning independent of its numeric sample.",
+      "type": "object",
+      "properties": {
+        "aggregation": {
+          "description": "Aggregation semantics.",
+          "$ref": "#/$defs/Aggregation"
+        },
+        "metric_id": {
+          "description": "Stable metric identity.",
+          "$ref": "#/$defs/Id"
+        },
+        "resolution_ns": {
+          "description": "Nominal resolution in nanoseconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "scope": {
+          "description": "Process, cgroup, host or other explicit measurement scope.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Kernel or userspace source.",
+          "type": "string"
+        },
+        "unit": {
+          "description": "UCUM-style unit string.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "metric_id",
+        "unit",
+        "aggregation",
+        "scope",
+        "source",
+        "resolution_ns"
+      ]
+    },
+    "MetricSample": {
+      "description": "One metric sample.",
+      "type": "object",
+      "properties": {
+        "descriptor": {
+          "description": "Metric definition.",
+          "$ref": "#/$defs/MetricDescriptor"
+        },
+        "offset_ns": {
+          "description": "Monotonic offset from attempt start.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "value": {
+          "description": "Present or explicitly unavailable value.",
+          "$ref": "#/$defs/MetricValue"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "descriptor",
+        "offset_ns",
+        "value"
+      ]
+    },
+    "MetricValue": {
+      "description": "Metric observation preserving missing evidence.",
+      "oneOf": [
+        {
+          "description": "A finite numeric sample.",
+          "type": "object",
+          "properties": {
+            "availability": {
+              "type": "string",
+              "const": "available"
+            },
+            "value": {
+              "description": "Finite value in the descriptor's unit.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "availability",
+            "value"
+          ]
+        },
+        {
+          "description": "No sample exists and the reason is explicit.",
+          "type": "object",
+          "properties": {
+            "availability": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "reason": {
+              "description": "Evidence explaining why no value exists.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ]
+        }
+      ]
+    },
+    "ProtocolVersion": {
+      "description": "A major/minor protocol version.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking protocol generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible feature generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "RpcError": {
+      "description": "JSON-RPC error with stable code and optional structured evidence.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "Standard JSON-RPC or ASB application code.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "data": {
+          "description": "Optional structured, privacy-reviewed data."
+        },
+        "message": {
+          "description": "Safe diagnostic summary.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "TerminalStatus": {
+      "description": "Terminal attempt status.",
+      "oneOf": [
+        {
+          "description": "All required operations completed.",
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "description": "The attempt failed.",
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "description": "Cancellation reached a terminal state.",
+          "type": "string",
+          "const": "cancelled"
+        }
+      ]
+    },
+    "Usage": {
+      "description": "Usage telemetry; unavailable values remain absent, never zero-filled.",
+      "type": "object",
+      "properties": {
+        "cost_micros": {
+          "description": "Monetary cost in micros of the manifest currency when known.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "currency": {
+          "description": "ISO 4217 currency code when cost is known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_tokens": {
+          "description": "Provider input tokens when reported.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "description": "Provider output tokens when reported.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

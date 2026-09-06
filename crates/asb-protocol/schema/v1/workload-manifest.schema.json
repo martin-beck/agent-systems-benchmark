@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkloadManifest",
+  "description": "Workload provenance and execution requirements.",
+  "type": "object",
+  "properties": {
+    "allowed_network_destinations": {
+      "description": "Network destinations allowed during execution; empty means offline.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "architectures": {
+      "description": "Supported CPU architectures.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "content_sha256": {
+      "description": "Lowercase SHA-256 of canonical workload content.",
+      "type": "string"
+    },
+    "cpu_count": {
+      "description": "Maximum logical CPUs requested.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "fixture_bytes": {
+      "description": "Prepared fixture size in bytes.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "license": {
+      "description": "SPDX license expression.",
+      "type": "string"
+    },
+    "memory_bytes": {
+      "description": "Maximum memory requested in bytes.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "operating_systems": {
+      "description": "Supported operating systems.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "scoring_version": {
+      "description": "Independently versioned scoring implementation.",
+      "type": "string"
+    },
+    "source_revision": {
+      "description": "Immutable upstream source revision.",
+      "type": "string"
+    },
+    "timeout_ms": {
+      "description": "Attempt timeout in milliseconds.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "version": {
+      "description": "Workload content version.",
+      "type": "string"
+    },
+    "workload_id": {
+      "description": "Stable workload identity.",
+      "$ref": "#/$defs/Id"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "workload_id",
+    "version",
+    "license",
+    "source_revision",
+    "content_sha256",
+    "architectures",
+    "operating_systems",
+    "fixture_bytes",
+    "timeout_ms",
+    "cpu_count",
+    "memory_bytes",
+    "scoring_version",
+    "allowed_network_destinations"
+  ],
+  "$defs": {
+    "Id": {
+      "description": "Stable identifier transported without host-specific meaning.",
+      "type": "string"
+    }
+  }
+}

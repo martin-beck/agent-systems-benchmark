@@ -1,0 +1,16 @@
+{
+  "jsonrpc": "2.0",
+  "method": "event",
+  "params": {
+    "session_id": "session-1",
+    "attempt_id": "attempt-1",
+    "sequence": 3,
+    "event": {
+      "type": "tool_finished",
+      "data": {
+        "tool_call_id": "tool-call-1",
+        "success": true
+      }
+    }
+  }
+}

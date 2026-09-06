@@ -1,0 +1,46 @@
+{
+  "schema_version": { "major": 1, "minor": 0 },
+  "session_id": "session-1",
+  "attempt_id": "attempt-1",
+  "status": "completed",
+  "error": null,
+  "artifacts": [
+    {
+      "name": "patch.diff",
+      "size_bytes": 12,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "metrics": [
+    {
+      "descriptor": {
+        "metric_id": "process.cpu.time",
+        "unit": "ns",
+        "aggregation": "counter",
+        "scope": "attempt_process_tree",
+        "source": "procfs",
+        "resolution_ns": 10000000
+      },
+      "offset_ns": 20000000,
+      "value": { "availability": "available", "value": 1234.0 }
+    },
+    {
+      "descriptor": {
+        "metric_id": "provider.cost",
+        "unit": "USD",
+        "aggregation": "counter",
+        "scope": "attempt",
+        "source": "provider",
+        "resolution_ns": 0
+      },
+      "offset_ns": 20000000,
+      "value": { "availability": "unavailable", "reason": "provider did not report cost" }
+    }
+  ],
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 20,
+    "cost_micros": null,
+    "currency": null
+  }
+}

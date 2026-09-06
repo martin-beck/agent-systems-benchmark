@@ -1,0 +1,15 @@
+{
+  "workload_id": "org.asb.fixture.edit",
+  "version": "1.0.0",
+  "license": "MIT",
+  "source_revision": "1111111111111111111111111111111111111111",
+  "content_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "architectures": ["x86_64", "aarch64"],
+  "operating_systems": ["linux"],
+  "fixture_bytes": 4096,
+  "timeout_ms": 30000,
+  "cpu_count": 1,
+  "memory_bytes": 268435456,
+  "scoring_version": "1.0.0",
+  "allowed_network_destinations": []
+}
