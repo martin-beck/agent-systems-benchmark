@@ -891,12 +891,24 @@ mod tests {
             .insert("future".into(), true.into());
         assert!(serde_json::from_value::<ProviderProfileV1>(json).is_err());
 
-        let mut missing = serde_json::to_value(profile()).unwrap();
-        missing["settings"]
+        for field in [
+            "temperature_milli",
+            "top_p_millionth",
+            "seed",
+            "max_output_tokens",
+            "reasoning_effort",
+            "additional_settings_sha256",
+        ] {
+            let mut missing = serde_json::to_value(profile()).unwrap();
+            missing["settings"].as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<ProviderProfileV1>(missing).is_err());
+        }
+        let mut missing_credential_reference = serde_json::to_value(profile()).unwrap();
+        missing_credential_reference["credential"]
             .as_object_mut()
             .unwrap()
-            .remove("temperature_milli");
-        assert!(serde_json::from_value::<ProviderProfileV1>(missing).is_err());
+            .remove("reference_sha256");
+        assert!(serde_json::from_value::<ProviderProfileV1>(missing_credential_reference).is_err());
         let mut explicit = serde_json::to_value(profile()).unwrap();
         explicit["settings"]["temperature_milli"] = serde_json::Value::Null;
         assert!(serde_json::from_value::<ProviderProfileV1>(explicit).is_ok());
@@ -934,12 +946,24 @@ mod tests {
         let fixture = serde_json::to_value(profile()).unwrap();
         assert!(validator.is_valid(&fixture));
 
-        let mut missing = fixture.clone();
-        missing["settings"]
+        for field in [
+            "temperature_milli",
+            "top_p_millionth",
+            "seed",
+            "max_output_tokens",
+            "reasoning_effort",
+            "additional_settings_sha256",
+        ] {
+            let mut missing = fixture.clone();
+            missing["settings"].as_object_mut().unwrap().remove(field);
+            assert!(!validator.is_valid(&missing));
+        }
+        let mut missing_credential_reference = fixture.clone();
+        missing_credential_reference["credential"]
             .as_object_mut()
             .unwrap()
-            .remove("temperature_milli");
-        assert!(!validator.is_valid(&missing));
+            .remove("reference_sha256");
+        assert!(!validator.is_valid(&missing_credential_reference));
 
         let mut future = fixture.clone();
         future["version"]["minor"] = 1.into();
