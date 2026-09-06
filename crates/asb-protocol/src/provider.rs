@@ -700,6 +700,10 @@ mod tests {
     fn identity_negotiation_and_effective_proof_are_exact() {
         let value = profile();
         assert_eq!(value.validate(), Ok(()));
+        assert_eq!(
+            value.settings_sha256,
+            "3ef77e8fcc34900d8cece0e1bccf3bb3b23cb389669ca6eb857853be93612ae5"
+        );
         let negotiated = value.negotiate(&capabilities()).unwrap();
         assert_eq!(negotiated.expected_sha256(), value.settings_sha256);
         assert_eq!(
