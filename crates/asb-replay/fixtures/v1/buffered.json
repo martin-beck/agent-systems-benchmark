@@ -1,0 +1,58 @@
+{
+  "contents": {
+    "schema_version": 1,
+    "cassette_id": "fixture-buffered",
+    "normalization": {"version": 1},
+    "redaction": {
+      "version": 1,
+      "selectors": {
+        "header_names": ["authorization", "cookie", "proxy-authorization", "set-cookie", "x-api-key"],
+        "query_parameters": ["access_token", "api_key", "key", "token"],
+        "request_body_pointers": [],
+        "response_body_pointers": []
+      },
+      "selector_sha256": "64412f823f725e6f93337bc3741961006631645abc7680d45c98b887cb0d18c9"
+    },
+    "interactions": [
+      {
+        "session_id": "session-fixture",
+        "attempt_id": "attempt-fixture",
+        "interaction_id": "interaction-fixture-0",
+        "ordinal": 0,
+        "dialect": "synthetic",
+        "request": {
+          "method": "POST",
+          "path": "/v1/synthetic",
+          "headers": [
+            {"name": "content-type", "value": "application/json"}
+          ],
+          "body": {"input": "synthetic prompt"},
+          "body_sha256": "4bb7225b74781103956c49c967357aaa3685b2882a6d16bf57d4f46f739b3a50",
+          "model": "synthetic-model",
+          "options": {"temperature": 0},
+          "tools": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            {"name": "content-type", "value": "application/json"}
+          ],
+          "body": {
+            "kind": "buffered",
+            "payload": {
+              "output": "synthetic answer",
+              "response_id": "fixture-response"
+            },
+            "payload_sha256": "09ea82402aad43e431d2755e5b510a53eea6a18902426eb7def015575f28f054",
+            "response_id": "fixture-response",
+            "terminal": "completed"
+          }
+        }
+      }
+    ]
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "c99897813a8af0e6c3cc4b83a7f0a7bcff2a660edecf635454bbf6acb801f721"
+  }
+}
