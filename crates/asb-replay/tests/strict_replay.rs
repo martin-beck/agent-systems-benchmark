@@ -9,10 +9,11 @@ use std::thread;
 use std::time::Duration;
 
 use asb_replay::{
-    Cassette, CassetteContents, CassetteEvent, CassetteLimits, Header, Interaction, MAX_IO_TIMEOUT,
-    PolicyVersion, ProviderDialect, RecordedRequest, RecordedResponse, RedactionPolicy, Redactor,
-    ReplayError, ReplayHttpRequest, ReplayLimits, ReplayRoute, ResponseBody, StrictReplayService,
-    TerminalEvent, decode_cassette, dialect_capabilities, seal_cassette,
+    CancellationToken, Cassette, CassetteContents, CassetteEvent, CassetteLimits, Header,
+    Interaction, MAX_IO_TIMEOUT, PacingConfig, PacingError, PacingMode, PolicyVersion,
+    ProviderDialect, RecordedRequest, RecordedResponse, RedactionPolicy, Redactor, ReplayError,
+    ReplayHttpRequest, ReplayLimits, ReplayRoute, ResponseBody, StrictReplayService, TerminalEvent,
+    decode_cassette, dialect_capabilities, seal_cassette,
 };
 use serde_json::{Value, json};
 
@@ -312,9 +313,9 @@ fn each_dialect_has_distinct_buffered_or_sse_wire_semantics() {
             chat_request,
         )
         .unwrap();
-    assert_eq!(chat.segments.len(), 3);
+    assert_eq!(chat.segments.len(), 2);
     assert!(chat.segments[0].starts_with(b"data: {"));
-    assert_eq!(chat.segments[2], b"data: [DONE]\n\n");
+    assert!(chat.segments[1].ends_with(b"data: [DONE]\n\n"));
 
     let buffered = service
         .handle(
@@ -387,8 +388,8 @@ fn parallel_identical_sessions_have_independent_atomic_cursors() {
                         request,
                     )
                     .unwrap();
-                assert_eq!(response.segments.len(), 3);
-                assert_eq!(response.segments[2], b"data: [DONE]\n\n");
+                assert_eq!(response.segments.len(), 2);
+                assert!(response.segments[1].ends_with(b"data: [DONE]\n\n"));
             })
         })
         .collect();
@@ -755,6 +756,104 @@ fn loopback_http_boundary_serves_exact_body_then_fails_closed() {
     let exhausted = serve_raw(service, selected, raw);
     assert!(exhausted.starts_with(b"HTTP/1.1 409 Conflict\r\n"));
     assert!(exhausted.ends_with(br#"{"error":"replay_mismatch"}"#));
+}
+
+#[test]
+fn loopback_original_pacing_reports_cassette_offsets() {
+    let source = reseal(cassette(), |contents| {
+        let ResponseBody::Events { events, .. } = &mut contents.interactions[0].response.body
+        else {
+            unreachable!()
+        };
+        events[0].monotonic_offset_ns = 2_000_000;
+        events[1].monotonic_offset_ns = 4_000_000;
+    });
+    let request = incoming(&source, "chat-a", 0);
+    let body = request.body.clone();
+    let raw: Vec<u8> = format!(
+        "POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\nAuthorization: dummy\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    )
+    .into_bytes()
+    .into_iter()
+    .chain(body)
+    .collect();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = Arc::new(StrictReplayService::new(source, ReplayLimits::default()).unwrap());
+    let server_service = Arc::clone(&service);
+    let server = thread::spawn(move || {
+        server_service
+            .serve_once_paced(
+                &listener,
+                &route("chat-a", ProviderDialect::OpenaiChatCompletions),
+                PacingConfig {
+                    mode: PacingMode::Original,
+                    max_segment_write: Duration::from_secs(1),
+                    max_lateness: Duration::from_millis(100),
+                    cancellation_poll: Duration::from_millis(1),
+                },
+                &CancellationToken::default(),
+            )
+            .unwrap()
+    });
+    let mut client = TcpStream::connect(address).unwrap();
+    client.write_all(&raw).unwrap();
+    let mut response = Vec::new();
+    client.read_to_end(&mut response).unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    let report = server.join().unwrap();
+    let pacing = report.pacing.unwrap();
+    assert_eq!(report.status, 200);
+    assert_eq!(pacing.segments.len(), 2);
+    assert_eq!(pacing.segments[0].desired_offset, Duration::from_millis(2));
+    assert_eq!(pacing.segments[1].desired_offset, Duration::from_millis(4));
+}
+
+#[test]
+fn paced_cancellation_releases_socket_reservation_for_direct_retry() {
+    let source = cassette();
+    let request = incoming(&source, "chat-a", 0);
+    let body = request.body.clone();
+    let raw: Vec<u8> = format!(
+        "POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\nAuthorization: dummy\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    )
+    .into_bytes()
+    .into_iter()
+    .chain(body)
+    .collect();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = Arc::new(StrictReplayService::new(source, ReplayLimits::default()).unwrap());
+    let token = CancellationToken::default();
+    token.cancel();
+    let server_service = Arc::clone(&service);
+    let server = thread::spawn(move || {
+        server_service.serve_once_paced(
+            &listener,
+            &route("chat-a", ProviderDialect::OpenaiChatCompletions),
+            PacingConfig::immediate(),
+            &token,
+        )
+    });
+    let mut client = TcpStream::connect(address).unwrap();
+    client.write_all(&raw).unwrap();
+    let mut partial = Vec::new();
+    client.read_to_end(&mut partial).unwrap();
+    assert!(partial.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(matches!(
+        server.join().unwrap(),
+        Err(ReplayError::Pacing(PacingError::Cancelled {
+            completed_segments: 0
+        }))
+    ));
+    service
+        .handle(
+            &route("chat-a", ProviderDialect::OpenaiChatCompletions),
+            request,
+        )
+        .unwrap();
 }
 
 #[test]

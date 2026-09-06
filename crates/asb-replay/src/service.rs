@@ -3,16 +3,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    Cassette, CassetteLimits, Header, Interaction, ProviderDialect, RecordedRequest,
-    RecordedResponse, ResponseBody, canonical_json_bytes,
+    CancellationToken, Cassette, CassetteLimits, Header, Interaction, PacingConfig, PacingError,
+    PacingReport, ProviderDialect, RecordedRequest, RecordedResponse, ResponseBody,
+    canonical_json_bytes,
 };
 
 const MAX_HTTP_HEAD_BYTES: usize = 64 * 1024;
@@ -20,6 +21,73 @@ const MAX_HTTP_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_HTTP_HEADERS: usize = 1_024;
 /// Hard ceiling for one accepted connection's read and write timeouts.
 pub const MAX_IO_TIMEOUT: Duration = Duration::from_secs(30);
+
+trait WriteTimeout {
+    fn set_write_timeout_bound(&self, timeout: Option<Duration>) -> std::io::Result<()>;
+}
+
+impl WriteTimeout for TcpStream {
+    fn set_write_timeout_bound(&self, timeout: Option<Duration>) -> std::io::Result<()> {
+        self.set_write_timeout(timeout)
+    }
+}
+
+struct DeadlineStream<'a, S> {
+    inner: &'a mut S,
+    maximum: Duration,
+    deadline: Option<Instant>,
+}
+
+impl<'a, S> DeadlineStream<'a, S> {
+    fn new(inner: &'a mut S, maximum: Duration) -> Self {
+        Self {
+            inner,
+            maximum,
+            deadline: None,
+        }
+    }
+}
+
+impl<S: Read> Read for DeadlineStream<'_, S> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buffer)
+    }
+}
+
+impl<S: Write + WriteTimeout> DeadlineStream<'_, S> {
+    fn remaining(&mut self) -> std::io::Result<Duration> {
+        let deadline = *self.deadline.get_or_insert_with(|| {
+            Instant::now()
+                .checked_add(self.maximum)
+                .expect("validated pacing duration fits Instant")
+        });
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "paced replay segment deadline elapsed",
+            ))
+        } else {
+            Ok(remaining)
+        }
+    }
+}
+
+impl<S: Write + WriteTimeout> Write for DeadlineStream<'_, S> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let remaining = self.remaining()?;
+        self.inner.set_write_timeout_bound(Some(remaining))?;
+        self.inner.write(buffer)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let remaining = self.remaining()?;
+        self.inner.set_write_timeout_bound(Some(remaining))?;
+        self.inner.flush()?;
+        self.deadline = None;
+        Ok(())
+    }
+}
 
 /// Explicit behavior implemented for one provider request dialect.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -143,6 +211,17 @@ pub struct ReplayHttpResponse {
     pub headers: Vec<Header>,
     /// One buffered body or one segment per SSE event.
     pub segments: Vec<Vec<u8>>,
+    /// Original monotonic offset for each semantic body segment.
+    pub recorded_offsets: Vec<Duration>,
+}
+
+/// Socket response status and pacing evidence, when an interaction was served.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReplayDeliveryReport {
+    /// HTTP status written to the client.
+    pub status: u16,
+    /// Complete segment timing, absent for a fail-closed local error response.
+    pub pacing: Option<PacingReport>,
 }
 
 /// Fail-closed errors that never contain captured values.
@@ -178,6 +257,9 @@ pub enum ReplayError {
     /// Inbound local transport failed.
     #[error("local replay transport failed")]
     Io(#[source] std::io::Error),
+    /// Paced delivery failed; a completely written response may already be committed.
+    #[error("paced replay delivery failed")]
+    Pacing(#[source] PacingError),
 }
 
 #[derive(Debug)]
@@ -315,17 +397,38 @@ impl StrictReplayService {
         Ok(())
     }
 
+    #[cfg(test)]
     fn serve_connection<S: Read + Write>(
         &self,
         stream: &mut S,
         route: &ReplayRoute,
     ) -> Result<u16, ReplayError> {
+        self.serve_connection_paced(
+            stream,
+            route,
+            PacingConfig::immediate(),
+            &CancellationToken::default(),
+        )
+        .map(|report| report.status)
+    }
+
+    fn serve_connection_paced<S: Read + Write>(
+        &self,
+        stream: &mut S,
+        route: &ReplayRoute,
+        pacing: PacingConfig,
+        cancellation: &CancellationToken,
+    ) -> Result<ReplayDeliveryReport, ReplayError> {
+        pacing.validate().map_err(ReplayError::Pacing)?;
         let request = match read_http_request(stream, self.limits) {
             Ok(request) => request,
             Err(error) => {
                 let response = error_response(&error);
                 write_http_response(stream, &response).map_err(ReplayError::Io)?;
-                return Ok(response.status);
+                return Ok(ReplayDeliveryReport {
+                    status: response.status,
+                    pacing: None,
+                });
             }
         };
         let reservation = match self.reserve(route, request) {
@@ -333,16 +436,38 @@ impl StrictReplayService {
             Err(error) => {
                 let response = error_response(&error);
                 write_http_response(stream, &response).map_err(ReplayError::Io)?;
-                return Ok(response.status);
+                return Ok(ReplayDeliveryReport {
+                    status: response.status,
+                    pacing: None,
+                });
             }
         };
         let status = reservation.response.status;
-        if let Err(error) = write_http_response(stream, &reservation.response) {
+        if let Err(error) = write_http_head(stream, &reservation.response) {
             self.finish_reservation(&reservation, false)?;
             return Err(ReplayError::Io(error));
         }
+        let report = match crate::pacing::write_paced_segments_with_clock(
+            stream,
+            &reservation.response.segments,
+            &reservation.response.recorded_offsets,
+            pacing,
+            cancellation,
+            &crate::SystemMonotonicClock::start(),
+        ) {
+            Ok(report) => report,
+            Err(error) => {
+                let delivery_complete =
+                    error.completed_segments() == reservation.response.segments.len();
+                self.finish_reservation(&reservation, delivery_complete)?;
+                return Err(ReplayError::Pacing(error));
+            }
+        };
         self.finish_reservation(&reservation, true)?;
-        Ok(status)
+        Ok(ReplayDeliveryReport {
+            status,
+            pacing: Some(report),
+        })
     }
 
     /// Accept one inbound loopback HTTP/1.1 connection and then close it.
@@ -354,6 +479,32 @@ impl StrictReplayService {
         listener: &TcpListener,
         route: &ReplayRoute,
     ) -> Result<u16, ReplayError> {
+        self.serve_once_paced(
+            listener,
+            route,
+            PacingConfig::immediate(),
+            &CancellationToken::default(),
+        )
+        .map(|report| report.status)
+    }
+
+    /// Accept one loopback connection and deliver it under an explicit pacing policy.
+    ///
+    /// An incomplete failed write, cancellation, synthetic failure, lateness
+    /// violation, or backpressure violation releases the route reservation and
+    /// leaves its interaction retryable. If every semantic segment was completely
+    /// written before a lateness or backpressure violation was observed, the cursor
+    /// commits while this method still returns a pacing error; retrying a fully
+    /// written response could duplicate delivery. The socket write timeout is never
+    /// greater than the configured segment-write bound.
+    pub fn serve_once_paced(
+        &self,
+        listener: &TcpListener,
+        route: &ReplayRoute,
+        pacing: PacingConfig,
+        cancellation: &CancellationToken,
+    ) -> Result<ReplayDeliveryReport, ReplayError> {
+        let pacing = pacing.validate().map_err(ReplayError::Pacing)?;
         let (mut stream, peer) = listener.accept().map_err(ReplayError::Io)?;
         if !peer.ip().is_loopback() {
             return Err(ReplayError::InvalidHttp);
@@ -361,10 +512,9 @@ impl StrictReplayService {
         stream
             .set_read_timeout(Some(self.limits.io_timeout))
             .map_err(ReplayError::Io)?;
-        stream
-            .set_write_timeout(Some(self.limits.io_timeout))
-            .map_err(ReplayError::Io)?;
-        self.serve_connection(&mut stream, route)
+        let maximum = self.limits.io_timeout.min(pacing.max_segment_write);
+        let mut bounded = DeadlineStream::new(&mut stream, maximum);
+        self.serve_connection_paced(&mut bounded, route, pacing, cancellation)
     }
 }
 
@@ -569,10 +719,11 @@ fn encode_response(
         })
         .cloned()
         .collect();
-    let segments = match &response.body {
-        ResponseBody::Buffered { payload, .. } => {
-            vec![canonical_json_bytes(payload).map_err(|_| ReplayError::InvalidCassette)?]
-        }
+    let (segments, recorded_offsets) = match &response.body {
+        ResponseBody::Buffered { payload, .. } => (
+            vec![canonical_json_bytes(payload).map_err(|_| ReplayError::InvalidCassette)?],
+            vec![Duration::ZERO],
+        ),
         ResponseBody::Events { events, .. } => {
             if !headers.iter().any(|header| header.name == "content-type") {
                 headers.push(Header {
@@ -582,6 +733,7 @@ fn encode_response(
                 headers.sort_by(|left, right| left.name.cmp(&right.name));
             }
             let mut encoded = Vec::with_capacity(events.len() + 1);
+            let mut offsets = Vec::with_capacity(events.len() + 1);
             for event in events {
                 let payload = canonical_json_bytes(&event.payload)
                     .map_err(|_| ReplayError::InvalidCassette)?;
@@ -595,17 +747,22 @@ fn encode_response(
                 segment.extend_from_slice(&payload);
                 segment.extend_from_slice(b"\n\n");
                 encoded.push(segment);
+                offsets.push(Duration::from_nanos(event.monotonic_offset_ns));
             }
             if dialect == ProviderDialect::OpenaiChatCompletions {
-                encoded.push(b"data: [DONE]\n\n".to_vec());
+                encoded
+                    .last_mut()
+                    .ok_or(ReplayError::InvalidCassette)?
+                    .extend_from_slice(b"data: [DONE]\n\n");
             }
-            encoded
+            (encoded, offsets)
         }
     };
     Ok(ReplayHttpResponse {
         status: response.status,
         headers,
         segments,
+        recorded_offsets,
     })
 }
 
@@ -717,6 +874,7 @@ fn error_response(error: &ReplayError) -> ReplayHttpResponse {
             value: "application/json".into(),
         }],
         segments: vec![format!("{{\"error\":\"{code}\"}}").into_bytes()],
+        recorded_offsets: vec![Duration::ZERO],
     }
 }
 
@@ -724,6 +882,15 @@ fn write_http_response<W: Write>(
     writer: &mut W,
     response: &ReplayHttpResponse,
 ) -> std::io::Result<()> {
+    write_http_head(writer, response)?;
+    for segment in &response.segments {
+        writer.write_all(segment)?;
+        writer.flush()?;
+    }
+    Ok(())
+}
+
+fn write_http_head<W: Write>(writer: &mut W, response: &ReplayHttpResponse) -> std::io::Result<()> {
     let reason = match response.status {
         200 => "OK",
         400 => "Bad Request",
@@ -744,10 +911,7 @@ fn write_http_response<W: Write>(
         writer,
         "content-length: {length}\r\nconnection: close\r\n\r\n"
     )?;
-    for segment in &response.segments {
-        writer.write_all(segment)?;
-        writer.flush()?;
-    }
+    writer.flush()?;
     Ok(())
 }
 
@@ -804,6 +968,43 @@ mod tests {
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
         }
+    }
+
+    struct SlowProgressIo {
+        writes: usize,
+    }
+
+    impl WriteTimeout for SlowProgressIo {
+        fn set_write_timeout_bound(&self, timeout: Option<Duration>) -> std::io::Result<()> {
+            assert!(timeout.is_some_and(|value| !value.is_zero()));
+            Ok(())
+        }
+    }
+
+    impl Write for SlowProgressIo {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            self.writes += 1;
+            thread::sleep(Duration::from_millis(2));
+            Ok(1)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn deadline_writer_bounds_a_peer_that_makes_only_slow_partial_progress() {
+        let mut slow = SlowProgressIo { writes: 0 };
+        let started = Instant::now();
+        let error = {
+            let mut bounded = DeadlineStream::new(&mut slow, Duration::from_millis(5));
+            bounded.write_all(&[0_u8; 1_024]).unwrap_err()
+        };
+        let elapsed = started.elapsed();
+        assert_eq!(error.kind(), ErrorKind::TimedOut);
+        assert!(elapsed < Duration::from_millis(100));
+        assert!(slow.writes < 1_024);
     }
 
     fn body() -> Value {
@@ -937,6 +1138,75 @@ mod tests {
             service
                 .serve_connection(&mut exhausted, &route("one"))
                 .unwrap(),
+            409
+        );
+    }
+
+    #[test]
+    fn final_segment_lateness_rejection_leaves_interaction_retryable() {
+        let service = service();
+        let selected = route("one");
+        let mut late = MemoryIo::new(raw_request());
+        let error = service
+            .serve_connection_paced(
+                &mut late,
+                &selected,
+                PacingConfig {
+                    mode: crate::PacingMode::Original,
+                    max_segment_write: Duration::from_secs(1),
+                    max_lateness: Duration::ZERO,
+                    cancellation_poll: Duration::from_millis(1),
+                },
+                &CancellationToken::default(),
+            )
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            ReplayError::Pacing(PacingError::Backpressure {
+                completed_segments: 0
+            })
+        ));
+
+        let mut retry = MemoryIo::new(raw_request());
+        assert_eq!(
+            service.serve_connection(&mut retry, &selected).unwrap(),
+            200
+        );
+        let mut exhausted = MemoryIo::new(raw_request());
+        assert_eq!(
+            service.serve_connection(&mut exhausted, &selected).unwrap(),
+            409
+        );
+    }
+
+    #[test]
+    fn completed_final_segment_over_bound_commits_interaction() {
+        let service = service();
+        let selected = route("one");
+        let mut slow = MemoryIo::new(raw_request());
+        let error = service
+            .serve_connection_paced(
+                &mut slow,
+                &selected,
+                PacingConfig {
+                    mode: crate::PacingMode::Immediate,
+                    max_segment_write: Duration::from_nanos(1),
+                    max_lateness: Duration::from_secs(1),
+                    cancellation_poll: Duration::from_millis(1),
+                },
+                &CancellationToken::default(),
+            )
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            ReplayError::Pacing(PacingError::Backpressure {
+                completed_segments: 1
+            })
+        ));
+
+        let mut retry = MemoryIo::new(raw_request());
+        assert_eq!(
+            service.serve_connection(&mut retry, &selected).unwrap(),
             409
         );
     }
