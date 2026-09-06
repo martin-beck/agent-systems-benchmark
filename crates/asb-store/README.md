@@ -12,6 +12,10 @@ truncation, and configured size limits fail closed.
 Store paths are private and final file and directory opens reject symbolic
 links. The fault suite deterministically injects partial-write/disk-full-like
 and rename-boundary failures; it is not evidence from a real ENOSPC filesystem.
+The store assumes its private root is not concurrently renamed or replaced by
+another process with the same operating-system identity; defending against
+hostile replacement of ancestor directories requires a future directory-fd
+resolution layer.
 
 The store records durable intent and evidence. Inspecting live processes,
 cgroups, and remote effects before resolving an uncertain attempt belongs to

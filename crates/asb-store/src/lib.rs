@@ -698,7 +698,7 @@ fn decode_journal(bytes: &[u8], max_event_bytes: u64) -> Result<Vec<JournalEvent
 }
 
 fn read_bounded(path: &Path, maximum: u64, kind: &'static str) -> Result<Vec<u8>, StoreError> {
-    let file = File::open(path)?;
+    let file = private_read_file(path)?;
     let length = file.metadata()?.len();
     enforce_size(kind, length, maximum)?;
     let capacity = usize::try_from(length).map_err(|_| StoreError::SizeOverflow)?;
@@ -728,10 +728,37 @@ fn private_dir(path: &Path) -> Result<(), StoreError> {
     directory.set_permissions(fs::Permissions::from_mode(0o700))?;
     directory.sync_all()?;
     if created {
-        let parent = path.parent().ok_or(StoreError::UnsafePath)?;
+        let parent = containing_directory(path)?;
         sync_dir(parent)?;
     }
     Ok(())
+}
+
+fn containing_directory(path: &Path) -> Result<&Path, StoreError> {
+    let parent = path.parent().ok_or(StoreError::UnsafePath)?;
+    if parent.as_os_str().is_empty() {
+        Ok(Path::new("."))
+    } else {
+        Ok(parent)
+    }
+}
+
+fn private_read_file(path: &Path) -> Result<File, StoreError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(StoreError::UnsafePath);
+        }
+        Ok(_) => {}
+        Err(error) => return Err(error.into()),
+    }
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(StoreError::UnsafePath);
+    }
+    Ok(file)
 }
 
 fn private_file(path: &Path, create_new: bool) -> Result<File, StoreError> {
@@ -827,7 +854,7 @@ fn hex_digest(bytes: &[u8]) -> String {
 }
 
 fn verify_artifact(path: &Path, size: u64, digest: &str) -> Result<(), StoreError> {
-    let file = File::open(path)?;
+    let file = private_read_file(path)?;
     if file.metadata()?.len() != size {
         return Err(StoreError::ArtifactMismatch);
     }
@@ -1223,11 +1250,53 @@ mod tests {
         fs::remove_file(store_root.join("store.lock")).unwrap();
         fs::write(store_root.join("store.lock"), b"").unwrap();
 
+        let manifest_path = store_root.join("runs/run-1/manifest.json");
+        let saved_manifest = fs::read(&manifest_path).unwrap();
+        fs::remove_file(&manifest_path).unwrap();
+        symlink(&outside, &manifest_path).unwrap();
+        assert!(matches!(
+            store.load_manifest("run-1"),
+            Err(StoreError::UnsafePath)
+        ));
+        fs::remove_file(&manifest_path).unwrap();
+        fs::write(&manifest_path, saved_manifest).unwrap();
+
+        let journal_path = store_root.join("runs/run-1/journal.ndjson");
+        fs::remove_file(&journal_path).unwrap();
+        symlink(&outside, &journal_path).unwrap();
+        assert!(matches!(
+            store.load_journal("run-1"),
+            Err(StoreError::UnsafePath)
+        ));
+        fs::remove_file(&journal_path).unwrap();
+        fs::write(&journal_path, b"").unwrap();
+
+        let artifact = store
+            .put_artifact("run-1", "symlink-check", Cursor::new(b"data"))
+            .unwrap();
+        let artifact_path = store_root
+            .join("runs/run-1/artifacts")
+            .join(&artifact.sha256);
+        fs::remove_file(&artifact_path).unwrap();
+        symlink(&outside, &artifact_path).unwrap();
+        assert!(matches!(
+            store.verify_artifact_ref("run-1", &artifact),
+            Err(StoreError::UnsafePath)
+        ));
+
         let run = store_root.join("runs/run-1");
         let saved = store_root.join("saved-run");
         fs::rename(&run, &saved).unwrap();
         symlink(&actual, &run).unwrap();
         assert!(store.load_manifest("run-1").is_err());
         assert_eq!(fs::read(outside).unwrap(), b"outside");
+    }
+
+    #[test]
+    fn single_component_relative_roots_sync_the_current_directory() {
+        assert_eq!(
+            containing_directory(Path::new("relative-store")).unwrap(),
+            Path::new(".")
+        );
     }
 }
