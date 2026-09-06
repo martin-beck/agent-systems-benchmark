@@ -2,8 +2,8 @@
 
 `asb-runtime` owns trusted native subprocess execution. Each child starts as a
 new process-group leader. The runtime drains stdout and stderr concurrently,
-retains only configured byte limits, applies a monotonic deadline, terminates
-the complete process group, and reaps its direct child.
+retains only configured byte limits, applies a monotonic deadline to the owned
+process group, terminates that group, and reaps its direct child.
 
 Leader exit is observed with `waitid(WNOWAIT)`. Keeping the leader waitable
 fences its PID and process-group identity until descendants have been cleaned
@@ -16,9 +16,12 @@ cross-platform backends are owned by later runtime tasks.
 
 The retained stdout and stderr prefixes are bounded, while reader threads keep
 draining discarded suffixes to prevent pipe deadlock. Stdin remains owned by
-the caller. A trusted descendant that deliberately creates a different session
-or process group can leave this ownership boundary; cgroup-backed containment
-is required before running untrusted code.
+the caller. Native commands must not daemonize, call `setsid` or `setpgid`, or
+otherwise let a descendant escape the owned process group while retaining an
+inherited output pipe. Such an escape can keep `wait` blocked after the runtime
+has killed its owned group, so the timeout and cleanup guarantee depends on
+that precondition. Cgroup-backed AR-0103 containment is required for a hard
+process-tree containment or deadline claim and before running untrusted code.
 
 The lifecycle and fault cases are implementation tests against real Linux
 processes, not a mechanical invariant or bounded proof. They assume Linux

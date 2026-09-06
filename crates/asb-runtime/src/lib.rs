@@ -284,7 +284,12 @@ impl RunningProcess {
         Ok(())
     }
 
-    /// Wait for terminal state, enforcing the monotonic deadline and cleanup.
+    /// Wait for terminal state, enforcing the monotonic deadline and cleanup
+    /// for processes that remain in the owned process group.
+    ///
+    /// Commands must not daemonize, change session/process group, or let an
+    /// escaped descendant retain an inherited output pipe. A cgroup-backed
+    /// runtime is required for a hard process-tree containment/deadline claim.
     ///
     /// Calling this again returns the same evidence and never signals a stale
     /// process identity.
