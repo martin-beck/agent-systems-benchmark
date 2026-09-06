@@ -278,7 +278,7 @@ impl LinuxCollector {
             parse_process_stat(&text, self.page_size_bytes, self.clock_ticks_per_second)
         });
         let process_io = read_text(self.proc_root.join(pid.to_string()).join("io"))
-            .and_then(|text| parse_key_values(&text));
+            .and_then(|text| parse_process_io(&text));
         let mut samples = Vec::with_capacity(7);
         let stat_metrics = [
             (
@@ -534,6 +534,25 @@ fn parse_key_values(text: &str) -> Result<BTreeMap<String, u64>, String> {
     Ok(values)
 }
 
+fn parse_process_io(text: &str) -> Result<BTreeMap<String, u64>, String> {
+    let mut values = BTreeMap::new();
+    let mut seen = BTreeMap::new();
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        if fields.len() != 2 {
+            return Err("malformed process I/O line".into());
+        }
+        let key = fields[0].strip_suffix(':').unwrap_or(fields[0]);
+        if key.is_empty() || seen.insert(key, ()).is_some() {
+            return Err("malformed or duplicate process I/O line".into());
+        }
+        if matches!(key, "read_bytes" | "write_bytes") {
+            values.insert(key.to_owned(), parse_u64(fields[1], "process I/O counter")?);
+        }
+    }
+    Ok(values)
+}
+
 fn parse_io_stat(text: &str) -> Result<BTreeMap<String, u64>, String> {
     let mut totals = BTreeMap::from([("rbytes".to_owned(), 0_u64), ("wbytes".to_owned(), 0)]);
     for line in text.lines().filter(|line| !line.trim().is_empty()) {
@@ -759,8 +778,14 @@ mod tests {
 
     #[test]
     fn io_and_pressure_aggregate_as_documented() {
-        let proc_io = parse_key_values("read_bytes: 3\nwrite_bytes: 5\n").unwrap();
+        let proc_io = parse_process_io(
+            "rchar: 10\nread_bytes: 3\nwrite_bytes: 5\ncancelled_write_bytes: -4096\n",
+        )
+        .unwrap();
         assert_eq!(proc_io["read_bytes"], 3);
+        assert_eq!(proc_io["write_bytes"], 5);
+        assert!(parse_process_io("read_bytes: 1\nread_bytes: 2\n").is_err());
+        assert!(parse_process_io("read_bytes: -1\nwrite_bytes: 2\n").is_err());
         let io = parse_io_stat("8:0 rbytes=10 wbytes=20 rios=1\n8:16 rbytes=7 wbytes=9\n").unwrap();
         assert_eq!(io["rbytes"], 17);
         assert_eq!(io["wbytes"], 29);
