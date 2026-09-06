@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Rootless namespace isolation and dedicated resource leases.
+pub mod sandbox;
+
 #[cfg(not(target_os = "linux"))]
 compile_error!("asb-runtime currently supports Linux process semantics only");
 
