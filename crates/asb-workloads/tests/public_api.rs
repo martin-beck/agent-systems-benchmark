@@ -3,12 +3,33 @@
 
 use asb_workloads::{FIXTURE_IDS, OriginalWorkloads};
 use std::fs;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+fn scratch_base() -> PathBuf {
+    let configured = std::env::var_os("ASB_TEST_SCRATCH")
+        .map(|value| ("ASB_TEST_SCRATCH", PathBuf::from(value), false))
+        .or_else(|| {
+            std::env::var_os("CARGO_TARGET_DIR")
+                .map(|value| ("CARGO_TARGET_DIR", PathBuf::from(value), true))
+        });
+    let Some((name, path, is_target)) = configured else {
+        return std::env::temp_dir();
+    };
+    assert!(path.is_absolute(), "{name} must be an absolute path");
+    let base = if is_target {
+        path.join("asb-test-scratch")
+    } else {
+        path
+    };
+    fs::create_dir_all(&base).unwrap();
+    base
+}
 
 #[test]
 fn public_lifecycle_is_offline_content_free_and_clean() {
     for id in FIXTURE_IDS {
-        let root = std::env::temp_dir().join(format!(
+        let root = scratch_base().join(format!(
             "asb-public-workload-{}-{}",
             std::process::id(),
             SystemTime::now()
@@ -33,7 +54,7 @@ fn public_lifecycle_is_offline_content_free_and_clean() {
 
 #[test]
 fn destination_material_is_never_overwritten() {
-    let root = std::env::temp_dir().join(format!(
+    let root = scratch_base().join(format!(
         "asb-public-existing-{}-{}",
         std::process::id(),
         SystemTime::now()

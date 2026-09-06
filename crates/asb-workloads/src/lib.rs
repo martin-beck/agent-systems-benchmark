@@ -774,8 +774,37 @@ mod tests {
     use std::process::{Command, Stdio};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    fn resolve_scratch_base(
+        asb_scratch: Option<PathBuf>,
+        cargo_target: Option<PathBuf>,
+        fallback: PathBuf,
+    ) -> PathBuf {
+        let configured = asb_scratch
+            .map(|path| ("ASB_TEST_SCRATCH", path, false))
+            .or_else(|| cargo_target.map(|path| ("CARGO_TARGET_DIR", path, true)));
+        let Some((name, path, is_target)) = configured else {
+            return fallback;
+        };
+        assert!(path.is_absolute(), "{name} must be an absolute path");
+        if is_target {
+            path.join("asb-test-scratch")
+        } else {
+            path
+        }
+    }
+
+    fn scratch_base() -> PathBuf {
+        let base = resolve_scratch_base(
+            std::env::var_os("ASB_TEST_SCRATCH").map(PathBuf::from),
+            std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from),
+            std::env::temp_dir(),
+        );
+        fs::create_dir_all(&base).unwrap();
+        base
+    }
+
     fn root(label: &str) -> PathBuf {
-        std::env::temp_dir().join(format!(
+        scratch_base().join(format!(
             "asb-workload-{label}-{}-{}",
             std::process::id(),
             SystemTime::now()
@@ -805,6 +834,31 @@ mod tests {
             .write_all(patch.as_bytes())
             .unwrap();
         assert!(child.wait().unwrap().success());
+    }
+
+    #[test]
+    fn test_scratch_selection_is_absolute_prioritized_and_fail_closed() {
+        let fallback = std::env::temp_dir();
+        assert!(fallback.is_absolute());
+        let asb = fallback.join("asb-selected");
+        let target = fallback.join("cargo-selected");
+        assert_eq!(
+            resolve_scratch_base(Some(asb.clone()), Some(target.clone()), fallback.clone()),
+            asb
+        );
+        assert_eq!(
+            resolve_scratch_base(None, Some(target.clone()), fallback.clone()),
+            target.join("asb-test-scratch")
+        );
+        assert_eq!(resolve_scratch_base(None, None, fallback.clone()), fallback);
+        assert!(
+            std::panic::catch_unwind(|| resolve_scratch_base(
+                Some(PathBuf::from("relative")),
+                None,
+                PathBuf::from("unused")
+            ))
+            .is_err()
+        );
     }
 
     #[test]

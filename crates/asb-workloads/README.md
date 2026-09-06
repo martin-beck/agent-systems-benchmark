@@ -39,3 +39,9 @@ manifest pin consistency. Patch fixtures use exact-tree zero-context hunks and a
 applied with `git apply --unidiff-zero`. Native x86_64 and aarch64 CI exercise the same offline
 Rust implementation. No live API, network destination, compiler for fixture
 languages, or external dataset is required.
+
+Controlled runs set `ASB_TEST_SCRATCH` to an absolute directory on the configured
+development volume. If it is absent, tests use an absolute `CARGO_TARGET_DIR`
+subdirectory when configured, or the operating system's temporary directory for
+portable external builds. Relative configured scratch or target paths fail closed;
+each attempt remains uniquely named and successful cleanup removes its attempt root.
