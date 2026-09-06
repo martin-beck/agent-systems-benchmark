@@ -36,6 +36,14 @@ fn private_fixture(root: &Path) {
     fs::set_permissions(process.join("io"), fs::Permissions::from_mode(0o0)).unwrap();
 }
 
+fn unique_root(label: &str) -> std::path::PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    std::env::temp_dir().join(format!("asb-metrics-{label}-{unique}"))
+}
+
 #[test]
 #[ignore = "invoked after an actual privilege drop by permission_denied_is_unavailable"]
 fn permission_denied_child() {
@@ -54,11 +62,7 @@ fn permission_denied_child() {
 
 #[test]
 fn permission_denied_is_unavailable() {
-    let unique = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let root = std::env::temp_dir().join(format!("asb-metrics-permission-{unique}"));
+    let root = unique_root("permission");
     fs::create_dir(&root).unwrap();
     fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
     private_fixture(&root);
@@ -93,6 +97,73 @@ fn permission_denied_is_unavailable() {
     fs::set_permissions(root.join("99/io"), fs::Permissions::from_mode(0o600)).unwrap();
     fs::remove_dir_all(&root).unwrap();
     assert!(status.success());
+}
+
+#[test]
+fn controlled_cgroup_fixture_preserves_values_units_and_scope() {
+    let root = unique_root("cgroup");
+    let group = root.join("work");
+    fs::create_dir_all(&group).unwrap();
+    fs::write(
+        group.join("cpu.stat"),
+        "usage_usec 100\nuser_usec 60\nsystem_usec 40\nnr_periods 5\n\
+         nr_throttled 2\nthrottled_usec 7\n",
+    )
+    .unwrap();
+    fs::write(group.join("memory.current"), "4096\n").unwrap();
+    fs::write(group.join("memory.peak"), "8192\n").unwrap();
+    fs::write(group.join("memory.stat"), "pgfault 12\npgmajfault 3\n").unwrap();
+    fs::write(
+        group.join("io.stat"),
+        "8:0 rbytes=10 wbytes=20 rios=1\n8:16 rbytes=7 wbytes=9\n",
+    )
+    .unwrap();
+    let pressure = "some avg10=0.00 avg60=0.00 avg300=0.00 total=4\n\
+                    full avg10=0.00 avg60=0.00 avg300=0.00 total=2\n";
+    for resource in ["cpu", "memory", "io"] {
+        fs::write(group.join(format!("{resource}.pressure")), pressure).unwrap();
+    }
+    let collection = LinuxCollector::with_roots("/unused", &root)
+        .collect_cgroup("work", 77)
+        .unwrap();
+    fs::remove_dir_all(root).unwrap();
+
+    assert_eq!(collection.samples.len(), 18);
+    assert_eq!(collection.evidence.available_values, 18);
+    assert_eq!(value(&collection, "cgroup.cpu.usage"), Some(100_000.0));
+    assert_eq!(
+        value(&collection, "cgroup.cpu.throttled_time"),
+        Some(7_000.0)
+    );
+    assert_eq!(value(&collection, "cgroup.memory.current"), Some(4096.0));
+    assert_eq!(value(&collection, "cgroup.io.read"), Some(17.0));
+    assert_eq!(value(&collection, "cgroup.io.write"), Some(29.0));
+    assert_eq!(value(&collection, "cgroup.pressure.io.full"), Some(2_000.0));
+    assert!(collection.samples.iter().all(|sample| {
+        sample.offset_ns == 77
+            && sample.descriptor.scope == "cgroup"
+            && !sample.descriptor.unit.is_empty()
+            && sample.descriptor.source.starts_with("cgroup2:")
+    }));
+}
+
+#[test]
+fn absent_cgroup_files_are_unavailable_never_zero() {
+    let root = unique_root("absent");
+    fs::create_dir(&root).unwrap();
+    let collection = LinuxCollector::with_roots("/unused", &root)
+        .collect_cgroup("missing", 0)
+        .unwrap();
+    fs::remove_dir(root).unwrap();
+    assert_eq!(collection.evidence.attempted_values, 18);
+    assert_eq!(collection.evidence.available_values, 0);
+    assert_eq!(collection.evidence.unavailable_values, 18);
+    assert!(collection.samples.iter().all(|sample| {
+        matches!(
+            &sample.value,
+            MetricValue::Unavailable { reason } if reason == "kernel metric source is absent"
+        )
+    }));
 }
 
 #[test]
