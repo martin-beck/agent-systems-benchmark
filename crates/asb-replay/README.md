@@ -103,6 +103,10 @@ reserves its exact next interaction while writing, so concurrent admission on
 that route fails closed while unrelated routes remain available. The cursor is
 committed only after every response byte is accepted by the socket writer; a
 write error releases the reservation and leaves the interaction retryable.
+Incomplete cancellation, synthetic-failure, lateness, and backpressure failures
+also release the reservation. If every semantic segment was completely written
+before an over-bound duration was observed, the cursor commits even though the
+call returns a pacing error, because retrying could duplicate the full response.
 Direct `handle` calls consume when they return successfully. Buffered responses
 are canonical JSON. Streamed semantic events are emitted immediately as SSE in
 cassette order; Chat Completions receives a final `[DONE]` marker. Captured

@@ -257,7 +257,7 @@ pub enum ReplayError {
     /// Inbound local transport failed.
     #[error("local replay transport failed")]
     Io(#[source] std::io::Error),
-    /// Paced response delivery failed before the cursor could commit.
+    /// Paced delivery failed; a completely written response may already be committed.
     #[error("paced replay delivery failed")]
     Pacing(#[source] PacingError),
 }
@@ -490,10 +490,13 @@ impl StrictReplayService {
 
     /// Accept one loopback connection and deliver it under an explicit pacing policy.
     ///
-    /// A failed write, cancellation, synthetic failure, lateness violation, or
-    /// backpressure violation releases the route reservation without consuming
-    /// its interaction. The socket write timeout is never greater than the
-    /// configured segment-write bound.
+    /// An incomplete failed write, cancellation, synthetic failure, lateness
+    /// violation, or backpressure violation releases the route reservation and
+    /// leaves its interaction retryable. If every semantic segment was completely
+    /// written before a lateness or backpressure violation was observed, the cursor
+    /// commits while this method still returns a pacing error; retrying a fully
+    /// written response could duplicate delivery. The socket write timeout is never
+    /// greater than the configured segment-write bound.
     pub fn serve_once_paced(
         &self,
         listener: &TcpListener,
