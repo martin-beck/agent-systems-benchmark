@@ -1,5 +1,8 @@
 # Quality and platform assurance
 
+The mandatory commands, pins, signature boundary and negative fixtures are
+documented in [repository quality gates](QUALITY_GATES.md).
+
 ## Bootstrap gates implemented
 
 The initial CI builds and tests Rust on native GitHub-hosted x86_64 and arm64
