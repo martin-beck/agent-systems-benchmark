@@ -9,7 +9,10 @@ use url::Url;
 
 use crate::{
     CassetteContents, Header, RecordedRequest, RecordedResponse, RedactedCassetteContents,
-    ResponseBody, cassette::canonical_value_digest,
+    RedactionDescriptor, RedactionSelectors, ResponseBody,
+    cassette::{
+        canonical_json_bytes, canonical_value_digest, valid_header_value, valid_origin_form,
+    },
 };
 
 /// Redaction policy understood by this implementation.
@@ -91,6 +94,12 @@ impl RedactionPolicy {
         }
         Ok(())
     }
+
+    /// Produce the complete deterministic descriptor persisted in a cassette.
+    pub fn descriptor(&self) -> Result<RedactionDescriptor, RedactionError> {
+        self.validate()?;
+        descriptor_unchecked(self)
+    }
 }
 
 /// Non-sensitive evidence describing a completed redaction.
@@ -108,8 +117,14 @@ pub struct RedactionReport {
 #[derive(Debug)]
 pub struct Redactor {
     policy: RedactionPolicy,
-    mappings: BTreeMap<String, String>,
+    mappings: BTreeMap<SensitiveValueKey, String>,
     replacements: u32,
+}
+
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum SensitiveValueKey {
+    Text(String),
+    Json(Vec<u8>),
 }
 
 impl Redactor {
@@ -128,7 +143,7 @@ impl Redactor {
         mut self,
         mut contents: CassetteContents,
     ) -> Result<(RedactedCassetteContents, RedactionReport), RedactionError> {
-        contents.redaction.version = self.policy.version;
+        contents.redaction = self.policy.descriptor()?;
         for interaction in &mut contents.interactions {
             self.redact_request(&mut interaction.request)?;
             self.redact_response(&mut interaction.response)?;
@@ -239,6 +254,9 @@ pub enum RedactionError {
     /// A configured field did not exist or could not be selected safely.
     #[error("configured sensitive field is absent or ambiguous")]
     MissingSensitiveField,
+    /// A header contains control characters unsafe for persistence or replay.
+    #[error("header value contains a forbidden control character")]
+    InvalidHeaderValue,
     /// Sensitive content tried to impersonate a generated placeholder.
     #[error("reserved redaction marker occurred in input")]
     MarkerInjection,
@@ -251,6 +269,42 @@ pub enum RedactionError {
     /// Serialization used only for marker detection failed.
     #[error("redaction input is not serializable")]
     Serialization,
+}
+
+fn descriptor_unchecked(policy: &RedactionPolicy) -> Result<RedactionDescriptor, RedactionError> {
+    let selectors = RedactionSelectors {
+        header_names: policy.header_names.iter().cloned().collect(),
+        query_parameters: policy.query_parameters.iter().cloned().collect(),
+        request_body_pointers: policy.request_body_pointers.iter().cloned().collect(),
+        response_body_pointers: policy.response_body_pointers.iter().cloned().collect(),
+    };
+    let value = serde_json::to_value(&selectors).map_err(|_| RedactionError::Serialization)?;
+    let selector_sha256 =
+        canonical_value_digest(&value).map_err(|_| RedactionError::Serialization)?;
+    Ok(RedactionDescriptor {
+        version: policy.version,
+        selectors,
+        selector_sha256,
+    })
+}
+
+pub(crate) fn validate_redaction_descriptor(descriptor: &RedactionDescriptor) -> bool {
+    if descriptor.version != DEFAULT_REDACTION_POLICY_VERSION {
+        return false;
+    }
+    let selectors = &descriptor.selectors;
+    let policy = RedactionPolicy {
+        version: descriptor.version,
+        header_names: selectors.header_names.iter().cloned().collect(),
+        query_parameters: selectors.query_parameters.iter().cloned().collect(),
+        request_body_pointers: selectors.request_body_pointers.iter().cloned().collect(),
+        response_body_pointers: selectors.response_body_pointers.iter().cloned().collect(),
+    };
+    let no_duplicates = policy.header_names.len() == selectors.header_names.len()
+        && policy.query_parameters.len() == selectors.query_parameters.len()
+        && policy.request_body_pointers.len() == selectors.request_body_pointers.len()
+        && policy.response_body_pointers.len() == selectors.response_body_pointers.len();
+    no_duplicates && descriptor_unchecked(&policy).is_ok_and(|expected| expected == *descriptor)
 }
 
 fn reject_marker_injection<T: serde::Serialize>(value: &T) -> Result<(), RedactionError> {
@@ -266,7 +320,7 @@ fn reject_marker_injection<T: serde::Serialize>(value: &T) -> Result<(), Redacti
 
 fn redact_headers(
     policy: &RedactionPolicy,
-    mappings: &mut BTreeMap<String, String>,
+    mappings: &mut BTreeMap<SensitiveValueKey, String>,
     replacements: &mut u32,
     headers: &mut [Header],
 ) -> Result<(), RedactionError> {
@@ -281,9 +335,12 @@ fn redact_headers(
         if previous.as_deref() == Some(&header.name) {
             return Err(RedactionError::MissingSensitiveField);
         }
+        if !valid_header_value(&header.value) {
+            return Err(RedactionError::InvalidHeaderValue);
+        }
         previous = Some(header.name.clone());
         if policy.header_names.contains(&header.name) {
-            header.value = placeholder(mappings, replacements, &header.value)?;
+            header.value = placeholder_text(mappings, replacements, &header.value)?;
         }
     }
     Ok(())
@@ -291,11 +348,11 @@ fn redact_headers(
 
 fn redact_path(
     policy: &RedactionPolicy,
-    mappings: &mut BTreeMap<String, String>,
+    mappings: &mut BTreeMap<SensitiveValueKey, String>,
     replacements: &mut u32,
     path: &str,
 ) -> Result<String, RedactionError> {
-    if !path.starts_with('/') || path.starts_with("//") || path.contains("%25") {
+    if !valid_origin_form(path) || path.contains("%25") {
         return Err(RedactionError::InvalidRequestTarget);
     }
     let mut url = Url::parse(&format!("https://asb.invalid{path}"))
@@ -306,7 +363,7 @@ fn redact_path(
         let mut query = url.query_pairs_mut();
         for (name, value) in pairs {
             if policy.query_parameters.contains(&name) {
-                query.append_pair(&name, &placeholder(mappings, replacements, &value)?);
+                query.append_pair(&name, &placeholder_text(mappings, replacements, &value)?);
             } else {
                 query.append_pair(&name, &value);
             }
@@ -321,7 +378,7 @@ fn redact_path(
 }
 
 fn redact_pointer(
-    mappings: &mut BTreeMap<String, String>,
+    mappings: &mut BTreeMap<SensitiveValueKey, String>,
     replacements: &mut u32,
     body: &mut Value,
     pointer: &str,
@@ -329,20 +386,37 @@ fn redact_pointer(
     let selected = body
         .pointer_mut(pointer)
         .ok_or(RedactionError::MissingSensitiveField)?;
-    let key = serde_json::to_string(selected).map_err(|_| RedactionError::Serialization)?;
-    *selected = Value::String(placeholder(mappings, replacements, &key)?);
+    let key = match &*selected {
+        Value::String(string) => SensitiveValueKey::Text(string.clone()),
+        value => SensitiveValueKey::Json(
+            canonical_json_bytes(value).map_err(|_| RedactionError::Serialization)?,
+        ),
+    };
+    *selected = Value::String(placeholder(mappings, replacements, key)?);
     Ok(())
 }
 
-fn placeholder(
-    mappings: &mut BTreeMap<String, String>,
+fn placeholder_text(
+    mappings: &mut BTreeMap<SensitiveValueKey, String>,
     replacements: &mut u32,
     value: &str,
+) -> Result<String, RedactionError> {
+    placeholder(
+        mappings,
+        replacements,
+        SensitiveValueKey::Text(value.to_owned()),
+    )
+}
+
+fn placeholder(
+    mappings: &mut BTreeMap<SensitiveValueKey, String>,
+    replacements: &mut u32,
+    value: SensitiveValueKey,
 ) -> Result<String, RedactionError> {
     *replacements = replacements
         .checked_add(1)
         .ok_or(RedactionError::LimitExceeded)?;
-    if let Some(existing) = mappings.get(value) {
+    if let Some(existing) = mappings.get(&value) {
         return Ok(existing.clone());
     }
     if mappings.len() == MAX_MAPPINGS {
@@ -350,7 +424,7 @@ fn placeholder(
     }
     let ordinal = mappings.len() + 1;
     let marker = format!("{MARKER_PREFIX}{ordinal:06}]");
-    mappings.insert(value.to_owned(), marker.clone());
+    mappings.insert(value, marker.clone());
     Ok(marker)
 }
 

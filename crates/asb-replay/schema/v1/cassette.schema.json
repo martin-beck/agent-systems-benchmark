@@ -21,13 +21,54 @@
       "required": ["version"],
       "properties": {"version": {"const": 1}}
     },
+    "redaction_selectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["header_names", "query_parameters", "request_body_pointers", "response_body_pointers"],
+      "properties": {
+        "header_names": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z0-9-]+$"}
+        },
+        "query_parameters": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "request_body_pointers": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 2, "pattern": "^/"}
+        },
+        "response_body_pointers": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 2, "pattern": "^/"}
+        }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "selectors", "selector_sha256"],
+      "properties": {
+        "version": {"const": 1},
+        "selectors": {"$ref": "#/$defs/redaction_selectors"},
+        "selector_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
     "header": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "value"],
       "properties": {
         "name": {"type": "string", "pattern": "^[a-z0-9-]+$"},
-        "value": {"type": "string"}
+        "value": {"type": "string", "pattern": "^[^\\u0000-\\u001F\\u007F]*$"}
       }
     },
     "request": {
@@ -36,7 +77,10 @@
       "required": ["method", "path", "headers", "body", "body_sha256", "model", "options", "tools"],
       "properties": {
         "method": {"type": "string", "pattern": "^[A-Z]+$"},
-        "path": {"type": "string", "pattern": "^/[^/].*|^/$"},
+        "path": {
+          "type": "string",
+          "pattern": "^/(?:$|[^/#\\\\\\u0000-\\u001F\\u007F][^#\\\\\\u0000-\\u001F\\u007F]*)$"
+        },
         "headers": {
           "type": "array",
           "maxItems": 1024,
@@ -183,7 +227,7 @@
         "schema_version": {"const": 1},
         "cassette_id": {"$ref": "#/$defs/identifier"},
         "normalization": {"$ref": "#/$defs/policy"},
-        "redaction": {"$ref": "#/$defs/policy"},
+        "redaction": {"$ref": "#/$defs/redaction"},
         "interactions": {
           "type": "array",
           "maxItems": 16384,

@@ -35,6 +35,34 @@ fn credentials_are_replaced_stably_without_merging_distinct_values() {
 }
 
 #[test]
+fn equal_cross_location_strings_share_a_marker_without_representation_collisions() {
+    let policy = RedactionPolicy {
+        request_body_pointers: BTreeSet::from(["/same".into(), "/quoted".into(), "/object".into()]),
+        ..RedactionPolicy::default()
+    };
+    let mut redactor = Redactor::new(policy).unwrap();
+    let mut request = support::request();
+    request.path = "/v1/synthetic?token=secret".into();
+    request.headers.push(Header {
+        name: "authorization".into(),
+        value: "secret".into(),
+    });
+    request.body = json!({
+        "same": "secret",
+        "quoted": "\"secret\"",
+        "object": {"value": "secret"}
+    });
+    let report = redactor.redact_request(&mut request).unwrap();
+    assert_eq!(report.replacements, 5);
+    assert_eq!(report.distinct_values, 3);
+    let encoded = serde_json::to_string(&request).unwrap();
+    assert_eq!(encoded.matches("[ASB_REDACTED:000001]").count(), 2);
+    assert!(request.path.contains("%5BASB_REDACTED%3A000001%5D"));
+    assert!(encoded.contains("[ASB_REDACTED:000002]"));
+    assert!(encoded.contains("[ASB_REDACTED:000003]"));
+}
+
+#[test]
 fn response_headers_and_nested_events_are_redacted() {
     let policy = RedactionPolicy {
         response_body_pointers: BTreeSet::from(["/credentials/key".into()]),
@@ -109,6 +137,47 @@ fn encoded_query_and_missing_body_pointer_fail_closed() {
             .redact_request(&mut support::request()),
         Err(RedactionError::MissingSensitiveField)
     ));
+}
+
+#[test]
+fn fragments_network_paths_and_header_controls_fail_before_sealing() {
+    for path in ["//host/path", "/v1/synthetic#fragment", "/v1\\synthetic"] {
+        let mut request = support::request();
+        request.path = path.into();
+        assert!(matches!(
+            Redactor::new(RedactionPolicy::default())
+                .unwrap()
+                .redact_request(&mut request),
+            Err(RedactionError::InvalidRequestTarget)
+        ));
+    }
+    for value in ["line\r\ninjected", "nul\0byte", "tab\tvalue"] {
+        let mut request = support::request();
+        request.headers[0].value = value.into();
+        assert!(matches!(
+            Redactor::new(RedactionPolicy::default())
+                .unwrap()
+                .redact_request(&mut request),
+            Err(RedactionError::InvalidHeaderValue)
+        ));
+    }
+}
+
+#[test]
+fn selector_descriptors_are_complete_deterministic_and_nonsecret() {
+    let left = RedactionPolicy {
+        request_body_pointers: BTreeSet::from(["/z".into(), "/a".into()]),
+        ..RedactionPolicy::default()
+    };
+    let right = RedactionPolicy {
+        request_body_pointers: ["/a", "/z"].into_iter().map(str::to_owned).collect(),
+        ..RedactionPolicy::default()
+    };
+    let left = left.descriptor().unwrap();
+    let right = right.descriptor().unwrap();
+    assert_eq!(left, right);
+    assert_eq!(left.selectors.request_body_pointers, ["/a", "/z"]);
+    assert_eq!(left.selector_sha256.len(), 64);
 }
 
 #[test]

@@ -42,4 +42,16 @@ fn schema_rejects_unknown_fields_versions_and_unbounded_shapes() {
             .collect(),
     );
     assert!(!validator.is_valid(&headers));
+
+    for path in ["//host/path", "/v1/synthetic#fragment", "/v1\\synthetic"] {
+        let mut unsafe_path = fixture.clone();
+        unsafe_path["contents"]["interactions"][0]["request"]["path"] = path.into();
+        assert!(!validator.is_valid(&unsafe_path));
+    }
+    for value in ["line\r\ninjected", "nul\0byte", "tab\tvalue"] {
+        let mut unsafe_header = fixture.clone();
+        unsafe_header["contents"]["interactions"][0]["request"]["headers"][0]["value"] =
+            value.into();
+        assert!(!validator.is_valid(&unsafe_header));
+    }
 }

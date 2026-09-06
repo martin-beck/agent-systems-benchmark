@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+use url::Url;
 
 /// The only cassette schema accepted by the normal decoder.
 pub const CASSETTE_SCHEMA_VERSION: u16 = 1;
@@ -97,6 +98,32 @@ impl CassetteLimits {
 pub struct PolicyVersion {
     /// Policy schema generation.
     pub version: u16,
+}
+
+/// Ordered non-secret selector configuration bound to a redaction policy.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedactionSelectors {
+    /// Lowercase sensitive header names.
+    pub header_names: Vec<String>,
+    /// Decoded sensitive query names.
+    pub query_parameters: Vec<String>,
+    /// RFC 6901 request-body pointers.
+    pub request_body_pointers: Vec<String>,
+    /// RFC 6901 response/event-body pointers.
+    pub response_body_pointers: Vec<String>,
+}
+
+/// Exact redaction policy persisted with a cassette.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedactionDescriptor {
+    /// Policy schema generation.
+    pub version: u16,
+    /// Complete sorted selector configuration.
+    pub selectors: RedactionSelectors,
+    /// SHA-256 of v1 canonical JSON for `selectors`.
+    pub selector_sha256: String,
 }
 
 /// Provider syntax named by a capture; this is not a support claim.
@@ -256,7 +283,7 @@ pub struct CassetteContents {
     /// Exact normalization policy used before hashing.
     pub normalization: PolicyVersion,
     /// Exact redaction policy used before hashing.
-    pub redaction: PolicyVersion,
+    pub redaction: RedactionDescriptor,
     /// Ordered immutable interactions.
     pub interactions: Vec<Interaction>,
 }
@@ -345,6 +372,9 @@ pub enum CassetteError {
     /// Integrity metadata is malformed or does not match content.
     #[error("cassette integrity check failed")]
     Integrity,
+    /// The persisted redaction selector descriptor is malformed or mismatched.
+    #[error("cassette redaction policy descriptor is invalid")]
+    InvalidRedactionPolicy,
     /// Checked arithmetic failed.
     #[error("cassette size arithmetic overflowed")]
     SizeOverflow,
@@ -358,7 +388,7 @@ pub fn seal_cassette(
     let limits = limits.validate()?;
     let contents = contents.into_contents();
     validate_contents(&contents, limits)?;
-    let canonical = encode_bounded(&contents, limits.max_cassette_bytes, "cassette")?;
+    let canonical = canonical_contents_bounded(&contents, limits.max_cassette_bytes)?;
     let cassette = Cassette {
         contents,
         integrity: CassetteIntegrity {
@@ -381,7 +411,7 @@ pub fn decode_cassette(bytes: &[u8], limits: CassetteLimits) -> Result<Cassette,
     if cassette.integrity.algorithm != "sha256" || !valid_digest(&cassette.integrity.digest) {
         return Err(CassetteError::Integrity);
     }
-    let canonical = encode_bounded(&cassette.contents, limits.max_cassette_bytes, "cassette")?;
+    let canonical = canonical_contents_bounded(&cassette.contents, limits.max_cassette_bytes)?;
     if cassette.integrity.digest != hex_digest(&Sha256::digest(canonical)) {
         return Err(CassetteError::Integrity);
     }
@@ -432,6 +462,9 @@ fn validate_contents(
             kind: "redaction policy",
             actual: contents.redaction.version,
         });
+    }
+    if !crate::redaction::validate_redaction_descriptor(&contents.redaction) {
+        return Err(CassetteError::InvalidRedactionPolicy);
     }
     validate_id(&contents.cassette_id)?;
     enforce_count(
@@ -491,7 +524,7 @@ fn validate_request(
             .method
             .bytes()
             .any(|byte| !byte.is_ascii_uppercase())
-        || !request.path.starts_with('/')
+        || !valid_origin_form(&request.path)
         || request.model.is_empty()
     {
         return Err(CassetteError::NotNormalized);
@@ -610,6 +643,7 @@ fn validate_headers(headers: &[Header], limits: CassetteLimits) -> Result<(), Ca
                 .bytes()
                 .any(|byte| !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'))
             || previous.is_some_and(|name| name >= header.name.as_str())
+            || !valid_header_value(&header.value)
         {
             return Err(CassetteError::NotNormalized);
         }
@@ -713,9 +747,105 @@ fn valid_digest(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+/// Emit v1 canonical JSON for a value with a fixed 256 MiB output ceiling.
+///
+/// Objects are sorted recursively by UTF-8 member-name bytes, arrays retain
+/// order, no insignificant whitespace is emitted, and scalar spelling follows
+/// the pinned serde_json 1.0.143 serializer.
+pub fn canonical_json_bytes(value: &Value) -> Result<Vec<u8>, CassetteError> {
+    canonical_value_bounded(value, MAX_CASSETTE_BYTES, "canonical JSON")
+}
+
+/// Emit the exact bytes authenticated by a v1 cassette root digest.
+pub fn canonical_contents_bytes(contents: &CassetteContents) -> Result<Vec<u8>, CassetteError> {
+    canonical_contents_bounded(contents, MAX_CASSETTE_BYTES)
+}
+
 pub(crate) fn canonical_value_digest(value: &Value) -> Result<String, CassetteError> {
-    let bytes = serde_json::to_vec(value).map_err(CassetteError::InvalidJson)?;
+    let bytes = canonical_json_bytes(value)?;
     Ok(hex_digest(&Sha256::digest(bytes)))
+}
+
+fn canonical_contents_bounded(
+    contents: &CassetteContents,
+    maximum: u64,
+) -> Result<Vec<u8>, CassetteError> {
+    let value = serde_json::to_value(contents).map_err(CassetteError::InvalidJson)?;
+    canonical_value_bounded(&value, maximum, "cassette")
+}
+
+fn canonical_value_bounded(
+    value: &Value,
+    maximum: u64,
+    kind: &'static str,
+) -> Result<Vec<u8>, CassetteError> {
+    let maximum = usize::try_from(maximum).map_err(|_| CassetteError::SizeOverflow)?;
+    let mut writer = BoundedWriter::new(maximum);
+    if let Err(error) = write_canonical_value(&mut writer, value) {
+        return if writer.exceeded {
+            Err(CassetteError::TooLarge { kind })
+        } else {
+            Err(CassetteError::InvalidJson(serde_json::Error::io(error)))
+        };
+    }
+    Ok(writer.bytes)
+}
+
+fn write_canonical_value<W: io::Write>(writer: &mut W, value: &Value) -> io::Result<()> {
+    match value {
+        Value::Null => writer.write_all(b"null"),
+        Value::Bool(true) => writer.write_all(b"true"),
+        Value::Bool(false) => writer.write_all(b"false"),
+        Value::Number(number) => serde_json::to_writer(writer, number).map_err(io::Error::other),
+        Value::String(string) => serde_json::to_writer(writer, string).map_err(io::Error::other),
+        Value::Array(values) => {
+            writer.write_all(b"[")?;
+            for (index, item) in values.iter().enumerate() {
+                if index != 0 {
+                    writer.write_all(b",")?;
+                }
+                write_canonical_value(writer, item)?;
+            }
+            writer.write_all(b"]")
+        }
+        Value::Object(object) => {
+            writer.write_all(b"{")?;
+            let mut members: Vec<_> = object.iter().collect();
+            members.sort_unstable_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
+            for (index, (name, item)) in members.into_iter().enumerate() {
+                if index != 0 {
+                    writer.write_all(b",")?;
+                }
+                serde_json::to_writer(&mut *writer, name).map_err(io::Error::other)?;
+                writer.write_all(b":")?;
+                write_canonical_value(writer, item)?;
+            }
+            writer.write_all(b"}")
+        }
+    }
+}
+
+pub(crate) fn valid_origin_form(path: &str) -> bool {
+    if !path.starts_with('/')
+        || path.starts_with("//")
+        || path.contains(['#', '\\'])
+        || path.chars().any(char::is_control)
+    {
+        return false;
+    }
+    let Ok(url) = Url::parse(&format!("https://asb.invalid{path}")) else {
+        return false;
+    };
+    let mut reconstructed = url.path().to_owned();
+    if let Some(query) = url.query() {
+        reconstructed.push('?');
+        reconstructed.push_str(query);
+    }
+    url.fragment().is_none() && reconstructed == path
+}
+
+pub(crate) fn valid_header_value(value: &str) -> bool {
+    !value.chars().any(char::is_control)
 }
 
 fn hex_digest(bytes: &[u8]) -> String {
@@ -796,12 +926,24 @@ impl<'de> Visitor<'de> for NoDuplicateVisitor {
 
 #[cfg(test)]
 mod tests {
-    use super::NoDuplicateJson;
+    use super::{NoDuplicateJson, canonical_json_bytes};
+    use serde_json::Value;
 
     #[test]
     fn duplicate_scanner_accepts_every_json_scalar_kind() {
         for value in ["true", "-1", "1", "1.5", "\"text\"", "null", "[]", "{}"] {
             serde_json::from_str::<NoDuplicateJson>(value).unwrap();
         }
+    }
+
+    #[test]
+    fn canonical_json_sorts_nested_members_and_fixes_scalar_spelling() {
+        let left: Value =
+            serde_json::from_str(r#"{"z":{"b":2,"a":"é"},"a":[true,null,1.5]}"#).unwrap();
+        let right: Value =
+            serde_json::from_str(r#"{"a":[true,null,1.5],"z":{"a":"é","b":2}}"#).unwrap();
+        let expected = r#"{"a":[true,null,1.5],"z":{"a":"é","b":2}}"#.as_bytes();
+        assert_eq!(canonical_json_bytes(&left).unwrap(), expected);
+        assert_eq!(canonical_json_bytes(&right).unwrap(), expected);
     }
 }

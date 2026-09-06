@@ -61,3 +61,19 @@ fn optional_buffered_and_event_identities_are_captured() {
         Err(MigrationError::InvariantViolation)
     ));
 }
+
+#[test]
+fn changed_redaction_policy_descriptor_is_rejected() {
+    let before = support::contents();
+    let mut after = before.clone();
+    after.redaction = asb_replay::RedactionPolicy {
+        query_parameters: ["different-selector".to_owned()].into_iter().collect(),
+        ..asb_replay::RedactionPolicy::default()
+    }
+    .descriptor()
+    .unwrap();
+    assert!(matches!(
+        verify_migration_references(&before, &after),
+        Err(MigrationError::InvariantViolation)
+    ));
+}

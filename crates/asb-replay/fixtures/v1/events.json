@@ -3,7 +3,16 @@
     "schema_version": 1,
     "cassette_id": "fixture-events",
     "normalization": {"version": 1},
-    "redaction": {"version": 1},
+    "redaction": {
+      "version": 1,
+      "selectors": {
+        "header_names": ["authorization", "cookie", "proxy-authorization", "set-cookie", "x-api-key"],
+        "query_parameters": ["access_token", "api_key", "key", "token"],
+        "request_body_pointers": [],
+        "response_body_pointers": []
+      },
+      "selector_sha256": "64412f823f725e6f93337bc3741961006631645abc7680d45c98b887cb0d18c9"
+    },
     "interactions": [
       {
         "session_id": "session-events",
@@ -59,6 +68,6 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "6ef5492c6266259cc020a1208f718e50ffd66d9bbc75751238f0c02449c23456"
+    "digest": "3d4d71258de60552de425be33ef4f9e3f4617e17bccd82affecc64385afd4fc4"
   }
 }

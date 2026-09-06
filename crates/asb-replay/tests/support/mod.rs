@@ -17,7 +17,7 @@ pub fn contents() -> CassetteContents {
         schema_version: 1,
         cassette_id: "synthetic-cassette".into(),
         normalization: PolicyVersion { version: 1 },
-        redaction: PolicyVersion { version: 1 },
+        redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions: vec![buffered(), streamed()],
     }
 }

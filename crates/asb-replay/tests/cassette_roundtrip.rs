@@ -4,8 +4,9 @@
 mod support;
 
 use asb_replay::{
-    CassetteError, CassetteLimits, RedactionPolicy, Redactor, ResponseBody, decode_cassette,
-    decode_cassette_chunks, seal_cassette,
+    CassetteError, CassetteLimits, RedactionPolicy, Redactor, ResponseBody,
+    canonical_contents_bytes, canonical_json_bytes, decode_cassette, decode_cassette_chunks,
+    seal_cassette,
 };
 use sha2::{Digest, Sha256};
 
@@ -47,12 +48,82 @@ fn payload_digest_rejects_tampering_even_with_recomputed_root() {
     let mut envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     envelope["contents"]["interactions"][0]["response"]["body"]["payload"]["output"] =
         "changed synthetic answer".into();
-    let canonical = serde_json::to_vec(&envelope["contents"]).unwrap();
-    envelope["integrity"]["digest"] = hex_digest(&Sha256::digest(canonical)).into();
-    let changed = serde_json::to_vec(&envelope).unwrap();
+    let changed = authenticate_envelope(&mut envelope);
     assert!(matches!(
         decode_cassette(&changed, CassetteLimits::default()),
         Err(CassetteError::Integrity)
+    ));
+}
+
+fn authenticate_envelope(envelope: &mut serde_json::Value) -> Vec<u8> {
+    let contents: asb_replay::CassetteContents =
+        serde_json::from_value(envelope["contents"].clone()).unwrap();
+    envelope["integrity"]["digest"] = hex_digest(&Sha256::digest(
+        canonical_contents_bytes(&contents).unwrap(),
+    ))
+    .into();
+    serde_json::to_vec(envelope).unwrap()
+}
+
+#[test]
+fn reordered_nested_objects_have_stable_canonical_bytes_and_digest() {
+    let left: serde_json::Value =
+        serde_json::from_str(r#"{"z":{"b":2,"a":"é"},"a":[true,null,1.5]}"#).unwrap();
+    let right: serde_json::Value =
+        serde_json::from_str(r#"{"a":[true,null,1.5],"z":{"a":"é","b":2}}"#).unwrap();
+    let expected = r#"{"a":[true,null,1.5],"z":{"a":"é","b":2}}"#.as_bytes();
+    let left = canonical_json_bytes(&left).unwrap();
+    let right = canonical_json_bytes(&right).unwrap();
+    assert_eq!(left, expected);
+    assert_eq!(right, expected);
+    assert_eq!(Sha256::digest(left), Sha256::digest(right));
+}
+
+#[test]
+fn authenticated_unsafe_targets_and_header_values_fail_decode() {
+    let bytes = seal_cassette(support::redacted_contents(), CassetteLimits::default()).unwrap();
+    for path in ["//host/path", "/v1/synthetic#fragment", "/v1\\synthetic"] {
+        let mut envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        envelope["contents"]["interactions"][0]["request"]["path"] = path.into();
+        assert!(matches!(
+            decode_cassette(
+                &authenticate_envelope(&mut envelope),
+                CassetteLimits::default()
+            ),
+            Err(CassetteError::NotNormalized)
+        ));
+    }
+    for value in ["line\r\ninjected", "nul\0byte", "tab\tvalue"] {
+        let mut envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        envelope["contents"]["interactions"][0]["request"]["headers"][0]["value"] = value.into();
+        assert!(matches!(
+            decode_cassette(
+                &authenticate_envelope(&mut envelope),
+                CassetteLimits::default()
+            ),
+            Err(CassetteError::NotNormalized)
+        ));
+    }
+}
+
+#[test]
+fn authenticated_redaction_descriptor_tampering_fails_independently() {
+    let bytes = seal_cassette(support::redacted_contents(), CassetteLimits::default()).unwrap();
+    let mut envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    envelope["contents"]["redaction"]["selectors"]["query_parameters"][0] =
+        "different-selector".into();
+    let changed = authenticate_envelope(&mut envelope);
+    assert!(matches!(
+        decode_cassette(&changed, CassetteLimits::default()),
+        Err(CassetteError::InvalidRedactionPolicy)
+    ));
+
+    let mut envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    envelope["contents"]["redaction"]["selector_sha256"] = "0".repeat(64).into();
+    let changed = authenticate_envelope(&mut envelope);
+    assert!(matches!(
+        decode_cassette(&changed, CassetteLimits::default()),
+        Err(CassetteError::InvalidRedactionPolicy)
     ));
 }
 
