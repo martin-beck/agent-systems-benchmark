@@ -13,12 +13,22 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
 const BWRAP_VERSION: &str = "bubblewrap 0.9.0";
 const SYSTEMD_VERSION: &str = "systemd 255 (255.4-1ubuntu8.17)";
 const TASKSET_VERSION: &str = "taskset from util-linux 2.39.3";
+static HELPER_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+struct RemoveFileOnDrop(PathBuf);
+
+impl Drop for RemoveFileOnDrop {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
 
 fn limits() -> ProcessLimits {
     ProcessLimits::new(
@@ -77,12 +87,30 @@ fn native_backend() -> Option<SandboxBackend> {
     }
 }
 
-fn helper_program(workspace: &Path) -> String {
-    let executable = fs::canonicalize(env::current_exe().unwrap()).unwrap();
-    let relative = executable
-        .strip_prefix(fs::canonicalize(workspace).unwrap())
-        .unwrap();
-    format!("/workspace/{}", relative.display())
+fn stage_helper(root: &Path, executable: &Path) -> String {
+    let work = root.join("work");
+    let destination = work.join("asb-sandbox-helper");
+    let temporary = work.join(format!(
+        ".asb-sandbox-helper-{}-{}.tmp",
+        std::process::id(),
+        HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::copy(executable, &temporary).unwrap();
+    fs::set_permissions(&temporary, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::File::open(&temporary).unwrap().sync_all().unwrap();
+    fs::rename(&temporary, &destination).unwrap();
+    fs::File::open(&work).unwrap().sync_all().unwrap();
+    format!(
+        "/workspace/{}/work/asb-sandbox-helper",
+        root.file_name().unwrap().to_string_lossy()
+    )
+}
+
+fn helper_program(root: &Path) -> String {
+    stage_helper(
+        root,
+        &fs::canonicalize(env::current_exe().unwrap()).unwrap(),
+    )
 }
 
 fn spec(
@@ -92,13 +120,12 @@ fn spec(
     resources: Resources,
     extra: BTreeMap<String, String>,
 ) -> SandboxSpec {
-    let workspace = root.parent().unwrap();
     let mut environment = extra;
     environment.insert("ASB_SANDBOX_ACTION".into(), action.into());
     SandboxSpec::new(
-        workspace,
+        root.parent().unwrap(),
         PathBuf::from(root.file_name().unwrap()).join("work"),
-        helper_program(workspace),
+        helper_program(root),
         vec![
             "--exact".into(),
             "sandbox_helper".into(),
@@ -109,6 +136,64 @@ fn spec(
         NetworkPolicy::Deny,
     )
     .unwrap()
+}
+
+#[test]
+fn current_test_executable_is_staged_inside_the_workspace() {
+    let root = test_root("external-target");
+    let executable = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    if env::var_os("ASB_REQUIRE_EXTERNAL_TARGET").is_some() {
+        let checkout = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_owned();
+        assert!(
+            !executable.starts_with(checkout),
+            "test executable was not in the required external target"
+        );
+    }
+    let sandbox_path = helper_program(&root);
+    let host_path = root
+        .parent()
+        .unwrap()
+        .join(sandbox_path.strip_prefix("/workspace/").unwrap());
+    assert!(host_path.starts_with(root.join("work")));
+    assert_eq!(
+        fs::read(&host_path).unwrap(),
+        fs::read(&executable).unwrap()
+    );
+    assert!(
+        Command::new(&host_path)
+            .args(["--exact", "sandbox_helper"])
+            .env_remove("ASB_SANDBOX_ACTION")
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn host_sentinel_is_removed_during_panic_unwind() {
+    let sentinel = target_root().join(format!(
+        "panic-sentinel-{}-{}",
+        std::process::id(),
+        HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::write(&sentinel, b"host").unwrap();
+    let result = std::panic::catch_unwind({
+        let sentinel = sentinel.clone();
+        move || {
+            let _cleanup = RemoveFileOnDrop(sentinel);
+            panic!("controlled fixture panic");
+        }
+    });
+    assert!(result.is_err());
+    assert!(!sentinel.exists());
 }
 
 fn resources(tasks: u32) -> Resources {
@@ -184,6 +269,7 @@ fn native_workspace_and_network_are_isolated() {
         .unwrap()
         .join(format!("outside-{}", std::process::id()));
     fs::write(&sentinel, b"host").unwrap();
+    let _sentinel_cleanup = RemoveFileOnDrop(sentinel.clone());
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let r = resources(16);
@@ -214,7 +300,6 @@ fn native_workspace_and_network_are_isolated() {
         thread::sleep(Duration::from_millis(5));
     }
     assert!(connection.is_none(), "sandbox reached host loopback");
-    fs::remove_file(sentinel).unwrap();
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -252,7 +337,7 @@ fn native_cgroup_limits_and_cleanup_are_real() {
     let request = SandboxSpec::new(
         root.parent().unwrap(),
         PathBuf::from(root.file_name().unwrap()).join("work"),
-        helper_program(root.parent().unwrap()),
+        helper_program(&root),
         vec![
             "--exact".into(),
             "sandbox_helper".into(),
@@ -354,7 +439,7 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
     let request = SandboxSpec::new(
         root.parent().unwrap(),
         PathBuf::from(root.file_name().unwrap()).join("work"),
-        helper_program(root.parent().unwrap()),
+        helper_program(&root),
         vec![
             "--exact".into(),
             "sandbox_helper".into(),
