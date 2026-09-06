@@ -23,6 +23,8 @@ static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub struct ToolPin {
     path: PathBuf,
     version_line: String,
+    #[cfg(test)]
+    shell_script: Option<PathBuf>,
 }
 
 impl ToolPin {
@@ -36,7 +38,12 @@ impl ToolPin {
         if !metadata.is_file() || metadata.permissions().mode() & 0o111 == 0 {
             return Err(ConfigError::ToolPin);
         }
-        Ok(Self { path, version_line })
+        Ok(Self {
+            path,
+            version_line,
+            #[cfg(test)]
+            shell_script: None,
+        })
     }
 }
 
@@ -339,7 +346,7 @@ impl SandboxBackend {
             std::process::id(),
             PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         );
-        let mut command = Command::new(&self.systemd_run.path);
+        let mut command = pinned_command(&self.systemd_run);
         add_scope(
             &mut command,
             &unit,
@@ -385,7 +392,7 @@ impl SandboxBackend {
             return Err(SandboxError::LeaseMismatch);
         }
         self.probe()?;
-        let mut command = Command::new(&self.systemd_run.path);
+        let mut command = pinned_command(&self.systemd_run);
         command.env("ASB_SCOPE_NONCE", &nonce);
         add_scope(
             &mut command,
@@ -521,7 +528,7 @@ fn scope_owns_nonce(
     nonce: &str,
     task_limit: u32,
 ) -> Result<bool, SandboxError> {
-    let mut command = Command::new(&systemctl.path);
+    let mut command = pinned_command(systemctl);
     command.args([
         "--user",
         "show",
@@ -636,8 +643,18 @@ fn add_scope(
     }
 }
 
+fn pinned_command(pin: &ToolPin) -> Command {
+    #[cfg(test)]
+    if let Some(script) = &pin.shell_script {
+        let mut command = Command::new("/bin/sh");
+        command.arg(script);
+        return command;
+    }
+    Command::new(&pin.path)
+}
+
 fn probe_tool(pin: &ToolPin) -> Result<(), SandboxError> {
-    let mut command = Command::new(&pin.path);
+    let mut command = pinned_command(pin);
     command.arg("--version");
     let mut process = RunningProcess::spawn(command, probe_limits()).map_err(SandboxError::Run)?;
     let output = process.wait().map_err(SandboxError::Run)?;
@@ -765,7 +782,7 @@ fn stop_scope_with_timeout(
         return Err(scope_cleanup_error(&output));
     }
 
-    let mut command = Command::new(&systemctl.path);
+    let mut command = pinned_command(systemctl);
     command.args([
         "--user",
         "kill",
@@ -786,7 +803,7 @@ fn stop_scope_with_timeout(
         return Err(scope_cleanup_error(output));
     }
 
-    let mut command = Command::new(&systemctl.path);
+    let mut command = pinned_command(systemctl);
     command.args([
         "--user",
         "--no-block",
@@ -822,7 +839,7 @@ fn stop_scope_with_timeout(
 }
 
 fn scope_state(systemctl: &ToolPin, unit: &str) -> Result<(ProcessOutput, String), SandboxError> {
-    let mut command = Command::new(&systemctl.path);
+    let mut command = pinned_command(systemctl);
     command.args(["--user", "is-active", &format!("{unit}.scope")]);
     let mut process = RunningProcess::spawn(command, probe_limits()).map_err(SandboxError::Run)?;
     let output = process.wait().cloned().map_err(SandboxError::Run)?;
@@ -962,7 +979,11 @@ mod tests {
         file.sync_all().unwrap();
         drop(file);
         fs::rename(pending, &tool).unwrap();
-        let pin = ToolPin::new(tool, "fake-systemctl".into()).unwrap();
+        let pin = ToolPin {
+            path: PathBuf::from("/bin/sh"),
+            version_line: "fake-systemctl".into(),
+            shell_script: Some(tool),
+        };
         (root, pin)
     }
 
