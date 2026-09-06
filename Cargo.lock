@@ -38,6 +38,14 @@ name = "asb-core"
 version = "0.1.0"
 
 [[package]]
+name = "asb-metrics"
+version = "0.1.0"
+dependencies = [
+ "asb-protocol",
+ "rustix",
+]
+
+[[package]]
 name = "asb-protocol"
 version = "0.1.0"
 dependencies = [
