@@ -639,6 +639,7 @@ pub fn read_frame<T: for<'de> Deserialize<'de>>(
     reader: &mut impl BufRead,
     max: usize,
 ) -> Result<T, FrameError> {
+    let max = max.min(MAX_FRAME_BYTES as usize);
     let mut bytes = Vec::new();
     loop {
         let available = reader.fill_buf()?;
@@ -672,14 +673,50 @@ pub fn write_frame<T: Serialize>(
     value: &T,
     max: usize,
 ) -> Result<(), FrameError> {
-    let bytes = serde_json::to_vec(value)?;
-    if bytes.len() > max {
-        return Err(FrameError::TooLarge { max });
+    let max = max.min(MAX_FRAME_BYTES as usize);
+    let mut buffer = BoundedBuffer::new(max);
+    if let Err(error) = serde_json::to_writer(&mut buffer, value) {
+        return Err(if buffer.exceeded {
+            FrameError::TooLarge { max }
+        } else {
+            FrameError::InvalidJson(error)
+        });
     }
-    writer.write_all(&bytes)?;
+    writer.write_all(&buffer.bytes)?;
     writer.write_all(b"\n")?;
     writer.flush()?;
     Ok(())
+}
+
+struct BoundedBuffer {
+    bytes: Vec<u8>,
+    maximum: usize,
+    exceeded: bool,
+}
+
+impl BoundedBuffer {
+    fn new(maximum: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(maximum.min(4096)),
+            maximum,
+            exceeded: false,
+        }
+    }
+}
+
+impl Write for BoundedBuffer {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.maximum.saturating_sub(self.bytes.len()) {
+            self.exceeded = true;
+            return Err(std::io::Error::other("JSON frame exceeds bound"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -817,6 +854,16 @@ mod tests {
             Err(FrameError::TooLarge { max: 3 })
         ));
         assert!(output.is_empty());
+    }
+
+    #[test]
+    fn bounded_serialization_buffer_stops_before_growth() {
+        let mut buffer = BoundedBuffer::new(2);
+        assert_eq!(buffer.write(b"12").unwrap(), 2);
+        assert!(buffer.write(b"3").is_err());
+        assert!(buffer.exceeded);
+        assert_eq!(buffer.bytes, b"12");
+        buffer.flush().unwrap();
     }
 
     #[test]

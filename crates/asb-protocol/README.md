@@ -8,7 +8,9 @@ The first request must be `negotiate`. Major version 1 is required; peers select
 the lower supported minor and the stricter nonzero frame, deadline and in-flight
 limits. Callers enforce the negotiated timeout against a monotonic clock, reserve
 request capacity before external effects, bound queued I/O, and terminate a stalled
-extension. The framing and admission helpers enforce byte and request-count bounds.
+extension. The framing helpers enforce the hard 16 MiB ceiling even if a caller
+supplies a larger value and stop serialization before an oversized buffer is built;
+the admission helper enforces request-count bounds.
 Process deadlines and process-tree cancellation remain runtime-layer obligations.
 
 Application errors are `-32001` incompatible version, `-32002` oversized frame,
