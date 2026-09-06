@@ -26,6 +26,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "asb-agents"
+version = "0.1.0"
+dependencies = [
+ "asb-protocol",
+ "asb-runtime",
+ "serde",
+ "serde_json",
+ "sha2",
+ "url",
+]
+
+[[package]]
 name = "asb-analysis"
 version = "0.1.0"
 
