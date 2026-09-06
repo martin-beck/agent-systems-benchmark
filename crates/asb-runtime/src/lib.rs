@@ -266,6 +266,13 @@ impl RunningProcess {
         self.lifecycle
     }
 
+    /// Observe whether the process-group leader has exited without reaping it.
+    ///
+    /// The retained zombie continues to fence its PID until wait is called.
+    pub fn leader_has_exited(&self) -> Result<bool, ProcessError> {
+        self.leader_exited()
+    }
+
     /// Request cancellation once; repeated calls have no additional effect.
     ///
     /// Exit is checked without reaping before signalling, so an exited leader

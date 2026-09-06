@@ -5,7 +5,7 @@ use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, Runnin
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -147,6 +147,7 @@ pub struct ResourceLease {
     files: Vec<(PathBuf, File)>,
     cpus: CpuSet,
     class: LeaseClass,
+    release_on_drop: bool,
 }
 
 impl ResourceLease {
@@ -184,7 +185,12 @@ impl ResourceLease {
                 }
             }
         }
-        Ok(Self { files, cpus, class })
+        Ok(Self {
+            files,
+            cpus,
+            class,
+            release_on_drop: true,
+        })
     }
     /// Reserved CPUs.
     pub fn cpus(&self) -> &CpuSet {
@@ -194,11 +200,21 @@ impl ResourceLease {
     pub fn class(&self) -> LeaseClass {
         self.class
     }
+
+    fn quarantine(&mut self) {
+        self.release_on_drop = false;
+    }
+
+    fn confirm_cleanup(&mut self) {
+        self.release_on_drop = true;
+    }
 }
 
 impl Drop for ResourceLease {
     fn drop(&mut self) {
-        rollback(&mut self.files);
+        if self.release_on_drop {
+            rollback(&mut self.files);
+        }
     }
 }
 
@@ -217,12 +233,11 @@ pub struct SandboxSpec {
     program: String,
     arguments: Vec<String>,
     environment: BTreeMap<String, String>,
-    unit: String,
     resources: Resources,
 }
 
 impl SandboxSpec {
-    /// Validate workspace, bounded command data, unit identity and policy.
+    /// Validate workspace, bounded command data and network policy.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         workspace: &Path,
@@ -230,7 +245,6 @@ impl SandboxSpec {
         program: String,
         arguments: Vec<String>,
         environment: BTreeMap<String, String>,
-        unit: String,
         resources: Resources,
         network: NetworkPolicy,
     ) -> Result<Self, ConfigError> {
@@ -261,27 +275,11 @@ impl SandboxSpec {
         if environment.len() > 128
             || environment.iter().any(|(key, value)| {
                 !valid_key(key)
-                    || matches!(key.as_str(), "HOME" | "PATH" | "TMPDIR")
+                    || matches!(key.as_str(), "HOME" | "PATH" | "TMPDIR" | "ASB_SCOPE_NONCE")
                     || value.len() > 16_384
             })
         {
             return Err(ConfigError::Environment);
-        }
-        if unit.is_empty()
-            || unit.len() > 64
-            || !unit
-                .as_bytes()
-                .first()
-                .is_some_and(u8::is_ascii_alphanumeric)
-            || !unit
-                .as_bytes()
-                .last()
-                .is_some_and(u8::is_ascii_alphanumeric)
-            || !unit
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        {
-            return Err(ConfigError::Unit);
         }
         if network != NetworkPolicy::Deny {
             return Err(ConfigError::NetworkPolicy);
@@ -292,13 +290,8 @@ impl SandboxSpec {
             program,
             arguments,
             environment,
-            unit,
             resources,
         })
-    }
-    /// Transient systemd scope name without suffix.
-    pub fn unit(&self) -> &str {
-        &self.unit
     }
 }
 
@@ -376,14 +369,27 @@ impl SandboxBackend {
         lease: ResourceLease,
         limits: ProcessLimits,
     ) -> Result<SandboxProcess, SandboxError> {
+        let (unit, nonce) = new_scope_identity()?;
+        self.spawn_with_identity(spec, lease, limits, unit, nonce)
+    }
+
+    fn spawn_with_identity(
+        &self,
+        spec: SandboxSpec,
+        mut lease: ResourceLease,
+        limits: ProcessLimits,
+        unit: String,
+        nonce: String,
+    ) -> Result<SandboxProcess, SandboxError> {
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
         }
         self.probe()?;
         let mut command = Command::new(&self.systemd_run.path);
+        command.env("ASB_SCOPE_NONCE", &nonce);
         add_scope(
             &mut command,
-            &spec.unit,
+            &unit,
             spec.resources.memory,
             spec.resources.tasks,
             spec.resources.cpu_percent,
@@ -405,19 +411,179 @@ impl SandboxBackend {
             .arg(Path::new("/workspace").join(&spec.working_directory))
             .args(["--setenv", "PATH", "/usr/bin:/bin"])
             .args(["--setenv", "HOME", "/workspace"])
-            .args(["--setenv", "TMPDIR", "/tmp"]);
+            .args(["--setenv", "TMPDIR", "/tmp"])
+            .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
         command.arg("--").arg(&spec.program).args(&spec.arguments);
-        let process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
+        let mut process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
+        let scope_cleanup_required = match await_scope_ownership(
+            &mut process,
+            &self.systemctl,
+            &unit,
+            &nonce,
+            spec.resources.tasks,
+        ) {
+            Ok(owned) => owned,
+            Err(error) => {
+                lease.quarantine();
+                return Err(error);
+            }
+        };
         Ok(SandboxProcess {
             process,
-            _lease: lease,
-            unit: spec.unit,
+            lease,
+            unit,
             systemctl: self.systemctl.clone(),
+            scope_cleanup_required,
         })
     }
+}
+
+fn new_scope_identity() -> Result<(String, String), SandboxError> {
+    let file =
+        File::open("/proc/sys/kernel/random/uuid").map_err(|_| SandboxError::ScopeIdentity)?;
+    let mut bytes = Vec::with_capacity(64);
+    file.take(64)
+        .read_to_end(&mut bytes)
+        .map_err(|_| SandboxError::ScopeIdentity)?;
+    let uuid = String::from_utf8(bytes).map_err(|_| SandboxError::ScopeIdentity)?;
+    let uuid = uuid.trim();
+    if !valid_scope_uuid(uuid) {
+        return Err(SandboxError::ScopeIdentity);
+    }
+    Ok((format!("asb-{uuid}"), uuid.to_owned()))
+}
+
+fn valid_scope_uuid(uuid: &str) -> bool {
+    let raw = uuid.as_bytes();
+    raw.len() == 36
+        && raw[8] == 45
+        && raw[13] == 45
+        && raw[18] == 45
+        && raw[23] == 45
+        && !raw
+            .iter()
+            .enumerate()
+            .any(|(index, byte)| !matches!(index, 8 | 13 | 18 | 23) && !byte.is_ascii_hexdigit())
+}
+
+fn await_scope_ownership(
+    process: &mut RunningProcess,
+    systemctl: &ToolPin,
+    unit: &str,
+    nonce: &str,
+    task_limit: u32,
+) -> Result<bool, SandboxError> {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if scope_owns_nonce(systemctl, unit, nonce, task_limit)? {
+            return Ok(true);
+        }
+        if process.leader_has_exited().map_err(SandboxError::Run)? {
+            let output = process.wait().cloned().map_err(SandboxError::Run)?;
+            if output.exit_code == Some(0) {
+                loop {
+                    let (state_output, state) = scope_state(systemctl, unit)?;
+                    if matches!(
+                        (state_output.exit_code, state.as_str()),
+                        (Some(3 | 4), "inactive" | "failed")
+                    ) {
+                        return Ok(false);
+                    }
+                    if Instant::now() >= deadline {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+            return Err(SandboxError::ScopeOwnership {
+                exit_code: output.exit_code,
+                stderr: bounded_diagnostic(&output.stderr.bytes),
+            });
+        }
+        if Instant::now() >= deadline {
+            let _ = process.cancel();
+            let _ = process.wait();
+            return Err(SandboxError::ScopeOwnership {
+                exit_code: None,
+                stderr: "scope ownership was not proven before deadline".into(),
+            });
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn scope_owns_nonce(
+    systemctl: &ToolPin,
+    unit: &str,
+    nonce: &str,
+    task_limit: u32,
+) -> Result<bool, SandboxError> {
+    let mut command = Command::new(&systemctl.path);
+    command.args([
+        "--user",
+        "show",
+        &format!("{unit}.scope"),
+        "--property=ControlGroup",
+        "--value",
+    ]);
+    let mut process = RunningProcess::spawn(command, probe_limits()).map_err(SandboxError::Run)?;
+    let output = process.wait().map_err(SandboxError::Run)?;
+    if output.exit_code != Some(0) {
+        return Ok(false);
+    }
+    let control = String::from_utf8_lossy(&output.stdout.bytes)
+        .trim()
+        .to_owned();
+    if control.is_empty() {
+        return Ok(false);
+    }
+    let relative = Path::new(&control)
+        .strip_prefix(Path::new("/"))
+        .map_err(|_| SandboxError::ScopeIdentity)?;
+    if relative
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(SandboxError::ScopeIdentity);
+    }
+    let process_path = Path::new("/sys/fs/cgroup")
+        .join(relative)
+        .join("cgroup.procs");
+    let processes = match fs::read_to_string(process_path) {
+        Ok(value) if value.len() <= usize::try_from(task_limit).unwrap_or(usize::MAX) * 16 => value,
+        Ok(_) => return Err(SandboxError::ScopeIdentity),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(_) => return Err(SandboxError::ScopeIdentity),
+    };
+    let expected = format!("ASB_SCOPE_NONCE={nonce}").into_bytes();
+    for pid in processes.lines() {
+        if !pid.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(SandboxError::ScopeIdentity);
+        }
+        let Ok(file) = File::open(Path::new("/proc").join(pid).join("environ")) else {
+            continue;
+        };
+        let mut environment = Vec::with_capacity(4096);
+        file.take(64 * 1024)
+            .read_to_end(&mut environment)
+            .map_err(|_| SandboxError::ScopeIdentity)?;
+        if environment
+            .split(|byte| *byte == 0)
+            .any(|entry| entry == expected)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn bounded_diagnostic(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(&bytes[..bytes.len().min(4096)])
+        .trim()
+        .to_owned()
 }
 
 fn namespace_args() -> [&'static str; 9] {
@@ -505,9 +671,10 @@ fn probe_limits() -> ProcessLimits {
 /// Running sandbox retaining its resource lease.
 pub struct SandboxProcess {
     process: RunningProcess,
-    _lease: ResourceLease,
+    lease: ResourceLease,
     unit: String,
     systemctl: ToolPin,
+    scope_cleanup_required: bool,
 }
 
 impl SandboxProcess {
@@ -521,26 +688,53 @@ impl SandboxProcess {
     }
     /// Request idempotent cancellation.
     pub fn cancel(&mut self) -> Result<(), SandboxError> {
-        if self.process.lifecycle() != ProcessLifecycle::Terminal {
-            let process_result = self.process.cancel().map_err(SandboxError::Run);
-            let scope_result = stop_scope(&self.systemctl, &self.unit);
-            process_result?;
-            scope_result?;
-        }
+        let process_result = if self.process.lifecycle() != ProcessLifecycle::Terminal {
+            self.process.cancel().map_err(SandboxError::Run)
+        } else {
+            Ok(())
+        };
+        let cleanup_result = if self.scope_cleanup_required {
+            self.cleanup_scope()
+        } else {
+            Ok(())
+        };
+        process_result?;
+        cleanup_result?;
         Ok(())
     }
     /// Wait and return owned terminal evidence.
     pub fn wait(&mut self) -> Result<ProcessOutput, SandboxError> {
         let output = self.process.wait().cloned().map_err(SandboxError::Run);
-        stop_scope(&self.systemctl, &self.unit)?;
+        if self.scope_cleanup_required {
+            self.cleanup_scope()?;
+        }
         output
+    }
+
+    fn cleanup_scope(&mut self) -> Result<(), SandboxError> {
+        match stop_scope(&self.systemctl, &self.unit) {
+            Ok(()) => {
+                self.scope_cleanup_required = false;
+                self.lease.confirm_cleanup();
+                Ok(())
+            }
+            Err(error) => {
+                self.lease.quarantine();
+                Err(error)
+            }
+        }
     }
 }
 
 impl Drop for SandboxProcess {
     fn drop(&mut self) {
-        if self.process.lifecycle() != ProcessLifecycle::Terminal {
-            let _ = stop_scope(&self.systemctl, &self.unit);
+        if self.scope_cleanup_required {
+            if stop_scope(&self.systemctl, &self.unit).is_ok() {
+                self.scope_cleanup_required = false;
+                self.lease.confirm_cleanup();
+            } else {
+                self.lease.quarantine();
+            }
         }
     }
 }
@@ -670,8 +864,6 @@ pub enum ConfigError {
     Arguments,
     /// Invalid or unbounded environment.
     Environment,
-    /// Invalid scope identity.
-    Unit,
     /// Unsupported host networking.
     NetworkPolicy,
 }
@@ -703,6 +895,15 @@ pub enum SandboxError {
     },
     /// Delegated namespace/cgroup probe failed.
     DelegationRejected,
+    /// A collision-resistant internal scope identity could not be obtained.
+    ScopeIdentity,
+    /// The launched process was not proven to own the generated scope.
+    ScopeOwnership {
+        /// Observed systemd-run exit status.
+        exit_code: Option<i32>,
+        /// Bounded diagnostic text.
+        stderr: String,
+    },
     /// The delegated scope could not be stopped.
     ScopeCleanup {
         /// systemctl exit status.
@@ -772,7 +973,7 @@ mod tests {
         program: &str,
         arguments: Vec<String>,
         environment: BTreeMap<String, String>,
-        unit: &str,
+        _unit: &str,
         network: NetworkPolicy,
     ) -> Result<SandboxSpec, ConfigError> {
         SandboxSpec::new(
@@ -781,7 +982,6 @@ mod tests {
             program.into(),
             arguments,
             environment,
-            unit.into(),
             test_resources(),
             network,
         )
@@ -802,6 +1002,51 @@ mod tests {
         assert!(Resources::new(1, MAX_TASKS + 1, 100, CpuSet::new(vec![0]).unwrap()).is_err());
         assert!(Resources::new(1, 1, MAX_CPU_PERCENT + 1, CpuSet::new(vec![0]).unwrap()).is_err());
         assert!(CpuSet::new(vec![MAX_CPUS as u32]).is_err());
+    }
+
+    #[test]
+    fn internally_generated_scope_identities_are_unique_and_bounded() {
+        let mut units = Vec::new();
+        for _ in 0..64 {
+            let (unit, nonce) = new_scope_identity().unwrap();
+            assert!(unit.starts_with("asb-"));
+            assert_eq!(unit.len(), 40);
+            assert_eq!(nonce.len(), 36);
+            assert!(!units.contains(&unit));
+            units.push(unit);
+        }
+        for malformed in [
+            "",
+            "0000000-0000-0000-0000-000000000000",
+            "00000000_0000-0000-0000-000000000000",
+            "00000000-0000_0000-0000-000000000000",
+            "00000000-0000-0000_0000-000000000000",
+            "00000000-0000-0000-0000_000000000000",
+            "00000000-0000-0000-0000-00000000000z",
+        ] {
+            assert!(!valid_scope_uuid(malformed));
+        }
+    }
+
+    #[test]
+    fn scope_ownership_metadata_is_bounded_and_fail_closed() {
+        let (root, pin) = fake_systemctl("ownership-empty", "exit 0");
+        assert!(!scope_owns_nonce(&pin, "unit", "nonce", 1).unwrap());
+        fs::remove_dir_all(root).unwrap();
+
+        let (root, pin) = fake_systemctl("ownership-escape", "echo ../escape; exit 0");
+        assert!(matches!(
+            scope_owns_nonce(&pin, "unit", "nonce", 1),
+            Err(SandboxError::ScopeIdentity)
+        ));
+        fs::remove_dir_all(root).unwrap();
+
+        let (root, pin) = fake_systemctl(
+            "ownership-missing-cgroup",
+            "echo /asb-cgroup-that-does-not-exist; exit 0",
+        );
+        assert!(!scope_owns_nonce(&pin, "unit", "nonce", 1).unwrap());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -856,23 +1101,12 @@ mod tests {
                 "/bin/true",
                 vec![],
                 BTreeMap::new(),
-                "-invalid-",
-                NetworkPolicy::Deny
-            ),
-            Err(ConfigError::Unit)
-        ));
-        assert!(matches!(
-            spec_with(
-                PathBuf::new(),
-                "/bin/true",
-                vec![],
-                BTreeMap::new(),
                 "valid",
                 NetworkPolicy::Host
             ),
             Err(ConfigError::NetworkPolicy)
         ));
-        let valid = spec_with(
+        spec_with(
             PathBuf::new(),
             "/bin/true",
             vec![],
@@ -881,7 +1115,6 @@ mod tests {
             NetworkPolicy::Deny,
         )
         .unwrap();
-        assert_eq!(valid.unit(), "valid");
     }
 
     #[test]
@@ -895,7 +1128,6 @@ mod tests {
                 "/bin/true".into(),
                 vec![],
                 BTreeMap::new(),
-                "valid".into(),
                 test_resources(),
                 NetworkPolicy::Deny,
             ),
@@ -908,14 +1140,13 @@ mod tests {
         let file = root.join("file");
         File::create(&file).unwrap();
         let resources = test_resources();
-        let make = |working, program: String, arguments, environment, unit: String| {
+        let make = |working, program: String, arguments, environment, _unit: String| {
             SandboxSpec::new(
                 &root,
                 working,
                 program,
                 arguments,
                 environment,
-                unit,
                 resources.clone(),
                 NetworkPolicy::Deny,
             )
@@ -927,7 +1158,6 @@ mod tests {
                 "/bin/true".into(),
                 vec![],
                 BTreeMap::new(),
-                "valid".into(),
                 resources.clone(),
                 NetworkPolicy::Deny,
             ),
@@ -1013,23 +1243,6 @@ mod tests {
             ),
             Err(ConfigError::Environment)
         ));
-        for unit in [
-            String::new(),
-            "a".repeat(65),
-            "Upper".into(),
-            "trailing-".into(),
-        ] {
-            assert!(matches!(
-                make(
-                    PathBuf::new(),
-                    "/bin/true".into(),
-                    vec![],
-                    BTreeMap::new(),
-                    unit
-                ),
-                Err(ConfigError::Unit)
-            ));
-        }
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -1060,7 +1273,6 @@ mod tests {
             "/bin/true".into(),
             vec![],
             BTreeMap::new(),
-            "mismatch".into(),
             test_resources(),
             NetworkPolicy::Deny,
         )
@@ -1158,7 +1370,7 @@ mod tests {
         drop(lease);
         fs::remove_dir(root).unwrap();
 
-        assert!(ConfigError::Unit.to_string().contains("configuration"));
+        assert!(ConfigError::Program.to_string().contains("configuration"));
         assert!(LeaseError::Conflict(1).to_string().contains("lease"));
         assert!(
             SandboxError::DelegationRejected
@@ -1227,6 +1439,36 @@ mod tests {
     }
 
     #[test]
+    fn successful_short_scope_waits_through_terminal_state_transition() {
+        let (root, pin) = fake_systemctl(
+            "ownership-terminal-transition",
+            "case \"$2\" in\n  show) exit 1;;\n  is-active) if [ -e \"$state\" ]; then echo inactive; exit 3; else touch \"$state\"; echo deactivating; exit 3; fi;;\nesac\nexit 2",
+        );
+        let mut process = RunningProcess::spawn(Command::new("/bin/true"), probe_limits()).unwrap();
+        assert!(!await_scope_ownership(&mut process, &pin, "asb-short", "nonce", 1).unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unowned_live_process_is_cancelled_at_ownership_deadline() {
+        let (root, pin) = fake_systemctl("ownership-timeout", "exit 1");
+        let mut command = Command::new("/usr/bin/sleep");
+        command.arg("30");
+        let mut process = RunningProcess::spawn(command, probe_limits()).unwrap();
+        let start = Instant::now();
+        assert!(matches!(
+            await_scope_ownership(&mut process, &pin, "asb-unowned", "nonce", 1),
+            Err(SandboxError::ScopeOwnership {
+                exit_code: None,
+                ref stderr,
+            }) if stderr.contains("deadline")
+        ));
+        assert!(start.elapsed() < Duration::from_secs(3));
+        assert_eq!(process.lifecycle(), ProcessLifecycle::Terminal);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn scope_cleanup_waits_for_inactive_and_rejects_unknown_state() {
         let (root, pin) = fake_systemctl(
             "cleanup-transition",
@@ -1264,6 +1506,176 @@ mod tests {
             }) if stderr.contains("deadline")
         ));
         assert!(start.elapsed() < Duration::from_secs(2));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn cleanup_uncertainty_quarantines_lease_and_drop_retries_terminal_scope() {
+        let body = concat!(
+            "case \"$2\" in\n",
+            "  is-active) echo active; exit 0;;\n",
+            "  kill) echo attempt >> \"$state\"; echo kill-rejected >&2; exit 2;;\n",
+            "esac\nexit 2",
+        );
+        let (tool_root, pin) = fake_systemctl("cleanup-quarantine", body);
+        let lease_root = scratch("cleanup-quarantine-lease");
+        let _ = fs::remove_dir_all(&lease_root);
+        fs::create_dir_all(&lease_root).unwrap();
+        let lease = ResourceLease::acquire(
+            &lease_root,
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let command = Command::new("/bin/true");
+        let mut process = RunningProcess::spawn(command, probe_limits()).unwrap();
+        process.wait().unwrap();
+        let mut sandbox = SandboxProcess {
+            process,
+            lease,
+            unit: "asb-quarantine-test".into(),
+            systemctl: pin,
+            scope_cleanup_required: true,
+        };
+        assert!(matches!(
+            sandbox.wait(),
+            Err(SandboxError::ScopeCleanup { .. })
+        ));
+        assert_eq!(fs::read_dir(&lease_root).unwrap().count(), 1);
+        drop(sandbox);
+        assert_eq!(fs::read_dir(&lease_root).unwrap().count(), 1);
+        let attempts = fs::read_to_string(tool_root.join("systemctl.state")).unwrap();
+        assert_eq!(attempts.lines().count(), 2);
+        fs::remove_dir_all(tool_root).unwrap();
+        fs::remove_dir_all(lease_root).unwrap();
+    }
+
+    #[test]
+    fn live_preexisting_scope_collision_is_never_stopped() {
+        let observed_pin = |path: &str| -> Option<ToolPin> {
+            let output = Command::new(path).arg("--version").output().ok()?;
+            if !output.status.success() {
+                return None;
+            }
+            let version = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()?
+                .to_owned();
+            ToolPin::new(PathBuf::from(path), version).ok()
+        };
+        let Some(bubblewrap) = observed_pin("/usr/bin/bwrap") else {
+            return;
+        };
+        let Some(systemd_run) = observed_pin("/usr/bin/systemd-run") else {
+            return;
+        };
+        let Some(systemctl) = observed_pin("/usr/bin/systemctl") else {
+            return;
+        };
+        let Some(taskset) = observed_pin("/usr/bin/taskset") else {
+            return;
+        };
+        let backend =
+            SandboxBackend::new(bubblewrap, systemd_run.clone(), systemctl.clone(), taskset);
+        if backend.probe().is_err() {
+            return;
+        }
+
+        let unit = format!("asb-collision-{}", std::process::id());
+        let mut existing = Command::new(&systemd_run.path)
+            .args([
+                "--user",
+                "--scope",
+                "--quiet",
+                "--collect",
+                &format!("--unit={unit}.scope"),
+                "/usr/bin/sleep",
+                "30",
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !Command::new(&systemctl.path)
+            .args(["--user", "--quiet", "is-active", &format!("{unit}.scope")])
+            .status()
+            .is_ok_and(|status| status.success())
+        {
+            assert!(Instant::now() < deadline, "collision scope did not start");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        let root = scratch("scope-collision");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("work")).unwrap();
+        fs::create_dir(root.join("leases")).unwrap();
+        let allowed = fs::read_to_string("/proc/self/status")
+            .unwrap()
+            .lines()
+            .find_map(|line| line.strip_prefix("Cpus_allowed_list:\t"))
+            .unwrap()
+            .split([',', '-'])
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let resources = Resources::new(
+            64 * 1024 * 1024,
+            16,
+            100,
+            CpuSet::new(vec![allowed]).unwrap(),
+        )
+        .unwrap();
+        let lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            resources.cpus.clone(),
+        )
+        .unwrap();
+        let spec = SandboxSpec::new(
+            &root,
+            PathBuf::from("work"),
+            "/usr/bin/sleep".into(),
+            vec!["1".into()],
+            BTreeMap::new(),
+            resources,
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        assert!(matches!(
+            backend.spawn_with_identity(
+                spec,
+                lease,
+                probe_limits(),
+                unit.clone(),
+                "different-owner-nonce".into(),
+            ),
+            Err(SandboxError::ScopeOwnership { .. })
+        ));
+        assert!(
+            Command::new(&systemctl.path)
+                .args(["--user", "--quiet", "is-active", &format!("{unit}.scope")])
+                .status()
+                .is_ok_and(|status| status.success()),
+            "collision handling stopped the pre-existing scope"
+        );
+        assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 1);
+
+        let _ = Command::new(&systemctl.path)
+            .args([
+                "--user",
+                "kill",
+                "--kill-whom=all",
+                "--signal=KILL",
+                &format!("{unit}.scope"),
+            ])
+            .status();
+        let _ = Command::new(&systemctl.path)
+            .args(["--user", "--no-block", "stop", &format!("{unit}.scope")])
+            .stderr(std::process::Stdio::null())
+            .status();
+        let _ = existing.wait();
         fs::remove_dir_all(root).unwrap();
     }
 }

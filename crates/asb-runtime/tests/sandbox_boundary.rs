@@ -87,7 +87,7 @@ fn helper_program(workspace: &Path) -> String {
 
 fn spec(
     root: &Path,
-    name: &str,
+    _name: &str,
     action: &str,
     resources: Resources,
     extra: BTreeMap<String, String>,
@@ -105,7 +105,6 @@ fn spec(
             "--nocapture".into(),
         ],
         environment,
-        format!("asb-{name}-{}", std::process::id()),
         resources,
         NetworkPolicy::Deny,
     )
@@ -220,13 +219,36 @@ fn native_workspace_and_network_are_isolated() {
 }
 
 #[test]
+fn short_process_completes_without_ambiguous_scope_ownership() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let root = test_root("short");
+    let r = resources(8);
+    let request = SandboxSpec::new(
+        root.parent().unwrap(),
+        PathBuf::from(root.file_name().unwrap()).join("work"),
+        "/usr/bin/true".into(),
+        vec![],
+        BTreeMap::new(),
+        r.clone(),
+        NetworkPolicy::Deny,
+    )
+    .unwrap();
+    let mut process = backend.spawn(request, lease(&root, &r), limits()).unwrap();
+    assert_eq!(process.wait().unwrap().exit_code, Some(0));
+    drop(process);
+    assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn native_cgroup_limits_and_cleanup_are_real() {
     let Some(backend) = native_backend() else {
         return;
     };
     let root = test_root("limits");
     let r = resources(12);
-    let unit = format!("asb-limits-{}", std::process::id());
     let request = SandboxSpec::new(
         root.parent().unwrap(),
         PathBuf::from(root.file_name().unwrap()).join("work"),
@@ -237,13 +259,13 @@ fn native_cgroup_limits_and_cleanup_are_real() {
             "--nocapture".into(),
         ],
         BTreeMap::from([("ASB_SANDBOX_ACTION".into(), "sleep".into())]),
-        unit.clone(),
         r.clone(),
         NetworkPolicy::Deny,
     )
     .unwrap();
     let mut process = backend.spawn(request, lease(&root, &r), limits()).unwrap();
-    assert_eq!(process.unit(), unit);
+    let unit = process.unit().to_owned();
+    assert!(unit.starts_with("asb-"));
     assert_eq!(process.lifecycle(), ProcessLifecycle::Running);
     let deadline = Instant::now() + Duration::from_secs(3);
     let cgroup = loop {
@@ -329,7 +351,6 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
     };
     let root = test_root("drop-cleanup");
     let r = resources(12);
-    let unit = format!("asb-drop-cleanup-{}", std::process::id());
     let request = SandboxSpec::new(
         root.parent().unwrap(),
         PathBuf::from(root.file_name().unwrap()).join("work"),
@@ -340,12 +361,12 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
             "--nocapture".into(),
         ],
         BTreeMap::from([("ASB_SANDBOX_ACTION".into(), "sleep".into())]),
-        unit.clone(),
         r.clone(),
         NetworkPolicy::Deny,
     )
     .unwrap();
     let process = backend.spawn(request, lease(&root, &r), limits()).unwrap();
+    let unit = process.unit().to_owned();
     assert_eq!(process.lifecycle(), ProcessLifecycle::Running);
     drop(process);
 
@@ -361,6 +382,77 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
         assert!(Instant::now() < deadline, "dropped sandbox scope leaked");
         thread::sleep(Duration::from_millis(10));
     }
+    assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn cleanup_failure_retains_lease_until_drop_retry_cleans_descendant() {
+    let root = test_root("cleanup-retry");
+    let reject = root.join("reject-cleanup");
+    let wrapper = root.join("systemctl-wrapper");
+    fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = --version ]; then exec /usr/bin/systemctl --version; fi\nif [ -e \"{}\" ] && [ \"$2\" = is-active ]; then echo forced-cleanup-failure >&2; exit 2; fi\nexec /usr/bin/systemctl \"$@\"\n",
+            reject.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let backend = SandboxBackend::new(
+        ToolPin::new(PathBuf::from("/usr/bin/bwrap"), BWRAP_VERSION.into()).unwrap(),
+        ToolPin::new(
+            PathBuf::from("/usr/bin/systemd-run"),
+            SYSTEMD_VERSION.into(),
+        )
+        .unwrap(),
+        ToolPin::new(wrapper, SYSTEMD_VERSION.into()).unwrap(),
+        ToolPin::new(PathBuf::from("/usr/bin/taskset"), TASKSET_VERSION.into()).unwrap(),
+    );
+    if backend.probe().is_err() {
+        fs::remove_dir_all(root).unwrap();
+        return;
+    }
+    let r = resources(12);
+    let mut process = backend
+        .spawn(
+            spec(&root, "cleanup-retry", "sleep", r.clone(), BTreeMap::new()),
+            lease(&root, &r),
+            limits(),
+        )
+        .unwrap();
+    let unit = process.unit().to_owned();
+    let control = Command::new("/usr/bin/systemctl")
+        .args([
+            "--user",
+            "show",
+            &format!("{unit}.scope"),
+            "--property=ControlGroup",
+            "--value",
+        ])
+        .output()
+        .unwrap();
+    let control = String::from_utf8_lossy(&control.stdout).trim().to_owned();
+    let cgroup = Path::new("/sys/fs/cgroup").join(control.trim_start_matches('/'));
+    assert!(
+        fs::read_to_string(cgroup.join("cgroup.procs")).is_ok_and(|value| !value.trim().is_empty()),
+        "sandbox did not start a real cgroup descendant"
+    );
+
+    fs::write(&reject, b"reject").unwrap();
+    assert!(matches!(
+        process.cancel(),
+        Err(SandboxError::ScopeCleanup { .. })
+    ));
+    assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 1);
+    fs::remove_file(reject).unwrap();
+    drop(process);
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while cgroup.exists() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!cgroup.exists(), "drop retry left the cgroup behind");
     assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
     fs::remove_dir_all(root).unwrap();
 }

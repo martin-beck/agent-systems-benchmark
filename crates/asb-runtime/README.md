@@ -42,10 +42,14 @@ Exact-pinned taskset enforces CPU placement even when a user slice lacks
 effective cpuset delegation.
 
 CPU lease files in one shared lease root make benchmark and CI reservations
-mutually exclusive. Their root is a trusted coordinator directory; a crash
-leaves conservative stale leases requiring process/cgroup reconciliation. The
-backend rejects absent or version-mismatched tools, unavailable delegation, host
-network requests, invalid paths and unbounded inputs.
+mutually exclusive. Their root is a trusted coordinator directory. Internally
+generated kernel-random scope names are not caller-selectable, and spawn returns
+only after a nonce in the new cgroup proves ownership. A collision therefore
+cannot authorize cleanup of an existing scope. A crash, unproven ownership or
+unconfirmed scope cleanup leaves conservative stale leases requiring
+process/cgroup reconciliation; Drop retries cleanup even after the launcher is
+terminal. The backend rejects absent or version-mismatched tools, unavailable
+delegation, host network requests, invalid paths and unbounded inputs.
 
 This requires Linux, cgroup v2, a per-user systemd manager and Bubblewrap with
 user-namespace support. It is not a VM, does not hide CPU/kernel identity, and
