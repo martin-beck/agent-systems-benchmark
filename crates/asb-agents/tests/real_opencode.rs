@@ -132,8 +132,23 @@ fn text_response() -> Vec<Value> {
     ]
 }
 
-fn tool_response(path: &Path) -> Vec<Value> {
-    let arguments = json!({"filePath": path, "content": "tool fixture\n"}).to_string();
+#[derive(Clone)]
+enum ToolFixture {
+    Write(PathBuf),
+    DeniedBash(PathBuf),
+}
+
+fn tool_response(tool: &ToolFixture) -> Vec<Value> {
+    let (name, arguments) = match tool {
+        ToolFixture::Write(path) => (
+            "write",
+            json!({"filePath": path, "content": "tool fixture\n"}).to_string(),
+        ),
+        ToolFixture::DeniedBash(path) => (
+            "bash",
+            json!({"command": format!("/usr/bin/touch {}", path.display())}).to_string(),
+        ),
+    };
     vec![
         json!({
             "id": "fixture-tool",
@@ -148,7 +163,7 @@ fn tool_response(path: &Path) -> Vec<Value> {
                         "index": 0,
                         "id": "call_asb_fixture",
                         "type": "function",
-                        "function": {"name": "write", "arguments": arguments}
+                        "function": {"name": name, "arguments": arguments}
                     }]
                 },
                 "finish_reason": null
@@ -168,7 +183,7 @@ fn server(
     listener: TcpListener,
     stop: Arc<AtomicBool>,
     requests: Arc<AtomicUsize>,
-    tool_path: PathBuf,
+    tool: ToolFixture,
 ) -> thread::JoinHandle<()> {
     listener.set_nonblocking(true).unwrap();
     thread::spawn(move || {
@@ -202,7 +217,7 @@ fn server(
                             })
                         });
                     let response = if tools && !has_tool_result {
-                        tool_response(&tool_path)
+                        tool_response(&tool)
                     } else {
                         text_response()
                     };
@@ -252,11 +267,11 @@ fn pinned_binary_completes_tool_fixture_and_cancels() {
         r#"{"model":"ambient/forbidden","provider":{"ambient":{"options":{"baseURL":"http://127.0.0.1:1"}}}}"#,
     )
     .unwrap();
-    let server = server(
+    let fixture_server = server(
         listener,
         Arc::clone(&stop),
         Arc::clone(&requests),
-        output_path.clone(),
+        ToolFixture::Write(output_path.clone()),
     );
     let mut attempt = adapter(&binary, &test_root, endpoint)
         .start(
@@ -282,7 +297,7 @@ fn pinned_binary_completes_tool_fixture_and_cancels() {
     }
     let outcome = attempt.wait().unwrap();
     stop.store(true, Ordering::SeqCst);
-    server.join().unwrap();
+    fixture_server.join().unwrap();
     assert_eq!(outcome.status(), TerminalStatus::Completed);
     assert_eq!(fs::read_to_string(output_path).unwrap(), "tool fixture\n");
     assert!(requests.load(Ordering::SeqCst) >= 3);
@@ -307,6 +322,51 @@ fn pinned_binary_completes_tool_fixture_and_cancels() {
             .next()
             .is_none()
     );
+
+    let denied_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let denied_endpoint = Url::parse(&format!(
+        "http://{}/v1",
+        denied_listener.local_addr().unwrap()
+    ))
+    .unwrap();
+    let denied_stop = Arc::new(AtomicBool::new(false));
+    let denied_requests = Arc::new(AtomicUsize::new(0));
+    let outside_sentinel = test_root.join("forbidden-outside-workspace");
+    let denied_server = server(
+        denied_listener,
+        Arc::clone(&denied_stop),
+        Arc::clone(&denied_requests),
+        ToolFixture::DeniedBash(outside_sentinel.clone()),
+    );
+    let mut denied = adapter(&binary, &test_root.join("denied"), denied_endpoint)
+        .start(
+            Id("denied-session".into()),
+            Id("denied-attempt".into()),
+            "Try the requested shell tool, then finish.",
+            limits(Duration::from_secs(30)),
+        )
+        .unwrap();
+    let denied_outcome = denied.wait().unwrap();
+    denied_stop.store(true, Ordering::SeqCst);
+    denied_server.join().unwrap();
+    assert_eq!(denied_outcome.status(), TerminalStatus::Completed);
+    assert!(!outside_sentinel.exists());
+    assert!(denied_requests.load(Ordering::SeqCst) >= 3);
+    assert!(denied_outcome.events().windows(2).any(|events| {
+        matches!(
+            (&events[0].event, &events[1].event),
+            (
+                Event::ToolStarted {
+                    tool_call_id: started,
+                    name
+                },
+                Event::ToolFinished {
+                    tool_call_id: finished,
+                    success: false
+                }
+            ) if started == finished && name == "bash"
+        )
+    }));
 
     let cancel_listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let cancel_endpoint = Url::parse(&format!(

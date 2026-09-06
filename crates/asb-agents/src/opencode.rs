@@ -6,15 +6,17 @@ use asb_protocol::{
     TerminalStatus, Usage,
 };
 use asb_runtime::{ProcessError, ProcessLimits, RunningProcess, Termination};
+use serde::Deserialize;
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
@@ -237,28 +239,34 @@ impl OpenCodeConfig {
             let prompt_path = run_root.join("prompts/prompt.txt");
             let mut prompt_file = OpenOptions::new()
                 .write(true)
+                .read(true)
                 .create_new(true)
                 .mode(0o600)
                 .open(&prompt_path)?;
+            // Unlink before copying any prompt bytes. The inherited descriptor
+            // remains readable, while every preparation/spawn failure closes it
+            // without leaving prompt material for directory cleanup to recover.
+            fs::remove_file(&prompt_path)?;
             prompt_file.write_all(prompt.as_bytes())?;
             prompt_file.sync_all()?;
-            Ok::<PathBuf, AdapterError>(prompt_path)
+            prompt_file.seek(SeekFrom::Start(0))?;
+            Ok::<fs::File, AdapterError>(prompt_file)
         })();
-        let prompt_path = match prepared {
-            Ok(path) => path,
+        let prompt_file = match prepared {
+            Ok(file) => file,
             Err(error) => {
                 let _ = fs::remove_dir_all(&run_root);
                 return Err(error);
             }
         };
 
-        let result = self.spawn_process(&run_root, &prompt_path, limits);
+        let result = self.spawn_process(&run_root, prompt_file, limits);
         match result {
             Ok(process) => Ok(RunningOpenCode {
                 process,
                 session_id,
                 attempt_id,
-                prompt_path: Some(prompt_path),
+                prompt_path: None,
                 run_root: Some(run_root),
             }),
             Err(error) => {
@@ -271,9 +279,28 @@ impl OpenCodeConfig {
     fn spawn_process(
         &self,
         run_root: &Path,
-        prompt_path: &Path,
+        prompt_file: fs::File,
         limits: ProcessLimits,
     ) -> Result<RunningProcess, AdapterError> {
+        let config = self.runtime_config();
+        let mut command = Command::new(&self.binary);
+        command
+            .args(["run", "--format", "json", "--pure", "--dir"])
+            .arg(&self.workspace)
+            .args(["--model", &self.model])
+            .stdin(Stdio::from(prompt_file))
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", run_root.join("home"))
+            .env("XDG_CONFIG_HOME", run_root.join("config"))
+            .env("XDG_DATA_HOME", run_root.join("data"))
+            .env("XDG_CACHE_HOME", run_root.join("cache"))
+            .env("OPENCODE_DISABLE_PROJECT_CONFIG", "1")
+            .env("OPENCODE_CONFIG_CONTENT", config.to_string());
+        RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
+    }
+
+    fn runtime_config(&self) -> Value {
         let (provider, model_name) = self.model.split_once('/').expect("validated model");
         let mut models = serde_json::Map::new();
         models.insert(model_name.to_owned(), json!({"name": "ASB pinned model"}));
@@ -290,38 +317,21 @@ impl OpenCodeConfig {
                 "models": models
             }),
         );
-        let config = json!({
+        json!({
             "$schema": "https://opencode.ai/config.json",
             "provider": providers,
             "model": self.model,
             "share": "disabled",
             "autoupdate": false,
             "permission": {
+                "*": "deny",
                 "edit": "allow",
                 "external_directory": "deny",
                 "question": "deny",
                 "plan_enter": "deny",
                 "plan_exit": "deny"
             }
-        });
-        let mut command = Command::new("/bin/sh");
-        command
-            .arg("-c")
-            .arg(r#"exec "$1" run --format json --pure --dir "$2" --model "$3" < "$4""#)
-            .arg("asb-opencode")
-            .arg(&self.binary)
-            .arg(&self.workspace)
-            .arg(&self.model)
-            .arg(prompt_path)
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .env("HOME", run_root.join("home"))
-            .env("XDG_CONFIG_HOME", run_root.join("config"))
-            .env("XDG_DATA_HOME", run_root.join("data"))
-            .env("XDG_CACHE_HOME", run_root.join("cache"))
-            .env("OPENCODE_DISABLE_PROJECT_CONFIG", "1")
-            .env("OPENCODE_CONFIG_CONTENT", config.to_string());
-        RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
+        })
     }
 
     fn unique_run_root(&self) -> Result<PathBuf, AdapterError> {
@@ -529,7 +539,9 @@ fn map_events(
         if upstream_events > MAX_UPSTREAM_EVENTS || line.len() > MAX_EVENT_LINE_BYTES {
             return Err(AdapterError::InvalidEvent);
         }
-        let value: Value = serde_json::from_str(line).map_err(|_| AdapterError::InvalidEvent)?;
+        let value = serde_json::from_str::<UniqueJson>(line)
+            .map_err(|_| AdapterError::InvalidEvent)?
+            .0;
         let object = value.as_object().ok_or(AdapterError::InvalidEvent)?;
         let kind = object
             .get("type")
@@ -557,12 +569,21 @@ fn map_events(
             first = true;
         }
         match kind {
-            "step_start" if !in_step && !upstream_failed => in_step = true,
-            "text" | "reasoning" if in_step && !upstream_failed => {}
+            "step_start" if !in_step && !upstream_failed => {
+                required_part(object, "step-start")?;
+                in_step = true;
+            }
+            "text" if in_step && !upstream_failed => {
+                required_string(required_part(object, "text")?, "text")?;
+            }
+            "reasoning" if in_step && !upstream_failed => {
+                required_string(required_part(object, "reasoning")?, "text")?;
+            }
             "step_finish" => {
                 if !in_step || upstream_failed {
                     return Err(AdapterError::InvalidEvent);
                 }
+                required_part(object, "step-finish")?;
                 if let Some(usage) = parse_usage(&value)? {
                     push_event(
                         &mut events,
@@ -585,6 +606,9 @@ fn map_events(
                     .get("part")
                     .and_then(Value::as_object)
                     .ok_or(AdapterError::InvalidEvent)?;
+                if required_string(part, "type")? != "tool" {
+                    return Err(AdapterError::InvalidEvent);
+                }
                 let id = required_string(part, "id")?;
                 let name = required_string(part, "tool")?;
                 let state = part
@@ -622,7 +646,11 @@ fn map_events(
                     },
                 )?;
             }
-            "error" if !upstream_failed => upstream_failed = true,
+            "error"
+                if !upstream_failed && object.get("error").and_then(Value::as_object).is_some() =>
+            {
+                upstream_failed = true;
+            }
             _ => return Err(AdapterError::InvalidEvent),
         }
     }
@@ -653,6 +681,96 @@ fn map_events(
         TerminalStatus::Cancelled => {}
     }
     Ok(events)
+}
+
+fn required_part<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    expected_type: &str,
+) -> Result<&'a serde_json::Map<String, Value>, AdapterError> {
+    let part = object
+        .get("part")
+        .and_then(Value::as_object)
+        .ok_or(AdapterError::InvalidEvent)?;
+    if required_string(part, "type")? != expected_type {
+        return Err(AdapterError::InvalidEvent);
+    }
+    Ok(part)
+}
+
+struct UniqueJson(Value);
+
+impl<'de> Deserialize<'de> for UniqueJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(UniqueJsonVisitor)
+    }
+}
+
+struct UniqueJsonVisitor;
+
+impl<'de> Visitor<'de> for UniqueJsonVisitor {
+    type Value = UniqueJson;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("JSON without duplicate object members")
+    }
+
+    fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::Bool(value)))
+    }
+
+    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::Number(value.into())))
+    }
+
+    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::Number(value.into())))
+    }
+
+    fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
+        serde_json::Number::from_f64(value)
+            .map(Value::Number)
+            .map(UniqueJson)
+            .ok_or_else(|| E::custom("non-finite JSON number"))
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::String(value.to_owned())))
+    }
+
+    fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::String(value)))
+    }
+
+    fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::Null))
+    }
+
+    fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+        Ok(UniqueJson(Value::Null))
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut values: A) -> Result<Self::Value, A::Error> {
+        let mut output = Vec::new();
+        while let Some(value) = values.next_element::<UniqueJson>()? {
+            output.push(value.0);
+        }
+        Ok(UniqueJson(Value::Array(output)))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut values: A) -> Result<Self::Value, A::Error> {
+        let mut output = serde_json::Map::new();
+        while let Some(key) = values.next_key::<String>()? {
+            if output.contains_key(&key) {
+                return Err(de::Error::custom("duplicate JSON object member"));
+            }
+            let value = values.next_value::<UniqueJson>()?;
+            output.insert(key, value.0);
+        }
+        Ok(UniqueJson(Value::Object(output)))
+    }
 }
 
 fn parse_usage(value: &Value) -> Result<Option<Usage>, AdapterError> {
@@ -849,6 +967,18 @@ mod tests {
     }
 
     #[test]
+    fn runtime_config_denies_every_permission_except_workspace_edit() {
+        let value = config("http://127.0.0.1:1/v1").runtime_config();
+        let permissions = value["permission"].as_object().unwrap();
+        assert_eq!(permissions.get("*").unwrap(), "deny");
+        assert_eq!(permissions.get("edit").unwrap(), "allow");
+        for denied in ["external_directory", "question", "plan_enter", "plan_exit"] {
+            assert_eq!(permissions.get(denied).unwrap(), "deny");
+        }
+        assert_eq!(permissions.len(), 6);
+    }
+
+    #[test]
     fn executable_digest_mismatch_fails_before_spawn() {
         assert!(matches!(
             config("http://127.0.0.1:1/v1").verify_executable(),
@@ -1002,9 +1132,9 @@ mod tests {
     #[test]
     fn completion_maps_ordered_content_free_events() {
         let stdout = br#"{"type":"step_start","sessionID":"up","part":{"type":"step-start"}}
-{"type":"text","sessionID":"up","part":{"text":"private"}}
-{"type":"tool_use","sessionID":"up","part":{"id":"call-1","tool":"write","state":{"status":"completed","output":"private"}}}
-{"type":"step_finish","sessionID":"up","part":{"tokens":{"input":7,"output":2},"cost":1}}
+{"type":"text","sessionID":"up","part":{"type":"text","text":"private"}}
+{"type":"tool_use","sessionID":"up","part":{"type":"tool","id":"call-1","tool":"write","state":{"status":"completed","output":"private"}}}
+{"type":"step_finish","sessionID":"up","part":{"type":"step-finish","tokens":{"input":7,"output":2},"cost":1}}
 "#;
         let events = map_events(
             stdout,
@@ -1051,6 +1181,15 @@ mod tests {
             br#"{"type":"step_start","sessionID":"one"}
 {"type":"text","sessionID":"two"}
 "#,
+            br#"{"type":"step_start","type":"error","sessionID":"one","part":{"type":"step-start"}}
+"#,
+            br#"{"type":"step_start","sessionID":"one","part":{"type":"step-start","type":"text"}}
+"#,
+            br#"{"type":"step_start","sessionID":"one","part":{"type":"text"}}
+"#,
+            br#"{"type":"step_start","sessionID":"one","part":{"type":"step-start"}}
+{"type":"text","sessionID":"one","part":{"type":"text"}}
+"#,
             br#"{"type":"tool_use","sessionID":"one","part":{"id":"x","tool":"write","state":{"status":"running"}}}
 "#,
             br#"{"type":"step_start","sessionID":"one"}
@@ -1093,8 +1232,8 @@ mod tests {
 
         let mut excessive = String::new();
         for _ in 0..=MAX_UPSTREAM_EVENTS / 2 {
-            excessive.push_str("{\"type\":\"step_start\",\"sessionID\":\"one\"}\n");
-            excessive.push_str("{\"type\":\"step_finish\",\"sessionID\":\"one\",\"part\":{}}\n");
+            excessive.push_str("{\"type\":\"step_start\",\"sessionID\":\"one\",\"part\":{\"type\":\"step-start\"}}\n");
+            excessive.push_str("{\"type\":\"step_finish\",\"sessionID\":\"one\",\"part\":{\"type\":\"step-finish\"}}\n");
         }
         assert!(matches!(
             map_events(
@@ -1131,9 +1270,9 @@ mod tests {
         assert_eq!(cancelled.len(), 2);
 
         let tool_error = map_events(
-            br#"{"type":"step_start","sessionID":"up"}
-{"type":"tool_use","sessionID":"up","part":{"id":"call-1","tool":"write","state":{"status":"error"}}}
-{"type":"step_finish","sessionID":"up","part":{"tokens":{}}}
+            br#"{"type":"step_start","sessionID":"up","part":{"type":"step-start"}}
+{"type":"tool_use","sessionID":"up","part":{"type":"tool","id":"call-1","tool":"write","state":{"status":"error"}}}
+{"type":"step_finish","sessionID":"up","part":{"type":"step-finish","tokens":{}}}
 "#,
             &Id("s".into()),
             &Id("a".into()),
@@ -1213,6 +1352,18 @@ mod tests {
         let mut running = adapter
             .start(Id("s".into()), Id("a".into()), "private prompt", limits)
             .unwrap();
+        let attempt_root = fs::read_dir(&state)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        assert!(
+            fs::read_dir(attempt_root.join("prompts"))
+                .unwrap()
+                .next()
+                .is_none()
+        );
         let cmdline = fs::read(format!("/proc/{}/cmdline", running.pid())).unwrap();
         assert!(
             !cmdline

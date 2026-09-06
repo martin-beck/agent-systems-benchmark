@@ -1,14 +1,17 @@
 # ASB agent adapters
 
 The OpenCode adapter runs an exact, hash-pinned OpenCode executable through
-`opencode run --format json --pure`. It supplies the prompt over a mode-0600
-file redirected to standard input, so prompt text is absent from the process
-argument vector. The child receives a cleared environment, isolated HOME/XDG
+`opencode run --format json --pure`. It copies the prompt into a mode-0600 file,
+unlinks that file before writing any prompt bytes, rewinds the still-open descriptor,
+and passes it directly as standard input. Prompt text is therefore absent from the
+filesystem and process argument vector, including when process spawning fails.
+The child receives a cleared environment, isolated HOME/XDG
 directories, project configuration discovery disabled, sharing disabled, and an
 explicit provider endpoint and model. Every attempt receives an atomically new
 mode-0700 state directory, so a caller cannot preseed global OpenCode config or
 authentication state there. The adapter enables only the in-workspace edit
-permission needed by the checked fixture; other permission requests retain
+permission needed by the checked fixture and explicitly denies the wildcard
+permission baseline, so shell and every other permission request retain
 OpenCode's noninteractive rejection behavior. After the owned process is
 reaped, the attempt state tree (including session database, cache, logs, and
 prompt file) is removed; cleanup failure makes the attempt fail closed.
