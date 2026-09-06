@@ -1,0 +1,49 @@
+{
+  "contents": {
+    "schema_version": 1,
+    "cassette_id": "fixture-buffered",
+    "normalization": {"version": 1},
+    "redaction": {"version": 1},
+    "interactions": [
+      {
+        "session_id": "session-fixture",
+        "attempt_id": "attempt-fixture",
+        "interaction_id": "interaction-fixture-0",
+        "ordinal": 0,
+        "dialect": "synthetic",
+        "request": {
+          "method": "POST",
+          "path": "/v1/synthetic",
+          "headers": [
+            {"name": "content-type", "value": "application/json"}
+          ],
+          "body": {"input": "synthetic prompt"},
+          "body_sha256": "4bb7225b74781103956c49c967357aaa3685b2882a6d16bf57d4f46f739b3a50",
+          "model": "synthetic-model",
+          "options": {"temperature": 0},
+          "tools": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            {"name": "content-type", "value": "application/json"}
+          ],
+          "body": {
+            "kind": "buffered",
+            "payload": {
+              "output": "synthetic answer",
+              "response_id": "fixture-response"
+            },
+            "payload_sha256": "09ea82402aad43e431d2755e5b510a53eea6a18902426eb7def015575f28f054",
+            "response_id": "fixture-response",
+            "terminal": "completed"
+          }
+        }
+      }
+    ]
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "5ade7a698a34f336c39d31a1b32378ee87e20094ffe6772601774263ece48b60"
+  }
+}

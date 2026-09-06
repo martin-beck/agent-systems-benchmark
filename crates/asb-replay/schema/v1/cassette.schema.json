@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ASB response cassette v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contents", "integrity"],
+  "properties": {
+    "contents": {"$ref": "#/$defs/contents"},
+    "integrity": {"$ref": "#/$defs/integrity"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": {"version": {"const": 1}}
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+        "value": {"type": "string"}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "path", "headers", "body", "body_sha256", "model", "options", "tools"],
+      "properties": {
+        "method": {"type": "string", "pattern": "^[A-Z]+$"},
+        "path": {"type": "string", "pattern": "^/[^/].*|^/$"},
+        "headers": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {"$ref": "#/$defs/header"}
+        },
+        "body": true,
+        "body_sha256": {"$ref": "#/$defs/digest"},
+        "model": {"type": "string", "minLength": 1},
+        "options": {"type": "object"},
+        "tools": {"type": "array"},
+        "previous_response_id": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "terminal": {
+      "enum": ["completed", "failed", "cancelled"]
+    },
+    "event_nonterminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "monotonic_offset_ns", "event_type", "payload", "payload_sha256"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "monotonic_offset_ns": {"type": "integer", "minimum": 0},
+        "event_type": {"type": "string", "minLength": 1},
+        "payload": true,
+        "payload_sha256": {"$ref": "#/$defs/digest"},
+        "response_id": {"$ref": "#/$defs/identifier"},
+        "previous_response_id": {"$ref": "#/$defs/identifier"},
+        "tool_call_id": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "event_terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "monotonic_offset_ns", "event_type", "payload", "payload_sha256", "terminal"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "monotonic_offset_ns": {"type": "integer", "minimum": 0},
+        "event_type": {"type": "string", "minLength": 1},
+        "payload": true,
+        "payload_sha256": {"$ref": "#/$defs/digest"},
+        "response_id": {"$ref": "#/$defs/identifier"},
+        "previous_response_id": {"$ref": "#/$defs/identifier"},
+        "tool_call_id": {"$ref": "#/$defs/identifier"},
+        "terminal": {"$ref": "#/$defs/terminal"}
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "headers", "body"],
+      "properties": {
+        "status": {"type": "integer", "minimum": 100, "maximum": 599},
+        "headers": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {"$ref": "#/$defs/header"}
+        },
+        "body": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "payload", "payload_sha256", "terminal"],
+              "properties": {
+                "kind": {"const": "buffered"},
+                "payload": true,
+                "payload_sha256": {"$ref": "#/$defs/digest"},
+                "response_id": {"$ref": "#/$defs/identifier"},
+                "terminal": {"$ref": "#/$defs/terminal"}
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "events", "transport_chunk_bytes"],
+              "properties": {
+                "kind": {"const": "events"},
+                "events": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 65536,
+                  "items": {
+                    "oneOf": [
+                      {"$ref": "#/$defs/event_nonterminal"},
+                      {"$ref": "#/$defs/event_terminal"}
+                    ]
+                  }
+                },
+                "transport_chunk_bytes": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4294967295
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "attempt_id",
+        "interaction_id",
+        "ordinal",
+        "dialect",
+        "request",
+        "response"
+      ],
+      "properties": {
+        "session_id": {"$ref": "#/$defs/identifier"},
+        "attempt_id": {"$ref": "#/$defs/identifier"},
+        "interaction_id": {"$ref": "#/$defs/identifier"},
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "dialect": {
+          "enum": [
+            "openai-chat-completions",
+            "openai-responses",
+            "anthropic-messages",
+            "synthetic"
+          ]
+        },
+        "request": {"$ref": "#/$defs/request"},
+        "response": {"$ref": "#/$defs/response"}
+      }
+    },
+    "contents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "cassette_id",
+        "normalization",
+        "redaction",
+        "interactions"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "cassette_id": {"$ref": "#/$defs/identifier"},
+        "normalization": {"$ref": "#/$defs/policy"},
+        "redaction": {"$ref": "#/$defs/policy"},
+        "interactions": {
+          "type": "array",
+          "maxItems": 16384,
+          "items": {"$ref": "#/$defs/interaction"}
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": {"const": "sha256"},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+    ,
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
