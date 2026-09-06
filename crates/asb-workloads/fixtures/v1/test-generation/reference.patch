@@ -1,0 +1,9 @@
+diff --git a/tests/cases.txt b/tests/cases.txt
+--- a/tests/cases.txt
++++ b/tests/cases.txt
+@@ -1,2 +1,5 @@
++0|0
+ 1|1
+ 2|2
++-1|1
++-9223372036854775808|9223372036854775808

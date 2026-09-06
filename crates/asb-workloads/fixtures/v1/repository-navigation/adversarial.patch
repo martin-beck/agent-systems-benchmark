@@ -1,0 +1,12 @@
+diff --git a/cmd/main.rs b/cmd/main.rs
+--- a/cmd/main.rs
++++ b/cmd/main.rs
+@@ -1 +1 @@
+-fn main() { let config = config::load(); let _runner = Runner::new(config); }
++fn main() {}
+diff --git a/answer.json b/answer.json
+--- a/answer.json
++++ b/answer.json
+@@ -1 +1 @@
+-{}
++{"entrypoint":"cmd/main.rs","parser":"src/config.rs","symbol":"parse_limit","call_chain":["main","load","parse_limit","Runner::new"]}

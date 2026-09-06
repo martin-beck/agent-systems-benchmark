@@ -1,0 +1,8 @@
+diff --git a/Makefile b/Makefile
+--- a/Makefile
++++ b/Makefile
+@@ -1,2 +1,2 @@
+-main: main.c util.h
+-	$(CC) main.c missing.c -o main
++main: main.c util.c util.h
++	$(CC) main.c util.c -o main

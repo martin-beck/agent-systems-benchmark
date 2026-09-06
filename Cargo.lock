@@ -106,6 +106,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "asb-workloads"
+version = "0.1.0"
+dependencies = [
+ "asb-protocol",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

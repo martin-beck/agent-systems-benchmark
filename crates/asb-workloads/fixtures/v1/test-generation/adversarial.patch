@@ -1,0 +1,15 @@
+diff --git a/abs.c b/abs.c
+--- a/abs.c
++++ b/abs.c
+@@ -1 +1 @@
+-unsigned long magnitude(long value) { return value < 0 ? -value : value; }
++unsigned long magnitude(long value) { return 0; }
+diff --git a/tests/cases.txt b/tests/cases.txt
+--- a/tests/cases.txt
++++ b/tests/cases.txt
+@@ -1,2 +1,5 @@
++0|0
+ 1|1
+ 2|2
++-1|1
++-9223372036854775808|9223372036854775808

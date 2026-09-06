@@ -1,0 +1,15 @@
+{
+  "workload_id": "original.repository-navigation",
+  "version": "1.0.0",
+  "license": "MIT",
+  "source_revision": "asb-original-v1",
+  "content_sha256": "5003279de5ad96d30cb975212ff2c8b1bf8562061784f035657004991bdf286e",
+  "architectures": ["aarch64", "x86_64"],
+  "operating_systems": ["linux"],
+  "fixture_bytes": 265,
+  "timeout_ms": 30000,
+  "cpu_count": 1,
+  "memory_bytes": 268435456,
+  "scoring_version": "asb-original-oracle-v1",
+  "allowed_network_destinations": []
+}

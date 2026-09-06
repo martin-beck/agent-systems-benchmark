@@ -1,0 +1,15 @@
+{
+  "workload_id": "original.test-generation",
+  "version": "1.0.0",
+  "license": "MIT",
+  "source_revision": "asb-original-v1",
+  "content_sha256": "4327553375326216a3f3828a74e72281429bf1937fdf6a6d0bfd2845652928d9",
+  "architectures": ["aarch64", "x86_64"],
+  "operating_systems": ["linux"],
+  "fixture_bytes": 83,
+  "timeout_ms": 30000,
+  "cpu_count": 1,
+  "memory_bytes": 268435456,
+  "scoring_version": "asb-original-oracle-v1",
+  "allowed_network_destinations": []
+}

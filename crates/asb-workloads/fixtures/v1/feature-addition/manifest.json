@@ -1,0 +1,15 @@
+{
+  "workload_id": "original.feature-addition",
+  "version": "1.0.0",
+  "license": "MIT",
+  "source_revision": "asb-original-v1",
+  "content_sha256": "cbf407c967bfc761312de71e4f4c0738bd52d3ea5123ba8e1017503bdeb2e32a",
+  "architectures": ["aarch64", "x86_64"],
+  "operating_systems": ["linux"],
+  "fixture_bytes": 185,
+  "timeout_ms": 30000,
+  "cpu_count": 1,
+  "memory_bytes": 268435456,
+  "scoring_version": "asb-original-oracle-v1",
+  "allowed_network_destinations": []
+}

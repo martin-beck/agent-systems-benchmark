@@ -1,0 +1,15 @@
+{
+  "workload_id": "original.dependency-migration",
+  "version": "1.0.0",
+  "license": "MIT",
+  "source_revision": "asb-original-v1",
+  "content_sha256": "7a420dc9cb44ba6d9030c32ae46cbf1c061aad570531ac009ad4b0bea2313de2",
+  "architectures": ["aarch64", "x86_64"],
+  "operating_systems": ["linux"],
+  "fixture_bytes": 224,
+  "timeout_ms": 30000,
+  "cpu_count": 1,
+  "memory_bytes": 268435456,
+  "scoring_version": "asb-original-oracle-v1",
+  "allowed_network_destinations": []
+}
