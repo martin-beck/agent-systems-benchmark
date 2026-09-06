@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Rootless namespace isolation and dedicated resource leases.
+pub mod sandbox;
+
 #[cfg(not(target_os = "linux"))]
 compile_error!("asb-runtime currently supports Linux process semantics only");
 
@@ -261,6 +264,13 @@ impl RunningProcess {
     /// Return the current lifecycle.
     pub fn lifecycle(&self) -> ProcessLifecycle {
         self.lifecycle
+    }
+
+    /// Observe whether the process-group leader has exited without reaping it.
+    ///
+    /// The retained zombie continues to fence its PID until wait is called.
+    pub fn leader_has_exited(&self) -> Result<bool, ProcessError> {
+        self.leader_exited()
     }
 
     /// Request cancellation once; repeated calls have no additional effect.
