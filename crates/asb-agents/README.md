@@ -53,3 +53,46 @@ tool-start timing. The verified-executable path and its parent are assumed not
 to be replaceable by an attacker between hash verification and `exec`.
 Descendants that deliberately leave the owned process group can escape this
 adapter's cancellation; hard containment requires the cgroup/sandbox runtime.
+
+## aider boundary
+
+The aider adapter targets the universal `aider-chat` 0.86.2 wheel at upstream
+commit `253f0368b873ba30d8ee26e463718f0c03614ddf` and verifies both that wheel and
+the natively tested CPython 3.12 executable by SHA-256 before import. Upstream
+declares Apache-2.0. ASB does not redistribute aider or its Python dependency
+environment; the pin establishes compatibility with the inspected top-level
+artifact, not a reproducible source build or a complete transitive-dependency
+attestation.
+
+Each attempt uses aider's `--message-file` batch mode with commits, Git,
+analytics, update checks, release notes, URL detection, browser automation,
+linting, tests, prompt caching, streaming, and shell suggestions disabled. The
+adapter passes at most 4,096 regular workspace files, rejects links, special
+files, files over 16 MiB, and aggregate input over 256 MiB, clears the
+environment, isolates HOME/XDG/history/config state,
+and deletes prompt-bearing state after the process is reaped. A closed proxy
+blocks known auxiliary egress while only the exact provider host bypasses it;
+provider scopes that would also bypass a known aider service are rejected.
+These proxy controls are defense in depth, not a network sandbox.
+
+Supported and evidenced:
+
+- Linux x86_64, CPython 3.12: native aider 0.86.2 edit completion and
+  process-group cancellation against a credential-free loopback
+  OpenAI-compatible fixture.
+- Explicit provider endpoint/model selection, bounded prompt/output/process
+  lifetime, disabled unintended commits, isolated configuration, lifecycle
+  events, native exit status, cancellation, and typed unavailable evidence for
+  aider-internal retries. A native fixture proves aider retries a transient
+  provider failure, but content-bearing human diagnostics are not parsed to
+  infer a count.
+
+Not claimed: structured tool, token-usage, or response-content events (aider's
+batch output is deliberately discarded); live progress; retry counts or causes;
+Windows, macOS, Linux aarch64, musl, or other Python
+runtimes; reproducible transitive Python wheels; arbitrary plugins or project
+configuration; and same-UID credential secrecy. Hard filesystem, network, and
+descendant containment remains the ASB sandbox layer's responsibility.
+Workspace and state roots must already resolve to their exact canonical path.
+Their ancestors, bounded workspace tree, and verified executable installation
+are assumed not to be replaced or expanded between validation and use.
