@@ -956,14 +956,92 @@ mod tests {
     use super::*;
 
     static FAKE_TOOL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    static SCRATCH_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-    fn scratch(name: &str) -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("asb-sandbox-{name}-{}", std::process::id()))
+    fn resolve_target_root(value: Option<std::ffi::OsString>, current: &Path) -> PathBuf {
+        let Some(value) = value else {
+            return std::env::temp_dir();
+        };
+        let path = PathBuf::from(value);
+        let absolute = if path.is_absolute() {
+            path
+        } else {
+            current.join(path)
+        };
+        let mut normalized = PathBuf::new();
+        for component in absolute.components() {
+            match component {
+                std::path::Component::CurDir => {}
+                std::path::Component::ParentDir => {
+                    normalized.pop();
+                }
+                _ => normalized.push(component.as_os_str()),
+            }
+        }
+
+        let mut prefix = normalized.clone();
+        let mut suffix = Vec::new();
+        loop {
+            if let Ok(mut canonical) = fs::canonicalize(&prefix) {
+                for component in suffix.iter().rev() {
+                    canonical.push(component);
+                }
+                return canonical;
+            }
+            let Some(component) = prefix.file_name().map(ToOwned::to_owned) else {
+                return normalized;
+            };
+            suffix.push(component);
+            if !prefix.pop() {
+                return normalized;
+            }
+        }
     }
 
-    fn fake_systemctl(name: &str, body: &str) -> (PathBuf, ToolPin) {
+    fn scratch(name: &str) -> ScratchPath {
+        let base = resolve_target_root(
+            std::env::var_os("CARGO_TARGET_DIR"),
+            &std::env::current_dir().unwrap(),
+        );
+        let sequence = SCRATCH_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        ScratchPath(base.join(format!(
+            "asb-sandbox-{name}-{}-{sequence}",
+            std::process::id()
+        )))
+    }
+
+    struct ScratchPath(PathBuf);
+
+    impl ScratchPath {
+        fn create(name: &str) -> Self {
+            let path = scratch(name);
+            fs::create_dir_all(&path).unwrap();
+            path
+        }
+    }
+
+    impl std::ops::Deref for ScratchPath {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for ScratchPath {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for ScratchPath {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+
+    fn fake_systemctl(name: &str, body: &str) -> (ScratchPath, ToolPin) {
         let root = scratch(name);
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
@@ -1289,9 +1367,7 @@ mod tests {
             Err(SandboxError::ToolVersion { .. })
         ));
 
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("asb-mismatch-{}", std::process::id()));
+        let root = scratch("mismatch");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("leases")).unwrap();
         let ci = ResourceLease::acquire(
@@ -1322,28 +1398,59 @@ mod tests {
 
     #[test]
     fn leases_exclude_benchmark_and_ci_overlap() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("asb-lease-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir(&root).unwrap();
+        let fixture = ScratchPath::create("lease-overlap");
+        let root = fixture.as_ref();
         let ci =
-            ResourceLease::acquire(&root, LeaseClass::Ci, CpuSet::new(vec![2]).unwrap()).unwrap();
+            ResourceLease::acquire(root, LeaseClass::Ci, CpuSet::new(vec![2]).unwrap()).unwrap();
         assert!(matches!(
             ResourceLease::acquire(
-                &root,
+                root,
                 LeaseClass::Benchmark,
                 CpuSet::new(vec![1, 2]).unwrap()
             ),
             Err(LeaseError::Conflict(2))
         ));
         let benchmark =
-            ResourceLease::acquire(&root, LeaseClass::Benchmark, CpuSet::new(vec![1]).unwrap())
+            ResourceLease::acquire(root, LeaseClass::Benchmark, CpuSet::new(vec![1]).unwrap())
                 .unwrap();
         drop(ci);
         drop(benchmark);
-        assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
-        fs::remove_dir(root).unwrap();
+        assert_eq!(fs::read_dir(root).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn scratch_fixtures_are_unique_external_and_panic_cleaned() {
+        let repository_target = workspace().join("target");
+        let target_existed = repository_target.exists();
+        let current = std::env::current_dir().unwrap();
+        assert_eq!(
+            resolve_target_root(Some("target".into()), &current),
+            current.join("target")
+        );
+        assert_eq!(
+            resolve_target_root(Some("existing/../target".into()), &current),
+            current.join("target")
+        );
+        assert_eq!(
+            resolve_target_root(Some("../external-target".into()), &current),
+            current.parent().unwrap().join("external-target")
+        );
+        let first = ScratchPath::create("portability");
+        let second = ScratchPath::create("portability");
+        assert_ne!(first.as_ref(), second.as_ref());
+        assert!(!first.starts_with(&repository_target));
+        let first_path = first.to_path_buf();
+        let second_path = second.to_path_buf();
+
+        let failure = std::panic::catch_unwind(move || {
+            let _fixture = first;
+            panic!("injected fixture failure");
+        });
+        assert!(failure.is_err());
+        assert!(!first_path.exists());
+        drop(second);
+        assert!(!second_path.exists());
+        assert_eq!(repository_target.exists(), target_existed);
     }
 
     #[test]
