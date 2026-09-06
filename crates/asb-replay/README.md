@@ -41,6 +41,13 @@ buffered response, 16 MiB per event, 65,536 events, 16,384 interactions, and
 uncompressed JSON; compressed input is unsupported, avoiding an unbounded
 decompression boundary.
 
+Before canonicalizing structured contents, sealing streams them through the
+configured cassette-size bound and rejects an aggregate overrun. For an accepted
+cassette the implementation still holds the caller-owned structure, a bounded
+preflight buffer, a `serde_json::Value` tree, and canonical output during
+sealing; the 256 MiB ceiling is an encoded-size limit, not a 256 MiB peak-RSS
+guarantee.
+
 ## Redaction
 
 Redaction occurs in memory before sealing. Version 1 matches configured headers

@@ -770,6 +770,9 @@ fn canonical_contents_bounded(
     contents: &CassetteContents,
     maximum: u64,
 ) -> Result<Vec<u8>, CassetteError> {
+    // Reject the aggregate encoded representation through the bounded writer
+    // before serde_json duplicates the accepted tree into a Value.
+    encode_bounded(contents, maximum, "cassette")?;
     let value = serde_json::to_value(contents).map_err(CassetteError::InvalidJson)?;
     canonical_value_bounded(&value, maximum, "cassette")
 }

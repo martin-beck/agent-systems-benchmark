@@ -182,6 +182,18 @@ fn limits_apply_before_unbounded_chunk_growth() {
 }
 
 #[test]
+fn aggregate_seal_limit_rejects_before_canonical_tree_conversion() {
+    let limits = CassetteLimits {
+        max_cassette_bytes: 512,
+        ..CassetteLimits::default()
+    };
+    assert!(matches!(
+        seal_cassette(support::redacted_contents(), limits),
+        Err(CassetteError::TooLarge { kind: "cassette" })
+    ));
+}
+
+#[test]
 fn every_configured_limit_rejects_zero_and_above_ceiling() {
     let defaults = CassetteLimits::default();
     let cases = [
