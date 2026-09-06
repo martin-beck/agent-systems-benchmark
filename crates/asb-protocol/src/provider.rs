@@ -67,7 +67,9 @@ pub enum EndpointClass {
 }
 
 /// Credential lookup mechanism without its value or lookup identifier.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialSource {
     /// No credential is used.
@@ -221,6 +223,8 @@ pub struct ProviderProfileCapabilities {
     pub providers: BTreeSet<ProviderKind>,
     /// Endpoint classes translated without placement changes.
     pub endpoint_classes: BTreeSet<EndpointClass>,
+    /// Credential injection mechanisms supported without changing provenance.
+    pub credential_sources: BTreeSet<CredentialSource>,
     /// Complete v1 value-and-omission support matrix.
     pub settings: BTreeMap<ProviderSettingField, OptionalSettingSupport>,
     /// Greatest transport values enforceable exactly.
@@ -328,6 +332,14 @@ impl ProviderProfileV1 {
         if !capabilities.endpoint_classes.contains(&self.endpoint.class) {
             return Err(ProviderProfileError::UnsupportedEndpoint(
                 self.endpoint.class,
+            ));
+        }
+        if !capabilities
+            .credential_sources
+            .contains(&self.credential.source)
+        {
+            return Err(ProviderProfileError::UnsupportedCredentialSource(
+                self.credential.source,
             ));
         }
         for (field, present) in self.presence() {
@@ -495,6 +507,9 @@ pub enum ProviderProfileError {
     /// Adapter does not support the endpoint placement.
     #[error("unsupported endpoint class {0:?}")]
     UnsupportedEndpoint(EndpointClass),
+    /// Adapter does not support the credential injection mechanism.
+    #[error("unsupported credential source {0:?}")]
+    UnsupportedCredentialSource(CredentialSource),
     /// Adapter cannot preserve a supplied value or explicit omission.
     #[error("unsupported setting state {field:?}, present={present}")]
     UnsupportedSetting {
@@ -658,6 +673,7 @@ mod tests {
             maximum_version: PROVIDER_PROFILE_V1,
             providers: [ProviderKind::OpenAiCompatible].into_iter().collect(),
             endpoint_classes: [EndpointClass::PrivateNetwork].into_iter().collect(),
+            credential_sources: [CredentialSource::Environment].into_iter().collect(),
             settings: ALL_SETTINGS
                 .into_iter()
                 .map(|field| {
@@ -864,6 +880,14 @@ mod tests {
             value.negotiate(&caps),
             Err(ProviderProfileError::UnsupportedEndpoint(
                 value.endpoint.class
+            ))
+        );
+        let mut caps = capabilities();
+        caps.credential_sources.clear();
+        assert_eq!(
+            value.negotiate(&caps),
+            Err(ProviderProfileError::UnsupportedCredentialSource(
+                value.credential.source
             ))
         );
         let mut caps = capabilities();
