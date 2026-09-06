@@ -1,9 +1,9 @@
 # asb-replay cassette contracts
 
 `asb-replay` defines the immutable, versioned, privacy-reviewed response
-cassette boundary. AR-0502 does not provide an HTTP server, replay cursor,
-matching service, pacing, network interception, or a provider compatibility
-claim. Those behaviors require later ARs and real-client conformance evidence.
+cassette boundary and a strict inbound-only replay service. AR-0503 adds
+per-session matching and immediate buffered/SSE delivery; it does not provide
+pacing, transparent interception, or a real-client compatibility claim.
 
 ## Version 1 invariants
 
@@ -77,3 +77,44 @@ the source and destination to preserve session, attempt, interaction, response,
 prior-response and tool-call identities, all causal edges, interaction/event
 order, monotonic offsets, terminal classifications, payloads, and normalization
 and redaction policy meaning. Unknown or skipped versions fail closed.
+
+## Strict replay service
+
+The trusted coordinator selects a cassette session, attempt, and provider
+dialect for each isolated listener route. Exact POST endpoints are implemented
+for Chat Completions (`/v1/chat/completions`), Responses (`/v1/responses`), and
+Messages (`/v1/messages`). These are syntax capabilities only; AR-0505 must
+test named real client versions before any compatibility claim.
+
+Matching compares the complete duplicate-free semantic JSON body, origin-form
+target, and end-to-end headers. Only `host`, `content-length`, `connection`,
+`accept-encoding`, and `user-agent` are explicitly transport-normalized.
+Policy-declared sensitive header values match the cassette placeholder while
+their names and presence remain exact. Every other difference, malformed body,
+unsupported transfer encoding or dialect, unknown route, or exhausted cursor
+fails closed without advancing the cursor.
+Header count and aggregate head bytes are bounded for both direct and socket
+entry points. SSE event-type tokens permit only ASCII letters, digits, dot,
+underscore, and hyphen, preventing framing injection from a recomputed cassette.
+
+Each `(session_id, attempt_id)` owns an independent cursor. A socket request
+reserves its exact next interaction while writing, so concurrent admission on
+that route fails closed while unrelated routes remain available. The cursor is
+committed only after every response byte is accepted by the socket writer; a
+write error releases the reservation and leaves the interaction retryable.
+Direct `handle` calls consume when they return successfully. Buffered responses
+are canonical JSON. Streamed semantic events are emitted immediately as SSE in
+cassette order; Chat Completions receives a final `[DONE]` marker. Captured
+transport chunks and monotonic offsets are not reproduced. Pacing evidence is
+owned by AR-0504.
+
+`StrictReplayService::serve_once` accepts one loopback HTTP/1.1 connection and
+never opens an outbound socket. The caller owns listener lifecycle and network
+namespace/firewall enforcement. Chunked requests, HTTP/2, WebSockets,
+compression, TLS interception, keep-alive pipelining, and non-loopback peers
+are unsupported. Inbound-only code does not prove an agent has no alternate
+network route.
+The returned status lets the coordinator distinguish a served interaction from
+a fail-closed local error without inspecting captured payloads. Read and write
+timeouts are tightenable in `(0, 30 seconds]`; successful writes mean bytes were
+accepted by the local kernel, not that the peer consumed them.
