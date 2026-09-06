@@ -8,6 +8,10 @@
 //! larger than [`CallLimits::max_frame_bytes`]. This crate intentionally exposes
 //! no Rust dynamic-library ABI.
 
+mod experiment;
+
+pub use experiment::*;
+
 use std::collections::BTreeSet;
 use std::io::{BufRead, Write};
 

@@ -1,0 +1,62 @@
+{
+  "version": "1",
+  "experiment_sha256": "9cad921269dea51fb3e3b6849d50a52055d2a2cedc109b66094cb74a54a7ea9e",
+  "agent": {
+    "implementation": "asb-example",
+    "revision": "1.0.0",
+    "binary_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "model": {
+    "provider": "example",
+    "model": "model-v1",
+    "settings": {
+      "temperature_milli": 0,
+      "top_p_millionth": 1000000,
+      "seed": 7,
+      "max_output_tokens": 4096,
+      "reasoning_effort": "medium",
+      "additional_settings_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "tool_policy": {
+    "policy": "standard",
+    "revision": "1",
+    "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "workload": {
+    "workload": "patch",
+    "workload_revision": "abc123",
+    "workload_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "scorer_revision": "def456",
+    "scorer_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "execution": {
+    "image_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "dependencies_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "platform": {
+    "kernel_release": "6.12.0",
+    "distribution": "debian",
+    "distribution_version": "13.6",
+    "architecture": "x86_64",
+    "cpu_model": "example-cpu",
+    "logical_cpu_count": 8,
+    "numa_node_count": 1,
+    "scaling_governor": "performance"
+  },
+  "controls": {
+    "cache_state": "cold",
+    "load_policy": "isolated",
+    "retry": {
+      "limit": 0,
+      "strategy": "none",
+      "backoff_ms": 0
+    },
+    "replay": {
+      "mode": "replay",
+      "cassette_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "pacing": "recorded",
+      "cancellation_timeout_ms": 10000
+    }
+  }
+}

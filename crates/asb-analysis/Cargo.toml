@@ -6,5 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+asb-protocol = { path = "../asb-protocol", version = "=0.1.0" }
+
+[dev-dependencies]
+serde_json = "=1.0.143"
+
 [lints]
 workspace = true

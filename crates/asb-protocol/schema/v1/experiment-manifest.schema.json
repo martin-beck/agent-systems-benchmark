@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExperimentManifestV1",
+  "description": "Complete v1 identity for one comparable experiment configuration.",
+  "type": "object",
+  "properties": {
+    "agent": {
+      "description": "Agent implementation identity.",
+      "$ref": "#/$defs/AgentIdentity"
+    },
+    "controls": {
+      "description": "Cache, load, retry, and replay controls.",
+      "$ref": "#/$defs/RunControls"
+    },
+    "execution": {
+      "description": "Image and dependency pins.",
+      "$ref": "#/$defs/ExecutionIdentity"
+    },
+    "experiment_sha256": {
+      "description": "Lowercase SHA-256 of the canonical identity fields.",
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "model": {
+      "description": "Provider/model identity.",
+      "$ref": "#/$defs/ModelIdentity"
+    },
+    "platform": {
+      "description": "Kernel, distribution, architecture, and CPU topology.",
+      "$ref": "#/$defs/PlatformIdentity"
+    },
+    "tool_policy": {
+      "description": "Tool policy identity.",
+      "$ref": "#/$defs/ToolPolicyIdentity"
+    },
+    "version": {
+      "description": "Contract generation.",
+      "$ref": "#/$defs/ExperimentManifestVersion"
+    },
+    "workload": {
+      "description": "Workload and scorer identity.",
+      "$ref": "#/$defs/WorkloadIdentity"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "experiment_sha256",
+    "agent",
+    "model",
+    "tool_policy",
+    "workload",
+    "execution",
+    "platform",
+    "controls"
+  ],
+  "$defs": {
+    "AgentIdentity": {
+      "description": "Immutable agent implementation identity.",
+      "type": "object",
+      "properties": {
+        "binary_sha256": {
+          "description": "Lowercase SHA-256 of the executable or package actually run.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "implementation": {
+          "description": "Stable adapter or agent implementation name.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Immutable implementation revision or release.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "revision",
+        "binary_sha256"
+      ]
+    },
+    "CacheState": {
+      "description": "Cache treatment before a measured attempt.",
+      "oneOf": [
+        {
+          "description": "Relevant caches were deliberately cold.",
+          "type": "string",
+          "const": "cold"
+        },
+        {
+          "description": "Relevant caches were deliberately warmed.",
+          "type": "string",
+          "const": "warm"
+        },
+        {
+          "description": "No cache preparation was performed.",
+          "type": "string",
+          "const": "uncontrolled"
+        }
+      ]
+    },
+    "ExecutionIdentity": {
+      "description": "Content pins for the execution environment.",
+      "type": "object",
+      "properties": {
+        "dependencies_sha256": {
+          "description": "Lowercase SHA-256 of the complete resolved dependency lock.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "image_sha256": {
+          "description": "Lowercase SHA-256 of the resolved root filesystem or image manifest.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image_sha256",
+        "dependencies_sha256"
+      ]
+    },
+    "ExperimentManifestVersion": {
+      "description": "Version discriminator for experiment manifests.",
+      "oneOf": [
+        {
+          "description": "First stable comparability contract.",
+          "type": "string",
+          "const": "1"
+        }
+      ]
+    },
+    "ModelIdentity": {
+      "description": "Provider/model identity and explicit inference settings.",
+      "type": "object",
+      "properties": {
+        "model": {
+          "description": "Provider model identifier.",
+          "type": "string"
+        },
+        "provider": {
+          "description": "Provider implementation or endpoint family, without credentials or URLs.",
+          "type": "string"
+        },
+        "settings": {
+          "description": "Settings affecting inference, represented without credentials.",
+          "$ref": "#/$defs/ModelSettings"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model",
+        "settings"
+      ]
+    },
+    "ModelSettings": {
+      "description": "Common inference settings plus a pin for any provider-specific remainder.",
+      "type": "object",
+      "properties": {
+        "additional_settings_sha256": {
+          "description": "SHA-256 of canonical, credential-free provider-specific settings.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_output_tokens": {
+          "description": "Requested maximum output tokens.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "reasoning_effort": {
+          "description": "Named reasoning-effort level, when supported.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seed": {
+          "description": "Deterministic provider seed, when supported.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "temperature_milli": {
+          "description": "Temperature multiplied by 1,000.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "top_p_millionth": {
+          "description": "Top-p multiplied by 1,000,000.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlatformIdentity": {
+      "description": "Relevant native platform identity and topology.",
+      "type": "object",
+      "properties": {
+        "architecture": {
+          "description": "Native execution architecture.",
+          "type": "string"
+        },
+        "cpu_model": {
+          "description": "CPU model visible to the workload.",
+          "type": "string"
+        },
+        "distribution": {
+          "description": "Distribution identifier.",
+          "type": "string"
+        },
+        "distribution_version": {
+          "description": "Exact distribution version.",
+          "type": "string"
+        },
+        "kernel_release": {
+          "description": "Exact kernel release reported during the run.",
+          "type": "string"
+        },
+        "logical_cpu_count": {
+          "description": "Logical CPUs available to the workload.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 1
+        },
+        "numa_node_count": {
+          "description": "NUMA node count available to the workload.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 1
+        },
+        "scaling_governor": {
+          "description": "CPU scaling governor observed for allocated CPUs.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kernel_release",
+        "distribution",
+        "distribution_version",
+        "architecture",
+        "cpu_model",
+        "logical_cpu_count",
+        "numa_node_count",
+        "scaling_governor"
+      ]
+    },
+    "ReplayMode": {
+      "description": "Live or recorded execution mode.",
+      "oneOf": [
+        {
+          "description": "Requests reached the configured live provider.",
+          "type": "string",
+          "const": "live"
+        },
+        {
+          "description": "Responses came from a pinned replay cassette.",
+          "type": "string",
+          "const": "replay"
+        }
+      ]
+    },
+    "ReplaySettings": {
+      "description": "Replay behavior affecting timing and cancellation.",
+      "type": "object",
+      "properties": {
+        "cancellation_timeout_ms": {
+          "description": "Deadline for cancellation acknowledgement.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 1
+        },
+        "cassette_sha256": {
+          "description": "Cassette content hash; required only in replay mode.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "description": "Live or replay execution.",
+          "$ref": "#/$defs/ReplayMode"
+        },
+        "pacing": {
+          "description": "Named replay pacing strategy.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "pacing",
+        "cancellation_timeout_ms"
+      ]
+    },
+    "RetrySettings": {
+      "description": "Retry behavior applied after an initial failed attempt.",
+      "type": "object",
+      "properties": {
+        "backoff_ms": {
+          "description": "Base backoff before a retry, in milliseconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "limit": {
+          "description": "Maximum number of retries after the first attempt.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "strategy": {
+          "description": "Named retry strategy.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "limit",
+        "strategy",
+        "backoff_ms"
+      ]
+    },
+    "RunControls": {
+      "description": "Controls that can alter measurements independently of product behavior.",
+      "type": "object",
+      "properties": {
+        "cache_state": {
+          "description": "Cache preparation state.",
+          "$ref": "#/$defs/CacheState"
+        },
+        "load_policy": {
+          "description": "Stable description or revision of controlled background load.",
+          "type": "string"
+        },
+        "replay": {
+          "description": "Replay, pacing, cassette, and cancellation settings.",
+          "$ref": "#/$defs/ReplaySettings"
+        },
+        "retry": {
+          "description": "Retry limit, strategy, and backoff.",
+          "$ref": "#/$defs/RetrySettings"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cache_state",
+        "load_policy",
+        "retry",
+        "replay"
+      ]
+    },
+    "ToolPolicyIdentity": {
+      "description": "Immutable tool-use policy.",
+      "type": "object",
+      "properties": {
+        "content_sha256": {
+          "description": "Lowercase SHA-256 of canonical policy content.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy": {
+          "description": "Stable policy name.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Immutable policy revision.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "revision",
+        "content_sha256"
+      ]
+    },
+    "WorkloadIdentity": {
+      "description": "Immutable workload and independent scorer identity.",
+      "type": "object",
+      "properties": {
+        "scorer_revision": {
+          "description": "Immutable scorer revision.",
+          "type": "string"
+        },
+        "scorer_sha256": {
+          "description": "Lowercase SHA-256 of scorer code and configuration.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "workload": {
+          "description": "Stable workload name.",
+          "type": "string"
+        },
+        "workload_revision": {
+          "description": "Immutable workload revision.",
+          "type": "string"
+        },
+        "workload_sha256": {
+          "description": "Lowercase SHA-256 of prepared workload content.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "workload",
+        "workload_revision",
+        "workload_sha256",
+        "scorer_revision",
+        "scorer_sha256"
+      ]
+    }
+  }
+}
