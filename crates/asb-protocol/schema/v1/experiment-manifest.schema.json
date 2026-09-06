@@ -70,11 +70,15 @@
         },
         "implementation": {
           "description": "Stable adapter or agent implementation name.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "revision": {
           "description": "Immutable implementation revision or release.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         }
       },
       "additionalProperties": false,
@@ -145,11 +149,15 @@
       "properties": {
         "model": {
           "description": "Provider model identifier.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "provider": {
           "description": "Provider implementation or endpoint family, without credentials or URLs.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "settings": {
           "description": "Settings affecting inference, represented without credentials.",
@@ -172,7 +180,10 @@
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
         },
         "max_output_tokens": {
           "description": "Requested maximum output tokens.",
@@ -181,14 +192,16 @@
             "null"
           ],
           "format": "uint32",
-          "minimum": 0
+          "minimum": 1
         },
         "reasoning_effort": {
           "description": "Named reasoning-effort level, when supported.",
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "maxLength": 1024,
+          "minLength": 1
         },
         "seed": {
           "description": "Deterministic provider seed, when supported.",
@@ -206,7 +219,7 @@
             "null"
           ],
           "format": "uint16",
-          "maximum": 65535,
+          "maximum": 2000,
           "minimum": 0
         },
         "top_p_millionth": {
@@ -216,6 +229,7 @@
             "null"
           ],
           "format": "uint32",
+          "maximum": 1000000,
           "minimum": 0
         }
       },
@@ -227,23 +241,33 @@
       "properties": {
         "architecture": {
           "description": "Native execution architecture.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "cpu_model": {
           "description": "CPU model visible to the workload.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "distribution": {
           "description": "Distribution identifier.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "distribution_version": {
           "description": "Exact distribution version.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "kernel_release": {
           "description": "Exact kernel release reported during the run.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "logical_cpu_count": {
           "description": "Logical CPUs available to the workload.",
@@ -259,7 +283,9 @@
         },
         "scaling_governor": {
           "description": "CPU scaling governor observed for allocated CPUs.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         }
       },
       "additionalProperties": false,
@@ -304,7 +330,10 @@
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
         },
         "mode": {
           "description": "Live or replay execution.",
@@ -312,10 +341,40 @@
         },
         "pacing": {
           "description": "Named replay pacing strategy.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         }
       },
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "cassette_sha256": {
+              "type": "null"
+            },
+            "mode": {
+              "const": "live"
+            }
+          }
+        },
+        {
+          "properties": {
+            "cassette_sha256": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "mode": {
+              "const": "replay"
+            }
+          },
+          "required": [
+            "cassette_sha256"
+          ]
+        }
+      ],
       "required": [
         "mode",
         "pacing",
@@ -341,7 +400,9 @@
         },
         "strategy": {
           "description": "Named retry strategy.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         }
       },
       "additionalProperties": false,
@@ -361,7 +422,9 @@
         },
         "load_policy": {
           "description": "Stable description or revision of controlled background load.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "replay": {
           "description": "Replay, pacing, cassette, and cancellation settings.",
@@ -393,11 +456,15 @@
         },
         "policy": {
           "description": "Stable policy name.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "revision": {
           "description": "Immutable policy revision.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         }
       },
       "additionalProperties": false,
@@ -413,7 +480,9 @@
       "properties": {
         "scorer_revision": {
           "description": "Immutable scorer revision.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "scorer_sha256": {
           "description": "Lowercase SHA-256 of scorer code and configuration.",
@@ -424,11 +493,15 @@
         },
         "workload": {
           "description": "Stable workload name.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "workload_revision": {
           "description": "Immutable workload revision.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
         },
         "workload_sha256": {
           "description": "Lowercase SHA-256 of prepared workload content.",

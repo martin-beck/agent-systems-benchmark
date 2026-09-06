@@ -23,8 +23,10 @@ pub enum ExperimentManifestVersion {
 #[serde(deny_unknown_fields)]
 pub struct AgentIdentity {
     /// Stable adapter or agent implementation name.
+    #[schemars(length(min = 1, max = 1024))]
     pub implementation: String,
     /// Immutable implementation revision or release.
+    #[schemars(length(min = 1, max = 1024))]
     pub revision: String,
     /// Lowercase SHA-256 of the executable or package actually run.
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
@@ -36,8 +38,10 @@ pub struct AgentIdentity {
 #[serde(deny_unknown_fields)]
 pub struct ModelIdentity {
     /// Provider implementation or endpoint family, without credentials or URLs.
+    #[schemars(length(min = 1, max = 1024))]
     pub provider: String,
     /// Provider model identifier.
+    #[schemars(length(min = 1, max = 1024))]
     pub model: String,
     /// Settings affecting inference, represented without credentials.
     pub settings: ModelSettings,
@@ -48,17 +52,21 @@ pub struct ModelIdentity {
 #[serde(deny_unknown_fields)]
 pub struct ModelSettings {
     /// Temperature multiplied by 1,000.
+    #[schemars(range(max = 2000))]
     pub temperature_milli: Option<u16>,
     /// Top-p multiplied by 1,000,000.
+    #[schemars(range(max = 1000000))]
     pub top_p_millionth: Option<u32>,
     /// Deterministic provider seed, when supported.
     pub seed: Option<u64>,
     /// Requested maximum output tokens.
+    #[schemars(range(min = 1))]
     pub max_output_tokens: Option<u32>,
     /// Named reasoning-effort level, when supported.
+    #[schemars(length(min = 1, max = 1024))]
     pub reasoning_effort: Option<String>,
     /// SHA-256 of canonical, credential-free provider-specific settings.
-    #[schemars(inner(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64)))]
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
     pub additional_settings_sha256: Option<String>,
 }
 
@@ -67,8 +75,10 @@ pub struct ModelSettings {
 #[serde(deny_unknown_fields)]
 pub struct ToolPolicyIdentity {
     /// Stable policy name.
+    #[schemars(length(min = 1, max = 1024))]
     pub policy: String,
     /// Immutable policy revision.
+    #[schemars(length(min = 1, max = 1024))]
     pub revision: String,
     /// Lowercase SHA-256 of canonical policy content.
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
@@ -80,13 +90,16 @@ pub struct ToolPolicyIdentity {
 #[serde(deny_unknown_fields)]
 pub struct WorkloadIdentity {
     /// Stable workload name.
+    #[schemars(length(min = 1, max = 1024))]
     pub workload: String,
     /// Immutable workload revision.
+    #[schemars(length(min = 1, max = 1024))]
     pub workload_revision: String,
     /// Lowercase SHA-256 of prepared workload content.
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
     pub workload_sha256: String,
     /// Immutable scorer revision.
+    #[schemars(length(min = 1, max = 1024))]
     pub scorer_revision: String,
     /// Lowercase SHA-256 of scorer code and configuration.
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
@@ -110,14 +123,19 @@ pub struct ExecutionIdentity {
 #[serde(deny_unknown_fields)]
 pub struct PlatformIdentity {
     /// Exact kernel release reported during the run.
+    #[schemars(length(min = 1, max = 1024))]
     pub kernel_release: String,
     /// Distribution identifier.
+    #[schemars(length(min = 1, max = 1024))]
     pub distribution: String,
     /// Exact distribution version.
+    #[schemars(length(min = 1, max = 1024))]
     pub distribution_version: String,
     /// Native execution architecture.
+    #[schemars(length(min = 1, max = 1024))]
     pub architecture: String,
     /// CPU model visible to the workload.
+    #[schemars(length(min = 1, max = 1024))]
     pub cpu_model: String,
     /// Logical CPUs available to the workload.
     #[schemars(range(min = 1))]
@@ -126,6 +144,7 @@ pub struct PlatformIdentity {
     #[schemars(range(min = 1))]
     pub numa_node_count: u32,
     /// CPU scaling governor observed for allocated CPUs.
+    #[schemars(length(min = 1, max = 1024))]
     pub scaling_governor: String,
 }
 
@@ -154,17 +173,45 @@ pub enum ReplayMode {
 /// Replay behavior affecting timing and cancellation.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = replay_mode_schema)]
 pub struct ReplaySettings {
     /// Live or replay execution.
     pub mode: ReplayMode,
     /// Cassette content hash; required only in replay mode.
-    #[schemars(inner(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64)))]
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
     pub cassette_sha256: Option<String>,
     /// Named replay pacing strategy.
+    #[schemars(length(min = 1, max = 1024))]
     pub pacing: String,
     /// Deadline for cancellation acknowledgement.
     #[schemars(range(min = 1))]
     pub cancellation_timeout_ms: u64,
+}
+
+fn replay_mode_schema(schema: &mut schemars::Schema) {
+    schema.ensure_object().insert(
+        "oneOf".into(),
+        serde_json::json!([
+            {
+                "properties": {
+                    "mode": {"const": "live"},
+                    "cassette_sha256": {"type": "null"}
+                }
+            },
+            {
+                "properties": {
+                    "mode": {"const": "replay"},
+                    "cassette_sha256": {
+                        "type": "string",
+                        "minLength": 64,
+                        "maxLength": 64,
+                        "pattern": "^[0-9a-f]{64}$"
+                    }
+                },
+                "required": ["cassette_sha256"]
+            }
+        ]),
+    );
 }
 
 /// Retry behavior applied after an initial failed attempt.
@@ -174,6 +221,7 @@ pub struct RetrySettings {
     /// Maximum number of retries after the first attempt.
     pub limit: u16,
     /// Named retry strategy.
+    #[schemars(length(min = 1, max = 1024))]
     pub strategy: String,
     /// Base backoff before a retry, in milliseconds.
     pub backoff_ms: u64,
@@ -186,6 +234,7 @@ pub struct RunControls {
     /// Cache preparation state.
     pub cache_state: CacheState,
     /// Stable description or revision of controlled background load.
+    #[schemars(length(min = 1, max = 1024))]
     pub load_policy: String,
     /// Retry limit, strategy, and backoff.
     pub retry: RetrySettings,

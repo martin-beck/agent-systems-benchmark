@@ -108,6 +108,55 @@ fn malformed_experiment_hash_and_unknown_fields_fail_schema_validation() {
 }
 
 #[test]
+fn experiment_schema_rejects_feasible_text_and_setting_bounds() {
+    let schema: Value = serde_json::from_str(SCHEMAS[2].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let fixture: Value =
+        serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
+
+    let mut empty = fixture.clone();
+    empty["agent"]["implementation"] = Value::String(String::new());
+    assert!(!validator.is_valid(&empty));
+
+    let mut oversized = fixture.clone();
+    oversized["platform"]["cpu_model"] = Value::String("x".repeat(1_025));
+    assert!(!validator.is_valid(&oversized));
+
+    let mut temperature = fixture.clone();
+    temperature["model"]["settings"]["temperature_milli"] = Value::from(2_001);
+    assert!(!validator.is_valid(&temperature));
+
+    let mut top_p = fixture.clone();
+    top_p["model"]["settings"]["top_p_millionth"] = Value::from(1_000_001);
+    assert!(!validator.is_valid(&top_p));
+
+    let mut output = fixture.clone();
+    output["model"]["settings"]["max_output_tokens"] = Value::from(0);
+    assert!(!validator.is_valid(&output));
+
+    let mut reasoning = fixture.clone();
+    reasoning["model"]["settings"]["reasoning_effort"] = Value::String(String::new());
+    assert!(!validator.is_valid(&reasoning));
+
+    let mut additional_digest = fixture.clone();
+    additional_digest["model"]["settings"]["additional_settings_sha256"] =
+        Value::String("bad".into());
+    assert!(!validator.is_valid(&additional_digest));
+
+    let mut cassette_digest = fixture.clone();
+    cassette_digest["controls"]["replay"]["cassette_sha256"] = Value::String("bad".into());
+    assert!(!validator.is_valid(&cassette_digest));
+
+    let mut live_with_cassette = fixture.clone();
+    live_with_cassette["controls"]["replay"]["mode"] = Value::String("live".into());
+    assert!(!validator.is_valid(&live_with_cassette));
+
+    let mut replay_without_cassette = fixture;
+    replay_without_cassette["controls"]["replay"]["cassette_sha256"] = Value::Null;
+    assert!(!validator.is_valid(&replay_without_cassette));
+}
+
+#[test]
 fn well_shaped_but_stale_experiment_address_fails_runtime_validation() {
     let mut fixture: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
