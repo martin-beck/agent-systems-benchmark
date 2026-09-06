@@ -60,3 +60,29 @@ uncontrolled=2; replay-mode tags are live=0 and replay=1. The declared experimen
 excluded from its own preimage. The validator rejects malformed component hashes,
 unbounded text, zero topology/deadline values, inconsistent live/replay cassette
 state, and an address mismatch.
+
+## Provider profile v1
+
+Provider profiles are credential-free, versioned inputs that bind provider kind,
+redacted endpoint provenance, exact model, explicit inference values or omissions,
+transport limits, and credential-source provenance. Endpoint URLs, authorization
+material, environment-variable names, helper paths, and credential values remain
+outside the serializable profile; only lowercase SHA-256 identities cross this
+boundary. Concrete adapters must negotiate the complete setting-state matrix before
+translation and prove the effective credential-free profile before an agent starts.
+
+The profile identity is SHA-256 over the bytes `asb-provider-profile-v1`, a zero byte,
+then fields in Rust declaration order. Text uses an unsigned 64-bit big-endian UTF-8
+byte length. Optional fields use a one-byte 0/1 tag followed by the fixed-width value
+or length-prefixed text. Provider tags are OpenAI=0, OpenAI-compatible=1, Anthropic=2,
+and Ollama=3. Endpoint tags are public=0, loopback=1, private-network=2, and replay=3.
+Credential-source tags are none=0, environment=1, file-descriptor=2, and helper=3.
+All integers are unsigned big-endian. The checked-in profile and independent Python
+validator form the cross-language reference vector.
+
+The generated schemas enforce feasible string-length, digest, numeric, explicit-null,
+credential-provenance, and capability-shape constraints. Runtime validation additionally
+enforces UTF-8 byte length, trimming/control rejection, ordered capability-version bounds,
+and canonical identity equality where portable JSON Schema cannot express the exact rule.
+Current OpenCode and OpenDesk adapters do not claim this interface until their provider
+ARs prove actual command/config output; unsupported or lossy translation stays explicit.

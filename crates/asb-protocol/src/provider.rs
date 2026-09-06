@@ -224,6 +224,7 @@ pub struct OptionalSettingSupport {
 /// Bounded provider-profile capabilities of one concrete adapter.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = provider_capabilities_schema)]
 pub struct ProviderProfileCapabilities {
     /// Lowest accepted contract generation.
     pub minimum_version: ProviderProfileVersion,
@@ -269,6 +270,14 @@ impl NegotiatedProviderProfile {
 }
 
 /// Constructor-controlled proof of exact effective configuration.
+///
+/// External callers cannot manufacture effective-profile evidence:
+///
+/// ```compile_fail
+/// let _ = asb_protocol::VerifiedProviderProfile {
+///     settings_sha256: "forged".into(),
+/// };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedProviderProfile {
     settings_sha256: String,
@@ -636,6 +645,48 @@ fn provider_settings_schema(schema: &mut schemars::Schema) {
             "reasoning_effort",
             "additional_settings_sha256"
         ]),
+    );
+}
+
+fn provider_capabilities_schema(schema: &mut schemars::Schema) {
+    schema.ensure_object().insert(
+        "allOf".into(),
+        serde_json::json!([{
+            "properties": {
+                "minimum_version": {
+                    "properties": {
+                        "major": {"const": 1},
+                        "minor": {"maximum": 1024}
+                    }
+                },
+                "maximum_version": {
+                    "properties": {
+                        "major": {"const": 1},
+                        "minor": {"maximum": 1024}
+                    }
+                },
+                "settings": {
+                    "type": "object",
+                    "properties": {
+                        "temperature": {"$ref": "#/$defs/OptionalSettingSupport"},
+                        "top_p": {"$ref": "#/$defs/OptionalSettingSupport"},
+                        "seed": {"$ref": "#/$defs/OptionalSettingSupport"},
+                        "max_output_tokens": {"$ref": "#/$defs/OptionalSettingSupport"},
+                        "reasoning_effort": {"$ref": "#/$defs/OptionalSettingSupport"},
+                        "additional_settings": {"$ref": "#/$defs/OptionalSettingSupport"}
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "temperature",
+                        "top_p",
+                        "seed",
+                        "max_output_tokens",
+                        "reasoning_effort",
+                        "additional_settings"
+                    ]
+                }
+            }
+        }]),
     );
 }
 
