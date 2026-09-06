@@ -30,6 +30,28 @@ impl Drop for RemoveFileOnDrop {
     }
 }
 
+struct TestRoot(PathBuf);
+
+impl std::ops::Deref for TestRoot {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for TestRoot {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TestRoot {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
 fn limits() -> ProcessLimits {
     ProcessLimits::new(
         64 * 1024,
@@ -41,21 +63,60 @@ fn limits() -> ProcessLimits {
     .unwrap()
 }
 
-fn target_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("target")
+fn resolve_target_root(value: Option<std::ffi::OsString>, current: &Path) -> PathBuf {
+    let Some(value) = value else {
+        return env::temp_dir();
+    };
+    let path = PathBuf::from(value);
+    let absolute = if path.is_absolute() {
+        path
+    } else {
+        current.join(path)
+    };
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            _ => normalized.push(component.as_os_str()),
+        }
+    }
+
+    let mut prefix = normalized.clone();
+    let mut suffix = Vec::new();
+    loop {
+        if let Ok(mut canonical) = fs::canonicalize(&prefix) {
+            for component in suffix.iter().rev() {
+                canonical.push(component);
+            }
+            return canonical;
+        }
+        let Some(component) = prefix.file_name().map(ToOwned::to_owned) else {
+            return normalized;
+        };
+        suffix.push(component);
+        if !prefix.pop() {
+            return normalized;
+        }
+    }
 }
 
-fn test_root(name: &str) -> PathBuf {
-    let path = target_root().join(format!("sandbox-{name}-{}", std::process::id()));
+fn target_root() -> PathBuf {
+    resolve_target_root(
+        env::var_os("CARGO_TARGET_DIR"),
+        &env::current_dir().unwrap(),
+    )
+}
+
+fn test_root(name: &str) -> TestRoot {
+    let sequence = HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let path = target_root().join(format!("sandbox-{name}-{}-{sequence}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
     fs::create_dir_all(path.join("work")).unwrap();
     fs::create_dir(path.join("leases")).unwrap();
-    path
+    TestRoot(path)
 }
 
 fn first_allowed_cpu() -> u32 {
@@ -173,17 +234,13 @@ fn current_test_executable_is_staged_inside_the_workspace() {
             .unwrap()
             .success()
     );
-
-    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
 fn host_sentinel_is_removed_during_panic_unwind() {
-    let sentinel = target_root().join(format!(
-        "panic-sentinel-{}-{}",
-        std::process::id(),
-        HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-    ));
+    let root = test_root("panic-sentinel");
+    let sentinel = root.join("host");
+    let root_path = root.to_path_buf();
     fs::write(&sentinel, b"host").unwrap();
     let result = std::panic::catch_unwind({
         let sentinel = sentinel.clone();
@@ -194,6 +251,43 @@ fn host_sentinel_is_removed_during_panic_unwind() {
     });
     assert!(result.is_err());
     assert!(!sentinel.exists());
+    drop(root);
+    assert!(!root_path.exists());
+}
+
+#[test]
+fn relative_target_roots_are_normalized_before_classification() {
+    let current = env::current_dir().unwrap();
+    let repository_target = current.join("target");
+    let sequence = HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let alias_name = format!(".asb-target-alias-{}-{sequence}", std::process::id());
+    let alias_path = current.join(&alias_name);
+    fs::create_dir(&alias_path).unwrap();
+    let alias_cleanup = TestRoot(alias_path.clone());
+    assert_eq!(
+        resolve_target_root(Some("target".into()), &current),
+        repository_target
+    );
+    assert_eq!(
+        resolve_target_root(Some(format!("{alias_name}/../target").into()), &current),
+        repository_target
+    );
+    assert_eq!(
+        resolve_target_root(Some("../external-target".into()), &current),
+        current.parent().unwrap().join("external-target")
+    );
+
+    let symlink_name = format!(".asb-target-symlink-{}-{sequence}", std::process::id());
+    let symlink_path = current.join(&symlink_name);
+    std::os::unix::fs::symlink(&current, &symlink_path).unwrap();
+    let symlink_cleanup = RemoveFileOnDrop(symlink_path);
+    assert_eq!(
+        resolve_target_root(Some(format!("{symlink_name}/target").into()), &current),
+        repository_target
+    );
+    drop(symlink_cleanup);
+    drop(alias_cleanup);
+    assert!(!alias_path.exists());
 }
 
 fn resources(tasks: u32) -> Resources {
@@ -264,10 +358,11 @@ fn native_workspace_and_network_are_isolated() {
         return;
     };
     let root = test_root("isolation");
-    let sentinel = target_root()
-        .parent()
-        .unwrap()
-        .join(format!("outside-{}", std::process::id()));
+    let sentinel = target_root().join(format!(
+        "outside-{}-{}",
+        std::process::id(),
+        HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::write(&sentinel, b"host").unwrap();
     let _sentinel_cleanup = RemoveFileOnDrop(sentinel.clone());
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -300,7 +395,6 @@ fn native_workspace_and_network_are_isolated() {
         thread::sleep(Duration::from_millis(5));
     }
     assert!(connection.is_none(), "sandbox reached host loopback");
-    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -324,7 +418,6 @@ fn short_process_completes_without_ambiguous_scope_ownership() {
     assert_eq!(process.wait().unwrap().exit_code, Some(0));
     drop(process);
     assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
-    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -426,7 +519,6 @@ fn native_cgroup_limits_and_cleanup_are_real() {
         thread::sleep(Duration::from_millis(10));
     }
     assert!(!cgroup.exists(), "transient cgroup leaked");
-    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -468,7 +560,6 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
         thread::sleep(Duration::from_millis(10));
     }
     assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
-    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -494,12 +585,12 @@ fn cleanup_failure_retains_lease_until_drop_retry_cleans_descendant() {
         ToolPin::new(wrapper, SYSTEMD_VERSION.into()),
         ToolPin::new(PathBuf::from("/usr/bin/taskset"), TASKSET_VERSION.into()),
     ) else {
-        fs::remove_dir_all(root).unwrap();
+        drop(root);
         return;
     };
     let backend = SandboxBackend::new(bubblewrap, systemd_run, systemctl, taskset);
     if backend.probe().is_err() {
-        fs::remove_dir_all(root).unwrap();
+        drop(root);
         return;
     }
     let r = resources(12);
@@ -542,7 +633,6 @@ fn cleanup_failure_retains_lease_until_drop_retry_cleans_descendant() {
     }
     assert!(!cgroup.exists(), "drop retry left the cgroup behind");
     assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
-    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -566,7 +656,6 @@ fn native_memory_pid_and_delegation_fail_closed() {
         } else {
             assert_eq!(output.exit_code, Some(0));
         }
-        fs::remove_dir_all(root).unwrap();
     }
     let root = test_root("reject");
     let fake = root.join("fake-systemd-run");
@@ -586,5 +675,4 @@ fn native_memory_pid_and_delegation_fail_closed() {
     )
     .probe();
     assert!(matches!(rejected, Err(SandboxError::DelegationRejected)));
-    fs::remove_dir_all(root).unwrap();
 }
