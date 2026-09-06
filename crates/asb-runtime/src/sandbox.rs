@@ -1041,7 +1041,9 @@ mod tests {
 
     #[test]
     fn scope_ownership_metadata_is_bounded_and_fail_closed() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl("ownership-empty", "exit 0");
         assert!(!scope_owns_nonce(&pin, "unit", "nonce", 1).unwrap());
         fs::remove_dir_all(root).unwrap();
@@ -1393,7 +1395,9 @@ mod tests {
 
     #[test]
     fn cleanup_failure_is_typed_and_bounded() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl("cleanup-error", "echo cleanup-rejected >&2; exit 2");
         assert!(matches!(
             stop_scope(&pin, "unit"),
@@ -1407,7 +1411,9 @@ mod tests {
 
     #[test]
     fn scope_cleanup_handles_completion_races_and_command_failures() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl(
             "cleanup-race",
             "case \"$2\" in\n  is-active) if [ -e \"$state\" ]; then echo inactive; exit 4; else echo active; exit 0; fi;;\n  kill) touch \"$state\"; exit 1;;\nesac\nexit 2",
@@ -1444,7 +1450,9 @@ mod tests {
 
     #[test]
     fn successful_short_scope_waits_through_terminal_state_transition() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl(
             "ownership-terminal-transition",
             "case \"$2\" in\n  show) exit 1;;\n  is-active) if [ -e \"$state\" ]; then echo inactive; exit 3; else touch \"$state\"; echo deactivating; exit 3; fi;;\nesac\nexit 2",
@@ -1456,7 +1464,9 @@ mod tests {
 
     #[test]
     fn unowned_live_process_is_cancelled_at_ownership_deadline() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl("ownership-timeout", "exit 1");
         let mut command = Command::new("/usr/bin/sleep");
         command.arg("30");
@@ -1476,7 +1486,9 @@ mod tests {
 
     #[test]
     fn scope_cleanup_waits_for_inactive_and_rejects_unknown_state() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl(
             "cleanup-transition",
             "case \"$2\" in\n  is-active) if [ -e \"$state.stop\" ]; then if [ -e \"$state.polled\" ]; then echo inactive; exit 4; else touch \"$state.polled\"; echo deactivating; exit 3; fi; else echo active; exit 0; fi;;\n  kill) exit 0;;\n  --no-block) touch \"$state.stop\"; exit 0;;\nesac\nexit 2",
@@ -1504,26 +1516,34 @@ mod tests {
 
     #[test]
     fn scope_cleanup_has_a_hard_poll_deadline() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (root, pin) = fake_systemctl(
             "cleanup-timeout",
             "case \"$2\" in\n  is-active) echo active; exit 0;;\n  kill|--no-block) exit 0;;\nesac\nexit 2",
         );
         let start = Instant::now();
-        assert!(matches!(
-            stop_scope_with_timeout(&pin, "unit", Duration::from_millis(100)),
-            Err(SandboxError::ScopeCleanup {
-                exit_code: None,
-                ref stderr,
-            }) if stderr.contains("deadline")
-        ));
+        let result = stop_scope_with_timeout(&pin, "unit", Duration::from_millis(100));
+        assert!(
+            matches!(
+                result,
+                Err(SandboxError::ScopeCleanup {
+                    exit_code: None,
+                    ref stderr,
+                }) if stderr.contains("deadline")
+            ),
+            "unexpected cleanup result: {result:?}"
+        );
         assert!(start.elapsed() < Duration::from_secs(2));
         fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn cleanup_uncertainty_quarantines_lease_and_drop_retries_terminal_scope() {
-        let _guard = FAKE_TOOL_LOCK.lock().unwrap();
+        let _guard = FAKE_TOOL_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let body = concat!(
             "case \"$2\" in\n",
             "  is-active) echo active; exit 0;;\n",
