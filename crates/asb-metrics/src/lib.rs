@@ -7,12 +7,13 @@
 use asb_protocol::{Aggregation, Id, MetricDescriptor, MetricSample, MetricValue};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 use std::time::Instant;
 
 const NS_PER_SECOND: u128 = 1_000_000_000;
+const MAX_SOURCE_BYTES: u64 = 1024 * 1024;
 
 /// Why a configured collection target cannot be used safely.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -627,7 +628,19 @@ fn validated_relative(path: &Path) -> Result<PathBuf, TargetError> {
 }
 
 fn read_text(path: PathBuf) -> Result<String, String> {
-    fs::read_to_string(path).map_err(|error| unavailable_reason(&error))
+    let file = File::open(path).map_err(|error| unavailable_reason(&error))?;
+    let mut bytes = Vec::new();
+    file.take(MAX_SOURCE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| unavailable_reason(&error))?;
+    decode_source(bytes)
+}
+
+fn decode_source(bytes: Vec<u8>) -> Result<String, String> {
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_SOURCE_BYTES {
+        return Err("kernel metric source exceeds the 1048576-byte limit".into());
+    }
+    String::from_utf8(bytes).map_err(|_| "kernel metric source is not UTF-8".into())
 }
 
 fn read_map(path: PathBuf) -> Result<BTreeMap<String, u64>, String> {
@@ -772,6 +785,14 @@ mod tests {
         assert_eq!(
             unavailable_reason(&io::Error::other("private path")),
             "kernel metric source read failed: Other"
+        );
+        assert_eq!(
+            decode_source(vec![0xff]),
+            Err("kernel metric source is not UTF-8".into())
+        );
+        assert_eq!(
+            decode_source(vec![b'x'; usize::try_from(MAX_SOURCE_BYTES + 1).unwrap()]),
+            Err("kernel metric source exceeds the 1048576-byte limit".into())
         );
     }
 
