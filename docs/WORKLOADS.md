@@ -1,0 +1,42 @@
+# Workload catalogue
+
+## Initial portable software engineering suite
+
+Implement these small, original fixtures through extension API v1 before importing
+large datasets. Each has deterministic preparation, isolated workspace, hidden
+independent grader, pinned toolchain, reference patch and intentionally bad patches.
+
+| Workload | Task and independent oracle |
+| --- | --- |
+| bug-fix | Diagnose a failing parser edge case; hidden tests pass and existing tests remain green |
+| feature-addition | Extend a small CLI from an explicit specification; behavior and compatibility tests |
+| refactoring | Change internal structure while preserving tested observable behavior |
+| test-generation | Add tests that kill seeded faults; protected grader prevents trivial self-reported success |
+| dependency-migration | Update a pinned API dependency from an offline fixture; compile and regression checks |
+| build-repair | Repair a broken build/configuration; clean isolated rebuild and executable smoke test |
+| repository-navigation | Locate a behavior and explain its code path; machine-checkable file/symbol evidence |
+
+Use Rust, Python, Go and C fixture projects in stages; adapters handle fixture
+toolchains independently from the Rust framework. Limit initial dependencies.
+Tests/grading artifacts are protected from the agent's write scope. Collect patch
+and failure evidence without publishing task secrets or raw private transcripts.
+
+## Established benchmark candidates
+
+| Benchmark | Role in ASB | Priority / caveat |
+| --- | --- | --- |
+| [SWE-bench Lite / Verified](https://www.swebench.com/SWE-bench/guides/datasets/) | Repository issue repair with independent tests | First external repository suite; preserve official grading |
+| [Terminal-Bench](https://www.tbench.ai/benchmarks) | Multi-step terminal, build and debugging work | First terminal suite; pin a published version and use its harness where practical |
+| [Aider Polyglot](https://aider.chat/docs/benchmarks.html) | Multi-language editing with test feedback | Early integration; normalize attempts and model budgets |
+| [SWE-bench Pro](https://github.com/scaleapi/SWE-bench_Pro-os) | Longer repository changes | Later stress workload; substantially heavier execution |
+| [BigCodeBench](https://github.com/bigcode-project/bigcodebench) | Library-oriented code generation | Component workload, not complete agent evaluation |
+| [HumanEval+ / MBPP+ via EvalPlus](https://github.com/evalplus/evalplus) | Fast code correctness controls | Small synthetic controls; weak proxy for repository engineering |
+| [LiveCodeBench](https://github.com/LiveCodeBench/LiveCodeBench) | Time-windowed coding evaluation | Pin release/window; separate code-generation claims from agent systems claims |
+
+Before enabling any external suite, record code and dataset licenses separately,
+task revision, evaluator version, image digests and redistributable assets.
+Acquire datasets explicitly; do not vendor them into the source repository.
+Published x86 images do not imply native arm64 support. Rebuilt arm64 tasks need
+oracle parity evidence; otherwise show an unsupported matrix cell.
+Retain original benchmark rules and label every adaptation and excluded instance.
+Do not combine incompatible scores into an unqualified global ranking.

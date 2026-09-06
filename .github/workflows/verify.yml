@@ -1,0 +1,53 @@
+name: Rust verification
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: Rust checks (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal --component rustfmt --component clippy
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --locked --workspace
+      - name: Documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --workspace --no-deps
+      - name: Release build and CLI
+        run: |
+          cargo build --locked --workspace --release
+          target/release/asb --help
+          target/release/asb --version
+          code=0
+          target/release/asb invalid-command || code=$?
+          test "$code" -eq 2
+      - name: DCO certification
+        run: |
+          while IFS= read -r revision; do
+            expected=$(git show -s --format='Signed-off-by: %an <%ae>' "$revision")
+            git show -s --format=%B "$revision" | grep -Fx -- "$expected"
+          done < <(git rev-list HEAD)
+      - name: Clean generated state
+        run: git diff --exit-code
