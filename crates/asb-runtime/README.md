@@ -55,3 +55,29 @@ This requires Linux, cgroup v2, a per-user systemd manager and Bubblewrap with
 user-namespace support. It is not a VM, does not hide CPU/kernel identity, and
 does not protect against kernel vulnerabilities. Support remains limited to
 exact natively tested tool, kernel, distribution and architecture combinations.
+
+## Capacity scheduling
+
+The dependency-free scheduler runs immutable closed-loop and open-loop point
+plans against a monotonic clock. It separates warmups, applies seeded input
+ordering, bounds in-flight work and queueing, and retains scheduled, start,
+finish, queue-delay and missed-arrival evidence. Stop limits cease admission
+and drain admitted threads. Every planned input remains represented after a
+stop, with backpressure or the first admission-stop reason recorded as its
+rejection cause.
+Start time is captured inside the spawned executor boundary, so queue delay
+includes admission and thread-start latency. Warmups and measurements share one
+point deadline and one cumulative failure budget; a warmup stop therefore
+rejects every planned measurement explicitly. The first admission-stop reason
+and each causal rejection remain immutable even if later drained work changes
+the terminal decision. Executor panic, sanitized without forwarding its payload
+to the process panic hook, and thread-spawn, clock, or explicit infrastructure
+failure contaminate the point. A real-time watchdog and monotonicity/progress
+checks bound defective external clocks without accepting fabricated timing.
+Contamination dominates ordinary failure limits in the terminal decision
+regardless of completion order. Executors remain responsible for per-attempt
+cancellation.
+
+Capacity ordering explores powers of two, then every remaining point in seeded
+order, so it never assumes a monotone curve. Experiment identity and statistical
+decisions remain in asb-protocol and asb-analysis.
