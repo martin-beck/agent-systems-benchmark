@@ -24,10 +24,15 @@ fixture. A failed ownership check leaves the tree untouched.
 
 ## Evidence boundary
 
-The graders check task-specific semantics rather than accepting a self-reported
-status. The test-generation oracle evaluates submitted cases against the intended
-function and seeded mutants. Other graders validate constrained source/build
-structure without executing agent-written code. This avoids treating untrusted
+The graders never accept lexical token presence. The test-generation oracle
+evaluates submitted cases against the intended function and seeded mutants. The
+other six fixtures compare the complete bounded submission against one reviewed
+canonical source/build or answer structure, including files that the task must not
+change. Comment-only, string-only, no-op build, source-tampering, and behavior-changing
+submissions therefore fail. This intentionally accepts only the canonical solution,
+not every semantically equivalent implementation.
+
+The graders do not execute agent-written code. This avoids treating untrusted
 native execution as isolated, but it also means these small fixtures do not prove
 general language semantics or resistance to an agent that has read the public
 grader source. They are deterministic infrastructure controls, not substitutes

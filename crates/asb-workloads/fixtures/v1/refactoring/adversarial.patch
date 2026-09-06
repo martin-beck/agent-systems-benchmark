@@ -1,0 +1,16 @@
+diff --git a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++// mod normalize; normalize::slug(input)
+ pub fn label(input: &str) -> String {
+-    slug(input)
++    input.to_owned()
+ }
+diff --git a/src/normalize.rs b/src/normalize.rs
+new file mode 100644
+--- /dev/null
++++ b/src/normalize.rs
+@@ -0,0 +1,2 @@
++// pub(crate) fn slug
++// to_ascii_lowercase

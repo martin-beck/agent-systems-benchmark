@@ -10,6 +10,6 @@
   "timeout_ms": 30000,
   "cpu_count": 1,
   "memory_bytes": 268435456,
-  "scoring_version": "asb-original-static-v1",
+  "scoring_version": "asb-original-oracle-v1",
   "allowed_network_destinations": []
 }

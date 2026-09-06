@@ -1,0 +1,8 @@
+diff --git a/parser.py b/parser.py
+--- a/parser.py
++++ b/parser.py
+@@ -1,2 +1,3 @@
+ def parse_line(line):
+-    return line.strip()
++    # line.endswith("\r"); line = line[:-1]
++    return line

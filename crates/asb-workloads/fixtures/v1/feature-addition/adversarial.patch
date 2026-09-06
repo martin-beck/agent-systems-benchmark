@@ -1,0 +1,8 @@
+diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -4,0 +5,4 @@
++/* case []string{"--json"}:
++json.NewEncoder(os.Stdout).Encode
++fmt.Println(message)
++*/

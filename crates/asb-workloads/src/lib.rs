@@ -211,7 +211,7 @@ impl Fixture {
             || manifest.version != "1.0.0"
             || manifest.license != "MIT"
             || manifest.source_revision != "asb-original-v1"
-            || manifest.scoring_version != "asb-original-static-v1"
+            || manifest.scoring_version != "asb-original-oracle-v1"
             || !manifest.allowed_network_destinations.is_empty()
             || manifest.architectures != BTreeSet::from(["aarch64".into(), "x86_64".into()])
             || manifest.operating_systems != BTreeSet::from(["linux".into()])
@@ -421,21 +421,14 @@ fn exact_inventory(files: &BTreeMap<String, String>, allowed: &[&str]) -> Vec<&'
     }
 }
 
-fn normalized(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn contains_all(value: &str, needles: &[&str]) -> bool {
-    let value = normalized(value);
-    needles.iter().all(|needle| value.contains(needle))
+fn exact_content(files: &BTreeMap<String, String>, path: &str, expected: &str) -> bool {
+    files.get(path).is_some_and(|value| value == expected)
 }
 
 fn grade_bug_fix(files: &BTreeMap<String, String>) -> Vec<&'static str> {
     let mut failed = exact_inventory(files, &["parser.py", "tests.txt"]);
-    let source = files.get("parser.py").map(String::as_str).unwrap_or("");
-    if !contains_all(source, &["line.endswith(\"\\r\")", "line = line[:-1]"])
-        || source.contains("strip(")
-        || source.contains("rstrip(")
+    if !exact_content(files, "parser.py", BUG_EXPECTED_SOURCE)
+        || !exact_content(files, "tests.txt", BUG_INITIAL[1].1)
     {
         failed.push("parser.crlf_only");
     }
@@ -444,14 +437,8 @@ fn grade_bug_fix(files: &BTreeMap<String, String>) -> Vec<&'static str> {
 
 fn grade_feature(files: &BTreeMap<String, String>) -> Vec<&'static str> {
     let mut failed = exact_inventory(files, &["main.go", "compat.txt"]);
-    let source = files.get("main.go").map(String::as_str).unwrap_or("");
-    if !contains_all(
-        source,
-        &[
-            "case []string{\"--json\"}:",
-            "json.NewEncoder(os.Stdout).Encode",
-        ],
-    ) || !source.contains("fmt.Println(message)")
+    if !exact_content(files, "main.go", FEATURE_EXPECTED_SOURCE)
+        || !exact_content(files, "compat.txt", FEATURE_INITIAL[1].1)
     {
         failed.push("cli.json_and_text");
     }
@@ -460,14 +447,9 @@ fn grade_feature(files: &BTreeMap<String, String>) -> Vec<&'static str> {
 
 fn grade_refactor(files: &BTreeMap<String, String>) -> Vec<&'static str> {
     let mut failed = exact_inventory(files, &["src/lib.rs", "src/normalize.rs", "behavior.txt"]);
-    let lib = files.get("src/lib.rs").map(String::as_str).unwrap_or("");
-    let module = files
-        .get("src/normalize.rs")
-        .map(String::as_str)
-        .unwrap_or("");
-    if !contains_all(lib, &["mod normalize;", "normalize::slug(input)"])
-        || lib.contains("fn slug")
-        || !contains_all(module, &["pub(crate) fn slug", "to_ascii_lowercase"])
+    if !exact_content(files, "src/lib.rs", REFACTOR_EXPECTED_LIB)
+        || !exact_content(files, "src/normalize.rs", REFACTOR_EXPECTED_MODULE)
+        || !exact_content(files, "behavior.txt", REFACTOR_INITIAL[1].1)
     {
         failed.push("refactor.module_boundary");
     }
@@ -476,6 +458,9 @@ fn grade_refactor(files: &BTreeMap<String, String>) -> Vec<&'static str> {
 
 fn grade_test_generation(files: &BTreeMap<String, String>) -> Vec<&'static str> {
     let mut failed = exact_inventory(files, &["abs.c", "tests/cases.txt"]);
+    if !exact_content(files, "abs.c", TEST_INITIAL[0].1) {
+        failed.push("tests.implementation_unchanged");
+    }
     let Some(cases) = files.get("tests/cases.txt") else {
         failed.push("tests.mutants");
         return failed;
@@ -522,12 +507,9 @@ fn grade_test_generation(files: &BTreeMap<String, String>) -> Vec<&'static str> 
 
 fn grade_dependency(files: &BTreeMap<String, String>) -> Vec<&'static str> {
     let mut failed = exact_inventory(files, &["Cargo.toml", "src/lib.rs", "vendor/INDEX"]);
-    let manifest = files.get("Cargo.toml").map(String::as_str).unwrap_or("");
-    let source = files.get("src/lib.rs").map(String::as_str).unwrap_or("");
-    if !manifest.contains("textwrap = \"=0.16.1\"")
-        || manifest.contains("=0.15.2")
-        || !contains_all(source, &["textwrap::wrap", ".join(\"\\n\")"])
-        || source.contains("textwrap::fill")
+    if !exact_content(files, "Cargo.toml", DEP_EXPECTED_MANIFEST)
+        || !exact_content(files, "src/lib.rs", DEP_EXPECTED_SOURCE)
+        || !exact_content(files, "vendor/INDEX", DEP_INITIAL[2].1)
     {
         failed.push("dependency.pinned_api");
     }
@@ -536,16 +518,10 @@ fn grade_dependency(files: &BTreeMap<String, String>) -> Vec<&'static str> {
 
 fn grade_build(files: &BTreeMap<String, String>) -> Vec<&'static str> {
     let mut failed = exact_inventory(files, &["Makefile", "main.c", "util.c", "util.h"]);
-    let makefile = files.get("Makefile").map(String::as_str).unwrap_or("");
-    if !contains_all(
-        makefile,
-        &[
-            "main: main.c util.c util.h",
-            "$(CC)",
-            "main.c util.c",
-            "-o main",
-        ],
-    ) || makefile.contains("missing.c")
+    if !exact_content(files, "Makefile", BUILD_EXPECTED_MAKEFILE)
+        || !exact_content(files, "main.c", BUILD_INITIAL[1].1)
+        || !exact_content(files, "util.c", BUILD_INITIAL[2].1)
+        || !exact_content(files, "util.h", BUILD_INITIAL[3].1)
     {
         failed.push("build.complete_inputs");
     }
@@ -581,6 +557,11 @@ fn grade_navigation(files: &BTreeMap<String, String>) -> Vec<&'static str> {
             || answer.call_chain != ["main", "load", "parse_limit", "Runner::new"]
     }) {
         failed.push("navigation.causal_path");
+    } else if !exact_content(files, "cmd/main.rs", NAV_INITIAL[0].1)
+        || !exact_content(files, "src/config.rs", NAV_INITIAL[1].1)
+        || !exact_content(files, "src/runner.rs", NAV_INITIAL[2].1)
+    {
+        failed.push("navigation.sources_unchanged");
     }
     failed
 }
@@ -595,6 +576,7 @@ const BUG_INITIAL: &[(&str, &str)] = &[
         "alpha => alpha\nalpha<CR> => alpha\nalpha<SPACE> => alpha<SPACE>\n",
     ),
 ];
+const BUG_EXPECTED_SOURCE: &str = "def parse_line(line):\n    if line.endswith(\"\\r\"):\n        line = line[:-1]\n    return line\n";
 const FEATURE_INITIAL: &[(&str, &str)] = &[
     (
         "main.go",
@@ -605,6 +587,7 @@ const FEATURE_INITIAL: &[(&str, &str)] = &[
         "no arguments prints hello followed by newline\n--json prints a JSON object with message=hello\n",
     ),
 ];
+const FEATURE_EXPECTED_SOURCE: &str = "package main\n\nimport (\n    \"encoding/json\"\n    \"fmt\"\n    \"os\"\n)\n\nfunc main() {\n    message := \"hello\"\n    if len(os.Args) == 2 && os.Args[1] == \"--json\" {\n        json.NewEncoder(os.Stdout).Encode(map[string]string{\"message\": message})\n        return\n    }\n    fmt.Println(message)\n}\n";
 const REFACTOR_INITIAL: &[(&str, &str)] = &[
     (
         "src/lib.rs",
@@ -612,6 +595,9 @@ const REFACTOR_INITIAL: &[(&str, &str)] = &[
     ),
     ("behavior.txt", " Hello World  => hello-world\n"),
 ];
+const REFACTOR_EXPECTED_LIB: &str =
+    "mod normalize;\n\npub fn label(input: &str) -> String {\n    normalize::slug(input)\n}\n";
+const REFACTOR_EXPECTED_MODULE: &str = "pub(crate) fn slug(input: &str) -> String {\n    input.trim().to_ascii_lowercase().replace(' ', \"-\")\n}\n";
 const TEST_INITIAL: &[(&str, &str)] = &[
     (
         "abs.c",
@@ -633,6 +619,9 @@ const DEP_INITIAL: &[(&str, &str)] = &[
         "textwrap 0.15.2 sha256:old-fixture\ntextwrap 0.16.1 sha256:new-fixture\n",
     ),
 ];
+const DEP_EXPECTED_MANIFEST: &str = "[package]\nname = \"offline-wrap\"\nversion = \"0.1.0\"\n\n[dependencies]\ntextwrap = \"=0.16.1\"\n";
+const DEP_EXPECTED_SOURCE: &str =
+    "pub fn format(value: &str) -> String {\n    textwrap::wrap(value, 20).join(\"\\n\")\n}\n";
 const BUILD_INITIAL: &[(&str, &str)] = &[
     (
         "Makefile",
@@ -648,6 +637,7 @@ const BUILD_INITIAL: &[(&str, &str)] = &[
     ),
     ("util.h", "int answer(void);\n"),
 ];
+const BUILD_EXPECTED_MAKEFILE: &str = "main: main.c util.c util.h\n\t$(CC) main.c util.c -o main\n";
 const NAV_INITIAL: &[(&str, &str)] = &[
     (
         "cmd/main.rs",
@@ -675,7 +665,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/bug-fix/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!("../fixtures/v1/bug-fix/counterexample.patch")],
+        counterexamples: &[
+            include_str!("../fixtures/v1/bug-fix/counterexample.patch"),
+            include_str!("../fixtures/v1/bug-fix/adversarial.patch"),
+        ],
     },
     Fixture {
         id: FIXTURE_IDS[1],
@@ -687,9 +680,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/feature-addition/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!(
-            "../fixtures/v1/feature-addition/counterexample.patch"
-        )],
+        counterexamples: &[
+            include_str!("../fixtures/v1/feature-addition/counterexample.patch"),
+            include_str!("../fixtures/v1/feature-addition/adversarial.patch"),
+        ],
     },
     Fixture {
         id: FIXTURE_IDS[2],
@@ -701,9 +695,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/refactoring/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!(
-            "../fixtures/v1/refactoring/counterexample.patch"
-        )],
+        counterexamples: &[
+            include_str!("../fixtures/v1/refactoring/counterexample.patch"),
+            include_str!("../fixtures/v1/refactoring/adversarial.patch"),
+        ],
     },
     Fixture {
         id: FIXTURE_IDS[3],
@@ -715,9 +710,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/test-generation/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!(
-            "../fixtures/v1/test-generation/counterexample.patch"
-        )],
+        counterexamples: &[
+            include_str!("../fixtures/v1/test-generation/counterexample.patch"),
+            include_str!("../fixtures/v1/test-generation/adversarial.patch"),
+        ],
     },
     Fixture {
         id: FIXTURE_IDS[4],
@@ -729,9 +725,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/dependency-migration/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!(
-            "../fixtures/v1/dependency-migration/counterexample.patch"
-        )],
+        counterexamples: &[
+            include_str!("../fixtures/v1/dependency-migration/counterexample.patch"),
+            include_str!("../fixtures/v1/dependency-migration/adversarial.patch"),
+        ],
     },
     Fixture {
         id: FIXTURE_IDS[5],
@@ -743,9 +740,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/build-repair/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!(
-            "../fixtures/v1/build-repair/counterexample.patch"
-        )],
+        counterexamples: &[
+            include_str!("../fixtures/v1/build-repair/counterexample.patch"),
+            include_str!("../fixtures/v1/build-repair/adversarial.patch"),
+        ],
     },
     Fixture {
         id: FIXTURE_IDS[6],
@@ -762,9 +760,10 @@ const FIXTURES: [Fixture; 7] = [
         #[cfg(test)]
         reference_patch: include_str!("../fixtures/v1/repository-navigation/reference.patch"),
         #[cfg(test)]
-        counterexamples: &[include_str!(
-            "../fixtures/v1/repository-navigation/counterexample.patch"
-        )],
+        counterexamples: &[
+            include_str!("../fixtures/v1/repository-navigation/counterexample.patch"),
+            include_str!("../fixtures/v1/repository-navigation/adversarial.patch"),
+        ],
     },
 ];
 
