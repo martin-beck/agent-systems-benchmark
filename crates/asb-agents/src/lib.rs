@@ -5,3 +5,4 @@
 //! Built-in coding-agent adapters.
 
 pub mod opencode;
+pub mod opendesk;
