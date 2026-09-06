@@ -363,8 +363,13 @@ impl RunningOpenCode {
     /// Reap the process, remove prompt material, and map bounded structured output.
     pub fn wait(&mut self) -> Result<OpenCodeOutcome, AdapterError> {
         let waited = self.process.wait().cloned();
-        self.remove_prompt();
-        let output = waited?;
+        let output = match waited {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = self.remove_prompt();
+                return Err(error.into());
+            }
+        };
         self.remove_run_root()?;
         if output.stdout.truncated {
             return Err(AdapterError::TruncatedOutput);
@@ -389,27 +394,47 @@ impl RunningOpenCode {
         })
     }
 
-    fn remove_prompt(&mut self) {
-        if let Some(path) = self.prompt_path.take() {
-            let _ = fs::remove_file(path);
-        }
-    }
-
-    fn remove_run_root(&mut self) -> Result<(), AdapterError> {
-        if let Some(path) = self.run_root.take() {
-            fs::remove_dir_all(path)?;
+    fn remove_prompt(&mut self) -> Result<(), AdapterError> {
+        if let Some(path) = self.prompt_path.as_ref() {
+            match fs::remove_file(path) {
+                Ok(()) => self.prompt_path = None,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => self.prompt_path = None,
+                Err(error) => return Err(error.into()),
+            }
         }
         Ok(())
     }
+
+    fn remove_run_root(&mut self) -> Result<(), AdapterError> {
+        remove_run_tree(&mut self.run_root, &mut self.prompt_path)
+    }
+}
+
+fn remove_run_tree(
+    run_root: &mut Option<PathBuf>,
+    prompt_path: &mut Option<PathBuf>,
+) -> Result<(), AdapterError> {
+    let Some(path) = run_root.as_ref() else {
+        return Ok(());
+    };
+    match fs::remove_dir_all(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    *run_root = None;
+    *prompt_path = None;
+    Ok(())
 }
 
 impl Drop for RunningOpenCode {
     fn drop(&mut self) {
         let _ = self.process.cancel();
         let terminal = self.process.wait().is_ok();
-        self.remove_prompt();
         if terminal {
             let _ = self.remove_run_root();
+        } else {
+            let _ = self.remove_prompt();
         }
     }
 }
@@ -924,6 +949,41 @@ mod tests {
             Err(AdapterError::Io(_))
         ));
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_state_cleanup_remains_retryable_and_absence_is_success() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-opencode-cleanup-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&root, b"not a directory").unwrap();
+        let prompt = root.join("prompt.txt");
+        let mut run_root = Some(root.clone());
+        let mut prompt_path = Some(prompt.clone());
+        assert!(matches!(
+            remove_run_tree(&mut run_root, &mut prompt_path),
+            Err(AdapterError::Io(_))
+        ));
+        assert_eq!(run_root.as_deref(), Some(root.as_path()));
+        assert_eq!(prompt_path.as_deref(), Some(prompt.as_path()));
+
+        fs::remove_file(&root).unwrap();
+        fs::create_dir(&root).unwrap();
+        fs::write(&prompt, b"private").unwrap();
+        remove_run_tree(&mut run_root, &mut prompt_path).unwrap();
+        assert!(run_root.is_none());
+        assert!(prompt_path.is_none());
+        assert!(!root.exists());
+
+        let mut absent_root = Some(root);
+        let mut absent_prompt = Some(prompt);
+        remove_run_tree(&mut absent_root, &mut absent_prompt).unwrap();
+        assert!(absent_root.is_none());
+        assert!(absent_prompt.is_none());
     }
 
     #[test]
