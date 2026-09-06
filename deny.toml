@@ -6,6 +6,9 @@ yanked = "deny"
 multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
+skip = [
+  { crate = "syn@3.0.5", reason = "schemars/ref-cast requires syn 3 while serde and thiserror derive require syn 2" },
+]
 
 [licenses]
 version = 2

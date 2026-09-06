@@ -15,9 +15,12 @@ Every change must meet 90% line coverage across the workspace and 95% for each
 critical crate. The current critical set is `asb-core`; `asb-protocol` and
 `asb-replay` become independently subject to the 95% floor when introduced.
 Cargo Deny rejects disallowed licenses, duplicate versions, wildcard
-dependencies and unknown sources. Cargo Audit rejects RustSec advisories and
-yanked dependencies. The repository policy checks source SPDX headers, local
-Markdown links and workflow immutability without network access.
+dependencies and unknown sources. The exact `syn` 3.0.5 duplicate is narrowly
+excepted because schemars/ref-cast requires it while serde and thiserror derive
+still require `syn` 2; a version change reopens review. Cargo Audit rejects
+RustSec advisories and yanked dependencies. The repository policy checks source
+SPDX headers, local Markdown links and workflow immutability without network
+access.
 
 The commit gate checks every introduced commit. Each requires a
 `Signed-off-by: Name <address>` line exactly matching its author and an SSH
