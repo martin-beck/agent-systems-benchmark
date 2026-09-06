@@ -73,7 +73,8 @@ resource reservations separate from build jobs and existing projects.
 | Alpine Linux | Required musl tests on both | Scheduled both |
 | openEuler LTS | Required both | Required both; first-class support |
 
-Pin exact releases and image digests in AR-0701 after availability checks. Test the
+Exact releases, image digests, libc and package availability are pinned in the
+[platform manifest](PLATFORMS.md). Test the
 oldest supported glibc, static musl limits, cgroup v2 delegation, optional systemd,
 SELinux/AppArmor, perf permissions and missing PSI/BTF gracefully. Every supported
 agent x workload x distro x architecture combination needs an evidence status:

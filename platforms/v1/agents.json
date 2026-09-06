@@ -1,0 +1,143 @@
+{
+  "format_version": 1,
+  "observed_at": "2026-09-06",
+  "agents": [
+    {
+      "id": "codex",
+      "package": {
+        "ecosystem": "npm",
+        "name": "@openai/codex",
+        "version": "0.153.4",
+        "integrity": "sha512-wbHDmit7S/YvBGVX1DQmk13xtWblZ2cApeJ/pB7xDZ10Cna+DZc5ij7f0F4OxdsXN4FW1oLT48OpogUI1+8Y2w==",
+        "license": "Apache-2.0",
+        "source": "https://registry.npmjs.org/@openai%2fcodex/0.153.4"
+      },
+      "requirements": ["Node.js >=16 for the npm launcher"],
+      "variants": [
+        {
+          "architecture": "x86_64",
+          "libc": "static-musl-main-with-glibc>=2.38-bundled-zsh",
+          "package_version": "0.153.4-linux-x64",
+          "integrity": "sha512-x1EcwBlY3AObM1VTUHNM2AzAJQsyreGdagpF+qFiYi/Oa30VBktvvG0C6tLtCzqW6hjZNWkGZQWmeVk7MuJKWg==",
+          "availability": "package-inspected"
+        },
+        {
+          "architecture": "aarch64",
+          "libc": "static-musl-main-with-glibc>=2.38-bundled-zsh-and-glibc>=2.18-rg",
+          "package_version": "0.153.4-linux-arm64",
+          "integrity": "sha512-QKdjYLYV4hXIuUQDP3P6F4NXuWFoKo9WUoV4nAREIx55kiUyi8UsYdsVobkeXir5n/maEQgYMCKLHVma4rNPiw==",
+          "availability": "package-inspected"
+        }
+      ],
+      "limitations": [
+        "Both package variants have a static main binary but bundle a dynamically linked zsh requiring glibc 2.38.",
+        "The aarch64 package also bundles rg requiring glibc 2.18. Alpine on both architectures and glibc baselines below 2.38 remain unverified."
+      ]
+    },
+    {
+      "id": "opencode",
+      "package": {
+        "ecosystem": "npm",
+        "name": "opencode-ai",
+        "version": "1.18.29",
+        "integrity": "sha512-syIDVwlrYTgTOXzZe9SkInJWethbq6l3SNC762UeXyO0a9V0wGfd+U4yACvppwNBnhIsl0j2QPYYCyLpNaSomg==",
+        "license": "MIT",
+        "source": "https://registry.npmjs.org/opencode-ai/1.18.29"
+      },
+      "requirements": [],
+      "variants": [
+        {
+          "architecture": "x86_64",
+          "libc": "glibc>=2.17",
+          "package_version": "opencode-linux-x64@1.18.29",
+          "integrity": "sha512-X8/wS/8mzL7Ko0zYYF6RzKax39KkxXDRoimhmzXuo0gPrZX4DQjqBNpPAByBwUjFapk73ZGSVsjDGvoNapBa1Q==",
+          "availability": "package-inspected"
+        },
+        {
+          "architecture": "aarch64",
+          "libc": "glibc>=2.17",
+          "package_version": "opencode-linux-arm64@1.18.29",
+          "integrity": "sha512-Lr7XXik5wPJZBV5RW+aR6Uogf1n5GogpB565m+D/jiO/vRXr9LhvCpixgAr1tiwuH1ZfMsqOOlbFQz5jgH3Tqg==",
+          "availability": "package-inspected"
+        },
+        {
+          "architecture": "x86_64",
+          "libc": "musl",
+          "package_version": "opencode-linux-x64-musl@1.18.29",
+          "integrity": "sha512-bGAZ9NFzNOzrXVN9oczd1H+vzLH1aGyYg1ZZNtuZiszxKr8+vTjLnNcjzGJIuc6jtjvlWbfp8l+S5fxCVuQo2A==",
+          "availability": "package-inspected"
+        },
+        {
+          "architecture": "aarch64",
+          "libc": "musl",
+          "package_version": "opencode-linux-arm64-musl@1.18.29",
+          "integrity": "sha512-9lNhNvW3FdwbI+BDy/y+0bwIQkbz36u/RVQoZH2tYvWjHkOaf8D+mSuDKbKcFqpLFIbbQona01oYSQZzncZIcQ==",
+          "availability": "package-inspected"
+        }
+      ],
+      "limitations": ["Published binaries were inspected, but no agent session was executed by AR-0701."]
+    },
+    {
+      "id": "opendesk",
+      "package": {
+        "ecosystem": "npm",
+        "name": "@bitclub.ai/opendesk-cli",
+        "version": "0.3.5",
+        "integrity": "sha512-9XDGWW83ieRDAlpNAhDLcrpO8e1iIq/DR0S08keccSKF6yHW+qzs+zDSEyc9418x6DnOCqwM8t/6GoTk8EObIw==",
+        "license": "MulanPSL-2.0",
+        "source": "https://registry.npmjs.org/@bitclub.ai%2fopendesk-cli/0.3.5"
+      },
+      "requirements": ["Node.js >=22.19.0"],
+      "variants": [
+        {
+          "architecture": "x86_64",
+          "libc": "runtime-dependent",
+          "package_version": "0.3.5",
+          "integrity": "sha512-9XDGWW83ieRDAlpNAhDLcrpO8e1iIq/DR0S08keccSKF6yHW+qzs+zDSEyc9418x6DnOCqwM8t/6GoTk8EObIw==",
+          "availability": "package-inspected"
+        },
+        {
+          "architecture": "aarch64",
+          "libc": "runtime-dependent",
+          "package_version": "0.3.5",
+          "integrity": "sha512-9XDGWW83ieRDAlpNAhDLcrpO8e1iIq/DR0S08keccSKF6yHW+qzs+zDSEyc9418x6DnOCqwM8t/6GoTk8EObIw==",
+          "availability": "metadata-only"
+        }
+      ],
+      "limitations": [
+        "The package is JavaScript without npm os/cpu constraints, but transitive native dependencies were not installed on either architecture."
+      ]
+    },
+    {
+      "id": "aider",
+      "package": {
+        "ecosystem": "pypi",
+        "name": "aider-chat",
+        "version": "0.86.2",
+        "integrity": "sha256:64f6a0c66c9f4633ad9f479bca3e64ebcba02b9da03c6b604b74a44736b2416e",
+        "license": "Apache-2.0",
+        "source": "https://pypi.org/pypi/aider-chat/0.86.2/json"
+      },
+      "requirements": ["Python >=3.10,<3.13"],
+      "variants": [
+        {
+          "architecture": "x86_64",
+          "libc": "dependency-resolver-dependent",
+          "package_version": "0.86.2-py3-none-any",
+          "integrity": "sha256:64f6a0c66c9f4633ad9f479bca3e64ebcba02b9da03c6b604b74a44736b2416e",
+          "availability": "metadata-only"
+        },
+        {
+          "architecture": "aarch64",
+          "libc": "dependency-resolver-dependent",
+          "package_version": "0.86.2-py3-none-any",
+          "integrity": "sha256:64f6a0c66c9f4633ad9f479bca3e64ebcba02b9da03c6b604b74a44736b2416e",
+          "availability": "metadata-only"
+        }
+      ],
+      "limitations": [
+        "The top-level wheel is architecture-neutral, but the pinned dependency set contains native extensions; glibc and musl resolution remain unverified."
+      ]
+    }
+  ]
+}

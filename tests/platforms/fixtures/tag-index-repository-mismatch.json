@@ -1,0 +1,6 @@
+{
+  "expected_error": "discovery tag and index repositories differ",
+  "mutations": [
+    {"path": ["platforms", 0, "image", "index"], "value": "docker.io/library/debian@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517"}
+  ]
+}

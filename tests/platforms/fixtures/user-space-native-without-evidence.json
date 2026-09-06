@@ -1,0 +1,6 @@
+{
+  "expected_error": "native-tested requires bound native-run evidence",
+  "mutations": [
+    {"path": ["platforms", 0, "architectures", "x86_64", "user_space"], "value": "native-tested"}
+  ]
+}

@@ -18,6 +18,7 @@ workloads and replay are planned in the public coordination repository.
 - [Workload catalogue](docs/WORKLOADS.md)
 - [Replay research](docs/REPLAY_RESEARCH.md)
 - [Quality and support matrix](docs/QUALITY.md)
+- [Pinned platform manifests](docs/PLATFORMS.md)
 - [Related benchmark systems](docs/RELATED_WORK.md)
 - [Formal assurance roadmap](docs/FORMAL_ASSURANCE.md)
 - [Worker process](docs/DEVELOPMENT.md)
