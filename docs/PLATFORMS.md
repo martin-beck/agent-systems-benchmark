@@ -16,9 +16,11 @@ A cross-build is never promoted to `native-tested`. That label requires a digest
 for an artifact produced by a run on the named native architecture and kernel.
 The artifact must be a bounded, sanitized report produced by
 `tools/platforms/native_evidence.py`. The manifest validator checks its SHA-256,
-source commit, platform, architecture, kernel, run ID, cgroup v2 and PSI probes,
-and passing process, metrics and sandbox boundaries. A partial report remains
-useful evidence but cannot promote a cell.
+source commit and tree, reviewed base ancestry, platform, architecture, booted
+kernel provenance, run ID, cgroup v2 and PSI probes, and the exact process,
+metrics and optional sandbox check set. The closed report contract is
+[`native-evidence.schema.json`](../platforms/v1/native-evidence.schema.json).
+A partial report remains useful evidence but cannot promote a cell.
 
 All available cells below are initially `planned`. Arch aarch64 is `unsupported`
 because the official Arch Linux image index contains only amd64; Arch Linux ARM is
@@ -85,13 +87,18 @@ private filesystem paths are excluded. Hosted runners without user-systemd deleg
 produce `native-functional-partial`, never a false `native-tested` result.
 
 Native reports bind the exact manifest release to bounded operating-system
-release evidence. Ubuntu uses the exact `VERSION` field, Debian 13.6 uses
-`/etc/debian_version`, and openEuler uses `/etc/openEuler-release`; a major
-version match alone is insufficient. Reports also retain whether AppArmor is
-enabled and whether SELinux is enforcing, permissive, or disabled. If the
-kernel LSM list or active SELinux state cannot be read, qualification is
-partial rather than silently treating missing privilege as a disabled policy.
-The sandbox test then proves behavior under the observed LSM state.
+release evidence. Ubuntu requires `VERSION="24.04.4 LTS (Noble Numbat)"`;
+Debian requires both `VERSION="13 (trixie)"` and `/etc/debian_version` equal to
+`13.6`; openEuler requires `VERSION="24.03 (LTS-SP2)"` and
+`/etc/openEuler-release` equal to `openEuler release 24.03 (LTS-SP2)`. Major
+version, substring and prefix matches are insufficient.
+
+Reports retain the kernel LSM registration list and observed SELinux mode.
+AppArmor registration is recorded as `registered-unproven`: registration alone
+does not prove enforcement, and AR-0702 has no denial oracle that would justify
+that stronger claim. SELinux is recorded as enforcing or permissive only when
+the live state is readable. Missing privilege or state makes qualification
+partial rather than silently treating policy as disabled.
 
 Sandbox prerequisites are platform-specific reviewed pins. The Ubuntu profile
 uses bubblewrap `0.9.0-1ubuntu0.1`, systemd `255.4-1ubuntu8.17`, and
@@ -101,8 +108,25 @@ profile uses bubblewrap `0.12.0-1~deb13u1`, systemd
 packages.debian.org. The openEuler 24.03 LTS-SP2 profile uses bubblewrap
 `0.8.0-2.oe2403sp2`, systemd `255-43.oe2403sp2`, and util-linux
 `2.39.1-22.oe2403sp2` from the official repo.openeuler.org source-package
-index. Reports retain these public package identities and source URLs, and
-validation rejects drift.
+index. The collector queries the native package database for ownership, exact
+version and architecture; binds every sandbox executable to the installed dpkg
+manifest or a clean RPM verification result; and records bounded binary and
+package-record digests. It also binds the booted kernel to its installed package
+record and integrity data, plus digests of live kernel notes and `/proc/version`
+(and the Ubuntu version signature when present). Reports retain only public
+package identities and public source URLs; validation rejects metadata or binary
+drift.
+
+Publication walks every output component relative to a pre-opened trusted root
+using directory file descriptors and `O_NOFOLLOW`, then links a newly-created
+temporary file into an absent destination. Intermediate and final symlink races
+therefore fail without creating or replacing data outside the trusted root.
+Before and after native checks, collection also verifies the exact source HEAD,
+tree, clean state and ancestry from the reviewed base. Validation rechecks those
+immutable identities against the candidate repository. Reports are canonical,
+bounded to 1 MiB, restrict each check output to 16 MiB, use a closed
+virtualization vocabulary, and reject control text, credential markers and
+private host/path identifiers.
 
 Virtual machines using the requested native instruction set may establish
 functional behavior, but every report sets `performance_baseline` to false.

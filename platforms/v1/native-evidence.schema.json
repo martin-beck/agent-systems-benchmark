@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-systems-benchmark.dev/schema/v1/native-evidence.schema.json",
+  "title": "ASB native qualification evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version", "kind", "qualification", "performance_baseline", "platform_id",
+    "architecture", "distribution", "kernel_release", "kernel_provenance", "virtualization",
+    "run_id", "source_commit", "source_tree", "source_base_commit", "capabilities",
+    "sandbox_tools", "checks"
+  ],
+  "properties": {
+    "format_version": {"const": 1},
+    "kind": {"const": "native-run"},
+    "qualification": {"enum": ["native-functional", "native-functional-partial"]},
+    "performance_baseline": {"const": false},
+    "platform_id": {"enum": ["ubuntu-24.04", "debian-13", "openeuler-24.03-lts-sp2"]},
+    "architecture": {"enum": ["x86_64", "aarch64"]},
+    "distribution": {"$ref": "#/$defs/distribution"},
+    "kernel_release": {"$ref": "#/$defs/safeString"},
+    "kernel_provenance": {"$ref": "#/$defs/kernel"},
+    "virtualization": {"enum": ["none", "kvm", "vmware", "microsoft", "oracle", "xen", "zvm", "parallels", "amazon", "google"]},
+    "run_id": {"$ref": "#/$defs/id"},
+    "source_commit": {"$ref": "#/$defs/commit"},
+    "source_tree": {"$ref": "#/$defs/commit"},
+    "source_base_commit": {"$ref": "#/$defs/commit"},
+    "capabilities": {"$ref": "#/$defs/capabilities"},
+    "sandbox_tools": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/tool"}},
+    "checks": {
+      "type": "object", "additionalProperties": false,
+      "required": ["process", "metrics", "sandbox"],
+      "properties": {
+        "process": {"$ref": "#/$defs/check"},
+        "metrics": {"$ref": "#/$defs/check"},
+        "sandbox": {"$ref": "#/$defs/checkOrUnavailable"}
+      }
+    }
+  },
+  "$defs": {
+    "safeString": {"type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[^\\u0000-\\u001f\\u007f]+$"},
+    "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "distribution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version_id", "version", "release_evidence", "manifest_release"],
+      "properties": {
+        "id": {"$ref": "#/$defs/safeString"}, "version_id": {"$ref": "#/$defs/safeString"},
+        "version": {"$ref": "#/$defs/safeString"}, "release_evidence": {"$ref": "#/$defs/safeString"},
+        "manifest_release": {"$ref": "#/$defs/safeString"}
+      }
+    },
+    "kernel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["package", "package_version", "package_architecture", "package_source", "package_integrity", "package_manifest_sha256", "image_package_digest", "running_notes_sha256", "running_version_sha256", "version_signature"],
+      "properties": {
+        "package": {"$ref": "#/$defs/safeString"}, "package_version": {"$ref": "#/$defs/safeString"},
+        "package_architecture": {"enum": ["amd64", "arm64", "x86_64", "aarch64"]},
+        "package_source": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "package_integrity": {"enum": ["package-manifest-bound", "rpm-verified"]},
+        "package_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "image_package_digest": {"type": "string", "pattern": "^([0-9a-f]{32}|rpm-verified)$"},
+        "running_notes_sha256": {"$ref": "#/$defs/sha256"},
+        "running_version_sha256": {"$ref": "#/$defs/sha256"},
+        "version_signature": {"$ref": "#/$defs/safeString"}
+      }
+    },
+    "capabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cgroup_v2", "psi", "sandbox", "security_modules"],
+      "properties": {
+        "cgroup_v2": {"const": "available"}, "psi": {"const": "available"},
+        "sandbox": {"enum": ["passed", "unavailable"]},
+        "security_modules": {
+          "type": "object", "additionalProperties": false, "required": ["apparmor", "selinux"],
+          "properties": {
+            "apparmor": {"enum": ["registered-unproven", "not-registered", "unavailable"]},
+            "selinux": {"enum": ["enforcing-observed", "permissive-observed", "not-registered", "unavailable"]}
+          }
+        }
+      }
+    },
+    "tool": {
+      "type": "object", "additionalProperties": false,
+      "required": ["executable", "version", "version_output_sha256", "package", "package_version", "package_architecture", "source", "binary_sha256", "package_manifest_sha256", "package_integrity"],
+      "properties": {
+        "executable": {"type": "string", "pattern": "^/usr/bin/[A-Za-z0-9._-]+$"},
+        "version": {"$ref": "#/$defs/safeString"}, "version_output_sha256": {"$ref": "#/$defs/sha256"},
+        "package": {"$ref": "#/$defs/safeString"}, "package_version": {"$ref": "#/$defs/safeString"},
+        "package_architecture": {"enum": ["amd64", "arm64", "x86_64", "aarch64"]},
+        "source": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "binary_sha256": {"$ref": "#/$defs/sha256"}, "package_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "package_integrity": {"const": "verified"}
+      }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "argv_sha256", "output_sha256", "output_bytes"],
+      "properties": {
+        "status": {"const": "passed"}, "argv_sha256": {"$ref": "#/$defs/sha256"},
+        "output_sha256": {"$ref": "#/$defs/sha256"},
+        "output_bytes": {"type": "integer", "minimum": 0, "maximum": 16777216}
+      }
+    },
+    "checkOrUnavailable": {"oneOf": [{"$ref": "#/$defs/check"}, {"type": "object", "additionalProperties": false, "required": ["status"], "properties": {"status": {"const": "unavailable"}}}]}
+  }
+}

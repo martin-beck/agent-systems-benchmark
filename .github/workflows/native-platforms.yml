@@ -37,7 +37,9 @@ jobs:
             --architecture "$(uname -m)" \
             --run-id "$RUN_ID" \
             --source "$GITHUB_WORKSPACE" \
+            --base-commit "${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" \
             --output "$EVIDENCE_FILE" \
+            --output-root "$RUNNER_TEMP" \
             --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
             --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
             --optional-check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
