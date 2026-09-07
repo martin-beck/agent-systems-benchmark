@@ -18,7 +18,7 @@ mutation tooling a normal ASB build dependency.
   Mutants run serially because sharing one explicit Cargo target across copied
   source trees can otherwise cross-contaminate Cargo fingerprint decisions.
 
-Pull requests run retained fault tests, bounded fuzz executions, and both
+Pull requests run retained fault tests, bounded fuzz executions, and all six
 mutation sentinels. The scheduled job increases fuzz runs but remains bounded.
 The checked-in synthetic seeds retain reviewed regressions. A newly discovered
 counterexample remains only on its disposable runner; reproduce it locally,

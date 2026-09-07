@@ -61,19 +61,27 @@ jobs:
           ASB_FUZZ_SCRATCH: ${{ runner.temp }}/asb-fuzz-scratch
           FUZZ_CORPUS_ROOT: ${{ runner.temp }}/asb-fuzz-corpus
           FUZZ_ARTIFACT_PREFIX: ${{ runner.temp }}/
+          FUZZ_TARGET_DIR: ${{ runner.temp }}/asb-fuzz-target
         run: |
           mkdir -p "$ASB_FUZZ_SCRATCH" "$FUZZ_CORPUS_ROOT"
+          cargo +nightly-2025-11-21 metadata --locked \
+            --manifest-path fuzz/Cargo.toml --format-version 1 >/dev/null
+          sha256sum fuzz/Cargo.lock > "${RUNNER_TEMP}/fuzz-Cargo.lock.sha256"
           for target in protocol_jsonrpc cassette_decode replay_sse store_paths; do
             mkdir -p "$FUZZ_CORPUS_ROOT/$target"
             cp -a "fuzz/seeds/$target/." "$FUZZ_CORPUS_ROOT/$target/"
             cargo +nightly-2025-11-21 fuzz run "$target" \
-              "$FUZZ_CORPUS_ROOT/$target" --fuzz-dir fuzz -- \
+              "$FUZZ_CORPUS_ROOT/$target" --fuzz-dir fuzz \
+              --target-dir "$FUZZ_TARGET_DIR" -- \
               -runs="$FUZZ_RUNS" -max_len=65536 -artifact_prefix="$FUZZ_ARTIFACT_PREFIX"
           done
           rm -rf -- fuzz/artifacts
           test -z "$(find "$ASB_FUZZ_SCRATCH" -mindepth 1 -print -quit)"
           test ! -e fuzz/corpus
           test ! -e fuzz/artifacts
+          sha256sum --check "${RUNNER_TEMP}/fuzz-Cargo.lock.sha256"
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
   mutation-sentinels:
     name: Matcher and SLO mutation sentinels
     runs-on: ubuntu-24.04

@@ -57,7 +57,13 @@ fn crash_child_after_durable_running_intent() {
     let Some(root) = std::env::var_os("ASB_CRASH_CHILD_ROOT") else {
         return;
     };
-    let store = AtomicStore::open(root, StoreLimits::default()).expect("open child store");
+    let root = PathBuf::from(root);
+    assert_eq!(
+        std::env::current_dir().expect("read crash child working directory"),
+        root
+    );
+    fs::write("crash-child-cwd", b"root").expect("write crash child cwd proof");
+    let store = AtomicStore::open(&root, StoreLimits::default()).expect("open child store");
     store.create_run(&manifest()).expect("create child run");
     for (sequence, state) in [
         ExecutionState::Planned,
@@ -81,10 +87,15 @@ fn real_process_crash_preserves_uncertain_recovery_outcome() {
         .arg("--exact")
         .arg("crash_child_after_durable_running_intent")
         .arg("--nocapture")
+        .current_dir(&root.0)
         .env("ASB_CRASH_CHILD_ROOT", &root.0)
         .status()
         .expect("launch crash child");
     assert!(!status.success());
+    assert_eq!(
+        fs::read(root.0.join("crash-child-cwd")).expect("read crash child cwd proof"),
+        b"root"
+    );
     let store = AtomicStore::open(&root.0, StoreLimits::default()).expect("reopen store");
     assert_eq!(
         store.recovery_decision("run").expect("decision"),
