@@ -221,6 +221,17 @@ Descendants that leave the owned process group require cgroup containment.
 The canonical workspace and state roots are assumed not to be replaced during
 an attempt.
 
+The credential-free native replay qualification records the pinned Goose
+binary's model-catalog probes and OpenAI-compatible chat-completion traffic in
+memory, redacts authorization plus complete message arrays before sealing, and
+then replays the same cassette through the strict loopback service while the
+real Goose binary and workload tools execute again. It proves one bounded
+synthetic HTTP 429 retry, workspace-relative file editing, tool/result
+causality, independent grading parity, paced cancellation, malformed and
+truncated cassette rejection, and loopback-only network reachability. This
+controls provider responses; it does not claim deterministic process timing or
+native support beyond the pinned Linux x86_64 musl artifact.
+
 ## Provider-profile binding
 
 The shared binding interface negotiates a complete version/provider/endpoint/
