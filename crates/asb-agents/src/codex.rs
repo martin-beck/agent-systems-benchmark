@@ -971,12 +971,34 @@ fn push_event(
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
-    const ROOT: &str = "/srv/data/projects/.asb-local/ar0304-unit";
+
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn new(label: &str) -> Self {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir()
+                .join(format!("asb-codex-{label}-{}-{nonce}", std::process::id()));
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
     fn config(endpoint: &str) -> CodexConfig {
+        let root = std::env::temp_dir().join("asb-codex-config-only");
         CodexConfig::new(
             "/bin/true",
-            format!("{ROOT}/work"),
-            format!("{ROOT}/state"),
+            root.join("work"),
+            root.join("state"),
             Url::parse(endpoint).unwrap(),
             "fixture-model",
             CodexArtifact::LinuxX86_64V0_153_4,
@@ -1003,8 +1025,8 @@ mod tests {
             assert!(matches!(
                 CodexConfig::new(
                     "/bin/true",
-                    format!("{ROOT}/work"),
-                    format!("{ROOT}/state"),
+                    std::env::temp_dir().join("asb-codex-config-work"),
+                    std::env::temp_dir().join("asb-codex-config-state"),
                     Url::parse(endpoint).unwrap(),
                     "fixture-model",
                     CodexArtifact::LinuxX86_64V0_153_4
@@ -1016,8 +1038,8 @@ mod tests {
             assert!(matches!(
                 CodexConfig::new(
                     "/bin/true",
-                    format!("{ROOT}/work"),
-                    format!("{ROOT}/state"),
+                    std::env::temp_dir().join("asb-codex-config-work"),
+                    std::env::temp_dir().join("asb-codex-config-state"),
                     Url::parse("https://example.invalid/v1").unwrap(),
                     model,
                     CodexArtifact::LinuxX86_64V0_153_4
@@ -1139,9 +1161,8 @@ mod tests {
     }
     #[test]
     fn process_boundary_unlinks_prompt_and_cancels_owned_child() {
-        let root = PathBuf::from(ROOT).join(format!("process-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
+        let scratch = Scratch::new("process");
+        let root = &scratch.0;
         let binary = root.join("codex-fixture");
         fs::write(&binary, "#!/bin/sh\nread prompt\nsleep 60 &\nwait\n").unwrap();
         fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
@@ -1166,7 +1187,6 @@ mod tests {
         assert_eq!(outcome.status(), TerminalStatus::Cancelled);
         assert!(!Path::new(&format!("/proc/{pid}")).exists());
         assert!(fs::read_dir(root.join("state")).unwrap().next().is_none());
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -1215,9 +1235,8 @@ mod tests {
                 Err(AdapterError::RelativePath(found)) if found == label
             ));
         }
-        let root = PathBuf::from(ROOT).join("digest-boundaries");
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
+        let scratch = Scratch::new("digest-boundaries");
+        let root = &scratch.0;
         let empty = root.join("empty");
         fs::write(&empty, []).unwrap();
         assert!(matches!(
@@ -1233,14 +1252,12 @@ mod tests {
             digest_file(&huge),
             Err(AdapterError::ExecutableMismatch)
         ));
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn real_wait_paths_cover_success_failure_truncation_and_prompt_limit() {
-        let root = PathBuf::from(ROOT).join("wait-paths");
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
+        let scratch = Scratch::new("wait-paths");
+        let root = &scratch.0;
         let success = root.join("success");
         fs::write(
             &success,
@@ -1317,14 +1334,12 @@ mod tests {
             ),
             Err(AdapterError::PromptTooLarge)
         ));
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn workspace_and_state_preflight_reject_redirection_and_excess() {
-        let root = PathBuf::from(ROOT).join(format!("preflight-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
+        let scratch = Scratch::new("preflight");
+        let root = &scratch.0;
         let mut adapter = CodexConfig::new(
             "/bin/true",
             root.join("workspace"),
@@ -1433,7 +1448,6 @@ mod tests {
             validate_workspace(&adapter.workspace),
             Err(AdapterError::UnsafeWorkspace)
         ));
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
