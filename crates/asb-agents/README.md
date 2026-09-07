@@ -97,6 +97,79 @@ Workspace and state roots must already resolve to their exact canonical path.
 Their ancestors, bounded workspace tree, and verified executable installation
 are assumed not to be replaced or expanded between validation and use.
 
+## Goose boundary
+
+The Goose adapter targets AAIF Goose 1.49.0 through
+`goose run --no-session --no-profile --with-builtin developer --quiet
+--output-format stream-json`. It passes instructions through an unlinked
+mode-0600 descriptor on standard input, clears the inherited environment,
+uses an isolated per-attempt `GOOSE_PATH_ROOT`, disables keyring access and
+session naming, sets the context-file list to empty, and supplies the provider,
+model, endpoint, maximum turns, and repeated-tool ceiling explicitly. Only the
+bundled `developer` extension is requested. The configured executable,
+workspace, and state root must already be exact canonical non-symlink paths.
+For each attempt, the adapter opens the configured executable without following
+the final symlink, copies and hashes those same opened bytes into a new
+mode-0500 file inside the private attempt directory, and launches only that
+verified private artifact. Replacing the configured path after the copy cannot
+change the launched bytes.
+
+Goose 1.49.0 continues with exit zero when a requested extension fails to
+start. A successful quiet run is therefore required to have empty diagnostic
+stderr; any warning, including an extension-start warning, fails closed. The
+same version also converts provider failures such as an HTTP 400 into an
+assistant diagnostic followed by a zero-exit completion. Provider-generated
+assistant messages carry inference metadata; a non-inference assistant
+diagnostic is therefore mapped to a privacy-filtered failed terminal outcome,
+even when the native exit code is zero. The diagnostic text is not retained.
+The adapter accepts only bounded unique-key JSONL with causal tool
+request/response identities and a single terminal completion. Caller
+correlation IDs, each upstream line and message-content array, total upstream
+events, and independently retained ASB events all have hard byte or cardinality
+ceilings. It retains lifecycle, tool name,
+tool success, and input/output token counts, but discards response text,
+reasoning, tool arguments/results, upstream errors, session identifiers, and
+floating cost. Events are collected after process exit, so live streaming is
+not claimed.
+
+The inspected lightweight tag `v1.49.0` resolves to commit
+`71fc4be1ed729e26b1dc0a4466abdd03be548a53` and tree
+`448f24c739dae4998c583b2b7dc13c6601c155ba`. Neither tag nor commit is
+cryptographically signed. Upstream declares Apache-2.0; the inspected
+`LICENSE` SHA-256 is
+`44459b86c2e96fdbfd8a6b5c33d30d4b04b5293fcb2ec96fe4dcc4e0f90b8962`.
+The official x86_64 and aarch64 musl archive and extracted executable digests
+are recorded in the committed provenance fixture. GitHub's verifier accepted
+the release's SLSA v1 attestation for both archives while enforcing repository,
+tag ref, source commit, and GitHub-hosted runner identity; the signer was
+`.github/workflows/release.yml` at the same tag and source commit in run
+`33792982006`. The attestation binds the published archives to that workflow,
+but ASB has not independently reproduced the source-to-binary build or audited
+the complete transitive dependency graph. ASB does not redistribute Goose.
+
+Supported and evidenced:
+
+- Linux x86_64 with the pinned static musl release: native tool edit,
+  structured lifecycle/usage mapping, provider override, no-session isolation,
+  process-group cancellation, cleanup, and extension-failure rejection against
+  a credential-free loopback OpenAI-compatible fixture.
+- Linux aarch64 with the corresponding pinned static musl release only after
+  its exact native CI journey passes; the archive and executable pins alone are
+  provenance, not native evidence.
+- Explicit HTTP loopback or HTTPS OpenAI-compatible endpoints, bounded prompt,
+  output, event, turn, and repeated-tool counts. Proxy settings are defense in
+  depth; endpoints whose `NO_PROXY` suffix scope would also exempt the
+  inspected Goose 1.49.0 `us.i.posthog.com` telemetry destination are rejected.
+  Hard network and filesystem containment remains the ASB sandbox.
+
+Not claimed: interactive or persisted sessions, profiles, recipes, arbitrary
+MCP/extensions, ambient hints or skills, ACP/subscription providers, remote
+attach, live events, monetary-cost evidence, GPU/Vulkan, Windows/macOS runtime,
+glibc-specific release assets, or Alpine/native-musl host validation.
+Descendants that leave the owned process group require cgroup containment.
+The canonical workspace and state roots are assumed not to be replaced during
+an attempt.
+
 ## Provider-profile binding
 
 The shared binding interface negotiates a complete version/provider/endpoint/
