@@ -1,0 +1,47 @@
+[package]
+name = "asb-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+license = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+asb-protocol = { version = "=0.1.0", path = "../crates/asb-protocol" }
+asb-replay = { version = "=0.1.0", path = "../crates/asb-replay" }
+asb-store = { version = "=0.1.0", path = "../crates/asb-store" }
+libfuzzer-sys = "=0.4.13"
+serde_json = "=1.0.143"
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "protocol_jsonrpc"
+path = "fuzz_targets/protocol_jsonrpc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cassette_decode"
+path = "fuzz_targets/cassette_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "replay_sse"
+path = "fuzz_targets/replay_sse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "store_paths"
+path = "fuzz_targets/store_paths.rs"
+test = false
+doc = false
+bench = false

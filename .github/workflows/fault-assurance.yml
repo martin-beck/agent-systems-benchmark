@@ -1,0 +1,105 @@
+name: Fault assurance
+"on":
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * 2"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  retained-faults:
+    name: Retained faults (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Run retained production-boundary faults
+        run: |
+          cargo test --locked --package asb-store --test fault_assurance
+          cargo test --locked --package asb-store partial_disk_full_and_crash_boundaries_preserve_atomicity
+          cargo test --locked --package asb-replay --test fault_assurance
+      - name: Require clean source tree
+        run: git diff --exit-code
+  bounded-fuzz:
+    name: Bounded fuzz regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly-2025-11-21 --profile minimal
+          cargo install --locked cargo-fuzz --version 0.13.2
+      - name: Install pinned fuzz supply-chain tools
+        uses: taiki-e/install-action@7b8d4719ee4aaa279bdf55df38dacb9ebfe12a6c
+        with:
+          tool: cargo-audit@0.22.2,cargo-deny@0.20.2
+      - name: Audit the independent fuzz dependency graph
+        run: |
+          cargo deny --config fuzz/deny.toml \
+            --manifest-path fuzz/Cargo.toml --locked check
+          cargo audit --file fuzz/Cargo.lock --deny warnings
+      - name: Run bounded targets
+        env:
+          FUZZ_RUNS: ${{ github.event_name == 'schedule' && '4096' || '256' }}
+          ASB_FUZZ_SCRATCH: ${{ runner.temp }}/asb-fuzz-scratch
+          FUZZ_CORPUS_ROOT: ${{ runner.temp }}/asb-fuzz-corpus
+          FUZZ_ARTIFACT_PREFIX: ${{ runner.temp }}/
+          FUZZ_TARGET_DIR: ${{ runner.temp }}/asb-fuzz-target
+        run: |
+          mkdir -p "$ASB_FUZZ_SCRATCH" "$FUZZ_CORPUS_ROOT"
+          cargo +nightly-2025-11-21 metadata --locked \
+            --manifest-path fuzz/Cargo.toml --format-version 1 >/dev/null
+          sha256sum fuzz/Cargo.lock > "${RUNNER_TEMP}/fuzz-Cargo.lock.sha256"
+          for target in protocol_jsonrpc cassette_decode replay_sse store_paths; do
+            mkdir -p "$FUZZ_CORPUS_ROOT/$target"
+            cp -a "fuzz/seeds/$target/." "$FUZZ_CORPUS_ROOT/$target/"
+            cargo +nightly-2025-11-21 fuzz run "$target" \
+              "$FUZZ_CORPUS_ROOT/$target" --fuzz-dir fuzz \
+              --target-dir "$FUZZ_TARGET_DIR" -- \
+              -runs="$FUZZ_RUNS" -max_len=65536 -artifact_prefix="$FUZZ_ARTIFACT_PREFIX"
+          done
+          rm -rf -- fuzz/artifacts
+          test -z "$(find "$ASB_FUZZ_SCRATCH" -mindepth 1 -print -quit)"
+          test ! -e fuzz/corpus
+          test ! -e fuzz/artifacts
+          sha256sum --check "${RUNNER_TEMP}/fuzz-Cargo.lock.sha256"
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+  mutation-sentinels:
+    name: Matcher and SLO mutation sentinels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned Rust and cargo-mutants
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          cargo install --locked cargo-mutants --version 27.1.0
+      - name: Require both fail-open mutants to be caught
+        env:
+          MUTANTS_OUTPUT: ${{ runner.temp }}/mutants
+        run: fault-assurance/run-mutation-sentinels.sh "$MUTANTS_OUTPUT"
+      - name: Require clean source tree
+        run: git diff --exit-code
