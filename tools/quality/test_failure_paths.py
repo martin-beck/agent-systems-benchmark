@@ -174,6 +174,67 @@ def main() -> int:
             cwd=persistent,
         )
 
+        automatic_canary = temp / "automatic-canary"
+        shutil.copytree(ROOT, automatic_canary, ignore=shutil.ignore_patterns(".git", "target"))
+        canary = automatic_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace("workflow_dispatch:", "pull_request:"),
+            encoding="utf-8",
+        )
+        init_git(automatic_canary)
+        git(automatic_canary, "add", ".")
+        must_fail(
+            "automatic persistent canary",
+            [
+                "python3",
+                str(automatic_canary / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=automatic_canary,
+        )
+
+        privileged_canary = temp / "privileged-canary"
+        shutil.copytree(ROOT, privileged_canary, ignore=shutil.ignore_patterns(".git", "target"))
+        canary = privileged_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "  contents: read\n", "  contents: read\n  issues: write\n"
+            ),
+            encoding="utf-8",
+        )
+        init_git(privileged_canary)
+        git(privileged_canary, "add", ".")
+        must_fail(
+            "read-only persistent canary",
+            [
+                "python3",
+                str(privileged_canary / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=privileged_canary,
+        )
+
+        executable_canary = temp / "executable-canary"
+        shutil.copytree(ROOT, executable_canary, ignore=shutil.ignore_patterns(".git", "target"))
+        canary = executable_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "steps:\n", "steps:\n      - uses: actions/checkout@main\n"
+            ),
+            encoding="utf-8",
+        )
+        init_git(executable_canary)
+        git(executable_canary, "add", ".")
+        must_fail(
+            "action-free persistent canary",
+            [
+                "python3",
+                str(executable_canary / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=executable_canary,
+        )
+
         broken_docs = temp / "broken-docs"
         shutil.copytree(ROOT, broken_docs, ignore=shutil.ignore_patterns(".git", "target"))
         (broken_docs / "BROKEN.md").write_text("[missing](does-not-exist.md)\n", encoding="utf-8")

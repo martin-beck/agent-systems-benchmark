@@ -1,1 +1,4 @@
-# ASB intentionally permits only disposable GitHub-hosted runners in public workflows.
+# ASB permits GitHub-hosted runners plus one exact, protected manual canary label.
+self-hosted-runner:
+  labels:
+    - asb-development-v1-x86_64-ubuntu2404

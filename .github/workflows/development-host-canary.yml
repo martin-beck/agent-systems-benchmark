@@ -1,0 +1,40 @@
+name: Development host runner canary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asb-development-host-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Verify isolated development host
+    runs-on: [asb-development-v1-x86_64-ubuntu2404]
+    timeout-minutes: 5
+    steps:
+      - name: Verify qualified runtime and disposable workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_OS}" = Linux
+          test "${RUNNER_ARCH}" = X64
+          test -n "${RUNNER_TEMP}" && test -d "${RUNNER_TEMP}" && test ! -L "${RUNNER_TEMP}"
+          canary="${RUNNER_TEMP}/asb-canary-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -e "${canary}"
+          cleanup() {
+            rm -f -- "${canary}/sentinel"
+            rmdir -- "${canary}" 2>/dev/null || true
+          }
+          trap cleanup EXIT HUP INT TERM
+          mkdir -m 700 -- "${canary}"
+          printf '%s\n' 'public-canary' >"${canary}/sentinel"
+          test "$(stat -c '%a' "${canary}")" = 700
+          test "$(cat "${canary}/sentinel")" = public-canary
+          cleanup
+          trap - EXIT HUP INT TERM
+          test ! -e "${canary}"
+          printf '%s\n' 'ASB development-host canary passed'
