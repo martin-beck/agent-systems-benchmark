@@ -1,0 +1,45 @@
+name: Trusted development host validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asb-development-host-trusted
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate trusted runner controls
+    if: github.repository == 'martin-beck/agent-systems-benchmark' && github.ref == 'refs/heads/main'
+    runs-on: [asb-development-v1-x86_64-ubuntu2404]
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact protected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+      - name: Verify trusted event and native identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_EVENT_NAME}" = workflow_dispatch
+          test "${GITHUB_REPOSITORY}" = martin-beck/agent-systems-benchmark
+          test "${GITHUB_REF}" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "${RUNNER_OS}" = Linux
+          test "${RUNNER_ARCH}" = X64
+      - name: Validate runner lifecycle controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in tools/runners/*.sh tests/runners/*.sh; do
+            sh -n "${script}"
+          done
+          tests/runners/test_runner_scripts.sh
+      - name: Verify source tree remains clean
+        run: git diff --exit-code

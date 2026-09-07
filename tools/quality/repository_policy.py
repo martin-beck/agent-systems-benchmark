@@ -20,6 +20,11 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 DISPOSABLE_RUNNERS = {"ubuntu-24.04", "ubuntu-24.04-arm"}
 CANARY_WORKFLOW = Path(".github/workflows/development-host-canary.yml")
 CANARY_LABEL = "asb-development-v1-x86_64-ubuntu2404"
+TRUSTED_WORKFLOW = Path(".github/workflows/development-host-trusted.yml")
+TRUSTED_CONDITION = (
+    "github.repository == 'martin-beck/agent-systems-benchmark' "
+    "&& github.ref == 'refs/heads/main'"
+)
 
 
 def fail(message: str) -> None:
@@ -69,28 +74,44 @@ def validate_workflows(manifest: dict[str, object]) -> None:
         text = workflow.read_text(encoding="utf-8")
         relative = workflow.relative_to(ROOT)
         is_canary = relative == CANARY_WORKFLOW
+        is_trusted = relative == TRUSTED_WORKFLOW
+        is_protected = is_canary or is_trusted
         if "pull_request_target:" in text:
             fail(f"{relative} uses pull_request_target")
-        if is_canary:
+        if is_protected:
             triggers = re.search(r"^on:\n((?:  [^\n]*\n)*)", text, re.MULTILINE)
             if triggers is None or triggers.group(1) != "  workflow_dispatch:\n":
                 fail(f"{relative} is not workflow_dispatch-only")
-            if "uses:" in text:
+            if is_canary and "uses:" in text:
                 fail(f"{relative} may not execute repository or third-party actions")
             permissions = re.search(r"^permissions:\n((?:  [^\n]*\n)*)", text, re.MULTILINE)
             if permissions is None or permissions.group(1) != "  contents: read\n":
                 fail(f"{relative} lacks exact read-only permissions")
+            if "secrets." in text or "github.event.inputs" in text or "inputs." in text:
+                fail(f"{relative} consumes secret or caller-controlled input")
+            if is_trusted:
+                conditions = re.findall(r"^\s+if:\s*(.+?)\s*$", text, re.MULTILINE)
+                if conditions != [TRUSTED_CONDITION]:
+                    fail(f"{relative} lacks the exact repository and main-ref trust guard")
+                if (
+                    "persist-credentials: false" not in text
+                    or "ref: ${{ github.sha }}" not in text
+                ):
+                    fail(f"{relative} does not bind checkout to the protected revision")
         elif "self-hosted" in text:
             fail(f"{relative} uses a persistent runner")
         runners = re.findall(r"^\s*runs-on:\s*(.+?)\s*$", text, re.MULTILINE)
-        if is_canary and runners != [f"[{CANARY_LABEL}]"]:
+        if is_protected and runners != [f"[{CANARY_LABEL}]"]:
             fail(f"{relative} lacks the exact protected canary label")
         for raw_runner in runners:
             runner = raw_runner.split(" #", 1)[0].strip(" '\"")
             if runner == "${{ matrix.runner }}":
                 if "runner: [ubuntu-24.04, ubuntu-24.04-arm]" not in text:
                     fail(f"{relative} has an unbounded runner matrix")
-            elif not (is_canary and runner == f"[{CANARY_LABEL}]") and runner not in DISPOSABLE_RUNNERS:
+            elif (
+                not (is_protected and runner == f"[{CANARY_LABEL}]")
+                and runner not in DISPOSABLE_RUNNERS
+            ):
                 fail(f"{relative} uses non-disposable runner {runner}")
         for reference in re.findall(r"\buses:\s*[^\s@]+@([^\s#]+)", text):
             if not FULL_SHA.fullmatch(reference):
