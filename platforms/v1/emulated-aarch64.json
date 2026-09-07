@@ -1,0 +1,54 @@
+{
+  "format_version": 1,
+  "evidence_kind": "emulated-aarch64",
+  "host_architecture": "x86_64",
+  "target_architecture": "aarch64",
+  "kernel_scope": "shared-host-kernel-not-guest",
+  "emulator": {
+    "kind": "qemu-user",
+    "version": "8.2.2",
+    "package": "qemu-user=1:8.2.2+ds-0ubuntu1.18",
+    "package_sha256": "9655f3e7e50af597e1b845822c47af9231f9f1bcb8c99e586db9da775d70c041",
+    "binfmt_package": "qemu-user-binfmt=1:8.2.2+ds-0ubuntu1.18",
+    "binfmt_package_sha256": "d01021846c23eccdb1a0867fe672c5ddcaef305d976062904c1a5c006ba854fa",
+    "executable": "/usr/bin/qemu-aarch64",
+    "sha256": "0338d0ed6013abe5e0f41c5a22976ac6fe2f1b5869edf05d4a9098c121248f02"
+  },
+  "guest_image": {
+    "platform_id": "ubuntu-24.04",
+    "platform": "linux/arm64",
+    "reference": "docker.io/library/ubuntu@sha256:95fa486768020359141f1318720f43e7982ef926c792891d984aef9aaf05e7ea",
+    "release": "24.04.4 LTS"
+  },
+  "toolchain": {
+    "rust": "1.93.0",
+    "rust_commit": "254b59607d4417e9dffbc307138ae5c86280fe4c",
+    "target": "aarch64-unknown-linux-gnu",
+    "linker_package": "gcc-aarch64-linux-gnu=4:13.2.0-7ubuntu1",
+    "linker": "/usr/bin/aarch64-linux-gnu-gcc",
+    "linker_version": "13.3.0",
+    "linker_sha256": "cd90adc7801f4595267f61a5d25bd3a0c6beb2f9f1f107ab919a97a12972dc9a",
+    "sysroot_package": "libc6-dev-arm64-cross=2.39-0ubuntu8cross1"
+  },
+  "limits": {
+    "command_timeout_seconds": 120,
+    "job_timeout_minutes": 20,
+    "max_report_bytes": 4096
+  },
+  "claims": {
+    "native_hardware": false,
+    "native_kernel": false,
+    "architecture_performance": false,
+    "timing": false,
+    "contention": false,
+    "distribution_boot": false
+  },
+  "test_scope": [
+    "userspace-smoke",
+    "protocol",
+    "adapter-logic",
+    "packaging",
+    "replay",
+    "failure-paths"
+  ]
+}

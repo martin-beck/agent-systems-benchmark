@@ -82,3 +82,29 @@ python3 -m unittest discover -s tests/platforms -p test_*.py
 
 The failure fixtures prove that mutable image references, architecture alias
 confusion and container-derived native claims are rejected.
+
+## Emulated aarch64 portability lane
+
+[The emulation manifest](../platforms/v1/emulated-aarch64.json) defines a
+separate x86_64-hosted QEMU user-mode lane. It cross-builds the real workspace
+for aarch64-unknown-linux-gnu, executes protocol, replay, adapter-logic and
+bundle checks, and runs the packaged CLI. The emulator, cross linker, Rust
+toolchain and Ubuntu aarch64 userspace are exact-version or digest pinned.
+Commands have a 120-second bound, the workflow has a 20-minute bound, and its
+temporary guest filesystem and build output are removed by the disposable
+runner.
+
+This lane is labeled only emulated-aarch64. QEMU user mode shares the booted
+x86_64 host kernel; the recorded kernel release is host provenance, never guest
+or native-aarch64 evidence. It does not qualify native hardware, native kernels,
+timing, contention, architecture performance, distribution boot, Debian,
+openEuler, or any cell owned by AR-0702/AR-0703. The closed evidence contract
+rejects those claim elevations and unknown fields.
+
+The binfmt interpreter receives the same digest-pinned guest userspace prefix as
+the top-level QEMU runner, so nested aarch64 protocol and packaging executables
+are exercised rather than silently replaced by host binaries. One mini-SWE unit
+test deliberately launches a host fixture with invalid executable contents and
+has architecture-dependent error classification; it remains a native-lane test
+and is the only runtime exclusion. Runtime measurements from this lane are
+diagnostic only and must not enter benchmark comparisons or support claims.

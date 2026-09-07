@@ -1,0 +1,98 @@
+name: Emulated aarch64 portability
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  emulated-aarch64:
+    name: Emulated aarch64 (x86_64 host)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install exact emulator and cross toolchain
+        run: |
+          test "$(uname -m)" = x86_64
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            qemu-user=1:8.2.2+ds-0ubuntu1.18 \
+            qemu-user-binfmt=1:8.2.2+ds-0ubuntu1.18 \
+            gcc-aarch64-linux-gnu=4:13.2.0-7ubuntu1 \
+            libc6-dev-arm64-cross=2.39-0ubuntu8cross1
+          test "$(dpkg-query -W -f='${Version}' qemu-user)" = \
+            '1:8.2.2+ds-0ubuntu1.18'
+          test "$(dpkg-query -W -f='${Version}' qemu-user-binfmt)" = \
+            '1:8.2.2+ds-0ubuntu1.18'
+          test "$(dpkg-query -W -f='${Version}' gcc-aarch64-linux-gnu)" = \
+            '4:13.2.0-7ubuntu1'
+          test "$(dpkg-query -W -f='${Version}' libc6-dev-arm64-cross)" = \
+            '2.39-0ubuntu8cross1'
+      - name: Install exact Rust target
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add --toolchain 1.93.0 aarch64-unknown-linux-gnu
+          test "$(rustc +1.93.0 --version)" = \
+            'rustc 1.93.0 (254b59607 2026-01-19)'
+      - name: Validate closed emulation contract
+        run: |
+          python3 tools/platforms/emulated_aarch64.py validate-config
+          python3 -m unittest discover -s tests/platforms -p 'test_emulated_aarch64.py'
+      - name: Materialize immutable aarch64 guest userspace
+        env:
+          IMAGE: docker.io/library/ubuntu@sha256:95fa486768020359141f1318720f43e7982ef926c792891d984aef9aaf05e7ea
+          CARGO_TARGET_DIR: ${{ runner.temp }}/asb-emulated-aarch64-target
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: /usr/bin/aarch64-linux-gnu-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: timeout 120s qemu-aarch64 -L ${{ runner.temp }}/asb-emulated-aarch64-root
+          QEMU_LD_PREFIX: ${{ runner.temp }}/asb-emulated-aarch64-root
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/asb-emulated-aarch64-root"
+          container=
+          cleanup() {
+            if [[ -n "$container" ]]; then
+              docker rm "$container" >/dev/null 2>&1 || true
+            fi
+            rm -rf -- "$root" "$CARGO_TARGET_DIR"
+          }
+          trap cleanup EXIT
+          mkdir "$root"
+          docker pull --platform linux/arm64 "$IMAGE"
+          container="$(docker create --platform linux/arm64 "$IMAGE" /bin/true)"
+          docker export "$container" | tar -xf - -C "$root"
+          docker rm "$container"
+          container=
+          test "$(sed -n 's/^VERSION_ID=//p' "$root/etc/os-release" | tr -d '"')" = 24.04
+          test "$(sed -n 's/^VERSION=//p' "$root/etc/os-release" | tr -d '"')" = \
+            '24.04.4 LTS (Noble Numbat)'
+          ASB_EMULATION_TMP="$RUNNER_TEMP" \
+            python3 tools/platforms/emulated_aarch64.py probe \
+              --sysroot "$root" --userspace-reference "$IMAGE" \
+              --output "$RUNNER_TEMP/emulated-aarch64-report.json"
+          python3 tools/platforms/emulated_aarch64.py validate-report \
+            --report "$RUNNER_TEMP/emulated-aarch64-report.json"
+          test ! -e "$GITHUB_WORKSPACE/emulated-aarch64-report.json"
+          cargo +1.93.0 test --locked --workspace \
+            --target aarch64-unknown-linux-gnu --no-run
+          cargo +1.93.0 test --offline --locked \
+            --target aarch64-unknown-linux-gnu \
+            -p asb-protocol -p asb-replay -p asb-bundle
+          cargo +1.93.0 test --offline --locked \
+            --target aarch64-unknown-linux-gnu -p asb-agents --lib -- \
+            --skip mini_swe::tests::trajectory_file_and_spawn_failures_are_bounded_and_cleaned
+          cargo +1.93.0 build --offline --locked \
+            --target aarch64-unknown-linux-gnu -p asb-cli --release
+          timeout 120s qemu-aarch64 -L "$RUNNER_TEMP/asb-emulated-aarch64-root" \
+            "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/asb" --version
+          cleanup
+          trap - EXIT
+      - name: Clean source tree
+        run: git diff --exit-code
