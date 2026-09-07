@@ -39,7 +39,7 @@ jobs:
             --source "$GITHUB_WORKSPACE" \
             --output "$EVIDENCE_FILE" \
             --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
-            --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--ignored","--test-threads=1"]' \
+            --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
             --optional-check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
           python3 - "$EVIDENCE_FILE" <<'PY'
           import hashlib
