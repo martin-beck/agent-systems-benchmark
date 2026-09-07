@@ -27,6 +27,18 @@ private state cleanup, and proactive action exhaustion before action max+1 can
 modify the workspace. Prompt, response, tool arguments/results and hook input
 are never retained as evidence.
 
+The replay qualification uses the same pinned client and loopback-only network
+namespace to record an HTTP 500 retry, a file-writing function call, and the
+completion request. It redacts the public credential sentinel, seals the
+cassette with an empty request-body selector set, resets the original bug-fix
+workload, and requires strict replay to reproduce the terminal/tool trajectory
+and independent grader result. Request routes, headers after transport
+normalization, bodies, the includeThoughts boolean, and paired tool identities
+remain exact. Record and replay reuse the same cleaned deterministic attempt
+route; changing the state-root parent changes genuine client request semantics
+and fails closed with HTTP 409. A separate native cancellation fixture proves
+idempotent cancellation, process reaping, and empty private state.
+
 ## Boundary and limitations
 
 `GOOGLE_GEMINI_BASE_URL` alone makes v0.58.0 select its `GATEWAY` auth type,
@@ -49,8 +61,9 @@ identifiers are independently bounded and malformed output fails closed.
 
 Only Linux x86_64 native npm execution is currently evidenced. Linux aarch64,
 macOS, Windows, consumer OAuth, Vertex AI, direct Gateway authentication,
-hosted Gemini service tiers, MCP, shell/web tools, replay compatibility and
-non-loopback HTTP endpoints are unsupported. HTTPS custom endpoints are a
+hosted Gemini service tiers, MCP, shell/web tools, non-loopback replay
+endpoints, and replay dialects other than the exact captured GenerateContent
+route are unsupported. HTTPS custom endpoints are a
 validated configuration route but have no live-service evidence. The adapter
 verifies the complete extracted bundle tree before each run. The inspected npm
 artifact still does not establish a reproducible source build. Process-group

@@ -4,7 +4,12 @@
 
 use asb_agents::gemini::{GeminiArtifact, GeminiConfig, TESTED_BUNDLE_TREE_SHA256};
 use asb_protocol::{Event, ExtensionEvent, Id, TerminalStatus};
-use asb_replay::{CassetteLimits, decode_cassette};
+use asb_replay::{
+    Cassette, CassetteContents, CassetteEvent, CassetteLimits, Header, Interaction, PolicyVersion,
+    ProviderDialect, RecordedRequest, RecordedResponse, RedactionPolicy, Redactor, ReplayError,
+    ReplayLimits, ReplayRoute, ResponseBody, StrictReplayService, TerminalEvent, decode_cassette,
+    seal_cassette,
+};
 use asb_runtime::ProcessLimits;
 use asb_workloads::OriginalWorkloads;
 use serde_json::{Value, json};
@@ -204,6 +209,151 @@ fn completion_response() -> Value {
     json!({
         "candidates": [{"content": {"parts": [{"text": "done"}], "role": "model"}, "finishReason": "STOP", "index": 0}],
         "usageMetadata": {"promptTokenCount": 8, "candidatesTokenCount": 1, "totalTokenCount": 9}
+    })
+}
+
+fn recorded_request(captured: &CapturedRequest) -> RecordedRequest {
+    let object = captured.body.as_object().unwrap();
+    let mut headers = captured
+        .stable_headers
+        .iter()
+        .filter(|(name, _)| !matches!(name.as_str(), "accept-encoding" | "user-agent"))
+        .map(|(name, value)| Header {
+            name: name.clone(),
+            value: value.clone(),
+        })
+        .collect::<Vec<_>>();
+    headers.push(Header {
+        name: "x-goog-api-key".into(),
+        value: "asb-credential-free".into(),
+    });
+    headers.sort_by(|left, right| left.name.cmp(&right.name));
+    RecordedRequest {
+        method: "POST".into(),
+        path: captured.path.clone(),
+        headers,
+        body: captured.body.clone(),
+        body_sha256: String::new(),
+        model: "fixture-model".into(),
+        options: object
+            .iter()
+            .filter(|(name, _)| !matches!(name.as_str(), "contents" | "tools"))
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect(),
+        tools: object["tools"].as_array().unwrap().clone(),
+        previous_response_id: None,
+    }
+}
+
+fn recorded_sse(payload: Value) -> RecordedResponse {
+    let transport_bytes = serde_json::to_vec(&payload).unwrap().len() + "data: \n\n".len();
+    RecordedResponse {
+        status: 200,
+        headers: vec![Header {
+            name: "content-type".into(),
+            value: "text/event-stream".into(),
+        }],
+        body: ResponseBody::Events {
+            events: vec![CassetteEvent {
+                sequence: 0,
+                monotonic_offset_ns: 0,
+                event_type: "gemini.generate_content.chunk".into(),
+                payload,
+                payload_sha256: String::new(),
+                response_id: None,
+                previous_response_id: None,
+                tool_call_id: None,
+                terminal: Some(TerminalEvent::Completed),
+            }],
+            transport_chunk_bytes: vec![u32::try_from(transport_bytes).unwrap()],
+        },
+    }
+}
+
+fn recorded_retry() -> RecordedResponse {
+    RecordedResponse {
+        status: 500,
+        headers: vec![Header {
+            name: "content-type".into(),
+            value: "application/json".into(),
+        }],
+        body: ResponseBody::Buffered {
+            payload: json!({
+                "error": {
+                    "code": 500,
+                    "message": "synthetic transient failure",
+                    "status": "INTERNAL"
+                }
+            }),
+            payload_sha256: String::new(),
+            response_id: None,
+            terminal: TerminalEvent::Failed,
+        },
+    }
+}
+
+fn cassette(captured: &[CapturedRequest], responses: Vec<RecordedResponse>) -> Cassette {
+    assert_eq!(captured.len(), responses.len());
+    let mut policy = RedactionPolicy::default();
+    policy.header_names.insert("x-goog-api-key".into());
+    let contents = CassetteContents {
+        schema_version: 1,
+        cassette_id: "gemini-real-loopback-v1".into(),
+        normalization: PolicyVersion { version: 1 },
+        redaction: policy.descriptor().unwrap(),
+        interactions: captured
+            .iter()
+            .zip(responses)
+            .enumerate()
+            .map(|(ordinal, (request, response))| Interaction {
+                session_id: SESSION.into(),
+                attempt_id: ATTEMPT.into(),
+                interaction_id: format!("gemini-{ordinal}"),
+                ordinal: u32::try_from(ordinal).unwrap(),
+                dialect: ProviderDialect::GeminiGenerateContent,
+                request: recorded_request(request),
+                response,
+            })
+            .collect(),
+    };
+    let redacted = Redactor::new(policy)
+        .unwrap()
+        .redact_contents(contents)
+        .unwrap()
+        .0;
+    let bytes = seal_cassette(redacted, CassetteLimits::default()).unwrap();
+    assert!(
+        !bytes
+            .windows("asb-credential-free".len())
+            .any(|window| { window == "asb-credential-free".as_bytes() })
+    );
+    decode_cassette(&bytes, CassetteLimits::default()).unwrap()
+}
+
+fn serve(
+    service: Arc<StrictReplayService>,
+    listener: TcpListener,
+    count: usize,
+) -> thread::JoinHandle<Vec<u16>> {
+    thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        let route = ReplayRoute {
+            session_id: SESSION.into(),
+            attempt_id: ATTEMPT.into(),
+            dialect: ProviderDialect::GeminiGenerateContent,
+        };
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut statuses = Vec::new();
+        while statuses.len() < count && Instant::now() < deadline {
+            match service.serve_once(&listener, &route) {
+                Ok(status) => statuses.push(status),
+                Err(ReplayError::Io(error)) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => panic!("privacy-safe Gemini replay failure: {error}"),
+            }
+        }
+        statuses
     })
 }
 
@@ -507,16 +657,118 @@ fn pinned_gemini_retries_transient_failure_without_request_drift() {
             limits(),
         )
         .unwrap();
-    let outcome = running.wait().unwrap();
+    let recorded = running.wait().unwrap();
     server.join().unwrap();
-    assert_eq!(outcome.status(), TerminalStatus::Completed);
-    assert!(prepared.evaluate().unwrap().passed());
-    let captured = captured.lock().unwrap();
+    assert_eq!(recorded.status(), TerminalStatus::Completed);
+    let recorded_grade = prepared.evaluate().unwrap();
+    assert!(recorded_grade.passed());
+    let captured = captured.lock().unwrap().clone();
     assert_eq!(captured.len(), 3);
     assert!(
         captured[0] == captured[1],
         "retry request must remain byte-semantic exact"
     );
+    let output = prepared.workspace().join("parser.py");
+    let thinking_shapes = captured
+        .iter()
+        .map(|request| {
+            request.body["generationConfig"]["thinkingConfig"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(name, value)| {
+                    let kind = if value.is_boolean() {
+                        "boolean"
+                    } else if value.is_number() {
+                        "number"
+                    } else if value.is_string() {
+                        "string"
+                    } else if value.is_array() {
+                        "array"
+                    } else if value.is_object() {
+                        "object"
+                    } else {
+                        "null"
+                    };
+                    (name.as_str(), kind)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        thinking_shapes
+            .iter()
+            .all(|shape| shape.as_slice() == [("includeThoughts", "boolean")]),
+        "captured thinkingConfig key/type shapes changed: {thinking_shapes:?}"
+    );
+    assert!(
+        StrictReplayService::new(
+            cassette(&captured[2..], vec![recorded_sse(completion_response())]),
+            ReplayLimits::default()
+        )
+        .is_ok(),
+        "captured completion contract changed"
+    );
+    assert!(
+        StrictReplayService::new(
+            cassette(
+                &captured[..2],
+                vec![recorded_retry(), recorded_sse(completion_response())]
+            ),
+            ReplayLimits::default()
+        )
+        .is_ok(),
+        "captured retry contract changed"
+    );
+    assert!(
+        StrictReplayService::new(
+            cassette(
+                &captured[1..],
+                vec![
+                    recorded_sse(tool_response(&output)),
+                    recorded_sse(completion_response())
+                ]
+            ),
+            ReplayLimits::default()
+        )
+        .is_ok(),
+        "captured tool causality contract changed"
+    );
+    let cassette = cassette(
+        &captured,
+        vec![
+            recorded_retry(),
+            recorded_sse(tool_response(&output)),
+            recorded_sse(completion_response()),
+        ],
+    );
+
+    prepared.reset().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = Url::parse(&format!("http://{}", listener.local_addr().unwrap())).unwrap();
+    let service = Arc::new(StrictReplayService::new(cassette, ReplayLimits::default()).unwrap());
+    let replay_server = serve(Arc::clone(&service), listener, captured.len());
+    let mut replayed = adapter(&scratch.0.join("attempt"), &prepared.workspace(), endpoint)
+        .start(
+            Id(SESSION.into()),
+            Id(ATTEMPT.into()),
+            prepared.prompt(),
+            limits(),
+        )
+        .unwrap();
+    let replayed = replayed.wait().unwrap();
+    let replay_statuses = replay_server.join().unwrap();
+    assert_eq!(replay_statuses, [500, 200, 200]);
+    assert_eq!(
+        replayed.status(),
+        TerminalStatus::Completed,
+        "Gemini replay terminal mismatch: status={:?}, exit={:?}, events={}",
+        replayed.status(),
+        replayed.exit_code(),
+        replayed.events().len()
+    );
+    assert_eq!(prepared.evaluate().unwrap(), recorded_grade);
+    assert_trajectory_parity(recorded.events(), replayed.events());
     assert!(
         fs::read_dir(scratch.0.join("attempt/state"))
             .unwrap()
