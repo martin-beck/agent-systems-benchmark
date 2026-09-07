@@ -974,13 +974,20 @@ mod tests {
 
     struct Scratch(PathBuf);
 
+    fn test_scratch_base() -> PathBuf {
+        let configured = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
+        let base = configured.unwrap_or_else(std::env::temp_dir);
+        assert!(base.is_absolute(), "test scratch root must be absolute");
+        fs::canonicalize(base).expect("test scratch root must be an existing canonical directory")
+    }
+
     impl Scratch {
         fn new(label: &str) -> Self {
             let nonce = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
-            let path = std::env::temp_dir()
+            let path = test_scratch_base()
                 .join(format!("asb-codex-{label}-{}-{nonce}", std::process::id()));
             fs::create_dir_all(&path).unwrap();
             Self(path)
@@ -994,7 +1001,7 @@ mod tests {
     }
 
     fn config(endpoint: &str) -> CodexConfig {
-        let root = std::env::temp_dir().join("asb-codex-config-only");
+        let root = test_scratch_base().join("asb-codex-config-only");
         CodexConfig::new(
             "/bin/true",
             root.join("work"),
@@ -1025,8 +1032,8 @@ mod tests {
             assert!(matches!(
                 CodexConfig::new(
                     "/bin/true",
-                    std::env::temp_dir().join("asb-codex-config-work"),
-                    std::env::temp_dir().join("asb-codex-config-state"),
+                    test_scratch_base().join("asb-codex-config-work"),
+                    test_scratch_base().join("asb-codex-config-state"),
                     Url::parse(endpoint).unwrap(),
                     "fixture-model",
                     CodexArtifact::LinuxX86_64V0_153_4
@@ -1038,8 +1045,8 @@ mod tests {
             assert!(matches!(
                 CodexConfig::new(
                     "/bin/true",
-                    std::env::temp_dir().join("asb-codex-config-work"),
-                    std::env::temp_dir().join("asb-codex-config-state"),
+                    test_scratch_base().join("asb-codex-config-work"),
+                    test_scratch_base().join("asb-codex-config-state"),
                     Url::parse("https://example.invalid/v1").unwrap(),
                     model,
                     CodexArtifact::LinuxX86_64V0_153_4
