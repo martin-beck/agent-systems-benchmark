@@ -28,9 +28,13 @@ A future Rust coordinator requires differential tests against its existing model
 | asb-store | Atomic manifests, event journal, artifact hashes and recovery |
 | asb-cli | Terminal UX and machine-readable CLI output |
 | asb-csb | Optional CSB subprocess integration and result mapping |
+| asb-bundle | Signed runtime-bundle manifests and offline content/SBOM/license verification |
 
 Only asb-core and asb-cli exist at bootstrap. Add crates when their AR starts.
 Core must not depend on process, network, terminal or GitHub implementations.
+
+The runtime bundle contract and its trust boundary are documented in
+[runtime bundle verification](RUNTIME_BUNDLES.md).
 
 ## Extension API v1 design
 
