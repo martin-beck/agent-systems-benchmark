@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use signal_hook::consts::{SIGINT, SIGTERM};
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
@@ -895,20 +896,38 @@ fn run_point(
     let scheduler_attempts = result
         .attempts()
         .iter()
-        .map(|attempt| SchedulerAttemptEvidence {
-            input_id: attempt.input_id(),
-            phase: if attempt.is_warmup() {
-                "warmup"
-            } else {
-                "measured"
-            },
-            scheduled_at_ns: duration_ns(attempt.scheduled_at()),
-            started_at_ns: attempt.started_at().map(duration_ns),
-            finished_at_ns: attempt.finished_at().map(duration_ns),
-            outcome: attempt.outcome().map(attempt_outcome_name),
-            queue_delay_ns: duration_ns(attempt.queue_delay()),
-            missed: attempt.missed(),
-            miss_reason: attempt.miss_reason().map(miss_reason_name),
+        .map(|attempt| {
+            let outcome = attempt.outcome();
+            let (started_at_ns, finished_at_ns, queue_delay_ns) =
+                match (attempt.started_at(), attempt.finished_at()) {
+                    (Some(started), Some(finished)) => (
+                        Some(duration_ns(started)),
+                        Some(duration_ns(finished)),
+                        duration_ns(attempt.queue_delay()),
+                    ),
+                    (None, None) => (None, None, 0),
+                    _ if outcome == Some(AttemptOutcome::InfrastructureFailure) => (None, None, 0),
+                    (started, finished) => (
+                        started.map(duration_ns),
+                        finished.map(duration_ns),
+                        duration_ns(attempt.queue_delay()),
+                    ),
+                };
+            SchedulerAttemptEvidence {
+                input_id: attempt.input_id(),
+                phase: if attempt.is_warmup() {
+                    "warmup"
+                } else {
+                    "measured"
+                },
+                scheduled_at_ns: duration_ns(attempt.scheduled_at()),
+                started_at_ns,
+                finished_at_ns,
+                outcome: outcome.map(attempt_outcome_name),
+                queue_delay_ns,
+                missed: attempt.missed(),
+                miss_reason: attempt.miss_reason().map(miss_reason_name),
+            }
         })
         .collect();
     let attempt_failures = attempt_failures
@@ -1520,7 +1539,204 @@ fn validate_terminal_point(
             "terminal point evidence is inconsistent",
         ));
     }
+    if !valid_point_relationships(point, definition) {
+        return Err(CliError::validation(
+            "terminal point evidence relationships are inconsistent",
+        ));
+    }
     Ok(evidence.get("point").cloned())
+}
+
+fn evidence_identity(value: &Value) -> Option<(bool, u32)> {
+    let object = value.as_object()?;
+    let warmup = match object.get("phase")?.as_str()? {
+        "warmup" => true,
+        "measured" => false,
+        _ => return None,
+    };
+    let input_id = u32::try_from(object.get("input_id")?.as_u64()?).ok()?;
+    Some((warmup, input_id))
+}
+
+fn valid_point_relationships(point: &Map<String, Value>, definition: &StoredRunDefinition) -> bool {
+    let Some(scheduler) = point.get("scheduler_attempts").and_then(Value::as_array) else {
+        return false;
+    };
+    let mut scheduler_by_id = BTreeMap::new();
+    for item in scheduler {
+        let Some(identity @ (warmup, input_id)) = evidence_identity(item) else {
+            return false;
+        };
+        let limit = if warmup {
+            definition.execution.requested_point.warmups
+        } else {
+            definition.execution.requested_point.measured
+        };
+        if input_id >= limit || scheduler_by_id.insert(identity, item).is_some() {
+            return false;
+        }
+        let Some(object) = item.as_object() else {
+            return false;
+        };
+        let missed = object.get("missed").and_then(Value::as_bool) == Some(true);
+        let started = object.get("started_at_ns").and_then(Value::as_u64);
+        let finished = object.get("finished_at_ns").and_then(Value::as_u64);
+        let outcome = object.get("outcome").and_then(Value::as_str);
+        let miss_reason = object.get("miss_reason").and_then(Value::as_str);
+        let scheduled = object.get("scheduled_at_ns").and_then(Value::as_u64);
+        let queue_delay = object.get("queue_delay_ns").and_then(Value::as_u64);
+        if missed {
+            if started.is_some()
+                || finished.is_some()
+                || outcome.is_some()
+                || miss_reason.is_none()
+                || queue_delay != Some(0)
+            {
+                return false;
+            }
+        } else {
+            if outcome.is_none() || miss_reason.is_some() {
+                return false;
+            }
+            match (scheduled, started, finished) {
+                (Some(scheduled), Some(started), Some(finished)) => {
+                    if started < scheduled
+                        || finished < started
+                        || queue_delay != Some(started - scheduled)
+                    {
+                        return false;
+                    }
+                }
+                (Some(_), None, None)
+                    if outcome == Some("infrastructure_failure") && queue_delay == Some(0) => {}
+                _ => {
+                    return false;
+                }
+            }
+        }
+    }
+    if scheduler_by_id.len()
+        != (definition.execution.requested_point.warmups
+            + definition.execution.requested_point.measured) as usize
+    {
+        return false;
+    }
+
+    let Some(attempts) = point.get("attempts").and_then(Value::as_array) else {
+        return false;
+    };
+    let mut attempts_by_id = BTreeMap::new();
+    for item in attempts {
+        let Some(identity) = evidence_identity(item) else {
+            return false;
+        };
+        if !scheduler_by_id.contains_key(&identity)
+            || attempts_by_id.insert(identity, item).is_some()
+        {
+            return false;
+        }
+        let Some(object) = item.as_object() else {
+            return false;
+        };
+        let outcome = object.get("outcome").and_then(Value::as_str);
+        let termination = object.get("termination").and_then(Value::as_str);
+        let completed = termination == Some("exited")
+            && object.get("exit_code").and_then(Value::as_i64) == Some(0)
+            && object.get("grade_passed").and_then(Value::as_bool) == Some(true);
+        if !matches!(
+            (outcome, termination),
+            (Some("completed"), Some("exited"))
+                | (Some("failed"), Some("exited"))
+                | (Some("timed_out"), Some("timed_out"))
+                | (Some("cancelled"), Some("cancelled"))
+        ) || (outcome == Some("completed")) != completed
+        {
+            return false;
+        }
+    }
+    let Some(failures) = point.get("attempt_failures").and_then(Value::as_array) else {
+        return false;
+    };
+    let mut failures_by_id = BTreeMap::new();
+    for item in failures {
+        let Some(identity) = evidence_identity(item) else {
+            return false;
+        };
+        if !scheduler_by_id.contains_key(&identity)
+            || failures_by_id.insert(identity, item).is_some()
+        {
+            return false;
+        }
+    }
+
+    for (identity, scheduler) in &scheduler_by_id {
+        let object = scheduler.as_object().expect("shape was validated");
+        let outcome = object.get("outcome").and_then(Value::as_str);
+        let attempt = attempts_by_id.get(identity);
+        let failure = failures_by_id.get(identity);
+        if outcome.is_none() {
+            if attempt.is_some() || failure.is_some() {
+                return false;
+            }
+        } else if outcome == Some("infrastructure_failure") {
+            if attempt.is_some() || failure.is_none() {
+                return false;
+            }
+        } else if failure.is_some()
+            || attempt
+                .is_none_or(|attempt| attempt.get("outcome").and_then(Value::as_str) != outcome)
+        {
+            return false;
+        }
+    }
+
+    let measured = scheduler_by_id.iter().filter(|((warmup, _), _)| !warmup);
+    let count = |expected: Option<&str>| {
+        measured
+            .clone()
+            .filter(|(_, item)| item.get("outcome").and_then(Value::as_str) == expected)
+            .count() as u64
+    };
+    let admitted = measured
+        .clone()
+        .filter(|(_, item)| item.get("outcome").is_some_and(|value| !value.is_null()))
+        .count() as u64;
+    let missed = measured
+        .clone()
+        .filter(|(_, item)| item.get("missed").and_then(Value::as_bool) == Some(true))
+        .count() as u64;
+    let completed = count(Some("completed"));
+    let failed = count(Some("failed"));
+    let timed_out = count(Some("timed_out"));
+    let cancelled = count(Some("cancelled"));
+    let infrastructure_failures = count(Some("infrastructure_failure"));
+    for (key, expected) in [
+        ("admitted", admitted),
+        ("missed", missed),
+        ("completed", completed),
+        ("failed", failed),
+        ("timed_out", timed_out),
+        ("cancelled", cancelled),
+        ("infrastructure_failures", infrastructure_failures),
+    ] {
+        if point.get(key).and_then(Value::as_u64) != Some(expected) {
+            return false;
+        }
+    }
+    let stop_reason = point.get("stop_reason").and_then(Value::as_str);
+    let expected_decision = if infrastructure_failures > 0 || stop_reason == Some("contaminated") {
+        "inconclusive"
+    } else if missed == 0
+        && failed == 0
+        && timed_out == 0
+        && cancelled == 0
+        && completed == u64::from(definition.execution.requested_point.measured)
+    {
+        "pass"
+    } else {
+        "fail"
+    };
+    point.get("decision").and_then(Value::as_str) == Some(expected_decision)
 }
 
 fn exact_keys(object: &Map<String, Value>, keys: &[&str]) -> bool {
@@ -2098,7 +2314,7 @@ mod tests {
                 started_at_ns: Some(u64::MAX),
                 finished_at_ns: Some(u64::MAX),
                 outcome: Some("completed"),
-                queue_delay_ns: u64::MAX,
+                queue_delay_ns: 0,
                 missed: false,
                 miss_reason: None,
             })
@@ -2191,10 +2407,103 @@ mod tests {
                 .len(),
             MAX_POINT_ATTEMPTS as usize
         );
-        let mut event = store.load_journal(&plan.run_id).unwrap().pop().unwrap();
-        event.evidence["execution_sha256"] = Value::String("0".repeat(64));
         let definition = load_run_definition(&run_ref).unwrap();
-        assert!(validate_terminal_point(Some(&event), &definition).is_err());
+        let event = store.load_journal(&plan.run_id).unwrap().pop().unwrap();
+        assert!(validate_terminal_point(Some(&event), &definition).is_ok());
+
+        let mut contradictory = event.clone();
+        contradictory.evidence["point"]["admitted"] = json!(0);
+        assert!(validate_terminal_point(Some(&contradictory), &definition).is_err());
+
+        let mut duplicate_identity = event.clone();
+        duplicate_identity.evidence["point"]["scheduler_attempts"][1] =
+            duplicate_identity.evidence["point"]["scheduler_attempts"][0].clone();
+        assert!(validate_terminal_point(Some(&duplicate_identity), &definition).is_err());
+
+        let mut missed_with_outcome = event.clone();
+        missed_with_outcome.evidence["point"]["scheduler_attempts"][0]["missed"] = json!(true);
+        missed_with_outcome.evidence["point"]["scheduler_attempts"][0]["miss_reason"] =
+            json!("backpressure");
+        assert!(validate_terminal_point(Some(&missed_with_outcome), &definition).is_err());
+
+        let mut mismatched_attempt = event.clone();
+        mismatched_attempt.evidence["point"]["attempts"][0]["outcome"] = json!("failed");
+        assert!(validate_terminal_point(Some(&mismatched_attempt), &definition).is_err());
+
+        let miss_first_scheduler = |event: &mut JournalEvent| {
+            let scheduler = &mut event.evidence["point"]["scheduler_attempts"][0];
+            scheduler["started_at_ns"] = Value::Null;
+            scheduler["finished_at_ns"] = Value::Null;
+            scheduler["outcome"] = Value::Null;
+            scheduler["queue_delay_ns"] = json!(0);
+            scheduler["missed"] = json!(true);
+            scheduler["miss_reason"] = json!("backpressure");
+            event.evidence["point"]["admitted"] = json!(MAX_POINT_ATTEMPTS - 1);
+            event.evidence["point"]["missed"] = json!(1);
+            event.evidence["point"]["completed"] = json!(MAX_POINT_ATTEMPTS - 1);
+            event.evidence["point"]["decision"] = json!("fail");
+            event.state = ExecutionState::Failed;
+        };
+        let mut out_of_plan_attempt = event.clone();
+        miss_first_scheduler(&mut out_of_plan_attempt);
+        let attempts = out_of_plan_attempt.evidence["point"]["attempts"]
+            .as_array_mut()
+            .unwrap();
+        let mut forged_attempt = attempts.remove(0);
+        forged_attempt["input_id"] = json!(MAX_POINT_ATTEMPTS);
+        attempts.push(forged_attempt);
+        assert!(validate_terminal_point(Some(&out_of_plan_attempt), &definition).is_err());
+
+        let mut out_of_plan_failure = event.clone();
+        miss_first_scheduler(&mut out_of_plan_failure);
+        out_of_plan_failure.evidence["point"]["attempts"]
+            .as_array_mut()
+            .unwrap()
+            .remove(0);
+        out_of_plan_failure.evidence["point"]["attempt_failures"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({
+                "input_id": MAX_POINT_ATTEMPTS,
+                "phase": "measured",
+                "code": "operation",
+                "message": "bounded failure"
+            }));
+        assert!(validate_terminal_point(Some(&out_of_plan_failure), &definition).is_err());
+
+        let mut reversed_timestamps = event.clone();
+        reversed_timestamps.evidence["point"]["scheduler_attempts"][0]["started_at_ns"] = json!(0);
+        reversed_timestamps.evidence["point"]["scheduler_attempts"][0]["finished_at_ns"] = json!(0);
+        assert!(validate_terminal_point(Some(&reversed_timestamps), &definition).is_err());
+
+        let mut half_timestamp = event.clone();
+        half_timestamp.evidence["point"]["scheduler_attempts"][0]["outcome"] =
+            json!("infrastructure_failure");
+        half_timestamp.evidence["point"]["scheduler_attempts"][0]["finished_at_ns"] = Value::Null;
+        half_timestamp.evidence["point"]["attempts"]
+            .as_array_mut()
+            .unwrap()
+            .remove(0);
+        half_timestamp.evidence["point"]["attempt_failures"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({
+                "input_id": 0,
+                "phase": "measured",
+                "code": "operation",
+                "message": "bounded failure"
+            }));
+        half_timestamp.evidence["point"]["completed"] = json!(MAX_POINT_ATTEMPTS - 1);
+        half_timestamp.evidence["point"]["infrastructure_failures"] = json!(1);
+        half_timestamp.evidence["point"]["decision"] = json!("inconclusive");
+        half_timestamp.evidence["point"]["stop_reason"] = json!("contaminated");
+        half_timestamp.evidence["point"]["admission_stop_reason"] = json!("contaminated");
+        half_timestamp.state = ExecutionState::Failed;
+        assert!(validate_terminal_point(Some(&half_timestamp), &definition).is_err());
+
+        let mut wrong_execution = event;
+        wrong_execution.evidence["execution_sha256"] = Value::String("0".repeat(64));
+        assert!(validate_terminal_point(Some(&wrong_execution), &definition).is_err());
     }
 
     #[test]
