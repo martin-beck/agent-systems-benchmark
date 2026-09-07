@@ -24,9 +24,9 @@ RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 ARCHES = {"x86_64", "aarch64"}
 PLATFORMS = {
-    "ubuntu-24.04": ("ubuntu", "24.04"),
-    "debian-13": ("debian", "13"),
-    "openeuler-24.03-lts-sp2": ("openEuler", "24.03"),
+    "ubuntu-24.04": ("ubuntu", "24.04", "24.04.4 LTS"),
+    "debian-13": ("debian", "13", ""),
+    "openeuler-24.03-lts-sp2": ("openEuler", "24.03", "LTS-SP2"),
 }
 
 
@@ -78,12 +78,14 @@ def validate_platform(platform_id: str, release: dict[str, str]) -> None:
     """Require an exact declared distribution family and major release."""
     if platform_id not in PLATFORMS:
         raise EvidenceError("platform is not eligible for native qualification")
-    expected_id, expected_version = PLATFORMS[platform_id]
+    expected_id, expected_version, expected_release = PLATFORMS[platform_id]
     if release["ID"] != expected_id or not (
         release["VERSION_ID"] == expected_version
         or release["VERSION_ID"].startswith(expected_version + ".")
     ):
         raise EvidenceError("observed distribution does not match platform ID")
+    if expected_release and expected_release not in release.get("VERSION", ""):
+        raise EvidenceError("observed distribution does not match exact pinned release")
 
 
 def run_check(argv: Sequence[str], cwd: Path, timeout: int = 900) -> dict[str, Any]:
@@ -225,7 +227,11 @@ def collect(
         "performance_baseline": False,
         "platform_id": platform_id,
         "architecture": arch,
-        "distribution": {"id": release["ID"], "version_id": release["VERSION_ID"]},
+        "distribution": {
+            "id": release["ID"],
+            "version_id": release["VERSION_ID"],
+            "version": release.get("VERSION", ""),
+        },
         "kernel_release": kernel,
         "virtualization": virtualization,
         "run_id": run_id,

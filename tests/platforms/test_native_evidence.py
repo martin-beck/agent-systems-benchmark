@@ -29,7 +29,8 @@ class NativeEvidenceTests(unittest.TestCase):
         (self.root / "proc/self").mkdir(parents=True)
         (self.root / "proc/pressure").mkdir(parents=True)
         (self.root / "etc/os-release").write_text(
-            "ID=ubuntu\nVERSION_ID=24.04\n", encoding="utf-8"
+            "ID=ubuntu\nVERSION_ID=24.04\nVERSION=24.04.4 LTS (Noble Numbat)\n",
+            encoding="utf-8",
         )
         (self.root / "proc/self/cgroup").write_text("0::/asb\n", encoding="utf-8")
         for name in ("cpu", "memory", "io"):
@@ -77,12 +78,12 @@ class NativeEvidenceTests(unittest.TestCase):
 
     def test_distribution_architecture_container_and_emulation_fail_closed(self) -> None:
         (self.root / "etc/os-release").write_text(
-            "ID=debian\nVERSION_ID=13\n", encoding="utf-8"
+            "ID=debian\nVERSION_ID=13\nVERSION=13.6\n", encoding="utf-8"
         )
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "distribution"):
             self.collect()
         (self.root / "etc/os-release").write_text(
-            "ID=ubuntu\nVERSION_ID=24.04\n", encoding="utf-8"
+            "ID=ubuntu\nVERSION_ID=24.04\nVERSION=24.04.4 LTS\n", encoding="utf-8"
         )
         with mock.patch.object(
             EVIDENCE.platform, "machine", return_value="armv8l"
@@ -97,6 +98,11 @@ class NativeEvidenceTests(unittest.TestCase):
         emulated = lambda argv, cwd: "qemu" if argv[-1] == "--vm" else self.probe(argv, cwd)
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "emulated"):
             self.collect(emulated)
+        (self.root / "etc/os-release").write_text(
+            "ID=ubuntu\nVERSION_ID=24.04\nVERSION=24.04.3 LTS\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "exact pinned release"):
+            self.collect()
 
     def test_dirty_source_missing_cgroup_and_psi_fail_closed(self) -> None:
         dirty = lambda argv, cwd: " M secret" if argv[:2] == ["git", "status"] else self.probe(argv, cwd)
