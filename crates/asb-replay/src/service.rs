@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::cassette::valid_header_name;
 use crate::{
     CancellationToken, Cassette, CassetteLimits, Header, Interaction, PacingConfig, PacingError,
     PacingReport, ProviderDialect, RecordedRequest, RecordedResponse, ResponseBody,
@@ -526,6 +527,9 @@ fn capability(dialect: ProviderDialect) -> Result<DialectCapability, ReplayError
 }
 
 fn validate_dialect_contract(interaction: &Interaction) -> Result<(), ReplayError> {
+    if interaction.request.method == "GET" {
+        return validate_model_catalog_contract(interaction);
+    }
     let capability = capability(interaction.dialect)?;
     let request = &interaction.request;
     if request.method != "POST" || request.path != capability.endpoint {
@@ -579,11 +583,21 @@ fn validate_dialect_contract(interaction: &Interaction) -> Result<(), ReplayErro
     if options != request.options {
         return Err(ReplayError::InvalidCassette);
     }
-    let stream = object
-        .get("stream")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    if stream != matches!(interaction.response.body, ResponseBody::Events { .. }) {
+    let stream = match object.get("stream") {
+        None => None,
+        Some(Value::Bool(stream)) => Some(*stream),
+        Some(_) => return Err(ReplayError::InvalidCassette),
+    };
+    let event_stream = matches!(interaction.response.body, ResponseBody::Events { .. });
+    let exact_sse_content_type = has_exact_content_type(&interaction.response, "text/event-stream");
+    let stream_contract_valid = match (stream, event_stream) {
+        (Some(true), true) | (Some(false), false) | (None, false) => true,
+        (None, true) => {
+            interaction.dialect == ProviderDialect::OpenaiChatCompletions && exact_sse_content_type
+        }
+        _ => false,
+    };
+    if !stream_contract_valid {
         return Err(ReplayError::InvalidCassette);
     }
     if let ResponseBody::Events { events, .. } = &interaction.response.body
@@ -599,17 +613,64 @@ fn validate_dialect_contract(interaction: &Interaction) -> Result<(), ReplayErro
     Ok(())
 }
 
+fn validate_model_catalog_contract(interaction: &Interaction) -> Result<(), ReplayError> {
+    let request = &interaction.request;
+    let detail = request.path.strip_prefix("/v1/models/");
+    let path_valid = request.path == "/v1/models"
+        || detail.is_some_and(|model| model == request.model && valid_catalog_model(model));
+    if interaction.dialect != ProviderDialect::OpenaiChatCompletions
+        || !path_valid
+        || !request.body.is_null()
+        || !request.options.is_empty()
+        || !request.tools.is_empty()
+        || request.previous_response_id.is_some()
+        || request.model.len() > 256
+        || !valid_catalog_model(&request.model)
+        || interaction.response.status != 200
+        || !matches!(
+            interaction.response.body,
+            ResponseBody::Buffered {
+                response_id: None,
+                terminal: crate::TerminalEvent::Completed,
+                ..
+            }
+        )
+        || !has_exact_content_type(&interaction.response, "application/json")
+    {
+        return Err(ReplayError::InvalidCassette);
+    }
+    Ok(())
+}
+
+fn valid_catalog_model(model: &str) -> bool {
+    !model.is_empty()
+        && model.len() <= 256
+        && model
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':'))
+}
+
+fn has_exact_content_type(response: &RecordedResponse, expected: &str) -> bool {
+    response
+        .headers
+        .iter()
+        .filter(|header| header.name == "content-type")
+        .map(|header| header.value.as_str())
+        .eq([expected])
+}
+
 fn validate_http_request(
     request: &ReplayHttpRequest,
     limits: ReplayLimits,
 ) -> Result<(), ReplayError> {
-    if request.method != "POST"
+    if !matches!(request.method.as_str(), "GET" | "POST")
         || !request.path.starts_with('/')
         || request.path.starts_with("//")
         || request.path.contains(['#', '\\'])
         || request.path.chars().any(char::is_control)
         || request.body.len() > limits.max_body_bytes
         || request.headers.len() > limits.max_headers
+        || request.method == "GET" && !request.body.is_empty()
     {
         return Err(ReplayError::InvalidHttp);
     }
@@ -626,12 +687,8 @@ fn validate_http_request(
             .and_then(|size| size.checked_add(header.value.len()))
             .and_then(|size| size.checked_add(4))
             .ok_or(ReplayError::InvalidHttp)?;
-        if header.name.is_empty()
-            || header.name != header.name.to_ascii_lowercase()
-            || header
-                .name
-                .bytes()
-                .any(|byte| !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'))
+        if header.name != header.name.to_ascii_lowercase()
+            || !valid_header_name(&header.name)
             || header.value.chars().any(char::is_control)
             || previous.is_some_and(|name| name >= header.name.as_str())
         {
@@ -653,6 +710,15 @@ fn request_matches(
 ) -> Result<bool, ReplayError> {
     if incoming.method != expected.method || incoming.path != expected.path {
         return Ok(false);
+    }
+    if expected.method == "GET" {
+        if !incoming.body.is_empty()
+            || dialect != ProviderDialect::OpenaiChatCompletions
+            || !expected.body.is_null()
+        {
+            return Err(ReplayError::InvalidCassette);
+        }
+        return normalized_headers_match(&incoming.headers, &expected.headers, sensitive_headers);
     }
     if incoming.path != capability(dialect)?.endpoint {
         return Ok(false);
@@ -819,14 +885,17 @@ fn read_http_request<R: Read>(
         .filter(|header| header.name == "content-length")
         .map(|header| header.value.as_str())
         .collect();
-    if lengths.len() != 1
-        || headers
-            .iter()
-            .any(|header| header.name == "transfer-encoding")
+    if headers
+        .iter()
+        .any(|header| header.name == "transfer-encoding")
     {
         return Err(ReplayError::InvalidHttp);
     }
-    let encoded_length = lengths[0];
+    let encoded_length = match (method.as_str(), lengths.as_slice()) {
+        ("GET", []) => "0",
+        ("GET" | "POST", [length]) => *length,
+        _ => return Err(ReplayError::InvalidHttp),
+    };
     if encoded_length.is_empty()
         || !encoded_length.bytes().all(|byte| byte.is_ascii_digit())
         || (encoded_length.starts_with('0') && encoded_length.len() != 1)
@@ -836,7 +905,7 @@ fn read_http_request<R: Read>(
     let length: usize = encoded_length
         .parse()
         .map_err(|_| ReplayError::InvalidHttp)?;
-    if length > limits.max_body_bytes {
+    if length > limits.max_body_bytes || method == "GET" && length != 0 {
         return Err(ReplayError::InvalidHttp);
     }
     let total = head_end

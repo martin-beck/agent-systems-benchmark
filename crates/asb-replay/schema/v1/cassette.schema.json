@@ -30,7 +30,7 @@
           "type": "array",
           "maxItems": 256,
           "uniqueItems": true,
-          "items": {"type": "string", "pattern": "^[a-z0-9-]+$"}
+          "items": {"type": "string", "pattern": "^[a-z0-9_-]+$"}
         },
         "query_parameters": {
           "type": "array",
@@ -67,7 +67,7 @@
       "additionalProperties": false,
       "required": ["name", "value"],
       "properties": {
-        "name": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+        "name": {"type": "string", "pattern": "^[a-z0-9_-]+$"},
         "value": {"type": "string", "pattern": "^[^\\u0000-\\u001F\\u007F]*$"}
       }
     },

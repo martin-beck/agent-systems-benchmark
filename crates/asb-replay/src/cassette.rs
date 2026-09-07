@@ -646,11 +646,7 @@ fn validate_headers(headers: &[Header], limits: CassetteLimits) -> Result<(), Ca
     enforce_count("headers", headers.len(), usize::from(limits.max_headers))?;
     let mut previous: Option<&str> = None;
     for header in headers {
-        if header.name.is_empty()
-            || header
-                .name
-                .bytes()
-                .any(|byte| !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'))
+        if !valid_header_name(&header.name)
             || previous.is_some_and(|name| name >= header.name.as_str())
             || !valid_header_value(&header.value)
         {
@@ -865,6 +861,13 @@ pub(crate) fn valid_origin_form(path: &str) -> bool {
 
 pub(crate) fn valid_header_value(value: &str) -> bool {
     !value.chars().any(char::is_control)
+}
+
+pub(crate) fn valid_header_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
+        })
 }
 
 fn hex_digest(bytes: &[u8]) -> String {

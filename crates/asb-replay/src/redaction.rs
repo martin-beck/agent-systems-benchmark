@@ -11,7 +11,8 @@ use crate::{
     CassetteContents, Header, RecordedRequest, RecordedResponse, RedactedCassetteContents,
     RedactionDescriptor, RedactionSelectors, ResponseBody,
     cassette::{
-        canonical_json_bytes, canonical_value_digest, valid_header_value, valid_origin_form,
+        canonical_json_bytes, canonical_value_digest, valid_header_name, valid_header_value,
+        valid_origin_form,
     },
 };
 
@@ -77,11 +78,7 @@ impl RedactionPolicy {
             .ok_or(RedactionError::LimitExceeded)?;
         if count > MAX_SELECTORS
             || self.header_names.iter().any(|name| {
-                name.is_empty()
-                    || name != &name.to_ascii_lowercase()
-                    || name.bytes().any(|byte| {
-                        !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-                    })
+                name.is_empty() || name != &name.to_ascii_lowercase() || !valid_header_name(name)
             })
             || self.query_parameters.iter().any(String::is_empty)
             || self

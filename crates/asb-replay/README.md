@@ -32,7 +32,10 @@ Requests store every response-affecting semantic field explicitly: method,
 validated canonical origin-form path/query, headers, body, model, options, tools,
 and prior-response identity. Network-path references, fragments, backslashes,
 control characters, and parser-normalized request targets fail closed. Header
-values containing control characters also fail closed.
+values containing control characters also fail closed. Canonical stored header
+names contain only lowercase ASCII letters, digits, hyphens, and underscores;
+the underscore allowance is required by the pinned OpenDesk client. Other HTTP
+token punctuation is deliberately unsupported.
 Event boundaries and monotonic offsets are independent of transport chunk sizes.
 A streamed response has exactly one terminal classification on its final event.
 
@@ -86,6 +89,22 @@ dialect for each isolated listener route. Exact POST endpoints are implemented
 for Chat Completions (`/v1/chat/completions`), Responses (`/v1/responses`), and
 Messages (`/v1/messages`). These are syntax capabilities only; AR-0505 must
 test named real client versions before any compatibility claim.
+
+The Chat Completions dialect also admits the two explicitly recorded OpenDesk
+catalog probes, `GET /v1/models` and `GET /v1/models/{model}`. The detail suffix
+must exactly equal the cassette model, whose identifier is bounded to 256 safe
+ASCII bytes. A catalog request has an empty wire body, canonical `null` body,
+no options, tools, or causal predecessor, and consumes the same ordered cursor
+as completions. Its response must be HTTP 200 buffered `application/json`,
+completed without a response ID. A missing Content-Length or the canonical
+`Content-Length: 0` is accepted for GET; nonzero or duplicate lengths fail
+closed. This is syntax compatibility, not an OpenDesk support claim.
+
+For Chat Completions, an omitted `stream` member can select recorded events only
+when the response has exactly one `content-type: text/event-stream` header. An
+explicit false value, a non-Boolean value, or any other/missing content type
+cannot select events. Existing explicit true and buffered-response rules remain
+unchanged.
 
 Matching compares the complete duplicate-free semantic JSON body, origin-form
 target, and end-to-end headers. Only `host`, `content-length`, `connection`,

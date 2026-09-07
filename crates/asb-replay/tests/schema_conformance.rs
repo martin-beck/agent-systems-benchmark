@@ -54,4 +54,13 @@ fn schema_rejects_unknown_fields_versions_and_unbounded_shapes() {
             value.into();
         assert!(!validator.is_valid(&unsafe_header));
     }
+
+    let mut underscore = fixture.clone();
+    underscore["contents"]["interactions"][0]["request"]["headers"][0]["name"] = "span_id".into();
+    assert!(validator.is_valid(&underscore));
+    for name in ["span:id", "span id", "span.id", "Span_id", "span/id"] {
+        let mut unsafe_header = fixture.clone();
+        unsafe_header["contents"]["interactions"][0]["request"]["headers"][0]["name"] = name.into();
+        assert!(!validator.is_valid(&unsafe_header));
+    }
 }
