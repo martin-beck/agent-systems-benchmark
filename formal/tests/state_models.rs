@@ -2,7 +2,9 @@
 //! Exhaustive finite attempt and replay state-model checks.
 
 use asb_formal_models::microseconds_to_nanoseconds;
-use asb_formal_models::{AttemptEvent, AttemptState, ReplayCursors, transition_attempt};
+use asb_formal_models::{
+    AttemptEvent, AttemptState, ReplayCursors, RequestSelectorScope, transition_attempt,
+};
 
 const EVENTS: [AttemptEvent; 3] = [
     AttemptEvent::Start,
@@ -90,6 +92,33 @@ fn global_cursor_mutant_exhibits_cross_talk() {
     assert_ne!(
         global_cursor, second_before,
         "retained global-cursor mutant must alter the other session view"
+    );
+}
+
+#[test]
+fn request_selector_scope_is_exhaustive_and_method_blind_mutant_fails() {
+    for rule_interaction in 0..=2 {
+        for request_interaction in 0..=2 {
+            for rule_post in [false, true] {
+                for request_post in [false, true] {
+                    let scope = RequestSelectorScope::new(rule_interaction, rule_post);
+                    assert_eq!(
+                        scope.applies_to(request_interaction, request_post),
+                        rule_interaction == request_interaction && rule_post == request_post
+                    );
+                }
+            }
+        }
+    }
+
+    let post_rule = RequestSelectorScope::new(1, true);
+    assert!(!post_rule.applies_to(1, false));
+    let method_blind_mutant_applies = 1 == 1;
+    assert!(method_blind_mutant_applies);
+    assert_ne!(
+        method_blind_mutant_applies,
+        post_rule.applies_to(1, false),
+        "retained method-blind mutant must differ on POST-rule versus GET-request"
     );
 }
 

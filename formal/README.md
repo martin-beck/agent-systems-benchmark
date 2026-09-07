@@ -17,14 +17,16 @@ on both disposable x86_64 and aarch64 workers.
 | missing latency SLO | bounded proof | every u64 latency bound for one missing successful sample | larger sampled histories |
 | microseconds to nanoseconds | bounded proof | every u32 input plus the u64 overflow endpoint | larger valid u64 counters and kernel counter validity |
 | replay cursor separation | bounded proof | every pair of u8 cursors, one session advance | HTTP parser details and persistence |
+| request selector scope | bounded proof | every pair of u8 interaction IDs and both method classes | JSON pointer parsing and HTTP transport |
 | cancellation ownership | implementation model test | every Loom interleaving of two cancellers and two finishers | signals, PID reuse and the Linux kernel |
 | attempt lifecycle | exhaustive state model | every three-event trace through depth six | crash/restart and persisted journals |
 | replay session separation | exhaustive state model | every two-session trace through depth four | provider dialect normalization |
+| request selector negatives | exhaustive state model | three interaction IDs and both method classes | unbounded real cassette cardinality |
 
 Kani and the finite state explorer are mechanical only within the stated bounds.
 Loom checks the atomic ownership algorithm, not the OS process implementation.
 Kani reports unsupported caller-location and foreign-function constructs in the
-compiled dependency graph; the five successful harnesses do not reach or verify
+compiled dependency graph; the six successful harnesses do not reach or verify
 those constructs.
 Native process cancellation and replay integration tests remain the evidence for
 environmental assumptions. The production trace test executes the real Linux

@@ -9,11 +9,12 @@ use std::thread;
 use std::time::Duration;
 
 use asb_replay::{
-    CancellationToken, Cassette, CassetteContents, CassetteEvent, CassetteLimits, Header,
-    Interaction, MAX_IO_TIMEOUT, PacingConfig, PacingError, PacingMode, PolicyVersion,
-    ProviderDialect, RecordedRequest, RecordedResponse, RedactionPolicy, Redactor, ReplayError,
-    ReplayHttpRequest, ReplayLimits, ReplayRoute, ResponseBody, StrictReplayService, TerminalEvent,
-    decode_cassette, dialect_capabilities, seal_cassette,
+    CancellationToken, Cassette, CassetteContents, CassetteError, CassetteEvent, CassetteLimits,
+    Header, Interaction, MAX_IO_TIMEOUT, PacingConfig, PacingError, PacingMode, PolicyVersion,
+    ProviderDialect, RecordedRequest, RecordedResponse, RedactionError, RedactionPolicy, Redactor,
+    ReplayError, ReplayHttpRequest, ReplayLimits, ReplayRoute, RequestBodyRedactionRule,
+    ResponseBody, StrictReplayService, TerminalEvent, decode_cassette, dialect_capabilities,
+    seal_cassette,
 };
 use serde_json::{Value, json};
 
@@ -445,7 +446,15 @@ fn opendesk_contents() -> CassetteContents {
 }
 
 fn seal_opendesk(contents: CassetteContents) -> Cassette {
-    let mut policy = RedactionPolicy::default();
+    let mut policy = RedactionPolicy {
+        version: 2,
+        request_body_rules: vec![RequestBodyRedactionRule {
+            interaction_id: "opendesk-2".into(),
+            method: "POST".into(),
+            pointers: vec!["/messages".into()],
+        }],
+        ..RedactionPolicy::default()
+    };
     policy.header_names.insert("span_id".into());
     let bytes = seal_cassette(
         Redactor::new(policy)
@@ -485,7 +494,10 @@ fn opendesk_incoming(cassette: &Cassette, ordinal: usize) -> ReplayHttpRequest {
         body: if request.method == "GET" {
             vec![]
         } else {
-            serde_json::to_vec(&request.body).unwrap()
+            let mut body = request.body.clone();
+            body["messages"] =
+                json!([{"role": "user", "content": "different runtime private prompt"}]);
+            serde_json::to_vec(&body).unwrap()
         },
     }
 }
@@ -573,6 +585,29 @@ fn capabilities_are_explicit_and_do_not_include_synthetic() {
 #[test]
 fn opendesk_catalog_and_absent_stream_sse_are_ordered_and_byte_exact() {
     let source = seal_opendesk(opendesk_contents());
+    assert_eq!(source.contents.redaction.version, 2);
+    assert!(
+        source
+            .contents
+            .redaction
+            .selectors
+            .request_body_pointers
+            .is_empty()
+    );
+    assert_eq!(
+        source.contents.redaction.selectors.request_body_rules,
+        [RequestBodyRedactionRule {
+            interaction_id: "opendesk-2".into(),
+            method: "POST".into(),
+            pointers: vec!["/messages".into()],
+        }]
+    );
+    assert!(source.contents.interactions[0].request.body.is_null());
+    assert!(source.contents.interactions[1].request.body.is_null());
+    assert_eq!(
+        source.contents.interactions[2].request.body["messages"],
+        json!("[ASB_REDACTED:000003]")
+    );
     let selected = route("opendesk", ProviderDialect::OpenaiChatCompletions);
     let service = StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap();
 
@@ -641,6 +676,121 @@ fn opendesk_catalog_and_absent_stream_sse_are_ordered_and_byte_exact() {
     );
     assert!(detail.starts_with(b"HTTP/1.1 200 OK\r\n"));
     assert!(detail.ends_with(br#"{"id":"fixture-model","object":"model"}"#));
+}
+
+#[test]
+fn interaction_scoped_request_redaction_fails_closed_without_advancing() {
+    let source = seal_opendesk(opendesk_contents());
+    let selected = route("opendesk", ProviderDialect::OpenaiChatCompletions);
+
+    let missing_service =
+        StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap();
+    assert_eq!(
+        missing_service
+            .handle(&selected, opendesk_incoming(&source, 0))
+            .unwrap()
+            .status,
+        200
+    );
+    assert_eq!(
+        missing_service
+            .handle(&selected, opendesk_incoming(&source, 1))
+            .unwrap()
+            .status,
+        200
+    );
+    let mut missing = opendesk_incoming(&source, 2);
+    let mut missing_body: Value = serde_json::from_slice(&missing.body).unwrap();
+    missing_body.as_object_mut().unwrap().remove("messages");
+    missing.body = serde_json::to_vec(&missing_body).unwrap();
+    assert!(matches!(
+        missing_service.handle(&selected, missing),
+        Err(ReplayError::Mismatch)
+    ));
+    assert_eq!(
+        missing_service
+            .handle(&selected, opendesk_incoming(&source, 2))
+            .unwrap()
+            .status,
+        200
+    );
+
+    let injection_service =
+        StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap();
+    for ordinal in 0..2 {
+        injection_service
+            .handle(&selected, opendesk_incoming(&source, ordinal))
+            .unwrap();
+    }
+    let mut injection = opendesk_incoming(&source, 2);
+    let mut injection_body: Value = serde_json::from_slice(&injection.body).unwrap();
+    injection_body["messages"] = json!("[ASB_REDACTED:000003]");
+    injection.body = serde_json::to_vec(&injection_body).unwrap();
+    assert!(matches!(
+        injection_service.handle(&selected, injection),
+        Err(ReplayError::InvalidHttp)
+    ));
+
+    let mismatch_service =
+        StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap();
+    for ordinal in 0..2 {
+        mismatch_service
+            .handle(&selected, opendesk_incoming(&source, ordinal))
+            .unwrap();
+    }
+    let mut mismatch = opendesk_incoming(&source, 2);
+    let mut mismatch_body: Value = serde_json::from_slice(&mismatch.body).unwrap();
+    mismatch_body["model"] = json!("different-stable-model");
+    mismatch.body = serde_json::to_vec(&mismatch_body).unwrap();
+    assert!(matches!(
+        mismatch_service.handle(&selected, mismatch),
+        Err(ReplayError::Mismatch)
+    ));
+}
+
+#[test]
+fn interaction_policy_rejects_ambiguous_or_unbound_rules() {
+    let get_rule = RedactionPolicy {
+        version: 2,
+        request_body_rules: vec![RequestBodyRedactionRule {
+            interaction_id: "opendesk-0".into(),
+            method: "GET".into(),
+            pointers: vec!["/messages".into()],
+        }],
+        ..RedactionPolicy::default()
+    };
+    assert!(matches!(
+        Redactor::new(get_rule),
+        Err(RedactionError::InvalidPolicy)
+    ));
+
+    let mut standalone = RedactionPolicy {
+        version: 2,
+        request_body_rules: vec![RequestBodyRedactionRule {
+            interaction_id: "opendesk-2".into(),
+            method: "POST".into(),
+            pointers: vec!["/messages".into()],
+        }],
+        ..RedactionPolicy::default()
+    };
+    let mut request = opendesk_contents().interactions.remove(2).request;
+    assert!(matches!(
+        Redactor::new(standalone.clone())
+            .unwrap()
+            .redact_request(&mut request),
+        Err(RedactionError::InteractionContextRequired)
+    ));
+
+    standalone.request_body_rules[0].interaction_id = "absent-interaction".into();
+    let redacted = Redactor::new(standalone)
+        .unwrap()
+        .redact_contents(opendesk_contents())
+        .unwrap()
+        .0;
+    assert!(matches!(
+        seal_cassette(redacted, CassetteLimits::default()),
+        Err(CassetteError::InvalidRedactionPolicy)
+    ));
 }
 
 #[test]

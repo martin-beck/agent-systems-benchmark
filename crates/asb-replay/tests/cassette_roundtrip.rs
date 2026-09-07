@@ -346,7 +346,7 @@ fn policy_identity_request_and_response_invariants_fail_closed() {
 
     let bytes = seal_cassette(support::redacted_contents(), CassetteLimits::default()).unwrap();
     let mut redaction: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    redaction["contents"]["redaction"]["version"] = 2.into();
+    redaction["contents"]["redaction"]["version"] = 3.into();
     assert!(matches!(
         decode_cassette(
             &serde_json::to_vec(&redaction).unwrap(),

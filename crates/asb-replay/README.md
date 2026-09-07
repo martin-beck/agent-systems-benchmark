@@ -25,8 +25,14 @@ different numeric or escaping canonicalization.
 
 The cassette persists the complete sorted, non-secret header/query/body selector
 configuration and its canonical SHA-256 identity, not only the policy version.
-This lets audit and migration tooling distinguish materially different V1
-redaction policies.
+Redaction policy V1 retains cassette-global request-body pointers for compatibility.
+Policy V2 requires a nonempty sorted rule set whose pointers are each bound to one
+exact interaction ID and the POST method; V2 forbids global request pointers.
+Interactions without a rule have an empty request selector set, so catalog GETs
+remain canonical null while selected completion POST fields are redacted. Rules,
+including their interaction/method scope, are covered by both the selector digest
+and cassette integrity. This lets audit and migration tooling distinguish
+materially different redaction policies.
 
 Requests store every response-affecting semantic field explicitly: method,
 validated canonical origin-form path/query, headers, body, model, options, tools,
@@ -64,7 +70,8 @@ pointers, double-encoded query escapes, absent configured fields, and mapping or
 selector exhaustion fail closed. The ephemeral reverse mapping is never part of
 the cassette or an error message.
 
-Strict replay applies authenticated request-body selectors only for comparison:
+Strict replay applies the authenticated request-body selectors for the current
+interaction and method only for comparison:
 it substitutes each present incoming selected value with the exact bounded
 redaction marker already stored at that pointer. Missing or out-of-bounds
 pointers, malformed expected markers, marker-shaped incoming data, and markers
@@ -74,6 +81,13 @@ after canonical JSON encoding. When a selected pointer is inside a duplicated
 top-level provider option, pre-persistence redaction synchronizes that option
 from the redacted body so the cassette cannot retain the volatile value through
 its denormalized request metadata.
+
+V2 rules must be strictly sorted, contain nonempty unique pointer lists, reference
+an interaction present in the cassette, and match its exact POST method. GET rules,
+duplicate or orphan rules, mixed V1/V2 selector shapes, and context-free use of a
+V2 policy fail closed. JSON Schema bounds the public representation; exact sort
+order, RFC 6901 escaping, and cross-reference validity are additionally enforced
+by Rust validation.
 
 All cassette and selector hashes are unkeyed integrity checks. They detect
 accidental corruption and inconsistent descriptors; they do not authenticate an

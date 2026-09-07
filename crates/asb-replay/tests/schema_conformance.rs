@@ -96,3 +96,39 @@ fn schema_and_runtime_agree_on_the_gemini_dialect_tag() {
         );
     }
 }
+
+#[test]
+fn schema_closes_interaction_scoped_redaction_shapes() {
+    let schema: Value = serde_json::from_str(SCHEMA).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let fixture: Value = serde_json::from_str(FIXTURES[0]).unwrap();
+
+    let mut v2 = fixture.clone();
+    v2["contents"]["redaction"]["version"] = json!(2);
+    v2["contents"]["redaction"]["selectors"]["request_body_rules"] = json!([{
+        "interaction_id": "session-a-0",
+        "method": "POST",
+        "pointers": ["/input"]
+    }]);
+    assert!(validator.is_valid(&v2));
+
+    let mut v1_rules = fixture.clone();
+    v1_rules["contents"]["redaction"]["selectors"]["request_body_rules"] =
+        v2["contents"]["redaction"]["selectors"]["request_body_rules"].clone();
+    assert!(!validator.is_valid(&v1_rules));
+
+    let mut v2_global = v2.clone();
+    v2_global["contents"]["redaction"]["selectors"]["request_body_pointers"] = json!(["/input"]);
+    assert!(!validator.is_valid(&v2_global));
+
+    for rules in [
+        json!([]),
+        json!([{"interaction_id": "session-a-0", "method": "GET", "pointers": ["/input"]}]),
+        json!([{"interaction_id": "session-a-0", "method": "POST", "pointers": []}]),
+        json!([{"interaction_id": "session-a-0", "method": "POST", "pointers": ["/input"], "extra": true}]),
+    ] {
+        let mut invalid = v2.clone();
+        invalid["contents"]["redaction"]["selectors"]["request_body_rules"] = rules;
+        assert!(!validator.is_valid(&invalid));
+    }
+}

@@ -52,6 +52,27 @@ pub struct ReplayCursors {
     cursors: [u8; 2],
 }
 
+/// Finite model of the interaction and method bound to one request selector.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RequestSelectorScope {
+    interaction: u8,
+    post: bool,
+}
+
+impl RequestSelectorScope {
+    /// Construct a selector scope from a bounded interaction and method class.
+    #[must_use]
+    pub const fn new(interaction: u8, post: bool) -> Self {
+        Self { interaction, post }
+    }
+
+    /// A selector applies only when both interaction and method are exact.
+    #[must_use]
+    pub const fn applies_to(self, interaction: u8, post: bool) -> bool {
+        self.interaction == interaction && self.post == post
+    }
+}
+
 impl ReplayCursors {
     /// Return a session cursor.
     #[must_use]
@@ -166,6 +187,23 @@ mod proofs {
             assert_eq!(cursors.cursor(0), Some(first + 1));
         } else {
             assert_eq!(cursors.cursor(0), Some(first));
+        }
+    }
+
+    #[kani::proof]
+    fn request_selector_cannot_cross_interaction_or_method() {
+        let rule_interaction: u8 = kani::any();
+        let request_interaction: u8 = kani::any();
+        let rule_post: bool = kani::any();
+        let request_post: bool = kani::any();
+        let scope = RequestSelectorScope::new(rule_interaction, rule_post);
+        let applies = scope.applies_to(request_interaction, request_post);
+        assert_eq!(
+            applies,
+            rule_interaction == request_interaction && rule_post == request_post
+        );
+        if rule_interaction != request_interaction || rule_post != request_post {
+            assert!(!applies);
         }
     }
 }
