@@ -223,6 +223,153 @@ fn cassette() -> Cassette {
     decode_cassette(&bytes, CassetteLimits::default()).unwrap()
 }
 
+fn opendesk_request(method: &str, path: &str, body: Value) -> RecordedRequest {
+    let options = body
+        .as_object()
+        .map(|object| {
+            object
+                .iter()
+                .filter(|(name, _)| !matches!(name.as_str(), "messages" | "model" | "tools"))
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    RecordedRequest {
+        method: method.into(),
+        path: path.into(),
+        headers: vec![
+            Header {
+                name: "authorization".into(),
+                value: "fixture-credential".into(),
+            },
+            Header {
+                name: "content-type".into(),
+                value: "application/json".into(),
+            },
+            Header {
+                name: "span_id".into(),
+                value: "fixture-span".into(),
+            },
+        ],
+        body,
+        body_sha256: String::new(),
+        model: "fixture-model".into(),
+        options,
+        tools: vec![],
+        previous_response_id: None,
+    }
+}
+
+fn opendesk_buffered(payload: Value) -> RecordedResponse {
+    RecordedResponse {
+        status: 200,
+        headers: vec![Header {
+            name: "content-type".into(),
+            value: "application/json".into(),
+        }],
+        body: ResponseBody::Buffered {
+            payload,
+            payload_sha256: String::new(),
+            response_id: None,
+            terminal: TerminalEvent::Completed,
+        },
+    }
+}
+
+fn opendesk_contents() -> CassetteContents {
+    let completion = json!({
+        "messages": [{"role": "user", "content": "synthetic"}],
+        "model": "fixture-model"
+    });
+    CassetteContents {
+        schema_version: 1,
+        cassette_id: "opendesk-compatibility".into(),
+        normalization: PolicyVersion { version: 1 },
+        redaction: RedactionPolicy::default().descriptor().unwrap(),
+        interactions: vec![
+            Interaction {
+                session_id: "opendesk".into(),
+                attempt_id: "attempt-1".into(),
+                interaction_id: "opendesk-0".into(),
+                ordinal: 0,
+                dialect: ProviderDialect::OpenaiChatCompletions,
+                request: opendesk_request("GET", "/v1/models", Value::Null),
+                response: opendesk_buffered(json!({
+                    "object": "list",
+                    "data": [{"id": "fixture-model", "object": "model"}]
+                })),
+            },
+            Interaction {
+                session_id: "opendesk".into(),
+                attempt_id: "attempt-1".into(),
+                interaction_id: "opendesk-1".into(),
+                ordinal: 1,
+                dialect: ProviderDialect::OpenaiChatCompletions,
+                request: opendesk_request("GET", "/v1/models/fixture-model", Value::Null),
+                response: opendesk_buffered(json!({
+                    "id": "fixture-model",
+                    "object": "model"
+                })),
+            },
+            Interaction {
+                session_id: "opendesk".into(),
+                attempt_id: "attempt-1".into(),
+                interaction_id: "opendesk-2".into(),
+                ordinal: 2,
+                dialect: ProviderDialect::OpenaiChatCompletions,
+                request: opendesk_request("POST", "/v1/chat/completions", completion),
+                response: events("opendesk-response", None),
+            },
+        ],
+    }
+}
+
+fn seal_opendesk(contents: CassetteContents) -> Cassette {
+    let mut policy = RedactionPolicy::default();
+    policy.header_names.insert("span_id".into());
+    let bytes = seal_cassette(
+        Redactor::new(policy)
+            .unwrap()
+            .redact_contents(contents)
+            .unwrap()
+            .0,
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    decode_cassette(&bytes, CassetteLimits::default()).unwrap()
+}
+
+fn opendesk_incoming(cassette: &Cassette, ordinal: usize) -> ReplayHttpRequest {
+    let request = &cassette.contents.interactions[ordinal].request;
+    ReplayHttpRequest {
+        method: request.method.clone(),
+        path: request.path.clone(),
+        headers: vec![
+            Header {
+                name: "authorization".into(),
+                value: "different-runtime-token".into(),
+            },
+            Header {
+                name: "content-type".into(),
+                value: "application/json".into(),
+            },
+            Header {
+                name: "host".into(),
+                value: "127.0.0.1".into(),
+            },
+            Header {
+                name: "span_id".into(),
+                value: "different-runtime-span".into(),
+            },
+        ],
+        body: if request.method == "GET" {
+            vec![]
+        } else {
+            serde_json::to_vec(&request.body).unwrap()
+        },
+    }
+}
+
 fn reseal(mut source: Cassette, mutate: impl FnOnce(&mut CassetteContents)) -> Cassette {
     for interaction in &mut source.contents.interactions {
         for header in &mut interaction.request.headers {
@@ -295,6 +442,209 @@ fn capabilities_are_explicit_and_do_not_include_synthetic() {
         capabilities
             .iter()
             .all(|item| { item.buffered && item.server_sent_events && item.tool_calls })
+    );
+}
+
+#[test]
+fn opendesk_catalog_and_absent_stream_sse_are_ordered_and_byte_exact() {
+    let source = seal_opendesk(opendesk_contents());
+    let selected = route("opendesk", ProviderDialect::OpenaiChatCompletions);
+    let service = StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap();
+
+    let mut unrecorded = opendesk_incoming(&source, 0);
+    unrecorded.path = "/v1/models/unrecorded".into();
+    assert!(matches!(
+        service.handle(&selected, unrecorded),
+        Err(ReplayError::Mismatch)
+    ));
+    assert_eq!(
+        service
+            .handle(&selected, opendesk_incoming(&source, 0))
+            .unwrap()
+            .status,
+        200
+    );
+    assert!(matches!(
+        service.handle(&selected, opendesk_incoming(&source, 0)),
+        Err(ReplayError::Mismatch)
+    ));
+    assert_eq!(
+        service
+            .handle(&selected, opendesk_incoming(&source, 1))
+            .unwrap()
+            .status,
+        200
+    );
+
+    let completion = opendesk_incoming(&source, 2);
+    let raw: Vec<u8> = format!(
+        "POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\nAuthorization: runtime\r\nContent-Type: application/json\r\nSpan_id: runtime-span\r\nContent-Length: {}\r\n\r\n",
+        completion.body.len()
+    )
+    .into_bytes()
+    .into_iter()
+    .chain(completion.body)
+    .collect();
+    let response = serve_raw(Arc::new(service), selected.clone(), raw);
+    let (_, body) = response.split_at(
+        response
+            .windows(4)
+            .position(|part| part == b"\r\n\r\n")
+            .unwrap()
+            + 4,
+    );
+    assert_eq!(
+        body,
+        b"data: {\"delta\":\"synthetic\"}\n\ndata: {\"usage\":{\"output_tokens\":1}}\n\ndata: [DONE]\n\n"
+    );
+
+    let socket_service =
+        Arc::new(StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap());
+    let list = serve_raw(
+        Arc::clone(&socket_service),
+        selected.clone(),
+        b"GET /v1/models HTTP/1.1\r\nHost: localhost\r\nAuthorization: runtime\r\nContent-Type: application/json\r\nSpan_id: runtime-span\r\n\r\n".to_vec(),
+    );
+    assert!(list.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(
+        list.ends_with(br#"{"data":[{"id":"fixture-model","object":"model"}],"object":"list"}"#)
+    );
+    let detail = serve_raw(
+        socket_service,
+        selected,
+        b"GET /v1/models/fixture-model HTTP/1.1\r\nHost: localhost\r\nAuthorization: runtime\r\nContent-Length: 0\r\nContent-Type: application/json\r\nSpan_id: runtime-span\r\n\r\n".to_vec(),
+    );
+    assert!(detail.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(detail.ends_with(br#"{"id":"fixture-model","object":"model"}"#));
+}
+
+#[test]
+fn opendesk_compatibility_rejects_ambiguous_catalog_and_stream_shapes() {
+    let rejects = |contents| {
+        assert!(matches!(
+            StrictReplayService::new(seal_opendesk(contents), ReplayLimits::default()),
+            Err(ReplayError::InvalidCassette)
+        ));
+    };
+
+    let mut wrong_catalog = opendesk_contents();
+    wrong_catalog.interactions[0].request.path = "/v1/models?limit=1".into();
+    rejects(wrong_catalog);
+
+    let mut wrong_detail = opendesk_contents();
+    wrong_detail.interactions[1].request.path = "/v1/models/other-model".into();
+    rejects(wrong_detail);
+
+    let mut catalog_body = opendesk_contents();
+    catalog_body.interactions[0].request.body = json!({});
+    rejects(catalog_body);
+
+    let mut catalog_option = opendesk_contents();
+    catalog_option.interactions[0]
+        .request
+        .options
+        .insert("limit".into(), json!(1));
+    rejects(catalog_option);
+
+    let mut catalog_stream = opendesk_contents();
+    catalog_stream.interactions[0].response = events("catalog-stream", None);
+    rejects(catalog_stream);
+
+    let mut catalog_status = opendesk_contents();
+    catalog_status.interactions[0].response.status = 404;
+    rejects(catalog_status);
+
+    let mut catalog_terminal = opendesk_contents();
+    if let ResponseBody::Buffered { terminal, .. } =
+        &mut catalog_terminal.interactions[0].response.body
+    {
+        *terminal = TerminalEvent::Failed;
+    }
+    rejects(catalog_terminal);
+
+    let mut wrong_catalog_dialect = opendesk_contents();
+    wrong_catalog_dialect.interactions[0].dialect = ProviderDialect::OpenaiResponses;
+    rejects(wrong_catalog_dialect);
+
+    let mut catalog_causal_id = opendesk_contents();
+    if let ResponseBody::Buffered { response_id, .. } =
+        &mut catalog_causal_id.interactions[0].response.body
+    {
+        *response_id = Some("catalog-response".into());
+    }
+    rejects(catalog_causal_id);
+
+    let mut catalog_content_type = opendesk_contents();
+    catalog_content_type.interactions[0].response.headers[0].value =
+        "application/json; charset=utf-8".into();
+    rejects(catalog_content_type);
+
+    let mut false_stream = opendesk_contents();
+    false_stream.interactions[2]
+        .request
+        .body
+        .as_object_mut()
+        .unwrap()
+        .insert("stream".into(), Value::Bool(false));
+    false_stream.interactions[2]
+        .request
+        .options
+        .insert("stream".into(), Value::Bool(false));
+    rejects(false_stream);
+
+    let mut non_boolean_stream = opendesk_contents();
+    non_boolean_stream.interactions[2]
+        .request
+        .body
+        .as_object_mut()
+        .unwrap()
+        .insert("stream".into(), Value::Null);
+    non_boolean_stream.interactions[2]
+        .request
+        .options
+        .insert("stream".into(), Value::Null);
+    rejects(non_boolean_stream);
+
+    let mut wrong_stream_dialect = opendesk_contents();
+    wrong_stream_dialect.interactions[2].dialect = ProviderDialect::AnthropicMessages;
+    wrong_stream_dialect.interactions[2].request.path = "/v1/messages".into();
+    rejects(wrong_stream_dialect);
+
+    for content_type in ["application/json", "text/event-stream; charset=utf-8"] {
+        let mut wrong_sse = opendesk_contents();
+        wrong_sse.interactions[2].response.headers[0].value = content_type.into();
+        rejects(wrong_sse);
+    }
+
+    let source = seal_opendesk(opendesk_contents());
+    let service = StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap();
+    let mut body_on_get = opendesk_incoming(&source, 0);
+    body_on_get.body = b"null".to_vec();
+    assert!(matches!(
+        service.handle(
+            &route("opendesk", ProviderDialect::OpenaiChatCompletions),
+            body_on_get
+        ),
+        Err(ReplayError::InvalidHttp)
+    ));
+
+    let service =
+        Arc::new(StrictReplayService::new(source.clone(), ReplayLimits::default()).unwrap());
+    let response = serve_raw(
+        Arc::clone(&service),
+        route("opendesk", ProviderDialect::OpenaiChatCompletions),
+        b"GET /v1/models HTTP/1.1\r\nHost: localhost\r\nAuthorization: runtime\r\nContent-Length: 1\r\nContent-Type: application/json\r\nSpan_id: runtime-span\r\n\r\nx".to_vec(),
+    );
+    assert!(response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
+    assert_eq!(
+        service
+            .handle(
+                &route("opendesk", ProviderDialect::OpenaiChatCompletions),
+                opendesk_incoming(&source, 0),
+            )
+            .unwrap()
+            .status,
+        200
     );
 }
 

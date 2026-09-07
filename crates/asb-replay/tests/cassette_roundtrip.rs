@@ -422,6 +422,48 @@ fn policy_identity_request_and_response_invariants_fail_closed() {
 }
 
 #[test]
+fn lowercase_underscore_headers_are_normalized_but_other_punctuation_is_not() {
+    let mut accepted = support::contents();
+    accepted.interactions[0]
+        .request
+        .headers
+        .push(asb_replay::Header {
+            name: "span_id".into(),
+            value: "volatile-value".into(),
+        });
+    accepted.interactions[0]
+        .request
+        .headers
+        .sort_by(|left, right| left.name.cmp(&right.name));
+    let mut policy = RedactionPolicy::default();
+    policy.header_names.insert("span_id".into());
+    let sealed = seal_cassette(
+        Redactor::new(policy)
+            .unwrap()
+            .redact_contents(accepted)
+            .unwrap()
+            .0,
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    decode_cassette(&sealed, CassetteLimits::default()).unwrap();
+
+    for name in ["span:id", "span id", "span.id", "span/id"] {
+        let mut rejected = support::contents();
+        rejected.interactions[0].request.headers[0].name = name.into();
+        let rejected = Redactor::new(RedactionPolicy::default())
+            .unwrap()
+            .redact_contents(rejected)
+            .unwrap()
+            .0;
+        assert!(matches!(
+            seal_cassette(rejected, CassetteLimits::default()),
+            Err(CassetteError::NotNormalized)
+        ));
+    }
+}
+
+#[test]
 fn event_payload_and_reference_failures_are_independent() {
     let mut contents = support::contents();
     if let ResponseBody::Events {

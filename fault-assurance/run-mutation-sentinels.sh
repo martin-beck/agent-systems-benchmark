@@ -14,7 +14,7 @@ import json
 import sys
 
 outcomes = json.load(open(sys.argv[1], encoding="utf-8"))
-expected = {"total_mutants": 6, "caught": 6, "missed": 0, "timeout": 0, "unviable": 0}
+expected = {"total_mutants": 7, "caught": 7, "missed": 0, "timeout": 0, "unviable": 0}
 actual = {name: outcomes[name] for name in expected}
 if actual != expected:
     raise SystemExit(f"mutation sentinel mismatch: expected {expected}, observed {actual}")
