@@ -57,12 +57,12 @@ require_installation() {
     manifest=$ASB_RUNNER_ROOT/control/manifest
     test -f "$manifest" && test ! -L "$manifest" || die 'runner manifest is unavailable'
     test "$(stat -c '%a' "$manifest")" = 600 || die 'runner manifest permissions must be 0600'
-    for entry in config.sh run.sh Runner.Listener; do
+    for entry in config.sh run.sh bin/Runner.Listener; do
         test -f "$ASB_RUNNER_ROOT/runner/$entry" && test ! -L "$ASB_RUNNER_ROOT/runner/$entry" && test -x "$ASB_RUNNER_ROOT/runner/$entry" || die 'runner entry point is unavailable'
     done
     config_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/config.sh" | cut -d' ' -f1)
     run_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/run.sh" | cut -d' ' -f1)
-    listener_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/Runner.Listener" | cut -d' ' -f1)
+    listener_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/bin/Runner.Listener" | cut -d' ' -f1)
     expected="$ASB_RUNNER_VERSION $ASB_RUNNER_NAME $ASB_RUNNER_LABELS $ASB_RUNNER_LINUX_X64_SHA256 $config_hash $run_hash $listener_hash"
     test "$(cat "$manifest")" = "$expected" || die 'runner installation drifted'
 }

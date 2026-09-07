@@ -26,7 +26,7 @@ trap - EXIT HUP INT TERM
 manifest=$ASB_RUNNER_ROOT/control/manifest
 config_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/config.sh" | cut -d' ' -f1)
 run_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/run.sh" | cut -d' ' -f1)
-listener_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/Runner.Listener" | cut -d' ' -f1)
+listener_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/bin/Runner.Listener" | cut -d' ' -f1)
 printf '%s %s %s %s %s %s %s\n' "$ASB_RUNNER_VERSION" "$ASB_RUNNER_NAME" "$ASB_RUNNER_LABELS" "$ASB_RUNNER_LINUX_X64_SHA256" "$config_hash" "$run_hash" "$listener_hash" > "$manifest"
 chmod 600 "$manifest"
 require_installation
