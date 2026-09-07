@@ -1,0 +1,191 @@
+{
+  "contents": {
+    "schema_version": 1,
+    "cassette_id": "gemini-generate-content-public",
+    "normalization": {
+      "version": 1
+    },
+    "redaction": {
+      "version": 1,
+      "selectors": {
+        "header_names": [
+          "authorization",
+          "cookie",
+          "proxy-authorization",
+          "set-cookie",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "query_parameters": [
+          "access_token",
+          "api_key",
+          "key",
+          "token"
+        ],
+        "request_body_pointers": [],
+        "response_body_pointers": []
+      },
+      "selector_sha256": "b3a062c8425bd57368229472885dbb98f4f43e6249493179979261304416473b"
+    },
+    "interactions": [
+      {
+        "session_id": "gemini-public-session",
+        "attempt_id": "attempt-1",
+        "interaction_id": "gemini-public-0",
+        "ordinal": 0,
+        "dialect": "gemini-generate-content",
+        "request": {
+          "method": "POST",
+          "path": "/v1beta/models/fixture-model:streamGenerateContent?alt=sse",
+          "headers": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "[ASB_REDACTED:000001]"
+            }
+          ],
+          "body": {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "synthetic request"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "generationConfig": {
+              "temperature": 0,
+              "thinkingConfig": {},
+              "topK": 1,
+              "topP": 1
+            },
+            "systemInstruction": {
+              "parts": [
+                {
+                  "text": "synthetic system instruction"
+                }
+              ],
+              "role": "user"
+            },
+            "tools": [
+              {
+                "functionDeclarations": [
+                  {
+                    "description": "Write a synthetic fixture",
+                    "name": "write_file",
+                    "parametersJsonSchema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "content"
+                      ],
+                      "type": "object"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "body_sha256": "2801a308c11e13b1cbbc26c30339ff9f9cde5942cedde67e25c2071eed374dbe",
+          "model": "fixture-model",
+          "options": {
+            "generationConfig": {
+              "temperature": 0,
+              "thinkingConfig": {},
+              "topK": 1,
+              "topP": 1
+            },
+            "systemInstruction": {
+              "parts": [
+                {
+                  "text": "synthetic system instruction"
+                }
+              ],
+              "role": "user"
+            }
+          },
+          "tools": [
+            {
+              "functionDeclarations": [
+                {
+                  "description": "Write a synthetic fixture",
+                  "name": "write_file",
+                  "parametersJsonSchema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "content"
+                    ],
+                    "type": "object"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            {
+              "name": "content-type",
+              "value": "text/event-stream"
+            }
+          ],
+          "body": {
+            "kind": "events",
+            "events": [
+              {
+                "sequence": 0,
+                "monotonic_offset_ns": 0,
+                "event_type": "gemini.generate_content.chunk",
+                "payload": {
+                  "candidates": [
+                    {
+                      "content": {
+                        "parts": [
+                          {
+                            "text": "done"
+                          }
+                        ],
+                        "role": "model"
+                      },
+                      "finishReason": "STOP",
+                      "index": 0
+                    }
+                  ],
+                  "usageMetadata": {
+                    "candidatesTokenCount": 1,
+                    "promptTokenCount": 2,
+                    "totalTokenCount": 3
+                  }
+                },
+                "payload_sha256": "883f5c36405e11e68c288acc72ea67f67147da043ed7b5a140a352ca4806d301",
+                "terminal": "completed"
+              }
+            ],
+            "transport_chunk_bytes": [
+              11
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "60ea576599b1004485ff4ad9241a2fb37b6514b8ca76859f84e6bf1985c60ae1"
+  }
+}

@@ -136,6 +136,8 @@ pub enum ProviderDialect {
     OpenaiResponses,
     /// Anthropic Messages-shaped capture.
     AnthropicMessages,
+    /// Google Gemini GenerateContent SSE-shaped capture.
+    GeminiGenerateContent,
     /// Synthetic dialect used by public fixtures.
     Synthetic,
 }

@@ -206,6 +206,7 @@
             "openai-chat-completions",
             "openai-responses",
             "anthropic-messages",
+            "gemini-generate-content",
             "synthetic"
           ]
         },

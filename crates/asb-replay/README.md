@@ -101,6 +101,40 @@ for Chat Completions (`/v1/chat/completions`), Responses (`/v1/responses`), and
 Messages (`/v1/messages`). These are syntax capabilities only; AR-0505 must
 test named real client versions before any compatibility claim.
 
+The Gemini GenerateContent syntax capability is restricted to
+`POST /v1beta/models/{model}:streamGenerateContent?alt=sse`, where `{model}` is
+1--256 ASCII letters, digits, dots, underscores, or hyphens and must equal the
+cassette model. The model appears only in the route. The JSON object has exactly
+`contents`, `generationConfig`, `systemInstruction`, and `tools`; the pinned
+shape requires captured numeric temperature, topK, and topP values plus an exactly
+empty `thinkingConfig` object,
+one functionDeclarations container, and description/name/parametersJsonSchema
+declarations. Content parts are restricted to text, functionCall plus
+thoughtSignature, or functionResponse shapes. The complete canonical request,
+including every nested configuration, tool value, semantic text, and tool
+identifier, matches exactly. When an SSE response requests a function call, the
+next recorded request must contain a functionCall/functionResponse pair whose ID
+and name both equal that response. The pinned Gemini 0.58.0 capture has an empty request-body
+selector set, which this dialect requires; whole user or system text is not a safe
+volatile selector. Marker-shaped incoming values fail closed.
+
+Gemini also admits the exact pinned retry response: HTTP 500 `application/json`,
+failed terminal status, no response identity, and one error object containing only
+code `500`, a nonempty message, and status `INTERNAL`. The retry consumes its own
+ordered interaction, and the immediately following Gemini request must be exactly
+identical.
+
+Successful Gemini event responses require HTTP 200, exact `text/event-stream`,
+and exactly one terminal `gemini.generate_content.chunk` event. Its closed payload
+has one model candidate at index zero with finish reason `STOP`, exactly one
+nonempty text or exact functionCall part, and candidate/prompt/total unsigned token
+counts whose first two sum to the total. Replay emits the event as one data-only
+SSE record, `data: {canonical JSON}\n\n`; it emits neither an `event:` line nor a
+`[DONE]` marker. Other Gemini routes, query spellings, body fields,
+buffered responses, and model characters are unsupported and fail closed. This
+syntax contract alone is not a real Gemini CLI compatibility or network-isolation
+claim; those require the separately pinned credential-free journey.
+
 The Chat Completions dialect also admits the two explicitly recorded OpenDesk
 catalog probes, `GET /v1/models` and `GET /v1/models/{model}`. The detail suffix
 must exactly equal the cassette model, whose identifier is bounded to 256 safe
