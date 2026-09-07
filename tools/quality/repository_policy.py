@@ -21,6 +21,10 @@ DISPOSABLE_RUNNERS = {"ubuntu-24.04", "ubuntu-24.04-arm"}
 CANARY_WORKFLOW = Path(".github/workflows/development-host-canary.yml")
 CANARY_LABEL = "asb-development-v1-x86_64-ubuntu2404"
 TRUSTED_WORKFLOW = Path(".github/workflows/development-host-trusted.yml")
+QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
+OPTIONAL_ARTIFACT_ACTION = (
+    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+)
 PROTECTED_CONDITION = (
     "github.repository == 'martin-beck/agent-systems-benchmark' "
     "&& github.ref == 'refs/heads/main'"
@@ -87,6 +91,7 @@ def validate_workflows(manifest: dict[str, object]) -> None:
         relative = workflow.relative_to(ROOT)
         is_canary = relative == CANARY_WORKFLOW
         is_trusted = relative == TRUSTED_WORKFLOW
+        is_quality = relative == QUALITY_WORKFLOW
         is_protected = is_canary or is_trusted
         if "pull_request_target:" in text:
             fail(f"{relative} uses pull_request_target")
@@ -99,7 +104,9 @@ def validate_workflows(manifest: dict[str, object]) -> None:
             permission_headers = re.findall(
                 r"^[ \t]*permissions:[ \t]*$", text, re.MULTILINE
             )
-            permissions = re.search(r"^permissions:\n((?:  [^\n]*\n)*)", text, re.MULTILINE)
+            permissions = re.search(
+                r"^permissions:\n((?:  [^\n]*\n)*)", text, re.MULTILINE
+            )
             if (
                 permission_headers != ["permissions:"]
                 or permissions is None
@@ -127,6 +134,40 @@ def validate_workflows(manifest: dict[str, object]) -> None:
                 fail(f"{relative} does not bind checkout to the protected revision")
         elif "self-hosted" in text:
             fail(f"{relative} uses a persistent runner")
+        if "continue-on-error:" in text and (
+            not is_quality
+            or text.count("continue-on-error:") != 1
+            or text.count("continue-on-error: true") != 1
+        ):
+            fail(f"{relative} weakens a required check")
+        if is_quality:
+            required_optional = (
+                "      - name: Publish optional quality evidence\n"
+                "        id: optional_evidence_upload\n"
+                "        continue-on-error: true\n"
+                f"        uses: {OPTIONAL_ARTIFACT_ACTION} # v4.6.2\n"
+            )
+            if (
+                required_optional not in text
+                or text.count(OPTIONAL_ARTIFACT_ACTION) != 1
+            ):
+                fail(
+                    f"{relative} does not narrowly isolate the optional artifact failure"
+                )
+            required_fragments = (
+                "          retention-days: 1\n",
+                "          compression-level: 0\n",
+                "          if-no-files-found: error\n",
+                "        if: ${{ !cancelled() }}\n",
+                "            --role optional \\\n",
+                '            --outcome "$ARTIFACT_OUTCOME" \\\n',
+            )
+            if any(fragment not in text for fragment in required_fragments):
+                fail(f"{relative} lacks bounded optional artifact classification")
+            if text.index("- name: Verify clean tree") > text.index(
+                "- name: Prepare bounded optional quality evidence"
+            ):
+                fail(f"{relative} publishes evidence before required checks finish")
         runners = re.findall(r"^\s*runs-on:\s*(.+?)\s*$", text, re.MULTILINE)
         if is_protected and runners != [f"[{CANARY_LABEL}]"]:
             fail(f"{relative} lacks the exact protected canary label")
@@ -222,7 +263,13 @@ def main() -> int:
         validate_markdown(files)
         if not args.skip_commits:
             validate_commits(args.base, args.head)
-    except (OSError, subprocess.CalledProcessError, TypeError, ValueError, KeyError) as error:
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        TypeError,
+        ValueError,
+        KeyError,
+    ) as error:
         print(f"repository policy: {error}", file=sys.stderr)
         return 1
     print("repository policy: all checks passed")
