@@ -1,10 +1,20 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 set -eu
-export ASB_STORAGE_ROOT=/srv/data/projects
-mkdir -p "$ASB_STORAGE_ROOT/asb-ci-runners"
+test_parent=/srv/data/projects/.asb-local
+mkdir -p "$test_parent"
+ASB_STORAGE_ROOT=$(mktemp -d "$test_parent/ar0830-storage-XXXXXXXXXXXX")
+export ASB_STORAGE_ROOT
+test_storage=$ASB_STORAGE_ROOT
+cleanup() {
+    case "$test_storage" in
+        /srv/data/projects/.asb-local/ar0830-storage-*) rm -rf -- "$test_storage" ;;
+        *) echo 'refusing unsafe test cleanup' >&2; exit 1 ;;
+    esac
+}
+trap cleanup EXIT HUP INT TERM
+mkdir -m 700 "$ASB_STORAGE_ROOT/asb-ci-runners"
 root=$(mktemp -d "$ASB_STORAGE_ROOT/asb-ci-runners/asb-test-XXXXXXXXXXXX")
-trap 'rm -rf "$root"' EXIT HUP INT TERM
 export ASB_RUNNER_ROOT=$root
 export ASB_RUNNER_NAME=asb-runner-0123456789ab
 export ASB_RUNNER_CONFIG_LABELS=asb-development-v1-x86_64-ubuntu2404

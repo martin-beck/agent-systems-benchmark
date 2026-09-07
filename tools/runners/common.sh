@@ -21,10 +21,14 @@ require_root() {
     resolved_parent=$(realpath -e "$parent") || die 'runner parent cannot be resolved'
     test "$resolved_parent" = "$ASB_STORAGE_ROOT/asb-ci-runners" || die 'runner parent resolves outside project storage'
     test "$(stat -c '%d' "$resolved_parent")" = "$(stat -c '%d' "$resolved_storage")" || die 'runner parent is on another filesystem'
+    test "$(stat -c '%u' "$resolved_parent")" = "$(id -u)" || die 'runner parent is not owned by the service identity'
+    test "$(stat -c '%a' "$resolved_parent")" = 700 || die 'runner parent permissions must be 0700'
     test ! -L "$ASB_RUNNER_ROOT" || die 'runner root is a symlink'
     if test -e "$ASB_RUNNER_ROOT"; then
         test -d "$ASB_RUNNER_ROOT" || die 'runner root is not a directory'
         test "$(stat -c '%d' "$ASB_RUNNER_ROOT")" = "$(stat -c '%d' "$resolved_storage")" || die 'runner root is on another filesystem'
+        test "$(stat -c '%u' "$ASB_RUNNER_ROOT")" = "$(id -u)" || die 'runner root is not owned by the service identity'
+        test "$(stat -c '%a' "$ASB_RUNNER_ROOT")" = 700 || die 'runner root permissions must be 0700'
     fi
 }
 
