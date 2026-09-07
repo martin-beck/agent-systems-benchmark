@@ -20,7 +20,7 @@
       },
       "libc": {"family": "glibc", "version": "2.39", "observed_from": "linux/amd64 image filesystem"},
       "architectures": {
-        "x86_64": {"oci": "amd64", "image_digest": "sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316", "user_space": "planned", "native_kernel": "native-tested", "native_evidence": {"kind": "native-run", "platform_id": "ubuntu-24.04", "architecture": "x86_64", "kernel_release": "7.0.0-28-generic", "run_id": "native-026d19f", "artifact_path": "platforms/v1/native-evidence/ubuntu-24.04-x86_64-native-026d19f.json", "artifact_digest": "sha256:8bb9e9aa914b7f130184e32a6d47f327c2ece705df956969543ad52169693516"}},
+        "x86_64": {"oci": "amd64", "image_digest": "sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316", "user_space": "planned", "native_kernel": "native-tested", "native_evidence": {"kind": "native-run", "platform_id": "ubuntu-24.04", "architecture": "x86_64", "kernel_release": "7.0.0-28-generic", "run_id": "native-386c2e9", "artifact_path": "platforms/v1/native-evidence/ubuntu-24.04-x86_64-native-386c2e9.json", "artifact_digest": "sha256:9359e2a7e6da9c5078f07a35cbdfaf59b915a88125c68c69ab3012f9b16d6d29"}},
         "aarch64": {"oci": "arm64", "image_digest": "sha256:95fa486768020359141f1318720f43e7982ef926c792891d984aef9aaf05e7ea", "user_space": "planned", "native_kernel": "planned"}
       },
       "source": "https://hub.docker.com/_/ubuntu"
