@@ -17,6 +17,7 @@ asb-metrics = { path = "../crates/asb-metrics", version = "=0.1.0" }
 asb-protocol = { path = "../crates/asb-protocol", version = "=0.1.0" }
 asb-replay = { path = "../crates/asb-replay", version = "=0.1.0" }
 asb-runtime = { path = "../crates/asb-runtime", version = "=0.1.0" }
+asb-store = { path = "../crates/asb-store", version = "=0.1.0" }
 loom = "=0.7.2"
 serde_json = "=1.0.143"
 

@@ -4,6 +4,8 @@
 
 //! Small executable and machine-checked models for ASB safety boundaries.
 
+pub mod recovery;
+
 /// Convert a microsecond kernel counter to nanoseconds without wrapping.
 ///
 /// This mirrors the checked conversion used by the portable metric collector.

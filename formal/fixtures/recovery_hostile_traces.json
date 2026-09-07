@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "traces": [
+    {
+      "name": "stale_completion_after_reacquire",
+      "actions": ["acquire:0", "start:0:1", "crash:0", "acquire:1", "complete:0:1"],
+      "rejected_action": 4
+    },
+    {
+      "name": "second_owner_while_leased",
+      "actions": ["acquire:0", "acquire:1"],
+      "rejected_action": 1
+    },
+    {
+      "name": "duplicate_completion",
+      "actions": ["acquire:0", "start:0:1", "complete:0:1", "complete:0:1"],
+      "rejected_action": 3
+    },
+    {
+      "name": "projection_beyond_journal",
+      "actions": ["project"],
+      "rejected_action": 0
+    },
+    {
+      "name": "cross_session_overflow",
+      "actions": ["replay:1", "replay:1", "replay:1"],
+      "rejected_action": 2
+    },
+    {
+      "name": "restart_uncertain_without_reconcile",
+      "actions": ["acquire:0", "start:0:1", "crash:0", "start:0:1"],
+      "rejected_action": 3
+    }
+  ]
+}

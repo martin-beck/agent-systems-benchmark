@@ -1,11 +1,13 @@
-# Planned formal assurance
+# Formal assurance model map
 
 ASB will follow Agent Relay's layered formal-methods pattern: readable TLA+ and
 Alloy specifications, a deterministic finite executable model, named hostile
 counterexample traces, implementation contract tests and an explicit table of
 environmental assumptions. This directory contains the design boundary at
-bootstrap; no checked model is claimed yet. AR-0901, AR-0904 and AR-0905 own the
-machine-checked artifacts and CI integration.
+bootstrap. AR-0901 provides the initial Kani/Loom checks. AR-0905 adds pinned
+TLC 1.8.0, Alloy 6.2.0, an independent Rust explorer, named hostile traces, and
+real AtomicStore conformance for recovery. AR-0904 owns later cross-contract
+consistency work.
 
 ## Model partitions
 
@@ -45,6 +47,14 @@ schema examples through Rust types, checks negative corpora, snapshots the publi
 Rust API, checks semantic compatibility and regenerates CLI capability/support
 documentation with a clean diff. Every completion claim is derived from recorded
 contract evidence rather than free-form narrative.
+
+The recovery scope is exactly two attempts and replay sessions, lease epochs
+through two, four journal events, replay cursors through two, and Alloy 4-bit
+integers. TLC exhaustively reaches 3,709 distinct states at depth 17. Alloy
+requires one satisfiable witness and no counterexample for six assertions.
+Rust independently explores all reachable states through depth eight and
+executes six public synthetic hostile traces. These finite results do not prove
+liveness, timing, filesystem durability, process identity, or larger histories.
 
 Keep identities opaque in models. Do not include hosts, accounts, paths, prompts,
 responses or secrets. Environmental assumptions such as monotonic clocks,
