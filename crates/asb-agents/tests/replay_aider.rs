@@ -431,7 +431,7 @@ fn pinned_aider_records_and_replays_the_same_graded_trajectory() {
     let mut recorded = adapter(
         &python,
         &wheel,
-        prepared.workspace(),
+        &prepared.workspace(),
         &scratch.0.join("record-state"),
         capture_endpoint,
     )
@@ -456,7 +456,7 @@ fn pinned_aider_records_and_replays_the_same_graded_trajectory() {
         adapter(
             &python,
             &wheel,
-            prepared.workspace(),
+            &prepared.workspace(),
             &scratch.0.join("manifest-state"),
             Url::parse("http://127.0.0.1:1/v1").unwrap(),
         )
@@ -492,7 +492,7 @@ fn pinned_aider_records_and_replays_the_same_graded_trajectory() {
     let mut replayed = adapter(
         &python,
         &wheel,
-        prepared.workspace(),
+        &prepared.workspace(),
         &scratch.0.join("replay-state"),
         endpoint,
     )
@@ -570,7 +570,7 @@ fn pinned_aider_records_and_replays_the_same_graded_trajectory() {
     let mut cancelled = adapter(
         &python,
         &wheel,
-        prepared.workspace(),
+        &prepared.workspace(),
         &scratch.0.join("cancel-state"),
         cancel_endpoint,
     )

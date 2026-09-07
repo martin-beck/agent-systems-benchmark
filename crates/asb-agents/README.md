@@ -123,6 +123,31 @@ Workspace and state roots must already resolve to their exact canonical path.
 Their ancestors, bounded workspace tree, and verified executable installation
 are assumed not to be replaced or expanded between validation and use.
 
+### aider replay qualification
+
+The pinned Linux x86_64 aider 0.86.2 and CPython 3.12 pair is exercised in a
+fresh user/network namespace containing only an enabled loopback interface.
+An in-memory credential-free OpenAI-compatible fixture returns one buffered
+HTTP 500 response followed by a successful whole-file edit. The qualification
+normalizes both requests, removes authorization with the standard redaction
+policy, seals the cassette, resets the protected `original.bug-fix` workload,
+and requires strict replay to reproduce the terminal trajectory and independent
+grader result. A separately paced replay is cancelled before its first response
+segment, and both the replay reservation and aider process group must terminate
+with empty isolated state. Unknown fields, truncated records, and inconsistent
+tool declarations are rejected before replay service start.
+
+No raw capture is written to disk or committed. This qualification covers only
+the pinned wheel, interpreter, fixture, buffered Chat Completions route, and
+Linux x86_64 environment. Aider batch mode does not expose trustworthy
+structured tool calls, token usage, or retry counts, so the cassette requires
+empty tool declarations and ASB retains typed unavailable retry evidence; these
+signals are not inferred from discarded human-readable diagnostics. Replay
+controls provider responses, not operating-system timing. Live providers,
+non-loopback transport, native aarch64, other aider/Python versions, and timing
+determinism remain unsupported. Network denial is supplied by the surrounding
+namespace rather than the inbound-only replay service.
+
 ## Goose boundary
 
 The Goose adapter targets AAIF Goose 1.49.0 through
