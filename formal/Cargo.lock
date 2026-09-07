@@ -19,6 +19,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "asb-control"
+version = "0.1.0"
+dependencies = [
+ "rustix",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "asb-core"
 version = "0.1.0"
 
@@ -27,6 +39,7 @@ name = "asb-formal-models"
 version = "0.1.0"
 dependencies = [
  "asb-analysis",
+ "asb-control",
  "asb-core",
  "asb-metrics",
  "asb-protocol",

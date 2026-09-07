@@ -1,0 +1,10 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "timeout_ms": 30000,
+  "method": "launch",
+  "params": {
+    "idempotency_key": "public-example-launch-1",
+    "plan_id": "plan-public-example"
+  }
+}

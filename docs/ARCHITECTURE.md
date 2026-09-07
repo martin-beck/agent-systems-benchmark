@@ -26,6 +26,7 @@ A future Rust coordinator requires differential tests against its existing model
 | asb-replay | Provider-boundary recording, matching and paced streaming |
 | asb-analysis | Experimental design, statistics, SLO assessment and comparisons |
 | asb-store | Atomic manifests, event journal, artifact hashes and recovery |
+| asb-control | Bounded local frontend protocol, admission, cursors and Unix socket |
 | asb-cli | Terminal UX and machine-readable CLI output |
 | asb-csb | Optional CSB subprocess integration and result mapping |
 | asb-bundle | Signed runtime-bundle manifests and offline content/SBOM/license verification |
@@ -35,6 +36,23 @@ Core must not depend on process, network, terminal or GitHub implementations.
 
 The runtime bundle contract and its trust boundary are documented in
 [runtime bundle verification](RUNTIME_BUNDLES.md).
+
+## Frontend control boundary
+
+Independent frontends use the versioned `asb-control` API rather than linking
+to CLI internals. Local v1 carries JSON-RPC 2.0 bodies in four-byte
+big-endian-length frames over an owner-only Unix socket. The socket lives in a
+same-user private directory, uses mode 0600, and authenticates each peer using
+Linux `SO_PEERCRED`. It never opens TCP implicitly; explicitly enabled remote
+transport is a separate security boundary.
+
+The runner journal is authoritative for plans, attempts, cancellation, history,
+and events. Mutations are journal-backed and idempotent, attempts are causally
+fenced, pages and event retention are bounded, and stale or future cursors fail
+explicitly. A frontend connection owns only its request admission state, so
+disconnect or crash cannot cancel or repeat a run. Public summaries never
+contain host paths or sensitive artifact contents. See
+[Frontend control API](FRONTEND_CONTROL_API.md).
 
 ## Extension API v1 design
 

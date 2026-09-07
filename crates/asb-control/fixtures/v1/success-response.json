@@ -1,0 +1,20 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "kind": "operation",
+    "value": {
+      "request_sha256": "e7c78964e0b29c08818eeb02f5a96c9f08c314bcd3396a9ef18269d7d2a5439b",
+      "result": {
+        "kind": "status",
+        "value": {
+          "run_id": "run-public-example",
+          "attempt_id": "attempt-public-example",
+          "state": "planned",
+          "revision": 42,
+          "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    }
+  }
+}

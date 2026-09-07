@@ -65,6 +65,7 @@ name = "asb-cli"
 version = "0.1.0"
 dependencies = [
  "asb-analysis",
+ "asb-control",
  "asb-metrics",
  "asb-protocol",
  "asb-runtime",
@@ -76,6 +77,19 @@ dependencies = [
  "sha2",
  "signal-hook",
  "toml",
+]
+
+[[package]]
+name = "asb-control"
+version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "rustix",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]

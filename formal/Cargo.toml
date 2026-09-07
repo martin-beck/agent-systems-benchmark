@@ -12,6 +12,7 @@ asb-analysis = { path = "../crates/asb-analysis", version = "=0.1.0" }
 asb-core = { path = "../crates/asb-core", version = "=0.1.0" }
 
 [dev-dependencies]
+asb-control = { path = "../crates/asb-control", version = "=0.1.0" }
 asb-metrics = { path = "../crates/asb-metrics", version = "=0.1.0" }
 asb-protocol = { path = "../crates/asb-protocol", version = "=0.1.0" }
 asb-replay = { path = "../crates/asb-replay", version = "=0.1.0" }
