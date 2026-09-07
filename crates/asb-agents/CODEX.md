@@ -11,6 +11,12 @@ environment apart from a minimal system path, isolated state directories, and
 a credential-free provider token. Prompts are passed through an unlinked
 0600 file descriptor rather than process arguments. Only content-free
 lifecycle, tool kind, causal ID, success, and token-count evidence is retained.
+Before execution, the adapter requires exact canonical workspace and state
+directories with no symlink ancestor. It walks the workspace as a bounded set
+of regular files, rejecting symlinks and other filesystem objects, paths over
+4 KiB, more than 16,384 entries or 4,096 files, any file over 16 MiB, and more
+than 256 MiB in aggregate. This is a preflight against the initial tree, not a
+claim of race-free containment against another process mutating that tree.
 
 Provider override is limited to version-negotiated HTTP Responses requests
 using an explicit `model_providers.<id>.base_url`, `env_key`,

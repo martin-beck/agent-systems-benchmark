@@ -34,6 +34,11 @@ pub const MAX_EVENT_LINE_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_UPSTREAM_EVENTS: usize = 65_536;
 const MAX_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_MODEL_BYTES: usize = 256;
+const MAX_WORKSPACE_FILES: usize = 4_096;
+const MAX_WORKSPACE_ENTRIES: usize = 16_384;
+const MAX_WORKSPACE_FILE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_WORKSPACE_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_PATH_BYTES: usize = 4 * 1024;
 
 /// Content-pinned Codex artifact understood by this adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -78,6 +83,10 @@ pub enum AdapterError {
     Io(io::Error),
     /// The executable did not match its content pin.
     ExecutableMismatch,
+    /// The editable workspace was redirected or exceeded a declared bound.
+    UnsafeWorkspace,
+    /// Prompt-bearing state was not rooted at the exact requested directory.
+    UnsafeStateRoot,
     /// Process execution failed.
     Process(ProcessError),
     /// Structured output was truncated.
@@ -95,6 +104,8 @@ impl fmt::Display for AdapterError {
             Self::PromptTooLarge => formatter.write_str("Codex prompt exceeds byte limit"),
             Self::Io(error) => write!(formatter, "adapter I/O failed: {error}"),
             Self::ExecutableMismatch => formatter.write_str("Codex executable pin mismatch"),
+            Self::UnsafeWorkspace => formatter.write_str("unsafe or excessive Codex workspace"),
+            Self::UnsafeStateRoot => formatter.write_str("unsafe Codex state root"),
             Self::Process(error) => write!(formatter, "Codex process failed: {error}"),
             Self::TruncatedOutput => formatter.write_str("Codex structured output was truncated"),
             Self::InvalidEvent => formatter.write_str("invalid Codex structured event"),
@@ -217,9 +228,19 @@ impl CodexConfig {
             return Err(AdapterError::PromptTooLarge);
         }
         self.verify_executable()?;
+        if !has_canonical_existing_ancestor(&self.workspace)? {
+            return Err(AdapterError::UnsafeWorkspace);
+        }
+        if !has_canonical_existing_ancestor(&self.state_root)? {
+            return Err(AdapterError::UnsafeStateRoot);
+        }
         fs::create_dir_all(&self.workspace)?;
-        let run_root = self.unique_run_root()?;
+        validate_workspace(&self.workspace)?;
         fs::create_dir_all(&self.state_root)?;
+        if !is_exact_canonical_directory(&self.state_root)? {
+            return Err(AdapterError::UnsafeStateRoot);
+        }
+        let run_root = self.unique_run_root()?;
         fs::DirBuilder::new().mode(0o700).create(&run_root)?;
         let prepared = (|| {
             for directory in ["home", "config", "data", "cache", "prompts"] {
@@ -489,6 +510,84 @@ fn digest_file(path: &Path) -> Result<String, AdapterError> {
         hasher.update(&buffer[..count]);
     }
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn validate_workspace(root: &Path) -> Result<(), AdapterError> {
+    if !is_exact_canonical_directory(root)? {
+        return Err(AdapterError::UnsafeWorkspace);
+    }
+    let mut pending = vec![root.to_path_buf()];
+    let mut files_seen = 0_usize;
+    let mut entries_seen = 0_usize;
+    let mut bytes_seen = 0_u64;
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(directory)? {
+            let entry = entry?;
+            entries_seen = entries_seen
+                .checked_add(1)
+                .ok_or(AdapterError::UnsafeWorkspace)?;
+            if entries_seen > MAX_WORKSPACE_ENTRIES {
+                return Err(AdapterError::UnsafeWorkspace);
+            }
+            let path = entry.path();
+            if path.as_os_str().as_encoded_bytes().len() > MAX_PATH_BYTES {
+                return Err(AdapterError::UnsafeWorkspace);
+            }
+            let kind = entry.file_type()?;
+            if kind.is_symlink() || !(kind.is_dir() || kind.is_file()) {
+                return Err(AdapterError::UnsafeWorkspace);
+            }
+            if kind.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            files_seen = files_seen
+                .checked_add(1)
+                .ok_or(AdapterError::UnsafeWorkspace)?;
+            if files_seen > MAX_WORKSPACE_FILES {
+                return Err(AdapterError::UnsafeWorkspace);
+            }
+            let bytes = entry.metadata()?.len();
+            if bytes > MAX_WORKSPACE_FILE_BYTES {
+                return Err(AdapterError::UnsafeWorkspace);
+            }
+            bytes_seen = bytes_seen
+                .checked_add(bytes)
+                .ok_or(AdapterError::UnsafeWorkspace)?;
+            if bytes_seen > MAX_WORKSPACE_BYTES {
+                return Err(AdapterError::UnsafeWorkspace);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_exact_canonical_directory(path: &Path) -> Result<bool, AdapterError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() || !metadata.file_type().is_dir() {
+        return Ok(false);
+    }
+    Ok(fs::canonicalize(path)? == path)
+}
+
+fn has_canonical_existing_ancestor(path: &Path) -> Result<bool, AdapterError> {
+    let mut candidate = path;
+    loop {
+        match fs::symlink_metadata(candidate) {
+            Ok(metadata) => {
+                return Ok(metadata.file_type().is_dir()
+                    && !metadata.file_type().is_symlink()
+                    && fs::canonicalize(candidate)? == candidate);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let Some(parent) = candidate.parent() else {
+                    return Ok(false);
+                };
+                candidate = parent;
+            }
+            Err(error) => return Err(AdapterError::Io(error)),
+        }
+    }
 }
 
 fn map_events(
@@ -1081,6 +1180,8 @@ mod tests {
             AdapterError::PromptTooLarge,
             io_error,
             AdapterError::ExecutableMismatch,
+            AdapterError::UnsafeWorkspace,
+            AdapterError::UnsafeStateRoot,
             process_error,
             AdapterError::TruncatedOutput,
             AdapterError::InvalidEvent,
@@ -1215,6 +1316,122 @@ mod tests {
                 ProcessLimits::default(),
             ),
             Err(AdapterError::PromptTooLarge)
+        ));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn workspace_and_state_preflight_reject_redirection_and_excess() {
+        let root = PathBuf::from(ROOT).join(format!("preflight-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let mut adapter = CodexConfig::new(
+            "/bin/true",
+            root.join("workspace"),
+            root.join("state"),
+            Url::parse("http://127.0.0.1:1/v1").unwrap(),
+            "model",
+            CodexArtifact::LinuxX86_64V0_153_4,
+        )
+        .unwrap();
+        adapter.verification_digest_override = Some(digest_file(Path::new("/bin/true")).unwrap());
+
+        let outside_state = root.join("outside-state");
+        fs::create_dir_all(&outside_state).unwrap();
+        std::os::unix::fs::symlink(&outside_state, &adapter.state_root).unwrap();
+        assert!(matches!(
+            adapter.start(
+                Id("s".into()),
+                Id("state".into()),
+                "prompt",
+                ProcessLimits::default()
+            ),
+            Err(AdapterError::UnsafeStateRoot)
+        ));
+        assert!(fs::read_dir(&outside_state).unwrap().next().is_none());
+        fs::remove_file(&adapter.state_root).unwrap();
+
+        let actual_state_parent = root.join("actual-state-parent");
+        let alias_state_parent = root.join("alias-state-parent");
+        fs::create_dir_all(&actual_state_parent).unwrap();
+        std::os::unix::fs::symlink(&actual_state_parent, &alias_state_parent).unwrap();
+        adapter.state_root = alias_state_parent.join("state");
+        assert!(matches!(
+            adapter.start(
+                Id("s".into()),
+                Id("ancestor".into()),
+                "prompt",
+                ProcessLimits::default()
+            ),
+            Err(AdapterError::UnsafeStateRoot)
+        ));
+        assert!(!actual_state_parent.join("state").exists());
+        fs::remove_file(alias_state_parent).unwrap();
+        adapter.state_root = root.join("safe-state");
+
+        let outside_workspace = root.join("outside-workspace");
+        fs::create_dir_all(&outside_workspace).unwrap();
+        std::os::unix::fs::symlink(&outside_workspace, &adapter.workspace).unwrap();
+        assert!(matches!(
+            adapter.start(
+                Id("s".into()),
+                Id("workspace".into()),
+                "prompt",
+                ProcessLimits::default()
+            ),
+            Err(AdapterError::UnsafeWorkspace)
+        ));
+        fs::remove_file(&adapter.workspace).unwrap();
+
+        let actual_workspace_parent = root.join("actual-workspace-parent");
+        let alias_workspace_parent = root.join("alias-workspace-parent");
+        fs::create_dir_all(&actual_workspace_parent).unwrap();
+        std::os::unix::fs::symlink(&actual_workspace_parent, &alias_workspace_parent).unwrap();
+        adapter.workspace = alias_workspace_parent.join("workspace");
+        assert!(matches!(
+            adapter.start(
+                Id("s".into()),
+                Id("workspace-ancestor".into()),
+                "prompt",
+                ProcessLimits::default()
+            ),
+            Err(AdapterError::UnsafeWorkspace)
+        ));
+        assert!(!actual_workspace_parent.join("workspace").exists());
+        fs::remove_file(alias_workspace_parent).unwrap();
+
+        adapter.workspace = root.join("bounded-workspace");
+        fs::create_dir_all(&adapter.workspace).unwrap();
+        let outside_file = root.join("outside-file");
+        fs::write(&outside_file, "outside").unwrap();
+        let alias = adapter.workspace.join("alias");
+        std::os::unix::fs::symlink(&outside_file, &alias).unwrap();
+        assert!(matches!(
+            validate_workspace(&adapter.workspace),
+            Err(AdapterError::UnsafeWorkspace)
+        ));
+        fs::remove_file(alias).unwrap();
+
+        let oversized = adapter.workspace.join("oversized");
+        fs::File::create(&oversized)
+            .unwrap()
+            .set_len(MAX_WORKSPACE_FILE_BYTES + 1)
+            .unwrap();
+        assert!(matches!(
+            validate_workspace(&adapter.workspace),
+            Err(AdapterError::UnsafeWorkspace)
+        ));
+        fs::remove_file(oversized).unwrap();
+
+        for index in 0..=(MAX_WORKSPACE_BYTES / MAX_WORKSPACE_FILE_BYTES) {
+            fs::File::create(adapter.workspace.join(format!("aggregate-{index}")))
+                .unwrap()
+                .set_len(MAX_WORKSPACE_FILE_BYTES)
+                .unwrap();
+        }
+        assert!(matches!(
+            validate_workspace(&adapter.workspace),
+            Err(AdapterError::UnsafeWorkspace)
         ));
         fs::remove_dir_all(root).unwrap();
     }
