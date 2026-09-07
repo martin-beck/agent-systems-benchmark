@@ -4,7 +4,7 @@ set -eu
 
 ASB_RUNNER_VERSION=2.337.0
 ASB_RUNNER_LINUX_X64_SHA256=70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613
-ASB_RUNNER_LABELS=asb-development-v1,asb-x86_64-v1,asb-ubuntu-24.04-v1
+ASB_RUNNER_LABELS=asb-development-v1-x86_64-ubuntu2404
 
 die() { printf 'ERROR: %s\n' "$1" >&2; exit 1; }
 
@@ -14,12 +14,18 @@ require_root() {
     test "${ASB_STORAGE_ROOT#/}" != "$ASB_STORAGE_ROOT" || die 'storage root must be absolute'
     resolved_storage=$(realpath -e "$ASB_STORAGE_ROOT") || die 'storage root cannot be resolved'
     test "$resolved_storage" = "$ASB_STORAGE_ROOT" || die 'storage root must be exact and canonical'
+    case "$resolved_storage" in /srv/data/projects|/srv/data/projects/*) ;; *) die 'storage root must resolve beneath /srv/data/projects' ;; esac
     case "$ASB_RUNNER_ROOT" in "$ASB_STORAGE_ROOT"/asb-ci-runners/asb-*) ;; *) die 'runner root is outside the dedicated project storage namespace' ;; esac
     parent=$(dirname "$ASB_RUNNER_ROOT")
     test -d "$parent" || die 'runner parent does not exist'
     resolved_parent=$(realpath -e "$parent") || die 'runner parent cannot be resolved'
     test "$resolved_parent" = "$ASB_STORAGE_ROOT/asb-ci-runners" || die 'runner parent resolves outside project storage'
+    test "$(stat -c '%d' "$resolved_parent")" = "$(stat -c '%d' "$resolved_storage")" || die 'runner parent is on another filesystem'
     test ! -L "$ASB_RUNNER_ROOT" || die 'runner root is a symlink'
+    if test -e "$ASB_RUNNER_ROOT"; then
+        test -d "$ASB_RUNNER_ROOT" || die 'runner root is not a directory'
+        test "$(stat -c '%d' "$ASB_RUNNER_ROOT")" = "$(stat -c '%d' "$resolved_storage")" || die 'runner root is on another filesystem'
+    fi
 }
 
 require_identity() {
@@ -28,9 +34,7 @@ require_identity() {
         *) die 'runner name must be a pseudonymous 12-hex identifier' ;;
     esac
     test "${ASB_RUNNER_CONFIG_LABELS:-}" = "$ASB_RUNNER_LABELS" || die 'runner labels differ from the exact capability set'
-    case ",$ASB_RUNNER_CONFIG_LABELS," in
-        *,self-hosted,*|*,linux,*|*,x64,*|*,arm64,*) die 'default or generic labels are forbidden' ;;
-    esac
+    case "$ASB_RUNNER_CONFIG_LABELS" in *,*) die 'capability label must be indivisible' ;; esac
 }
 
 require_lease() {
