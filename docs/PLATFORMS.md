@@ -28,7 +28,7 @@ cells after exact runtime evidence exists.
 
 | Family | Pinned release/snapshot | libc baseline | amd64 image | arm64 image | Native kernel evidence |
 | --- | --- | --- | --- | --- | --- |
-| Ubuntu | 24.04.4 LTS | glibc 2.39 | planned | planned | planned |
+| Ubuntu | 24.04.4 LTS | glibc 2.39 | planned | planned | x86_64 native-tested; aarch64 planned |
 | Debian | 13.6 (trixie) | glibc 2.41 | planned | planned | planned |
 | Fedora | 44 | glibc 2.43 | planned | planned | planned |
 | Rocky Linux | 9.7 | glibc 2.34 | planned | planned | planned |

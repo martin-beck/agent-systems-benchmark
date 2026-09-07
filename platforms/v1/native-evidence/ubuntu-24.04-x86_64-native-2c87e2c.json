@@ -1,0 +1,42 @@
+{
+  "architecture": "x86_64",
+  "capabilities": {
+    "cgroup_v2": "available",
+    "psi": "available",
+    "sandbox": "passed"
+  },
+  "checks": {
+    "metrics": {
+      "argv_sha256": "sha256:9638076543f0f5ea934a90a3f678d5c879d4694da6a20497efa1d6449989e1f8",
+      "output_bytes": 948,
+      "output_sha256": "sha256:f1e67fdbea05c6fdf9b08cb0a578d2cf8b716f74569541dd367b4666f5fd9620",
+      "status": "passed"
+    },
+    "process": {
+      "argv_sha256": "sha256:305efe4a61860419f9e645ec76021a622cab41326c3266554d428a2c169396ee",
+      "output_bytes": 757,
+      "output_sha256": "sha256:299f52c13cba17ed13b2568e087e377f770a670c47e35cbdf0368c934a3d878b",
+      "status": "passed"
+    },
+    "sandbox": {
+      "argv_sha256": "sha256:b21dec8751a25637c47759a4e12a0b3d453f3d9cc360ec46d3031196bd3075f8",
+      "output_bytes": 1059,
+      "output_sha256": "sha256:b90a249a10f69f0e044beee2be506bc22dd2999d257377243fd4b09cafbd2900",
+      "status": "passed"
+    }
+  },
+  "distribution": {
+    "id": "ubuntu",
+    "version": "24.04.4 LTS (Noble Numbat)",
+    "version_id": "24.04"
+  },
+  "format_version": 1,
+  "kernel_release": "7.0.0-28-generic",
+  "kind": "native-run",
+  "performance_baseline": false,
+  "platform_id": "ubuntu-24.04",
+  "qualification": "native-functional",
+  "run_id": "native-2c87e2c",
+  "source_commit": "2c87e2cc8e659f171cd50f62781540915b374384",
+  "virtualization": "none"
+}
