@@ -18,9 +18,10 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::Component;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use url::Url;
 
 /// Gemini CLI release whose stream-JSON dialect this module implements.
@@ -61,6 +62,7 @@ const MAX_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_MODEL_BYTES: usize = 256;
 const MAX_LABEL_BYTES: usize = 256;
 const HOOK_READY_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(test)]
 static RUN_NONCE: AtomicU64 = AtomicU64::new(0);
 
 const ACTION_HOOK: &str = r#"'use strict';
@@ -464,7 +466,8 @@ impl GeminiConfig {
         self.verify_executable()?;
         fs::create_dir_all(&self.workspace)?;
         fs::create_dir_all(&self.state_root)?;
-        let run_root = create_unique_run_root(&self.state_root)?;
+        let run_root = self.route_run_root(&session_id, &attempt_id);
+        fs::DirBuilder::new().mode(0o700).create(&run_root)?;
         let prepared = self.prepare_run_root(&run_root, prompt);
         let prompt_file = match prepared {
             Ok(file) => file,
@@ -651,6 +654,15 @@ impl GeminiConfig {
             .env("ASB_ACTION_COUNTER", run_root.join("action-count"))
             .env("GOOGLE_GEMINI_BASE_URL", self.endpoint.as_str());
         RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
+    }
+
+    fn route_run_root(&self, session_id: &Id, attempt_id: &Id) -> PathBuf {
+        let mut hasher = Sha256::new();
+        hasher.update(b"asb-gemini-route-v1\0");
+        hasher.update(Sha256::digest(session_id.0.as_bytes()));
+        hasher.update(Sha256::digest(attempt_id.0.as_bytes()));
+        self.state_root
+            .join(format!("attempt-{:x}", hasher.finalize()))
     }
 }
 
@@ -1374,26 +1386,6 @@ fn digest_bundle_tree(root: &Path, expected_count: usize) -> Result<String, Adap
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn create_unique_run_root(state_root: &Path) -> Result<PathBuf, AdapterError> {
-    let epoch = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| AdapterError::Io(io::Error::other(error)))?
-        .as_nanos();
-    for _ in 0..32 {
-        let nonce = RUN_NONCE.fetch_add(1, Ordering::Relaxed);
-        let path = state_root.join(format!("attempt-{}-{epoch}-{nonce}", std::process::id()));
-        match fs::DirBuilder::new().mode(0o700).create(&path) {
-            Ok(()) => return Ok(path),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error.into()),
-        }
-    }
-    Err(AdapterError::Io(io::Error::new(
-        io::ErrorKind::AlreadyExists,
-        "unable to allocate unique Gemini attempt root",
-    )))
-}
-
 fn wait_for_hook_ready(run_root: &Path) -> bool {
     wait_for_hook_ready_until(run_root, Instant::now() + HOOK_READY_TIMEOUT)
 }
@@ -2034,6 +2026,68 @@ printf '%s\n' \
                 .next()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn route_run_roots_are_stable_opaque_and_distinct() {
+        let (_scratch, adapter) = executable_adapter("#!/bin/sh\nexit 0\n");
+        let session = Id("public-session".into());
+        let attempt = Id("public-attempt".into());
+        let first = adapter.route_run_root(&session, &attempt);
+        assert_eq!(first, adapter.route_run_root(&session, &attempt));
+        assert_ne!(
+            first,
+            adapter.route_run_root(&session, &Id("other-attempt".into()))
+        );
+        let name = first.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name.len(), "attempt-".len() + 64);
+        assert!(
+            name.strip_prefix("attempt-")
+                .unwrap()
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        );
+        assert!(!name.contains(&session.0));
+        assert!(!name.contains(&attempt.0));
+    }
+
+    #[test]
+    fn duplicate_and_stale_route_ownership_fail_closed_then_cleanup_allows_reuse() {
+        let script = "#!/bin/sh\ntrap \"exit 0\" TERM\nsleep 60\n";
+        let (scratch, mut adapter) = executable_adapter(script);
+        let bundle = scratch.0.join("bundle");
+        fs::create_dir(&bundle).unwrap();
+        let binary = bundle.join("gemini.js");
+        fs::rename(&adapter.binary, &binary).unwrap();
+        adapter.binary = binary;
+        adapter.bundle_file_count_override = Some(1);
+        adapter.bundle_digest_override = Some(digest_bundle_tree(&bundle, 1).unwrap());
+        let session = Id("same-session".into());
+        let attempt = Id("same-attempt".into());
+        let stale = adapter.route_run_root(&session, &attempt);
+        fs::create_dir_all(&stale).unwrap();
+        assert!(matches!(
+            adapter.start(session.clone(), attempt.clone(), "synthetic", limits()),
+            Err(AdapterError::Io(error)) if error.kind() == io::ErrorKind::AlreadyExists
+        ));
+        fs::remove_dir_all(&stale).unwrap();
+
+        let mut running = adapter
+            .start(session.clone(), attempt.clone(), "synthetic", limits())
+            .unwrap();
+        assert!(matches!(
+            adapter.start(session.clone(), attempt.clone(), "synthetic", limits()),
+            Err(AdapterError::Io(error)) if error.kind() == io::ErrorKind::AlreadyExists
+        ));
+        running.cancel().unwrap();
+        assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
+        assert!(!stale.exists());
+
+        let mut reused = adapter
+            .start(session, attempt, "synthetic", limits())
+            .unwrap();
+        reused.cancel().unwrap();
+        assert_eq!(reused.wait().unwrap().status(), TerminalStatus::Cancelled);
     }
 
     #[test]
