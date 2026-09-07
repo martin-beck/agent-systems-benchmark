@@ -22,6 +22,10 @@ Provider override is limited to version-negotiated HTTP Responses requests
 using an explicit `model_providers.<id>.base_url`, `env_key`,
 `wire_api = "responses"`, and `requires_openai_auth = false`. Loopback HTTP
 is accepted for deterministic fixtures; non-loopback providers require HTTPS.
+Pre-stream provider requests have one bounded retry, while stream retries stay
+disabled so a partial tool stream cannot be silently replayed. The native
+record/replay fixture proves exactly one synthetic 500 is retried and preserved
+in the cassette before the successful tool trajectory.
 The adapter does not claim Codex account/subscription routing, app-server or
 exec-server subscriptions, WebSocket Responses, persisted session resume,
 native replay, MCP/plugin configuration, web-search correctness, or any
