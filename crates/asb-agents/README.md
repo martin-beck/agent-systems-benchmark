@@ -106,8 +106,13 @@ mode-0600 descriptor on standard input, clears the inherited environment,
 uses an isolated per-attempt `GOOSE_PATH_ROOT`, disables keyring access and
 session naming, sets the context-file list to empty, and supplies the provider,
 model, endpoint, maximum turns, and repeated-tool ceiling explicitly. Only the
-bundled `developer` extension is requested. The verified executable,
+bundled `developer` extension is requested. The configured executable,
 workspace, and state root must already be exact canonical non-symlink paths.
+For each attempt, the adapter opens the configured executable without following
+the final symlink, copies and hashes those same opened bytes into a new
+mode-0500 file inside the private attempt directory, and launches only that
+verified private artifact. Replacing the configured path after the copy cannot
+change the launched bytes.
 
 Goose 1.49.0 continues with exit zero when a requested extension fails to
 start. A successful quiet run is therefore required to have empty diagnostic
@@ -118,8 +123,10 @@ assistant messages carry inference metadata; a non-inference assistant
 diagnostic is therefore mapped to a privacy-filtered failed terminal outcome,
 even when the native exit code is zero. The diagnostic text is not retained.
 The adapter accepts only bounded unique-key JSONL with causal tool
-request/response
-identities and a single terminal completion. It retains lifecycle, tool name,
+request/response identities and a single terminal completion. Caller
+correlation IDs, each upstream line and message-content array, total upstream
+events, and independently retained ASB events all have hard byte or cardinality
+ceilings. It retains lifecycle, tool name,
 tool success, and input/output token counts, but discards response text,
 reasoning, tool arguments/results, upstream errors, session identifiers, and
 floating cost. Events are collected after process exit, so live streaming is
@@ -151,15 +158,17 @@ Supported and evidenced:
   provenance, not native evidence.
 - Explicit HTTP loopback or HTTPS OpenAI-compatible endpoints, bounded prompt,
   output, event, turn, and repeated-tool counts. Proxy settings are defense in
-  depth; hard network and filesystem containment remains the ASB sandbox.
+  depth; endpoints whose `NO_PROXY` suffix scope would also exempt the
+  inspected Goose 1.49.0 `us.i.posthog.com` telemetry destination are rejected.
+  Hard network and filesystem containment remains the ASB sandbox.
 
 Not claimed: interactive or persisted sessions, profiles, recipes, arbitrary
 MCP/extensions, ambient hints or skills, ACP/subscription providers, remote
 attach, live events, monetary-cost evidence, GPU/Vulkan, Windows/macOS runtime,
 glibc-specific release assets, or Alpine/native-musl host validation.
 Descendants that leave the owned process group require cgroup containment.
-The canonical workspace/state roots and verified executable installation are
-assumed not to be replaced during an attempt.
+The canonical workspace and state roots are assumed not to be replaced during
+an attempt.
 
 ## Provider-profile binding
 

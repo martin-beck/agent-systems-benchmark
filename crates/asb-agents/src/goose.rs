@@ -42,6 +42,8 @@ pub const MAX_PROMPT_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_EVENT_LINE_BYTES: usize = 16 * 1024 * 1024;
 /// Largest number of Goose JSON events per attempt.
 pub const MAX_UPSTREAM_EVENTS: usize = 65_536;
+/// Largest number of privacy-filtered ASB events retained per attempt.
+pub const MAX_MAPPED_EVENTS: usize = 65_536;
 /// Largest configured agent turn bound.
 pub const MAX_TURNS: u32 = 1_000;
 
@@ -49,8 +51,12 @@ const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_MODEL_BYTES: usize = 256;
 const MAX_ID_BYTES: usize = 4 * 1024;
+const MAX_CORRELATION_ID_BYTES: usize = 4 * 1024;
+const MAX_CONTENT_ITEMS_PER_MESSAGE: usize = 4_096;
 const MAX_TOOL_NAME_BYTES: usize = 256;
+const O_NOFOLLOW_CLOEXEC: i32 = 0x000a_0000;
 const CLOSED_PROXY: &str = "http://127.0.0.1:9";
+const KNOWN_GOOSE_EGRESS: &[&str] = &["us.i.posthog.com"];
 const FAILURE_CODE: i32 = -32_100;
 
 /// Content-pinned Goose artifact understood by this adapter.
@@ -83,6 +89,8 @@ pub struct GooseConfig {
     artifact: GooseArtifact,
     #[cfg(test)]
     verification_digest_override: Option<String>,
+    #[cfg(test)]
+    replacement_before_spawn: Option<Vec<u8>>,
 }
 
 /// Configuration or production-boundary failure.
@@ -100,6 +108,8 @@ pub enum AdapterError {
     InvalidMaxTurns,
     /// Prompt input exceeded its byte ceiling.
     PromptTooLarge,
+    /// A caller correlation identifier was empty or above its byte ceiling.
+    InvalidCorrelationId,
     /// Local preparation or inspection failed.
     Io(io::Error),
     /// The executable did not match its pin.
@@ -123,6 +133,7 @@ impl fmt::Display for AdapterError {
             Self::InvalidModel => f.write_str("invalid provider model"),
             Self::InvalidMaxTurns => f.write_str("invalid Goose turn bound"),
             Self::PromptTooLarge => f.write_str("Goose prompt exceeds byte limit"),
+            Self::InvalidCorrelationId => f.write_str("invalid attempt correlation identifier"),
             Self::Io(e) => write!(f, "adapter I/O failed: {e}"),
             Self::ExecutableMismatch => f.write_str("Goose executable pin mismatch"),
             Self::Process(e) => write!(f, "Goose process failed: {e}"),
@@ -199,6 +210,8 @@ impl GooseConfig {
             artifact,
             #[cfg(test)]
             verification_digest_override: None,
+            #[cfg(test)]
+            replacement_before_spawn: None,
         })
     }
 
@@ -243,10 +256,12 @@ impl GooseConfig {
         prompt: &str,
         limits: ProcessLimits,
     ) -> Result<RunningGoose, AdapterError> {
+        if !valid_correlation_id(&session_id) || !valid_correlation_id(&attempt_id) {
+            return Err(AdapterError::InvalidCorrelationId);
+        }
         if prompt.len() > MAX_PROMPT_BYTES {
             return Err(AdapterError::PromptTooLarge);
         }
-        self.verify_executable()?;
         if !exact_dir(&self.workspace)? {
             return Err(AdapterError::UnsafePath("workspace"));
         }
@@ -261,6 +276,11 @@ impl GooseConfig {
                     .mode(0o700)
                     .create(run_root.join(child))?;
             }
+            let executable = self.prepare_executable(&run_root)?;
+            #[cfg(test)]
+            if let Some(replacement) = &self.replacement_before_spawn {
+                fs::write(&self.binary, replacement)?;
+            }
             let path = run_root.join("prompt");
             let mut file = OpenOptions::new()
                 .write(true)
@@ -272,16 +292,16 @@ impl GooseConfig {
             file.write_all(prompt.as_bytes())?;
             file.sync_all()?;
             file.seek(SeekFrom::Start(0))?;
-            Ok::<_, AdapterError>(file)
+            Ok::<_, AdapterError>((file, executable))
         })();
         let prompt_file = match prepared {
-            Ok(file) => file,
+            Ok(value) => value,
             Err(error) => {
                 let _ = fs::remove_dir_all(&run_root);
                 return Err(error);
             }
         };
-        match self.spawn(&run_root, prompt_file, limits) {
+        match self.spawn(&run_root, &prompt_file.1, prompt_file.0, limits) {
             Ok(process) => Ok(RunningGoose {
                 process,
                 session_id,
@@ -298,6 +318,7 @@ impl GooseConfig {
     fn spawn(
         &self,
         run_root: &Path,
+        executable: &Path,
         prompt: fs::File,
         limits: ProcessLimits,
     ) -> Result<RunningProcess, AdapterError> {
@@ -306,7 +327,7 @@ impl GooseConfig {
             .host_str()
             .ok_or(AdapterError::InvalidEndpoint)?;
         let turns = self.max_turns.to_string();
-        let mut command = Command::new(&self.binary);
+        let mut command = Command::new(executable);
         command
             .current_dir(&self.workspace)
             .args([
@@ -347,6 +368,48 @@ impl GooseConfig {
             .env("no_proxy", host)
             .env("NO_COLOR", "1");
         RunningProcess::spawn(command, limits).map_err(Into::into)
+    }
+
+    fn prepare_executable(&self, run_root: &Path) -> Result<PathBuf, AdapterError> {
+        if !exact_file(&self.binary)? {
+            return Err(AdapterError::UnsafePath("Goose executable"));
+        }
+        let mut source = OpenOptions::new()
+            .read(true)
+            .custom_flags(O_NOFOLLOW_CLOEXEC)
+            .open(&self.binary)?;
+        let metadata = source.metadata()?;
+        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_EXECUTABLE_BYTES {
+            return Err(AdapterError::ExecutableMismatch);
+        }
+        let launch = run_root.join("goose-launch");
+        let mut target = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o500)
+            .open(&launch)?;
+        let mut digest = Sha256::new();
+        let mut total = 0_u64;
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let count = source.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            total = total
+                .checked_add(count as u64)
+                .filter(|value| *value <= MAX_EXECUTABLE_BYTES)
+                .ok_or(AdapterError::ExecutableMismatch)?;
+            digest.update(&buffer[..count]);
+            target.write_all(&buffer[..count])?;
+        }
+        target.sync_all()?;
+        if total != metadata.len()
+            || format!("{:x}", digest.finalize()) != self.verification_digest()
+        {
+            return Err(AdapterError::ExecutableMismatch);
+        }
+        Ok(launch)
     }
 
     fn unique_run_root(&self) -> Result<PathBuf, AdapterError> {
@@ -498,10 +561,28 @@ fn valid_endpoint(endpoint: &Url) -> bool {
     {
         return false;
     }
-    endpoint.scheme() != "http"
-        || endpoint
-            .host_str()
-            .is_some_and(|v| matches!(v, "127.0.0.1" | "::1" | "[::1]" | "localhost"))
+    let Some(host) = endpoint.host_str() else {
+        return false;
+    };
+    if KNOWN_GOOSE_EGRESS
+        .iter()
+        .any(|target| no_proxy_scope_includes(host, target))
+    {
+        return false;
+    }
+    endpoint.scheme() != "http" || matches!(host, "127.0.0.1" | "::1" | "[::1]" | "localhost")
+}
+
+fn no_proxy_scope_includes(provider_host: &str, target: &str) -> bool {
+    let provider_host = provider_host.trim_end_matches(".").to_ascii_lowercase();
+    target == provider_host
+        || target
+            .strip_suffix(&provider_host)
+            .is_some_and(|prefix| prefix.ends_with("."))
+}
+
+fn valid_correlation_id(value: &Id) -> bool {
+    !value.0.is_empty() && value.0.len() <= MAX_CORRELATION_ID_BYTES
 }
 
 const fn model_byte(byte: u8) -> bool {
@@ -517,9 +598,13 @@ fn exact_dir(path: &Path) -> Result<bool, AdapterError> {
 }
 
 fn digest_file(path: &Path) -> Result<String, AdapterError> {
-    let mut file = fs::File::open(path)?;
-    let size = file.metadata()?.len();
-    if size == 0 || size > MAX_EXECUTABLE_BYTES {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .custom_flags(O_NOFOLLOW_CLOEXEC)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    let size = metadata.len();
+    if !metadata.is_file() || size == 0 || size > MAX_EXECUTABLE_BYTES {
         return Err(AdapterError::ExecutableMismatch);
     }
     let mut digest = Sha256::new();
@@ -677,6 +762,9 @@ fn map_message(
         .and_then(Value::as_array)
         .filter(|values| !values.is_empty())
         .ok_or(AdapterError::InvalidEvent)?;
+    if contents.len() > MAX_CONTENT_ITEMS_PER_MESSAGE {
+        return Err(AdapterError::InvalidEvent);
+    }
     for content in contents {
         let content = content.as_object().ok_or(AdapterError::InvalidEvent)?;
         match string(content, "type")? {
@@ -881,6 +969,9 @@ fn push(
     attempt_id: &Id,
     event: Event,
 ) -> Result<(), AdapterError> {
+    if events.len() >= MAX_MAPPED_EVENTS {
+        return Err(AdapterError::InvalidEvent);
+    }
     let current = *sequence;
     *sequence = sequence.checked_add(1).ok_or(AdapterError::InvalidEvent)?;
     events.push(ExtensionEvent {
@@ -1074,6 +1165,10 @@ mod tests {
             "http://example.com/v1",
             "https://user@example.com/v1",
             "https://example.com/v1?secret=x",
+            "https://com/v1",
+            "https://posthog.com/v1",
+            "https://i.posthog.com/v1",
+            "https://us.i.posthog.com/v1",
         ] {
             assert!(matches!(
                 GooseConfig::new(
@@ -1088,6 +1183,18 @@ mod tests {
                 Err(AdapterError::InvalidEndpoint)
             ));
         }
+        assert!(
+            GooseConfig::new(
+                "/bin/goose",
+                "/work",
+                "/state",
+                Url::parse("https://notposthog.com/v1").unwrap(),
+                "model",
+                1,
+                GooseArtifact::LinuxX86_64MuslV1_49_0,
+            )
+            .is_ok()
+        );
         for model in ["", "/model", "model/", "bad model", "a//b"] {
             assert!(matches!(
                 GooseConfig::new(
@@ -1127,6 +1234,7 @@ mod tests {
             AdapterError::InvalidModel,
             AdapterError::InvalidMaxTurns,
             AdapterError::PromptTooLarge,
+            AdapterError::InvalidCorrelationId,
             AdapterError::ExecutableMismatch,
             AdapterError::TruncatedOutput,
             AdapterError::RequiredExtensionUnavailable,
@@ -1244,6 +1352,42 @@ mod tests {
         let trailing = lines(&[text_message("done"), complete(), text_message("late")]);
         assert!(matches!(
             map_events(&trailing, &session, &attempt, TerminalStatus::Completed),
+            Err(AdapterError::InvalidEvent)
+        ));
+    }
+
+    #[test]
+    fn rejects_content_and_mapped_event_amplification() {
+        let (session, attempt) = ids();
+        let content =
+            vec![json!({"type":"text","text":"bounded"}); MAX_CONTENT_ITEMS_PER_MESSAGE + 1];
+        let amplified = lines(&[json!({"type":"message","message":{
+            "id":"one","role":"assistant",
+            "metadata":{"inference":{"provider":"openai","requestedModel":"fixture/model:1"}},
+            "content":content
+        }})]);
+        assert!(matches!(
+            map_events(&amplified, &session, &attempt, TerminalStatus::Completed),
+            Err(AdapterError::InvalidEvent)
+        ));
+
+        let mut events = (0..MAX_MAPPED_EVENTS)
+            .map(|sequence| ExtensionEvent {
+                session_id: session.clone(),
+                attempt_id: attempt.clone(),
+                sequence: sequence as u64,
+                event: Event::Ready,
+            })
+            .collect::<Vec<_>>();
+        let mut sequence = MAX_MAPPED_EVENTS as u64;
+        assert!(matches!(
+            push(
+                &mut events,
+                &mut sequence,
+                &session,
+                &attempt,
+                Event::Completed
+            ),
             Err(AdapterError::InvalidEvent)
         ));
     }
@@ -1399,6 +1543,35 @@ mod tests {
     }
 
     #[test]
+    fn verified_private_launch_ignores_configured_path_replacement() {
+        let root = root("replacement");
+        let workspace = root.join("work");
+        let state = root.join("state");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&state).unwrap();
+        let binary = root.join("goose");
+        let digest = executable(
+            &binary,
+            "#!/bin/sh\nread prompt\ncat <<EOF\n{\"type\":\"message\",\"message\":{\"id\":\"m\",\"role\":\"assistant\",\"metadata\":{\"inference\":{\"provider\":\"openai\",\"requestedModel\":\"fixture/model:1\"}},\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}\n{\"type\":\"complete\",\"total_tokens\":2,\"input_tokens\":1,\"output_tokens\":1}\nEOF\n",
+        );
+        let marker = workspace.join("replacement-executed");
+        let mut cfg = config(&binary, &workspace, &state);
+        cfg.verification_digest_override = Some(digest);
+        cfg.replacement_before_spawn =
+            Some(format!("#!/bin/sh\ntouch \"{}\"\nexit 77\n", marker.display()).into_bytes());
+        let outcome = cfg
+            .start(Id("s".into()), Id("a".into()), "prompt", limits())
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert_eq!(outcome.status(), TerminalStatus::Completed);
+        assert!(!marker.exists());
+        assert!(fs::read_to_string(&binary).unwrap().contains("exit 77"));
+        assert_eq!(fs::read_dir(&state).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn diagnostic_and_symlink_fail_closed() {
         let root = root("negative");
         let workspace = root.join("work");
@@ -1498,6 +1671,38 @@ mod tests {
             ),
             Err(AdapterError::PromptTooLarge)
         ));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_correlation_ids_fail_before_state_mutation() {
+        let root = root("correlation");
+        let workspace = root.join("work");
+        let state = root.join("state");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&state).unwrap();
+        let binary = root.join("goose");
+        let digest = executable(&binary, "#!/bin/sh\nexit 99\n");
+        let mut cfg = config(&binary, &workspace, &state);
+        cfg.verification_digest_override = Some(digest);
+        for (session, attempt) in [
+            (Id(String::new()), Id("attempt".into())),
+            (Id("session".into()), Id(String::new())),
+            (
+                Id("s".repeat(MAX_CORRELATION_ID_BYTES + 1)),
+                Id("attempt".into()),
+            ),
+            (
+                Id("session".into()),
+                Id("a".repeat(MAX_CORRELATION_ID_BYTES + 1)),
+            ),
+        ] {
+            assert!(matches!(
+                cfg.start(session, attempt, "prompt", limits()),
+                Err(AdapterError::InvalidCorrelationId)
+            ));
+            assert_eq!(fs::read_dir(&state).unwrap().count(), 0);
+        }
         fs::remove_dir_all(root).unwrap();
     }
 }

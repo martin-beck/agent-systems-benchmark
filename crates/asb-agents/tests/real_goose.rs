@@ -258,6 +258,14 @@ fn server(
                             .to_string()
                             .contains("ASB_AMBIENT_CONTEXT_SENTINEL")
                     );
+                    assert!(
+                        !request
+                            .body
+                            .as_ref()
+                            .unwrap()
+                            .to_string()
+                            .contains("ASB_GOOSEHINTS_SENTINEL")
+                    );
                     let tools = request.body.as_ref().unwrap()["tools"].as_array().unwrap();
                     let names = tools
                         .iter()
@@ -408,6 +416,11 @@ fn pinned_binary_completes_tool_fixture_and_cancels() {
     fs::write(
         test_root.join("work/AGENTS.md"),
         "ASB_AMBIENT_CONTEXT_SENTINEL",
+    )
+    .unwrap();
+    fs::write(
+        test_root.join("work/.goosehints"),
+        "ASB_GOOSEHINTS_SENTINEL",
     )
     .unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
