@@ -106,17 +106,20 @@ The Gemini GenerateContent syntax capability is restricted to
 1--256 ASCII letters, digits, dots, underscores, or hyphens and must equal the
 cassette model. The model appears only in the route. The JSON object has exactly
 `contents`, `generationConfig`, `systemInstruction`, and `tools`; the pinned
-shape requires captured numeric temperature, topK, and topP values plus an exactly
-empty `thinkingConfig` object,
+shape requires captured numeric temperature, topK, and topP values plus a
+`thinkingConfig` object containing exactly one boolean `includeThoughts` member,
 one functionDeclarations container, and description/name/parametersJsonSchema
 declarations. Content parts are restricted to text, functionCall plus
 thoughtSignature, or functionResponse shapes. The complete canonical request,
 including every nested configuration, tool value, semantic text, and tool
-identifier, matches exactly. When an SSE response requests a function call, the
-next recorded request must contain a functionCall/functionResponse pair whose ID
-and name both equal that response. The pinned Gemini 0.58.0 capture has an empty request-body
-selector set, which this dialect requires; whole user or system text is not a safe
-volatile selector. Marker-shaped incoming values fail closed.
+identifier (including the recorded `includeThoughts` value), matches exactly.
+The public fixture uses a synthetic boolean; the private capture's value is not
+published or needed to establish its one-key boolean shape. When an SSE response
+requests a function call, the next recorded request must contain a
+functionCall/functionResponse pair whose ID and name both equal that response.
+The pinned Gemini 0.58.0 capture has an empty request-body selector set, which
+this dialect requires; whole user or system text is not a safe volatile
+selector. Marker-shaped incoming values fail closed.
 
 Gemini also admits the exact pinned retry response: HTTP 500 `application/json`,
 failed terminal status, no response identity, and one error object containing only

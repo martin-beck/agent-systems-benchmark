@@ -688,11 +688,15 @@ fn validate_gemini_generate_content_contract(
             )
         })
         .ok_or(ReplayError::InvalidCassette)?;
+    let thinking = generation
+        .get("thinkingConfig")
+        .and_then(Value::as_object)
+        .filter(|thinking| exact_object_keys(thinking, &["includeThoughts"]))
+        .ok_or(ReplayError::InvalidCassette)?;
     if !generation.get("temperature").is_some_and(Value::is_number)
-        || !generation
-            .get("thinkingConfig")
-            .and_then(Value::as_object)
-            .is_some_and(serde_json::Map::is_empty)
+        || !thinking
+            .get("includeThoughts")
+            .is_some_and(Value::is_boolean)
         || !generation.get("topK").is_some_and(Value::is_number)
         || !generation.get("topP").is_some_and(Value::is_number)
     {
