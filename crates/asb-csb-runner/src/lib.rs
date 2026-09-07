@@ -4,10 +4,26 @@
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Component, Path};
+use std::fs::File;
+use std::io::Read;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Component, Path, PathBuf};
 
-use asb_protocol::{CallLimits, PROTOCOL_V1, ProtocolVersion};
+use asb_protocol::{CallLimits, Id, PROTOCOL_V1, ProtocolVersion};
+use asb_runtime::sandbox::{
+    NetworkPolicy, ResourceLease, Resources, SandboxBackend, SandboxError, SandboxProcess,
+    SandboxSpec,
+};
+use asb_runtime::{ProcessLimits, ProcessOutput, Termination};
+use asb_store::{
+    AtomicStore, ExecutionState, JOURNAL_SCHEMA_VERSION, JournalEvent, RecoveryDecision,
+    StoreError, StoreLimits,
+};
+use rustix::fs::{Mode, OFlags, open, openat};
+use rustix::io::{FdFlags, fcntl_setfd};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -19,12 +35,16 @@ pub const MAX_ARGUMENTS: usize = 128;
 pub const MAX_ARGUMENT_BYTES: usize = 32 * 1024;
 /// Maximum count of declared output artifacts.
 pub const MAX_ARTIFACTS: usize = 256;
-/// Maximum count of explicitly allowed environment entries.
-pub const MAX_ENVIRONMENT: usize = 32;
 /// Maximum byte length of any single identifier or relative path.
 pub const MAX_COMPONENT_BYTES: usize = 1024;
 /// Maximum operation identities retained by one negotiated subprocess session.
 pub const MAX_SESSION_OPERATIONS: usize = 4096;
+/// Exact public CSB revision admitted by generation one.
+pub const CSB_SOURCE_COMMIT: &str = "d577c5249501b29e33a87524a677a101477d5579";
+/// Exact Git tree admitted by generation one.
+pub const CSB_SOURCE_TREE: &str = "97d08b39026f7c7d3e6f748b26a20e819a92184f";
+/// Maximum bytes accepted for a pinned executable or one output artifact.
+pub const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Only the independently reviewed CSB execution mode is admitted.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -232,6 +252,414 @@ impl BoundarySession {
     pub fn active_operations(&self) -> usize {
         self.active.len()
     }
+
+    fn rollback_before_effect(&mut self, operation_id: &str, attempt_id: &str) {
+        self.active.remove(operation_id);
+        self.admitted
+            .remove(&(operation_id.to_owned(), attempt_id.to_owned()));
+    }
+}
+
+/// Failure at the durable, filesystem, or containment execution boundary.
+#[derive(Debug, Error)]
+pub enum ExecutionError {
+    /// Protocol admission failed before execution.
+    #[error("CSB request admission failed: {0}")]
+    Admission(#[from] AdmissionError),
+    /// Workspace, state, executable, or artifact topology was unsafe.
+    #[error("CSB filesystem boundary rejected")]
+    Filesystem,
+    /// Executable bytes did not match the admitted digest.
+    #[error("CSB executable identity mismatch")]
+    ExecutableIdentity,
+    /// Durable state did not permit a new execution effect.
+    #[error("CSB durable state requires reconciliation")]
+    DurableState,
+    /// Durable journal persistence failed.
+    #[error("CSB durable store failed: {0}")]
+    Store(#[from] StoreError),
+    /// The rootless sandbox failed or left uncertain cleanup.
+    #[error("CSB sandbox failed: {0}")]
+    Sandbox(#[from] SandboxError),
+}
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Closed interface implemented only by ASB-owned contained process handles.
+pub trait ContainedChild: sealed::Sealed {
+    /// Request idempotent whole-scope cancellation.
+    fn cancel(&mut self) -> Result<(), SandboxError>;
+    /// Reap the full contained scope and return bounded terminal evidence.
+    fn wait(&mut self) -> Result<ProcessOutput, SandboxError>;
+}
+
+impl sealed::Sealed for SandboxProcess {}
+
+impl ContainedChild for SandboxProcess {
+    fn cancel(&mut self) -> Result<(), SandboxError> {
+        SandboxProcess::cancel(self)
+    }
+
+    fn wait(&mut self) -> Result<ProcessOutput, SandboxError> {
+        SandboxProcess::wait(self)
+    }
+}
+
+trait Launcher {
+    type Child: ContainedChild;
+
+    fn spawn(
+        &self,
+        spec: SandboxSpec,
+        lease: ResourceLease,
+        limits: ProcessLimits,
+    ) -> Result<Self::Child, SandboxError>;
+}
+
+impl Launcher for SandboxBackend {
+    type Child = SandboxProcess;
+
+    fn spawn(
+        &self,
+        spec: SandboxSpec,
+        lease: ResourceLease,
+        limits: ProcessLimits,
+    ) -> Result<Self::Child, SandboxError> {
+        SandboxBackend::spawn(self, spec, lease, limits)
+    }
+}
+
+/// Production CSB launcher backed only by the reviewed ASB sandbox runtime.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CsbExecutor {
+    backend: SandboxBackend,
+}
+
+impl CsbExecutor {
+    /// Bind execution to an exact-pinned sandbox backend.
+    pub fn new(backend: SandboxBackend) -> Self {
+        Self { backend }
+    }
+
+    /// Persist execution intent, then spawn one verified offline process.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start(
+        &self,
+        session: &mut BoundarySession,
+        request: RunRequest,
+        workspace: &Path,
+        state_root: &Path,
+        program: &str,
+        working_directory: PathBuf,
+        resources: Resources,
+        lease: ResourceLease,
+        process_limits: ProcessLimits,
+        store_limits: StoreLimits,
+        run_id: &str,
+        monotonic_offset_ns: u64,
+    ) -> Result<RunningCsb, ExecutionError> {
+        start_with(
+            &self.backend,
+            session,
+            request,
+            workspace,
+            state_root,
+            program,
+            working_directory,
+            resources,
+            lease,
+            process_limits,
+            store_limits,
+            run_id,
+            monotonic_offset_ns,
+        )
+    }
+}
+
+/// One contained CSB process whose terminal evidence is not yet durable.
+pub struct RunningCsb<C: ContainedChild = SandboxProcess> {
+    child: C,
+    store: AtomicStore,
+    run_id: String,
+    operation_id: String,
+    attempt_id: String,
+    artifacts: Vec<String>,
+    workspace: PathBuf,
+    sequence: u64,
+    monotonic_offset_ns: u64,
+}
+
+impl<C: ContainedChild> RunningCsb<C> {
+    /// Request idempotent whole-scope cancellation.
+    pub fn cancel(&mut self) -> Result<(), ExecutionError> {
+        self.child.cancel().map_err(ExecutionError::Sandbox)
+    }
+
+    /// Reap the scope, commit bounded artifacts, and persist terminal evidence.
+    pub fn wait(mut self, session: &mut BoundarySession) -> Result<ProcessOutput, ExecutionError> {
+        finish_with(
+            &mut self.child,
+            &self.store,
+            &self.run_id,
+            &self.attempt_id,
+            &self.artifacts,
+            &self.workspace,
+            self.sequence,
+            self.monotonic_offset_ns,
+        )
+        .and_then(|output| {
+            session.finish(&self.operation_id, &self.attempt_id)?;
+            Ok(output)
+        })
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn start_with<L: Launcher>(
+    launcher: &L,
+    session: &mut BoundarySession,
+    request: RunRequest,
+    workspace: &Path,
+    state_root: &Path,
+    program: &str,
+    working_directory: PathBuf,
+    resources: Resources,
+    lease: ResourceLease,
+    process_limits: ProcessLimits,
+    store_limits: StoreLimits,
+    run_id: &str,
+    monotonic_offset_ns: u64,
+) -> Result<RunningCsb<L::Child>, ExecutionError> {
+    let workspace = canonical_directory(workspace)?;
+    let state_root = canonical_directory(state_root)?;
+    if workspace.starts_with(&state_root) || state_root.starts_with(&workspace) {
+        return Err(ExecutionError::Filesystem);
+    }
+    let store = AtomicStore::open(&state_root, store_limits)?;
+    let verified_program = verify_regular_at(&workspace, program, &request.pin.executable_sha256)?;
+    let manifest = store.load_manifest(run_id)?;
+    if manifest.attempt_id.0 != request.attempt_id
+        || store.recovery_decision(run_id)? != RecoveryDecision::Resume(ExecutionState::Prepared)
+    {
+        return Err(ExecutionError::DurableState);
+    }
+
+    let operation_id = request.operation_id.clone();
+    let attempt_id = request.attempt_id.clone();
+    let artifacts = request.artifacts.clone();
+    let arguments = request.arguments.clone();
+    let environment = request.environment.clone();
+    // The sandbox executes the already-open inode, not a path that can be
+    // replaced between identity verification and exec. The descriptor holds
+    // only reviewed public executable bytes and is inheritable solely across
+    // this synchronous systemd-run --scope / Bubblewrap launch chain.
+    let sandbox_program = format!("/proc/self/fd/{}", verified_program.as_raw_fd());
+    let spec = SandboxSpec::new(
+        &workspace,
+        working_directory,
+        sandbox_program,
+        arguments,
+        environment,
+        resources,
+        NetworkPolicy::Deny,
+    )
+    .map_err(|_| ExecutionError::Filesystem)?;
+    let validated = session.admit(request)?;
+    let journal = store.load_journal(run_id)?;
+    let sequence = u64::try_from(journal.len()).map_err(|_| ExecutionError::DurableState)?;
+    let collecting_sequence = sequence
+        .checked_add(1)
+        .ok_or(ExecutionError::DurableState)?;
+    collecting_sequence
+        .checked_add(1)
+        .ok_or(ExecutionError::DurableState)?;
+    let running = JournalEvent {
+        schema_version: JOURNAL_SCHEMA_VERSION,
+        sequence,
+        attempt_id: Id(attempt_id.clone()),
+        monotonic_offset_ns,
+        state: ExecutionState::Running,
+        evidence: json!({
+            "request_sha256": validated.request_sha256(),
+            "executable_sha256": validated.request().pin.executable_sha256,
+        }),
+    };
+    if let Err(error) = store.append(run_id, &running) {
+        session.rollback_before_effect(&operation_id, &attempt_id);
+        return Err(ExecutionError::Store(error));
+    }
+
+    fcntl_setfd(&verified_program, FdFlags::empty()).map_err(|_| ExecutionError::Filesystem)?;
+    let child = launcher.spawn(spec, lease, process_limits);
+    let restored = fcntl_setfd(&verified_program, FdFlags::CLOEXEC);
+    if restored.is_err() {
+        return Err(ExecutionError::Filesystem);
+    }
+    let child = child?;
+    Ok(RunningCsb {
+        child,
+        store,
+        run_id: run_id.to_owned(),
+        operation_id,
+        attempt_id,
+        artifacts,
+        workspace,
+        sequence: collecting_sequence,
+        monotonic_offset_ns,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finish_with<C: ContainedChild>(
+    child: &mut C,
+    store: &AtomicStore,
+    run_id: &str,
+    attempt_id: &str,
+    artifacts: &[String],
+    workspace: &Path,
+    sequence: u64,
+    monotonic_offset_ns: u64,
+) -> Result<ProcessOutput, ExecutionError> {
+    let output = child.wait()?;
+    let termination = match output.termination {
+        Termination::Exited => "exited",
+        Termination::Cancelled => "cancelled",
+        Termination::TimedOut => "timed_out",
+    };
+    let elapsed_ns =
+        u64::try_from(output.elapsed.as_nanos()).map_err(|_| ExecutionError::DurableState)?;
+    let finished_offset_ns = monotonic_offset_ns
+        .checked_add(elapsed_ns)
+        .ok_or(ExecutionError::DurableState)?;
+    let collecting = JournalEvent {
+        schema_version: JOURNAL_SCHEMA_VERSION,
+        sequence,
+        attempt_id: Id(attempt_id.to_owned()),
+        monotonic_offset_ns: finished_offset_ns,
+        state: ExecutionState::Collecting,
+        evidence: json!({
+            "exit_code": output.exit_code,
+            "signal": output.signal,
+            "termination": termination,
+            "stdout_bytes": output.stdout.total_bytes,
+            "stdout_truncated": output.stdout.truncated,
+            "stderr_bytes": output.stderr.total_bytes,
+            "stderr_truncated": output.stderr.truncated,
+        }),
+    };
+    store.append(run_id, &collecting)?;
+
+    let mut committed = Vec::with_capacity(artifacts.len());
+    if output.termination == Termination::Exited && output.exit_code == Some(0) {
+        for artifact in artifacts {
+            let mut file = open_regular_at(workspace, artifact)?;
+            committed.push(store.put_artifact(run_id, artifact, &mut file)?);
+        }
+    }
+    let terminal = match output.termination {
+        Termination::Cancelled => ExecutionState::Cancelled,
+        Termination::Exited if output.exit_code == Some(0) => ExecutionState::Completed,
+        Termination::Exited | Termination::TimedOut => ExecutionState::Failed,
+    };
+    store.append(
+        run_id,
+        &JournalEvent {
+            schema_version: JOURNAL_SCHEMA_VERSION,
+            sequence: sequence
+                .checked_add(1)
+                .ok_or(ExecutionError::DurableState)?,
+            attempt_id: Id(attempt_id.to_owned()),
+            monotonic_offset_ns: finished_offset_ns,
+            state: terminal,
+            evidence: json!({ "artifacts": committed }),
+        },
+    )?;
+    Ok(output)
+}
+
+fn canonical_directory(path: &Path) -> Result<PathBuf, ExecutionError> {
+    if !path.is_absolute() {
+        return Err(ExecutionError::Filesystem);
+    }
+    let mut inspected = PathBuf::from("/");
+    for component in path.components() {
+        match component {
+            Component::RootDir => continue,
+            Component::Normal(name) => inspected.push(name),
+            Component::CurDir | Component::ParentDir | Component::Prefix(_) => {
+                return Err(ExecutionError::Filesystem);
+            }
+        }
+        let metadata =
+            std::fs::symlink_metadata(&inspected).map_err(|_| ExecutionError::Filesystem)?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(ExecutionError::Filesystem);
+        }
+    }
+    let canonical = std::fs::canonicalize(path).map_err(|_| ExecutionError::Filesystem)?;
+    if canonical != inspected || !canonical.is_dir() {
+        return Err(ExecutionError::Filesystem);
+    }
+    Ok(canonical)
+}
+
+fn verify_regular_at(
+    root: &Path,
+    name: &str,
+    expected_sha256: &str,
+) -> Result<File, ExecutionError> {
+    let mut file = open_regular_at(root, name)?;
+    if file
+        .metadata()
+        .map_err(|_| ExecutionError::Filesystem)?
+        .permissions()
+        .mode()
+        & 0o111
+        == 0
+    {
+        return Err(ExecutionError::Filesystem);
+    }
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(MAX_FILE_BYTES.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|_| ExecutionError::Filesystem)?;
+    if bytes.len() as u64 > MAX_FILE_BYTES
+        || format!("{:x}", Sha256::digest(&bytes)) != expected_sha256
+    {
+        return Err(ExecutionError::ExecutableIdentity);
+    }
+    Ok(file)
+}
+
+fn open_regular_at(root: &Path, name: &str) -> Result<File, ExecutionError> {
+    let path = Path::new(name);
+    if path.components().count() != 1
+        || !matches!(path.components().next(), Some(Component::Normal(_)))
+    {
+        return Err(ExecutionError::Filesystem);
+    }
+    let directory = open(
+        root,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| ExecutionError::Filesystem)?;
+    let descriptor = openat(
+        &directory,
+        path,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| ExecutionError::Filesystem)?;
+    let file = File::from(descriptor);
+    let metadata = file.metadata().map_err(|_| ExecutionError::Filesystem)?;
+    if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES {
+        return Err(ExecutionError::Filesystem);
+    }
+    Ok(file)
 }
 
 impl RunRequest {
@@ -242,10 +670,10 @@ impl RunRequest {
         }
         validate_identity("operation", &self.operation_id)?;
         validate_identity("attempt", &self.attempt_id)?;
-        if !is_hex(&self.pin.source_commit, 40) {
+        if !is_hex(&self.pin.source_commit, 40) || self.pin.source_commit != CSB_SOURCE_COMMIT {
             return Err(ValidationError::Digest("source commit"));
         }
-        if !is_hex(&self.pin.source_tree, 40) {
+        if !is_hex(&self.pin.source_tree, 40) || self.pin.source_tree != CSB_SOURCE_TREE {
             return Err(ValidationError::Digest("source tree"));
         }
         if !is_hex(&self.pin.executable_sha256, 64) {
@@ -302,13 +730,11 @@ fn validate_arguments(arguments: &[String]) -> Result<(), ValidationError> {
 
 fn validate_environment(environment: &BTreeMap<String, String>) -> Result<(), ValidationError> {
     const ALLOWED: &[&str] = &["CSB_RUN_ID", "CSB_SEED", "LANG", "LC_ALL", "TZ"];
-    if environment.len() > MAX_ENVIRONMENT
-        || environment.iter().any(|(name, value)| {
-            !ALLOWED.contains(&name.as_str())
-                || value.len() > MAX_COMPONENT_BYTES
-                || value.as_bytes().contains(&0)
-        })
-    {
+    if environment.iter().any(|(name, value)| {
+        !ALLOWED.contains(&name.as_str())
+            || value.len() > MAX_COMPONENT_BYTES
+            || value.as_bytes().contains(&0)
+    }) {
         return Err(ValidationError::Environment);
     }
     Ok(())
@@ -324,9 +750,8 @@ fn validate_artifacts(artifacts: &[String]) -> Result<(), ValidationError> {
         if artifact.is_empty()
             || artifact.len() > MAX_COMPONENT_BYTES
             || path.is_absolute()
-            || path
-                .components()
-                .any(|component| !matches!(component, Component::Normal(_)))
+            || path.components().count() != 1
+            || !matches!(path.components().next(), Some(Component::Normal(_)))
             || prior.is_some_and(|value| value >= artifact.as_str())
         {
             return Err(ValidationError::Artifact);
@@ -339,6 +764,57 @@ fn validate_artifacts(artifacts: &[String]) -> Result<(), ValidationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_runtime::sandbox::{CpuSet, LeaseClass};
+    use asb_runtime::{CapturedStream, Termination};
+    use asb_store::{MANIFEST_SCHEMA_VERSION, RunManifest};
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::Duration;
+    use tempfile::TempDir;
+
+    struct FakeChild {
+        output: ProcessOutput,
+        lease: Option<ResourceLease>,
+    }
+
+    impl sealed::Sealed for FakeChild {}
+
+    impl ContainedChild for FakeChild {
+        fn cancel(&mut self) -> Result<(), SandboxError> {
+            self.output.termination = Termination::Cancelled;
+            self.output.exit_code = None;
+            Ok(())
+        }
+
+        fn wait(&mut self) -> Result<ProcessOutput, SandboxError> {
+            self.lease.take();
+            Ok(self.output.clone())
+        }
+    }
+
+    struct FakeLauncher {
+        output: ProcessOutput,
+        fail_spawn: bool,
+    }
+
+    impl Launcher for FakeLauncher {
+        type Child = FakeChild;
+
+        fn spawn(
+            &self,
+            _spec: SandboxSpec,
+            lease: ResourceLease,
+            _limits: ProcessLimits,
+        ) -> Result<Self::Child, SandboxError> {
+            if self.fail_spawn {
+                return Err(SandboxError::DelegationRejected);
+            }
+            Ok(FakeChild {
+                output: self.output.clone(),
+                lease: Some(lease),
+            })
+        }
+    }
 
     fn limits() -> CallLimits {
         CallLimits {
@@ -357,13 +833,104 @@ mod tests {
                 source_commit: "d577c5249501b29e33a87524a677a101477d5579".into(),
                 source_tree: "97d08b39026f7c7d3e6f748b26a20e819a92184f".into(),
                 executable_sha256:
-                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+                    "e1228516fe0648db35cfb7b6669b09f25dc32f62691c8fc8cca4ee1e935eee88".into(),
             },
             mode: ExecutionMode::ExternalApplication,
             arguments: vec!["--json".into()],
             environment: BTreeMap::from([("TZ".into(), "UTC".into())]),
-            artifacts: vec!["result/summary.json".into()],
+            artifacts: vec!["result.json".into()],
         }
+    }
+
+    fn output(termination: Termination, exit_code: Option<i32>) -> ProcessOutput {
+        ProcessOutput {
+            exit_code,
+            signal: None,
+            termination,
+            stdout: CapturedStream {
+                bytes: b"public summary".to_vec(),
+                total_bytes: 14,
+                truncated: false,
+            },
+            stderr: CapturedStream {
+                bytes: Vec::new(),
+                total_bytes: 0,
+                truncated: false,
+            },
+            elapsed: Duration::from_millis(2),
+        }
+    }
+
+    fn executable(workspace: &Path, bytes: &[u8]) -> String {
+        let path = workspace.join("fixture");
+        fs::write(&path, bytes).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        format!("{:x}", Sha256::digest(bytes))
+    }
+
+    fn prepared_store(root: &Path, value: &RunRequest) -> AtomicStore {
+        let store = AtomicStore::open(root, StoreLimits::default()).unwrap();
+        store
+            .create_run(&RunManifest {
+                schema_version: MANIFEST_SCHEMA_VERSION,
+                run_id: Id("run-1".into()),
+                attempt_id: Id(value.attempt_id.clone()),
+                definition: json!({"kind": "csb"}),
+            })
+            .unwrap();
+        for (sequence, state) in [ExecutionState::Planned, ExecutionState::Prepared]
+            .into_iter()
+            .enumerate()
+        {
+            store
+                .append(
+                    "run-1",
+                    &JournalEvent {
+                        schema_version: JOURNAL_SCHEMA_VERSION,
+                        sequence: sequence as u64,
+                        attempt_id: Id(value.attempt_id.clone()),
+                        monotonic_offset_ns: sequence as u64,
+                        state,
+                        evidence: json!({}),
+                    },
+                )
+                .unwrap();
+        }
+        store
+    }
+
+    fn append_running(store: &AtomicStore, attempt_id: &str) {
+        store
+            .append(
+                "run-1",
+                &JournalEvent {
+                    schema_version: JOURNAL_SCHEMA_VERSION,
+                    sequence: 2,
+                    attempt_id: Id(attempt_id.into()),
+                    monotonic_offset_ns: 2,
+                    state: ExecutionState::Running,
+                    evidence: json!({}),
+                },
+            )
+            .unwrap();
+    }
+
+    fn resources_and_lease(root: &Path) -> (Resources, ResourceLease) {
+        let cpus = CpuSet::new(vec![0]).unwrap();
+        let resources = Resources::new(64 * 1024 * 1024, 8, 100, cpus.clone()).unwrap();
+        let lease = ResourceLease::acquire(root, LeaseClass::Benchmark, cpus).unwrap();
+        (resources, lease)
+    }
+
+    fn process_limits() -> ProcessLimits {
+        ProcessLimits::new(
+            4096,
+            4096,
+            Duration::from_secs(2),
+            Duration::from_millis(10),
+            Duration::from_millis(1),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -639,5 +1206,430 @@ mod tests {
         value.operation_id = "operation-overflow".into();
         value.attempt_id = "attempt-overflow".into();
         assert_eq!(session.admit(value), Err(AdmissionError::Capacity));
+    }
+
+    #[test]
+    fn durable_success_orders_intent_collection_and_terminal_evidence() {
+        let workspace = TempDir::new().unwrap();
+        let state = TempDir::new().unwrap();
+        let leases = TempDir::new().unwrap();
+        let mut value = request();
+        value.pin.executable_sha256 = executable(workspace.path(), b"#!/bin/sh\nexit 0\n");
+        fs::write(workspace.path().join("result.json"), b"{\"ok\":true}\n").unwrap();
+        let store = prepared_store(state.path(), &value);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let launcher = FakeLauncher {
+            output: output(Termination::Exited, Some(0)),
+            fail_spawn: false,
+        };
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        let running = start_with(
+            &launcher,
+            &mut session,
+            value,
+            workspace.path(),
+            state.path(),
+            "fixture",
+            PathBuf::from("."),
+            resources,
+            lease,
+            process_limits(),
+            StoreLimits::default(),
+            "run-1",
+            2,
+        )
+        .unwrap();
+        assert_eq!(session.active_operations(), 1);
+        let observed = running.wait(&mut session).unwrap();
+        assert_eq!(observed.exit_code, Some(0));
+        assert_eq!(session.active_operations(), 0);
+        assert!(!leases.path().join("cpu-0.lease").exists());
+        assert_eq!(
+            store
+                .load_journal("run-1")
+                .unwrap()
+                .iter()
+                .map(|event| event.state)
+                .collect::<Vec<_>>(),
+            vec![
+                ExecutionState::Planned,
+                ExecutionState::Prepared,
+                ExecutionState::Running,
+                ExecutionState::Collecting,
+                ExecutionState::Completed,
+            ]
+        );
+    }
+
+    #[test]
+    fn cancellation_is_terminal_and_commits_no_artifact() {
+        let workspace = TempDir::new().unwrap();
+        let state = TempDir::new().unwrap();
+        let leases = TempDir::new().unwrap();
+        let mut value = request();
+        value.pin.executable_sha256 = executable(workspace.path(), b"cancel fixture");
+        let store = prepared_store(state.path(), &value);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let launcher = FakeLauncher {
+            output: output(Termination::Cancelled, None),
+            fail_spawn: false,
+        };
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        let mut running = start_with(
+            &launcher,
+            &mut session,
+            value,
+            workspace.path(),
+            state.path(),
+            "fixture",
+            PathBuf::from("."),
+            resources,
+            lease,
+            process_limits(),
+            StoreLimits::default(),
+            "run-1",
+            2,
+        )
+        .unwrap();
+        running.cancel().unwrap();
+        running.wait(&mut session).unwrap();
+        assert_eq!(
+            store.load_journal("run-1").unwrap().last().unwrap().state,
+            ExecutionState::Cancelled
+        );
+    }
+
+    #[test]
+    fn spawn_failure_preserves_uncertain_running_intent() {
+        let workspace = TempDir::new().unwrap();
+        let state = TempDir::new().unwrap();
+        let leases = TempDir::new().unwrap();
+        let mut value = request();
+        value.pin.executable_sha256 = executable(workspace.path(), b"spawn fixture");
+        let store = prepared_store(state.path(), &value);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let launcher = FakeLauncher {
+            output: output(Termination::Exited, Some(0)),
+            fail_spawn: true,
+        };
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        assert!(matches!(
+            start_with(
+                &launcher,
+                &mut session,
+                value,
+                workspace.path(),
+                state.path(),
+                "fixture",
+                PathBuf::from("."),
+                resources,
+                lease,
+                process_limits(),
+                StoreLimits::default(),
+                "run-1",
+                2,
+            ),
+            Err(ExecutionError::Sandbox(SandboxError::DelegationRejected))
+        ));
+        assert_eq!(
+            store.recovery_decision("run-1").unwrap(),
+            RecoveryDecision::NeedsReconciliation
+        );
+        assert_eq!(session.active_operations(), 1);
+    }
+
+    #[test]
+    fn filesystem_preflight_rejects_overlap_symlink_and_wrong_digest() {
+        let workspace = TempDir::new().unwrap();
+        let state = TempDir::new().unwrap();
+        let leases = TempDir::new().unwrap();
+        let mut value = request();
+        value.pin.executable_sha256 = executable(workspace.path(), b"safe fixture");
+        let _store = prepared_store(state.path(), &value);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let launcher = FakeLauncher {
+            output: output(Termination::Exited, Some(0)),
+            fail_spawn: false,
+        };
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        assert!(matches!(
+            start_with(
+                &launcher,
+                &mut session,
+                value.clone(),
+                workspace.path(),
+                workspace.path(),
+                "fixture",
+                PathBuf::from("."),
+                resources,
+                lease,
+                process_limits(),
+                StoreLimits::default(),
+                "run-1",
+                2,
+            ),
+            Err(ExecutionError::Filesystem)
+        ));
+
+        fs::remove_file(workspace.path().join("fixture")).unwrap();
+        std::os::unix::fs::symlink("target", workspace.path().join("fixture")).unwrap();
+        assert!(matches!(
+            verify_regular_at(workspace.path(), "fixture", &value.pin.executable_sha256),
+            Err(ExecutionError::Filesystem)
+        ));
+        fs::remove_file(workspace.path().join("fixture")).unwrap();
+        executable(workspace.path(), b"different fixture");
+        assert!(matches!(
+            verify_regular_at(workspace.path(), "fixture", &value.pin.executable_sha256),
+            Err(ExecutionError::ExecutableIdentity)
+        ));
+        assert!(matches!(
+            open_regular_at(workspace.path(), "../escape"),
+            Err(ExecutionError::Filesystem)
+        ));
+    }
+
+    #[test]
+    fn verified_descriptor_survives_path_replacement() {
+        use std::os::unix::fs::FileExt;
+
+        let workspace = TempDir::new().unwrap();
+        let digest = executable(workspace.path(), b"reviewed executable");
+        let verified = verify_regular_at(workspace.path(), "fixture", &digest).unwrap();
+        fs::remove_file(workspace.path().join("fixture")).unwrap();
+        fs::write(workspace.path().join("fixture"), b"replacement").unwrap();
+        let mut bytes = [0_u8; 19];
+        verified.read_exact_at(&mut bytes, 0).unwrap();
+        assert_eq!(&bytes, b"reviewed executable");
+        assert_eq!(
+            fs::read(workspace.path().join("fixture")).unwrap(),
+            b"replacement"
+        );
+    }
+
+    #[test]
+    fn durable_precondition_rejects_attempt_mismatch_and_non_prepared_state() {
+        let workspace = TempDir::new().unwrap();
+        let leases = TempDir::new().unwrap();
+        let mut value = request();
+        value.pin.executable_sha256 = executable(workspace.path(), b"durable fixture");
+        let launcher = FakeLauncher {
+            output: output(Termination::Exited, Some(0)),
+            fail_spawn: false,
+        };
+
+        let mismatched_state = TempDir::new().unwrap();
+        let mut mismatched = value.clone();
+        mismatched.attempt_id = "attempt-other".into();
+        let _store = prepared_store(mismatched_state.path(), &mismatched);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        assert!(matches!(
+            start_with(
+                &launcher,
+                &mut session,
+                value.clone(),
+                workspace.path(),
+                mismatched_state.path(),
+                "fixture",
+                PathBuf::from("."),
+                resources,
+                lease,
+                process_limits(),
+                StoreLimits::default(),
+                "run-1",
+                2,
+            ),
+            Err(ExecutionError::DurableState)
+        ));
+
+        let running_state = TempDir::new().unwrap();
+        let store = prepared_store(running_state.path(), &value);
+        append_running(&store, &value.attempt_id);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        assert!(matches!(
+            start_with(
+                &launcher,
+                &mut session,
+                value,
+                workspace.path(),
+                running_state.path(),
+                "fixture",
+                PathBuf::from("."),
+                resources,
+                lease,
+                process_limits(),
+                StoreLimits::default(),
+                "run-1",
+                3,
+            ),
+            Err(ExecutionError::DurableState)
+        ));
+    }
+
+    #[test]
+    fn artifact_symlink_leaves_collection_needing_reconciliation() {
+        let workspace = TempDir::new().unwrap();
+        let state = TempDir::new().unwrap();
+        let leases = TempDir::new().unwrap();
+        let mut value = request();
+        value.pin.executable_sha256 = executable(workspace.path(), b"artifact fixture");
+        std::os::unix::fs::symlink("fixture", workspace.path().join("result.json")).unwrap();
+        let store = prepared_store(state.path(), &value);
+        let (resources, lease) = resources_and_lease(leases.path());
+        let launcher = FakeLauncher {
+            output: output(Termination::Exited, Some(0)),
+            fail_spawn: false,
+        };
+        let mut session = BoundarySession::new(limits()).unwrap();
+        session.negotiate(CSB_CONTRACT_V1, limits()).unwrap();
+        let running = start_with(
+            &launcher,
+            &mut session,
+            value,
+            workspace.path(),
+            state.path(),
+            "fixture",
+            PathBuf::from("."),
+            resources,
+            lease,
+            process_limits(),
+            StoreLimits::default(),
+            "run-1",
+            2,
+        )
+        .unwrap();
+        assert!(matches!(
+            running.wait(&mut session),
+            Err(ExecutionError::Filesystem)
+        ));
+        assert_eq!(
+            store.recovery_decision("run-1").unwrap(),
+            RecoveryDecision::NeedsReconciliation
+        );
+        assert_eq!(session.active_operations(), 1);
+    }
+
+    #[test]
+    fn valid_shape_but_unpinned_source_identities_are_rejected() {
+        let mut value = request();
+        value.pin.source_commit = "a".repeat(40);
+        assert_eq!(
+            value.validate(limits()),
+            Err(ValidationError::Digest("source commit"))
+        );
+        let mut value = request();
+        value.pin.source_tree = "a".repeat(40);
+        assert_eq!(
+            value.validate(limits()),
+            Err(ValidationError::Digest("source tree"))
+        );
+    }
+
+    #[test]
+    fn regular_file_checks_reject_mode_kind_size_and_dot_name() {
+        let root = TempDir::new().unwrap();
+        let file = root.path().join("plain");
+        fs::write(&file, b"plain").unwrap();
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
+        let digest = format!("{:x}", Sha256::digest(b"plain"));
+        assert!(matches!(
+            verify_regular_at(root.path(), "plain", &digest),
+            Err(ExecutionError::Filesystem)
+        ));
+        fs::create_dir(root.path().join("directory")).unwrap();
+        assert!(matches!(
+            open_regular_at(root.path(), "directory"),
+            Err(ExecutionError::Filesystem)
+        ));
+        let large = fs::File::create(root.path().join("large")).unwrap();
+        large.set_len(MAX_FILE_BYTES + 1).unwrap();
+        assert!(matches!(
+            open_regular_at(root.path(), "large"),
+            Err(ExecutionError::Filesystem)
+        ));
+        assert!(matches!(
+            open_regular_at(root.path(), "."),
+            Err(ExecutionError::Filesystem)
+        ));
+        assert!(matches!(
+            canonical_directory(&file),
+            Err(ExecutionError::Filesystem)
+        ));
+        assert!(matches!(
+            canonical_directory(Path::new("relative")),
+            Err(ExecutionError::Filesystem)
+        ));
+        let symlink = root.path().join("symlink-root");
+        std::os::unix::fs::symlink(root.path(), &symlink).unwrap();
+        assert!(matches!(
+            canonical_directory(&symlink),
+            Err(ExecutionError::Filesystem)
+        ));
+    }
+
+    #[test]
+    fn failed_timeout_and_clock_overflow_remain_explicit() {
+        for (index, termination, exit_code) in [
+            (0, Termination::Exited, Some(9)),
+            (1, Termination::TimedOut, None),
+        ] {
+            let state = TempDir::new().unwrap();
+            let value = request();
+            let store = prepared_store(state.path(), &value);
+            append_running(&store, &value.attempt_id);
+            let mut child = FakeChild {
+                output: output(termination, exit_code),
+                lease: None,
+            };
+            finish_with(
+                &mut child,
+                &store,
+                "run-1",
+                &value.attempt_id,
+                &[],
+                state.path(),
+                3,
+                index,
+            )
+            .unwrap();
+            assert_eq!(
+                store.load_journal("run-1").unwrap().last().unwrap().state,
+                ExecutionState::Failed
+            );
+        }
+
+        let state = TempDir::new().unwrap();
+        let value = request();
+        let store = prepared_store(state.path(), &value);
+        append_running(&store, &value.attempt_id);
+        let mut child = FakeChild {
+            output: output(Termination::Exited, Some(0)),
+            lease: None,
+        };
+        assert!(matches!(
+            finish_with(
+                &mut child,
+                &store,
+                "run-1",
+                &value.attempt_id,
+                &[],
+                state.path(),
+                3,
+                u64::MAX,
+            ),
+            Err(ExecutionError::DurableState)
+        ));
+        assert_eq!(
+            store.recovery_decision("run-1").unwrap(),
+            RecoveryDecision::NeedsReconciliation
+        );
     }
 }

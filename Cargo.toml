@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/asb-core", "crates/asb-protocol", "crates/asb-replay", "crates/asb-runtime", "crates/asb-store", "crates/asb-analysis", "crates/asb-metrics", "crates/asb-agents", "crates/asb-workloads", "crates/asb-cli"]
+members = ["crates/asb-core", "crates/asb-protocol", "crates/asb-replay", "crates/asb-runtime", "crates/asb-store", "crates/asb-analysis", "crates/asb-metrics", "crates/asb-agents", "crates/asb-workloads", "crates/asb-cli", "crates/asb-csb-runner"]
 resolver = "3"
 
 [workspace.package]

@@ -2,7 +2,7 @@
 
 ASB's optional CSB boundary is based on the public
 [`martin-beck/CSB`](https://github.com/martin-beck/CSB) repository. This document records source
-identity only. It does not enable CSB in the default build or claim that an upstream Python
+and narrowly qualified execution identity. It does not claim that the complete upstream Python
 environment is reproducible.
 
 ## Pinned source graph
@@ -47,11 +47,14 @@ The first eligible native fixture is the pinned
 `e1228516fe0648db35cfb7b6669b09f25dc32f62691c8fc8cca4ee1e935eee88`. Its `baseline` scenario
 uses only the Python standard library and can invoke `/usr/bin/true` once without credentials or
 network access. A direct source-checkout probe produced `success_count=1`; elapsed values are
-deliberately not retained as benchmark evidence. This host-side probe establishes fixture
-selection only. It does not establish the required ASB namespace, cgroup, process-tree, deadline,
-cancellation, artifact, or recovery properties. Those claims require execution through the
-reviewed `asb-runtime` sandbox and durable-store boundaries with exact interpreter and script-byte
-verification.
+deliberately not retained as benchmark evidence. Native ASB tests separately execute the exact
+script through the reviewed `asb-runtime` sandbox and durable store three times, and exercise
+explicit cancellation and deadline escalation with zero residual CPU leases. The qualified host
+interpreter is `/usr/bin/python3.12` 3.12.3 with SHA-256
+`1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118`; other interpreter bytes are
+not implied. The script is executed through its verified open file descriptor, closing the
+pathname replacement window. Workspace and state roots reject symlink ancestry but require a
+trusted private parent against hostile same-UID ancestor replacement.
 
 No Linux aarch64, non-glibc, Windows, or macOS support follows from this source inspection. The only
 eligible first claim is a native credential-free offline Linux x86_64 fixture after its exact
