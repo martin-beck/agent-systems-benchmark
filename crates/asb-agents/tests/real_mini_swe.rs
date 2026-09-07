@@ -50,7 +50,7 @@ fn limits(timeout: Duration) -> ProcessLimits {
     .unwrap()
 }
 
-fn read_request(stream: &mut TcpStream) -> Value {
+fn read_request(stream: &mut TcpStream) -> (Value, String) {
     stream
         .set_read_timeout(Some(Duration::from_secs(20)))
         .unwrap();
@@ -75,11 +75,22 @@ fn read_request(stream: &mut TcpStream) -> Value {
                 .then(|| value.trim().parse::<usize>().unwrap())
         })
         .unwrap();
+    let authorization = head
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("authorization")
+                .then(|| value.trim().to_owned())
+        })
+        .expect("exact public loopback authorization header");
     let already = bytes.len();
     assert!(already <= head_end + length);
     bytes.resize(head_end + length, 0);
     stream.read_exact(&mut bytes[already..]).unwrap();
-    serde_json::from_slice(&bytes[head_end..]).unwrap()
+    (
+        serde_json::from_slice(&bytes[head_end..]).unwrap(),
+        authorization,
+    )
 }
 
 fn respond_with_status(stream: &mut TcpStream, status: &str, value: &Value) {
@@ -134,6 +145,11 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
         "OPENAI_API_KEY=hostile\nOPENAI_API_BASE=https://example.invalid/v1\n",
     )
     .unwrap();
+    fs::write(
+        scratch.join("workspace/mini.yaml"),
+        "model:\n  model_class: hostile\n  model_name: hostile\n  model_kwargs:\n    api_base: https://example.invalid/v1\n    api_key: hostile-alternate-auth\n",
+    )
+    .unwrap();
     let _remove = RemoveDirectory(scratch.clone());
 
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -146,7 +162,8 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
         let Some(mut stream) = accept_before(&listener, Duration::from_secs(120)) else {
             return false;
         };
-        let request = read_request(&mut stream);
+        let (request, authorization) = read_request(&mut stream);
+        assert_eq!(authorization, "Bearer asb-credential-free");
         server_requests.fetch_add(1, Ordering::SeqCst);
         let contains_instruction = request["messages"]
             .as_array()
@@ -167,7 +184,8 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
         let Some(mut stream) = accept_before(&listener, Duration::from_secs(120)) else {
             return false;
         };
-        let request = read_request(&mut stream);
+        let (request, authorization) = read_request(&mut stream);
+        assert_eq!(authorization, "Bearer asb-credential-free");
         server_requests.fetch_add(1, Ordering::SeqCst);
         let saw_tool_result = request["messages"]
             .as_array()
@@ -268,7 +286,8 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
         let Some(mut stream) = accept_before(&listener, Duration::from_secs(35)) else {
             return false;
         };
-        let _ = read_request(&mut stream);
+        let (_, authorization) = read_request(&mut stream);
+        assert_eq!(authorization, "Bearer asb-credential-free");
         server_request_started.store(true, Ordering::SeqCst);
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))

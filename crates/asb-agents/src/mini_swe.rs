@@ -10,12 +10,12 @@ use serde::Deserialize;
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Seek, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
@@ -54,6 +54,7 @@ const MAX_ENVIRONMENT_ENTRIES: usize = 32_768;
 const MAX_ENVIRONMENT_FILE_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_ENVIRONMENT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_METADATA_BYTES: u64 = 1024 * 1024;
+const SUBMISSION_COMMAND: &str = "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT";
 const CLOSED_PROXY: &str = "http://127.0.0.1:9";
 const KNOWN_MINI_SWE_EGRESS: &[&str] = &[
     "mini-swe-agent.com",
@@ -429,10 +430,11 @@ impl MiniSweConfig {
         }
         self.verify_executable()?;
         self.verify_environment()?;
-        if !has_canonical_existing_ancestor(&self.workspace)? {
-            return Err(AdapterError::UnsafeWorkspace);
-        }
-        if !has_canonical_existing_ancestor(&self.state_root)? {
+        let workspace = normalized_future_directory(&self.workspace)
+            .map_err(|_| AdapterError::UnsafeWorkspace)?;
+        let state_root = normalized_future_directory(&self.state_root)
+            .map_err(|_| AdapterError::UnsafeStateRoot)?;
+        if roots_overlap(&workspace, &state_root) {
             return Err(AdapterError::UnsafeStateRoot);
         }
         fs::create_dir_all(&self.workspace)?;
@@ -539,7 +541,7 @@ from minisweagent.config import get_config_from_spec
 from minisweagent.environments import get_environment
 from minisweagent.models import get_model
 from minisweagent.utils.serialize import recursive_merge
-base=get_config_from_spec('mini.yaml')
+base=get_config_from_spec(sys.argv[8])
 override={'agent':{'mode':'yolo','confirm_exit':False,'step_limit':4096,'wall_time_limit_seconds':int(sys.argv[4]),'output_path':sys.argv[3]},'environment':{'environment_class':'local','cwd':sys.argv[1],'timeout':30},'model':{'model_class':'litellm','model_name':'openai/'+sys.argv[2],'cost_tracking':'ignore_errors','model_kwargs':{'api_base':sys.argv[5],'api_key':'asb-credential-free'}}}
 cfg=recursive_merge(base,override)
 agent=get_agent(get_model(config=cfg['model']),get_environment(cfg['environment'],default_type='local'),cfg['agent'],default_type='default')
@@ -556,6 +558,7 @@ agent.run(sys.stdin.read())
             .arg(self.endpoint.as_str())
             .arg(&launch.wheel)
             .arg(run_root.join("package"))
+            .arg(run_root.join("package/minisweagent/config/mini.yaml"))
             .stdin(Stdio::from(prompt_file))
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
@@ -653,21 +656,44 @@ fn is_exact_canonical_directory(path: &Path) -> Result<bool, AdapterError> {
     Ok(fs::canonicalize(path)? == path)
 }
 
-fn has_canonical_existing_ancestor(path: &Path) -> Result<bool, AdapterError> {
-    let mut candidate = path;
-    loop {
-        match fs::symlink_metadata(candidate) {
-            Ok(metadata) => {
-                return Ok(metadata.file_type().is_dir()
-                    && !metadata.file_type().is_symlink()
-                    && fs::canonicalize(candidate)? == candidate);
+fn normalized_future_directory(path: &Path) -> Result<PathBuf, AdapterError> {
+    let mut existing = PathBuf::from("/");
+    let mut missing = Vec::new();
+    let mut saw_missing = false;
+    for component in path.components() {
+        match component {
+            Component::RootDir | Component::CurDir => {}
+            Component::Normal(name) if saw_missing => missing.push(name.to_owned()),
+            Component::Normal(name) => {
+                let candidate = existing.join(name);
+                match fs::symlink_metadata(&candidate) {
+                    Ok(metadata) => {
+                        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                            return Err(AdapterError::UnsafeWorkspace);
+                        }
+                        existing = candidate;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        missing.push(name.to_owned());
+                        saw_missing = true;
+                    }
+                    Err(error) => return Err(AdapterError::Io(error)),
+                }
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                candidate = candidate.parent().ok_or(AdapterError::UnsafeWorkspace)?;
+            Component::ParentDir | Component::Prefix(_) => {
+                return Err(AdapterError::UnsafeWorkspace);
             }
-            Err(error) => return Err(AdapterError::Io(error)),
         }
     }
+    let mut normalized = fs::canonicalize(existing)?;
+    for component in missing {
+        normalized.push(component);
+    }
+    Ok(normalized)
+}
+
+fn roots_overlap(left: &Path, right: &Path) -> bool {
+    left == right || left.starts_with(right) || right.starts_with(left)
 }
 
 fn valid_public_id(id: &Id) -> bool {
@@ -1129,7 +1155,7 @@ fn map_trajectory(
         event(session, attempt, 1, Event::RequestStarted),
     ];
     let mut sequence = 2_u64;
-    let mut pending = BTreeSet::new();
+    let mut pending = BTreeMap::<String, (Id, String)>::new();
     let mut actions = 0_usize;
     let mut responses = 0_u64;
     let mut saw_response = false;
@@ -1190,15 +1216,21 @@ fn map_trajectory(
                         item.get("command")
                             .and_then(Value::as_str)
                             .ok_or(AdapterError::InvalidTrajectory)?;
-                        if !safe_id(id) || !pending.insert(id.to_owned()) {
+                        let command = item
+                            .get("command")
+                            .and_then(Value::as_str)
+                            .ok_or(AdapterError::InvalidTrajectory)?;
+                        if !safe_id(id) || pending.contains_key(id) {
                             return Err(AdapterError::InvalidTrajectory);
                         }
+                        let causal_id = Id(format!("mini-swe-tool-{actions:04}"));
+                        pending.insert(id.to_owned(), (causal_id.clone(), command.to_owned()));
                         events.push(event(
                             session,
                             attempt,
                             sequence,
                             Event::ToolStarted {
-                                tool_call_id: Id(id.into()),
+                                tool_call_id: causal_id,
                                 name: "bash".into(),
                             },
                         ));
@@ -1211,9 +1243,7 @@ fn map_trajectory(
                     .get("tool_call_id")
                     .and_then(Value::as_str)
                     .ok_or(AdapterError::InvalidTrajectory)?;
-                if !pending.remove(id) {
-                    return Err(AdapterError::InvalidTrajectory);
-                }
+                let (causal_id, _) = pending.remove(id).ok_or(AdapterError::InvalidTrajectory)?;
                 let code = object
                     .get("extra")
                     .and_then(|v| v.get("returncode"))
@@ -1224,7 +1254,7 @@ fn map_trajectory(
                     attempt,
                     sequence,
                     Event::ToolFinished {
-                        tool_call_id: Id(id.into()),
+                        tool_call_id: causal_id,
                         success: code == 0,
                     },
                 ));
@@ -1240,14 +1270,21 @@ fn map_trajectory(
         .pointer("/info/exit_status")
         .and_then(Value::as_str)
         .ok_or(AdapterError::InvalidTrajectory)?;
-    if exit_status == "Submitted" && pending.len() == 1 {
-        let id = pending.pop_first().ok_or(AdapterError::InvalidTrajectory)?;
+    if exit_status == "Submitted" {
+        if pending.len() != 1 {
+            return Err(AdapterError::InvalidTrajectory);
+        }
+        let (_, (causal_id, command)) =
+            pending.pop_first().ok_or(AdapterError::InvalidTrajectory)?;
+        if command != SUBMISSION_COMMAND {
+            return Err(AdapterError::InvalidTrajectory);
+        }
         events.push(event(
             session,
             attempt,
             sequence,
             Event::ToolFinished {
-                tool_call_id: Id(id),
+                tool_call_id: causal_id,
                 success: true,
             },
         ));
@@ -1408,11 +1445,20 @@ mod tests {
             r#"{{"trajectory_format":"mini-swe-agent-1.1","info":{{"mini_version":"2.4.6","model_stats":{{"api_calls":{calls},"instance_cost":{cost}}},"exit_status":"{exit}"}},"messages":[{{"role":"system"}},{{"role":"user"}},{{"role":"assistant","extra":{{"actions":{actions}}}}}{tools},{{"role":"exit"}}]}}"#
         )
     }
+    fn submitted(cost: &str) -> String {
+        valid(
+            r#"[{"tool_call_id":"private-upstream-id","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]"#,
+            "",
+            "Submitted",
+            1,
+            cost,
+        )
+    }
 
     #[test]
     fn maps_bounded_causal_tool_and_failed_tool() {
         let input = valid(
-            r#"[{"tool_call_id":"call-1","command":"false"}]"#,
+            r#"[{"tool_call_id":"call-1","command":"false"},{"tool_call_id":"private-submit","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]"#,
             r#",{"role":"tool","tool_call_id":"call-1","extra":{"returncode":7}}"#,
             "Submitted",
             1,
@@ -1432,6 +1478,12 @@ mod tests {
                 ..
             })
         )));
+        assert!(events.iter().all(|event| match &event.event {
+            Event::ToolStarted { tool_call_id, .. } | Event::ToolFinished { tool_call_id, .. } => {
+                !tool_call_id.0.contains("call-1") && !tool_call_id.0.contains("private-submit")
+            }
+            _ => true,
+        }));
     }
 
     #[test]
@@ -1479,11 +1531,17 @@ mod tests {
     #[test]
     fn rejects_invalid_usage_and_unfinished_actions() {
         assert!(matches!(
-            parse(&valid("[]", "", "Submitted", 0, "0")),
+            parse(&valid(
+                r#"[{"tool_call_id":"submit","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]"#,
+                "",
+                "Submitted",
+                0,
+                "0"
+            )),
             Err(AdapterError::InvalidTrajectory)
         ));
         assert!(matches!(
-            parse(&valid("[]", "", "Submitted", 1, "-1")),
+            parse(&submitted("-1")),
             Err(AdapterError::InvalidTrajectory)
         ));
         assert!(matches!(
@@ -1496,7 +1554,13 @@ mod tests {
             )),
             Err(AdapterError::InvalidTrajectory)
         ));
-        let wrong_calls = valid("[]", "", "Submitted", 2, "0");
+        let wrong_calls = valid(
+            r#"[{"tool_call_id":"submit","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]"#,
+            "",
+            "Submitted",
+            2,
+            "0",
+        );
         assert!(matches!(
             parse(&wrong_calls),
             Err(AdapterError::InvalidTrajectory)
@@ -1511,11 +1575,38 @@ mod tests {
             parse(&reordered),
             Err(AdapterError::InvalidTrajectory)
         ));
-        let scalar_coverage = valid("[]", "", "Submitted", 1, "0").replace(
+        let scalar_coverage = submitted("0").replace(
             "\"trajectory_format\"",
             "\"ignored\":[true,-1,1,1.5,\"text\",null],\"trajectory_format\"",
         );
         assert!(parse(&scalar_coverage).is_ok());
+        for command in ["true", "printf COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"] {
+            let arbitrary = valid(
+                &format!(r#"[{{"tool_call_id":"pending","command":"{command}"}}]"#),
+                "",
+                "Submitted",
+                1,
+                "0",
+            );
+            assert!(matches!(
+                parse(&arbitrary),
+                Err(AdapterError::InvalidTrajectory)
+            ));
+        }
+        let path_id = valid(
+            r#"[{"tool_call_id":"/private/provider/call","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]"#,
+            "",
+            "Submitted",
+            1,
+            "0",
+        );
+        let (events, _) = parse(&path_id).unwrap();
+        assert!(!format!("{events:?}").contains("/private/provider/call"));
+        let control_id = submitted("0").replace("private-upstream-id", "private\\nidentifier");
+        assert!(matches!(
+            parse(&control_id),
+            Err(AdapterError::InvalidTrajectory)
+        ));
     }
 
     #[test]
@@ -1540,7 +1631,7 @@ mod tests {
             assert!(!text.is_empty());
             assert!(!text.contains("private prompt"));
         }
-        let (events, status) = parse(&valid("[]", "", "Submitted", 1, "0")).unwrap();
+        let (events, status) = parse(&submitted("0")).unwrap();
         let outcome = MiniSweOutcome {
             events,
             status,
@@ -1631,6 +1722,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("workspace")).unwrap();
         fs::create_dir_all(root.join("state")).unwrap();
+        fs::write(root.join("workspace/mini.yaml"), "hostile: true\n").unwrap();
         let python = root.join("venv/bin/python");
         let wheel = root.join("package.whl");
         fs::create_dir_all(python.parent().unwrap()).unwrap();
@@ -1641,8 +1733,10 @@ test "$MSWEA_GLOBAL_CONFIG_DIR" = "${HOME%/home}/config" || exit 92
 test ! -e "$HOME/ambient-sentinel" || exit 93
 test "$PYTHON_DOTENV_DISABLED" = 1 || exit 94
 test "$PYTHONNOUSERSITE" = 1 || exit 95
+case "$3" in *"get_config_from_spec(sys.argv[8])"*) ;; *) exit 96;; esac
+test "${11}" = "${HOME%/home}/package/minisweagent/config/mini.yaml" || exit 97
 cat > "$6" <<'EOF'
-{"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[]}},{"role":"exit"}]}
+{"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[{"tool_call_id":"private","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}},{"role":"exit"}]}
 EOF
 "#).unwrap();
         let mut mode = fs::metadata(&python).unwrap().permissions();
@@ -2113,7 +2207,7 @@ test "$PYTHON_DOTENV_DISABLED" = 1 || exit 84
 test -z "${OPENAI_API_KEY-}" || exit 85
 while test ! -e "$4/go"; do sleep 0.01; done
 cat > "$6" <<'EOF'
-{"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[]}},{"role":"exit"}]}
+{"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[{"tool_call_id":"private","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}},{"role":"exit"}]}
 EOF
 "#;
         let (scratch, config) = adapter(script);
@@ -2229,5 +2323,35 @@ EOF
             Err(AdapterError::UnsafeWorkspace)
         ));
         assert!(!actual_workspace_parent.join("workspace").exists());
+    }
+
+    #[test]
+    fn overlapping_absent_roots_fail_before_mutation_in_both_directions() {
+        let (scratch, mut config) = boundary_tests::adapter("#!/bin/sh\nexit 99\n");
+        config.workspace = scratch.0.join("absent/workspace");
+        config.state_root = config.workspace.join("private-state");
+        assert!(matches!(
+            config.start(
+                Id("s".into()),
+                Id("a".into()),
+                "prompt",
+                boundary_tests::limits()
+            ),
+            Err(AdapterError::UnsafeStateRoot)
+        ));
+        assert!(!scratch.0.join("absent").exists());
+
+        config.state_root = scratch.0.join("other/state");
+        config.workspace = config.state_root.join("workspace");
+        assert!(matches!(
+            config.start(
+                Id("s".into()),
+                Id("a".into()),
+                "prompt",
+                boundary_tests::limits()
+            ),
+            Err(AdapterError::UnsafeStateRoot)
+        ));
+        assert!(!scratch.0.join("other").exists());
     }
 }

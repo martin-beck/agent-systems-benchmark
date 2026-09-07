@@ -27,13 +27,18 @@ describes the exact product-tested environment and does not claim that the
 upstream metadata can reproducibly resolve it. Its LiteLLM constraint excludes
 compromised versions 1.82.7 and 1.82.8. Any distribution/version or installed
 byte change requires an explicit ASB pin update and new native evidence.
+The executable digest does not bind `/usr` CPython standard-library files or
+host native ABI libraries loaded by Python extensions; those remain ambient
+platform dependencies and are part of the stated native-evidence limitation.
 
 Prompts enter through an unlinked mode-0600 descriptor and are absent from the
 argument vector and durable prompt files. HOME, XDG roots, mini-SWE global
 configuration, and temporary storage are fresh per attempt; the inherited
 environment is cleared. `PYTHON_DOTENV_DISABLED=1`, `PYTHONNOUSERSITE=1`, and
 read-only staged dependencies prevent workspace/ambient dotenv and user-site
-configuration from changing the provider or authentication boundary. Public
+configuration from changing the provider or authentication boundary. The
+driver loads the exact builtin `mini.yaml` from its private, verified wheel
+extraction rather than resolving a workspace-relative configuration name. Public
 session and attempt IDs are validated as nonempty, control-free values of at
 most 4 KiB before filesystem mutation. Auxiliary HTTP(S) proxy routes fail closed and only
 the exact explicit provider host bypasses them. This is defense in depth, not
@@ -47,9 +52,11 @@ USD cost from the private trajectory. Prompt, reasoning, commands, tool output,
 submission text, and raw diagnostics are discarded. Duplicate JSON members,
 unknown roles, duplicate/unmatched tool IDs, excessive counts or bytes,
 invalid usage, version mismatch, truncation, and malformed terminal state fail
-closed. A successful submission command has no upstream tool observation; the
-adapter closes that single final causal pair only when the pinned trajectory
-terminal status is `Submitted`.
+closed. Raw provider tool-call IDs are matched only inside the private parser
+and remapped to bounded opaque causal IDs before publication. A successful
+submission command has no upstream tool observation; the adapter closes that
+single final causal pair only when the pinned trajectory terminal status is
+`Submitted` and the pending command is exactly the pinned submission action.
 
 Native evidence is limited to Linux x86_64 with the pinned CPython runtime,
 verified 2.4.6 wheel, and credential-free loopback OpenAI-compatible fixture.
