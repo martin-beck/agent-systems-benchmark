@@ -24,16 +24,57 @@ RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 ARCHES = {"x86_64", "aarch64"}
 PLATFORMS = {
-    "ubuntu-24.04": ("ubuntu", "24.04", "24.04.4 LTS"),
-    "debian-13": ("debian", "13", ""),
-    "openeuler-24.03-lts-sp2": ("openEuler", "24.03", "LTS-SP2"),
+    "ubuntu-24.04": {
+        "id": "ubuntu", "version_id": "24.04", "release_path": None,
+        "release_value": "24.04.4 LTS", "release_mode": "contains",
+        "manifest_release": "24.04.4 LTS",
+    },
+    "debian-13": {
+        "id": "debian", "version_id": "13", "release_path": "etc/debian_version",
+        "release_value": "13.6", "release_mode": "exact",
+        "manifest_release": "13.6 (trixie)",
+    },
+    "openeuler-24.03-lts-sp2": {
+        "id": "openEuler", "version_id": "24.03", "release_path": "etc/openEuler-release",
+        "release_value": "LTS-SP2", "release_mode": "contains",
+        "manifest_release": "24.03 LTS-SP2",
+    },
 }
-SANDBOX_TOOLS = (
-    ("/usr/bin/bwrap", "bubblewrap 0.9.0"),
-    ("/usr/bin/systemd-run", "systemd 255 (255.4-1ubuntu8.17)"),
-    ("/usr/bin/systemctl", "systemd 255 (255.4-1ubuntu8.17)"),
-    ("/usr/bin/taskset", "taskset from util-linux 2.39.3"),
-)
+SANDBOX_TOOL_PROFILES = {
+    "ubuntu-24.04": (
+        ("/usr/bin/bwrap", "bubblewrap 0.9.0", "bubblewrap=0.9.0-1ubuntu0.1",
+         "https://packages.ubuntu.com/noble-updates/bubblewrap"),
+        ("/usr/bin/systemd-run", "systemd 255 (255.4-1ubuntu8.17)",
+         "systemd=255.4-1ubuntu8.17", "https://packages.ubuntu.com/noble-updates/systemd"),
+        ("/usr/bin/systemctl", "systemd 255 (255.4-1ubuntu8.17)",
+         "systemd=255.4-1ubuntu8.17", "https://packages.ubuntu.com/noble-updates/systemd"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.39.3", "util-linux=2.39.3-9ubuntu6.6",
+         "https://packages.ubuntu.com/noble-updates/util-linux"),
+    ),
+    "debian-13": (
+        ("/usr/bin/bwrap", "bubblewrap 0.12.0", "bubblewrap=0.12.0-1~deb13u1",
+         "https://packages.debian.org/trixie/bubblewrap"),
+        ("/usr/bin/systemd-run", "systemd 257 (257.13-1~deb13u1)",
+         "systemd=257.13-1~deb13u1", "https://packages.debian.org/trixie/systemd"),
+        ("/usr/bin/systemctl", "systemd 257 (257.13-1~deb13u1)",
+         "systemd=257.13-1~deb13u1", "https://packages.debian.org/trixie/systemd"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.41.5", "util-linux=2.41.5-0+deb13u1",
+         "https://packages.debian.org/trixie/util-linux"),
+    ),
+    "openeuler-24.03-lts-sp2": (
+        ("/usr/bin/bwrap", "bubblewrap 0.8.0", "bubblewrap-0.8.0-2.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/systemd-run", "systemd 255 (255-43.oe2403sp2)",
+         "systemd-255-43.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/systemctl", "systemd 255 (255-43.oe2403sp2)",
+         "systemd-255-43.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.39.1",
+         "util-linux-2.39.1-22.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+    ),
+}
 
 
 class EvidenceError(RuntimeError):
@@ -80,18 +121,26 @@ def canonical_arch(value: str) -> str:
     return value
 
 
-def validate_platform(platform_id: str, release: dict[str, str]) -> None:
-    """Require an exact declared distribution family and major release."""
+def validate_platform(platform_id: str, release: dict[str, str], root: Path) -> str:
+    """Require the exact declared distribution and point-release evidence."""
     if platform_id not in PLATFORMS:
         raise EvidenceError("platform is not eligible for native qualification")
-    expected_id, expected_version, expected_release = PLATFORMS[platform_id]
-    if release["ID"] != expected_id or not (
-        release["VERSION_ID"] == expected_version
-        or release["VERSION_ID"].startswith(expected_version + ".")
-    ):
+    profile = PLATFORMS[platform_id]
+    if release["ID"] != profile["id"] or release["VERSION_ID"] != profile["version_id"]:
         raise EvidenceError("observed distribution does not match platform ID")
-    if expected_release and expected_release not in release.get("VERSION", ""):
+    release_evidence = (
+        release.get("VERSION", "")
+        if profile["release_path"] is None
+        else read_bounded(root / profile["release_path"]).strip()
+    )
+    matches = (
+        release_evidence == profile["release_value"]
+        if profile["release_mode"] == "exact"
+        else profile["release_value"] in release_evidence
+    )
+    if not matches:
         raise EvidenceError("observed distribution does not match exact pinned release")
+    return release_evidence
 
 
 def run_check(argv: Sequence[str], cwd: Path, timeout: int = 900) -> dict[str, Any]:
@@ -176,9 +225,9 @@ def command_output(argv: Sequence[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
-def sandbox_capable(cwd: Path) -> bool:
+def sandbox_capable(platform_id: str, cwd: Path) -> bool:
     """Prove the exact pinned tools and disposable user scope are available."""
-    for executable, expected in SANDBOX_TOOLS:
+    for executable, expected, _, _ in SANDBOX_TOOL_PROFILES[platform_id]:
         try:
             result = subprocess.run(
                 [executable, "--version"], cwd=cwd, stdin=subprocess.DEVNULL,
@@ -199,6 +248,38 @@ def sandbox_capable(cwd: Path) -> bool:
     return scope.returncode == 0
 
 
+def sandbox_tool_evidence(platform_id: str) -> list[dict[str, str]]:
+    """Return reviewed package pins and official provenance for the platform."""
+    return [
+        {"executable": executable, "version": version, "package": package, "source": source}
+        for executable, version, package, source in SANDBOX_TOOL_PROFILES[platform_id]
+    ]
+
+
+def security_module_state(root: Path) -> dict[str, str]:
+    """Retain bounded active AppArmor and SELinux state, or explicit unavailability."""
+    try:
+        active = {
+            item.strip()
+            for item in read_bounded(root / "sys/kernel/security/lsm").split(",")
+        }
+    except (EvidenceError, OSError):
+        return {"apparmor": "unavailable", "selinux": "unavailable"}
+    apparmor = "enabled" if "apparmor" in active else "disabled"
+    if "selinux" not in active:
+        selinux = "disabled"
+    else:
+        try:
+            enforcing = read_bounded(root / "sys/fs/selinux/enforce").strip()
+        except (EvidenceError, OSError):
+            selinux = "unavailable"
+        else:
+            selinux = {"0": "permissive", "1": "enforcing"}.get(
+                enforcing, "unavailable"
+            )
+    return {"apparmor": apparmor, "selinux": selinux}
+
+
 def collect(
     platform_id: str,
     expected_arch: str,
@@ -208,7 +289,7 @@ def collect(
     optional_checks: list[tuple[str, list[str]]] | None = None,
     root: Path = Path("/"),
     probe: Callable[[Sequence[str], Path], str] = command_output,
-    sandbox_probe: Callable[[Path], bool] | None = None,
+    sandbox_probe: Callable[[str, Path], bool] | None = None,
 ) -> dict[str, Any]:
     """Collect an evidence document, failing before output on any mismatch."""
     if not RUN_ID.fullmatch(run_id):
@@ -217,7 +298,7 @@ def collect(
     if arch != canonical_arch(expected_arch):
         raise EvidenceError("observed architecture differs from requested architecture")
     release = parse_os_release(read_bounded(root / "etc/os-release"))
-    validate_platform(platform_id, release)
+    release_evidence = validate_platform(platform_id, release, root)
     kernel = platform.release()
     if not kernel or len(kernel.encode()) > 255 or any(ord(char) < 33 for char in kernel):
         raise EvidenceError("kernel release is invalid")
@@ -248,11 +329,15 @@ def collect(
     for name, argv in optional_checks:
         if name != "sandbox":
             raise EvidenceError("only the native sandbox check may be optional")
-        if sandbox_probe(source):
+        if sandbox_probe(platform_id, source):
             results[name] = run_check(argv, source)
         else:
             results[name] = {"status": "unavailable"}
-    complete = all(result["status"] == "passed" for result in results.values())
+    security_modules = security_module_state(root)
+    complete = (
+        all(result["status"] == "passed" for result in results.values())
+        and "unavailable" not in security_modules.values()
+    )
     return {
         "format_version": 1,
         "kind": "native-run",
@@ -264,6 +349,8 @@ def collect(
             "id": release["ID"],
             "version_id": release["VERSION_ID"],
             "version": release.get("VERSION", ""),
+            "release_evidence": release_evidence,
+            "manifest_release": PLATFORMS[platform_id]["manifest_release"],
         },
         "kernel_release": kernel,
         "virtualization": virtualization,
@@ -273,16 +360,29 @@ def collect(
             "cgroup_v2": "available",
             "psi": "available",
             "sandbox": results.get("sandbox", {"status": "not-run"})["status"],
+            "security_modules": security_modules,
         },
+        "sandbox_tools": sandbox_tool_evidence(platform_id),
         "checks": results,
     }
 
 
 def write_atomic(path: Path, report: dict[str, Any]) -> None:
     """Write canonical JSON without following an existing symlink."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.parent.resolve(strict=True) != path.parent.absolute():
+    path = path.absolute()
+    ancestor = path.parent
+    missing: list[Path] = []
+    while not ancestor.exists():
+        missing.append(ancestor)
+        if ancestor.parent == ancestor:
+            raise EvidenceError("output parent has no existing ancestor")
+        ancestor = ancestor.parent
+    if ancestor.is_symlink() or ancestor.resolve(strict=True) != ancestor:
         raise EvidenceError("output parent must not contain symlinks")
+    for directory in reversed(missing):
+        directory.mkdir()
+        if directory.is_symlink() or directory.resolve(strict=True) != directory:
+            raise EvidenceError("output parent must not contain symlinks")
     if path.is_symlink() or path.exists():
         raise EvidenceError("output path must not already exist")
     data = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()

@@ -90,7 +90,29 @@ class ManifestTests(unittest.TestCase):
                 "kernel_release": "7.0.0-test",
                 "run_id": "run-1",
                 "source_commit": "a" * 40,
-                "capabilities": {"cgroup_v2": "available", "psi": "available"},
+                "distribution": {
+                    "id": "ubuntu",
+                    "version_id": "24.04",
+                    "version": "24.04.4 LTS (Noble Numbat)",
+                    "release_evidence": "24.04.4 LTS (Noble Numbat)",
+                    "manifest_release": "24.04.4 LTS",
+                },
+                "capabilities": {
+                    "cgroup_v2": "available",
+                    "psi": "available",
+                    "sandbox": "passed",
+                    "security_modules": {"apparmor": "enabled", "selinux": "disabled"},
+                },
+                "sandbox_tools": [
+                    {
+                        "executable": executable,
+                        "version": version,
+                        "package": package,
+                        "source": source,
+                    }
+                    for executable, version, package, source in
+                    VALIDATOR.NATIVE_SANDBOX_TOOLS["ubuntu-24.04"]
+                ],
                 "checks": {name: check for name in ("process", "metrics", "sandbox")},
             }
             data = (json.dumps(report, sort_keys=True) + "\n").encode()
@@ -108,6 +130,50 @@ class ManifestTests(unittest.TestCase):
                 "artifact_digest": "sha256:" + hashlib.sha256(data).hexdigest(),
             }
             self.assertEqual(VALIDATOR.validate(candidate, self.agents, root), [])
+            for mutate, expected in (
+                (
+                    lambda value: value["distribution"].update(
+                        {"release_evidence": "24.04.3 LTS"}
+                    ),
+                    "exact release evidence differs",
+                ),
+                (
+                    lambda value: value["distribution"].update(
+                        {"manifest_release": "24.04 LTS"}
+                    ),
+                    "distribution binding differs",
+                ),
+                (
+                    lambda value: value["capabilities"]["security_modules"].update(
+                        {"apparmor": "unavailable"}
+                    ),
+                    "AppArmor and SELinux state",
+                ),
+                (
+                    lambda value: value["sandbox_tools"][0].update(
+                        {"package": "bubblewrap=unreviewed"}
+                    ),
+                    "tool pins or provenance differ",
+                ),
+            ):
+                with self.subTest(expected=expected):
+                    broken_report = copy.deepcopy(report)
+                    mutate(broken_report)
+                    broken_data = (json.dumps(broken_report, sort_keys=True) + "\n").encode()
+                    path.write_bytes(broken_data)
+                    cell["native_evidence"]["artifact_digest"] = (
+                        "sha256:" + hashlib.sha256(broken_data).hexdigest()
+                    )
+                    self.assertTrue(
+                        any(
+                            expected in error
+                            for error in VALIDATOR.validate(candidate, self.agents, root)
+                        )
+                    )
+            path.write_bytes(data)
+            cell["native_evidence"]["artifact_digest"] = (
+                "sha256:" + hashlib.sha256(data).hexdigest()
+            )
             for key, value, expected in (
                 ("artifact_digest", "sha256:" + "0" * 64, "digest differs"),
                 ("artifact_path", "../outside.json", "path is unsafe"),

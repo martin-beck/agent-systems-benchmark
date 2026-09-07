@@ -84,6 +84,26 @@ and output digests are retained; raw logs, hostnames, environment contents and
 filesystem paths are excluded. Hosted runners without user-systemd delegation
 produce `native-functional-partial`, never a false `native-tested` result.
 
+Native reports bind the exact manifest release to bounded operating-system
+release evidence. Ubuntu uses the exact `VERSION` field, Debian 13.6 uses
+`/etc/debian_version`, and openEuler uses `/etc/openEuler-release`; a major
+version match alone is insufficient. Reports also retain whether AppArmor is
+enabled and whether SELinux is enforcing, permissive, or disabled. If the
+kernel LSM list or active SELinux state cannot be read, qualification is
+partial rather than silently treating missing privilege as a disabled policy.
+The sandbox test then proves behavior under the observed LSM state.
+
+Sandbox prerequisites are platform-specific reviewed pins. The Ubuntu profile
+uses bubblewrap `0.9.0-1ubuntu0.1`, systemd `255.4-1ubuntu8.17`, and
+util-linux `2.39.3-9ubuntu6.6` from packages.ubuntu.com. The Debian 13.6
+profile uses bubblewrap `0.12.0-1~deb13u1`, systemd
+`257.13-1~deb13u1`, and util-linux `2.41.5-0+deb13u1` from
+packages.debian.org. The openEuler 24.03 LTS-SP2 profile uses bubblewrap
+`0.8.0-2.oe2403sp2`, systemd `255-43.oe2403sp2`, and util-linux
+`2.39.1-22.oe2403sp2` from the official repo.openeuler.org source-package
+index. Reports retain these public package identities and source URLs, and
+validation rejects drift.
+
 Virtual machines using the requested native instruction set may establish
 functional behavior, but every report sets `performance_baseline` to false.
 Containers and QEMU, UML or Bochs emulation are rejected as native evidence.

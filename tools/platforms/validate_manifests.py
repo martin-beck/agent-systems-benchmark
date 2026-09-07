@@ -47,6 +47,46 @@ HOST_CAPABILITIES = {
     "PSI",
     "BTF",
 }
+NATIVE_DISTRIBUTIONS = {
+    "ubuntu-24.04": ("ubuntu", "24.04", "24.04.4 LTS", "contains"),
+    "debian-13": ("debian", "13", "13.6", "exact"),
+    "openeuler-24.03-lts-sp2": ("openEuler", "24.03", "LTS-SP2", "contains"),
+}
+NATIVE_SANDBOX_TOOLS = {
+    "ubuntu-24.04": (
+        ("/usr/bin/bwrap", "bubblewrap 0.9.0", "bubblewrap=0.9.0-1ubuntu0.1",
+         "https://packages.ubuntu.com/noble-updates/bubblewrap"),
+        ("/usr/bin/systemd-run", "systemd 255 (255.4-1ubuntu8.17)",
+         "systemd=255.4-1ubuntu8.17", "https://packages.ubuntu.com/noble-updates/systemd"),
+        ("/usr/bin/systemctl", "systemd 255 (255.4-1ubuntu8.17)",
+         "systemd=255.4-1ubuntu8.17", "https://packages.ubuntu.com/noble-updates/systemd"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.39.3", "util-linux=2.39.3-9ubuntu6.6",
+         "https://packages.ubuntu.com/noble-updates/util-linux"),
+    ),
+    "debian-13": (
+        ("/usr/bin/bwrap", "bubblewrap 0.12.0", "bubblewrap=0.12.0-1~deb13u1",
+         "https://packages.debian.org/trixie/bubblewrap"),
+        ("/usr/bin/systemd-run", "systemd 257 (257.13-1~deb13u1)",
+         "systemd=257.13-1~deb13u1", "https://packages.debian.org/trixie/systemd"),
+        ("/usr/bin/systemctl", "systemd 257 (257.13-1~deb13u1)",
+         "systemd=257.13-1~deb13u1", "https://packages.debian.org/trixie/systemd"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.41.5", "util-linux=2.41.5-0+deb13u1",
+         "https://packages.debian.org/trixie/util-linux"),
+    ),
+    "openeuler-24.03-lts-sp2": (
+        ("/usr/bin/bwrap", "bubblewrap 0.8.0", "bubblewrap-0.8.0-2.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/systemd-run", "systemd 255 (255-43.oe2403sp2)",
+         "systemd-255-43.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/systemctl", "systemd 255 (255-43.oe2403sp2)",
+         "systemd-255-43.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.39.1",
+         "util-linux-2.39.1-22.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+    ),
+}
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -74,7 +114,7 @@ def valid_integrity(value: object) -> bool:
 
 
 def validate_native_report(
-    evidence: dict[str, Any], ident: str, arch: str, root: Path
+    evidence: dict[str, Any], row: dict[str, Any], ident: str, arch: str, root: Path
 ) -> list[str]:
     """Validate a native claim against one immutable sanitized report."""
     errors: list[str] = []
@@ -109,11 +149,43 @@ def validate_native_report(
             errors.append(f"{ident}/{arch}: native report {key} binding differs")
     if not COMMIT.fullmatch(report.get("source_commit", "")):
         errors.append(f"{ident}/{arch}: native report source commit is not immutable")
+    distribution = report.get("distribution", {})
+    expected_id, expected_version, release_value, release_mode = NATIVE_DISTRIBUTIONS.get(
+        ident, ("", "", "", "exact")
+    )
+    if not isinstance(distribution, dict):
+        distribution = {}
+    if (
+        distribution.get("id") != expected_id
+        or distribution.get("version_id") != expected_version
+        or distribution.get("manifest_release") != row.get("release")
+    ):
+        errors.append(f"{ident}/{arch}: native report distribution binding differs")
+    release_evidence = distribution.get("release_evidence")
+    if not isinstance(release_evidence, str) or not (
+        release_evidence == release_value
+        if release_mode == "exact"
+        else release_value in release_evidence
+    ):
+        errors.append(f"{ident}/{arch}: native report exact release evidence differs")
     capabilities = report.get("capabilities", {})
     if not isinstance(capabilities, dict):
         capabilities = {}
     if capabilities.get("cgroup_v2") != "available" or capabilities.get("psi") != "available":
         errors.append(f"{ident}/{arch}: cgroup v2 and PSI evidence are required")
+    security = capabilities.get("security_modules", {})
+    if (
+        not isinstance(security, dict)
+        or security.get("apparmor") not in {"enabled", "disabled"}
+        or security.get("selinux") not in {"enforcing", "permissive", "disabled"}
+    ):
+        errors.append(f"{ident}/{arch}: AppArmor and SELinux state must be available")
+    expected_tools = [
+        {"executable": executable, "version": version, "package": package, "source": source}
+        for executable, version, package, source in NATIVE_SANDBOX_TOOLS.get(ident, ())
+    ]
+    if report.get("sandbox_tools") != expected_tools:
+        errors.append(f"{ident}/{arch}: sandbox tool pins or provenance differ")
     checks = report.get("checks", {})
     if not isinstance(checks, dict):
         checks = {}
@@ -230,7 +302,7 @@ def validate(
                 if not bound:
                     errors.append(f"{ident}/{arch}: native-tested requires bound native-run evidence")
                 else:
-                    errors.extend(validate_native_report(evidence, ident, arch, root))
+                    errors.extend(validate_native_report(evidence, row, ident, arch, root))
     return errors
 
 

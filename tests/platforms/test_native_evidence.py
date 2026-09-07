@@ -30,11 +30,15 @@ class NativeEvidenceTests(unittest.TestCase):
         (self.root / "etc").mkdir()
         (self.root / "proc/self").mkdir(parents=True)
         (self.root / "proc/pressure").mkdir(parents=True)
+        (self.root / "sys/kernel/security").mkdir(parents=True)
         (self.root / "etc/os-release").write_text(
             "ID=ubuntu\nVERSION_ID=24.04\nVERSION=24.04.4 LTS (Noble Numbat)\n",
             encoding="utf-8",
         )
         (self.root / "proc/self/cgroup").write_text("0::/asb\n", encoding="utf-8")
+        (self.root / "sys/kernel/security/lsm").write_text(
+            "capability,landlock,apparmor\n", encoding="utf-8"
+        )
         for name in ("cpu", "memory", "io"):
             (self.root / f"proc/pressure/{name}").write_text(
                 "some avg10=0.00 total=0\n", encoding="utf-8"
@@ -53,7 +57,7 @@ class NativeEvidenceTests(unittest.TestCase):
         }
         return values[tuple(argv)]
 
-    def collect(self, probe=None):
+    def collect(self, probe=None, platform_id="ubuntu-24.04"):
         result = {
             "status": "passed",
             "argv_sha256": "sha256:" + "b" * 64,
@@ -64,7 +68,7 @@ class NativeEvidenceTests(unittest.TestCase):
             EVIDENCE.platform, "release", return_value="7.0.0-test"
         ), mock.patch.object(EVIDENCE, "run_check", return_value=result):
             return EVIDENCE.collect(
-                "ubuntu-24.04", "x86_64", "run-1", ROOT,
+                platform_id, "x86_64", "run-1", ROOT,
                 [("process", ["cargo", "test"])], root=self.root,
                 probe=probe or self.probe,
             )
@@ -74,6 +78,14 @@ class NativeEvidenceTests(unittest.TestCase):
         self.assertEqual(report["source_commit"], "a" * 40)
         self.assertEqual(report["virtualization"], "kvm")
         self.assertFalse(report["performance_baseline"])
+        self.assertEqual(
+            report["capabilities"]["security_modules"],
+            {"apparmor": "enabled", "selinux": "disabled"},
+        )
+        self.assertEqual(len(report["sandbox_tools"]), 4)
+        self.assertTrue(
+            all(tool["source"].startswith("https://") for tool in report["sandbox_tools"])
+        )
         encoded = json.dumps(report)
         self.assertNotIn(str(ROOT), encoded)
         self.assertNotIn("cargo test", encoded)
@@ -105,6 +117,15 @@ class NativeEvidenceTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "exact pinned release"):
             self.collect()
+        (self.root / "etc/os-release").write_text(
+            "ID=debian\nVERSION_ID=13\nVERSION=13 (trixie)\n", encoding="utf-8"
+        )
+        (self.root / "etc/debian_version").write_text("13.5\n", encoding="utf-8")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "exact pinned release"):
+            self.collect(platform_id="debian-13")
+        (self.root / "etc/debian_version").write_text("13.6\n", encoding="utf-8")
+        report = self.collect(platform_id="debian-13")
+        self.assertEqual(report["distribution"]["release_evidence"], "13.6")
 
     def test_dirty_source_missing_cgroup_and_psi_fail_closed(self) -> None:
         dirty = lambda argv, cwd: " M secret" if argv[:2] == ["git", "status"] else self.probe(argv, cwd)
@@ -179,6 +200,9 @@ class NativeEvidenceTests(unittest.TestCase):
         alias_parent.symlink_to(real_parent, target_is_directory=True)
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "parent"):
             EVIDENCE.write_atomic(alias_parent / "report.json", {"safe": True})
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "parent"):
+            EVIDENCE.write_atomic(alias_parent / "missing/report.json", {"safe": True})
+        self.assertFalse((real_parent / "missing").exists())
 
     def test_real_command_records_digests_and_failure_without_raw_output(self) -> None:
         result = EVIDENCE.run_check(["/bin/sh", "-c", "printf private"], ROOT)
@@ -209,7 +233,7 @@ class NativeEvidenceTests(unittest.TestCase):
             report = EVIDENCE.collect(
                 "ubuntu-24.04", "x86_64", "run-1", ROOT,
                 [("process", ["true"])], [("sandbox", ["false"])],
-                root=self.root, probe=self.probe, sandbox_probe=lambda _: False,
+                root=self.root, probe=self.probe, sandbox_probe=lambda _platform, _cwd: False,
             )
         self.assertEqual(report["qualification"], "native-functional-partial")
         self.assertEqual(report["checks"]["sandbox"], {"status": "unavailable"})
@@ -230,7 +254,7 @@ class NativeEvidenceTests(unittest.TestCase):
             EVIDENCE.collect(
                 "ubuntu-24.04", "x86_64", "run-1", ROOT,
                 [("process", ["true"])], [("sandbox", ["false"])],
-                root=self.root, probe=self.probe, sandbox_probe=lambda _: True,
+                root=self.root, probe=self.probe, sandbox_probe=lambda _platform, _cwd: True,
             )
 
     def test_only_sandbox_may_be_optional(self) -> None:
@@ -275,19 +299,53 @@ class NativeEvidenceTests(unittest.TestCase):
             EVIDENCE.run_check(["/definitely/absent"], ROOT)
 
     def test_sandbox_preflight_checks_every_pin_and_scope(self) -> None:
-        good = subprocess.CompletedProcess([], 0, "systemd 255 (255.4-1ubuntu8.17) bubblewrap 0.9.0 taskset from util-linux 2.39.3", "")
-        with mock.patch.object(EVIDENCE.subprocess, "run", return_value=good):
-            self.assertTrue(EVIDENCE.sandbox_capable(ROOT))
+        for platform_id, tools in EVIDENCE.SANDBOX_TOOL_PROFILES.items():
+            good = subprocess.CompletedProcess(
+                [], 0, " ".join(version for _, version, _, _ in tools), ""
+            )
+            with self.subTest(platform_id=platform_id), mock.patch.object(
+                EVIDENCE.subprocess, "run", return_value=good
+            ):
+                self.assertTrue(EVIDENCE.sandbox_capable(platform_id, ROOT))
+                evidence = EVIDENCE.sandbox_tool_evidence(platform_id)
+                self.assertEqual(
+                    [item["package"] for item in evidence],
+                    [package for _, _, package, _ in tools],
+                )
         bad = subprocess.CompletedProcess([], 1, "", "")
         with mock.patch.object(EVIDENCE.subprocess, "run", return_value=bad):
-            self.assertFalse(EVIDENCE.sandbox_capable(ROOT))
+            self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", ROOT))
         with mock.patch.object(EVIDENCE.subprocess, "run", side_effect=OSError):
-            self.assertFalse(EVIDENCE.sandbox_capable(ROOT))
+            self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", ROOT))
+
+    def test_security_modules_are_explicit_and_missing_privilege_is_partial(self) -> None:
+        self.assertEqual(
+            EVIDENCE.security_module_state(self.root),
+            {"apparmor": "enabled", "selinux": "disabled"},
+        )
+        (self.root / "sys/kernel/security/lsm").write_text(
+            "capability,selinux\n", encoding="utf-8"
+        )
+        (self.root / "sys/fs/selinux").mkdir(parents=True)
+        (self.root / "sys/fs/selinux/enforce").write_text("1\n", encoding="utf-8")
+        self.assertEqual(
+            EVIDENCE.security_module_state(self.root),
+            {"apparmor": "disabled", "selinux": "enforcing"},
+        )
+        (self.root / "sys/kernel/security/lsm").unlink()
+        self.assertEqual(
+            EVIDENCE.security_module_state(self.root),
+            {"apparmor": "unavailable", "selinux": "unavailable"},
+        )
+        report = self.collect()
+        self.assertEqual(report["qualification"], "native-functional-partial")
 
     def test_additional_collection_bindings_fail_closed(self) -> None:
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "eligible"):
             EVIDENCE.validate_platform(
-                "unknown", {"ID": "ubuntu", "VERSION_ID": "24.04", "VERSION": "24.04.4 LTS"}
+                "unknown",
+                {"ID": "ubuntu", "VERSION_ID": "24.04", "VERSION": "24.04.4 LTS"},
+                self.root,
             )
         invalid_probe = lambda argv, cwd: "short" if argv[:2] == ["git", "rev-parse"] else self.probe(argv, cwd)
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "immutable"):
