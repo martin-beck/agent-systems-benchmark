@@ -61,6 +61,7 @@ pub const MAX_TURNS: u32 = 4_096;
 const MAX_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_MODEL_BYTES: usize = 256;
 const MAX_LABEL_BYTES: usize = 256;
+const MAX_PUBLIC_ID_BYTES: usize = 4 * 1024;
 const HOOK_READY_TIMEOUT: Duration = Duration::from_secs(5);
 #[cfg(test)]
 static RUN_NONCE: AtomicU64 = AtomicU64::new(0);
@@ -230,6 +231,8 @@ pub enum AdapterError {
     InvalidEndpoint,
     /// The model identifier was malformed.
     InvalidModel,
+    /// A session or attempt correlation identifier was malformed.
+    InvalidIdentity,
     /// A zero or excessive turn/action budget was requested.
     InvalidBudget,
     /// Prompt input exceeded the byte ceiling.
@@ -265,6 +268,7 @@ impl fmt::Display for AdapterError {
             Self::InvalidPathEncoding => formatter.write_str("Gemini hook path is not UTF-8"),
             Self::InvalidEndpoint => formatter.write_str("invalid Gemini provider endpoint"),
             Self::InvalidModel => formatter.write_str("invalid Gemini model identifier"),
+            Self::InvalidIdentity => formatter.write_str("invalid Gemini correlation identity"),
             Self::InvalidBudget => formatter.write_str("invalid Gemini action or turn budget"),
             Self::PromptTooLarge => formatter.write_str("Gemini prompt exceeds byte limit"),
             Self::InvalidPrompt => formatter.write_str("invalid Gemini prompt"),
@@ -450,6 +454,9 @@ impl GeminiConfig {
         prompt: &str,
         limits: ProcessLimits,
     ) -> Result<RunningGemini, AdapterError> {
+        if !valid_public_id(&session_id) || !valid_public_id(&attempt_id) {
+            return Err(AdapterError::InvalidIdentity);
+        }
         if prompt.len() > MAX_PROMPT_BYTES {
             return Err(AdapterError::PromptTooLarge);
         }
@@ -1279,6 +1286,15 @@ fn safe_label(value: &str, maximum: usize) -> bool {
         && value.bytes().all(|byte| !byte.is_ascii_control())
 }
 
+fn valid_public_id(id: &Id) -> bool {
+    !id.0.is_empty()
+        && id.0.len() <= MAX_PUBLIC_ID_BYTES
+        && id
+            .0
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
 fn loopback_host(host: &str) -> bool {
     matches!(
         host.trim_end_matches('.').to_ascii_lowercase().as_str(),
@@ -1637,6 +1653,7 @@ mod tests {
             AdapterError::InvalidPathEncoding.to_string(),
             AdapterError::InvalidEndpoint.to_string(),
             AdapterError::InvalidModel.to_string(),
+            AdapterError::InvalidIdentity.to_string(),
             AdapterError::InvalidBudget.to_string(),
             AdapterError::PromptTooLarge.to_string(),
             AdapterError::InvalidPrompt.to_string(),
@@ -2049,6 +2066,42 @@ printf '%s\n' \
         );
         assert!(!name.contains(&session.0));
         assert!(!name.contains(&attempt.0));
+    }
+
+    #[test]
+    fn public_identities_fail_before_filesystem_or_process_effects() {
+        let scratch = Scratch::new("invalid-identity");
+        let adapter = config(&scratch.0);
+        for id in [
+            "",
+            "bad\nidentity",
+            "bad identity",
+            "../attempt",
+            "run/attempt",
+            "run:attempt",
+            "run@attempt",
+            "unicod\u{e9}",
+        ] {
+            assert!(matches!(
+                adapter.start(Id(id.into()), Id("attempt".into()), "prompt", limits()),
+                Err(AdapterError::InvalidIdentity)
+            ));
+            assert!(matches!(
+                adapter.start(Id("session".into()), Id(id.into()), "prompt", limits()),
+                Err(AdapterError::InvalidIdentity)
+            ));
+        }
+        assert!(matches!(
+            adapter.start(
+                Id("x".repeat(MAX_PUBLIC_ID_BYTES + 1)),
+                Id("attempt".into()),
+                "prompt",
+                limits()
+            ),
+            Err(AdapterError::InvalidIdentity)
+        ));
+        assert!(!scratch.0.join("workspace").exists());
+        assert!(!scratch.0.join("state").exists());
     }
 
     #[test]
