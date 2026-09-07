@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Signed, content-addressed runtime-bundle manifests and offline verification.
 
+use asb_runtime::{ProcessLimits, RunningProcess, Termination};
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -8,10 +9,11 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use thiserror::Error;
 
 /// Runtime-bundle manifest schema version supported by this crate.
@@ -29,6 +31,7 @@ pub const MAX_ARTIFACTS: usize = 100_000;
 const MAX_SIGNATURE_BYTES: u64 = 1024 * 1024;
 const MAX_ALLOWED_SIGNERS_BYTES: u64 = 1024 * 1024;
 const MAX_STRING_BYTES: usize = 4096;
+const SIGNATURE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// A signed runtime bundle complete content-addressed inventory.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -199,9 +202,10 @@ pub fn verify_bundle(
     let root = validate_root(bundle_root)?;
     let manifest_path = root.join("manifest.json");
     let signature_path = root.join("manifest.json.sig");
-    let manifest_bytes = read_regular_bounded(&manifest_path, MAX_MANIFEST_BYTES)?;
+    let (manifest_bytes, manifest_file) =
+        read_regular_bounded_with_file(&manifest_path, MAX_MANIFEST_BYTES)?;
     validate_regular_file_bounded(&signature_path, MAX_SIGNATURE_BYTES)?;
-    verify_signature(&manifest_bytes, &signature_path, config)?;
+    verify_signature(manifest_file, &signature_path, config)?;
 
     let manifest: RuntimeBundleManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|_| VerifyError::Metadata("manifest is not strict schema-v1 JSON".into()))?;
@@ -419,6 +423,10 @@ fn enumerate_files(root: &Path) -> Result<BTreeSet<String>, VerifyError> {
 }
 
 fn read_regular_bounded(path: &Path, max: u64) -> Result<Vec<u8>, VerifyError> {
+    read_regular_bounded_with_file(path, max).map(|(bytes, _)| bytes)
+}
+
+fn read_regular_bounded_with_file(path: &Path, max: u64) -> Result<(Vec<u8>, File), VerifyError> {
     let mut file = open_regular(path)?;
     let metadata = file.metadata()?;
     if metadata.len() > max {
@@ -433,7 +441,8 @@ fn read_regular_bounded(path: &Path, max: u64) -> Result<Vec<u8>, VerifyError> {
     if bytes.len() as u64 > max {
         return Err(VerifyError::Limit("file grew while reading".into()));
     }
-    Ok(bytes)
+    file.seek(SeekFrom::Start(0))?;
+    Ok((bytes, file))
 }
 
 fn hash_regular_file(path: &Path) -> Result<(u64, String), VerifyError> {
@@ -483,7 +492,7 @@ const fn no_follow_flags() -> i32 {
 }
 
 fn verify_signature(
-    manifest: &[u8],
+    manifest: File,
     signature: &Path,
     config: &VerifierConfig,
 ) -> Result<(), VerifyError> {
@@ -495,7 +504,16 @@ fn verify_signature(
         return Err(VerifyError::Signature);
     }
     validate_regular_file_bounded(&config.allowed_signers, MAX_ALLOWED_SIGNERS_BYTES)?;
-    let mut child = Command::new(&config.ssh_keygen)
+    let limits = ProcessLimits::new(
+        1,
+        1,
+        SIGNATURE_TIMEOUT,
+        Duration::from_millis(100),
+        Duration::from_millis(5),
+    )
+    .map_err(|_| VerifyError::Signature)?;
+    let mut command = Command::new(&config.ssh_keygen);
+    command
         .args([
             OsStr::new("-Y"),
             OsStr::new("verify"),
@@ -509,18 +527,10 @@ fn verify_signature(
             signature.as_os_str(),
         ])
         .env_clear()
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|_| VerifyError::Signature)?;
-    child
-        .stdin
-        .take()
-        .ok_or(VerifyError::Signature)?
-        .write_all(manifest)
-        .map_err(|_| VerifyError::Signature)?;
-    if child.wait().map_err(|_| VerifyError::Signature)?.success() {
+        .stdin(Stdio::from(manifest));
+    let mut process = RunningProcess::spawn(command, limits).map_err(|_| VerifyError::Signature)?;
+    let output = process.wait().map_err(|_| VerifyError::Signature)?;
+    if output.termination == Termination::Exited && output.exit_code == Some(0) {
         Ok(())
     } else {
         Err(VerifyError::Signature)

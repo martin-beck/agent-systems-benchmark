@@ -5,7 +5,9 @@ verifies it without network access. The signature is an OpenSSH SSHSIG over the 
 manifest.json bytes in namespace asb-runtime-bundle-v1; trust is supplied explicitly as an
 allowed-signers file and principal. Verification never downloads keys, packages, SBOMs, or
 license data. The caller must also supply the expected SHA-256 of ssh-keygen, preventing an
-untrusted replacement executable from certifying arbitrary content.
+untrusted replacement executable from certifying arbitrary content. The verifier runs that
+trusted executable in a dedicated process group with a two-second monotonic deadline, bounded
+discarded output, and no inherited environment.
 
 The signed manifest binds the target OS, architecture, libc family/version, entrypoint, every
 regular payload file, exact safe permission mode, per-file license expression/evidence, SPDX 2.3
@@ -26,3 +28,5 @@ does not prove that upstream source is benign, that a license expression is lega
 a libc version is ABI-compatible beyond exact equality, or that a concurrently attacker-mutated
 directory is safe to execute. Installation must verify a quiescent private staging directory and
 atomically publish the verified tree; sandboxing and process containment remain runtime concerns.
+The supplied ssh-keygen and allowed-signers locations must likewise be operator-owned and
+quiescent during verification.

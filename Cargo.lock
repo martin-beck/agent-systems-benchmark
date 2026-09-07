@@ -49,6 +49,7 @@ dependencies = [
 name = "asb-bundle"
 version = "0.1.0"
 dependencies = [
+ "asb-runtime",
  "schemars",
  "serde",
  "serde_json",

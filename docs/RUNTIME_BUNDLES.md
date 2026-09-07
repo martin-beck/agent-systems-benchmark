@@ -25,7 +25,8 @@ asb-bundle-verify BUNDLE ALLOWED_SIGNERS PRINCIPAL SSH_KEYGEN SSH_KEYGEN_SHA256 
 ```
 
 The verifier performs no network operation. It verifies the signature before accepting manifest
-semantics, requires exact target equality, rejects unknown manifest fields, and then checks the
+semantics using a two-second process-group-bounded ssh-keygen invocation with no inherited
+environment or retained subprocess output. It requires exact target equality, rejects unknown manifest fields, and then checks the
 complete directory inventory, file sizes/hashes/exact safe permission modes, canonical content digest, both
 SBOM hashes, and exact per-file path/hash/license parity. Its output contains only bounded public
 identities and digests; failures never include file contents, signer data, or subprocess output.
@@ -37,3 +38,5 @@ same-UID directory concurrently mutated during verification safe to execute. The
 own and keep staging private, verify it while quiescent, and atomically publish it. Platform
 compatibility is exact string equality; broader libc ABI compatibility requires separate native
 qualification. Bundle creation and per-agent transitive package acquisition remain AR-0316 work.
+The configured ssh-keygen and allowed-signers paths are also trusted operator-owned inputs and
+must remain quiescent for the duration of verification.

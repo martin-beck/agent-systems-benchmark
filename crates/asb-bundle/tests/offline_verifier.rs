@@ -12,6 +12,7 @@ use std::fs;
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 const PRINCIPAL: &str = "asb-test-release";
@@ -99,6 +100,10 @@ fn write_json(path: &Path, value: &Value) {
 }
 
 fn sign(fixture: &Fixture) {
+    sign_with_namespace(fixture, SIGNATURE_NAMESPACE);
+}
+
+fn sign_with_namespace(fixture: &Fixture, namespace: &str) {
     let signature = fixture.root.join("manifest.json.sig");
     let _ = fs::remove_file(signature);
     let status = Command::new("/usr/bin/ssh-keygen")
@@ -109,7 +114,7 @@ fn sign(fixture: &Fixture) {
             "-f",
             fixture.key.to_str().expect("key path"),
             "-n",
-            SIGNATURE_NAMESPACE,
+            namespace,
             fixture
                 .root
                 .join("manifest.json")
@@ -587,6 +592,34 @@ fn rejects_every_target_dimension_and_invalid_signer_process() {
         verify_bundle(&fixture.root, &bad, &target()),
         Err(VerifyError::Signature)
     ));
+}
+
+#[test]
+fn rejects_wrong_signature_namespace_and_bounds_the_verifier_process() {
+    let fixture = create_fixture();
+    sign_with_namespace(&fixture, "other-runtime-bundle");
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Signature)
+    ));
+
+    let fixture = create_fixture();
+    let hanging_signer = fixture.root.join("hanging-signer");
+    fs::write(&hanging_signer, "#!/bin/sh\nsleep 60\n").expect("write hanging signer");
+    fs::set_permissions(&hanging_signer, fs::Permissions::from_mode(0o755))
+        .expect("make hanging signer executable");
+    let mut hanging = config(&fixture);
+    hanging.ssh_keygen_sha256 = sha256(&fs::read(&hanging_signer).expect("read hanging signer"));
+    hanging.ssh_keygen = hanging_signer;
+    let started = Instant::now();
+    assert!(matches!(
+        verify_bundle(&fixture.root, &hanging, &target()),
+        Err(VerifyError::Signature)
+    ));
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "signature subprocess must be terminated by its monotonic deadline"
+    );
 }
 
 #[test]
