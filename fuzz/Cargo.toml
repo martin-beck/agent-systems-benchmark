@@ -3,14 +3,15 @@ name = "asb-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2024"
+license = "MIT"
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
-asb-protocol = { path = "../crates/asb-protocol" }
-asb-replay = { path = "../crates/asb-replay" }
-asb-store = { path = "../crates/asb-store" }
+asb-protocol = { version = "=0.1.0", path = "../crates/asb-protocol" }
+asb-replay = { version = "=0.1.0", path = "../crates/asb-replay" }
+asb-store = { version = "=0.1.0", path = "../crates/asb-store" }
 libfuzzer-sys = "=0.4.13"
 serde_json = "=1.0.143"
 

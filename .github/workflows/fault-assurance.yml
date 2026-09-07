@@ -53,7 +53,8 @@ jobs:
           tool: cargo-audit@0.22.2,cargo-deny@0.20.2
       - name: Audit the independent fuzz dependency graph
         run: |
-          cargo deny --manifest-path fuzz/Cargo.toml --locked check
+          cargo deny --config fuzz/deny.toml \
+            --manifest-path fuzz/Cargo.toml --locked check
           cargo audit --file fuzz/Cargo.lock --deny warnings
       - name: Run bounded targets
         env:
