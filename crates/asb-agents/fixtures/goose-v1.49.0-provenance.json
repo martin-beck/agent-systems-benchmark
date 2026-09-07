@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "project": "aaif-goose/goose",
+  "release": "v1.49.0",
+  "release_published_at": "2026-09-03T19:34:26Z",
+  "source_revision": "71fc4be1ed729e26b1dc0a4466abdd03be548a53",
+  "source_tree": "448f24c739dae4998c583b2b7dc13c6601c155ba",
+  "source_tag_signed": false,
+  "source_commit_signed": false,
+  "release_attestation": {
+    "predicate_type": "https://slsa.dev/provenance/v1",
+    "source_ref": "refs/tags/v1.49.0",
+    "signer_workflow": ".github/workflows/release.yml",
+    "runner_environment": "github-hosted",
+    "run_id": 33792982006
+  },
+  "license": "Apache-2.0",
+  "license_sha256": "44459b86c2e96fdbfd8a6b5c33d30d4b04b5293fcb2ec96fe4dcc4e0f90b8962",
+  "assets": [
+    {
+      "architecture": "aarch64",
+      "libc": "musl",
+      "archive": "goose-aarch64-unknown-linux-musl.tar.bz2",
+      "archive_sha256": "e0614bcc944b48dc2f3b2a171946a745ad6a57abd0a972ae714adfecb9104b36",
+      "executable_sha256": "aeb66147b9ec9379b384083bec9e58ab3f0f39d1c9faa5a4403c368662d2a046"
+    },
+    {
+      "architecture": "x86_64",
+      "libc": "musl",
+      "archive": "goose-x86_64-unknown-linux-musl.tar.bz2",
+      "archive_sha256": "2715ecb28a2f82ac6298941db40574a44729f0607d87f77953f2690d10fe7cb6",
+      "executable_sha256": "c055ef50579c9ecf90329c12e87af0d136fe723cbaef834fdaac013d410b377d"
+    }
+  ]
+}

@@ -31,6 +31,38 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Tests
         run: cargo test --locked --workspace
+      - name: Native pinned Goose journey
+        run: |
+          case "$(uname -m)" in
+            x86_64)
+              asset=goose-x86_64-unknown-linux-musl.tar.bz2
+              archive_sha256=2715ecb28a2f82ac6298941db40574a44729f0607d87f77953f2690d10fe7cb6
+              executable_sha256=c055ef50579c9ecf90329c12e87af0d136fe723cbaef834fdaac013d410b377d
+              ;;
+            aarch64)
+              asset=goose-aarch64-unknown-linux-musl.tar.bz2
+              archive_sha256=e0614bcc944b48dc2f3b2a171946a745ad6a57abd0a972ae714adfecb9104b36
+              executable_sha256=aeb66147b9ec9379b384083bec9e58ab3f0f39d1c9faa5a4403c368662d2a046
+              ;;
+            *)
+              printf 'unsupported native architecture: %s\n' "$(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          archive="$RUNNER_TEMP/$asset"
+          install_dir="$RUNNER_TEMP/asb-goose"
+          curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
+            --output "$archive" \
+            "https://github.com/aaif-goose/goose/releases/download/v1.49.0/$asset"
+          printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum --check --strict
+          mkdir "$install_dir"
+          tar -xjf "$archive" -C "$install_dir"
+          printf '%s  %s\n' "$executable_sha256" "$install_dir/goose" | \
+            sha256sum --check --strict
+          ASB_GOOSE_BIN="$install_dir/goose" \
+            ASB_GOOSE_SHA256="$executable_sha256" \
+            cargo test --locked -p asb-agents --test real_goose -- \
+              --ignored --test-threads=1
       - name: Documentation
         env:
           RUSTDOCFLAGS: -D warnings
