@@ -6,6 +6,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -129,6 +131,16 @@ class NativeEvidenceTests(unittest.TestCase):
         (self.root / "etc/os-release").write_bytes(b"A" * (EVIDENCE.MAX_SOURCE_BYTES + 1))
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "byte limit"):
             self.collect()
+        invalid = self.root / "invalid"
+        invalid.write_bytes(b"\xff")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "UTF-8"):
+            EVIDENCE.read_bounded(invalid)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "lacks ID"):
+            EVIDENCE.parse_os_release("# comment\nNAME=test\n")
+        self.assertEqual(
+            EVIDENCE.parse_os_release('ID="ubuntu"\nVERSION_ID="24.04"\n')["ID"],
+            "ubuntu",
+        )
 
     def test_unsafe_run_checks_and_output_paths_fail_closed(self) -> None:
         with mock.patch.object(
@@ -153,9 +165,20 @@ class NativeEvidenceTests(unittest.TestCase):
         outside = self.root / "outside"
         outside.write_text("sentinel", encoding="utf-8")
         target.symlink_to(outside)
-        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "symlink"):
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "already exist"):
             EVIDENCE.write_atomic(target, {"safe": True})
         self.assertEqual(outside.read_text(encoding="utf-8"), "sentinel")
+        target.unlink()
+        EVIDENCE.write_atomic(target, {"safe": True})
+        self.assertEqual(json.loads(target.read_text(encoding="utf-8")), {"safe": True})
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "already exist"):
+            EVIDENCE.write_atomic(target, {"safe": False})
+        real_parent = self.root / "real-parent"
+        real_parent.mkdir()
+        alias_parent = self.root / "alias-parent"
+        alias_parent.symlink_to(real_parent, target_is_directory=True)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "parent"):
+            EVIDENCE.write_atomic(alias_parent / "report.json", {"safe": True})
 
     def test_real_command_records_digests_and_failure_without_raw_output(self) -> None:
         result = EVIDENCE.run_check(["/bin/sh", "-c", "printf private"], ROOT)
@@ -186,11 +209,123 @@ class NativeEvidenceTests(unittest.TestCase):
             report = EVIDENCE.collect(
                 "ubuntu-24.04", "x86_64", "run-1", ROOT,
                 [("process", ["true"])], [("sandbox", ["false"])],
-                root=self.root, probe=self.probe,
+                root=self.root, probe=self.probe, sandbox_probe=lambda _: False,
             )
         self.assertEqual(report["qualification"], "native-functional-partial")
         self.assertEqual(report["checks"]["sandbox"], {"status": "unavailable"})
         self.assertEqual(report["capabilities"]["sandbox"], "unavailable")
+
+    def test_capable_optional_sandbox_failure_is_fatal(self) -> None:
+        passed = {
+            "status": "passed",
+            "argv_sha256": "sha256:" + "b" * 64,
+            "output_sha256": "sha256:" + "c" * 64,
+            "output_bytes": 3,
+        }
+        with mock.patch.object(EVIDENCE.platform, "machine", return_value="x86_64"), mock.patch.object(
+            EVIDENCE.platform, "release", return_value="7.0.0-test"
+        ), mock.patch.object(
+            EVIDENCE, "run_check", side_effect=[passed, EVIDENCE.EvidenceError("regression")]
+        ), self.assertRaisesRegex(EVIDENCE.EvidenceError, "regression"):
+            EVIDENCE.collect(
+                "ubuntu-24.04", "x86_64", "run-1", ROOT,
+                [("process", ["true"])], [("sandbox", ["false"])],
+                root=self.root, probe=self.probe, sandbox_probe=lambda _: True,
+            )
+
+    def test_only_sandbox_may_be_optional(self) -> None:
+        passed = {
+            "status": "passed",
+            "argv_sha256": "sha256:" + "b" * 64,
+            "output_sha256": "sha256:" + "c" * 64,
+            "output_bytes": 3,
+        }
+        with mock.patch.object(EVIDENCE.platform, "machine", return_value="x86_64"), mock.patch.object(
+            EVIDENCE.platform, "release", return_value="7.0.0-test"
+        ), mock.patch.object(EVIDENCE, "run_check", return_value=passed), self.assertRaisesRegex(
+            EVIDENCE.EvidenceError, "only the native sandbox"
+        ):
+            EVIDENCE.collect(
+                "ubuntu-24.04", "x86_64", "run-1", ROOT,
+                [("process", ["true"])], [("metrics", ["true"])],
+                root=self.root, probe=self.probe,
+            )
+
+    def test_check_parser_rejects_shellish_and_malformed_forms(self) -> None:
+        self.assertEqual(EVIDENCE.parse_check('process=["/bin/true"]'), ("process", ["/bin/true"]))
+        for value in ("missing", "UPPER=[]", "name=bad", "name=[]", 'name=[""]'):
+            with self.subTest(value=value), self.assertRaises(EVIDENCE.argparse.ArgumentTypeError):
+                EVIDENCE.parse_check(value)
+        for argv in ([], [""], [1]):
+            with self.subTest(argv=argv), self.assertRaisesRegex(EVIDENCE.EvidenceError, "argv"):
+                EVIDENCE.run_check(argv, ROOT)
+
+    def test_probe_and_timeout_failures_are_bounded(self) -> None:
+        self.assertEqual(
+            EVIDENCE.command_output(["/bin/sh", "-c", "printf none; exit 1"], ROOT),
+            "none",
+        )
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "probe failed"):
+            EVIDENCE.command_output(["/bin/false"], ROOT)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "could not complete"):
+            EVIDENCE.command_output(["/definitely/absent"], ROOT)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "timed out"):
+            EVIDENCE.run_check(["/bin/sleep", "1"], ROOT, timeout=0)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "could not start"):
+            EVIDENCE.run_check(["/definitely/absent"], ROOT)
+
+    def test_sandbox_preflight_checks_every_pin_and_scope(self) -> None:
+        good = subprocess.CompletedProcess([], 0, "systemd 255 (255.4-1ubuntu8.17) bubblewrap 0.9.0 taskset from util-linux 2.39.3", "")
+        with mock.patch.object(EVIDENCE.subprocess, "run", return_value=good):
+            self.assertTrue(EVIDENCE.sandbox_capable(ROOT))
+        bad = subprocess.CompletedProcess([], 1, "", "")
+        with mock.patch.object(EVIDENCE.subprocess, "run", return_value=bad):
+            self.assertFalse(EVIDENCE.sandbox_capable(ROOT))
+        with mock.patch.object(EVIDENCE.subprocess, "run", side_effect=OSError):
+            self.assertFalse(EVIDENCE.sandbox_capable(ROOT))
+
+    def test_additional_collection_bindings_fail_closed(self) -> None:
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "eligible"):
+            EVIDENCE.validate_platform(
+                "unknown", {"ID": "ubuntu", "VERSION_ID": "24.04", "VERSION": "24.04.4 LTS"}
+            )
+        invalid_probe = lambda argv, cwd: "short" if argv[:2] == ["git", "rev-parse"] else self.probe(argv, cwd)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "immutable"):
+            self.collect(invalid_probe)
+        with mock.patch.object(EVIDENCE.platform, "machine", return_value="x86_64"), mock.patch.object(
+            EVIDENCE.platform, "release", return_value=""
+        ), self.assertRaisesRegex(EVIDENCE.EvidenceError, "kernel"):
+            EVIDENCE.collect(
+                "ubuntu-24.04", "x86_64", "run-1", ROOT,
+                [("process", ["true"])], root=self.root, probe=self.probe,
+            )
+        with mock.patch.object(
+            EVIDENCE.platform, "machine", return_value="x86_64"
+        ), self.assertRaisesRegex(EVIDENCE.EvidenceError, "differs"):
+            EVIDENCE.collect(
+                "ubuntu-24.04", "aarch64", "run-1", ROOT,
+                [("process", ["true"])], root=self.root, probe=self.probe,
+            )
+
+    def test_main_writes_success_and_reports_collector_failure(self) -> None:
+        output = self.root / "main.json"
+        report = {"platform_id": "ubuntu-24.04", "architecture": "x86_64"}
+        argv = [
+            "native_evidence.py", "--platform-id", "ubuntu-24.04",
+            "--architecture", "x86_64", "--run-id", "run-1",
+            "--source", str(ROOT), "--output", str(output),
+            "--check", 'process=["/bin/true"]',
+        ]
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(
+            EVIDENCE, "collect", return_value=report
+        ):
+            self.assertEqual(EVIDENCE.main(), 0)
+        self.assertTrue(output.is_file())
+        output.unlink()
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(
+            EVIDENCE, "collect", side_effect=EVIDENCE.EvidenceError("expected")
+        ):
+            self.assertEqual(EVIDENCE.main(), 1)
 
 
 if __name__ == "__main__":

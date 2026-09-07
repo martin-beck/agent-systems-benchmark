@@ -28,6 +28,12 @@ PLATFORMS = {
     "debian-13": ("debian", "13", ""),
     "openeuler-24.03-lts-sp2": ("openEuler", "24.03", "LTS-SP2"),
 }
+SANDBOX_TOOLS = (
+    ("/usr/bin/bwrap", "bubblewrap 0.9.0"),
+    ("/usr/bin/systemd-run", "systemd 255 (255.4-1ubuntu8.17)"),
+    ("/usr/bin/systemctl", "systemd 255 (255.4-1ubuntu8.17)"),
+    ("/usr/bin/taskset", "taskset from util-linux 2.39.3"),
+)
 
 
 class EvidenceError(RuntimeError):
@@ -170,6 +176,29 @@ def command_output(argv: Sequence[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
+def sandbox_capable(cwd: Path) -> bool:
+    """Prove the exact pinned tools and disposable user scope are available."""
+    for executable, expected in SANDBOX_TOOLS:
+        try:
+            result = subprocess.run(
+                [executable, "--version"], cwd=cwd, stdin=subprocess.DEVNULL,
+                capture_output=True, text=True, timeout=15, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if result.returncode != 0 or expected not in result.stdout:
+            return False
+    try:
+        scope = subprocess.run(
+            ["/usr/bin/systemd-run", "--user", "--wait", "--quiet", "/usr/bin/true"],
+            cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=30, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return scope.returncode == 0
+
+
 def collect(
     platform_id: str,
     expected_arch: str,
@@ -179,6 +208,7 @@ def collect(
     optional_checks: list[tuple[str, list[str]]] | None = None,
     root: Path = Path("/"),
     probe: Callable[[Sequence[str], Path], str] = command_output,
+    sandbox_probe: Callable[[Path], bool] | None = None,
 ) -> dict[str, Any]:
     """Collect an evidence document, failing before output on any mismatch."""
     if not RUN_ID.fullmatch(run_id):
@@ -214,10 +244,13 @@ def collect(
     if not checks or len({name for name, _ in all_checks}) != len(all_checks):
         raise EvidenceError("checks must be nonempty and uniquely named")
     results = {name: run_check(argv, source) for name, argv in checks}
+    sandbox_probe = sandbox_probe or sandbox_capable
     for name, argv in optional_checks:
-        try:
+        if name != "sandbox":
+            raise EvidenceError("only the native sandbox check may be optional")
+        if sandbox_probe(source):
             results[name] = run_check(argv, source)
-        except EvidenceError:
+        else:
             results[name] = {"status": "unavailable"}
     complete = all(result["status"] == "passed" for result in results.values())
     return {
@@ -250,8 +283,8 @@ def write_atomic(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.parent.resolve(strict=True) != path.parent.absolute():
         raise EvidenceError("output parent must not contain symlinks")
-    if path.is_symlink():
-        raise EvidenceError("output path must not be a symlink")
+    if path.is_symlink() or path.exists():
+        raise EvidenceError("output path must not already exist")
     data = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
     temporary = path.with_name(path.name + ".tmp-" + str(os.getpid()))
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
