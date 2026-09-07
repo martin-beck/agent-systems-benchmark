@@ -3,7 +3,7 @@
 
 mod support;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use asb_replay::{Header, RedactionError, RedactionPolicy, Redactor};
 use serde_json::json;
@@ -32,6 +32,52 @@ fn credentials_are_replaced_stably_without_merging_distinct_values() {
     assert!(encoded.contains("[ASB_REDACTED:000001]"));
     assert!(request.path.contains("%5BASB_REDACTED%3A000001%5D"));
     assert!(encoded.contains("[ASB_REDACTED:000002]"));
+}
+
+#[test]
+fn selected_nested_options_are_synchronized_without_touching_unselected_options() {
+    let policy = RedactionPolicy {
+        request_body_pointers: BTreeSet::from([
+            "/client_metadata/session_id".into(),
+            "/input".into(),
+        ]),
+        ..RedactionPolicy::default()
+    };
+    let mut request = support::request();
+    request.body = json!({
+        "client_metadata": {"session_id": "volatile-session", "stable": 7},
+        "input": [{"role": "user", "content": "private prompt"}],
+        "stream": true
+    });
+    request.options = BTreeMap::from([
+        (
+            "client_metadata".into(),
+            request.body["client_metadata"].clone(),
+        ),
+        ("stream".into(), json!(false)),
+    ]);
+
+    Redactor::new(policy)
+        .unwrap()
+        .redact_request(&mut request)
+        .unwrap();
+
+    assert_eq!(
+        request.options["client_metadata"],
+        request.body["client_metadata"]
+    );
+    assert_eq!(request.options["stream"], json!(false));
+    let encoded = serde_json::to_vec(&request).unwrap();
+    assert!(
+        !encoded
+            .windows(16)
+            .any(|window| window == b"volatile-session")
+    );
+    assert!(
+        !encoded
+            .windows(14)
+            .any(|window| window == b"private prompt")
+    );
 }
 
 #[test]
@@ -257,6 +303,19 @@ fn path_without_query_and_invalid_pointer_are_handled() {
     assert!(matches!(
         Redactor::new(invalid),
         Err(RedactionError::InvalidPolicy)
+    ));
+
+    let mut request = support::request();
+    request.body = json!({"items": ["only"]});
+    let out_of_bounds = RedactionPolicy {
+        request_body_pointers: BTreeSet::from(["/items/1".into()]),
+        ..RedactionPolicy::default()
+    };
+    assert!(matches!(
+        Redactor::new(out_of_bounds)
+            .unwrap()
+            .redact_request(&mut request),
+        Err(RedactionError::MissingSensitiveField)
     ));
 }
 

@@ -223,6 +223,122 @@ fn cassette() -> Cassette {
     decode_cassette(&bytes, CassetteLimits::default()).unwrap()
 }
 
+fn pointer_redacted_cassette() -> (Cassette, Value) {
+    let body = json!({
+        "client_metadata": {"session_id": "capture-session", "stable": "kept"},
+        "input": [{"role": "user", "content": "capture prompt"}],
+        "model": "responses-model",
+        "stream": false,
+        "tools": [{"type": "function", "name": "lookup"}]
+    });
+    let contents = CassetteContents {
+        schema_version: 1,
+        cassette_id: "pointer-replay-synthetic".into(),
+        normalization: PolicyVersion { version: 1 },
+        redaction: RedactionPolicy::default().descriptor().unwrap(),
+        interactions: vec![interaction(
+            "pointer-a",
+            0,
+            ProviderDialect::OpenaiResponses,
+            body.clone(),
+            buffered(
+                json!({"id": "pointer-response", "output": []}),
+                "pointer-response",
+            ),
+        )],
+    };
+    let policy = RedactionPolicy {
+        request_body_pointers: ["/client_metadata/session_id", "/input"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        ..RedactionPolicy::default()
+    };
+    let redacted = Redactor::new(policy)
+        .unwrap()
+        .redact_contents(contents)
+        .unwrap()
+        .0;
+    let bytes = seal_cassette(redacted, CassetteLimits::default()).unwrap();
+    assert!(!bytes.windows(15).any(|window| window == b"capture-session"));
+    assert!(!bytes.windows(14).any(|window| window == b"capture prompt"));
+    (
+        decode_cassette(&bytes, CassetteLimits::default()).unwrap(),
+        body,
+    )
+}
+
+fn pointer_incoming(body: &Value) -> ReplayHttpRequest {
+    ReplayHttpRequest {
+        method: "POST".into(),
+        path: "/v1/responses".into(),
+        headers: vec![
+            Header {
+                name: "authorization".into(),
+                value: "runtime-credential".into(),
+            },
+            Header {
+                name: "content-type".into(),
+                value: "application/json".into(),
+            },
+        ],
+        body: serde_json::to_vec(body).unwrap(),
+    }
+}
+
+#[test]
+fn selected_request_pointers_match_volatile_values_but_every_other_field_remains_strict() {
+    let (cassette, mut incoming_body) = pointer_redacted_cassette();
+    let recorded = &cassette.contents.interactions[0].request;
+    assert_eq!(
+        recorded.options["client_metadata"],
+        recorded.body["client_metadata"]
+    );
+    incoming_body["client_metadata"]["session_id"] = json!("runtime-session");
+    incoming_body["input"] = json!([{"role": "user", "content": "runtime prompt"}]);
+    let selected = route("pointer-a", ProviderDialect::OpenaiResponses);
+    StrictReplayService::new(cassette.clone(), ReplayLimits::default())
+        .unwrap()
+        .handle(&selected, pointer_incoming(&incoming_body))
+        .unwrap();
+
+    let mut changed = incoming_body.clone();
+    changed["client_metadata"]["stable"] = json!("changed");
+    assert!(matches!(
+        StrictReplayService::new(cassette.clone(), ReplayLimits::default())
+            .unwrap()
+            .handle(&selected, pointer_incoming(&changed)),
+        Err(ReplayError::Mismatch)
+    ));
+    let mut changed = incoming_body.clone();
+    changed["tools"] = json!([]);
+    assert!(matches!(
+        StrictReplayService::new(cassette.clone(), ReplayLimits::default())
+            .unwrap()
+            .handle(&selected, pointer_incoming(&changed)),
+        Err(ReplayError::Mismatch)
+    ));
+    let mut missing = incoming_body.clone();
+    missing["client_metadata"]
+        .as_object_mut()
+        .unwrap()
+        .remove("session_id");
+    assert!(matches!(
+        StrictReplayService::new(cassette.clone(), ReplayLimits::default())
+            .unwrap()
+            .handle(&selected, pointer_incoming(&missing)),
+        Err(ReplayError::Mismatch)
+    ));
+    let mut injected = incoming_body;
+    injected["input"] = json!("[ASB_REDACTED:000001]");
+    assert!(matches!(
+        StrictReplayService::new(cassette, ReplayLimits::default())
+            .unwrap()
+            .handle(&selected, pointer_incoming(&injected)),
+        Err(ReplayError::InvalidHttp)
+    ));
+}
+
 fn opendesk_request(method: &str, path: &str, body: Value) -> RecordedRequest {
     let options = body
         .as_object()

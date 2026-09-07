@@ -64,6 +64,17 @@ pointers, double-encoded query escapes, absent configured fields, and mapping or
 selector exhaustion fail closed. The ephemeral reverse mapping is never part of
 the cassette or an error message.
 
+Strict replay applies authenticated request-body selectors only for comparison:
+it substitutes each present incoming selected value with the exact bounded
+redaction marker already stored at that pointer. Missing or out-of-bounds
+pointers, malformed expected markers, marker-shaped incoming data, and markers
+outside selected fields fail closed. Every unselected field, including model,
+tools, prior-response identity, and stable option content, remains byte-exact
+after canonical JSON encoding. When a selected pointer is inside a duplicated
+top-level provider option, pre-persistence redaction synchronizes that option
+from the redacted body so the cassette cannot retain the volatile value through
+its denormalized request metadata.
+
 All cassette and selector hashes are unkeyed integrity checks. They detect
 accidental corruption and inconsistent descriptors; they do not authenticate an
 author, resist deliberate recomputation, or prove that an externally supplied
