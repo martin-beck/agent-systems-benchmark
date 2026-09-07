@@ -34,3 +34,7 @@ does not activate the separately controlled persistent-runner workflows.
 Native aarch64 remains unavailable and unsupported by this capacity. Emulation, cross-building and
 archive inspection never upgrade that status. AppArmor registration is observed, but enforcement is
 not claimed without a denial oracle; SELinux is unavailable on the qualified host.
+
+The committed [Ubuntu native functional report](../platforms/v1/native-x86-evidence/ubuntu-24-04-x86-64-native-functional.json)
+binds the successful disposable run to its exact source commit and tree. The adjacent
+`native-x86-capacity.schema.json` is the closed evidence contract.

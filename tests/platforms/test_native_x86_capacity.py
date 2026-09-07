@@ -108,6 +108,28 @@ def valid_report() -> dict[str, object]:
 
 
 class NativeX86CapacityTests(unittest.TestCase):
+    def test_committed_native_evidence_is_schema_valid_and_sanitized(self) -> None:
+        schema = json.loads(
+            (ROOT / "platforms/v1/native-x86-capacity.schema.json").read_text()
+        )
+        evidence = sorted((ROOT / "platforms/v1/native-x86-evidence").glob("*.json"))
+        self.assertEqual(
+            [path.name for path in evidence],
+            ["ubuntu-24-04-x86-64-native-functional.json"],
+        )
+        report = json.loads(evidence[0].read_text())
+        jsonschema.Draft202012Validator(schema).validate(report)
+        serialized = json.dumps(report, sort_keys=True).lower()
+        for forbidden in (
+            "hostname",
+            "/home/",
+            "/srv/data/projects",
+            "api_key",
+            "bearer ",
+            "authorization:",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
     def test_exact_release_and_resource_bounds_fail_closed(self) -> None:
         release = (
             b'ID=ubuntu\nVERSION_ID="24.04"\nVERSION="24.04.4 LTS (Noble Numbat)"\n'
