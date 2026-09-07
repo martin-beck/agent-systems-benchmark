@@ -225,6 +225,56 @@ def source_identity(source: Path, base_commit: str) -> tuple[str, str]:
     return commit, tree
 
 
+def materialize_source(
+    source: Path,
+    destination: Path,
+    base_commit: str,
+    commit: str,
+    tree: str,
+) -> Path:
+    """Create a private writable clone bound to the reviewed source identity."""
+    if destination.exists() or destination.is_symlink():
+        raise CapacityError("disposable source already exists")
+    destination.mkdir(mode=0o700)
+    commands = (
+        ["git", "init", "--quiet"],
+        [
+            "git",
+            "-c",
+            "protocol.file.allow=always",
+            "fetch",
+            "--quiet",
+            "--no-tags",
+            str(source),
+            commit,
+        ],
+        ["git", "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+    )
+    for argv in commands:
+        try:
+            result = subprocess.run(
+                argv,
+                cwd=destination,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=120,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise CapacityError(
+                "disposable source could not be materialized"
+            ) from error
+        if (
+            result.returncode != 0
+            or len(result.stdout) + len(result.stderr) > MAX_OUTPUT_BYTES
+        ):
+            raise CapacityError("disposable source could not be materialized")
+    actual_commit, actual_tree = source_identity(destination, base_commit)
+    if (actual_commit, actual_tree) != (commit, tree):
+        raise CapacityError("disposable source identity differs")
+    return destination
+
+
 def package_evidence(
     executable: str, package: str, version: str, cwd: Path
 ) -> dict[str, str]:
@@ -446,6 +496,10 @@ def scoped_argv(
     """Build the shell-free transient service invocation for one fixed check."""
     if check not in CHECKS:
         raise CapacityError("unknown qualification check")
+    try:
+        source.relative_to(cell)
+    except ValueError as error:
+        raise CapacityError("disposable source escapes the bounded cell") from error
     unit_suffix = hashlib.sha256(f"{run_id}-{check}".encode()).hexdigest()[:16]
     return [
         "/usr/bin/systemd-run",
@@ -469,7 +523,6 @@ def scoped_argv(
         "--property=MemorySwapMax=0",
         f"--property=TasksMax={limits.tasks_max}",
         f"--property=RuntimeMaxSec={limits.timeout_seconds}s",
-        f"--property=ReadOnlyPaths={source}",
         f"--property=ReadOnlyPaths={cargo_home}",
         f"--property=ReadOnlyPaths={rustup_home}",
         f"--property=ReadWritePaths={cell}",
@@ -697,13 +750,23 @@ def qualify(
             stream.write((json.dumps(lease, sort_keys=True) + "\n").encode())
             stream.flush()
             os.fsync(stream.fileno())
+        checked_source = materialize_source(
+            source, cell / "source", base_commit, commit, tree
+        )
         host = host_evidence(source)
         for name in sorted(CHECKS):
             argv = scoped_argv(
-                run_id, source, cell, cargo, cargo_home, rustup_home, limits, name
+                run_id,
+                checked_source,
+                cell,
+                cargo,
+                cargo_home,
+                rustup_home,
+                limits,
+                name,
             )
-            checks[name] = runner(argv, source, limits.timeout_seconds + 30)
-            if not cleanup_probe(argv, source):
+            checks[name] = runner(argv, checked_source, limits.timeout_seconds + 30)
+            if not cleanup_probe(argv, checked_source):
                 raise CapacityError("transient service was not collected")
         final_commit, final_tree = source_identity(source, base_commit)
         if (commit, tree) != (final_commit, final_tree):

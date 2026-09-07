@@ -148,7 +148,7 @@ class NativeX86CapacityTests(unittest.TestCase):
     def test_scoped_command_is_shell_free_private_and_bounded(self) -> None:
         argv = CAPACITY.scoped_argv(
             "native-x86-test",
-            Path("/source"),
+            Path("/cell/source"),
             Path("/cell"),
             Path("/cargo"),
             Path("/cargo-home"),
@@ -172,13 +172,24 @@ class NativeX86CapacityTests(unittest.TestCase):
         with self.assertRaisesRegex(CAPACITY.CapacityError, "unknown"):
             CAPACITY.scoped_argv(
                 "native-x86-test",
-                Path("/source"),
+                Path("/cell/source"),
                 Path("/cell"),
                 Path("/cargo"),
                 Path("/cargo-home"),
                 Path("/rustup"),
                 CAPACITY.Limits(400, 8192, 16384, 1200, 256),
                 "other",
+            )
+        with self.assertRaisesRegex(CAPACITY.CapacityError, "escapes"):
+            CAPACITY.scoped_argv(
+                "native-x86-test",
+                Path("/source"),
+                Path("/cell"),
+                Path("/cargo"),
+                Path("/cargo-home"),
+                Path("/rustup"),
+                CAPACITY.Limits(400, 8192, 16384, 1200, 256),
+                "metrics",
             )
 
     def test_bounded_runner_rejects_failure_timeout_and_output_amplification(
@@ -276,6 +287,13 @@ class NativeX86CapacityTests(unittest.TestCase):
                 mock.patch.object(
                     CAPACITY, "host_evidence", return_value=valid_report()["host"]
                 ),
+                mock.patch.object(
+                    CAPACITY,
+                    "materialize_source",
+                    side_effect=lambda _source, destination, *_identity: (
+                        destination.mkdir(mode=0o700) or destination
+                    ),
+                ),
             ):
                 report = CAPACITY.qualify(
                     "native-x86-test",
@@ -316,6 +334,13 @@ class NativeX86CapacityTests(unittest.TestCase):
                 ),
                 mock.patch.object(
                     CAPACITY, "host_evidence", return_value=valid_report()["host"]
+                ),
+                mock.patch.object(
+                    CAPACITY,
+                    "materialize_source",
+                    side_effect=lambda _source, destination, *_identity: (
+                        destination.mkdir(mode=0o700) or destination
+                    ),
                 ),
                 self.assertRaisesRegex(CAPACITY.CapacityError, "not collected"),
             ):
