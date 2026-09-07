@@ -19,7 +19,7 @@ fn body() -> Value {
         "contents": [{"parts": [{"text": "synthetic request"}], "role": "user"}],
         "generationConfig": {
             "temperature": 0,
-            "thinkingConfig": {},
+            "thinkingConfig": {"includeThoughts": true},
             "topK": 1,
             "topP": 1
         },
@@ -439,7 +439,18 @@ fn malformed_generation_tool_content_and_metadata_shapes_fail_closed() {
         rejected(source);
     };
     mutate_body(|body| body["generationConfig"]["temperature"] = json!("zero"));
-    mutate_body(|body| body["generationConfig"]["thinkingConfig"] = json!({"budget": 1}));
+    for invalid in [
+        json!({}),
+        json!({"budget": 1}),
+        json!({"includeThoughts": true, "budget": 1}),
+        json!({"includeThoughts": "true"}),
+        json!({"includeThoughts": null}),
+    ] {
+        let mut source = contents(vec![success()]);
+        source.interactions[0].request.body["generationConfig"]["thinkingConfig"] = invalid;
+        sync_metadata(&mut source.interactions[0].request);
+        rejected(source);
+    }
     mutate_body(|body| {
         body["generationConfig"]
             .as_object_mut()
@@ -479,6 +490,27 @@ fn malformed_generation_tool_content_and_metadata_shapes_fail_closed() {
     let mut causal = contents(vec![success()]);
     causal.interactions[0].request.previous_response_id = Some("unsupported".into());
     rejected(causal);
+}
+
+#[test]
+fn recorded_thinking_value_is_exact_and_mismatch_does_not_advance() {
+    let cassette = seal(contents(vec![success()]));
+    let service = StrictReplayService::new(cassette.clone(), ReplayLimits::default()).unwrap();
+    let mut changed = incoming(&cassette, 0);
+    let mut changed_body: Value = serde_json::from_slice(&changed.body).unwrap();
+    changed_body["generationConfig"]["thinkingConfig"]["includeThoughts"] = json!(false);
+    changed.body = serde_json::to_vec(&changed_body).unwrap();
+    assert!(matches!(
+        service.handle(&route(), changed),
+        Err(ReplayError::Mismatch)
+    ));
+    assert_eq!(
+        service
+            .handle(&route(), incoming(&cassette, 0))
+            .unwrap()
+            .status,
+        200
+    );
 }
 
 #[test]

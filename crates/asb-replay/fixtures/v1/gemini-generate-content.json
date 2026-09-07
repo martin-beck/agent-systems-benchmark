@@ -60,7 +60,9 @@
             ],
             "generationConfig": {
               "temperature": 0,
-              "thinkingConfig": {},
+              "thinkingConfig": {
+                "includeThoughts": true
+              },
               "topK": 1,
               "topP": 1
             },
@@ -95,12 +97,14 @@
               }
             ]
           },
-          "body_sha256": "2801a308c11e13b1cbbc26c30339ff9f9cde5942cedde67e25c2071eed374dbe",
+          "body_sha256": "4946191ed23e40f7dc41d577812883f6b12492263d23ef32ff3cb45ec5ac206e",
           "model": "fixture-model",
           "options": {
             "generationConfig": {
               "temperature": 0,
-              "thinkingConfig": {},
+              "thinkingConfig": {
+                "includeThoughts": true
+              },
               "topK": 1,
               "topP": 1
             },
@@ -186,6 +190,6 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "60ea576599b1004485ff4ad9241a2fb37b6514b8ca76859f84e6bf1985c60ae1"
+    "digest": "b76c8dd9335add880e5232ad63f7359d4cca8ec7d4bbade1dee6b40e409d38e9"
   }
 }
