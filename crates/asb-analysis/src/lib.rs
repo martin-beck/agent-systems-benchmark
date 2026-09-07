@@ -5,8 +5,10 @@
 #![deny(missing_docs)]
 
 mod comparison;
+mod reliability;
 
 pub use comparison::*;
+pub use reliability::*;
 
 use std::error::Error;
 use std::fmt;
