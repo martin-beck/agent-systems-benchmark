@@ -34,25 +34,30 @@ platform dependencies and are part of the stated native-evidence limitation.
 Prompts enter through an unlinked mode-0600 descriptor and are absent from the
 argument vector and durable prompt files. HOME, XDG roots, mini-SWE global
 configuration, and temporary storage are fresh per attempt; the inherited
-environment is cleared. `PYTHON_DOTENV_DISABLED=1`, `PYTHONNOUSERSITE=1`, and
-read-only staged dependencies prevent workspace/ambient dotenv and user-site
-configuration from changing the provider or authentication boundary. The
+environment is cleared. Python starts with isolated-path `-P` and no automatic
+`site` initialization (`-S`). `PYTHON_DOTENV_DISABLED=1`, `PYTHONNOUSERSITE=1`,
+and read-only staged dependencies prevent workspace/ambient dotenv,
+`sitecustomize`, and user-site configuration from changing the provider or
+authentication boundary. The
 driver loads the exact builtin `mini.yaml` from its private, verified wheel
 extraction rather than resolving a workspace-relative configuration name. Public
-session and attempt IDs are validated as nonempty, control-free values of at
-most 4 KiB before filesystem mutation. Auxiliary HTTP(S) proxy routes fail closed and only
+session and attempt IDs are validated before filesystem mutation as nonempty
+ASCII transport-neutral identifiers of at most 4 KiB, using only letters,
+digits, dot, underscore, and hyphen. Auxiliary HTTP(S) proxy routes fail closed and only
 the exact explicit provider host bypasses them. This is defense in depth, not
 a network sandbox. Workspace traversal accepts at most 4,096 regular files,
 16,384 entries, 16 MiB per file, 256 MiB total, and rejects symlinks and
 special files. The driver caps model actions at 4,096, individual shell calls
 at 30 seconds, and total process time at the caller's bounded deadline.
 
-Mapped evidence includes causal lifecycle, bash tool start/finish and bounded
-USD cost from the private trajectory. Prompt, reasoning, commands, tool output,
+The manifest declares cancellation and usage capabilities. Mapped evidence
+includes causal lifecycle, bash tool start/finish and bounded USD cost from the
+private trajectory. Prompt, reasoning, commands, tool output,
 submission text, and raw diagnostics are discarded. Duplicate JSON members,
 unknown roles, duplicate/unmatched tool IDs, excessive counts or bytes,
-invalid usage, version mismatch, truncation, and malformed terminal state fail
-closed. Raw provider tool-call IDs are matched only inside the private parser
+invalid usage, version mismatch, truncation, and terminal values outside the
+exact v2.4.6 vocabulary (`Submitted`, `LimitsExceeded`, `TimeExceeded`, or
+`RepeatedFormatError`) fail closed. Raw provider tool-call IDs are matched only inside the private parser
 and remapped to bounded opaque causal IDs before publication. A successful
 submission command has no upstream tool observation; the adapter closes that
 single final causal pair only when the pinned trajectory terminal status is

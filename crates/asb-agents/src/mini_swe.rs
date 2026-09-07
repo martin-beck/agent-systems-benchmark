@@ -339,7 +339,7 @@ impl MiniSweConfig {
             kind: ExtensionKind::Agent,
             implementation_version: format!("mini-swe-agent-{SUPPORTED_VERSION}+asb-0.1.0"),
             protocol: PROTOCOL_V1,
-            capabilities: BTreeSet::from([Capability::Cancellation]),
+            capabilities: BTreeSet::from([Capability::Cancellation, Capability::Usage]),
             executable_sha256: self.artifact.digest().into(),
         }
     }
@@ -550,7 +550,7 @@ agent.run(sys.stdin.read())
         let mut command = Command::new(&launch.python);
         command
             .current_dir(&self.workspace)
-            .args(["-P", "-c", DRIVER])
+            .args(["-P", "-S", "-c", DRIVER])
             .arg(&self.workspace)
             .arg(&self.model)
             .arg(trajectory_path)
@@ -699,7 +699,10 @@ fn roots_overlap(left: &Path, right: &Path) -> bool {
 fn valid_public_id(id: &Id) -> bool {
     !id.0.is_empty()
         && id.0.len() <= MAX_PUBLIC_ID_BYTES
-        && !id.0.bytes().any(|byte| byte.is_ascii_control())
+        && id
+            .0
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
 fn copy_verified_file(
@@ -1270,7 +1273,12 @@ fn map_trajectory(
         .pointer("/info/exit_status")
         .and_then(Value::as_str)
         .ok_or(AdapterError::InvalidTrajectory)?;
-    if exit_status == "Submitted" {
+    let submitted = match exit_status {
+        "Submitted" => true,
+        "LimitsExceeded" | "TimeExceeded" | "RepeatedFormatError" => false,
+        _ => return Err(AdapterError::InvalidTrajectory),
+    };
+    if submitted {
         if pending.len() != 1 {
             return Err(AdapterError::InvalidTrajectory);
         }
@@ -1320,7 +1328,7 @@ fn map_trajectory(
         }),
     ));
     sequence += 1;
-    if exit_status == "Submitted" {
+    if submitted {
         events.push(event(session, attempt, sequence, Event::Completed));
         Ok((events, TerminalStatus::Completed))
     } else {
@@ -1488,8 +1496,16 @@ mod tests {
 
     #[test]
     fn non_submission_is_failed_not_completed() {
-        let (_, status) = parse(&valid("[]", "", "LimitsExceeded", 1, "0")).unwrap();
-        assert_eq!(status, TerminalStatus::Failed);
+        for terminal in ["LimitsExceeded", "TimeExceeded", "RepeatedFormatError"] {
+            let (_, status) = parse(&valid("[]", "", terminal, 1, "0")).unwrap();
+            assert_eq!(status, TerminalStatus::Failed);
+        }
+        for terminal in ["", "Failed", "Unknown", "UserInterruption", "submitted"] {
+            assert!(matches!(
+                parse(&valid("[]", "", terminal, 1, "0")),
+                Err(AdapterError::InvalidTrajectory)
+            ));
+        }
     }
 
     #[test]
@@ -1733,9 +1749,11 @@ test "$MSWEA_GLOBAL_CONFIG_DIR" = "${HOME%/home}/config" || exit 92
 test ! -e "$HOME/ambient-sentinel" || exit 93
 test "$PYTHON_DOTENV_DISABLED" = 1 || exit 94
 test "$PYTHONNOUSERSITE" = 1 || exit 95
-case "$3" in *"get_config_from_spec(sys.argv[8])"*) ;; *) exit 96;; esac
-test "${11}" = "${HOME%/home}/package/minisweagent/config/mini.yaml" || exit 97
-cat > "$6" <<'EOF'
+test "$1" = -P || exit 96
+test "$2" = -S || exit 97
+case "$4" in *"get_config_from_spec(sys.argv[8])"*) ;; *) exit 98;; esac
+test "${12}" = "${HOME%/home}/package/minisweagent/config/mini.yaml" || exit 99
+cat > "$7" <<'EOF'
 {"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[{"tool_call_id":"private","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}},{"role":"exit"}]}
 EOF
 "#).unwrap();
@@ -1788,7 +1806,7 @@ EOF
             &python,
             r#"#!/bin/sh
 sleep 30 &
-echo $! > "$4/child.pid"
+echo $! > "$5/child.pid"
 wait
 "#,
         )
@@ -1956,7 +1974,7 @@ mod boundary_tests {
         assert_eq!(config.manifest().extension_id.0, "agent.mini-swe");
         assert_eq!(
             config.manifest().capabilities,
-            BTreeSet::from([Capability::Cancellation])
+            BTreeSet::from([Capability::Cancellation, Capability::Usage])
         );
         for endpoint in [
             "ftp://example.invalid/v1",
@@ -2072,7 +2090,16 @@ mod boundary_tests {
     #[test]
     fn public_identities_fail_before_filesystem_or_process_effects() {
         let (scratch, config) = adapter("#!/bin/sh\nexit 99\n");
-        for id in ["", "bad\nidentity"] {
+        for id in [
+            "",
+            "bad\nidentity",
+            "bad identity",
+            "../attempt",
+            "run/attempt",
+            "run:attempt",
+            "run@attempt",
+            "unicod\u{e9}",
+        ] {
             assert!(matches!(
                 config.start(Id(id.into()), Id("attempt".into()), "prompt", limits()),
                 Err(AdapterError::InvalidIdentity)
@@ -2093,6 +2120,36 @@ mod boundary_tests {
         ));
         assert!(!scratch.0.join("workspace").exists());
         assert!(!scratch.0.join("state").exists());
+    }
+
+    #[test]
+    fn isolated_interpreter_disables_automatic_site_imports() {
+        let system_python = Path::new("/usr/bin/python3");
+        assert!(
+            system_python.is_file(),
+            "Linux test image lacks /usr/bin/python3"
+        );
+        let (scratch, mut config) = adapter("#!/bin/sh\nexit 0\n");
+        fs::copy(system_python, &config.python).unwrap();
+        fs::set_permissions(&config.python, fs::Permissions::from_mode(0o700)).unwrap();
+        config.python_digest_override = Some(digest_file(&config.python).unwrap());
+        let site_packages = config.site_packages().unwrap();
+        fs::write(
+            site_packages.join("sitecustomize.py"),
+            "from pathlib import Path\nPath('hostile-site-ran').write_text('unsafe')\n",
+        )
+        .unwrap();
+        config.environment_digest_override = Some(environment_digest(&site_packages).unwrap());
+        let mut running = config
+            .start(
+                Id("session".into()),
+                Id("attempt".into()),
+                "prompt",
+                limits(),
+            )
+            .unwrap();
+        assert_eq!(running.wait().unwrap().status(), TerminalStatus::Failed);
+        assert!(!scratch.0.join("workspace/hostile-site-ran").exists());
     }
 
     #[test]
@@ -2201,12 +2258,13 @@ mod boundary_tests {
     fn configured_artifacts_are_replaced_only_after_private_staging() {
         let script = r#"#!/bin/sh
 case "$0" in */attempt-*/launch/python) ;; *) exit 81;; esac
-case "$9" in */attempt-*/launch/mini_swe.whl) ;; *) exit 82;; esac
-test "$(cat "$9")" = wheel || exit 83
-test "$PYTHON_DOTENV_DISABLED" = 1 || exit 84
-test -z "${OPENAI_API_KEY-}" || exit 85
-while test ! -e "$4/go"; do sleep 0.01; done
-cat > "$6" <<'EOF'
+test "$2" = -S || exit 82
+case "${10}" in */attempt-*/launch/mini_swe.whl) ;; *) exit 83;; esac
+test "$(cat "${10}")" = wheel || exit 84
+test "$PYTHON_DOTENV_DISABLED" = 1 || exit 85
+test -z "${OPENAI_API_KEY-}" || exit 86
+while test ! -e "$5/go"; do sleep 0.01; done
+cat > "$7" <<'EOF'
 {"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[{"tool_call_id":"private","command":"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}},{"role":"exit"}]}
 EOF
 "#;
