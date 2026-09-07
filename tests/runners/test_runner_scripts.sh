@@ -13,6 +13,7 @@ printf '2.337.0 %s %s\n' "$ASB_RUNNER_NAME" "$ASB_RUNNER_CONFIG_LABELS" > "$root
 printf 'runner\n' > "$root/runner/Runner.Listener"
 chmod 700 "$root/runner/Runner.Listener"
 printf 'tester %s\n' "$(( $(date +%s) + 60 ))" > "$root/control/lease"
+chmod 600 "$root/control/lease" "$root/control/manifest"
 tools/runners/health.sh | grep -q '^healthy version=2.337.0 '
 touch "$root/runner/_work/residue" "$root/cache/residue" "$root/artifacts/residue" "$root/tmp/residue"
 tools/runners/reset.sh | grep -q '^reset complete$'
@@ -23,11 +24,32 @@ if tools/runners/reset.sh >/dev/null 2>&1; then
     exit 1
 fi
 rm "$root/cache/escape"
+printf 'tester extra 9 value\n' > "$root/control/lease"
+chmod 600 "$root/control/lease"
+if tools/runners/health.sh >/dev/null 2>&1; then
+    echo 'malformed lease unexpectedly passed' >&2
+    exit 1
+fi
 printf 'tester 1\n' > "$root/control/lease"
+chmod 600 "$root/control/lease"
 if tools/runners/health.sh >/dev/null 2>&1; then
     echo 'expired lease unexpectedly passed' >&2
     exit 1
 fi
+printf 'tester %s\n' "$(( $(date +%s) + 60 ))" > "$root/control/lease"
+chmod 644 "$root/control/lease"
+if tools/runners/health.sh >/dev/null 2>&1; then
+    echo 'permissive lease unexpectedly passed' >&2
+    exit 1
+fi
+chmod 600 "$root/control/lease"
+exec 8> "$root/control/reset.lock"
+flock -n 8
+if tools/runners/reset.sh >/dev/null 2>&1; then
+    echo 'concurrent reset unexpectedly passed' >&2
+    exit 1
+fi
+flock -u 8
 export ASB_RUNNER_CONFIG_LABELS=self-hosted,linux,x64
 if tools/runners/health.sh >/dev/null 2>&1; then
     echo 'generic labels unexpectedly passed' >&2

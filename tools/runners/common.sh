@@ -36,6 +36,7 @@ require_identity() {
 require_lease() {
     lease=$ASB_RUNNER_ROOT/control/lease
     test -f "$lease" && test ! -L "$lease" || die 'active regular lease is required'
+    test "$(stat -c '%a' "$lease")" = 600 || die 'lease permissions must be 0600'
     IFS=' ' read -r owner expiry extra < "$lease" || die 'lease is unreadable'
     test -n "$owner" && test -n "$expiry" && test -z "${extra:-}" || die 'lease is malformed'
     case "$owner" in *[!A-Za-z0-9._-]*|'') die 'lease owner is malformed' ;; esac
