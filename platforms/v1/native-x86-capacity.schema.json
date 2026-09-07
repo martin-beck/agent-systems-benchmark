@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://martin-beck.github.io/agent-systems-benchmark/schema/native-x86-capacity-v1.json",
+  "title": "ASB native x86 capacity evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "kind", "qualification", "performance_baseline", "run_id", "source", "host", "limits", "isolation", "checks", "cleanup", "cost", "availability", "limitations"],
+  "properties": {
+    "format_version": {"const": 1},
+    "kind": {"const": "native-x86-capacity"},
+    "qualification": {"const": "native-functional"},
+    "performance_baseline": {"const": false},
+    "run_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+    "source": {"$ref": "#/$defs/source"},
+    "host": {"$ref": "#/$defs/host"},
+    "limits": {"$ref": "#/$defs/limits"},
+    "isolation": {"$ref": "#/$defs/isolation"},
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metrics", "process", "sandbox", "workloads"],
+      "properties": {
+        "metrics": {"$ref": "#/$defs/check"},
+        "process": {"$ref": "#/$defs/check"},
+        "sandbox": {"$ref": "#/$defs/check"},
+        "workloads": {"$ref": "#/$defs/check"}
+      }
+    },
+    "cleanup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cell_root", "transient_units"],
+      "properties": {"cell_root": {"const": "removed"}, "transient_units": {"const": "collected"}}
+    },
+    "cost": {
+      "type": "object", "additionalProperties": false,
+      "required": ["external_provider_spend", "existing_host_cost"],
+      "properties": {
+        "external_provider_spend": {"const": "none-authorized-or-incurred"},
+        "existing_host_cost": {"const": "unmeasured"}
+      }
+    },
+    "availability": {"const": "single-local-cell-no-sla"},
+    "limitations": {
+      "type": "array", "uniqueItems": true, "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        {"const": "native-aarch64-unavailable"},
+        {"const": "not-a-performance-baseline"},
+        {"const": "not-for-public-pull-request-code"},
+        {"const": "apparmor-enforcement-unproven"}
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["base_commit", "commit", "tree"],
+      "properties": {"base_commit": {"$ref": "#/$defs/commit"}, "commit": {"$ref": "#/$defs/commit"}, "tree": {"$ref": "#/$defs/commit"}}
+    },
+    "tool": {
+      "type": "object", "additionalProperties": false,
+      "required": ["binary_sha256", "executable", "license_document_sha256", "package", "package_architecture", "package_integrity", "package_manifest_sha256", "package_source", "package_version"],
+      "properties": {
+        "binary_sha256": {"$ref": "#/$defs/digest"},
+        "executable": {"enum": ["/usr/bin/bwrap", "/usr/bin/systemd-run", "/usr/bin/taskset"]},
+        "license_document_sha256": {"$ref": "#/$defs/digest"},
+        "package": {"enum": ["bubblewrap", "systemd", "util-linux"]},
+        "package_architecture": {"const": "amd64"},
+        "package_integrity": {"const": "verified"},
+        "package_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "package_source": {"const": "https://archive.ubuntu.com/ubuntu/dists/noble-updates/"},
+        "package_version": {"type": "string", "minLength": 1, "maxLength": 64}
+      }
+    },
+    "host": {
+      "type": "object", "additionalProperties": false,
+      "required": ["architecture", "distribution", "kernel", "virtualization", "cgroup_v2", "psi", "apparmor", "selinux", "tools"],
+      "properties": {
+        "architecture": {"const": "x86_64"},
+        "distribution": {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "version_id", "version"],
+          "properties": {"id": {"const": "ubuntu"}, "version_id": {"const": "24.04"}, "version": {"const": "24.04.4 LTS (Noble Numbat)"}}
+        },
+        "kernel": {
+          "type": "object", "additionalProperties": false,
+          "required": ["package", "package_version", "image_package_md5", "license_document_sha256", "package_manifest_sha256", "package_source", "release", "running_notes_sha256", "running_version_sha256"],
+          "properties": {
+            "package": {"const": "linux-image-7.0.0-28-generic"},
+            "package_version": {"const": "7.0.0-28.28~24.04.1"},
+            "image_package_md5": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+            "license_document_sha256": {"$ref": "#/$defs/digest"},
+            "package_manifest_sha256": {"$ref": "#/$defs/digest"},
+            "package_source": {"const": "https://archive.ubuntu.com/ubuntu/dists/noble-updates/"},
+            "release": {"const": "7.0.0-28-generic"},
+            "running_notes_sha256": {"$ref": "#/$defs/digest"},
+            "running_version_sha256": {"$ref": "#/$defs/digest"}
+          }
+        },
+        "virtualization": {"const": "none"},
+        "cgroup_v2": {"const": "available"},
+        "psi": {
+          "type": "object", "additionalProperties": false,
+          "required": ["cpu", "io", "memory"],
+          "properties": {"cpu": {"const": "available"}, "io": {"const": "available"}, "memory": {"const": "available"}}
+        },
+        "apparmor": {"const": "registered-unproven"},
+        "selinux": {"const": "unavailable"},
+        "tools": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "prefixItems": [
+            {"allOf": [{"$ref": "#/$defs/tool"}, {"properties": {"executable": {"const": "/usr/bin/bwrap"}, "package": {"const": "bubblewrap"}, "package_version": {"const": "0.9.0-1ubuntu0.1"}}}]},
+            {"allOf": [{"$ref": "#/$defs/tool"}, {"properties": {"executable": {"const": "/usr/bin/systemd-run"}, "package": {"const": "systemd"}, "package_version": {"const": "255.4-1ubuntu8.17"}}}]},
+            {"allOf": [{"$ref": "#/$defs/tool"}, {"properties": {"executable": {"const": "/usr/bin/taskset"}, "package": {"const": "util-linux"}, "package_version": {"const": "2.39.3-9ubuntu6.6"}}}]}
+          ],
+          "items": false
+        }
+      }
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cpu_quota_percent", "memory_mib", "storage_mib", "tasks_max", "timeout_seconds"],
+      "properties": {
+        "cpu_quota_percent": {"type": "integer", "minimum": 100, "maximum": 800},
+        "memory_mib": {"type": "integer", "minimum": 1024, "maximum": 16384},
+        "storage_mib": {"type": "integer", "minimum": 2048, "maximum": 32768},
+        "tasks_max": {"type": "integer", "minimum": 32, "maximum": 512},
+        "timeout_seconds": {"type": "integer", "minimum": 60, "maximum": 1800}
+      }
+    },
+    "isolation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["asb_exclusive_lease", "credential_injection", "network", "persistent_runner_dispatch", "transient_user_service"],
+      "properties": {
+        "asb_exclusive_lease": {"const": "passed"},
+        "credential_injection": {"const": "none"},
+        "network": {"const": "private-loopback-only"},
+        "persistent_runner_dispatch": {"const": "not-used"},
+        "transient_user_service": {"const": "passed"}
+      }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["argv_sha256", "output_bytes", "output_sha256", "status"],
+      "properties": {
+        "argv_sha256": {"$ref": "#/$defs/digest"},
+        "output_bytes": {"type": "integer", "minimum": 0, "maximum": 16777216},
+        "output_sha256": {"$ref": "#/$defs/digest"},
+        "status": {"const": "passed"}
+      }
+    }
+  }
+}

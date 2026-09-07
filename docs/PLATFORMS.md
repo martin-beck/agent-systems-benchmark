@@ -83,6 +83,15 @@ python3 -m unittest discover -s tests/platforms -p test_*.py
 The failure fixtures prove that mutable image references, architecture alias
 confusion and container-derived native claims are rejected.
 
+## Local native x86 capacity
+
+The [native x86 capacity contract](NATIVE_X86_CAPACITY.md) qualifies one explicitly
+authorized existing Ubuntu x86_64 host as a bounded credential-free functional cell. Its
+sanitized evidence is separate from the distribution support matrix: it does not promote a
+platform or agent cell, establish an uncontended performance baseline, activate persistent
+runner routing, or provide native aarch64 capacity. AR-0702 remains responsible for native
+platform support claims.
+
 ## Emulated aarch64 portability lane
 
 [The emulation manifest](../platforms/v1/emulated-aarch64.json) defines a
