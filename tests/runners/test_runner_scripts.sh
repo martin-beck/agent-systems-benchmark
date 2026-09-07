@@ -19,11 +19,14 @@ export ASB_RUNNER_ROOT=$root
 export ASB_RUNNER_NAME=asb-runner-0123456789ab
 export ASB_RUNNER_CONFIG_LABELS=asb-development-v1-x86_64-ubuntu2404
 mkdir -p "$root/control" "$root/runner/_work" "$root/cache" "$root/artifacts" "$root/tmp"
-printf '2.337.0 %s %s\n' "$ASB_RUNNER_NAME" "$ASB_RUNNER_CONFIG_LABELS" > "$root/control/manifest"
 printf 'runner\n' > "$root/runner/Runner.Listener"
 printf '#!/bin/sh\nexit 0\n' > "$root/runner/config.sh"
 printf '#!/bin/sh\nexit 0\n' > "$root/runner/run.sh"
 chmod 700 "$root/runner/Runner.Listener" "$root/runner/config.sh" "$root/runner/run.sh"
+config_hash=$(sha256sum "$root/runner/config.sh" | cut -d' ' -f1)
+run_hash=$(sha256sum "$root/runner/run.sh" | cut -d' ' -f1)
+listener_hash=$(sha256sum "$root/runner/Runner.Listener" | cut -d' ' -f1)
+printf '2.337.0 %s %s %s %s %s %s\n' "$ASB_RUNNER_NAME" "$ASB_RUNNER_CONFIG_LABELS" 70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613 "$config_hash" "$run_hash" "$listener_hash" > "$root/control/manifest"
 printf 'tester %s\n' "$(( $(date +%s) + 60 ))" > "$root/control/lease"
 chmod 600 "$root/control/lease" "$root/control/manifest"
 tools/runners/health.sh | grep -q '^healthy version=2.337.0 '
@@ -32,11 +35,14 @@ touch "$root/runner/_work/residue" "$root/cache/residue" "$root/artifacts/residu
 tools/runners/reset.sh | grep -q '^reset complete$'
 test ! -e "$root/runner/_work/residue" && test ! -e "$root/cache/residue"
 ln -s /srv/data/projects "$root/cache/escape"
-if tools/runners/reset.sh >/dev/null 2>&1; then
-    echo 'symlink reset unexpectedly passed' >&2
+tools/runners/reset.sh | grep -q '^reset complete$'
+test ! -e "$root/cache/escape"
+printf 'changed\n' >> "$root/runner/Runner.Listener"
+if tools/runners/health.sh >/dev/null 2>&1; then
+    echo 'drifted installation unexpectedly passed' >&2
     exit 1
 fi
-rm "$root/cache/escape"
+printf 'runner\n' > "$root/runner/Runner.Listener"
 printf 'tester extra 9 value\n' > "$root/control/lease"
 chmod 600 "$root/control/lease"
 if tools/runners/health.sh >/dev/null 2>&1; then

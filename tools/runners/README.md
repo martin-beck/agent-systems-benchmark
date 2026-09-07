@@ -7,11 +7,10 @@ only an unchanged installation with its exact private manifest. `health.sh` and
 `reset.sh` require a current mode-0600 lease and the exact versioned label set.
 
 Registration is an operator-only boundary because GitHub registration material is secret. After
-`setup.sh`, an authorized operator runs the pinned runner's `config.sh` with all of
-`--unattended --ephemeral --disableupdate --no-default-labels`, the single indivisible label printed by
-`common.sh`, the pseudonymous runner name, and a short-lived token supplied outside the repository
-and captured logs. Never persist or echo the token. The resulting `.runner` file must remain private
-and must not be published as evidence.
+`setup.sh`, an authorized operator runs `register.sh`; it obtains a short-lived token internally and
+invokes the pinned runner with `--unattended --ephemeral --disableupdate --no-default-labels`, the
+single indivisible label from `common.sh`, and the pseudonymous runner name. Never enable tracing,
+persist, or echo the token. The resulting `.runner` file remains private and is not evidence.
 
 The service must use a dedicated least-privilege identity, start only while its lease is current,
 and execute the pinned `run.sh` from the dedicated runner root. Before every start, run `health.sh`;

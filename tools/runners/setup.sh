@@ -4,14 +4,9 @@ set -eu
 . "$(dirname "$0")/common.sh"
 require_root
 require_identity
-manifest=$ASB_RUNNER_ROOT/control/manifest
-expected="$ASB_RUNNER_VERSION $ASB_RUNNER_NAME $ASB_RUNNER_LABELS"
 if test -e "$ASB_RUNNER_ROOT/runner"; then
     test -d "$ASB_RUNNER_ROOT/runner" && test ! -L "$ASB_RUNNER_ROOT/runner" || die 'existing runner is not a regular directory'
-    test -x "$ASB_RUNNER_ROOT/runner/config.sh" && test -x "$ASB_RUNNER_ROOT/runner/run.sh" || die 'existing runner lacks required entry points'
-    test -f "$manifest" && test ! -L "$manifest" || die 'existing runner manifest is unavailable'
-    test "$(stat -c '%a' "$manifest")" = 600 || die 'existing runner manifest permissions must be 0600'
-    test "$(cat "$manifest")" = "$expected" || die 'existing runner manifest drifted'
+    require_installation
     printf 'prepared runner %s (unchanged)\n' "$ASB_RUNNER_VERSION"
     exit 0
 fi
@@ -28,6 +23,11 @@ tar -xzf "$ASB_RUNNER_ARCHIVE" --no-same-owner --no-same-permissions -C "$stage"
 test -x "$stage/config.sh" && test -x "$stage/run.sh" || die 'runner archive lacks required entry points'
 mv "$stage" "$ASB_RUNNER_ROOT/runner"
 trap - EXIT HUP INT TERM
-printf '%s\n' "$expected" > "$manifest"
+manifest=$ASB_RUNNER_ROOT/control/manifest
+config_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/config.sh" | cut -d' ' -f1)
+run_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/run.sh" | cut -d' ' -f1)
+listener_hash=$(sha256sum "$ASB_RUNNER_ROOT/runner/Runner.Listener" | cut -d' ' -f1)
+printf '%s %s %s %s %s %s %s\n' "$ASB_RUNNER_VERSION" "$ASB_RUNNER_NAME" "$ASB_RUNNER_LABELS" "$ASB_RUNNER_LINUX_X64_SHA256" "$config_hash" "$run_hash" "$listener_hash" > "$manifest"
 chmod 600 "$manifest"
+require_installation
 printf 'prepared runner %s\n' "$ASB_RUNNER_VERSION"

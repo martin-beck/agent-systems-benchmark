@@ -20,13 +20,11 @@ for relative in runner/_work cache artifacts tmp; do
     path=$ASB_RUNNER_ROOT/$relative
     test ! -L "$path" || die 'refusing symlinked reset root'
     if test -e "$path"; then
-        find "$path" -xdev -type l -print -quit | grep -q . && die 'refusing reset tree containing symlinks'
         sequence=$((sequence + 1))
         quarantine=$quarantine_root/reset-$$-$sequence
         test ! -e "$quarantine" || die 'reset quarantine collision'
         mv -- "$path" "$quarantine"
         test -d "$quarantine" && test ! -L "$quarantine" || die 'reset source changed during quarantine'
-        find "$quarantine" -xdev -type l -print -quit | grep -q . && die 'reset tree changed during quarantine'
     fi
     mkdir -p "$path"
     chmod 700 "$path"
