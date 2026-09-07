@@ -12,13 +12,13 @@ mutation tooling a normal ASB build dependency.
   unit test covers partial-write and rename crash boundaries.
 - The replay fault regression drops a real loopback peer before a large SSE
   response completes and proves that the interaction is retryable.
-- cargo-mutants 27.1.0 is limited to four strict-matcher comparison mutants,
+- cargo-mutants 27.1.0 is limited to five strict-matcher comparison mutants,
   one SLO minimum-bound comparison, and one analysis-accounting field mutant.
-  All six must be viable and caught by the normal test suite.
+  All seven must be viable and caught by the normal test suite.
   Mutants run serially because sharing one explicit Cargo target across copied
   source trees can otherwise cross-contaminate Cargo fingerprint decisions.
 
-Pull requests run retained fault tests, bounded fuzz executions, and all six
+Pull requests run retained fault tests, bounded fuzz executions, and all seven
 mutation sentinels. The scheduled job increases fuzz runs but remains bounded.
 The checked-in synthetic seeds retain reviewed regressions. A newly discovered
 counterexample remains only on its disposable runner; reproduce it locally,
