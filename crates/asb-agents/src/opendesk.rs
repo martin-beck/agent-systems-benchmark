@@ -17,7 +17,6 @@ use std::io::{self, Read};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
 /// OpenDesk release whose JSON event dialect this module implements.
@@ -268,7 +267,7 @@ impl OpenDeskConfig {
         }
         self.verify_executable()?;
         fs::create_dir_all(&self.workspace)?;
-        let run_root = self.unique_run_root()?;
+        let run_root = self.route_run_root(&session_id, &attempt_id);
         fs::create_dir_all(&self.state_root)?;
         fs::DirBuilder::new().mode(0o700).create(&run_root)?;
         let prepared = (|| {
@@ -345,14 +344,13 @@ impl OpenDeskConfig {
         RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
     }
 
-    fn unique_run_root(&self) -> Result<PathBuf, AdapterError> {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| AdapterError::Io(io::Error::other(error)))?
-            .as_nanos();
-        Ok(self
-            .state_root
-            .join(format!("attempt-{}-{nonce}", std::process::id())))
+    fn route_run_root(&self, session_id: &Id, attempt_id: &Id) -> PathBuf {
+        let mut hasher = Sha256::new();
+        hasher.update(b"asb-opendesk-route-v1\0");
+        hasher.update(Sha256::digest(session_id.0.as_bytes()));
+        hasher.update(Sha256::digest(attempt_id.0.as_bytes()));
+        self.state_root
+            .join(format!("attempt-{:x}", hasher.finalize()))
     }
 }
 
@@ -862,7 +860,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::os::unix::fs::PermissionsExt;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     struct Scratch(PathBuf);
 
@@ -1251,6 +1249,61 @@ printf '%s' "$prompt"
         let outcome = running.wait().unwrap();
         assert_eq!(outcome.status(), TerminalStatus::Cancelled);
         assert!(fs::read_dir(&adapter.state_root).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn route_run_roots_are_stable_opaque_and_distinct() {
+        let (_scratch, adapter) = executable_adapter("#!/bin/sh\nexit 0\n");
+        let session = Id("public-session".into());
+        let attempt = Id("public-attempt".into());
+        let first = adapter.route_run_root(&session, &attempt);
+        assert_eq!(first, adapter.route_run_root(&session, &attempt));
+        assert_ne!(
+            first,
+            adapter.route_run_root(&session, &Id("other-attempt".into()))
+        );
+        let name = first.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name.len(), "attempt-".len() + 64);
+        assert!(
+            name.strip_prefix("attempt-")
+                .unwrap()
+                .bytes()
+                .all(|byte| { byte.is_ascii_digit() || matches!(byte, b'a'..=b'f') })
+        );
+        assert!(!name.contains(&session.0));
+        assert!(!name.contains(&attempt.0));
+    }
+
+    #[test]
+    fn duplicate_and_stale_route_ownership_fail_closed_then_cleanup_allows_reuse() {
+        let script = "#!/bin/sh\ntrap 'exit 0' TERM\nsleep 60\n";
+        let (_scratch, adapter) = executable_adapter(script);
+        let session = Id("same-session".into());
+        let attempt = Id("same-attempt".into());
+        let stale = adapter.route_run_root(&session, &attempt);
+        fs::create_dir_all(&stale).unwrap();
+        assert!(matches!(
+            adapter.start(session.clone(), attempt.clone(), "synthetic", limits()),
+            Err(AdapterError::Io(error)) if error.kind() == io::ErrorKind::AlreadyExists
+        ));
+        fs::remove_dir_all(&stale).unwrap();
+
+        let mut running = adapter
+            .start(session.clone(), attempt.clone(), "synthetic", limits())
+            .unwrap();
+        assert!(matches!(
+            adapter.start(session.clone(), attempt.clone(), "synthetic", limits()),
+            Err(AdapterError::Io(error)) if error.kind() == io::ErrorKind::AlreadyExists
+        ));
+        running.cancel().unwrap();
+        assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
+        assert!(!stale.exists());
+
+        let mut reused = adapter
+            .start(session, attempt, "synthetic", limits())
+            .unwrap();
+        reused.cancel().unwrap();
+        assert_eq!(reused.wait().unwrap().status(), TerminalStatus::Cancelled);
     }
 
     #[test]
