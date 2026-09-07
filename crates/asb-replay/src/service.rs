@@ -279,7 +279,7 @@ struct ReplayState {
     cursors: BTreeMap<(String, String), usize>,
     reservations: BTreeMap<(String, String), usize>,
     sensitive_headers: BTreeSet<String>,
-    request_body_pointers: Vec<String>,
+    request_body_pointers: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -310,15 +310,18 @@ impl StrictReplayService {
             .iter()
             .cloned()
             .collect();
-        let request_body_pointers = cassette
-            .contents
-            .redaction
-            .selectors
-            .request_body_pointers
-            .clone();
+        let mut request_body_pointers = BTreeMap::new();
         let mut routes: BTreeMap<(String, String), Vec<Interaction>> = BTreeMap::new();
         for interaction in cassette.contents.interactions {
-            validate_dialect_contract(&interaction, &request_body_pointers)?;
+            let pointers = crate::redaction::request_body_pointers_for_descriptor(
+                &cassette.contents.redaction,
+                &interaction.interaction_id,
+                &interaction.request.method,
+            )
+            .ok_or(ReplayError::InvalidCassette)?
+            .to_vec();
+            validate_dialect_contract(&interaction, &pointers)?;
+            request_body_pointers.insert(interaction.interaction_id.clone(), pointers);
             routes
                 .entry((
                     interaction.session_id.clone(),
@@ -383,7 +386,10 @@ impl StrictReplayService {
             &interaction.request,
             route.dialect,
             &state.sensitive_headers,
-            &state.request_body_pointers,
+            state
+                .request_body_pointers
+                .get(&interaction.interaction_id)
+                .ok_or(ReplayError::InvalidCassette)?,
         )? {
             return Err(ReplayError::Mismatch);
         }
@@ -574,7 +580,13 @@ fn validate_dialect_contract(
     }
     match interaction.dialect {
         ProviderDialect::OpenaiChatCompletions | ProviderDialect::AnthropicMessages
-            if !object.get("messages").is_some_and(Value::is_array) =>
+            if !(object.get("messages").is_some_and(Value::is_array)
+                || request_body_pointers
+                    .iter()
+                    .any(|pointer| pointer == "/messages")
+                    && object
+                        .get("messages")
+                        .is_some_and(crate::redaction::valid_marker)) =>
         {
             return Err(ReplayError::InvalidCassette);
         }
@@ -1584,6 +1596,10 @@ mod tests {
     }
 
     fn service() -> StrictReplayService {
+        let request_body_pointers = ["one-0", "two-0"]
+            .into_iter()
+            .map(|interaction_id| (interaction_id.to_owned(), Vec::new()))
+            .collect();
         let routes = ["one", "two"]
             .into_iter()
             .map(|session| {
@@ -1599,7 +1615,7 @@ mod tests {
                 cursors: BTreeMap::new(),
                 reservations: BTreeMap::new(),
                 sensitive_headers: BTreeSet::new(),
-                request_body_pointers: Vec::new(),
+                request_body_pointers,
             }),
             limits: ReplayLimits::default(),
         }

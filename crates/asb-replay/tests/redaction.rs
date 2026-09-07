@@ -229,7 +229,7 @@ fn selector_descriptors_are_complete_deterministic_and_nonsecret() {
 #[test]
 fn unsupported_or_excessive_redaction_policy_fails_before_data() {
     let unsupported = RedactionPolicy {
-        version: 2,
+        version: 3,
         ..RedactionPolicy::default()
     };
     assert!(matches!(

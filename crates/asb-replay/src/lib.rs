@@ -17,8 +17,9 @@ pub use cassette::{
     CASSETTE_SCHEMA_VERSION, Cassette, CassetteContents, CassetteError, CassetteEvent,
     CassetteIntegrity, CassetteLimits, Header, Interaction, MAX_EVENTS, PolicyVersion,
     ProviderDialect, RecordedRequest, RecordedResponse, RedactedCassetteContents,
-    RedactionDescriptor, RedactionSelectors, ResponseBody, TerminalEvent, canonical_contents_bytes,
-    canonical_json_bytes, decode_cassette, decode_cassette_chunks, seal_cassette,
+    RedactionDescriptor, RedactionSelectors, RequestBodyRedactionRule, ResponseBody, TerminalEvent,
+    canonical_contents_bytes, canonical_json_bytes, decode_cassette, decode_cassette_chunks,
+    seal_cassette,
 };
 pub use migration::{MigrationError, ReferenceGraph, verify_migration_references};
 pub use pacing::{
@@ -27,7 +28,8 @@ pub use pacing::{
     SystemMonotonicClock, assess_replay_headroom, write_paced_segments,
 };
 pub use redaction::{
-    DEFAULT_REDACTION_POLICY_VERSION, RedactionError, RedactionPolicy, RedactionReport, Redactor,
+    DEFAULT_REDACTION_POLICY_VERSION, INTERACTION_REDACTION_POLICY_VERSION, RedactionError,
+    RedactionPolicy, RedactionReport, Redactor,
 };
 pub use service::{
     DialectCapability, MAX_IO_TIMEOUT, ReplayDeliveryReport, ReplayError, ReplayHttpRequest,

@@ -110,8 +110,23 @@ pub struct RedactionSelectors {
     pub query_parameters: Vec<String>,
     /// RFC 6901 request-body pointers.
     pub request_body_pointers: Vec<String>,
+    /// V2 request-body selectors bound to one interaction and HTTP method.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub request_body_rules: Vec<RequestBodyRedactionRule>,
     /// RFC 6901 response/event-body pointers.
     pub response_body_pointers: Vec<String>,
+}
+
+/// Request-body selectors scoped to one immutable interaction and method.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RequestBodyRedactionRule {
+    /// Interaction identity to which these selectors apply.
+    pub interaction_id: String,
+    /// Exact uppercase HTTP method recorded for the interaction.
+    pub method: String,
+    /// Nonempty sorted RFC 6901 pointer set for this interaction only.
+    pub pointers: Vec<String>,
 }
 
 /// Exact redaction policy persisted with a cassette.
@@ -468,7 +483,7 @@ fn validate_contents(
             actual: contents.normalization.version,
         });
     }
-    if contents.redaction.version != 1 {
+    if !matches!(contents.redaction.version, 1 | 2) {
         return Err(CassetteError::UnsupportedVersion {
             kind: "redaction policy",
             actual: contents.redaction.version,
@@ -522,6 +537,9 @@ fn validate_contents(
         if total_events > limits.max_events {
             return Err(CassetteError::TooLarge { kind: "events" });
         }
+    }
+    if !crate::redaction::validate_interaction_redaction(contents) {
+        return Err(CassetteError::InvalidRedactionPolicy);
     }
     Ok(())
 }
