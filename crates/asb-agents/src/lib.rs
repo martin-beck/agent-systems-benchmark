@@ -5,6 +5,7 @@
 //! Built-in coding-agent adapters.
 
 pub mod aider;
+pub mod codex;
 pub mod opencode;
 pub mod opendesk;
 pub mod provider;
