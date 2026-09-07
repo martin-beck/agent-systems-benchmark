@@ -42,6 +42,17 @@ process-tree and cgroup containment, durable pre-effect intent, artifact validat
 and cleanup. CSB generators, arbitrary plugins, network access, privileged monitors, and nested
 schedulers remain unsupported.
 
+The first eligible native fixture is the pinned
+`bm-external/bwrap/bm-bwrap.py` file at the source identity above, SHA-256
+`e1228516fe0648db35cfb7b6669b09f25dc32f62691c8fc8cca4ee1e935eee88`. Its `baseline` scenario
+uses only the Python standard library and can invoke `/usr/bin/true` once without credentials or
+network access. A direct source-checkout probe produced `success_count=1`; elapsed values are
+deliberately not retained as benchmark evidence. This host-side probe establishes fixture
+selection only. It does not establish the required ASB namespace, cgroup, process-tree, deadline,
+cancellation, artifact, or recovery properties. Those claims require execution through the
+reviewed `asb-runtime` sandbox and durable-store boundaries with exact interpreter and script-byte
+verification.
+
 No Linux aarch64, non-glibc, Windows, or macOS support follows from this source inspection. The only
 eligible first claim is a native credential-free offline Linux x86_64 fixture after its exact
 executable bytes, isolation behavior, and repeated cleanup are independently verified.
