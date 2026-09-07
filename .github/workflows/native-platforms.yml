@@ -26,6 +26,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Install pinned native sandbox prerequisite
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap=0.9.0-1ubuntu0.1
       - name: Collect bounded native evidence
         env:
           BASE_COMMIT: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
