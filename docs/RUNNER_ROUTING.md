@@ -11,21 +11,32 @@ capacity is selected only by the indivisible label
 | Development host runner canary | manual on `main` | trusted qualification | none | Prove exact-label routing and disposable temporary state |
 | Trusted development host validation | manual on `main` | trusted protected revision | exact `github.sha` without persisted credentials | Exercise runner lifecycle controls |
 
-The trusted workflow has no inputs, rejects any repository or ref other than
-the public ASB `main` branch, uses read-only contents permission, and pins its
-sole action by full commit. A fork cannot dispatch an upstream repository
-workflow. Pull requests never select the development-host label, and the
-repository policy rejects adding an automatic trigger, widening permissions,
-removing the trusted repository/ref guard, using a partial label, or adding
-another persistent-runner workflow.
+Both persistent-runner workflows have no inputs and reject any repository or
+ref other than the public ASB `main` branch. They use read-only contents
+permission; the trusted validation pins its sole action by full commit and the
+canary runs no action or repository checkout. A fork cannot dispatch an
+upstream repository workflow. Pull requests never select the development-host
+label, and repository policy rejects adding an automatic trigger, widening
+permissions, removing either repository/ref guard, explicitly printing runner
+or host identity, using a partial label, or adding another persistent-runner
+workflow.
 
 An offline runner leaves the manually dispatched job queued; it never falls
 back to a generic or hosted label. Label or architecture drift likewise fails
 closed. The external runner lifecycle must pass its private lease and
-installation health checks before starting. Job output reports only the public
-trust class, label-selected OS/architecture result, and pass/fail status; it
-must not print a runner name, host identity, runtime root, token, environment,
-or raw diagnostic log.
+installation health checks before starting. The canary suppresses path-bearing
+utility output and emits only a fixed pass/fail message. Trusted validation
+reports public source-test status. Runtime assertions verify the trust class and
+label-selected OS/architecture without intentionally printing a runner name,
+host identity, runtime root, token, environment, or raw diagnostic log.
+
+GitHub generates self-hosted job metadata outside workflow control. That
+metadata can include the pseudonymous runner registration name and the machine
+name, so these public workflow logs do **not** prove complete host-identity
+confidentiality. Operators must use a non-sensitive pseudonymous registration
+name and machine identity. ASB claims only that its checked-in workflow steps
+avoid explicit identity output; policy tests cannot sanitize platform-generated
+metadata.
 
 AR-0831 defines routing but does not activate ordinary push or pull-request
 jobs on this capacity. AR-0832 must qualify repeated clean runs, reset,
