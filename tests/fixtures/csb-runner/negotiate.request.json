@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"negotiation-1","method":"negotiate","params":{"protocol":{"major":1,"minor":0},"limits":{"max_frame_bytes":65536,"timeout_ms":20000,"max_in_flight":1},"requested_capabilities":["cancellation"]}}

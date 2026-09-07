@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"run-1","result":{"schema_version":{"major":1,"minor":0},"session_id":"operation-1","attempt_id":"attempt-1","status":"completed","error":null,"artifacts":[],"metrics":[],"usage":{"input_tokens":null,"output_tokens":null,"cost_micros":null,"currency":null}}}

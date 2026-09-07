@@ -68,6 +68,21 @@ name = "asb-core"
 version = "0.1.0"
 
 [[package]]
+name = "asb-csb-runner"
+version = "0.1.0"
+dependencies = [
+ "asb-protocol",
+ "asb-runtime",
+ "asb-store",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "asb-metrics"
 version = "0.1.0"
 dependencies = [
@@ -276,6 +291,12 @@ dependencies = [
  "regex-automata",
  "regex-syntax",
 ]
+
+[[package]]
+name = "fastrand"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fluent-uri"
@@ -973,6 +994,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "tempfile"
+version = "3.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84fa4d11fadde498443cca10fd3ac23c951f0dc59e080e9f4b93d4df4e4eea53"
+dependencies = [
+ "fastrand",
+ "getrandom",
+ "once_cell",
+ "rustix",
+ "windows-sys",
 ]
 
 [[package]]
