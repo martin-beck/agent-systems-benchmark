@@ -269,6 +269,7 @@ struct ReplayState {
     cursors: BTreeMap<(String, String), usize>,
     reservations: BTreeMap<(String, String), usize>,
     sensitive_headers: BTreeSet<String>,
+    request_body_pointers: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -299,9 +300,15 @@ impl StrictReplayService {
             .iter()
             .cloned()
             .collect();
+        let request_body_pointers = cassette
+            .contents
+            .redaction
+            .selectors
+            .request_body_pointers
+            .clone();
         let mut routes: BTreeMap<(String, String), Vec<Interaction>> = BTreeMap::new();
         for interaction in cassette.contents.interactions {
-            validate_dialect_contract(&interaction)?;
+            validate_dialect_contract(&interaction, &request_body_pointers)?;
             routes
                 .entry((
                     interaction.session_id.clone(),
@@ -322,6 +329,7 @@ impl StrictReplayService {
                 cursors: BTreeMap::new(),
                 reservations: BTreeMap::new(),
                 sensitive_headers,
+                request_body_pointers,
             }),
             limits,
         })
@@ -364,6 +372,7 @@ impl StrictReplayService {
             &interaction.request,
             route.dialect,
             &state.sensitive_headers,
+            &state.request_body_pointers,
         )? {
             return Err(ReplayError::Mismatch);
         }
@@ -526,12 +535,16 @@ fn capability(dialect: ProviderDialect) -> Result<DialectCapability, ReplayError
         .ok_or(ReplayError::UnsupportedDialect)
 }
 
-fn validate_dialect_contract(interaction: &Interaction) -> Result<(), ReplayError> {
+fn validate_dialect_contract(
+    interaction: &Interaction,
+    request_body_pointers: &[String],
+) -> Result<(), ReplayError> {
     if interaction.request.method == "GET" {
         return validate_model_catalog_contract(interaction);
     }
     let capability = capability(interaction.dialect)?;
     let request = &interaction.request;
+    validate_selected_request_markers(&request.body, request_body_pointers)?;
     if request.method != "POST" || request.path != capability.endpoint {
         return Err(ReplayError::InvalidCassette);
     }
@@ -707,6 +720,7 @@ fn request_matches(
     expected: &RecordedRequest,
     dialect: ProviderDialect,
     sensitive_headers: &BTreeSet<String>,
+    request_body_pointers: &[String],
 ) -> Result<bool, ReplayError> {
     if incoming.method != expected.method || incoming.path != expected.path {
         return Ok(false);
@@ -723,14 +737,50 @@ fn request_matches(
     if incoming.path != capability(dialect)?.endpoint {
         return Ok(false);
     }
-    let value = crate::cassette::decode_json_value_no_duplicates(&incoming.body)
+    let mut value = crate::cassette::decode_json_value_no_duplicates(&incoming.body)
         .map_err(|_| ReplayError::InvalidHttp)?;
+    if crate::redaction::contains_marker(&value) {
+        return Err(ReplayError::InvalidHttp);
+    }
+    for pointer in request_body_pointers {
+        let Some(incoming_selected) = value.pointer_mut(pointer) else {
+            return Ok(false);
+        };
+        let expected_selected = expected
+            .body
+            .pointer(pointer)
+            .ok_or(ReplayError::InvalidCassette)?;
+        if !crate::redaction::valid_marker(expected_selected) {
+            return Err(ReplayError::InvalidCassette);
+        }
+        *incoming_selected = expected_selected.clone();
+    }
     if canonical_json_bytes(&value).map_err(|_| ReplayError::InvalidHttp)?
         != canonical_json_bytes(&expected.body).map_err(|_| ReplayError::InvalidCassette)?
     {
         return Ok(false);
     }
     normalized_headers_match(&incoming.headers, &expected.headers, sensitive_headers)
+}
+
+fn validate_selected_request_markers(
+    body: &Value,
+    request_body_pointers: &[String],
+) -> Result<(), ReplayError> {
+    let mut scrubbed = body.clone();
+    for pointer in request_body_pointers {
+        let selected = scrubbed
+            .pointer_mut(pointer)
+            .ok_or(ReplayError::InvalidCassette)?;
+        if !crate::redaction::valid_marker(selected) {
+            return Err(ReplayError::InvalidCassette);
+        }
+        *selected = Value::Null;
+    }
+    if crate::redaction::contains_marker(&scrubbed) {
+        return Err(ReplayError::InvalidCassette);
+    }
+    Ok(())
 }
 
 fn normalized_headers_match(
@@ -1138,6 +1188,7 @@ mod tests {
                 cursors: BTreeMap::new(),
                 reservations: BTreeMap::new(),
                 sensitive_headers: BTreeSet::new(),
+                request_body_pointers: Vec::new(),
             }),
             limits: ReplayLimits::default(),
         }
@@ -1310,5 +1361,31 @@ mod tests {
         assert!(unrelated.output.starts_with(b"HTTP/1.1 200 OK\r\n"));
         release_tx.send(()).unwrap();
         assert_eq!(writer.join().unwrap().unwrap(), 200);
+    }
+
+    #[test]
+    fn selected_marker_validation_rejects_missing_malformed_and_unselected_markers() {
+        let pointers = vec!["/input/0".to_owned()];
+        assert!(
+            validate_selected_request_markers(
+                &serde_json::json!({"input": ["[ASB_REDACTED:000001]"]}),
+                &pointers,
+            )
+            .is_ok()
+        );
+        for body in [
+            serde_json::json!({"input": []}),
+            serde_json::json!({"input": ["[ASB_REDACTED:000000]"]}),
+            serde_json::json!({"input": ["[ASB_REDACTED:000001]suffix"]}),
+            serde_json::json!({
+                "input": ["[ASB_REDACTED:000001]"],
+                "unselected": "[ASB_REDACTED:000002]"
+            }),
+        ] {
+            assert!(matches!(
+                validate_selected_request_markers(&body, &pointers),
+                Err(ReplayError::InvalidCassette)
+            ));
+        }
     }
 }

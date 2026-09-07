@@ -19,7 +19,7 @@ use crate::{
 /// Redaction policy understood by this implementation.
 pub const DEFAULT_REDACTION_POLICY_VERSION: u16 = 1;
 /// Marker namespace reserved for output created by the redactor.
-const MARKER_PREFIX: &str = "[ASB_REDACTED:";
+pub(crate) const MARKER_PREFIX: &str = "[ASB_REDACTED:";
 /// Maximum configurable selectors in one policy.
 const MAX_SELECTORS: usize = 256;
 /// Maximum distinct sensitive values replaced in one redactor.
@@ -168,14 +168,15 @@ impl Redactor {
             &request.path,
         )?;
         let pointers: Vec<String> = self.policy.request_body_pointers.iter().cloned().collect();
-        for pointer in pointers {
+        for pointer in &pointers {
             redact_pointer(
                 &mut self.mappings,
                 &mut self.replacements,
                 &mut request.body,
-                &pointer,
+                pointer,
             )?;
         }
+        synchronize_request_options(request, &pointers);
         request.body_sha256 =
             canonical_value_digest(&request.body).map_err(|_| RedactionError::Serialization)?;
         self.report()
@@ -237,6 +238,50 @@ impl Redactor {
                 .map_err(|_| RedactionError::LimitExceeded)?,
         })
     }
+}
+
+fn synchronize_request_options(request: &mut RecordedRequest, pointers: &[String]) {
+    let Some(body) = request.body.as_object() else {
+        return;
+    };
+    for (name, value) in &mut request.options {
+        let escaped = name.replace('~', "~0").replace('/', "~1");
+        let selected = format!("/{escaped}");
+        if pointers.iter().any(|pointer| {
+            pointer == &selected
+                || pointer
+                    .strip_prefix(&selected)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        }) && let Some(body_value) = body.get(name)
+        {
+            *value = body_value.clone();
+        }
+    }
+}
+
+pub(crate) fn contains_marker(value: &Value) -> bool {
+    serde_json::to_vec(value).is_ok_and(|bytes| {
+        bytes
+            .windows(MARKER_PREFIX.len())
+            .any(|window| window == MARKER_PREFIX.as_bytes())
+    })
+}
+
+pub(crate) fn valid_marker(value: &Value) -> bool {
+    let Some(text) = value.as_str() else {
+        return false;
+    };
+    let Some(ordinal) = text
+        .strip_prefix(MARKER_PREFIX)
+        .and_then(|suffix| suffix.strip_suffix(']'))
+    else {
+        return false;
+    };
+    ordinal.len() == 6
+        && ordinal.bytes().all(|byte| byte.is_ascii_digit())
+        && ordinal
+            .parse::<usize>()
+            .is_ok_and(|ordinal| (1..=MAX_MAPPINGS).contains(&ordinal))
 }
 
 /// Redaction errors never include captured values.
