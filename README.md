@@ -4,9 +4,13 @@ ASB is a Linux terminal framework for measuring how AI coding agents scale:
 how many concurrent sessions a system can sustain while task quality, latency
 and resource consumption remain within declared bounds.
 
-**Status: project bootstrap.** The CLI supports help/version and the core provides
-checked concurrency and evidence-assessment primitives. Agent execution, metrics,
-workloads and replay are planned in the public coordination repository.
+**Status: active development.** The CLI implements `doctor`, `plan`, `run`,
+`sweep`, `compare`, `report` and the local `serve` control endpoint. `run` and
+`sweep` execute the original in-tree workloads through a digest-pinned
+`batch-stdio-v1` executable, then persist bounded run evidence for reporting and
+comparison. Provider recording/replay and live-provider selection are not CLI
+commands yet; unsupported and unqualified platform combinations remain visible
+in the public coordination repository.
 
 - Implementation: Rust, safe code, explicit errors and versioned contracts.
 - Target architectures: native x86_64 and aarch64 (arm64).
@@ -24,7 +28,7 @@ workloads and replay are planned in the public coordination repository.
 - [Worker process](docs/DEVELOPMENT.md)
 - [Coordination tasks](https://github.com/martin-beck/agent-systems-benchmark-state)
 
-## Build the bootstrap
+## Build and inspect the CLI
 
 Install the toolchain pinned in rust-toolchain.toml, then run:
 
@@ -32,11 +36,28 @@ Install the toolchain pinned in rust-toolchain.toml, then run:
 cargo build --locked --workspace
 cargo test --locked --workspace
 cargo run --locked -p asb-cli -- --help
+cargo run --locked -p asb-cli -- doctor
 ```
 
-Future commands include doctor, plan, run, sweep, record, replay, compare and report.
-They are design targets, not currently supported commands. No paid API call or
-workload download is required by bootstrap tests.
+The implemented command forms are:
+
+```text
+asb doctor
+asb plan EXPERIMENT.toml
+asb run EXPERIMENT.toml
+asb sweep EXPERIMENT.toml
+asb compare RUN...
+asb report RUN...
+asb serve CONTROL.toml
+```
+
+`plan` validates without launching. `run` executes one configured capacity point;
+`sweep` executes the bounded range in the plan. `compare` requires at least two
+persisted run directories and `report` requires at least one. Structured results
+and errors are JSON on stdout, progress is on stderr, and invalid usage returns a
+nonzero status. See `asb --help` for the authoritative command list. There is no
+`asb record` or `asb replay` command in the current CLI. No paid API call or
+workload download is required by repository tests.
 
 ## OpenDesk adapter boundary
 
