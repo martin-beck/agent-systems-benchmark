@@ -6,6 +6,7 @@
 
 pub mod aider;
 pub mod codex;
+pub mod gemini;
 pub mod opencode;
 pub mod opendesk;
 pub mod provider;
