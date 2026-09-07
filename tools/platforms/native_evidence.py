@@ -265,6 +265,13 @@ def security_module_state(root: Path) -> dict[str, str]:
         }
     except (EvidenceError, OSError):
         return {"apparmor": "unavailable", "selinux": "unavailable"}
+    if (
+        not active
+        or "" in active
+        or "capability" not in active
+        or any(not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", item) for item in active)
+    ):
+        return {"apparmor": "unavailable", "selinux": "unavailable"}
     apparmor = "enabled" if "apparmor" in active else "disabled"
     if "selinux" not in active:
         selinux = "disabled"
@@ -372,33 +379,59 @@ def write_atomic(path: Path, report: dict[str, Any]) -> None:
     path = path.absolute()
     ancestor = path.parent
     missing: list[Path] = []
-    while not ancestor.exists():
+    while not os.path.lexists(ancestor):
         missing.append(ancestor)
         if ancestor.parent == ancestor:
             raise EvidenceError("output parent has no existing ancestor")
         ancestor = ancestor.parent
-    if ancestor.is_symlink() or ancestor.resolve(strict=True) != ancestor:
+    if ancestor.is_symlink() or not ancestor.is_dir() or ancestor.resolve(strict=True) != ancestor:
         raise EvidenceError("output parent must not contain symlinks")
-    for directory in reversed(missing):
-        directory.mkdir()
-        if directory.is_symlink() or directory.resolve(strict=True) != directory:
-            raise EvidenceError("output parent must not contain symlinks")
-    if path.is_symlink() or path.exists():
-        raise EvidenceError("output path must not already exist")
     data = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
-    temporary = path.with_name(path.name + ".tmp-" + str(os.getpid()))
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        parent_fd = os.open(ancestor, flags)
+        for directory in reversed(missing):
+            os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)
+            child_fd = os.open(directory.name, flags, dir_fd=parent_fd)
+            os.close(parent_fd)
+            parent_fd = child_fd
+    except OSError as error:
+        try:
+            os.close(parent_fd)
+        except (NameError, OSError):
+            pass
+        raise EvidenceError("output parent must not contain symlinks") from error
+    try:
+        try:
+            os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            os.close(parent_fd)
+            raise EvidenceError("output path must not already exist")
+        temporary = path.name + ".tmp-" + str(os.getpid())
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=parent_fd,
+        )
+    except OSError as error:
+        os.close(parent_fd)
+        raise EvidenceError("output path could not be created safely") from error
     try:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        os.replace(temporary, path.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        os.fsync(parent_fd)
     finally:
         try:
-            temporary.unlink()
+            os.unlink(temporary, dir_fd=parent_fd)
         except FileNotFoundError:
             pass
+        os.close(parent_fd)
 
 
 def parse_check(value: str) -> tuple[str, list[str]]:

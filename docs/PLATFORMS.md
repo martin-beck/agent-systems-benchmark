@@ -81,7 +81,7 @@ x86_64 and aarch64 GitHub runners. It checks out the exact pull-request head,
 runs argv-only bounded process and native-metrics tests, attempts the delegated
 sandbox boundary in fail-closed mode, and uploads only canonical JSON. Command
 and output digests are retained; raw logs, hostnames, environment contents and
-filesystem paths are excluded. Hosted runners without user-systemd delegation
+private filesystem paths are excluded. Hosted runners without user-systemd delegation
 produce `native-functional-partial`, never a false `native-tested` result.
 
 Native reports bind the exact manifest release to bounded operating-system

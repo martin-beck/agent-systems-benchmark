@@ -173,6 +173,8 @@ def validate_native_report(
         capabilities = {}
     if capabilities.get("cgroup_v2") != "available" or capabilities.get("psi") != "available":
         errors.append(f"{ident}/{arch}: cgroup v2 and PSI evidence are required")
+    if capabilities.get("sandbox") != "passed":
+        errors.append(f"{ident}/{arch}: sandbox capability did not pass")
     security = capabilities.get("security_modules", {})
     if (
         not isinstance(security, dict)

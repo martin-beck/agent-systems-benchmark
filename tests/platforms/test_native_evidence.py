@@ -203,6 +203,24 @@ class NativeEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(EVIDENCE.EvidenceError, "parent"):
             EVIDENCE.write_atomic(alias_parent / "missing/report.json", {"safe": True})
         self.assertFalse((real_parent / "missing").exists())
+        nested = self.root / "nested/deep/report.json"
+        EVIDENCE.write_atomic(nested, {"safe": True})
+        self.assertEqual(json.loads(nested.read_text(encoding="utf-8")), {"safe": True})
+        blocker = self.root / "not-a-directory"
+        blocker.write_text("sentinel", encoding="utf-8")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "parent"):
+            EVIDENCE.write_atomic(blocker / "report.json", {"safe": True})
+        real_open = EVIDENCE.os.open
+
+        def fail_temporary(path, *args, **kwargs):
+            if isinstance(path, str) and ".tmp-" in path:
+                raise OSError("expected")
+            return real_open(path, *args, **kwargs)
+
+        with mock.patch.object(EVIDENCE.os, "open", side_effect=fail_temporary), self.assertRaisesRegex(
+            EVIDENCE.EvidenceError, "created safely"
+        ):
+            EVIDENCE.write_atomic(self.root / "open-failure.json", {"safe": True})
 
     def test_real_command_records_digests_and_failure_without_raw_output(self) -> None:
         result = EVIDENCE.run_check(["/bin/sh", "-c", "printf private"], ROOT)
@@ -317,6 +335,14 @@ class NativeEvidenceTests(unittest.TestCase):
             self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", ROOT))
         with mock.patch.object(EVIDENCE.subprocess, "run", side_effect=OSError):
             self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", ROOT))
+        tools = EVIDENCE.SANDBOX_TOOL_PROFILES["ubuntu-24.04"]
+        good = subprocess.CompletedProcess(
+            [], 0, " ".join(version for _, version, _, _ in tools), ""
+        )
+        with mock.patch.object(
+            EVIDENCE.subprocess, "run", side_effect=[good, good, good, good, OSError()]
+        ):
+            self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", ROOT))
 
     def test_security_modules_are_explicit_and_missing_privilege_is_partial(self) -> None:
         self.assertEqual(
@@ -332,11 +358,29 @@ class NativeEvidenceTests(unittest.TestCase):
             EVIDENCE.security_module_state(self.root),
             {"apparmor": "disabled", "selinux": "enforcing"},
         )
+        (self.root / "sys/fs/selinux/enforce").unlink()
+        self.assertEqual(
+            EVIDENCE.security_module_state(self.root),
+            {"apparmor": "disabled", "selinux": "unavailable"},
+        )
+        (self.root / "sys/kernel/security/lsm").write_text(
+            "capability,BAD\n", encoding="utf-8"
+        )
+        self.assertEqual(
+            EVIDENCE.security_module_state(self.root),
+            {"apparmor": "unavailable", "selinux": "unavailable"},
+        )
         (self.root / "sys/kernel/security/lsm").unlink()
         self.assertEqual(
             EVIDENCE.security_module_state(self.root),
             {"apparmor": "unavailable", "selinux": "unavailable"},
         )
+        (self.root / "sys/kernel/security/lsm").write_text("", encoding="utf-8")
+        self.assertEqual(
+            EVIDENCE.security_module_state(self.root),
+            {"apparmor": "unavailable", "selinux": "unavailable"},
+        )
+        (self.root / "sys/kernel/security/lsm").unlink()
         report = self.collect()
         self.assertEqual(report["qualification"], "native-functional-partial")
 
