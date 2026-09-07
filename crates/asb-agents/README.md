@@ -54,6 +54,32 @@ to be replaceable by an attacker between hash verification and `exec`.
 Descendants that deliberately leave the owned process group can escape this
 adapter's cancellation; hard containment requires the cgroup/sandbox runtime.
 
+### OpenCode replay qualification
+
+The same pinned Linux x86_64 executable is exercised against an in-memory
+credential-free capture and the production `StrictReplayService` while the
+complete test process runs in a fresh user/network namespace containing only
+an enabled loopback interface. The journey prepares the protected
+`original.bug-fix` workload, records a transient provider failure, retry, tool
+edit, usage and completion, seals the cassette through the standard redactor,
+resets the exact workload, and requires replay to reproduce terminal/tool/usage
+and independent grader evidence. A separately paced replay is cancelled before
+its first response segment and both the agent process group and replay
+reservation must terminate cleanly. Malformed, truncated and unknown-field
+cassette inputs are rejected before a service starts.
+
+OpenCode generates fresh `x-session-id` and `x-session-affinity` values for each
+isolated invocation and changes `x-stainless-retry-count` after a provider
+failure. The qualification's declared redaction policy therefore treats only
+those three values as volatile correlation data: header presence, every other
+header, and the complete semantic JSON request remain strict. No raw capture is
+written to disk or committed. This proves offline replay only for the pinned
+OpenAI-compatible Chat Completions route, fixture, executable and Linux x86_64
+environment. It does not prove live provider recording, other OpenCode/provider
+versions, non-loopback transport, native aarch64 execution, or OS timing
+determinism. Network denial depends on the surrounding namespace; the replay
+service alone is inbound-only and is not a network sandbox.
+
 ## aider boundary
 
 The aider adapter targets the universal `aider-chat` 0.86.2 wheel at upstream
