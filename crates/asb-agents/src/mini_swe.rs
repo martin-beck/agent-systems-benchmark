@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Seek, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -33,8 +33,12 @@ pub const SDIST_SHA256: &str = "0532c8193a763409fa52bb2b5a5d7ac9052dcb1c2cae4394
 /// SHA-256 of the natively exercised CPython 3.12 Linux x86_64 runtime.
 pub const TESTED_PYTHON_LINUX_X86_64_SHA256: &str =
     "1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118";
+/// SHA-256 of the bounded, path-framed installed dependency tree exercised natively.
+pub const TESTED_PYTHON_ENVIRONMENT_SHA256: &str =
+    "e67bf3c72123ab751ddf632d62321189b4b62191289d443e6ff02cbeed2d6aa5";
 /// Largest accepted prompt, in UTF-8 bytes.
 pub const MAX_PROMPT_BYTES: usize = 4 * 1024 * 1024;
+const MAX_PUBLIC_ID_BYTES: usize = 4 * 1024;
 const MAX_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_MODEL_BYTES: usize = 256;
@@ -46,6 +50,10 @@ const MAX_WORKSPACE_ENTRIES: usize = 16_384;
 const MAX_WORKSPACE_FILE_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_WORKSPACE_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 4 * 1024;
+const MAX_ENVIRONMENT_ENTRIES: usize = 32_768;
+const MAX_ENVIRONMENT_FILE_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_ENVIRONMENT_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_METADATA_BYTES: u64 = 1024 * 1024;
 const CLOSED_PROXY: &str = "http://127.0.0.1:9";
 const KNOWN_MINI_SWE_EGRESS: &[&str] = &[
     "mini-swe-agent.com",
@@ -54,6 +62,87 @@ const KNOWN_MINI_SWE_EGRESS: &[&str] = &[
     "pypi.org",
     "raw.githubusercontent.com",
     "us.i.posthog.com",
+];
+
+const TESTED_DISTRIBUTIONS: &[(&str, &str)] = &[
+    ("aiohappyeyeballs", "2.7.1"),
+    ("aiohttp", "3.14.3"),
+    ("aiosignal", "1.4.0"),
+    ("annotated-doc", "0.0.5"),
+    ("annotated-types", "0.8.0"),
+    ("anyio", "4.15.1"),
+    ("attrs", "26.1.0"),
+    ("boto3", "1.43.89"),
+    ("botocore", "1.43.89"),
+    ("certifi", "2026.7.22"),
+    ("charset-normalizer", "3.5.1"),
+    ("click", "8.5.0"),
+    ("datasets", "5.0.1"),
+    ("dill", "0.4.1"),
+    ("distro", "1.9.0"),
+    ("fastuuid", "0.14.0"),
+    ("filelock", "3.32.5"),
+    ("frozenlist", "1.8.0"),
+    ("fsspec", "2026.6.0"),
+    ("h11", "0.16.0"),
+    ("hf-xet", "1.6.0"),
+    ("httpcore", "1.0.9"),
+    ("httpx", "0.28.1"),
+    ("huggingface-hub", "1.30.0"),
+    ("idna", "3.19"),
+    ("importlib-metadata", "8.9.0"),
+    ("jinja2", "3.1.6"),
+    ("jiter", "0.16.0"),
+    ("jmespath", "1.1.0"),
+    ("jsonschema", "4.26.0"),
+    ("jsonschema-specifications", "2025.9.1"),
+    ("linkify-it-py", "2.2.0"),
+    ("litellm", "1.100.0"),
+    ("markdown-it-py", "4.2.0"),
+    ("markupsafe", "3.0.3"),
+    ("mdit-py-plugins", "0.6.1"),
+    ("mdurl", "0.1.2"),
+    ("mini-swe-agent", "2.4.6"),
+    ("multidict", "6.7.1"),
+    ("multiprocess", "0.70.19"),
+    ("numpy", "2.5.3"),
+    ("openai", "2.54.0"),
+    ("packaging", "26.3"),
+    ("pandas", "3.0.5"),
+    ("pip", "24.0"),
+    ("platformdirs", "4.11.7"),
+    ("prompt-toolkit", "3.0.53"),
+    ("propcache", "0.5.2"),
+    ("pyarrow", "25.0.1"),
+    ("pydantic", "2.13.5"),
+    ("pydantic-core", "2.46.5"),
+    ("pydantic-settings", "2.15.0"),
+    ("pygments", "2.21.0"),
+    ("python-dateutil", "2.9.0.post0"),
+    ("python-dotenv", "1.2.3"),
+    ("pyyaml", "6.0.3"),
+    ("referencing", "0.37.0"),
+    ("regex", "2026.9.3"),
+    ("requests", "2.34.2"),
+    ("rich", "15.0.0"),
+    ("rpds-py", "2026.6.3"),
+    ("s3transfer", "0.19.2"),
+    ("shellingham", "1.5.4"),
+    ("six", "1.17.0"),
+    ("sniffio", "1.3.1"),
+    ("tenacity", "9.1.4"),
+    ("textual", "8.2.8"),
+    ("tiktoken", "0.14.0"),
+    ("tokenizers", "0.23.2"),
+    ("tqdm", "4.70.0"),
+    ("typer", "0.27.2"),
+    ("typing-extensions", "4.16.0"),
+    ("typing-inspection", "0.4.4"),
+    ("urllib3", "2.7.0"),
+    ("wcwidth", "0.8.3"),
+    ("xxhash", "4.0.1"),
+    ("yarl", "1.24.5"),
+    ("zipp", "4.1.0"),
 ];
 
 /// Content-pinned mini_swe artifact understood by this adapter.
@@ -85,6 +174,16 @@ pub struct MiniSweConfig {
     wheel_digest_override: Option<String>,
     #[cfg(test)]
     python_digest_override: Option<String>,
+    #[cfg(test)]
+    environment_digest_override: Option<String>,
+    #[cfg(test)]
+    distribution_override: Option<Vec<(String, String)>>,
+}
+
+struct PreparedLaunch {
+    python: PathBuf,
+    wheel: PathBuf,
+    environment: PathBuf,
 }
 
 /// Configuration or production-boundary failure.
@@ -98,6 +197,8 @@ pub enum AdapterError {
     InvalidModel,
     /// Prompt input cannot be represented safely at the native process boundary.
     InvalidPrompt,
+    /// A public correlation identity was empty, excessive, or contained control bytes.
+    InvalidIdentity,
     /// Prompt input exceeded the documented byte ceiling.
     PromptTooLarge,
     /// Local preparation or digest inspection failed.
@@ -106,6 +207,8 @@ pub enum AdapterError {
     WheelMismatch,
     /// The required Python runtime did not match its content pin.
     RuntimeMismatch,
+    /// The installed Python dependency graph or content did not match the product pin.
+    DependencyMismatch,
     /// Process execution failed.
     Process(ProcessError),
     /// The editable workspace could not be represented as a bounded regular-file set.
@@ -125,10 +228,14 @@ impl fmt::Display for AdapterError {
             Self::InvalidEndpoint => formatter.write_str("invalid provider endpoint"),
             Self::InvalidModel => formatter.write_str("invalid provider/model identifier"),
             Self::InvalidPrompt => formatter.write_str("invalid mini_swe prompt"),
+            Self::InvalidIdentity => formatter.write_str("invalid mini_swe correlation identity"),
             Self::PromptTooLarge => formatter.write_str("mini_swe prompt exceeds byte limit"),
             Self::Io(error) => write!(formatter, "adapter I/O failed: {error}"),
             Self::WheelMismatch => formatter.write_str("mini_swe wheel pin mismatch"),
             Self::RuntimeMismatch => formatter.write_str("mini_swe Python runtime pin mismatch"),
+            Self::DependencyMismatch => {
+                formatter.write_str("mini_swe Python dependency pin mismatch")
+            }
             Self::Process(error) => write!(formatter, "mini_swe process failed: {error}"),
             Self::UnsafeWorkspace => formatter.write_str("unsafe or excessive mini_swe workspace"),
             Self::UnsafeStateRoot => formatter.write_str("unsafe mini_swe state root"),
@@ -216,6 +323,10 @@ impl MiniSweConfig {
             wheel_digest_override: None,
             #[cfg(test)]
             python_digest_override: None,
+            #[cfg(test)]
+            environment_digest_override: None,
+            #[cfg(test)]
+            distribution_override: None,
         })
     }
 
@@ -262,6 +373,43 @@ impl MiniSweConfig {
         TESTED_PYTHON_LINUX_X86_64_SHA256
     }
 
+    fn environment_verification_digest(&self) -> &str {
+        #[cfg(test)]
+        if let Some(digest) = &self.environment_digest_override {
+            return digest;
+        }
+        TESTED_PYTHON_ENVIRONMENT_SHA256
+    }
+
+    fn expected_distributions(&self) -> Vec<(String, String)> {
+        #[cfg(test)]
+        if let Some(distributions) = &self.distribution_override {
+            return distributions.clone();
+        }
+        TESTED_DISTRIBUTIONS
+            .iter()
+            .map(|(name, version)| ((*name).into(), (*version).into()))
+            .collect()
+    }
+
+    fn site_packages(&self) -> Result<PathBuf, AdapterError> {
+        self.python
+            .parent()
+            .and_then(Path::parent)
+            .map(|root| root.join("lib/python3.12/site-packages"))
+            .ok_or(AdapterError::RuntimeMismatch)
+    }
+
+    fn verify_environment(&self) -> Result<(), AdapterError> {
+        let site_packages = self.site_packages()?;
+        if distribution_inventory(&site_packages)? != self.expected_distributions()
+            || environment_digest(&site_packages)? != self.environment_verification_digest()
+        {
+            return Err(AdapterError::DependencyMismatch);
+        }
+        Ok(())
+    }
+
     /// Start one noninteractive edit attempt using an unlinked prompt descriptor.
     pub fn start(
         &self,
@@ -270,6 +418,9 @@ impl MiniSweConfig {
         prompt: &str,
         limits: ProcessLimits,
     ) -> Result<RunningMiniSwe, AdapterError> {
+        if !valid_public_id(&session_id) || !valid_public_id(&attempt_id) {
+            return Err(AdapterError::InvalidIdentity);
+        }
         if prompt.len() > MAX_PROMPT_BYTES {
             return Err(AdapterError::PromptTooLarge);
         }
@@ -277,6 +428,7 @@ impl MiniSweConfig {
             return Err(AdapterError::InvalidPrompt);
         }
         self.verify_executable()?;
+        self.verify_environment()?;
         if !has_canonical_existing_ancestor(&self.workspace)? {
             return Err(AdapterError::UnsafeWorkspace);
         }
@@ -297,6 +449,32 @@ impl MiniSweConfig {
                     .mode(0o700)
                     .create(run_root.join(directory))?;
             }
+            let launch_root = run_root.join("launch");
+            fs::DirBuilder::new().mode(0o700).create(&launch_root)?;
+            let staged_python = launch_root.join("python");
+            let staged_wheel = launch_root.join("mini_swe.whl");
+            let staged_environment = launch_root.join("site-packages");
+            copy_verified_file(
+                &self.python,
+                &staged_python,
+                self.python_verification_digest(),
+                0o500,
+                AdapterError::RuntimeMismatch,
+            )?;
+            copy_verified_file(
+                &self.wheel,
+                &staged_wheel,
+                self.wheel_verification_digest(),
+                0o400,
+                AdapterError::WheelMismatch,
+            )?;
+            copy_environment(&self.site_packages()?, &staged_environment)?;
+            if distribution_inventory(&staged_environment)? != self.expected_distributions()
+                || environment_digest(&staged_environment)?
+                    != self.environment_verification_digest()
+            {
+                return Err(AdapterError::DependencyMismatch);
+            }
             let prompt_path = run_root.join("prompt.txt");
             let mut prompt_file = OpenOptions::new()
                 .read(true)
@@ -307,23 +485,31 @@ impl MiniSweConfig {
             fs::remove_file(prompt_path)?;
             prompt_file.write_all(prompt.as_bytes())?;
             prompt_file.rewind()?;
-            Ok::<fs::File, AdapterError>(prompt_file)
+            Ok::<_, AdapterError>((
+                prompt_file,
+                PreparedLaunch {
+                    python: staged_python,
+                    wheel: staged_wheel,
+                    environment: staged_environment,
+                },
+            ))
         })();
-        let prompt_file = match prepared {
-            Ok(path) => path,
+        let (prompt_file, launch) = match prepared {
+            Ok(prepared) => prepared,
             Err(error) => {
                 let _ = fs::remove_dir_all(&run_root);
                 return Err(error);
             }
         };
         let trajectory_path = run_root.join("trajectory.json");
-        let process = match self.spawn_process(&run_root, prompt_file, &trajectory_path, limits) {
-            Ok(process) => process,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&run_root);
-                return Err(error);
-            }
-        };
+        let process =
+            match self.spawn_process(&run_root, prompt_file, &trajectory_path, &launch, limits) {
+                Ok(process) => process,
+                Err(error) => {
+                    let _ = fs::remove_dir_all(&run_root);
+                    return Err(error);
+                }
+            };
         Ok(RunningMiniSwe {
             process,
             session_id,
@@ -338,19 +524,13 @@ impl MiniSweConfig {
         run_root: &Path,
         prompt_file: fs::File,
         trajectory_path: &Path,
+        launch: &PreparedLaunch,
         limits: ProcessLimits,
     ) -> Result<RunningProcess, AdapterError> {
         let host = self
             .endpoint
             .host_str()
             .ok_or(AdapterError::InvalidEndpoint)?;
-        let site_packages = self
-            .python
-            .parent()
-            .and_then(Path::parent)
-            .map(|root| root.join("lib/python3.12/site-packages"))
-            .ok_or(AdapterError::RuntimeMismatch)?;
-        let python_path = site_packages;
         const DRIVER: &str = r#"import sys, zipfile
 zipfile.ZipFile(sys.argv[6]).extractall(sys.argv[7])
 sys.path.insert(0,sys.argv[7])
@@ -365,7 +545,7 @@ cfg=recursive_merge(base,override)
 agent=get_agent(get_model(config=cfg['model']),get_environment(cfg['environment'],default_type='local'),cfg['agent'],default_type='default')
 agent.run(sys.stdin.read())
 "#;
-        let mut command = Command::new(&self.python);
+        let mut command = Command::new(&launch.python);
         command
             .current_dir(&self.workspace)
             .args(["-P", "-c", DRIVER])
@@ -374,7 +554,7 @@ agent.run(sys.stdin.read())
             .arg(trajectory_path)
             .arg(limits.timeout().as_secs().max(1).to_string())
             .arg(self.endpoint.as_str())
-            .arg(&self.wheel)
+            .arg(&launch.wheel)
             .arg(run_root.join("package"))
             .stdin(Stdio::from(prompt_file))
             .env_clear()
@@ -384,7 +564,11 @@ agent.run(sys.stdin.read())
             .env("XDG_DATA_HOME", run_root.join("data"))
             .env("XDG_CACHE_HOME", run_root.join("cache"))
             .env("TMPDIR", run_root.join("tmp"))
-            .env("PYTHONPATH", python_path)
+            .env("PYTHONPATH", &launch.environment)
+            .env("PYTHONHOME", "/usr")
+            .env("PYTHONNOUSERSITE", "1")
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .env("PYTHON_DOTENV_DISABLED", "1")
             .env("MSWEA_GLOBAL_CONFIG_DIR", run_root.join("config"))
             .env("MSWEA_SILENT_STARTUP", "1")
             .env("HTTP_PROXY", CLOSED_PROXY)
@@ -484,6 +668,233 @@ fn has_canonical_existing_ancestor(path: &Path) -> Result<bool, AdapterError> {
             Err(error) => return Err(AdapterError::Io(error)),
         }
     }
+}
+
+fn valid_public_id(id: &Id) -> bool {
+    !id.0.is_empty()
+        && id.0.len() <= MAX_PUBLIC_ID_BYTES
+        && !id.0.bytes().any(|byte| byte.is_ascii_control())
+}
+
+fn copy_verified_file(
+    source: &Path,
+    destination: &Path,
+    expected_digest: &str,
+    mode: u32,
+    mismatch: AdapterError,
+) -> Result<(), AdapterError> {
+    let metadata = fs::metadata(source)?;
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_ARTIFACT_BYTES {
+        return Err(mismatch);
+    }
+    let mut input = fs::File::open(source)?;
+    let mut output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(mode)
+        .open(destination)?;
+    let copied = io::copy(
+        &mut Read::by_ref(&mut input).take(MAX_ARTIFACT_BYTES + 1),
+        &mut output,
+    )?;
+    if copied != metadata.len() || copied > MAX_ARTIFACT_BYTES {
+        return Err(mismatch);
+    }
+    output.sync_all()?;
+    fs::set_permissions(destination, fs::Permissions::from_mode(mode))?;
+    if digest_file(destination)? != expected_digest {
+        return Err(mismatch);
+    }
+    Ok(())
+}
+
+fn environment_files(root: &Path) -> Result<Vec<(PathBuf, u64)>, AdapterError> {
+    if !is_exact_canonical_directory(root)? {
+        return Err(AdapterError::DependencyMismatch);
+    }
+    let mut pending = vec![root.to_path_buf()];
+    let mut files = Vec::new();
+    let mut entries = 0_usize;
+    let mut total = 0_u64;
+    while let Some(directory) = pending.pop() {
+        let mut children = fs::read_dir(directory)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AdapterError::Io)?;
+        children.sort_by_key(|entry| entry.file_name());
+        for child in children {
+            entries = entries
+                .checked_add(1)
+                .ok_or(AdapterError::DependencyMismatch)?;
+            if entries > MAX_ENVIRONMENT_ENTRIES {
+                return Err(AdapterError::DependencyMismatch);
+            }
+            let path = child.path();
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|_| AdapterError::DependencyMismatch)?;
+            if relative.as_os_str().as_encoded_bytes().len() > MAX_PATH_BYTES {
+                return Err(AdapterError::DependencyMismatch);
+            }
+            let kind = child.file_type()?;
+            if kind.is_symlink() || !(kind.is_dir() || kind.is_file()) {
+                return Err(AdapterError::DependencyMismatch);
+            }
+            if kind.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            let size = child.metadata()?.len();
+            if size > MAX_ENVIRONMENT_FILE_BYTES {
+                return Err(AdapterError::DependencyMismatch);
+            }
+            total = total
+                .checked_add(size)
+                .ok_or(AdapterError::DependencyMismatch)?;
+            if total > MAX_ENVIRONMENT_BYTES {
+                return Err(AdapterError::DependencyMismatch);
+            }
+            files.push((relative.to_path_buf(), size));
+        }
+    }
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(files)
+}
+
+fn environment_digest(root: &Path) -> Result<String, AdapterError> {
+    let mut hasher = Sha256::new();
+    for (relative, expected_size) in environment_files(root)? {
+        let relative = relative
+            .to_str()
+            .ok_or(AdapterError::DependencyMismatch)?
+            .as_bytes();
+        hasher.update((relative.len() as u64).to_be_bytes());
+        hasher.update(relative);
+        hasher.update(expected_size.to_be_bytes());
+        let mut file = fs::File::open(
+            root.join(std::str::from_utf8(relative).map_err(|_| AdapterError::DependencyMismatch)?),
+        )?;
+        let copied = io::copy(
+            &mut Read::by_ref(&mut file).take(MAX_ENVIRONMENT_FILE_BYTES + 1),
+            &mut DigestWriter(&mut hasher),
+        )?;
+        if copied != expected_size {
+            return Err(AdapterError::DependencyMismatch);
+        }
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+struct DigestWriter<'a>(&'a mut Sha256);
+
+impl Write for DigestWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.update(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn copy_environment(source: &Path, destination: &Path) -> Result<(), AdapterError> {
+    fs::DirBuilder::new().mode(0o700).create(destination)?;
+    for (relative, expected_size) in environment_files(source)? {
+        let target = destination.join(&relative);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut input = fs::File::open(source.join(&relative))?;
+        let mut output = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o400)
+            .open(&target)?;
+        let copied = io::copy(
+            &mut Read::by_ref(&mut input).take(MAX_ENVIRONMENT_FILE_BYTES + 1),
+            &mut output,
+        )?;
+        if copied != expected_size {
+            return Err(AdapterError::DependencyMismatch);
+        }
+        fs::set_permissions(target, fs::Permissions::from_mode(0o400))?;
+    }
+    Ok(())
+}
+
+fn distribution_inventory(root: &Path) -> Result<Vec<(String, String)>, AdapterError> {
+    let mut distributions = Vec::new();
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir()
+            || !entry
+                .file_name()
+                .as_encoded_bytes()
+                .ends_with(b".dist-info")
+        {
+            continue;
+        }
+        let metadata_path = entry.path().join("METADATA");
+        let metadata = fs::metadata(&metadata_path)?;
+        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_METADATA_BYTES {
+            return Err(AdapterError::DependencyMismatch);
+        }
+        let mut bytes = Vec::new();
+        fs::File::open(metadata_path)?
+            .take(MAX_METADATA_BYTES + 1)
+            .read_to_end(&mut bytes)?;
+        let text = std::str::from_utf8(&bytes).map_err(|_| AdapterError::DependencyMismatch)?;
+        let mut name = None;
+        let mut version = None;
+        for line in text.lines().take_while(|line| !line.is_empty()) {
+            if let Some(value) = line.strip_prefix("Name: ") {
+                if name.replace(normalize_distribution_name(value)?).is_some() {
+                    return Err(AdapterError::DependencyMismatch);
+                }
+            } else if let Some(value) = line.strip_prefix("Version: ")
+                && (value.is_empty()
+                    || value.len() > 256
+                    || value.bytes().any(|byte| byte.is_ascii_control())
+                    || version.replace(value.to_owned()).is_some())
+            {
+                return Err(AdapterError::DependencyMismatch);
+            }
+        }
+        distributions.push((
+            name.ok_or(AdapterError::DependencyMismatch)?,
+            version.ok_or(AdapterError::DependencyMismatch)?,
+        ));
+    }
+    distributions.sort();
+    if distributions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(AdapterError::DependencyMismatch);
+    }
+    Ok(distributions)
+}
+
+fn normalize_distribution_name(value: &str) -> Result<String, AdapterError> {
+    if value.is_empty() || value.len() > 256 || !value.is_ascii() {
+        return Err(AdapterError::DependencyMismatch);
+    }
+    let mut normalized = String::new();
+    let mut separator = false;
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() {
+            if separator && !normalized.is_empty() {
+                normalized.push('-');
+            }
+            normalized.push((byte as char).to_ascii_lowercase());
+            separator = false;
+        } else if matches!(byte, b'-' | b'_' | b'.') {
+            separator = true;
+        } else {
+            return Err(AdapterError::DependencyMismatch);
+        }
+    }
+    if normalized.is_empty() || separator {
+        return Err(AdapterError::DependencyMismatch);
+    }
+    Ok(normalized)
 }
 
 fn is_loopback(host: &str) -> bool {
@@ -1220,13 +1631,16 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("workspace")).unwrap();
         fs::create_dir_all(root.join("state")).unwrap();
-        let python = root.join("python");
+        let python = root.join("venv/bin/python");
         let wheel = root.join("package.whl");
+        fs::create_dir_all(python.parent().unwrap()).unwrap();
         fs::write(&wheel, b"fixture").unwrap();
         fs::write(&python, r#"#!/bin/sh
 case "$HOME" in */attempt-*/home) ;; *) exit 91;; esac
 test "$MSWEA_GLOBAL_CONFIG_DIR" = "${HOME%/home}/config" || exit 92
 test ! -e "$HOME/ambient-sentinel" || exit 93
+test "$PYTHON_DOTENV_DISABLED" = 1 || exit 94
+test "$PYTHONNOUSERSITE" = 1 || exit 95
 cat > "$6" <<'EOF'
 {"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[]}},{"role":"exit"}]}
 EOF
@@ -1247,6 +1661,7 @@ EOF
         .unwrap();
         config.wheel_digest_override = Some(digest_file(&wheel).unwrap());
         config.python_digest_override = Some(digest_file(&python).unwrap());
+        boundary_tests::install_test_environment(&mut config);
         let limits = ProcessLimits::new(
             1024 * 1024,
             1024 * 1024,
@@ -1271,8 +1686,9 @@ EOF
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("workspace")).unwrap();
         fs::create_dir_all(root.join("state")).unwrap();
-        let python = root.join("python");
+        let python = root.join("venv/bin/python");
         let wheel = root.join("package.whl");
+        fs::create_dir_all(python.parent().unwrap()).unwrap();
         fs::write(&wheel, b"fixture").unwrap();
         fs::write(
             &python,
@@ -1298,6 +1714,7 @@ wait
         .unwrap();
         config.wheel_digest_override = Some(digest_file(&wheel).unwrap());
         config.python_digest_override = Some(digest_file(&python).unwrap());
+        boundary_tests::install_test_environment(&mut config);
         let limits = ProcessLimits::new(
             1024,
             1024,
@@ -1372,8 +1789,9 @@ mod boundary_tests {
 
     pub(super) fn adapter(script: &str) -> (Scratch, MiniSweConfig) {
         let scratch = Scratch::new("process");
-        let python = scratch.0.join("python");
+        let python = scratch.0.join("venv/bin/python");
         let wheel = scratch.0.join("mini_swe.whl");
+        fs::create_dir_all(python.parent().unwrap()).unwrap();
         fs::write(&python, script).unwrap();
         fs::set_permissions(&python, fs::Permissions::from_mode(0o700)).unwrap();
         fs::write(&wheel, "wheel").unwrap();
@@ -1389,7 +1807,21 @@ mod boundary_tests {
         .unwrap();
         config.python_digest_override = Some(digest_file(&python).unwrap());
         config.wheel_digest_override = Some(digest_file(&wheel).unwrap());
+        install_test_environment(&mut config);
         (scratch, config)
+    }
+
+    pub(super) fn install_test_environment(config: &mut MiniSweConfig) {
+        let site_packages = config.site_packages().unwrap();
+        fs::create_dir_all(site_packages.join("fixture-1.0.dist-info")).unwrap();
+        fs::write(
+            site_packages.join("fixture-1.0.dist-info/METADATA"),
+            "Metadata-Version: 2.1\nName: fixture\nVersion: 1.0\n\n",
+        )
+        .unwrap();
+        fs::write(site_packages.join("fixture.py"), "VALUE = 1\n").unwrap();
+        config.distribution_override = Some(vec![("fixture".into(), "1.0".into())]);
+        config.environment_digest_override = Some(environment_digest(&site_packages).unwrap());
     }
 
     #[test]
@@ -1398,10 +1830,34 @@ mod boundary_tests {
         let mut defaults = config.clone();
         defaults.wheel_digest_override = None;
         defaults.python_digest_override = None;
+        defaults.environment_digest_override = None;
+        defaults.distribution_override = None;
         assert_eq!(defaults.wheel_verification_digest(), WHEEL_SHA256);
         assert_eq!(
             defaults.python_verification_digest(),
             TESTED_PYTHON_LINUX_X86_64_SHA256
+        );
+        assert_eq!(
+            defaults.environment_verification_digest(),
+            TESTED_PYTHON_ENVIRONMENT_SHA256
+        );
+        let distributions = defaults.expected_distributions();
+        assert_eq!(distributions.len(), 78);
+        assert_eq!(
+            distributions.first().unwrap(),
+            &("aiohappyeyeballs".into(), "2.7.1".into())
+        );
+        assert_eq!(
+            distributions.last().unwrap(),
+            &("zipp".into(), "4.1.0".into())
+        );
+        assert_eq!(
+            AdapterError::InvalidIdentity.to_string(),
+            "invalid mini_swe correlation identity"
+        );
+        assert_eq!(
+            AdapterError::DependencyMismatch.to_string(),
+            "mini_swe Python dependency pin mismatch"
         );
         assert_eq!(config.manifest().extension_id.0, "agent.mini-swe");
         assert_eq!(
@@ -1517,6 +1973,169 @@ mod boundary_tests {
             Err(AdapterError::WheelMismatch)
         ));
         assert!(!scratch.0.join("state").exists());
+    }
+
+    #[test]
+    fn public_identities_fail_before_filesystem_or_process_effects() {
+        let (scratch, config) = adapter("#!/bin/sh\nexit 99\n");
+        for id in ["", "bad\nidentity"] {
+            assert!(matches!(
+                config.start(Id(id.into()), Id("attempt".into()), "prompt", limits()),
+                Err(AdapterError::InvalidIdentity)
+            ));
+            assert!(matches!(
+                config.start(Id("session".into()), Id(id.into()), "prompt", limits()),
+                Err(AdapterError::InvalidIdentity)
+            ));
+        }
+        assert!(matches!(
+            config.start(
+                Id("x".repeat(MAX_PUBLIC_ID_BYTES + 1)),
+                Id("attempt".into()),
+                "prompt",
+                limits()
+            ),
+            Err(AdapterError::InvalidIdentity)
+        ));
+        assert!(!scratch.0.join("workspace").exists());
+        assert!(!scratch.0.join("state").exists());
+    }
+
+    #[test]
+    fn dependency_tree_and_inventory_are_product_bound() {
+        let (_scratch, mut config) = adapter("#!/bin/sh\nexit 0\n");
+        config.verify_environment().unwrap();
+        let site_packages = config.site_packages().unwrap();
+        fs::write(site_packages.join("fixture.py"), "VALUE = 2\n").unwrap();
+        assert!(matches!(
+            config.verify_environment(),
+            Err(AdapterError::DependencyMismatch)
+        ));
+        config.environment_digest_override = Some(environment_digest(&site_packages).unwrap());
+        fs::write(
+            site_packages.join("fixture-1.0.dist-info/METADATA"),
+            "Metadata-Version: 2.1\nName: fixture\nVersion: 2.0\n\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            config.verify_environment(),
+            Err(AdapterError::DependencyMismatch)
+        ));
+    }
+
+    #[test]
+    fn distribution_metadata_is_canonical_unique_and_bounded() {
+        let scratch = Scratch::new("distribution-metadata");
+        let root = scratch.0.join("site-packages");
+        let first = root.join("first.dist-info");
+        fs::create_dir_all(&first).unwrap();
+        let metadata = first.join("METADATA");
+        fs::write(
+            &metadata,
+            "Metadata-Version: 2.1\nName: Fixture.Name_Test\nVersion: 1.0+local\n\n",
+        )
+        .unwrap();
+        assert_eq!(
+            distribution_inventory(&root).unwrap(),
+            vec![("fixture-name-test".into(), "1.0+local".into())]
+        );
+
+        fs::write(&metadata, "Name: fixture\nName: duplicate\nVersion: 1\n\n").unwrap();
+        assert!(matches!(
+            distribution_inventory(&root),
+            Err(AdapterError::DependencyMismatch)
+        ));
+        fs::write(&metadata, "Name: fixture!\nVersion: 1\n\n").unwrap();
+        assert!(matches!(
+            distribution_inventory(&root),
+            Err(AdapterError::DependencyMismatch)
+        ));
+        fs::write(&metadata, "Name: fixture-\nVersion: 1\n\n").unwrap();
+        assert!(matches!(
+            distribution_inventory(&root),
+            Err(AdapterError::DependencyMismatch)
+        ));
+        fs::write(&metadata, "Name: fixture\nVersion: 1\nVersion: 2\n\n").unwrap();
+        assert!(matches!(
+            distribution_inventory(&root),
+            Err(AdapterError::DependencyMismatch)
+        ));
+
+        fs::write(&metadata, "Name: fixture\nVersion: 1\n\n").unwrap();
+        let second = root.join("second.dist-info");
+        fs::create_dir_all(&second).unwrap();
+        fs::write(second.join("METADATA"), "Name: Fixture\nVersion: 2\n\n").unwrap();
+        assert!(matches!(
+            distribution_inventory(&root),
+            Err(AdapterError::DependencyMismatch)
+        ));
+
+        fs::remove_dir_all(second).unwrap();
+        fs::write(&metadata, vec![b'x'; MAX_METADATA_BYTES as usize + 1]).unwrap();
+        assert!(matches!(
+            distribution_inventory(&root),
+            Err(AdapterError::DependencyMismatch)
+        ));
+    }
+
+    #[test]
+    fn dependency_tree_rejects_links_special_files_and_size_bounds() {
+        let (_scratch, config) = adapter("#!/bin/sh\nexit 0\n");
+        let site_packages = config.site_packages().unwrap();
+        std::os::unix::fs::symlink(
+            site_packages.join("fixture.py"),
+            site_packages.join("alias.py"),
+        )
+        .unwrap();
+        assert!(matches!(
+            config.verify_environment(),
+            Err(AdapterError::DependencyMismatch)
+        ));
+        fs::remove_file(site_packages.join("alias.py")).unwrap();
+        let oversized = site_packages.join("oversized.bin");
+        fs::File::create(&oversized)
+            .unwrap()
+            .set_len(MAX_ENVIRONMENT_FILE_BYTES + 1)
+            .unwrap();
+        assert!(matches!(
+            config.verify_environment(),
+            Err(AdapterError::DependencyMismatch)
+        ));
+    }
+
+    #[test]
+    fn configured_artifacts_are_replaced_only_after_private_staging() {
+        let script = r#"#!/bin/sh
+case "$0" in */attempt-*/launch/python) ;; *) exit 81;; esac
+case "$9" in */attempt-*/launch/mini_swe.whl) ;; *) exit 82;; esac
+test "$(cat "$9")" = wheel || exit 83
+test "$PYTHON_DOTENV_DISABLED" = 1 || exit 84
+test -z "${OPENAI_API_KEY-}" || exit 85
+while test ! -e "$4/go"; do sleep 0.01; done
+cat > "$6" <<'EOF'
+{"trajectory_format":"mini-swe-agent-1.1","info":{"mini_version":"2.4.6","model_stats":{"api_calls":1,"instance_cost":0.0},"exit_status":"Submitted"},"messages":[{"role":"system"},{"role":"user"},{"role":"assistant","extra":{"actions":[]}},{"role":"exit"}]}
+EOF
+"#;
+        let (scratch, config) = adapter(script);
+        fs::create_dir_all(scratch.0.join("workspace")).unwrap();
+        fs::write(
+            scratch.0.join("workspace/.env"),
+            "OPENAI_API_KEY=hostile\nOPENAI_API_BASE=https://example.invalid\n",
+        )
+        .unwrap();
+        let mut running = config
+            .start(
+                Id("session".into()),
+                Id("attempt".into()),
+                "prompt",
+                limits(),
+            )
+            .unwrap();
+        fs::write(&config.python, "#!/bin/sh\nexit 97\n").unwrap();
+        fs::set_permissions(&config.python, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(&config.wheel, "replacement").unwrap();
+        fs::write(scratch.0.join("workspace/go"), "").unwrap();
+        assert_eq!(running.wait().unwrap().status(), TerminalStatus::Completed);
     }
 
     #[test]

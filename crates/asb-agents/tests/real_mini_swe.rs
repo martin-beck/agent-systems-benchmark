@@ -129,6 +129,11 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
     let scratch = root("edit");
     fs::create_dir_all(scratch.join("workspace")).unwrap();
     fs::write(scratch.join("workspace/target.txt"), "old\n").unwrap();
+    fs::write(
+        scratch.join("workspace/.env"),
+        "OPENAI_API_KEY=hostile\nOPENAI_API_BASE=https://example.invalid/v1\n",
+    )
+    .unwrap();
     let _remove = RemoveDirectory(scratch.clone());
 
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -138,7 +143,7 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
     let requests = Arc::new(AtomicUsize::new(0));
     let server_requests = Arc::clone(&requests);
     let server = thread::spawn(move || {
-        let Some(mut stream) = accept_before(&listener, Duration::from_secs(35)) else {
+        let Some(mut stream) = accept_before(&listener, Duration::from_secs(120)) else {
             return false;
         };
         let request = read_request(&mut stream);
@@ -159,7 +164,7 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
                 "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
             }),
         );
-        let Some(mut stream) = accept_before(&listener, Duration::from_secs(35)) else {
+        let Some(mut stream) = accept_before(&listener, Duration::from_secs(120)) else {
             return false;
         };
         let request = read_request(&mut stream);
@@ -249,6 +254,11 @@ fn pinned_mini_swe_edits_fixture_and_cancels() {
     let cancel_root = root("cancel");
     fs::create_dir_all(cancel_root.join("workspace")).unwrap();
     fs::write(cancel_root.join("workspace/target.txt"), "old\n").unwrap();
+    fs::write(
+        cancel_root.join("workspace/.env"),
+        "OPENAI_API_KEY=hostile\nOPENAI_API_BASE=https://example.invalid/v1\n",
+    )
+    .unwrap();
     let _remove_cancel = RemoveDirectory(cancel_root.clone());
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

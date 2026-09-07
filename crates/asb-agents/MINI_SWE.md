@@ -10,17 +10,32 @@ the sdist SHA-256 is
 `0532c8193a763409fa52bb2b5a5d7ac9052dcb1c2cae43945b14b1b7f6ba869a`.
 
 The adapter verifies the wheel and the tested CPython 3.12 executable before
-starting. It extracts the verified wheel into private attempt state, imports
-that copy with dependencies from the caller-provided Python environment, and
-validates the saved `mini-swe-agent-1.1` trajectory. Upstream ships dependency
-ranges, not a complete lock; its LiteLLM constraint excludes compromised
-versions 1.82.7 and 1.82.8, but ASB does not claim reproducible or fully
-attested transitive Python dependencies.
+starting, then copies and re-verifies private launch artifacts so replacement
+of the configured paths cannot change launched bytes. The complete tested
+78-distribution Python graph is pinned by name/version in source and by a
+path-and-length-framed SHA-256 of every installed file:
+`e67bf3c72123ab751ddf632d62321189b4b62191289d443e6ff02cbeed2d6aa5`.
+The bounded source tree is verified, privately copied, re-inventoried and
+re-hashed before import. It contains 22,252 regular files and 566,258,972
+bytes; symlinks, special files, more than 32,768 entries, any file over 256
+MiB, or an aggregate over 1 GiB fail closed. The verified wheel is extracted
+into private attempt state ahead of that staged graph, and the adapter
+validates the saved `mini-swe-agent-1.1` trajectory.
+
+Upstream ships dependency ranges rather than this complete lock, so ASB's pin
+describes the exact product-tested environment and does not claim that the
+upstream metadata can reproducibly resolve it. Its LiteLLM constraint excludes
+compromised versions 1.82.7 and 1.82.8. Any distribution/version or installed
+byte change requires an explicit ASB pin update and new native evidence.
 
 Prompts enter through an unlinked mode-0600 descriptor and are absent from the
 argument vector and durable prompt files. HOME, XDG roots, mini-SWE global
 configuration, and temporary storage are fresh per attempt; the inherited
-environment is cleared. Auxiliary HTTP(S) proxy routes fail closed and only
+environment is cleared. `PYTHON_DOTENV_DISABLED=1`, `PYTHONNOUSERSITE=1`, and
+read-only staged dependencies prevent workspace/ambient dotenv and user-site
+configuration from changing the provider or authentication boundary. Public
+session and attempt IDs are validated as nonempty, control-free values of at
+most 4 KiB before filesystem mutation. Auxiliary HTTP(S) proxy routes fail closed and only
 the exact explicit provider host bypasses them. This is defense in depth, not
 a network sandbox. Workspace traversal accepts at most 4,096 regular files,
 16,384 entries, 16 MiB per file, 256 MiB total, and rejects symlinks and
