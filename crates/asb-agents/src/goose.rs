@@ -1049,20 +1049,54 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::thread;
     use std::time::Duration;
 
-    fn root(label: &str) -> PathBuf {
-        let target =
-            PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("external target root"));
-        assert!(target.is_absolute());
-        target.join("asb-unit-fixtures").join(format!(
-            "goose-{label}-{}",
+    static FIXTURE_NONCE: AtomicU64 = AtomicU64::new(0);
+
+    struct FixtureRoot(PathBuf);
+
+    impl std::ops::Deref for FixtureRoot {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for FixtureRoot {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for FixtureRoot {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn fixture_base(configured: Option<std::ffi::OsString>) -> PathBuf {
+        fs::canonicalize(
+            configured
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir),
+        )
+        .expect("canonical fixture base")
+    }
+
+    fn root(label: &str) -> FixtureRoot {
+        let target = fixture_base(std::env::var_os("CARGO_TARGET_DIR"));
+        FixtureRoot(target.join("asb-unit-fixtures").join(format!(
+            "goose-{label}-{}-{}-{}",
+            std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
-        ))
+                .as_nanos(),
+            FIXTURE_NONCE.fetch_add(1, Ordering::Relaxed)
+        )))
     }
 
     fn config(binary: &Path, workspace: &Path, state: &Path) -> GooseConfig {
@@ -1080,6 +1114,20 @@ mod tests {
 
     fn ids() -> (Id, Id) {
         (Id("session".into()), Id("attempt".into()))
+    }
+
+    #[test]
+    fn fixture_base_supports_configured_and_portable_temp_roots() {
+        let configured = root("configured-base");
+        fs::create_dir_all(&*configured).unwrap();
+        assert_eq!(
+            fixture_base(Some(configured.as_os_str().to_owned())),
+            fs::canonicalize(&*configured).unwrap()
+        );
+        assert_eq!(
+            fixture_base(None),
+            fs::canonicalize(std::env::temp_dir()).unwrap()
+        );
     }
 
     fn text_message(text: &str) -> Value {

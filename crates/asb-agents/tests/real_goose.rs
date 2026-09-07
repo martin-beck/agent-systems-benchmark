@@ -13,7 +13,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use url::Url;
@@ -25,15 +25,27 @@ impl Drop for Remove {
     }
 }
 
+static FIXTURE_NONCE: AtomicU64 = AtomicU64::new(0);
+
+fn fixture_base(configured: Option<std::ffi::OsString>) -> PathBuf {
+    fs::canonicalize(
+        configured
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir),
+    )
+    .expect("canonical fixture base")
+}
+
 fn root(label: &str) -> PathBuf {
-    let target = PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("external target"));
-    assert!(target.is_absolute());
+    let target = fixture_base(std::env::var_os("CARGO_TARGET_DIR"));
     target.join("asb-integration-fixtures").join(format!(
-        "real-goose-{label}-{}",
+        "real-goose-{label}-{}-{}-{}",
+        std::process::id(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        FIXTURE_NONCE.fetch_add(1, Ordering::Relaxed)
     ))
 }
 
