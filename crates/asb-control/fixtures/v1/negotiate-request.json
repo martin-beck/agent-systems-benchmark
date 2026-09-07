@@ -1,0 +1,15 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "timeout_ms": 1000,
+  "method": "negotiate",
+  "params": {
+    "versions": [{"major": 1, "minor": 0}],
+    "limits": {
+      "max_frame_bytes": 262144,
+      "max_timeout_ms": 30000,
+      "max_page_items": 100,
+      "max_in_flight": 16
+    }
+  }
+}

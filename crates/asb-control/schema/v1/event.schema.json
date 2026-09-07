@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ControlEvent",
+  "description": "Privacy-reviewed public runner event.",
+  "type": "object",
+  "properties": {
+    "attempt_id": {
+      "description": "Related exact attempt when applicable.",
+      "maxLength": 128,
+      "minLength": 1,
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AttemptId"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "kind": {
+      "description": "Event kind from the stable public vocabulary.",
+      "$ref": "#/$defs/ControlEventKind"
+    },
+    "revision": {
+      "description": "Durable contiguous revision.",
+      "$ref": "#/$defs/Revision"
+    },
+    "run_id": {
+      "description": "Related run when applicable.",
+      "maxLength": 128,
+      "minLength": 1,
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RunId"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "attempt_id": {
+              "type": "null"
+            },
+            "kind": {
+              "enum": [
+                "runner_ready",
+                "plan_created"
+              ]
+            },
+            "run_id": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "attempt_id": {
+              "$ref": "#/$defs/AttemptId"
+            },
+            "kind": {
+              "enum": [
+                "run_started",
+                "run_updated",
+                "run_completed",
+                "run_failed",
+                "run_cancelled",
+                "reconciliation_required"
+              ]
+            },
+            "run_id": {
+              "$ref": "#/$defs/RunId"
+            }
+          },
+          "required": [
+            "run_id",
+            "attempt_id"
+          ]
+        }
+      ]
+    }
+  ],
+  "required": [
+    "revision",
+    "kind"
+  ],
+  "$defs": {
+    "AttemptId": {
+      "description": "Opaque stable execution-attempt identity.",
+      "type": "string"
+    },
+    "ControlEventKind": {
+      "description": "Stable privacy-safe runner event vocabulary.",
+      "oneOf": [
+        {
+          "description": "Runner instance is ready after startup or recovery.",
+          "type": "string",
+          "const": "runner_ready"
+        },
+        {
+          "description": "A validated plan became durable.",
+          "type": "string",
+          "const": "plan_created"
+        },
+        {
+          "description": "An exact execution attempt started.",
+          "type": "string",
+          "const": "run_started"
+        },
+        {
+          "description": "Durable public run state advanced.",
+          "type": "string",
+          "const": "run_updated"
+        },
+        {
+          "description": "Required run evidence became durable.",
+          "type": "string",
+          "const": "run_completed"
+        },
+        {
+          "description": "The run reached a durable failure.",
+          "type": "string",
+          "const": "run_failed"
+        },
+        {
+          "description": "Cancellation reached a durable terminal state.",
+          "type": "string",
+          "const": "run_cancelled"
+        },
+        {
+          "description": "The runner requires reconciliation before another effect.",
+          "type": "string",
+          "const": "reconciliation_required"
+        }
+      ]
+    },
+    "Revision": {
+      "description": "Opaque durable revision used to resume event streams.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "RunId": {
+      "description": "Opaque stable run identity.",
+      "type": "string"
+    }
+  }
+}

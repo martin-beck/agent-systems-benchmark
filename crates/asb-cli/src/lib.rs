@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 //! Stable terminal and automation interface for Agent Systems Benchmark.
 
+mod control;
+
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
 use asb_protocol::{ExperimentManifestV1, Id};
@@ -86,6 +88,7 @@ fn dispatch(
         [command, path] if command == "plan" => plan(Path::new(path), stdout).map(|()| 0),
         [command, path] if command == "run" => execute(Path::new(path), false, stdout, stderr),
         [command, path] if command == "sweep" => execute(Path::new(path), true, stdout, stderr),
+        [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
             compare(runs, stdout).map(|()| 0)
         }
@@ -114,6 +117,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("sweep") => "sweep",
         Some("compare") => "compare",
         Some("report") => "report",
+        Some("serve") => "serve",
         _ => "cli",
     }
 }
@@ -121,7 +125,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb plan EXPERIMENT.toml\n  asb run EXPERIMENT.toml\n  asb sweep EXPERIMENT.toml\n  asb compare RUN...\n  asb report RUN...\n\nStructured command results are JSON on stdout; progress is on stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb plan EXPERIMENT.toml\n  asb run EXPERIMENT.toml\n  asb sweep EXPERIMENT.toml\n  asb compare RUN...\n  asb report RUN...\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr."
     )
     .map_err(output_error)
 }
@@ -153,7 +157,9 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
             procfs: Path::new("/proc/self/stat").is_file(),
             cgroup_v2: Path::new("/sys/fs/cgroup/cgroup.controllers").is_file(),
             interactive_stderr: io::stderr().is_terminal(),
-            commands: &["doctor", "plan", "run", "sweep", "compare", "report"],
+            commands: &[
+                "doctor", "plan", "run", "sweep", "compare", "report", "serve",
+            ],
             batch_agent_boundary: "batch-stdio-v1",
             workloads: OriginalWorkloads::fixture_ids(),
         },
