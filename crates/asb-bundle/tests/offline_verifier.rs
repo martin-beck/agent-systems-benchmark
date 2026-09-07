@@ -450,7 +450,7 @@ fn rejects_oversized_or_unsafe_trust_metadata() {
     symlink(&real, fixture.root.join("manifest.json.sig")).expect("signature symlink");
     assert!(matches!(
         verify_bundle(&fixture.root, &config(&fixture), &target()),
-        Err(VerifyError::Io(_))
+        Err(VerifyError::Topology(_))
     ));
 }
 

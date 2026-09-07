@@ -463,6 +463,10 @@ fn hash_regular_file(path: &Path) -> Result<(u64, String), VerifyError> {
 }
 
 fn open_regular(path: &Path) -> Result<File, VerifyError> {
+    let initial = fs::symlink_metadata(path)?;
+    if initial.file_type().is_symlink() || !initial.is_file() {
+        return Err(VerifyError::Topology("expected regular file".into()));
+    }
     let mut options = fs::OpenOptions::new();
     options.read(true).custom_flags(no_follow_flags());
     let file = options.open(path)?;
