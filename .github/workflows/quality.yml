@@ -84,10 +84,43 @@ jobs:
       - name: Enforce coverage floors
         run: python3 tools/quality/check_coverage.py
       - name: Prove gates reject controlled defects
-        run: python3 tools/quality/test_failure_paths.py --bin-dir "$ASB_QUALITY_BIN"
+        run: |
+          python3 tools/quality/test_failure_paths.py --bin-dir "$ASB_QUALITY_BIN"
+          python3 tests/quality/test_artifact_outcome.py
       - name: Validate platform manifests and failure fixtures
         run: |
           python3 tools/platforms/validate_manifests.py
           python3 -m unittest discover -s tests/platforms -p "test_*.py"
       - name: Verify clean tree
         run: git diff --exit-code
+      - name: Prepare bounded optional quality evidence
+        env:
+          EVIDENCE_HEAD: ${{ steps.range.outputs.head }}
+        run: |
+          python3 tools/quality/artifact_outcome.py prepare \
+            --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF" \
+            --head "$EVIDENCE_HEAD" \
+            --run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT" \
+            --output-root "$RUNNER_TEMP" \
+            --output "$RUNNER_TEMP/asb-quality-evidence.json"
+      - name: Publish optional quality evidence
+        id: optional_evidence_upload
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: quality-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asb-quality-evidence.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+      - name: Classify optional evidence publication
+        if: ${{ !cancelled() }}
+        env:
+          ARTIFACT_OUTCOME: ${{ steps.optional_evidence_upload.outcome }}
+        run: |
+          python3 tools/quality/artifact_outcome.py classify \
+            --role optional \
+            --outcome "$ARTIFACT_OUTCOME" \
+            --attempt "$GITHUB_RUN_ATTEMPT"

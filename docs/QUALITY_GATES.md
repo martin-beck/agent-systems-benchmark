@@ -39,6 +39,18 @@ known-vulnerable lockfile and an impossible coverage floor. A missing tool,
 unexpectedly permissive new release, or stale command syntax therefore fails CI
 instead of silently skipping a gate.
 
+After every required repository-quality step succeeds, CI prepares one bounded,
+content-free JSON evidence record and attempts to retain it for one day. Artifact
+publication is explicitly optional: a provider upload failure, including exhausted
+storage quota, is reported as structured `unavailable` evidence without changing
+the already-established required-check result. Preparation, malformed inputs,
+cancellation, and every required artifact remain fail-closed. GitHub does not
+provide a typed upload failure output, so ASB does not claim that an arbitrary
+provider failure was specifically quota exhaustion. It performs no automatic
+retry because account storage recalculation is delayed; a later workflow attempt
+is a new, bounded operator-visible observation. AR-0846 separately owns
+authorized retention cleanup and remains dependency-gated.
+
 Run the same checks locally on Linux:
 
 ```sh

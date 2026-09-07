@@ -476,6 +476,76 @@ def main() -> int:
             cwd=partial_label,
         )
 
+        required_optional = temp / "required-optional-artifact"
+        shutil.copytree(
+            ROOT, required_optional, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        workflow = required_optional / ".github/workflows/quality.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                "        continue-on-error: true\n", "        continue-on-error: false\n"
+            ),
+            encoding="utf-8",
+        )
+        init_git(required_optional)
+        git(required_optional, "add", ".")
+        must_fail(
+            "optional artifact classification",
+            [
+                "python3",
+                str(required_optional / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=required_optional,
+        )
+
+        missing_optional = temp / "missing-optional-artifact-boundary"
+        shutil.copytree(
+            ROOT, missing_optional, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        workflow = missing_optional / ".github/workflows/quality.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                "        continue-on-error: true\n", ""
+            ),
+            encoding="utf-8",
+        )
+        init_git(missing_optional)
+        git(missing_optional, "add", ".")
+        must_fail(
+            "missing optional artifact boundary",
+            [
+                "python3",
+                str(missing_optional / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=missing_optional,
+        )
+
+        weakened_required = temp / "weakened-required-check"
+        shutil.copytree(
+            ROOT, weakened_required, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        workflow = weakened_required / ".github/workflows/quality.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                "      - name: Enforce coverage floors\n",
+                "      - name: Enforce coverage floors\n        continue-on-error: true\n",
+            ),
+            encoding="utf-8",
+        )
+        init_git(weakened_required)
+        git(weakened_required, "add", ".")
+        must_fail(
+            "required check remains fail closed",
+            [
+                "python3",
+                str(weakened_required / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=weakened_required,
+        )
+
         broken_docs = temp / "broken-docs"
         shutil.copytree(ROOT, broken_docs, ignore=shutil.ignore_patterns(".git", "target"))
         (broken_docs / "BROKEN.md").write_text("[missing](does-not-exist.md)\n", encoding="utf-8")
