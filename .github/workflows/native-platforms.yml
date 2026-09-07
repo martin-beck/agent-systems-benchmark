@@ -28,6 +28,7 @@ jobs:
         run: rustup toolchain install 1.93.0 --profile minimal
       - name: Collect bounded native evidence
         env:
+          BASE_COMMIT: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           CARGO_TARGET_DIR: ${{ runner.temp }}/asb-native-target
           EVIDENCE_FILE: ${{ runner.temp }}/native-${{ matrix.runner }}.json
           RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
@@ -37,7 +38,7 @@ jobs:
             --architecture "$(uname -m)" \
             --run-id "$RUN_ID" \
             --source "$GITHUB_WORKSPACE" \
-            --base-commit "${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" \
+            --base-commit "$BASE_COMMIT" \
             --output "$EVIDENCE_FILE" \
             --output-root "$RUNNER_TEMP" \
             --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
