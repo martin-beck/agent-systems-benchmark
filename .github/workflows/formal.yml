@@ -10,6 +10,25 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
+  temporal-recovery:
+    name: TLC and Alloy recovery models
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Java runtime
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: "17.0.20+8"
+      - name: Check temporal recovery models and deliberate mutations
+        run: |
+          formal/run_temporal_models.sh \
+            "${RUNNER_TEMP}/asb-formal-tools" \
+            "${RUNNER_TEMP}/asb-temporal-recovery"
   kani:
     name: Kani bounded proofs
     runs-on: ubuntu-24.04
