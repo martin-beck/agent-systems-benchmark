@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "bundle_id": "example-agent",
+  "bundle_version": "1.0.0",
+  "target": {
+    "operating_system": "linux",
+    "architecture": "x86_64",
+    "libc": "glibc",
+    "libc_version": "2.39"
+  },
+  "entrypoint": "bin/example-agent",
+  "artifacts": [
+    {
+      "path": "LICENSE",
+      "size": 3,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "executable": false,
+      "license_expression": "MIT",
+      "license_evidence": [
+        "LICENSE"
+      ]
+    },
+    {
+      "path": "bin/example-agent",
+      "size": 4,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "executable": true,
+      "license_expression": "MIT",
+      "license_evidence": [
+        "LICENSE"
+      ]
+    }
+  ],
+  "content_sha256": "6bde427d0bddbda7b2bc356e4775bbc4a6c9929931ef85e644721be4992f9972",
+  "spdx": {
+    "path": "sbom.spdx.json",
+    "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "cyclonedx": {
+    "path": "sbom.cdx.json",
+    "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  }
+}

@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RuntimeBundleManifest",
+  "description": "A signed runtime bundle complete content-addressed inventory.",
+  "type": "object",
+  "properties": {
+    "artifacts": {
+      "description": "Complete sorted inventory excluding manifest, signature, and SBOM files.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BundleArtifact"
+      },
+      "maxItems": 100000,
+      "minItems": 1
+    },
+    "bundle_id": {
+      "description": "Stable bounded bundle identifier.",
+      "type": "string",
+      "maxLength": 4096,
+      "minLength": 1
+    },
+    "bundle_version": {
+      "description": "Immutable upstream or application version.",
+      "type": "string",
+      "maxLength": 4096,
+      "minLength": 1
+    },
+    "content_sha256": {
+      "description": "SHA-256 over the canonical ordered artifact tuple stream.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "cyclonedx": {
+      "description": "CycloneDX JSON document and its signed content hash.",
+      "$ref": "#/$defs/SbomDocument"
+    },
+    "entrypoint": {
+      "description": "Relative executable entrypoint, present in artifacts and executable.",
+      "type": "string",
+      "maxLength": 4096,
+      "minLength": 1
+    },
+    "schema_version": {
+      "description": "Manifest schema version; currently exactly one.",
+      "type": "integer",
+      "const": 1
+    },
+    "spdx": {
+      "description": "SPDX JSON document and its signed content hash.",
+      "$ref": "#/$defs/SbomDocument"
+    },
+    "target": {
+      "description": "Exact supported execution target.",
+      "$ref": "#/$defs/RuntimeTarget"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "bundle_version",
+    "target",
+    "entrypoint",
+    "artifacts",
+    "content_sha256",
+    "spdx",
+    "cyclonedx"
+  ],
+  "$defs": {
+    "BundleArtifact": {
+      "description": "One regular file in the runtime bundle.",
+      "type": "object",
+      "properties": {
+        "executable": {
+          "description": "Whether any executable permission bit is set.",
+          "type": "boolean"
+        },
+        "license_evidence": {
+          "description": "Non-empty inventoried paths containing license evidence.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100000,
+          "minItems": 1
+        },
+        "license_expression": {
+          "description": "SPDX license expression attributed to this file.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "path": {
+          "description": "Normalized UTF-8 path relative to the bundle root.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of the file bytes.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size": {
+          "description": "Exact file length.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "size",
+        "sha256",
+        "executable",
+        "license_expression",
+        "license_evidence"
+      ]
+    },
+    "RuntimeTarget": {
+      "description": "Exact runtime platform identity.",
+      "type": "object",
+      "properties": {
+        "architecture": {
+          "description": "CPU architecture, such as x86_64 or aarch64.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "libc": {
+          "description": "libc family, such as glibc or musl.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "libc_version": {
+          "description": "Exact libc ABI version required by the bundle.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "operating_system": {
+          "description": "Operating-system identifier, such as linux.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operating_system",
+        "architecture",
+        "libc",
+        "libc_version"
+      ]
+    },
+    "SbomDocument": {
+      "description": "Signed identity of one SBOM document.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Normalized relative path to the JSON document.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 of its exact bytes.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ]
+    }
+  }
+}
