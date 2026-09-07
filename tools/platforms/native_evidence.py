@@ -550,11 +550,17 @@ def collect(
     tools = tool_evidence_probe(platform_id, arch, root, source, probe)
     kernel_evidence_probe = kernel_evidence_probe or kernel_provenance
     kernel_evidence = kernel_evidence_probe(platform_id, arch, kernel, root, source, probe)
-    results = {name: run_check(argv, source) for name, argv in checks}
+    def execute(name: str, argv: list[str]) -> dict[str, Any]:
+        try:
+            return run_check(argv, source)
+        except EvidenceError as error:
+            raise EvidenceError(f"{name} check did not pass ({error})") from error
+
+    results = {name: execute(name, argv) for name, argv in checks}
     sandbox_probe = sandbox_probe or sandbox_capable
     for name, argv in optional_checks:
         if sandbox_probe(platform_id, arch, root, source):
-            results[name] = run_check(argv, source)
+            results[name] = execute(name, argv)
         else:
             results[name] = {"status": "unavailable"}
     final_commit, final_tree = source_identity(source, base_commit, probe)

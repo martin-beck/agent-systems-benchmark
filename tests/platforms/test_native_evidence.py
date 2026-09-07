@@ -447,6 +447,19 @@ class NativeEvidenceTests(unittest.TestCase):
                 kernel_evidence_probe=self.kernel_evidence,
             )
 
+        with mock.patch.object(EVIDENCE.platform, "machine", return_value="x86_64"), mock.patch.object(
+            EVIDENCE.platform, "release", return_value="7.0.0-test"
+        ), mock.patch.object(
+            EVIDENCE, "run_check", side_effect=EVIDENCE.EvidenceError("native check failed")
+        ), self.assertRaisesRegex(EVIDENCE.EvidenceError, "process check did not pass"):
+            EVIDENCE.collect(
+                "ubuntu-24.04", "x86_64", "run-1", ROOT, "d" * 40,
+                [("process", ["true"]), ("metrics", ["true"])],
+                [("sandbox", ["true"])], root=self.root, probe=self.probe,
+                sandbox_probe=lambda *_: True, tool_evidence_probe=self.tool_evidence,
+                kernel_evidence_probe=self.kernel_evidence,
+            )
+
     def test_only_sandbox_may_be_optional(self) -> None:
         passed = {
             "status": "passed",
