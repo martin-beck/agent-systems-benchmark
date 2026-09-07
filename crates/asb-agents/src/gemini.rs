@@ -62,7 +62,7 @@ const MAX_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_MODEL_BYTES: usize = 256;
 const MAX_LABEL_BYTES: usize = 256;
 const MAX_PUBLIC_ID_BYTES: usize = 4 * 1024;
-const HOOK_READY_TIMEOUT: Duration = Duration::from_secs(5);
+const HOOK_READY_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 static RUN_NONCE: AtomicU64 = AtomicU64::new(0);
 
@@ -486,7 +486,7 @@ impl GeminiConfig {
         let result = self.spawn_process(&run_root, prompt_file, limits);
         match result {
             Ok(mut process) => {
-                if !wait_for_hook_ready(&run_root) {
+                if !wait_for_hook_ready(&run_root, limits.timeout()) {
                     let _ = process.cancel();
                     let _ = process.wait();
                     let _ = fs::remove_dir_all(run_root);
@@ -1402,8 +1402,15 @@ fn digest_bundle_tree(root: &Path, expected_count: usize) -> Result<String, Adap
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn wait_for_hook_ready(run_root: &Path) -> bool {
-    wait_for_hook_ready_until(run_root, Instant::now() + HOOK_READY_TIMEOUT)
+fn hook_ready_timeout(attempt_timeout: Duration) -> Duration {
+    attempt_timeout.min(HOOK_READY_TIMEOUT)
+}
+
+fn wait_for_hook_ready(run_root: &Path, attempt_timeout: Duration) -> bool {
+    wait_for_hook_ready_until(
+        run_root,
+        Instant::now() + hook_ready_timeout(attempt_timeout),
+    )
 }
 
 fn wait_for_hook_ready_until(run_root: &Path, deadline: Instant) -> bool {
@@ -1931,7 +1938,7 @@ mod tests {
         ProcessLimits::new(
             256 * 1024,
             64 * 1024,
-            Duration::from_secs(5),
+            Duration::from_secs(15),
             Duration::from_millis(50),
             Duration::from_millis(2),
         )
@@ -2004,6 +2011,14 @@ printf '%s\n' \
     #[test]
     fn hook_readiness_is_exact_and_bounded() {
         let scratch = Scratch::new("hook-ready");
+        assert_eq!(
+            hook_ready_timeout(Duration::from_millis(250)),
+            Duration::from_millis(250)
+        );
+        assert_eq!(
+            hook_ready_timeout(Duration::from_secs(30)),
+            HOOK_READY_TIMEOUT
+        );
         assert!(!wait_for_hook_ready_until(&scratch.0, Instant::now()));
         fs::write(scratch.0.join("action-count.ready"), b"not-ready\n").unwrap();
         assert!(!wait_for_hook_ready_until(
