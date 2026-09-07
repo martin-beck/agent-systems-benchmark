@@ -6,6 +6,20 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+asb-analysis = { version = "=0.1.0", path = "../asb-analysis" }
+asb-metrics = { version = "=0.1.0", path = "../asb-metrics" }
+asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
+asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
+asb-store = { version = "=0.1.0", path = "../asb-store" }
+asb-workloads = { version = "=0.1.0", path = "../asb-workloads" }
+serde = { version = "=1.0.219", features = ["derive"] }
+serde_json = "=1.0.143"
+sha2 = "=0.10.9"
+signal-hook = "=0.3.18"
+toml = "=0.8.23"
+libc = "=0.2.189"
+
 [[bin]]
 name = "asb"
 path = "src/main.rs"

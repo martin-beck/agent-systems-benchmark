@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, Once, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-type Executor = dyn Fn(u32) -> AttemptOutcome + Send + Sync;
+type Executor = dyn Fn(AttemptContext) -> AttemptOutcome + Send + Sync;
 
 thread_local! {
     static IN_EXECUTOR: Cell<bool> = const { Cell::new(false) };
@@ -300,6 +300,27 @@ pub enum AttemptOutcome {
     InfrastructureFailure,
 }
 
+/// Immutable identity supplied at the executor boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AttemptContext {
+    input_id: u32,
+    warmup: bool,
+}
+
+impl AttemptContext {
+    /// Seeded point-local input identity.
+    #[must_use]
+    pub fn input_id(self) -> u32 {
+        self.input_id
+    }
+
+    /// Whether this execution is unmeasured warmup work.
+    #[must_use]
+    pub fn is_warmup(self) -> bool {
+        self.warmup
+    }
+}
+
 /// Why a planned arrival did not enter the executor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MissReason {
@@ -495,12 +516,20 @@ impl<C: MonotonicClock> Scheduler<C> {
     where
         E: Fn(u32) -> AttemptOutcome + Send + Sync + 'static,
     {
+        self.run_with_context(plan, move |attempt| executor(attempt.input_id()))
+    }
+
+    /// Run with explicit phase identity at the executor boundary.
+    pub fn run_with_context<E>(&self, plan: PointPlan, executor: E) -> PointResult
+    where
+        E: Fn(AttemptContext) -> AttemptOutcome + Send + Sync + 'static,
+    {
         self.run_with_spawner(plan, executor, &SystemSpawner)
     }
 
     fn run_with_spawner<E, S>(&self, plan: PointPlan, executor: E, spawner: &S) -> PointResult
     where
-        E: Fn(u32) -> AttemptOutcome + Send + Sync + 'static,
+        E: Fn(AttemptContext) -> AttemptOutcome + Send + Sync + 'static,
         S: SpawnThread,
     {
         install_panic_boundary();
@@ -827,7 +856,11 @@ fn launch<C>(
 where
     C: MonotonicClock,
 {
-    let id = records[index].input_id;
+    let context = AttemptContext {
+        input_id: records[index].input_id,
+        warmup: records[index].warmup,
+    };
+    let id = context.input_id;
     let task = Box::new(move || {
         let Ok(started) = clock.sample() else {
             let _ = sender.send(WorkerEvent::ClockFault { id });
@@ -835,7 +868,7 @@ where
         };
         let _ = sender.send(WorkerEvent::Started { id, at: started });
         let reset = enter_sensitive_boundary();
-        let outcome = panic::catch_unwind(panic::AssertUnwindSafe(|| executor(id)))
+        let outcome = panic::catch_unwind(panic::AssertUnwindSafe(|| executor(context)))
             .unwrap_or(AttemptOutcome::InfrastructureFailure);
         drop(reset);
         match clock.sample() {
@@ -1092,6 +1125,7 @@ fn shuffle(values: &mut [u32], mut state: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct FailSecondSpawn(AtomicUsize);
@@ -1140,6 +1174,43 @@ mod tests {
         assert_eq!(result.stop_reason(), StopReason::Completed);
         assert_eq!(result.attempts().len(), 1);
         assert!(result.attempts()[0].queue_delay() >= Duration::from_millis(20));
+    }
+
+    #[test]
+    fn contextual_executor_distinguishes_duplicate_ids_across_phases() {
+        let plan = PointPlan::new(
+            LoadModel::ClosedLoop,
+            2,
+            2,
+            2,
+            0,
+            0,
+            Duration::from_secs(1),
+            Duration::from_millis(1),
+            9,
+        )
+        .unwrap();
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let worker_observed = Arc::clone(&observed);
+        let result = Scheduler::new(SystemClock::start()).run_with_context(plan, move |context| {
+            worker_observed
+                .lock()
+                .unwrap()
+                .push((context.is_warmup(), context.input_id()));
+            AttemptOutcome::Completed
+        });
+        let observed = observed.lock().unwrap();
+        assert_eq!(observed.len(), 4);
+        assert!(observed[..2].iter().all(|(warmup, _)| *warmup));
+        assert!(observed[2..].iter().all(|(warmup, _)| !*warmup));
+        assert_eq!(
+            observed
+                .iter()
+                .filter(|(_, input_id)| *input_id == 0)
+                .count(),
+            2
+        );
+        assert_eq!(result.attempts().len(), 4);
     }
 
     #[test]
