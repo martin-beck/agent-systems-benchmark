@@ -329,7 +329,7 @@ impl CodexConfig {
                 "-c",
                 "model_providers.asb_fixture.requires_openai_auth=false",
             ])
-            .args(["-c", "model_providers.asb_fixture.request_max_retries=0"])
+            .args(["-c", "model_providers.asb_fixture.request_max_retries=1"])
             .args(["-c", "model_providers.asb_fixture.stream_max_retries=0"])
             .args(["-c", "approval_policy=\"never\""])
             .arg("-")
