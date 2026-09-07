@@ -15,7 +15,8 @@ MAX_JSON_BYTES = 1024
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGITS = re.compile(r"^[1-9][0-9]{0,19}$")
 REPOSITORY = "martin-beck/agent-systems-benchmark"
-REF = re.compile(r"^refs/(?:heads/main|pull/[1-9][0-9]*/merge)$")
+PULL_REF = re.compile(r"^refs/pull/[1-9][0-9]{0,9}/merge$")
+BRANCH_REF = re.compile(r"^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 
 
 def fail(message: str) -> None:
@@ -31,6 +32,23 @@ def bounded_uint(raw: str, name: str, ceiling: int) -> int:
     return value
 
 
+def approved_ref(value: str) -> bool:
+    if PULL_REF.fullmatch(value):
+        return True
+    if not BRANCH_REF.fullmatch(value):
+        return False
+    name = value.removeprefix("refs/heads/")
+    return not (
+        name.endswith(("/", ".", ".lock"))
+        or "//" in name
+        or ".." in name
+        or "@{" in name
+        or any(
+            part.startswith(".") or part.endswith(".lock") for part in name.split("/")
+        )
+    )
+
+
 def emit(value: dict[str, object]) -> None:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":"))
     if len(encoded.encode("utf-8")) > MAX_JSON_BYTES:
@@ -41,7 +59,7 @@ def emit(value: dict[str, object]) -> None:
 def prepare(args: argparse.Namespace) -> None:
     if args.repository != REPOSITORY:
         fail("repository is not the approved public repository")
-    if not REF.fullmatch(args.ref):
+    if not approved_ref(args.ref):
         fail("ref is not an approved immutable CI ref")
     if not SHA.fullmatch(args.head):
         fail("head is not a full commit ID")

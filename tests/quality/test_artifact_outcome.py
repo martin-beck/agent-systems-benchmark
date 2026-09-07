@@ -76,6 +76,25 @@ class ArtifactOutcomeTest(unittest.TestCase):
                     "schema_version": 1,
                 },
             )
+            feature_output = root / "feature.json"
+            feature = run(
+                "prepare",
+                "--repository",
+                "martin-beck/agent-systems-benchmark",
+                "--ref",
+                "refs/heads/feature/ci-artifact-quota-resilience",
+                "--head",
+                HEAD,
+                "--run-id",
+                "1234",
+                "--attempt",
+                "2",
+                "--output-root",
+                str(root),
+                "--output",
+                str(feature_output),
+            )
+            self.assertEqual(feature.returncode, 0, feature.stderr)
             retry = run(
                 "prepare",
                 "--repository",
@@ -118,7 +137,12 @@ class ArtifactOutcomeTest(unittest.TestCase):
             ]
             for index, bad in (
                 (2, "private/repository"),
-                (4, "refs/heads/feature"),
+                (4, "refs/tags/v1"),
+                (4, "refs/heads/feature//escape"),
+                (4, "refs/heads/feature/../escape"),
+                (4, "refs/heads/.hidden"),
+                (4, "refs/heads/feature.lock"),
+                (4, "refs/heads/" + "a" * 201),
                 (6, "short"),
                 (8, "0"),
                 (10, "1001"),
