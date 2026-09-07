@@ -1,0 +1,63 @@
+name: Native platform evidence
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    name: Native Ubuntu (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Collect bounded native evidence
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/asb-native-target
+          EVIDENCE_FILE: ${{ runner.temp }}/native-${{ matrix.runner }}.json
+          RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python3 tools/platforms/native_evidence.py \
+            --platform-id ubuntu-24.04 \
+            --architecture "$(uname -m)" \
+            --run-id "$RUN_ID" \
+            --source "$GITHUB_WORKSPACE" \
+            --output "$EVIDENCE_FILE" \
+            --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
+            --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--ignored","--test-threads=1"]' \
+            --optional-check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
+          python3 - "$EVIDENCE_FILE" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+          path = pathlib.Path(sys.argv[1])
+          report = json.loads(path.read_text(encoding="utf-8"))
+          assert report["architecture"] in {"x86_64", "aarch64"}
+          assert report["performance_baseline"] is False
+          print("artifact_sha256=sha256:" + hashlib.sha256(path.read_bytes()).hexdigest())
+          print("qualification=" + report["qualification"])
+          PY
+      - name: Retain sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-ubuntu-${{ matrix.runner }}
+          path: ${{ runner.temp }}/native-${{ matrix.runner }}.json
+          if-no-files-found: error
+          retention-days: 30

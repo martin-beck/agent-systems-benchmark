@@ -59,6 +59,10 @@ For public contributions, never run untrusted PR code on persistent trusted runn
 Do not use pull_request_target to execute a contributor checkout. Native privileged
 jobs use disposable workers and a trusted immutable revision. Keep benchmark
 resource reservations separate from build jobs and existing projects.
+The native evidence workflow therefore uses disposable public runners only and
+marks missing delegated sandbox capability as partial evidence. A required check
+failure produces no qualifying report, and a partial report cannot promote a
+manifest cell to `native-tested`.
 
 ## Support target
 

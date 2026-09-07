@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import base64
 import copy
+import hashlib
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -66,6 +68,72 @@ class ManifestTests(unittest.TestCase):
                     any(fixture["expected_error"] in error for error in errors),
                     errors,
                 )
+
+    def test_native_claim_is_bound_to_complete_immutable_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "platforms/v1/native-evidence/ubuntu-x86.json"
+            path.parent.mkdir(parents=True)
+            check = {
+                "status": "passed",
+                "argv_sha256": "sha256:" + "b" * 64,
+                "output_sha256": "sha256:" + "c" * 64,
+                "output_bytes": 1,
+            }
+            report = {
+                "format_version": 1,
+                "kind": "native-run",
+                "qualification": "native-functional",
+                "performance_baseline": False,
+                "platform_id": "ubuntu-24.04",
+                "architecture": "x86_64",
+                "kernel_release": "7.0.0-test",
+                "run_id": "run-1",
+                "source_commit": "a" * 40,
+                "capabilities": {"cgroup_v2": "available", "psi": "available"},
+                "checks": {name: check for name in ("process", "metrics", "sandbox")},
+            }
+            data = (json.dumps(report, sort_keys=True) + "\n").encode()
+            path.write_bytes(data)
+            candidate = copy.deepcopy(self.platforms)
+            cell = candidate["platforms"][0]["architectures"]["x86_64"]
+            cell["native_kernel"] = "native-tested"
+            cell["native_evidence"] = {
+                "kind": "native-run",
+                "platform_id": "ubuntu-24.04",
+                "architecture": "x86_64",
+                "kernel_release": "7.0.0-test",
+                "run_id": "run-1",
+                "artifact_path": "platforms/v1/native-evidence/ubuntu-x86.json",
+                "artifact_digest": "sha256:" + hashlib.sha256(data).hexdigest(),
+            }
+            self.assertEqual(VALIDATOR.validate(candidate, self.agents, root), [])
+            for key, value, expected in (
+                ("artifact_digest", "sha256:" + "0" * 64, "digest differs"),
+                ("artifact_path", "../outside.json", "path is unsafe"),
+            ):
+                with self.subTest(key=key):
+                    broken = copy.deepcopy(candidate)
+                    broken["platforms"][0]["architectures"]["x86_64"]["native_evidence"][key] = value
+                    self.assertTrue(
+                        any(expected in error for error in VALIDATOR.validate(broken, self.agents, root))
+                    )
+            report["checks"]["sandbox"] = {"status": "unavailable"}
+            bad_data = (json.dumps(report, sort_keys=True) + "\n").encode()
+            path.write_bytes(bad_data)
+            cell["native_evidence"]["artifact_digest"] = "sha256:" + hashlib.sha256(bad_data).hexdigest()
+            self.assertTrue(
+                any("sandbox did not pass" in error for error in VALIDATOR.validate(candidate, self.agents, root))
+            )
+            for malformed in ([], {"checks": []}, {"capabilities": []}):
+                with self.subTest(malformed=malformed):
+                    malformed_data = (json.dumps(malformed) + "\n").encode()
+                    path.write_bytes(malformed_data)
+                    cell["native_evidence"]["artifact_digest"] = (
+                        "sha256:" + hashlib.sha256(malformed_data).hexdigest()
+                    )
+                    errors = VALIDATOR.validate(candidate, self.agents, root)
+                    self.assertTrue(errors)
 
 
 if __name__ == "__main__":

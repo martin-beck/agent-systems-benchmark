@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import hashlib
 import json
 import re
 from collections import Counter
@@ -18,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PLATFORMS = ROOT / "platforms/v1/platforms.json"
 DEFAULT_AGENTS = ROOT / "platforms/v1/agents.json"
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
+COMMIT = re.compile(r"^[0-9a-f]{40}$")
+EVIDENCE_PATH = re.compile(r"^platforms/v1/native-evidence/[A-Za-z0-9._-]+\.json$")
 PINNED_IMAGE = re.compile(r"^docker\.io/[a-z0-9_./-]+@sha256:[0-9a-f]{64}$")
 TAGGED_IMAGE = re.compile(r"^docker\.io/[a-z0-9_./-]+:[A-Za-z0-9_.-]+$")
 ARCHES = {"x86_64": "amd64", "aarch64": "arm64"}
@@ -70,7 +73,65 @@ def valid_integrity(value: object) -> bool:
     return len(decoded) == 64 and base64.b64encode(decoded).decode("ascii") == encoded
 
 
-def validate(platforms: dict[str, Any], agents: dict[str, Any]) -> list[str]:
+def validate_native_report(
+    evidence: dict[str, Any], ident: str, arch: str, root: Path
+) -> list[str]:
+    """Validate a native claim against one immutable sanitized report."""
+    errors: list[str] = []
+    relative = evidence.get("artifact_path")
+    if not isinstance(relative, str) or not EVIDENCE_PATH.fullmatch(relative):
+        return [f"{ident}/{arch}: native evidence path is unsafe or missing"]
+    path = root / relative
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1 << 20:
+            raise ValueError
+        data = path.read_bytes()
+        report = json.loads(data)
+        if not isinstance(report, dict):
+            raise ValueError
+    except (OSError, ValueError, json.JSONDecodeError):
+        return [f"{ident}/{arch}: native evidence artifact is unavailable or invalid"]
+    digest = "sha256:" + hashlib.sha256(data).hexdigest()
+    if digest != evidence.get("artifact_digest"):
+        errors.append(f"{ident}/{arch}: native evidence artifact digest differs")
+    expected = {
+        "format_version": 1,
+        "kind": "native-run",
+        "qualification": "native-functional",
+        "performance_baseline": False,
+        "platform_id": ident,
+        "architecture": arch,
+        "kernel_release": evidence.get("kernel_release"),
+        "run_id": evidence.get("run_id"),
+    }
+    for key, value in expected.items():
+        if report.get(key) != value:
+            errors.append(f"{ident}/{arch}: native report {key} binding differs")
+    if not COMMIT.fullmatch(report.get("source_commit", "")):
+        errors.append(f"{ident}/{arch}: native report source commit is not immutable")
+    capabilities = report.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+    if capabilities.get("cgroup_v2") != "available" or capabilities.get("psi") != "available":
+        errors.append(f"{ident}/{arch}: cgroup v2 and PSI evidence are required")
+    checks = report.get("checks", {})
+    if not isinstance(checks, dict):
+        checks = {}
+    for name in ("process", "metrics", "sandbox"):
+        result = checks.get(name, {})
+        if not isinstance(result, dict):
+            result = {}
+        if result.get("status") != "passed":
+            errors.append(f"{ident}/{arch}: required native check {name} did not pass")
+        for field in ("argv_sha256", "output_sha256"):
+            if not SHA256.fullmatch(result.get(field, "")):
+                errors.append(f"{ident}/{arch}: native check {name} lacks {field}")
+    return errors
+
+
+def validate(
+    platforms: dict[str, Any], agents: dict[str, Any], root: Path = ROOT
+) -> list[str]:
     """Return all semantic validation failures."""
     errors: list[str] = []
     if platforms.get("format_version") != 1 or agents.get("format_version") != 1:
@@ -168,6 +229,8 @@ def validate(platforms: dict[str, Any], agents: dict[str, Any]) -> list[str]:
                 )
                 if not bound:
                     errors.append(f"{ident}/{arch}: native-tested requires bound native-run evidence")
+                else:
+                    errors.extend(validate_native_report(evidence, ident, arch, root))
     return errors
 
 

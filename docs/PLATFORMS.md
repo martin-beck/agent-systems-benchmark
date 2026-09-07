@@ -14,6 +14,11 @@ filesystem for an architecture. It does not identify the host kernel, prove that
 the image starts, install an agent, execute a workload or establish native support.
 A cross-build is never promoted to `native-tested`. That label requires a digest
 for an artifact produced by a run on the named native architecture and kernel.
+The artifact must be a bounded, sanitized report produced by
+`tools/platforms/native_evidence.py`. The manifest validator checks its SHA-256,
+source commit, platform, architecture, kernel, run ID, cgroup v2 and PSI probes,
+and passing process, metrics and sandbox boundaries. A partial report remains
+useful evidence but cannot promote a cell.
 
 All available cells below are initially `planned`. Arch aarch64 is `unsupported`
 because the official Arch Linux image index contains only amd64; Arch Linux ARM is
@@ -68,6 +73,27 @@ The real external boundary exercised by AR-0701 is immutable registry and packag
 artifact retrieval. This establishes availability and contents only. Host cgroup
 v2 delegation, systemd, SELinux/AppArmor, perf permission, PSI, BTF, native kernel
 identity, agent startup and workload success all remain explicitly unverified.
+
+## Native qualification boundary
+
+The dedicated `native-platforms.yml` workflow runs on disposable native Ubuntu
+x86_64 and aarch64 GitHub runners. It checks out the exact pull-request head,
+runs argv-only bounded process and native-metrics tests, attempts the delegated
+sandbox boundary in fail-closed mode, and uploads only canonical JSON. Command
+and output digests are retained; raw logs, hostnames, environment contents and
+filesystem paths are excluded. Hosted runners without user-systemd delegation
+produce `native-functional-partial`, never a false `native-tested` result.
+
+Virtual machines using the requested native instruction set may establish
+functional behavior, but every report sets `performance_baseline` to false.
+Containers and QEMU, UML or Bochs emulation are rejected as native evidence.
+Performance claims require separately controlled native resources.
+
+AR-0703 tracks the unavailable disposable booted Debian 13 and openEuler 24.03
+LTS-SP2 x86_64/aarch64 lab cells. Container images, cross-compilation and emulation
+do not substitute for those environments. Until that task provides genuine
+capacity and all reports pass, the affected cells remain planned and AR-0702
+remains incomplete.
 
 To refresh a candidate, first inspect its mutable tag, then inspect/export the
 resolved digest. Review all changes rather than replacing digests automatically:
