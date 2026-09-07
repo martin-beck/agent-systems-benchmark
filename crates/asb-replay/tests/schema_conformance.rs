@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 //! Checked-in schema and public fixture conformance tests.
 
-use asb_replay::{CassetteLimits, decode_cassette};
+use asb_replay::{CassetteLimits, ReplayLimits, StrictReplayService, decode_cassette};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = include_str!("../schema/v1/cassette.schema.json");
 const FIXTURES: &[&str] = &[
     include_str!("../fixtures/v1/buffered.json"),
     include_str!("../fixtures/v1/events.json"),
+    include_str!("../fixtures/v1/gemini-generate-content.json"),
 ];
 
 #[test]
@@ -62,5 +63,36 @@ fn schema_rejects_unknown_fields_versions_and_unbounded_shapes() {
         let mut unsafe_header = fixture.clone();
         unsafe_header["contents"]["interactions"][0]["request"]["headers"][0]["name"] = name.into();
         assert!(!validator.is_valid(&unsafe_header));
+    }
+}
+
+#[test]
+fn schema_and_runtime_agree_on_the_gemini_dialect_tag() {
+    let schema: Value = serde_json::from_str(SCHEMA).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let fixture: Value = serde_json::from_str(FIXTURES[2]).unwrap();
+    assert!(validator.is_valid(&fixture));
+    let cassette = decode_cassette(
+        serde_json::to_vec(&fixture).unwrap().as_slice(),
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    StrictReplayService::new(cassette, ReplayLimits::default()).unwrap();
+
+    for dialect in [
+        "gemini",
+        "gemini-generate-content-sse",
+        "GeminiGenerateContent",
+    ] {
+        let mut invalid = fixture.clone();
+        invalid["contents"]["interactions"][0]["dialect"] = dialect.into();
+        assert!(!validator.is_valid(&invalid));
+        assert!(
+            decode_cassette(
+                &serde_json::to_vec(&invalid).unwrap(),
+                CassetteLimits::default()
+            )
+            .is_err()
+        );
     }
 }

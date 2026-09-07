@@ -37,6 +37,7 @@ fn request(dialect: ProviderDialect, body: Value) -> RecordedRequest {
             &["messages", "model", "tools"]
         }
         ProviderDialect::OpenaiResponses => &["input", "model", "previous_response_id", "tools"],
+        ProviderDialect::GeminiGenerateContent => &["contents", "tools"],
         ProviderDialect::Synthetic => &[],
     };
     RecordedRequest {
@@ -45,6 +46,9 @@ fn request(dialect: ProviderDialect, body: Value) -> RecordedRequest {
             ProviderDialect::OpenaiChatCompletions => "/v1/chat/completions",
             ProviderDialect::OpenaiResponses => "/v1/responses",
             ProviderDialect::AnthropicMessages => "/v1/messages",
+            ProviderDialect::GeminiGenerateContent => {
+                "/v1beta/models/fixture-model:streamGenerateContent?alt=sse"
+            }
             ProviderDialect::Synthetic => "/v1/synthetic",
         }
         .into(),
@@ -548,16 +552,21 @@ fn incoming(service_cassette: &Cassette, session: &str, ordinal: usize) -> Repla
 #[test]
 fn capabilities_are_explicit_and_do_not_include_synthetic() {
     let capabilities = dialect_capabilities();
-    assert_eq!(capabilities.len(), 3);
+    assert_eq!(capabilities.len(), 4);
     assert_eq!(capabilities[0].endpoint, "/v1/chat/completions");
     assert!(!capabilities[0].causal_response_ids);
     assert_eq!(capabilities[1].endpoint, "/v1/responses");
     assert!(capabilities[1].causal_response_ids);
     assert_eq!(capabilities[2].endpoint, "/v1/messages");
+    assert_eq!(
+        capabilities[3].endpoint,
+        "/v1beta/models/{model}:streamGenerateContent?alt=sse"
+    );
+    assert!(!capabilities[3].causal_response_ids);
     assert!(
         capabilities
             .iter()
-            .all(|item| { item.buffered && item.server_sent_events && item.tool_calls })
+            .all(|item| item.buffered && item.server_sent_events && item.tool_calls)
     );
 }
 

@@ -17,6 +17,8 @@ use crate::{
     canonical_json_bytes,
 };
 
+const GEMINI_GENERATE_CONTENT_ENDPOINT: &str =
+    "/v1beta/models/{model}:streamGenerateContent?alt=sse";
 const MAX_HTTP_HEAD_BYTES: usize = 64 * 1024;
 const MAX_HTTP_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_HTTP_HEADERS: usize = 1_024;
@@ -95,7 +97,7 @@ impl<S: Write + WriteTimeout> Write for DeadlineStream<'_, S> {
 pub struct DialectCapability {
     /// Provider syntax accepted by the route.
     pub dialect: ProviderDialect,
-    /// Exact origin-form endpoint accepted by this implementation.
+    /// Exact origin-form endpoint or bounded model template accepted by this implementation.
     pub endpoint: &'static str,
     /// Complete JSON responses are emitted.
     pub buffered: bool,
@@ -108,7 +110,7 @@ pub struct DialectCapability {
 }
 
 /// Return implemented syntax capabilities, not real-client compatibility claims.
-pub fn dialect_capabilities() -> [DialectCapability; 3] {
+pub fn dialect_capabilities() -> [DialectCapability; 4] {
     [
         DialectCapability {
             dialect: ProviderDialect::OpenaiChatCompletions,
@@ -129,6 +131,14 @@ pub fn dialect_capabilities() -> [DialectCapability; 3] {
         DialectCapability {
             dialect: ProviderDialect::AnthropicMessages,
             endpoint: "/v1/messages",
+            buffered: true,
+            server_sent_events: true,
+            tool_calls: true,
+            causal_response_ids: false,
+        },
+        DialectCapability {
+            dialect: ProviderDialect::GeminiGenerateContent,
+            endpoint: GEMINI_GENERATE_CONTENT_ENDPOINT,
             buffered: true,
             server_sent_events: true,
             tool_calls: true,
@@ -322,6 +332,7 @@ impl StrictReplayService {
         }
         for interactions in routes.values_mut() {
             interactions.sort_by_key(|interaction| interaction.ordinal);
+            validate_ordered_route_contract(interactions)?;
         }
         Ok(Self {
             state: Mutex::new(ReplayState {
@@ -542,16 +553,25 @@ fn validate_dialect_contract(
     if interaction.request.method == "GET" {
         return validate_model_catalog_contract(interaction);
     }
-    let capability = capability(interaction.dialect)?;
+    capability(interaction.dialect)?;
     let request = &interaction.request;
     validate_selected_request_markers(&request.body, request_body_pointers)?;
-    if request.method != "POST" || request.path != capability.endpoint {
+    if request.method != "POST"
+        || !request_path_valid(interaction.dialect, &request.path, &request.model)
+    {
         return Err(ReplayError::InvalidCassette);
     }
     let object = request
         .body
         .as_object()
         .ok_or(ReplayError::InvalidCassette)?;
+    if interaction.dialect == ProviderDialect::GeminiGenerateContent {
+        return validate_gemini_generate_content_contract(
+            interaction,
+            object,
+            request_body_pointers,
+        );
+    }
     match interaction.dialect {
         ProviderDialect::OpenaiChatCompletions | ProviderDialect::AnthropicMessages
             if !object.get("messages").is_some_and(Value::is_array) =>
@@ -586,6 +606,7 @@ fn validate_dialect_contract(
             &["messages", "model", "tools"]
         }
         ProviderDialect::OpenaiResponses => &["input", "model", "previous_response_id", "tools"],
+        ProviderDialect::GeminiGenerateContent => unreachable!("validated above"),
         ProviderDialect::Synthetic => return Err(ReplayError::UnsupportedDialect),
     };
     let options: BTreeMap<String, Value> = object
@@ -624,6 +645,389 @@ fn validate_dialect_contract(
         return Err(ReplayError::InvalidCassette);
     }
     Ok(())
+}
+
+fn validate_gemini_generate_content_contract(
+    interaction: &Interaction,
+    object: &serde_json::Map<String, Value>,
+    request_body_pointers: &[String],
+) -> Result<(), ReplayError> {
+    let request = &interaction.request;
+    if !exact_object_keys(
+        object,
+        &["contents", "generationConfig", "systemInstruction", "tools"],
+    ) || !request_body_pointers.is_empty()
+        || request.previous_response_id.is_some()
+        || !valid_gemini_response(&interaction.response)
+    {
+        return Err(ReplayError::InvalidCassette);
+    }
+
+    let contents = object
+        .get("contents")
+        .and_then(Value::as_array)
+        .filter(|contents| !contents.is_empty())
+        .ok_or(ReplayError::InvalidCassette)?;
+    for content in contents {
+        validate_gemini_content(content, false)?;
+    }
+    validate_gemini_content(
+        object
+            .get("systemInstruction")
+            .ok_or(ReplayError::InvalidCassette)?,
+        true,
+    )?;
+
+    let generation = object
+        .get("generationConfig")
+        .and_then(Value::as_object)
+        .filter(|generation| {
+            exact_object_keys(
+                generation,
+                &["temperature", "thinkingConfig", "topK", "topP"],
+            )
+        })
+        .ok_or(ReplayError::InvalidCassette)?;
+    if !generation.get("temperature").is_some_and(Value::is_number)
+        || !generation
+            .get("thinkingConfig")
+            .and_then(Value::as_object)
+            .is_some_and(serde_json::Map::is_empty)
+        || !generation.get("topK").is_some_and(Value::is_number)
+        || !generation.get("topP").is_some_and(Value::is_number)
+    {
+        return Err(ReplayError::InvalidCassette);
+    }
+
+    let tools = object
+        .get("tools")
+        .and_then(Value::as_array)
+        .filter(|tools| tools.len() == 1)
+        .ok_or(ReplayError::InvalidCassette)?;
+    let tool = tools[0]
+        .as_object()
+        .filter(|tool| exact_object_keys(tool, &["functionDeclarations"]))
+        .ok_or(ReplayError::InvalidCassette)?;
+    let declarations = tool
+        .get("functionDeclarations")
+        .and_then(Value::as_array)
+        .filter(|declarations| !declarations.is_empty())
+        .ok_or(ReplayError::InvalidCassette)?;
+    for declaration in declarations {
+        let declaration = declaration
+            .as_object()
+            .filter(|declaration| {
+                exact_object_keys(
+                    declaration,
+                    &["description", "name", "parametersJsonSchema"],
+                )
+            })
+            .ok_or(ReplayError::InvalidCassette)?;
+        if !declaration.get("description").is_some_and(Value::is_string)
+            || !declaration.get("name").is_some_and(Value::is_string)
+            || !declaration
+                .get("parametersJsonSchema")
+                .is_some_and(Value::is_object)
+        {
+            return Err(ReplayError::InvalidCassette);
+        }
+    }
+    if request.tools != *tools {
+        return Err(ReplayError::InvalidCassette);
+    }
+    let options: BTreeMap<String, Value> = object
+        .iter()
+        .filter(|(name, _)| !matches!(name.as_str(), "contents" | "tools"))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    if request.options != options {
+        return Err(ReplayError::InvalidCassette);
+    }
+    Ok(())
+}
+
+fn valid_gemini_response(response: &RecordedResponse) -> bool {
+    match &response.body {
+        ResponseBody::Events { events, .. } => {
+            response.status == 200
+                && has_exact_content_type(response, "text/event-stream")
+                && events.len() == 1
+                && events[0].event_type == "gemini.generate_content.chunk"
+                && valid_gemini_event_payload(&events[0].payload)
+        }
+        ResponseBody::Buffered {
+            payload,
+            response_id,
+            terminal,
+            ..
+        } => {
+            response.status == 500
+                && has_exact_content_type(response, "application/json")
+                && response_id.is_none()
+                && *terminal == crate::TerminalEvent::Failed
+                && payload
+                    .as_object()
+                    .filter(|payload| exact_object_keys(payload, &["error"]))
+                    .and_then(|payload| payload.get("error"))
+                    .and_then(Value::as_object)
+                    .filter(|error| exact_object_keys(error, &["code", "message", "status"]))
+                    .is_some_and(|error| {
+                        error.get("code").and_then(Value::as_u64) == Some(500)
+                            && error
+                                .get("message")
+                                .and_then(Value::as_str)
+                                .is_some_and(|message| !message.is_empty())
+                            && error.get("status").and_then(Value::as_str) == Some("INTERNAL")
+                    })
+        }
+    }
+}
+
+fn valid_gemini_event_payload(payload: &Value) -> bool {
+    let Some(payload) = payload
+        .as_object()
+        .filter(|payload| exact_object_keys(payload, &["candidates", "usageMetadata"]))
+    else {
+        return false;
+    };
+    let Some(candidate) = payload
+        .get("candidates")
+        .and_then(Value::as_array)
+        .filter(|candidates| candidates.len() == 1)
+        .and_then(|candidates| candidates[0].as_object())
+        .filter(|candidate| exact_object_keys(candidate, &["content", "finishReason", "index"]))
+    else {
+        return false;
+    };
+    let Some(content) = candidate
+        .get("content")
+        .and_then(Value::as_object)
+        .filter(|content| exact_object_keys(content, &["parts", "role"]))
+    else {
+        return false;
+    };
+    let valid_part = content
+        .get("parts")
+        .and_then(Value::as_array)
+        .filter(|parts| parts.len() == 1)
+        .and_then(|parts| parts[0].as_object())
+        .is_some_and(|part| {
+            (exact_object_keys(part, &["text"])
+                && part
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| !text.is_empty()))
+                || (exact_object_keys(part, &["functionCall"])
+                    && valid_gemini_function_call(part.get("functionCall")))
+        });
+    let valid_usage = payload
+        .get("usageMetadata")
+        .and_then(Value::as_object)
+        .filter(|usage| {
+            exact_object_keys(
+                usage,
+                &[
+                    "candidatesTokenCount",
+                    "promptTokenCount",
+                    "totalTokenCount",
+                ],
+            )
+        })
+        .is_some_and(|usage| {
+            let Some(candidate_count) = usage["candidatesTokenCount"].as_u64() else {
+                return false;
+            };
+            let Some(prompt_count) = usage["promptTokenCount"].as_u64() else {
+                return false;
+            };
+            candidate_count.checked_add(prompt_count) == usage["totalTokenCount"].as_u64()
+        });
+    candidate.get("finishReason").and_then(Value::as_str) == Some("STOP")
+        && candidate.get("index").and_then(Value::as_u64) == Some(0)
+        && content.get("role").and_then(Value::as_str) == Some("model")
+        && valid_part
+        && valid_usage
+}
+
+fn validate_ordered_route_contract(interactions: &[Interaction]) -> Result<(), ReplayError> {
+    for (index, interaction) in interactions.iter().enumerate() {
+        if interaction.dialect != ProviderDialect::GeminiGenerateContent {
+            continue;
+        }
+        let next = interactions.get(index + 1);
+        match &interaction.response.body {
+            ResponseBody::Buffered { .. } => {
+                if !next.is_some_and(|next| {
+                    next.dialect == ProviderDialect::GeminiGenerateContent
+                        && next.request == interaction.request
+                }) {
+                    return Err(ReplayError::InvalidCassette);
+                }
+            }
+            ResponseBody::Events { events, .. } => {
+                if let Some((id, name)) = gemini_response_tool_call(&events[0].payload)
+                    && !next.is_some_and(|next| {
+                        next.dialect == ProviderDialect::GeminiGenerateContent
+                            && gemini_request_contains_pair(&next.request.body, id, name)
+                    })
+                {
+                    return Err(ReplayError::InvalidCassette);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn gemini_response_tool_call(payload: &Value) -> Option<(&str, &str)> {
+    let call = payload.pointer("/candidates/0/content/parts/0/functionCall")?;
+    Some((call.get("id")?.as_str()?, call.get("name")?.as_str()?))
+}
+
+fn gemini_request_contains_pair(body: &Value, expected_id: &str, expected_name: &str) -> bool {
+    let Some(contents) = body.get("contents").and_then(Value::as_array) else {
+        return false;
+    };
+    let mut calls = BTreeMap::<&str, &str>::new();
+    for part in contents
+        .iter()
+        .filter_map(|content| content.get("parts").and_then(Value::as_array))
+        .flatten()
+    {
+        if let Some(call) = part.get("functionCall") {
+            let (Some(id), Some(name)) = (
+                call.get("id").and_then(Value::as_str),
+                call.get("name").and_then(Value::as_str),
+            ) else {
+                return false;
+            };
+            if calls.insert(id, name).is_some() {
+                return false;
+            }
+        }
+        if let Some(response) = part.get("functionResponse") {
+            let (Some(id), Some(name)) = (
+                response.get("id").and_then(Value::as_str),
+                response.get("name").and_then(Value::as_str),
+            ) else {
+                return false;
+            };
+            if calls.remove(id) != Some(name) || id != expected_id || name != expected_name {
+                return false;
+            }
+        }
+    }
+    calls.is_empty()
+}
+
+fn validate_gemini_content(value: &Value, system_instruction: bool) -> Result<(), ReplayError> {
+    let content = value
+        .as_object()
+        .filter(|content| exact_object_keys(content, &["parts", "role"]))
+        .ok_or(ReplayError::InvalidCassette)?;
+    let role = content.get("role").and_then(Value::as_str);
+    let valid_role = if system_instruction {
+        role == Some("user")
+    } else {
+        matches!(role, Some("user" | "model"))
+    };
+    if !valid_role {
+        return Err(ReplayError::InvalidCassette);
+    }
+    let parts = content
+        .get("parts")
+        .and_then(Value::as_array)
+        .filter(|parts| !parts.is_empty())
+        .ok_or(ReplayError::InvalidCassette)?;
+    for part in parts {
+        let part = part.as_object().ok_or(ReplayError::InvalidCassette)?;
+        let valid = if exact_object_keys(part, &["text"]) {
+            part.get("text").is_some_and(|text| {
+                text.as_str().is_some_and(|text| !text.is_empty())
+                    || crate::redaction::valid_marker(text)
+            })
+        } else if !system_instruction
+            && exact_object_keys(part, &["functionCall", "thoughtSignature"])
+        {
+            valid_gemini_function_call(part.get("functionCall"))
+                && part
+                    .get("thoughtSignature")
+                    .and_then(Value::as_str)
+                    .is_some_and(|signature| !signature.is_empty())
+        } else {
+            !system_instruction
+                && exact_object_keys(part, &["functionResponse"])
+                && valid_gemini_function_response(part.get("functionResponse"))
+        };
+        if !valid {
+            return Err(ReplayError::InvalidCassette);
+        }
+    }
+    Ok(())
+}
+
+fn valid_gemini_function_call(value: Option<&Value>) -> bool {
+    value
+        .and_then(Value::as_object)
+        .filter(|call| exact_object_keys(call, &["args", "id", "name"]))
+        .is_some_and(|call| {
+            call.get("args").is_some_and(Value::is_object)
+                && nonempty_string_or_marker(call.get("id"))
+                && call
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| !name.is_empty())
+        })
+}
+
+fn valid_gemini_function_response(value: Option<&Value>) -> bool {
+    value
+        .and_then(Value::as_object)
+        .filter(|response| exact_object_keys(response, &["id", "name", "response"]))
+        .is_some_and(|response| {
+            nonempty_string_or_marker(response.get("id"))
+                && response
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| !name.is_empty())
+                && response.get("response").is_some_and(Value::is_object)
+        })
+}
+
+fn nonempty_string_or_marker(value: Option<&Value>) -> bool {
+    value.is_some_and(|value| {
+        value.as_str().is_some_and(|value| !value.is_empty())
+            || crate::redaction::valid_marker(value)
+    })
+}
+
+fn exact_object_keys(object: &serde_json::Map<String, Value>, expected: &[&str]) -> bool {
+    object.len() == expected.len() && expected.iter().all(|name| object.contains_key(*name))
+}
+
+fn request_path_valid(dialect: ProviderDialect, path: &str, model: &str) -> bool {
+    expected_request_path(dialect, model).is_ok_and(|expected| path == expected)
+}
+
+fn expected_request_path(dialect: ProviderDialect, model: &str) -> Result<String, ReplayError> {
+    if dialect == ProviderDialect::GeminiGenerateContent {
+        if !valid_gemini_model(model) {
+            return Err(ReplayError::InvalidCassette);
+        }
+        Ok(format!(
+            "/v1beta/models/{model}:streamGenerateContent?alt=sse"
+        ))
+    } else {
+        Ok(capability(dialect)?.endpoint.to_owned())
+    }
+}
+
+fn valid_gemini_model(model: &str) -> bool {
+    !model.is_empty()
+        && model.len() <= 256
+        && model
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
 fn validate_model_catalog_contract(interaction: &Interaction) -> Result<(), ReplayError> {
@@ -734,7 +1138,7 @@ fn request_matches(
         }
         return normalized_headers_match(&incoming.headers, &expected.headers, sensitive_headers);
     }
-    if incoming.path != capability(dialect)?.endpoint {
+    if incoming.path != expected_request_path(dialect, &expected.model)? {
         return Ok(false);
     }
     let mut value = crate::cassette::decode_json_value_no_duplicates(&incoming.body)
@@ -854,7 +1258,10 @@ fn encode_response(
                 let payload = canonical_json_bytes(&event.payload)
                     .map_err(|_| ReplayError::InvalidCassette)?;
                 let mut segment = Vec::new();
-                if dialect != ProviderDialect::OpenaiChatCompletions {
+                if !matches!(
+                    dialect,
+                    ProviderDialect::OpenaiChatCompletions | ProviderDialect::GeminiGenerateContent
+                ) {
                     segment.extend_from_slice(b"event: ");
                     segment.extend_from_slice(event.event_type.as_bytes());
                     segment.push(b'\n');
