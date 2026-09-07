@@ -351,7 +351,7 @@ def sandbox_tool_evidence(
 
 
 def sandbox_capable(platform_id: str, architecture: str, root: Path, cwd: Path) -> bool:
-    """Prove reviewed installed tools and a disposable user scope are available."""
+    """Mirror the production constrained-scope and namespace capability probe."""
     try:
         sandbox_tool_evidence(platform_id, architecture, root, cwd)
     except EvidenceError:
@@ -364,11 +364,28 @@ def sandbox_capable(platform_id: str, architecture: str, root: Path, cwd: Path) 
             )
         except (OSError, subprocess.TimeoutExpired):
             return False
-        if result.returncode != 0 or result.stdout.splitlines()[0] != expected:
+        lines = result.stdout.splitlines()
+        if result.returncode != 0 or not lines or lines[0] != expected:
             return False
+    unit = f"asb-native-probe-{os.getpid()}-{time.monotonic_ns():x}"
+    delegation = [
+        "/usr/bin/systemd-run", "--user", "--scope", "--quiet", "--collect",
+        f"--unit={unit}.scope",
+        "--property", "MemoryMax=67108864",
+        "--property", "MemorySwapMax=0",
+        "--property", "TasksMax=16",
+        "--property", "CPUQuota=100%",
+        "--property", "RuntimeMaxSec=10000ms",
+        "/usr/bin/bwrap", "--die-with-parent", "--new-session", "--unshare-all",
+        "--unshare-user", "--clearenv", "--disable-userns", "--assert-userns-disabled",
+        "--cap-drop", "ALL", "--ro-bind", "/usr", "/usr",
+    ]
+    for runtime_path in ("/bin", "/lib", "/lib64", "/etc/ld.so.cache"):
+        delegation.extend(("--ro-bind-try", runtime_path, runtime_path))
+    delegation.extend(("--", "/usr/bin/true"))
     try:
         scope = subprocess.run(
-            ["/usr/bin/systemd-run", "--user", "--wait", "--quiet", "/usr/bin/true"],
+            delegation,
             cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL, timeout=30, check=False,
         )

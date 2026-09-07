@@ -536,8 +536,11 @@ class NativeEvidenceTests(unittest.TestCase):
                 lambda argv, _cwd: values[tuple(argv)],
             )
 
+        delegation = []
+
         def version_or_scope(argv, **_kwargs):
             if argv[0] == "/usr/bin/systemd-run" and "--user" in argv:
+                delegation.extend(argv)
                 return subprocess.CompletedProcess(argv, 0, "", "")
             version = next(item[1] for item in tools if item[0] == argv[0])
             return subprocess.CompletedProcess(argv, 0, version + "\n", "")
@@ -546,6 +549,9 @@ class NativeEvidenceTests(unittest.TestCase):
             EVIDENCE.subprocess, "run", side_effect=version_or_scope
         ):
             self.assertTrue(EVIDENCE.sandbox_capable("ubuntu-24.04", "x86_64", self.root, ROOT))
+        self.assertIn("MemoryMax=67108864", delegation)
+        self.assertIn("--disable-userns", delegation)
+        self.assertEqual(delegation[-2:], ["--", "/usr/bin/true"])
         with mock.patch.object(EVIDENCE, "sandbox_tool_evidence", side_effect=EVIDENCE.EvidenceError("drift")):
             self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", "x86_64", self.root, ROOT))
 
