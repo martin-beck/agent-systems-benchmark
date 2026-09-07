@@ -235,6 +235,75 @@ def main() -> int:
             cwd=executable_canary,
         )
 
+        pull_request_trusted = temp / "pull-request-trusted-runner"
+        shutil.copytree(
+            ROOT, pull_request_trusted, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        trusted = pull_request_trusted / ".github/workflows/development-host-trusted.yml"
+        trusted.write_text(
+            trusted.read_text(encoding="utf-8").replace(
+                "workflow_dispatch:", "pull_request:"
+            ),
+            encoding="utf-8",
+        )
+        init_git(pull_request_trusted)
+        git(pull_request_trusted, "add", ".")
+        must_fail(
+            "public pull request persistent routing",
+            [
+                "python3",
+                str(pull_request_trusted / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=pull_request_trusted,
+        )
+
+        unguarded_trusted = temp / "unguarded-trusted-runner"
+        shutil.copytree(
+            ROOT, unguarded_trusted, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        trusted = unguarded_trusted / ".github/workflows/development-host-trusted.yml"
+        trusted.write_text(
+            trusted.read_text(encoding="utf-8").replace(
+                "github.ref == 'refs/heads/main'", "github.ref != ''"
+            ),
+            encoding="utf-8",
+        )
+        init_git(unguarded_trusted)
+        git(unguarded_trusted, "add", ".")
+        must_fail(
+            "unguarded persistent routing",
+            [
+                "python3",
+                str(unguarded_trusted / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=unguarded_trusted,
+        )
+
+        partial_label = temp / "partial-label-trusted-runner"
+        shutil.copytree(
+            ROOT, partial_label, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        trusted = partial_label / ".github/workflows/development-host-trusted.yml"
+        trusted.write_text(
+            trusted.read_text(encoding="utf-8").replace(
+                "asb-development-v1-x86_64-ubuntu2404", "asb-development-v1"
+            ),
+            encoding="utf-8",
+        )
+        init_git(partial_label)
+        git(partial_label, "add", ".")
+        must_fail(
+            "partial persistent runner label",
+            [
+                "python3",
+                str(partial_label / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=partial_label,
+        )
+
         broken_docs = temp / "broken-docs"
         shutil.copytree(ROOT, broken_docs, ignore=shutil.ignore_patterns(".git", "target"))
         (broken_docs / "BROKEN.md").write_text("[missing](does-not-exist.md)\n", encoding="utf-8")
