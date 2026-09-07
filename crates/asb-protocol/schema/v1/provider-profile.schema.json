@@ -1,0 +1,393 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProviderProfileV1",
+  "description": "Complete v1 credential-free provider configuration.",
+  "type": "object",
+  "properties": {
+    "credential": {
+      "description": "Credential lookup provenance without a value.",
+      "$ref": "#/$defs/CredentialProvenance"
+    },
+    "endpoint": {
+      "description": "Redacted endpoint identity and placement.",
+      "$ref": "#/$defs/EndpointProvenance"
+    },
+    "model": {
+      "description": "Exact provider model identifier.",
+      "type": "string",
+      "maxLength": 1024,
+      "minLength": 1
+    },
+    "provider": {
+      "description": "Provider API family.",
+      "$ref": "#/$defs/ProviderKind"
+    },
+    "settings": {
+      "description": "Explicit inference values and omissions.",
+      "$ref": "#/$defs/ProviderSettings"
+    },
+    "settings_sha256": {
+      "description": "Canonical digest of every credential-free field.",
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "transport": {
+      "description": "Exact transport bounds.",
+      "$ref": "#/$defs/ProviderTransportLimits"
+    },
+    "version": {
+      "description": "Contract generation.",
+      "$ref": "#/$defs/ProviderProfileVersion"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "properties": {
+        "version": {
+          "properties": {
+            "major": {
+              "const": 1
+            },
+            "minor": {
+              "const": 0
+            }
+          },
+          "required": [
+            "major",
+            "minor"
+          ]
+        }
+      }
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "credential": {
+              "properties": {
+                "reference_sha256": {
+                  "type": "null"
+                },
+                "source": {
+                  "const": "none"
+                }
+              },
+              "required": [
+                "source",
+                "reference_sha256"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "credential": {
+              "properties": {
+                "reference_sha256": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 64,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "source": {
+                  "enum": [
+                    "environment",
+                    "file_descriptor",
+                    "helper"
+                  ]
+                }
+              },
+              "required": [
+                "source",
+                "reference_sha256"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "required": [
+    "version",
+    "settings_sha256",
+    "provider",
+    "endpoint",
+    "model",
+    "settings",
+    "transport",
+    "credential"
+  ],
+  "$defs": {
+    "CredentialProvenance": {
+      "description": "Credential provenance without secret values, names, or paths.",
+      "type": "object",
+      "properties": {
+        "reference_sha256": {
+          "description": "Digest of the stable lookup reference, absent only for no credential.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source": {
+          "description": "Lookup mechanism used at the adapter boundary.",
+          "$ref": "#/$defs/CredentialSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "reference_sha256"
+      ]
+    },
+    "CredentialSource": {
+      "description": "Credential lookup mechanism without its value or lookup identifier.",
+      "oneOf": [
+        {
+          "description": "No credential is used.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "The process environment supplies the credential.",
+          "type": "string",
+          "const": "environment"
+        },
+        {
+          "description": "An inherited file descriptor supplies the credential.",
+          "type": "string",
+          "const": "file_descriptor"
+        },
+        {
+          "description": "A helper supplies the credential at execution time.",
+          "type": "string",
+          "const": "helper"
+        }
+      ]
+    },
+    "EndpointClass": {
+      "description": "Network placement without a URL, hostname, or private path.",
+      "oneOf": [
+        {
+          "description": "Provider-operated public service.",
+          "type": "string",
+          "const": "public_service"
+        },
+        {
+          "description": "Loopback endpoint in the attempt environment.",
+          "type": "string",
+          "const": "loopback"
+        },
+        {
+          "description": "Private-network endpoint outside loopback.",
+          "type": "string",
+          "const": "private_network"
+        },
+        {
+          "description": "Local replay endpoint backed by pinned evidence.",
+          "type": "string",
+          "const": "replay"
+        }
+      ]
+    },
+    "EndpointProvenance": {
+      "description": "Endpoint provenance without serializing its URL or authority.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Network placement of the endpoint.",
+          "$ref": "#/$defs/EndpointClass"
+        },
+        "identity_sha256": {
+          "description": "Digest of canonical scheme, authority, and base path.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "identity_sha256"
+      ]
+    },
+    "ProviderKind": {
+      "description": "Provider API family without account or endpoint identity.",
+      "oneOf": [
+        {
+          "description": "OpenAI's public API.",
+          "type": "string",
+          "const": "open_ai"
+        },
+        {
+          "description": "A separately operated OpenAI-compatible API.",
+          "type": "string",
+          "const": "open_ai_compatible"
+        },
+        {
+          "description": "Anthropic's public API.",
+          "type": "string",
+          "const": "anthropic"
+        },
+        {
+          "description": "A local or remote Ollama API.",
+          "type": "string",
+          "const": "ollama"
+        }
+      ]
+    },
+    "ProviderProfileVersion": {
+      "description": "A major/minor provider-profile contract generation.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking contract generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible contract generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "ProviderSettings": {
+      "description": "Explicit inference settings; absence requires proven omission.",
+      "type": "object",
+      "properties": {
+        "additional_settings_sha256": {
+          "description": "Digest of the canonical credential-free provider-specific remainder.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "max_output_tokens": {
+          "description": "Requested maximum output tokens.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 1
+        },
+        "reasoning_effort": {
+          "description": "Provider-independent reasoning-effort name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1024,
+          "minLength": 1
+        },
+        "seed": {
+          "description": "Deterministic provider seed.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "temperature_milli": {
+          "description": "Temperature multiplied by 1,000.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 2000,
+          "minimum": 0
+        },
+        "top_p_millionth": {
+          "description": "Top-p multiplied by 1,000,000.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "maximum": 1000000,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "temperature_milli",
+        "top_p_millionth",
+        "seed",
+        "max_output_tokens",
+        "reasoning_effort",
+        "additional_settings_sha256"
+      ]
+    },
+    "ProviderTransportLimits": {
+      "description": "Transport limits that an adapter must preserve exactly.",
+      "type": "object",
+      "properties": {
+        "connect_timeout_ms": {
+          "description": "Monotonic connection timeout.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 3600000,
+          "minimum": 1
+        },
+        "max_concurrent_requests": {
+          "description": "Maximum concurrent provider requests.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 1024,
+          "minimum": 1
+        },
+        "max_request_bytes": {
+          "description": "Maximum serialized request body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 16777216,
+          "minimum": 1
+        },
+        "max_response_bytes": {
+          "description": "Maximum serialized response body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 16777216,
+          "minimum": 1
+        },
+        "request_timeout_ms": {
+          "description": "Monotonic end-to-end request timeout.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 3600000,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_request_bytes",
+        "max_response_bytes",
+        "connect_timeout_ms",
+        "request_timeout_ms",
+        "max_concurrent_requests"
+      ]
+    }
+  }
+}

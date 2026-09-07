@@ -1,0 +1,22 @@
+{
+  "minimum_version": {"major": 1, "minor": 0},
+  "maximum_version": {"major": 1, "minor": 0},
+  "providers": ["open_ai_compatible"],
+  "endpoint_classes": ["private_network"],
+  "credential_sources": ["environment"],
+  "settings": {
+    "temperature": {"exact_value": true, "explicit_omission": true},
+    "top_p": {"exact_value": true, "explicit_omission": true},
+    "seed": {"exact_value": true, "explicit_omission": true},
+    "max_output_tokens": {"exact_value": true, "explicit_omission": true},
+    "reasoning_effort": {"exact_value": true, "explicit_omission": true},
+    "additional_settings": {"exact_value": true, "explicit_omission": true}
+  },
+  "transport_ceiling": {
+    "max_request_bytes": 16777216,
+    "max_response_bytes": 16777216,
+    "connect_timeout_ms": 3600000,
+    "request_timeout_ms": 3600000,
+    "max_concurrent_requests": 1024
+  }
+}

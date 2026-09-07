@@ -1,0 +1,29 @@
+{
+  "version": {"major": 1, "minor": 0},
+  "settings_sha256": "3ef77e8fcc34900d8cece0e1bccf3bb3b23cb389669ca6eb857853be93612ae5",
+  "provider": "open_ai_compatible",
+  "endpoint": {
+    "class": "private_network",
+    "identity_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "model": "example-model-v1",
+  "settings": {
+    "temperature_milli": 250,
+    "top_p_millionth": 900000,
+    "seed": 7,
+    "max_output_tokens": 4096,
+    "reasoning_effort": "medium",
+    "additional_settings_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "transport": {
+    "max_request_bytes": 1048576,
+    "max_response_bytes": 2097152,
+    "connect_timeout_ms": 10000,
+    "request_timeout_ms": 300000,
+    "max_concurrent_requests": 8
+  },
+  "credential": {
+    "source": "environment",
+    "reference_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

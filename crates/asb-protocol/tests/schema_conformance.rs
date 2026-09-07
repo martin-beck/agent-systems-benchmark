@@ -2,7 +2,8 @@
 //! Generated-schema and fixture conformance checks.
 
 use asb_protocol::{
-    ExperimentManifestV1, ExtensionManifest, ExtensionResult, RpcNotification, RpcRequest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, ProviderProfileCapabilities,
+    ProviderProfileError, ProviderProfileV1, ProviderSettingField, RpcNotification, RpcRequest,
     WorkloadManifest,
 };
 use schemars::{JsonSchema, schema_for};
@@ -20,6 +21,14 @@ const SCHEMAS: &[(&str, &str)] = &[
     (
         "experiment-manifest.schema.json",
         include_str!("../schema/v1/experiment-manifest.schema.json"),
+    ),
+    (
+        "provider-profile.schema.json",
+        include_str!("../schema/v1/provider-profile.schema.json"),
+    ),
+    (
+        "provider-capabilities.schema.json",
+        include_str!("../schema/v1/provider-capabilities.schema.json"),
     ),
     (
         "request.schema.json",
@@ -40,9 +49,11 @@ fn checked_in_schemas_equal_rust_types() {
     assert_schema::<ExtensionManifest>(SCHEMAS[0].1);
     assert_schema::<WorkloadManifest>(SCHEMAS[1].1);
     assert_schema::<ExperimentManifestV1>(SCHEMAS[2].1);
-    assert_schema::<RpcRequest>(SCHEMAS[3].1);
-    assert_schema::<RpcNotification>(SCHEMAS[4].1);
-    assert_schema::<ExtensionResult>(SCHEMAS[5].1);
+    assert_schema::<ProviderProfileV1>(SCHEMAS[3].1);
+    assert_schema::<ProviderProfileCapabilities>(SCHEMAS[4].1);
+    assert_schema::<RpcRequest>(SCHEMAS[5].1);
+    assert_schema::<RpcNotification>(SCHEMAS[6].1);
+    assert_schema::<ExtensionResult>(SCHEMAS[7].1);
 }
 
 #[test]
@@ -65,13 +76,21 @@ fn positive_fixtures_validate() {
     );
     validate_fixture(
         SCHEMAS[3].1,
-        include_str!("../fixtures/v1/negotiate-request.json"),
+        include_str!("../fixtures/v1/provider-profile.json"),
     );
     validate_fixture(
         SCHEMAS[4].1,
+        include_str!("../fixtures/v1/provider-capabilities.json"),
+    );
+    validate_fixture(
+        SCHEMAS[5].1,
+        include_str!("../fixtures/v1/negotiate-request.json"),
+    );
+    validate_fixture(
+        SCHEMAS[6].1,
         include_str!("../fixtures/v1/event-notification.json"),
     );
-    validate_fixture(SCHEMAS[5].1, include_str!("../fixtures/v1/result.json"));
+    validate_fixture(SCHEMAS[7].1, include_str!("../fixtures/v1/result.json"));
 
     let manifest: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
@@ -85,13 +104,106 @@ fn positive_fixtures_validate() {
 
 #[test]
 fn malformed_and_unknown_fields_fail_schema_validation() {
-    let schema: Value = serde_json::from_str(SCHEMAS[3].1).unwrap();
+    let schema: Value = serde_json::from_str(SCHEMAS[5].1).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let bad_version = serde_json::json!({"jsonrpc":"1.0","id":1,"method":"describe","params":{}});
     let unknown_field =
         serde_json::json!({"jsonrpc":"2.0","id":1,"method":"describe","params":{},"secret":true});
     assert!(!validator.is_valid(&bad_version));
     assert!(!validator.is_valid(&unknown_field));
+}
+
+#[test]
+fn provider_fixtures_cover_schema_and_runtime_fail_closed_boundaries() {
+    let profile_schema: Value = serde_json::from_str(SCHEMAS[3].1).unwrap();
+    let profile_validator = jsonschema::validator_for(&profile_schema).unwrap();
+    let capabilities_schema: Value = serde_json::from_str(SCHEMAS[4].1).unwrap();
+    let capabilities_validator = jsonschema::validator_for(&capabilities_schema).unwrap();
+
+    let profile_text = include_str!("../fixtures/v1/provider-profile.json");
+    let profile_json: Value = serde_json::from_str(profile_text).unwrap();
+    let profile: ProviderProfileV1 = serde_json::from_str(profile_text).unwrap();
+    assert!(profile_validator.is_valid(&profile_json));
+    profile.validate().unwrap();
+
+    for malformed in [
+        include_str!("../fixtures/v1/provider-profile-malformed.json"),
+        include_str!("../fixtures/v1/provider-profile-unknown-field.json"),
+    ] {
+        let value: Value = serde_json::from_str(malformed).unwrap();
+        assert!(!profile_validator.is_valid(&value));
+        assert!(serde_json::from_value::<ProviderProfileV1>(value).is_err());
+    }
+
+    let capabilities_text = include_str!("../fixtures/v1/provider-capabilities.json");
+    let capabilities_json: Value = serde_json::from_str(capabilities_text).unwrap();
+    let capabilities: ProviderProfileCapabilities =
+        serde_json::from_str(capabilities_text).unwrap();
+    assert!(capabilities_validator.is_valid(&capabilities_json));
+    capabilities.validate().unwrap();
+    profile.negotiate(&capabilities).unwrap();
+
+    let lossy_text = include_str!("../fixtures/v1/provider-capabilities-lossy.json");
+    let lossy_json: Value = serde_json::from_str(lossy_text).unwrap();
+    let lossy: ProviderProfileCapabilities = serde_json::from_str(lossy_text).unwrap();
+    assert!(capabilities_validator.is_valid(&lossy_json));
+    assert!(matches!(
+        profile.negotiate(&lossy),
+        Err(ProviderProfileError::UnsupportedSetting {
+            field: ProviderSettingField::Seed,
+            present: true
+        })
+    ));
+
+    let unsupported_text = include_str!("../fixtures/v1/provider-capabilities-unsupported.json");
+    let unsupported_json: Value = serde_json::from_str(unsupported_text).unwrap();
+    let unsupported: ProviderProfileCapabilities = serde_json::from_str(unsupported_text).unwrap();
+    assert!(capabilities_validator.is_valid(&unsupported_json));
+    assert!(matches!(
+        profile.negotiate(&unsupported),
+        Err(ProviderProfileError::UnsupportedProvider(_))
+    ));
+
+    let mut missing_setting = capabilities_json;
+    missing_setting["settings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("seed");
+    assert!(!capabilities_validator.is_valid(&missing_setting));
+
+    let mut unknown_setting: Value = serde_json::from_str(capabilities_text).unwrap();
+    unknown_setting["settings"]["future_setting"] = serde_json::json!({
+        "exact_value": true,
+        "explicit_omission": true
+    });
+    assert!(!capabilities_validator.is_valid(&unknown_setting));
+
+    let mut bad_capability_version: Value = serde_json::from_str(capabilities_text).unwrap();
+    bad_capability_version["maximum_version"]["major"] = 2.into();
+    assert!(!capabilities_validator.is_valid(&bad_capability_version));
+
+    for (pointer, bad) in [
+        ("/model", Value::String(String::new())),
+        ("/model", Value::String("x".repeat(1_025))),
+        ("/endpoint/identity_sha256", Value::String("bad".into())),
+        ("/settings/temperature_milli", Value::from(2_001)),
+        ("/settings/top_p_millionth", Value::from(1_000_001)),
+        ("/settings/max_output_tokens", Value::from(0)),
+        ("/settings/reasoning_effort", Value::String(String::new())),
+        (
+            "/settings/additional_settings_sha256",
+            Value::String("bad".into()),
+        ),
+        ("/transport/max_request_bytes", Value::from(0)),
+        ("/transport/max_response_bytes", Value::from(16_777_217)),
+        ("/transport/connect_timeout_ms", Value::from(0)),
+        ("/transport/request_timeout_ms", Value::from(3_600_001)),
+        ("/transport/max_concurrent_requests", Value::from(0)),
+    ] {
+        let mut invalid = profile_json.clone();
+        *invalid.pointer_mut(pointer).unwrap() = bad;
+        assert!(!profile_validator.is_valid(&invalid), "{pointer}");
+    }
 }
 
 #[test]

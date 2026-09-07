@@ -1,0 +1,10 @@
+{
+  "version": {"major": 1, "minor": 0},
+  "settings_sha256": "3ef77e8fcc34900d8cece0e1bccf3bb3b23cb389669ca6eb857853be93612ae5",
+  "provider": "future_provider",
+  "endpoint": {"class": "loopback", "identity_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+  "model": "example-model-v1",
+  "settings": {"temperature_milli": null, "top_p_millionth": null, "seed": null, "max_output_tokens": null, "reasoning_effort": null, "additional_settings_sha256": null},
+  "transport": {"max_request_bytes": 1024, "max_response_bytes": 2048, "connect_timeout_ms": 1000, "request_timeout_ms": 2000, "max_concurrent_requests": 1},
+  "credential": {"source": "none", "reference_sha256": null}
+}

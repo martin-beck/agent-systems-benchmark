@@ -5,8 +5,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use asb_protocol::{
-    ExperimentManifestV1, ExtensionManifest, ExtensionResult, RpcNotification, RpcRequest,
-    WorkloadManifest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, ProviderProfileCapabilities,
+    ProviderProfileV1, RpcNotification, RpcRequest, WorkloadManifest,
 };
 use schemars::schema_for;
 
@@ -30,6 +30,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &output,
         "experiment-manifest.schema.json",
         &schema_for!(ExperimentManifestV1),
+    )?;
+    write(
+        &output,
+        "provider-profile.schema.json",
+        &schema_for!(ProviderProfileV1),
+    )?;
+    write(
+        &output,
+        "provider-capabilities.schema.json",
+        &schema_for!(ProviderProfileCapabilities),
     )?;
     write(&output, "request.schema.json", &schema_for!(RpcRequest))?;
     write(

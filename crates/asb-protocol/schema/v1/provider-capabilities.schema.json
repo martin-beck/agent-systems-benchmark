@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProviderProfileCapabilities",
+  "description": "Bounded provider-profile capabilities of one concrete adapter.",
+  "type": "object",
+  "properties": {
+    "credential_sources": {
+      "description": "Credential injection mechanisms supported without changing provenance.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CredentialSource"
+      },
+      "uniqueItems": true
+    },
+    "endpoint_classes": {
+      "description": "Endpoint classes translated without placement changes.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EndpointClass"
+      },
+      "uniqueItems": true
+    },
+    "maximum_version": {
+      "description": "Highest accepted contract generation.",
+      "$ref": "#/$defs/ProviderProfileVersion"
+    },
+    "minimum_version": {
+      "description": "Lowest accepted contract generation.",
+      "$ref": "#/$defs/ProviderProfileVersion"
+    },
+    "providers": {
+      "description": "Provider families translated without semantic changes.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProviderKind"
+      },
+      "uniqueItems": true
+    },
+    "settings": {
+      "description": "Complete v1 value-and-omission support matrix.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/OptionalSettingSupport"
+      }
+    },
+    "transport_ceiling": {
+      "description": "Greatest transport values enforceable exactly.",
+      "$ref": "#/$defs/ProviderTransportLimits"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "properties": {
+        "maximum_version": {
+          "properties": {
+            "major": {
+              "const": 1
+            },
+            "minor": {
+              "maximum": 1024
+            }
+          }
+        },
+        "minimum_version": {
+          "properties": {
+            "major": {
+              "const": 1
+            },
+            "minor": {
+              "maximum": 1024
+            }
+          }
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "additional_settings": {
+              "$ref": "#/$defs/OptionalSettingSupport"
+            },
+            "max_output_tokens": {
+              "$ref": "#/$defs/OptionalSettingSupport"
+            },
+            "reasoning_effort": {
+              "$ref": "#/$defs/OptionalSettingSupport"
+            },
+            "seed": {
+              "$ref": "#/$defs/OptionalSettingSupport"
+            },
+            "temperature": {
+              "$ref": "#/$defs/OptionalSettingSupport"
+            },
+            "top_p": {
+              "$ref": "#/$defs/OptionalSettingSupport"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "temperature",
+            "top_p",
+            "seed",
+            "max_output_tokens",
+            "reasoning_effort",
+            "additional_settings"
+          ]
+        }
+      }
+    }
+  ],
+  "required": [
+    "minimum_version",
+    "maximum_version",
+    "providers",
+    "endpoint_classes",
+    "credential_sources",
+    "settings",
+    "transport_ceiling"
+  ],
+  "$defs": {
+    "CredentialSource": {
+      "description": "Credential lookup mechanism without its value or lookup identifier.",
+      "oneOf": [
+        {
+          "description": "No credential is used.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "The process environment supplies the credential.",
+          "type": "string",
+          "const": "environment"
+        },
+        {
+          "description": "An inherited file descriptor supplies the credential.",
+          "type": "string",
+          "const": "file_descriptor"
+        },
+        {
+          "description": "A helper supplies the credential at execution time.",
+          "type": "string",
+          "const": "helper"
+        }
+      ]
+    },
+    "EndpointClass": {
+      "description": "Network placement without a URL, hostname, or private path.",
+      "oneOf": [
+        {
+          "description": "Provider-operated public service.",
+          "type": "string",
+          "const": "public_service"
+        },
+        {
+          "description": "Loopback endpoint in the attempt environment.",
+          "type": "string",
+          "const": "loopback"
+        },
+        {
+          "description": "Private-network endpoint outside loopback.",
+          "type": "string",
+          "const": "private_network"
+        },
+        {
+          "description": "Local replay endpoint backed by pinned evidence.",
+          "type": "string",
+          "const": "replay"
+        }
+      ]
+    },
+    "OptionalSettingSupport": {
+      "description": "Exact boundary states supported for one optional setting.",
+      "type": "object",
+      "properties": {
+        "exact_value": {
+          "description": "A supplied value can be emitted without conversion.",
+          "type": "boolean"
+        },
+        "explicit_omission": {
+          "description": "Absence can be proven at the provider boundary.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "exact_value",
+        "explicit_omission"
+      ]
+    },
+    "ProviderKind": {
+      "description": "Provider API family without account or endpoint identity.",
+      "oneOf": [
+        {
+          "description": "OpenAI's public API.",
+          "type": "string",
+          "const": "open_ai"
+        },
+        {
+          "description": "A separately operated OpenAI-compatible API.",
+          "type": "string",
+          "const": "open_ai_compatible"
+        },
+        {
+          "description": "Anthropic's public API.",
+          "type": "string",
+          "const": "anthropic"
+        },
+        {
+          "description": "A local or remote Ollama API.",
+          "type": "string",
+          "const": "ollama"
+        }
+      ]
+    },
+    "ProviderProfileVersion": {
+      "description": "A major/minor provider-profile contract generation.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking contract generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible contract generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "ProviderTransportLimits": {
+      "description": "Transport limits that an adapter must preserve exactly.",
+      "type": "object",
+      "properties": {
+        "connect_timeout_ms": {
+          "description": "Monotonic connection timeout.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 3600000,
+          "minimum": 1
+        },
+        "max_concurrent_requests": {
+          "description": "Maximum concurrent provider requests.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 1024,
+          "minimum": 1
+        },
+        "max_request_bytes": {
+          "description": "Maximum serialized request body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 16777216,
+          "minimum": 1
+        },
+        "max_response_bytes": {
+          "description": "Maximum serialized response body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 16777216,
+          "minimum": 1
+        },
+        "request_timeout_ms": {
+          "description": "Monotonic end-to-end request timeout.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 3600000,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_request_bytes",
+        "max_response_bytes",
+        "connect_timeout_ms",
+        "request_timeout_ms",
+        "max_concurrent_requests"
+      ]
+    }
+  }
+}

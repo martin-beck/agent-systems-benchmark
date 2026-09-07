@@ -7,3 +7,4 @@
 pub mod aider;
 pub mod opencode;
 pub mod opendesk;
+pub mod provider;

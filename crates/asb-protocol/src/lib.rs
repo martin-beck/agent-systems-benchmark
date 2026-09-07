@@ -9,8 +9,10 @@
 //! no Rust dynamic-library ABI.
 
 mod experiment;
+mod provider;
 
 pub use experiment::*;
+pub use provider::*;
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, Write};

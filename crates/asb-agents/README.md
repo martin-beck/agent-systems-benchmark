@@ -96,3 +96,13 @@ descendant containment remains the ASB sandbox layer's responsibility.
 Workspace and state roots must already resolve to their exact canonical path.
 Their ancestors, bounded workspace tree, and verified executable installation
 are assumed not to be replaced or expanded between validation and use.
+
+## Provider-profile binding
+
+The shared binding interface negotiates a complete version/provider/endpoint/
+credential/setting/transport capability matrix before calling adapter translation.
+Translation must remain pre-start and expose the exact effective credential-free
+profile; a constructor-controlled proof is returned only when its canonical digest
+matches the requested profile. Current concrete adapters intentionally do not
+implement this interface until their provider-specific ARs prove real configuration
+output, so the generic boundary makes no live-provider compatibility claim.
