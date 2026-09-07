@@ -14,5 +14,9 @@ serde_json = "=1.0.143"
 sha2 = "=0.10.9"
 url = "=2.5.7"
 
+[dev-dependencies]
+asb-replay = { version = "=0.1.0", path = "../asb-replay" }
+asb-workloads = { version = "=0.1.0", path = "../asb-workloads" }
+
 [lints]
 workspace = true

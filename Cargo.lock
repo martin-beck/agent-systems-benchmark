@@ -30,7 +30,9 @@ name = "asb-agents"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "asb-replay",
  "asb-runtime",
+ "asb-workloads",
  "serde",
  "serde_json",
  "sha2",
