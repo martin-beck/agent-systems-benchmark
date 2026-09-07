@@ -21,9 +21,21 @@ DISPOSABLE_RUNNERS = {"ubuntu-24.04", "ubuntu-24.04-arm"}
 CANARY_WORKFLOW = Path(".github/workflows/development-host-canary.yml")
 CANARY_LABEL = "asb-development-v1-x86_64-ubuntu2404"
 TRUSTED_WORKFLOW = Path(".github/workflows/development-host-trusted.yml")
-TRUSTED_CONDITION = (
+PROTECTED_CONDITION = (
     "github.repository == 'martin-beck/agent-systems-benchmark' "
     "&& github.ref == 'refs/heads/main'"
+)
+PRIVATE_OUTPUT_PATTERNS = (
+    re.compile(
+        r"(?:echo|printf)\b[^\n]*(?:RUNNER_(?:NAME|TEMP|WORKSPACE)|HOSTNAME|runner\.(?:name|temp))",
+        re.IGNORECASE | re.MULTILINE,
+    ),
+    re.compile(
+        r"(?:^|[;&|]\s*)(?:hostname|printenv|env|uname\s+-n)\s*(?:$|[|;&])",
+        re.MULTILINE,
+    ),
+    re.compile(r"(?:RUNNER_NAME|HOSTNAME|runner\.name|runner\.temp|/etc/hostname)"),
+    re.compile(r"^\s*set\s+-(?:[^\n]*x|[^\n]*o\s+xtrace)\s*$", re.MULTILINE),
 )
 
 
@@ -84,20 +96,35 @@ def validate_workflows(manifest: dict[str, object]) -> None:
                 fail(f"{relative} is not workflow_dispatch-only")
             if is_canary and "uses:" in text:
                 fail(f"{relative} may not execute repository or third-party actions")
+            permission_headers = re.findall(
+                r"^[ \t]*permissions:[ \t]*$", text, re.MULTILINE
+            )
             permissions = re.search(r"^permissions:\n((?:  [^\n]*\n)*)", text, re.MULTILINE)
-            if permissions is None or permissions.group(1) != "  contents: read\n":
+            if (
+                permission_headers != ["permissions:"]
+                or permissions is None
+                or permissions.group(1) != "  contents: read\n"
+            ):
                 fail(f"{relative} lacks exact read-only permissions")
             if "secrets." in text or "github.event.inputs" in text or "inputs." in text:
                 fail(f"{relative} consumes secret or caller-controlled input")
-            if is_trusted:
-                conditions = re.findall(r"^\s+if:\s*(.+?)\s*$", text, re.MULTILINE)
-                if conditions != [TRUSTED_CONDITION]:
-                    fail(f"{relative} lacks the exact repository and main-ref trust guard")
-                if (
-                    "persist-credentials: false" not in text
-                    or "ref: ${{ github.sha }}" not in text
-                ):
-                    fail(f"{relative} does not bind checkout to the protected revision")
+            conditions = re.findall(r"^\s+if:\s*(.+?)\s*$", text, re.MULTILINE)
+            if conditions != [PROTECTED_CONDITION]:
+                fail(f"{relative} lacks the exact repository and main-ref trust guard")
+            if any(pattern.search(text) for pattern in PRIVATE_OUTPUT_PATTERNS):
+                fail(f"{relative} explicitly emits private runner identity")
+            if is_canary and (
+                "if bash -euo pipefail <<'ASB_CANARY' >/dev/null 2>&1" not in text
+                or "\n          ASB_CANARY\n          then\n" not in text
+                or text.count("'ASB development-host canary passed'") != 1
+                or text.count("'ASB development-host canary failed'") != 1
+            ):
+                fail(f"{relative} lacks the fixed privacy-safe output boundary")
+            if is_trusted and (
+                "persist-credentials: false" not in text
+                or "ref: ${{ github.sha }}" not in text
+            ):
+                fail(f"{relative} does not bind checkout to the protected revision")
         elif "self-hosted" in text:
             fail(f"{relative} uses a persistent runner")
         runners = re.findall(r"^\s*runs-on:\s*(.+?)\s*$", text, re.MULTILINE)

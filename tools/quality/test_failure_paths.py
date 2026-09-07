@@ -5,12 +5,27 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def workflow_script(path: Path, step_name: str) -> str:
+    text = path.read_text(encoding="utf-8")
+    step = text.split(f"      - name: {step_name}\n", 1)[1]
+    block = step.split("        run: |\n", 1)[1]
+    lines: list[str] = []
+    for line in block.splitlines():
+        if not line.startswith("          "):
+            break
+        lines.append(line[10:])
+    if not lines:
+        raise RuntimeError(f"{path} has no script for {step_name}")
+    return "\n".join(lines) + "\n"
 
 
 def must_fail(name: str, command: list[str], cwd: Path = ROOT) -> None:
@@ -41,6 +56,47 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="asb-quality-negative-") as raw:
         temp = Path(raw)
+        canary_root = temp / "public-canary-root"
+        canary_root.mkdir(mode=0o700)
+        canary = workflow_script(
+            ROOT / ".github/workflows/development-host-canary.yml",
+            "Verify qualified runtime and disposable workspace",
+        )
+        canary_env = {
+            "PATH": os.environ["PATH"],
+            "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_REPOSITORY": "martin-beck/agent-systems-benchmark",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_RUN_ID": "1234",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "RUNNER_OS": "Linux",
+            "RUNNER_ARCH": "X64",
+            "RUNNER_TEMP": str(canary_root),
+        }
+        canary_result = subprocess.run(
+            ["bash"], input=canary, env=canary_env, capture_output=True, text=True, check=False
+        )
+        if (
+            canary_result.returncode != 0
+            or canary_result.stdout != "ASB development-host canary passed\n"
+            or canary_result.stderr
+            or list(canary_root.iterdir())
+        ):
+            raise RuntimeError("canary success output or cleanup is not fixed and private")
+        private_path = temp / "private-host-path"
+        failed_env = canary_env | {"RUNNER_TEMP": str(private_path)}
+        failed_result = subprocess.run(
+            ["bash"], input=canary, env=failed_env, capture_output=True, text=True, check=False
+        )
+        if (
+            failed_result.returncode == 0
+            or failed_result.stdout
+            or failed_result.stderr != "ASB development-host canary failed\n"
+            or str(private_path) in failed_result.stderr
+        ):
+            raise RuntimeError("canary failure output disclosed its private path")
+        print("positive fixture passed: privacy-safe canary output and cleanup")
+
         bad_workflow = temp / "bad.yml"
         bad_workflow.write_text(
             "name: bad\n"
@@ -233,6 +289,122 @@ def main() -> int:
                 "--skip-commits",
             ],
             cwd=executable_canary,
+        )
+
+        alternate_ref_canary = temp / "alternate-ref-canary"
+        shutil.copytree(
+            ROOT, alternate_ref_canary, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        canary = alternate_ref_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "github.ref == 'refs/heads/main'", "github.ref == 'refs/heads/release'"
+            ),
+            encoding="utf-8",
+        )
+        init_git(alternate_ref_canary)
+        git(alternate_ref_canary, "add", ".")
+        must_fail(
+            "alternate-ref persistent canary",
+            ["python3", str(alternate_ref_canary / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=alternate_ref_canary,
+        )
+
+        fork_canary = temp / "fork-canary"
+        shutil.copytree(ROOT, fork_canary, ignore=shutil.ignore_patterns(".git", "target"))
+        canary = fork_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "github.repository == 'martin-beck/agent-systems-benchmark'",
+                "github.repository != ''",
+            ),
+            encoding="utf-8",
+        )
+        init_git(fork_canary)
+        git(fork_canary, "add", ".")
+        must_fail(
+            "fork persistent canary",
+            ["python3", str(fork_canary / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=fork_canary,
+        )
+
+        identity_canary = temp / "identity-output-canary"
+        shutil.copytree(
+            ROOT, identity_canary, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        canary = identity_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "          set -euo pipefail\n",
+                "          set -euo pipefail\n          printf '%s\\n' \"${RUNNER_NAME}\"\n",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        init_git(identity_canary)
+        git(identity_canary, "add", ".")
+        must_fail(
+            "explicit persistent runner identity output",
+            ["python3", str(identity_canary / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=identity_canary,
+        )
+
+        unsanitized_canary = temp / "unsanitized-canary"
+        shutil.copytree(
+            ROOT, unsanitized_canary, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        canary = unsanitized_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "<<'ASB_CANARY' >/dev/null 2>&1", "<<'ASB_CANARY'"
+            ),
+            encoding="utf-8",
+        )
+        init_git(unsanitized_canary)
+        git(unsanitized_canary, "add", ".")
+        must_fail(
+            "unsanitized persistent canary failures",
+            ["python3", str(unsanitized_canary / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=unsanitized_canary,
+        )
+
+        privileged_trusted = temp / "privileged-trusted"
+        shutil.copytree(
+            ROOT, privileged_trusted, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        trusted = privileged_trusted / ".github/workflows/development-host-trusted.yml"
+        trusted.write_text(
+            trusted.read_text(encoding="utf-8").replace(
+                "  contents: read\n", "  contents: read\n  actions: write\n"
+            ),
+            encoding="utf-8",
+        )
+        init_git(privileged_trusted)
+        git(privileged_trusted, "add", ".")
+        must_fail(
+            "widened trusted-runner permissions",
+            ["python3", str(privileged_trusted / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=privileged_trusted,
+        )
+
+        job_permissions_canary = temp / "job-permissions-canary"
+        shutil.copytree(
+            ROOT, job_permissions_canary, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        canary = job_permissions_canary / ".github/workflows/development-host-canary.yml"
+        canary.write_text(
+            canary.read_text(encoding="utf-8").replace(
+                "    name: Verify isolated development host\n",
+                "    name: Verify isolated development host\n    permissions:\n      actions: write\n",
+            ),
+            encoding="utf-8",
+        )
+        init_git(job_permissions_canary)
+        git(job_permissions_canary, "add", ".")
+        must_fail(
+            "job-level persistent-runner permissions",
+            ["python3", str(job_permissions_canary / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=job_permissions_canary,
         )
 
         pull_request_trusted = temp / "pull-request-trusted-runner"

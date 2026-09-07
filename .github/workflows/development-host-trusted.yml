@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
           ref: ${{ github.sha }}
-      - name: Verify trusted event and native identity
+      - name: Verify trusted event and platform class
         shell: bash
         run: |
           set -euo pipefail
