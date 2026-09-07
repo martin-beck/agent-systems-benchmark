@@ -536,6 +536,161 @@ class NativeEvidenceTests(unittest.TestCase):
         with mock.patch.object(EVIDENCE, "sandbox_tool_evidence", side_effect=EVIDENCE.EvidenceError("drift")):
             self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", "x86_64", self.root, ROOT))
 
+    def test_package_integrity_metadata_failures_and_rpm_path(self) -> None:
+        binary = self.root / "usr/bin/tool"
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"tool")
+        digest = EVIDENCE.hashlib.md5(b"tool", usedforsecurity=False).hexdigest()
+        info = self.root / "var/lib/dpkg/info"
+        info.mkdir(parents=True)
+        (info / "tool.md5sums").write_text(
+            f"{digest}  usr/bin/tool\n", encoding="utf-8"
+        )
+
+        def dpkg(argv, _cwd):
+            if argv[1] == "-S":
+                return "tool: /usr/bin/tool"
+            return "tool\t1.0\tamd64\tinstall ok installed"
+
+        observed = EVIDENCE.dpkg_metadata(
+            "/usr/bin/tool", "tool", "1.0", "x86_64", self.root, ROOT, dpkg
+        )
+        self.assertEqual(observed["package_integrity"], "verified")
+        for replacement, message in (
+            (lambda argv, cwd: "other: /usr/bin/tool" if argv[1] == "-S" else dpkg(argv, cwd), "ownership"),
+            (lambda argv, cwd: "tool\t2.0\tamd64\tinstall ok installed" if argv[1] == "-W" else dpkg(argv, cwd), "metadata"),
+        ):
+            with self.subTest(message=message), self.assertRaisesRegex(
+                EVIDENCE.EvidenceError, message
+            ):
+                EVIDENCE.dpkg_metadata(
+                    "/usr/bin/tool", "tool", "1.0", "x86_64",
+                    self.root, ROOT, replacement,
+                )
+        (info / "tool.md5sums").write_text("bad  usr/bin/other\n", encoding="utf-8")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "does not bind"):
+            EVIDENCE.dpkg_metadata(
+                "/usr/bin/tool", "tool", "1.0", "x86_64", self.root, ROOT, dpkg
+            )
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "bounded regular"):
+            EVIDENCE.digest_file(binary.parent)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "could not be read"):
+            EVIDENCE.digest_file(self.root / "absent")
+
+        def rpm(argv, _cwd):
+            return "tool\t1.0\tx86_64" if argv[1] == "-qf" else ""
+
+        observed = EVIDENCE.rpm_metadata(
+            "/usr/bin/tool", "tool", "1.0", "x86_64", self.root, ROOT, rpm
+        )
+        self.assertEqual(observed["package_architecture"], "x86_64")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "metadata"):
+            EVIDENCE.rpm_metadata(
+                "/usr/bin/tool", "tool", "2.0", "x86_64", self.root, ROOT, rpm
+            )
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "integrity"):
+            EVIDENCE.rpm_metadata(
+                "/usr/bin/tool", "tool", "1.0", "x86_64", self.root, ROOT,
+                lambda argv, cwd: "changed" if argv[1] == "-Vf" else rpm(argv, cwd),
+            )
+
+    def test_rpm_kernel_and_kernel_metadata_fail_closed(self) -> None:
+        kernel = "6.6.0-test"
+
+        def rpm(argv, _cwd):
+            return "kernel-core\t6.6.0-1\tx86_64" if argv[1] == "-qf" else ""
+
+        observed = EVIDENCE.kernel_provenance(
+            "openeuler-24.03-lts-sp2", "x86_64", kernel,
+            self.root, ROOT, rpm,
+        )
+        self.assertEqual(observed["package_integrity"], "rpm-verified")
+        self.assertEqual(observed["version_signature"], "unavailable")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "RPM metadata"):
+            EVIDENCE.kernel_provenance(
+                "openeuler-24.03-lts-sp2", "x86_64", kernel, self.root, ROOT,
+                lambda argv, cwd: "kernel-core\t6.6.0-1\taarch64" if argv[1] == "-qf" else rpm(argv, cwd),
+            )
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "integrity"):
+            EVIDENCE.kernel_provenance(
+                "openeuler-24.03-lts-sp2", "x86_64", kernel, self.root, ROOT,
+                lambda argv, cwd: "changed" if argv[1] == "-Vf" else rpm(argv, cwd),
+            )
+
+        package = "linux-image-" + kernel
+        info = self.root / "var/lib/dpkg/info"
+        info.mkdir(parents=True, exist_ok=True)
+        (info / f"{package}.md5sums").write_text(
+            "4" * 32 + f"  boot/vmlinuz-{kernel}\n", encoding="utf-8"
+        )
+
+        def dpkg(argv, _cwd):
+            if argv[1] == "-S":
+                return f"{package}: /boot/vmlinuz-{kernel}"
+            return f"{package}\t6.6.0-1\tamd64\tinstall ok installed"
+
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "ownership"):
+            EVIDENCE.kernel_provenance(
+                "ubuntu-24.04", "x86_64", kernel, self.root, ROOT,
+                lambda argv, cwd: "unowned" if argv[1] == "-S" else dpkg(argv, cwd),
+            )
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "metadata"):
+            EVIDENCE.kernel_provenance(
+                "ubuntu-24.04", "x86_64", kernel, self.root, ROOT,
+                lambda argv, cwd: f"{package}\t6.6.0-1\tarm64\tinstall ok installed"
+                if argv[1] == "-W" else dpkg(argv, cwd),
+            )
+        (self.root / "proc/version_signature").write_bytes(b"bad\x00signature")
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "unsafe"):
+            EVIDENCE.kernel_provenance(
+                "ubuntu-24.04", "x86_64", kernel, self.root, ROOT, dpkg
+            )
+
+    def test_sandbox_runtime_and_source_ancestry_fail_closed(self) -> None:
+        observed = self.tool_evidence("ubuntu-24.04", "x86_64", self.root, ROOT, self.probe)
+        with mock.patch.object(EVIDENCE, "sandbox_tool_evidence", return_value=observed), mock.patch.object(
+            EVIDENCE.subprocess, "run", side_effect=OSError("expected")
+        ):
+            self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", "x86_64", self.root, ROOT))
+
+        calls = 0
+
+        def versions_then_scope(argv, **_kwargs):
+            nonlocal calls
+            calls += 1
+            if "--user" in argv:
+                return subprocess.CompletedProcess(argv, 1, "", "")
+            expected = next(item[1] for item in EVIDENCE.SANDBOX_TOOL_PROFILES["ubuntu-24.04"] if item[0] == argv[0])
+            return subprocess.CompletedProcess(argv, 0, expected + "\n", "")
+
+        with mock.patch.object(EVIDENCE, "sandbox_tool_evidence", return_value=observed), mock.patch.object(
+            EVIDENCE.subprocess, "run", side_effect=versions_then_scope
+        ):
+            self.assertFalse(EVIDENCE.sandbox_capable("ubuntu-24.04", "x86_64", self.root, ROOT))
+        self.assertEqual(calls, 5)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "ancestry"):
+            EVIDENCE.source_identity(
+                ROOT, "d" * 40,
+                lambda argv, cwd: "e" * 40 if argv[:2] == ["git", "merge-base"] else self.probe(argv, cwd),
+            )
+
+    def test_atomic_output_rejects_untrusted_roots_and_commit_failure(self) -> None:
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "escapes"):
+            EVIDENCE.write_atomic(self.root.parent / "escape.json", {}, self.root)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "invalid"):
+            EVIDENCE.write_atomic(self.root, {}, self.root)
+        trusted_link = self.root / "trusted-link"
+        trusted_link.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "symlinks"):
+            EVIDENCE.write_atomic(trusted_link / "report.json", {}, trusted_link)
+
+        target = self.root / "commit-failure.json"
+        with mock.patch.object(EVIDENCE.os, "link", side_effect=OSError("expected")), self.assertRaisesRegex(
+            EVIDENCE.EvidenceError, "committed safely"
+        ):
+            EVIDENCE.write_atomic(target, {}, self.root)
+        self.assertFalse(target.exists())
+
     def test_security_modules_are_explicit_and_missing_privilege_is_partial(self) -> None:
         self.assertEqual(
             EVIDENCE.security_module_state(self.root),
