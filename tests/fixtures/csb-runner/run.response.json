@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"run-1","result":{"causal_id":"fixture-1","status":"completed","artifacts":[{"path":"result.json","bytes":32}],"unsupported_metrics":[]}}
