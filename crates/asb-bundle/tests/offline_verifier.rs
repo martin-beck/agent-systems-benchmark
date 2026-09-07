@@ -50,7 +50,7 @@ fn artifact(path: &str, bytes: &[u8], executable: bool) -> BundleArtifact {
         path: path.into(),
         size: bytes.len() as u64,
         sha256: sha256(bytes),
-        executable,
+        mode: if executable { 0o755 } else { 0o644 },
         license_expression: "MIT".into(),
         license_evidence: vec!["LICENSE".into()],
     }
@@ -167,6 +167,8 @@ fn create_fixture() -> Fixture {
     fs::set_permissions(root.join("bin/agent"), fs::Permissions::from_mode(0o755))
         .expect("chmod executable");
     fs::write(root.join("LICENSE"), license).expect("write license");
+    fs::set_permissions(root.join("LICENSE"), fs::Permissions::from_mode(0o644))
+        .expect("chmod license");
     let artifacts = vec![
         artifact("LICENSE", license, false),
         artifact("bin/agent", executable, true),
@@ -350,7 +352,10 @@ fn rejects_manifest_version_bounds_paths_and_reserved_names() {
         |manifest| manifest.spdx.path = manifest.cyclonedx.path.clone(),
         |manifest| manifest.artifacts[0].path = "manifest.json".into(),
         |manifest| manifest.artifacts[0].license_evidence.clear(),
-        |manifest| manifest.artifacts[1].executable = false,
+        |manifest| manifest.artifacts[1].mode = 0o644,
+        |manifest| manifest.artifacts[0].mode = 0o666,
+        |manifest| manifest.artifacts[0].mode = 0o4755,
+        |manifest| manifest.artifacts[0].mode = 0o244,
     ] {
         let fixture = create_fixture();
         rewrite_manifest(&fixture, transform);

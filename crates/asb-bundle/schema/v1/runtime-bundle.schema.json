@@ -71,10 +71,6 @@
       "description": "One regular file in the runtime bundle.",
       "type": "object",
       "properties": {
-        "executable": {
-          "description": "Whether any executable permission bit is set.",
-          "type": "boolean"
-        },
         "license_evidence": {
           "description": "Non-empty inventoried paths containing license evidence.",
           "type": "array",
@@ -89,6 +85,13 @@
           "type": "string",
           "maxLength": 4096,
           "minLength": 1
+        },
+        "mode": {
+          "description": "Exact Unix permission mode, excluding file-type bits.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 511,
+          "minimum": 0
         },
         "path": {
           "description": "Normalized UTF-8 path relative to the bundle root.",
@@ -113,7 +116,7 @@
         "path",
         "size",
         "sha256",
-        "executable",
+        "mode",
         "license_expression",
         "license_evidence"
       ]

@@ -90,8 +90,9 @@ pub struct BundleArtifact {
     /// Lowercase SHA-256 of the file bytes.
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"))]
     pub sha256: String,
-    /// Whether any executable permission bit is set.
-    pub executable: bool,
+    /// Exact Unix permission mode, excluding file-type bits.
+    #[schemars(range(min = 0, max = 511))]
+    pub mode: u32,
     /// SPDX license expression attributed to this file.
     #[schemars(length(min = 1, max = 4096))]
     pub license_expression: String,
@@ -229,10 +230,10 @@ pub fn verify_bundle(
         if size != artifact.size || hash != artifact.sha256 {
             return Err(VerifyError::Content(format!("artifact {path} differs")));
         }
-        let executable = fs::metadata(&full_path)?.permissions().mode() & 0o111 != 0;
-        if executable != artifact.executable {
+        let actual_mode = fs::metadata(&full_path)?.permissions().mode() & 0o7777;
+        if actual_mode != artifact.mode {
             return Err(VerifyError::Content(format!(
-                "artifact {path} executable mode differs"
+                "artifact {path} permission mode differs"
             )));
         }
     }
@@ -321,6 +322,11 @@ fn validate_manifest(
         }
         validate_hash(&artifact.sha256)?;
         bounded_nonempty("license_expression", &artifact.license_expression)?;
+        if artifact.mode > 0o777 || artifact.mode & 0o022 != 0 || artifact.mode & 0o400 == 0 {
+            return Err(VerifyError::Metadata(
+                "artifact mode is writable by another principal, special, or unreadable".into(),
+            ));
+        }
         if prior.is_some_and(|value| value >= artifact.path.as_str()) {
             return Err(VerifyError::Metadata(
                 "artifacts are not strictly path-sorted".into(),
@@ -351,7 +357,7 @@ fn validate_manifest(
         .iter()
         .find(|artifact| artifact.path == manifest.entrypoint)
         .ok_or_else(|| VerifyError::Metadata("entrypoint is not inventoried".into()))?;
-    if !entrypoint.executable {
+    if entrypoint.mode & 0o111 == 0 {
         return Err(VerifyError::Metadata("entrypoint is not executable".into()));
     }
     Ok(())
@@ -649,15 +655,12 @@ fn required_string<'a>(
 
 fn update_content_digest(hasher: &mut Sha256, artifact: &BundleArtifact) {
     let size = artifact.size.to_string();
+    let mode = artifact.mode.to_string();
     for value in [
         artifact.path.as_bytes(),
         size.as_bytes(),
         artifact.sha256.as_bytes(),
-        if artifact.executable {
-            b"1".as_slice()
-        } else {
-            b"0".as_slice()
-        },
+        mode.as_bytes(),
         artifact.license_expression.as_bytes(),
     ] {
         hasher.update((value.len() as u64).to_be_bytes());

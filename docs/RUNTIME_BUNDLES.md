@@ -26,7 +26,7 @@ asb-bundle-verify BUNDLE ALLOWED_SIGNERS PRINCIPAL SSH_KEYGEN SSH_KEYGEN_SHA256 
 
 The verifier performs no network operation. It verifies the signature before accepting manifest
 semantics, requires exact target equality, rejects unknown manifest fields, and then checks the
-complete directory inventory, file sizes/hashes/executable bits, canonical content digest, both
+complete directory inventory, file sizes/hashes/exact safe permission modes, canonical content digest, both
 SBOM hashes, and exact per-file path/hash/license parity. Its output contains only bounded public
 identities and digests; failures never include file contents, signer data, or subprocess output.
 

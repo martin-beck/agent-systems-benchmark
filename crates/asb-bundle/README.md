@@ -8,14 +8,15 @@ license data. The caller must also supply the expected SHA-256 of ssh-keygen, pr
 untrusted replacement executable from certifying arbitrary content.
 
 The signed manifest binds the target OS, architecture, libc family/version, entrypoint, every
-regular payload file, executable bits, per-file license expression/evidence, SPDX 2.3 JSON, and
+regular payload file, exact safe permission mode, per-file license expression/evidence, SPDX 2.3
+JSON, and
 CycloneDX 1.6 JSON. Both SBOMs must describe exactly the same payload paths, hashes, and license
 expressions. Missing, extra, duplicate, reordered, symlinked, non-regular, oversized, or modified
 content fails closed.
 
 The canonical content digest hashes the strictly path-sorted artifacts. For each artifact it
 hashes a big-endian 64-bit byte length followed by the bytes of, in order: path, decimal size,
-lowercase SHA-256, executable marker (0 or 1), and SPDX expression. It then hashes the big-endian
+lowercase SHA-256, decimal Unix mode, and SPDX expression. It then hashes the big-endian
 license-evidence count and the same length-plus-bytes encoding for every evidence path. The
 verifier accepts at most 100,000 artifacts, 64 GiB of declared payload, a 1 MiB manifest and
 signature, and 16 MiB per SBOM.
