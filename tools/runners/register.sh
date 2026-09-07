@@ -7,9 +7,8 @@ require_identity
 require_installation
 test "${ASB_REPOSITORY:-}" = martin-beck/agent-systems-benchmark || die 'repository is not the approved public ASB repository'
 test ! -e "$ASB_RUNNER_ROOT/runner/.runner" || die 'runner is already registered'
-command -v gh >/dev/null 2>&1 || die 'GitHub CLI is required'
-token=$(gh api --method POST "repos/$ASB_REPOSITORY/actions/runners/registration-token" --jq .token)
-test -n "$token" || die 'GitHub did not return a registration token'
+IFS= read -r token || die 'short-lived registration token is required on stdin'
+test -n "$token" || die 'short-lived registration token is empty'
 set +x
 "$ASB_RUNNER_ROOT/runner/config.sh" --url "https://github.com/$ASB_REPOSITORY" --token "$token" --name "$ASB_RUNNER_NAME" --labels "$ASB_RUNNER_LABELS" --work _work --unattended --ephemeral --disableupdate --no-default-labels
 token=

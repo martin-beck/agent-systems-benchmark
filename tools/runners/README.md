@@ -7,7 +7,8 @@ only an unchanged installation with its exact private manifest. `health.sh` and
 `reset.sh` require a current mode-0600 lease and the exact versioned label set.
 
 Registration is an operator-only boundary because GitHub registration material is secret. After
-`setup.sh`, an authorized operator runs `register.sh`; it obtains a short-lived token internally and
+`setup.sh`, an authorized operator requests a short-lived token and pipes it directly to `register.sh`;
+the dedicated service identity never receives the operator's long-lived GitHub credentials. The helper
 invokes the pinned runner with `--unattended --ephemeral --disableupdate --no-default-labels`, the
 single indivisible label from `common.sh`, and the pseudonymous runner name. Never enable tracing,
 persist, or echo the token. The resulting `.runner` file remains private and is not evidence.
