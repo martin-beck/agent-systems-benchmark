@@ -9,3 +9,4 @@ pub mod codex;
 pub mod opencode;
 pub mod opendesk;
 pub mod provider;
+pub mod qwen_code;
