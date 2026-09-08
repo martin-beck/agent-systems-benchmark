@@ -10,6 +10,7 @@ pub mod gemini;
 pub mod goose;
 pub mod mini_swe;
 pub mod ollama;
+pub mod openai;
 pub mod opencode;
 pub mod opendesk;
 pub mod openhands;
