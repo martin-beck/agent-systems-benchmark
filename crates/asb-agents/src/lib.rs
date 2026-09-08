@@ -8,6 +8,7 @@ pub mod accounting;
 pub mod aider;
 pub mod all_agents_provider;
 pub mod codex;
+pub mod credential;
 pub mod gemini;
 pub mod goose;
 pub mod mini_swe;
