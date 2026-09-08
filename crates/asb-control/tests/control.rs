@@ -596,6 +596,7 @@ fn public_response_validation_rejects_sensitive_and_unbounded_values() {
                         run_id: RunId("run-1".into()),
                         attempt_id: AttemptId("attempt-1".into()),
                         state: PublicRunState::Completed,
+                        created_revision: Revision(1),
                         revision: Revision(1),
                         plan_sha256: "a".repeat(64),
                     }),
@@ -640,6 +641,51 @@ fn public_response_validation_rejects_sensitive_and_unbounded_values() {
         .validate(),
         Err(ProtocolError::InvalidIdentity)
     );
+}
+
+#[test]
+fn history_pages_require_immutable_ordered_creation_cursors() {
+    let call = ControlCall::History(PageParams {
+        after: Some(Revision(4)),
+        limit: 2,
+    });
+    let summary = |run: &str, created_revision, revision| RunSummary {
+        run_id: RunId(run.into()),
+        attempt_id: AttemptId(format!("{run}-attempt")),
+        state: PublicRunState::Completed,
+        created_revision: Revision(created_revision),
+        revision: Revision(revision),
+        plan_sha256: "a".repeat(64),
+    };
+    let valid = ControlResult::History(Page {
+        items: vec![summary("run-5", 5, 9), summary("run-6", 6, 8)],
+        next: Some(Revision(6)),
+        has_more: false,
+    });
+    valid.validate_for_call(&call, limits()).unwrap();
+
+    for invalid in [
+        ControlResult::History(Page {
+            items: vec![summary("run-6", 6, 8), summary("run-5", 5, 9)],
+            next: Some(Revision(5)),
+            has_more: false,
+        }),
+        ControlResult::History(Page {
+            items: vec![summary("run-impossible", 10, 9)],
+            next: Some(Revision(10)),
+            has_more: false,
+        }),
+        ControlResult::History(Page {
+            items: vec![summary("run-5", 5, 9)],
+            next: Some(Revision(9)),
+            has_more: false,
+        }),
+    ] {
+        assert_eq!(
+            invalid.validate_for_call(&call, limits()),
+            Err(ProtocolError::InvalidResponse)
+        );
+    }
 }
 
 #[test]

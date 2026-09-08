@@ -511,6 +511,8 @@ pub struct RunSummary {
     pub attempt_id: AttemptId,
     /// State derived from the authoritative journal.
     pub state: PublicRunState,
+    /// Immutable revision at which this run first entered the journal.
+    pub created_revision: Revision,
     /// Durable revision from which this summary was derived.
     pub revision: Revision,
     /// Content digest of the immutable plan.
@@ -753,14 +755,28 @@ impl ControlResult {
                 validate_identity(&value.plan_id)?;
                 validate_digest(&value.plan_sha256)
             }
-            Self::Launch(value) | Self::Status(value) => run(value),
+            Self::Launch(value) | Self::Status(value) => {
+                run(value)?;
+                if value.created_revision > value.revision {
+                    Err(ProtocolError::InvalidResponse)
+                } else {
+                    Ok(())
+                }
+            }
             Self::History(value) => {
                 if value.items.len() > usize::from(limits.validate()?.max_page_items) {
                     return Err(ProtocolError::UnsafePublicValue);
                 }
                 value.items.iter().try_for_each(run)?;
+                if value
+                    .items
+                    .iter()
+                    .any(|item| item.created_revision > item.revision)
+                {
+                    return Err(ProtocolError::InvalidResponse);
+                }
                 validate_page_result(
-                    value.items.iter().map(|item| item.revision),
+                    value.items.iter().map(|item| item.created_revision),
                     value.next,
                     value.has_more,
                     false,
@@ -871,7 +887,7 @@ impl ControlResult {
                 &result
                     .items
                     .iter()
-                    .map(|item| item.revision)
+                    .map(|item| item.created_revision)
                     .collect::<Vec<_>>(),
                 page,
                 false,

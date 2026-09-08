@@ -810,6 +810,10 @@
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
+        "created_revision": {
+          "description": "Immutable revision at which this run first entered the journal.",
+          "$ref": "#/$defs/Revision"
+        },
         "plan_sha256": {
           "description": "Content digest of the immutable plan.",
           "type": "string",
@@ -838,6 +842,7 @@
         "run_id",
         "attempt_id",
         "state",
+        "created_revision",
         "revision",
         "plan_sha256"
       ]
