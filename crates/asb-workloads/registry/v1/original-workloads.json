@@ -1,0 +1,110 @@
+{
+  "format_version": 1,
+  "workloads": [
+    {
+      "workload_id": "original.bug-fix",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"94b7a6fa783b3f54c32dbc9bfc5222de38b54cb24d36710ff0e6aad6ac8ccb20","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"94b7a6fa783b3f54c32dbc9bfc5222de38b54cb24d36710ff0e6aad6ac8ccb20","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"d17b636673cdd690708f4f9be4ddda9f0688a0ea8658964a942830fc15cf3668","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    },
+    {
+      "workload_id": "original.build-repair",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"9794df3a27e68e9801d4fa5a9b82a325a6f33b719ddad8c079cebd7169b355c8","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"9794df3a27e68e9801d4fa5a9b82a325a6f33b719ddad8c079cebd7169b355c8","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"fec3b02b51387dfff1dc1f6f915448167c40cd8cd6ce6deb2f9e15c139b2ea50","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    },
+    {
+      "workload_id": "original.dependency-migration",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"7a420dc9cb44ba6d9030c32ae46cbf1c061aad570531ac009ad4b0bea2313de2","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"7a420dc9cb44ba6d9030c32ae46cbf1c061aad570531ac009ad4b0bea2313de2","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"25f369ed940aafc0d9ee1118f3dc2502d472fd064d6e3c849a048580f6b383a6","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    },
+    {
+      "workload_id": "original.feature-addition",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"cbf407c967bfc761312de71e4f4c0738bd52d3ea5123ba8e1017503bdeb2e32a","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"cbf407c967bfc761312de71e4f4c0738bd52d3ea5123ba8e1017503bdeb2e32a","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"05fc9082b21ddc37dccbcdf52546a17acaf8ab54abd1f1d3c8f23d0ff6da6652","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    },
+    {
+      "workload_id": "original.refactoring",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"f0740206c939e02489e7a733578c546c66080919db8c8db1dfdaf4547f7b289a","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"f0740206c939e02489e7a733578c546c66080919db8c8db1dfdaf4547f7b289a","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"d7b7e5e265ac403eedc0fb796ce24cfdca1dd2c5e03dc9252af1d9f12be8d100","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    },
+    {
+      "workload_id": "original.repository-navigation",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"5003279de5ad96d30cb975212ff2c8b1bf8562061784f035657004991bdf286e","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"5003279de5ad96d30cb975212ff2c8b1bf8562061784f035657004991bdf286e","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"21f2e0cfb72c3bb848506b55e15c795c244f60f4dc55d7cc5fce7f596121de0d","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    },
+    {
+      "workload_id": "original.test-generation",
+      "version": "1.0.0",
+      "source": {"kind":"built_in","locator":"builtin:asb-original-v1","revision":"asb-original-v1","license":"MIT","content_sha256":"4327553375326216a3f3828a74e72281429bf1937fdf6a6d0bfd2845652928d9","verified_on":"2026-09-06"},
+      "split": {"name":"public-original-v1","selection_sha256":"4327553375326216a3f3828a74e72281429bf1937fdf6a6d0bfd2845652928d9","instance_count":1},
+      "baseline": {"scoring_version":"asb-original-oracle-v1","reference_artifact_sha256":"efd7dd3abfb75598ad1477e4b1e21187700d2d221198dfd42730021cf67a9d02","reference_passed":true,"counterexamples_rejected":2,"counterexamples_total":2},
+      "dependencies": [],
+      "exposure": {"status":"public","first_public_on":"2026-09-06","holdout_set_sha256":null},
+      "portability": [
+        {"platform_id":"ubuntu-24.04","architecture":"aarch64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."},
+        {"platform_id":"ubuntu-24.04","architecture":"x86_64","status":"planned","adaptation":"none","adaptation_sha256":null,"semantic_parity_sha256":null,"evidence":null,"limitation":"Canonical grader CI is not native workload qualification."}
+      ],
+      "performance_calibrations": [],
+      "limitations": ["Public original fixture; no holdout or contamination-resistance claim.","Canonical grader only; no fixture-language or native-platform execution claim."]
+    }
+  ]
+}

@@ -50,3 +50,24 @@ development volume. If it is absent, tests use an absolute `CARGO_TARGET_DIR`
 subdirectory when configured, or the operating system's temporary directory for
 portable external builds. Relative configured scratch or target paths fail closed;
 each attempt remains uniquely named and successful cleanup removes its attempt root.
+
+## Validity and portability registry
+
+`registry/v1/original-workloads.json` is the closed, bounded v1 validity registry.
+Its generated JSON Schema is checked structurally against the Rust types, while
+runtime validation enforces relationships JSON Schema cannot express. Each exact
+workload revision records source, license, content and split digests, public-versus-
+holdout policy, scorer/reference/counterexample evidence, direct pins, limitations,
+and explicit platform/architecture cells.
+
+Platform states are deliberately not inferred. `native-tested` requires a public run,
+artifact digest, date, and exact booted kernel; simulated evidence cannot carry a guest
+native claim. Any rebuilt, translated, or filtered workload requires both adaptation
+and semantic-parity digests. Performance thresholds require a host-class digest,
+paired sample count, uncertainty, and evidence artifact for a declared platform cell.
+The initial public fixtures remain `planned` on both Ubuntu architectures: native CI
+of the Rust canonical grader does not execute each fixture language and therefore is
+not native workload qualification. Their empty performance-calibration lists mean no
+speedup or host-performance claim. Public tasks make no holdout or contamination-
+resistance claim; imported suites must add their own pinned licenses, dependency
+artifacts, exposure policy, adaptations, and qualification evidence.

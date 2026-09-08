@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: MIT
 //! Offline, bounded original engineering workloads and protected graders.
 
+mod validity;
+
+pub use validity::{
+    AdaptationKind, BaselineEvidence, BenchmarkValidityRegistry, DependencyPin, ExposurePolicy,
+    ExposureStatus, MAX_NESTED_ENTRIES, MAX_PUBLIC_TEXT_BYTES, MAX_REGISTRY_BYTES,
+    MAX_REGISTRY_ENTRIES, PerformanceCalibration, PlatformEvidence, PortabilityRecord,
+    PortabilityStatus, RegistryError, SourceKind, SourceProvenance, SplitProvenance,
+    WorkloadValidity,
+};
+
 use asb_protocol::{Id, WorkloadManifest};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};

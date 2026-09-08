@@ -40,3 +40,19 @@ Published x86 images do not imply native arm64 support. Rebuilt arm64 tasks need
 oracle parity evidence; otherwise show an unsupported matrix cell.
 Retain original benchmark rules and label every adaptation and excluded instance.
 Do not combine incompatible scores into an unqualified global ranking.
+
+## Validity registry contract
+
+The machine-checked registry in `crates/asb-workloads/registry/v1` binds validity to
+an exact workload content and scorer revision. It records acquisition provenance,
+SPDX license, split selection, baseline evidence, exposure or salted holdout-set
+identity, dependency pins, disclosed adaptations, platform status, limitations, and
+optional host-local performance calibration. Missing evidence stays `planned`; a
+container, cross-build, or simulated run never becomes `native-tested`.
+
+Native evidence is bound to platform ID, architecture, booted kernel, public run ID,
+date, and artifact digest. Adapted workloads require separately content-addressed
+semantic-parity evidence. A speedup threshold is valid only for its opaque host class
+and paired uncertainty evidence; thresholds do not transfer silently between hosts.
+The checked-in original suite is fully public and has no holdout, contamination-
+resistance, native workload, or performance claim.
