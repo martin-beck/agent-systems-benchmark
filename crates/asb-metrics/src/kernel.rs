@@ -499,6 +499,26 @@ mod tests {
             .unwrap()
         }
 
+        fn malformed_tool(&self) -> PinnedTool {
+            let path = self.0.join("malformed-tool");
+            let bytes = b"#!/bin/sh\nif [ \"$1\" = \"--list\" ]; then\n  printf '%s\\n' fixture-v1\nelse\n  printf '%s\\n' synthetic-unparseable\nfi\n";
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o500)
+                .open(&path)
+                .unwrap()
+                .write_all(bytes)
+                .unwrap();
+            PinnedTool::new(
+                path,
+                format!("{:x}", Sha256::digest(bytes)),
+                "--list".into(),
+                "fixture-v1".into(),
+            )
+            .unwrap()
+        }
+
         fn staged_for_cleanup(&self) -> StagedTool {
             let directory = unique_directory(&self.0);
             fs::create_dir(&directory).unwrap();
@@ -679,7 +699,7 @@ mod tests {
 
         assert_eq!(
             diagnostics.run(
-                &root.harness_tool(),
+                &root.malformed_tool(),
                 &[
                     "--ignored".into(),
                     "--exact".into(),
@@ -690,6 +710,7 @@ mod tests {
             ),
             ProbeResult::unavailable_reason(UnavailableReason::MalformedEvidence)
         );
+        fs::remove_file(root.0.join("malformed-tool")).unwrap();
         root.assert_clean();
 
         let public = std::env::temp_dir();
