@@ -5,10 +5,12 @@
 #![deny(missing_docs)]
 
 mod comparison;
+mod economics;
 mod reliability;
 mod scoring;
 
 pub use comparison::*;
+pub use economics::*;
 pub use reliability::*;
 pub use scoring::*;
 

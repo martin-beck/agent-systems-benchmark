@@ -1,0 +1,4 @@
+id	quality_millionths	latency_ns	resource_units	cost_micros	expected_frontier
+reference	900000	10	10	10	true
+dominated	800000	12	12	12	false
+quality	950000	20	20	20	true
