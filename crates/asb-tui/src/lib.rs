@@ -4,7 +4,12 @@
 #![deny(missing_docs)]
 //! Capability-driven state for the independent settings wizard.
 
-use asb_control::{Capabilities, ControlCall, MutationParams};
+use asb_control::{
+    CancelParams, Capabilities, ControlCall, ControlEvent, ControlEventKind, ControlLimits,
+    ControlResult, LaunchParams, MutationAcknowledgement, MutationParams, Page, PageParams,
+    PlanReference, PublicRunState, Revision, RunSummary, validate_digest, validate_idempotency_key,
+    validate_identity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -96,6 +101,376 @@ pub enum WizardError {
     ValidationUnavailable,
     /// Explicit plan confirmation did not match.
     ConfirmationRequired,
+}
+
+/// Maximum event page requested by the terminal frontend.
+pub const RUN_EVENT_PAGE_ITEMS: u16 = 128;
+
+/// Observable launch lifecycle. An acknowledgement is not a terminal outcome.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RunControlPhase {
+    /// A validated plan may be launched after explicit confirmation.
+    Ready,
+    /// One launch request has been emitted and must not be duplicated.
+    LaunchPending,
+    /// The runner returned the durable run and exact attempt identity.
+    Following,
+    /// A causally fenced cancellation request awaits runner truth.
+    CancelPending,
+    /// The authoritative runner state is terminal.
+    Terminal(PublicRunState),
+}
+
+/// Privacy-safe run-control model error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RunControlError {
+    /// A public identity or idempotency key is malformed.
+    InvalidIdentity,
+    /// The requested transition is not valid from the current phase.
+    InvalidTransition,
+    /// Explicit launch confirmation did not match.
+    ConfirmationRequired,
+    /// A response refers to another run or attempt.
+    IdentityMismatch,
+    /// An authoritative revision moved backward, skipped, or was compacted.
+    StaleProjection,
+    /// The runner did not durably accept a mutation.
+    NotAcknowledged,
+}
+
+impl fmt::Display for RunControlError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::InvalidIdentity => "run-control identity is invalid",
+            Self::InvalidTransition => "run-control transition is invalid",
+            Self::ConfirmationRequired => "explicit launch confirmation is required",
+            Self::IdentityMismatch => "runner identity does not match",
+            Self::StaleProjection => "runner projection requires refresh",
+            Self::NotAcknowledged => "runner mutation was not acknowledged",
+        })
+    }
+}
+impl std::error::Error for RunControlError {}
+
+/// Reconnectable frontend projection over the runner-owned lifecycle.
+pub struct RunControl {
+    plan_id: String,
+    plan_sha256: String,
+    launch_key: String,
+    phase: RunControlPhase,
+    summary: Option<RunSummary>,
+    cursor: Option<Revision>,
+    limits: ControlLimits,
+}
+
+impl RunControl {
+    /// Create a launch controller for one immutable validated plan.
+    pub fn new(
+        plan: PlanReference,
+        launch_key: String,
+        limits: ControlLimits,
+    ) -> Result<Self, RunControlError> {
+        if validate_identity(&plan.plan_id).is_err()
+            || validate_digest(&plan.plan_sha256).is_err()
+            || validate_idempotency_key(&launch_key).is_err()
+            || limits.validate().is_err()
+        {
+            return Err(RunControlError::InvalidIdentity);
+        }
+        Ok(Self {
+            plan_id: plan.plan_id,
+            plan_sha256: plan.plan_sha256,
+            launch_key,
+            phase: RunControlPhase::Ready,
+            summary: None,
+            cursor: None,
+            limits,
+        })
+    }
+
+    /// Restore a frontend projection after restart without repeating launch.
+    pub fn reconnect(
+        summary: RunSummary,
+        cursor: Option<Revision>,
+        limits: ControlLimits,
+    ) -> Result<Self, RunControlError> {
+        if !valid_summary_identity(&summary)
+            || cursor.is_some_and(|revision| revision < summary.created_revision)
+            || limits.validate().is_err()
+        {
+            return Err(RunControlError::StaleProjection);
+        }
+        Ok(Self {
+            plan_id: String::new(),
+            plan_sha256: summary.plan_sha256.clone(),
+            launch_key: String::new(),
+            phase: terminal_phase(summary.state).unwrap_or(RunControlPhase::Following),
+            summary: Some(summary),
+            cursor,
+            limits,
+        })
+    }
+
+    /// Current locally observed phase, always subordinate to runner responses.
+    pub const fn phase(&self) -> RunControlPhase {
+        self.phase
+    }
+
+    /// Latest authoritative public run summary, if launch has been acknowledged.
+    pub fn summary(&self) -> Option<&RunSummary> {
+        self.summary.as_ref()
+    }
+
+    /// Emit at most one launch request after exact confirmation.
+    pub fn launch(&mut self, confirmation: &str) -> Result<ControlCall, RunControlError> {
+        if self.phase != RunControlPhase::Ready {
+            return Err(RunControlError::InvalidTransition);
+        }
+        if confirmation != "launch run" {
+            return Err(RunControlError::ConfirmationRequired);
+        }
+        self.phase = RunControlPhase::LaunchPending;
+        Ok(ControlCall::Launch(LaunchParams {
+            idempotency_key: self.launch_key.clone(),
+            plan_id: self.plan_id.clone(),
+        }))
+    }
+
+    /// Bind the durable launch result before following status or events.
+    pub fn accept_launch(&mut self, summary: RunSummary) -> Result<(), RunControlError> {
+        if self.phase != RunControlPhase::LaunchPending || !valid_summary_identity(&summary) {
+            return Err(RunControlError::InvalidTransition);
+        }
+        if summary.plan_sha256 != self.plan_sha256 {
+            return Err(RunControlError::IdentityMismatch);
+        }
+        self.cursor = Some(summary.revision);
+        self.phase = terminal_phase(summary.state).unwrap_or(RunControlPhase::Following);
+        self.summary = Some(summary);
+        Ok(())
+    }
+
+    /// Build an authoritative status refresh after reconnect.
+    pub fn status_call(&self) -> Result<ControlCall, RunControlError> {
+        let summary = self
+            .summary
+            .as_ref()
+            .ok_or(RunControlError::InvalidTransition)?;
+        Ok(ControlCall::Status {
+            run_id: summary.run_id.clone(),
+        })
+    }
+
+    /// Resume bounded public events from the last contiguous durable revision.
+    pub fn events_call(&self) -> Result<ControlCall, RunControlError> {
+        if self.summary.is_none() {
+            return Err(RunControlError::InvalidTransition);
+        }
+        Ok(ControlCall::Events(PageParams {
+            after: self.cursor,
+            limit: RUN_EVENT_PAGE_ITEMS.min(self.limits.max_page_items),
+        }))
+    }
+
+    /// Accept a non-regressing authoritative status for the exact run and attempt.
+    pub fn accept_status(&mut self, next: RunSummary) -> Result<(), RunControlError> {
+        let current = self
+            .summary
+            .as_ref()
+            .ok_or(RunControlError::InvalidTransition)?;
+        if next.run_id != current.run_id
+            || next.attempt_id != current.attempt_id
+            || next.created_revision != current.created_revision
+            || next.plan_sha256 != current.plan_sha256
+        {
+            return Err(RunControlError::IdentityMismatch);
+        }
+        if next.revision < current.revision
+            || (next.revision == current.revision && next != *current)
+            || (next.revision > current.revision
+                && !valid_status_transition(current.state, next.state))
+        {
+            return Err(RunControlError::StaleProjection);
+        }
+        self.cursor = Some(
+            self.cursor
+                .map_or(next.revision, |cursor| cursor.max(next.revision)),
+        );
+        self.phase = terminal_phase(next.state).unwrap_or_else(|| {
+            if self.phase == RunControlPhase::CancelPending {
+                RunControlPhase::CancelPending
+            } else {
+                RunControlPhase::Following
+            }
+        });
+        self.summary = Some(next);
+        Ok(())
+    }
+
+    /// Advance only through a contiguous page for this exact run and attempt.
+    pub fn accept_events(&mut self, page: Page<ControlEvent>) -> Result<(), RunControlError> {
+        if ControlResult::Events(page.clone())
+            .validate(self.limits)
+            .is_err()
+        {
+            return Err(RunControlError::StaleProjection);
+        }
+        let summary = self
+            .summary
+            .as_ref()
+            .ok_or(RunControlError::InvalidTransition)?;
+        let mut expected = match self.cursor {
+            Some(Revision(u64::MAX)) if !page.items.is_empty() => {
+                return Err(RunControlError::StaleProjection);
+            }
+            Some(revision) => revision.0.checked_add(1),
+            None => None,
+        };
+        let mut projected = (summary.state, summary.revision);
+        for (index, event) in page.items.iter().enumerate() {
+            if expected.is_some_and(|value| event.revision.0 != value) {
+                return Err(RunControlError::StaleProjection);
+            }
+            let matches_followed_run = event.run_id.as_ref() == Some(&summary.run_id)
+                && event.attempt_id.as_ref() == Some(&summary.attempt_id);
+            if matches_followed_run {
+                if let Some(next_state) = event_state(event.kind) {
+                    if !valid_status_transition(projected.0, next_state) {
+                        return Err(RunControlError::StaleProjection);
+                    }
+                    projected = (next_state, event.revision);
+                } else if terminal_phase(projected.0).is_some() {
+                    return Err(RunControlError::StaleProjection);
+                }
+            }
+            expected = event.revision.0.checked_add(1);
+            if expected.is_none() && index + 1 != page.items.len() {
+                return Err(RunControlError::StaleProjection);
+            }
+        }
+        let observed = page.items.last().map(|event| event.revision);
+        if page.next != observed {
+            return Err(RunControlError::StaleProjection);
+        }
+        if let Some(next) = page.next {
+            self.cursor = Some(next);
+        }
+        if projected != (summary.state, summary.revision) {
+            self.phase = terminal_phase(projected.0).unwrap_or_else(|| {
+                if self.phase == RunControlPhase::CancelPending {
+                    RunControlPhase::CancelPending
+                } else {
+                    RunControlPhase::Following
+                }
+            });
+            if let Some(summary) = self.summary.as_mut() {
+                summary.state = projected.0;
+                summary.revision = projected.1;
+            }
+        }
+        Ok(())
+    }
+
+    /// Emit one cancellation request fenced to the exact current attempt.
+    pub fn cancel(&mut self, idempotency_key: String) -> Result<ControlCall, RunControlError> {
+        if self.phase != RunControlPhase::Following
+            || validate_idempotency_key(&idempotency_key).is_err()
+        {
+            return Err(RunControlError::InvalidTransition);
+        }
+        let summary = self
+            .summary
+            .as_ref()
+            .ok_or(RunControlError::InvalidTransition)?;
+        self.phase = RunControlPhase::CancelPending;
+        Ok(ControlCall::Cancel(CancelParams {
+            run_id: summary.run_id.clone(),
+            attempt_id: summary.attempt_id.clone(),
+            idempotency_key,
+        }))
+    }
+
+    /// Record durable mutation acceptance without inventing terminal state.
+    pub fn accept_cancel(
+        &mut self,
+        acknowledgement: MutationAcknowledgement,
+    ) -> Result<(), RunControlError> {
+        if self.phase != RunControlPhase::CancelPending {
+            return Err(RunControlError::InvalidTransition);
+        }
+        if !acknowledgement.accepted {
+            return Err(RunControlError::NotAcknowledged);
+        }
+        Ok(())
+    }
+}
+
+fn valid_summary_identity(summary: &RunSummary) -> bool {
+    validate_identity(&summary.run_id.0).is_ok()
+        && validate_identity(&summary.attempt_id.0).is_ok()
+        && validate_digest(&summary.plan_sha256).is_ok()
+        && summary.created_revision <= summary.revision
+}
+
+const fn terminal_phase(state: PublicRunState) -> Option<RunControlPhase> {
+    match state {
+        PublicRunState::Completed
+        | PublicRunState::Failed
+        | PublicRunState::Cancelled
+        | PublicRunState::NeedsReconciliation => Some(RunControlPhase::Terminal(state)),
+        _ => None,
+    }
+}
+
+const fn event_state(kind: ControlEventKind) -> Option<PublicRunState> {
+    match kind {
+        ControlEventKind::RunStarted => Some(PublicRunState::Running),
+        ControlEventKind::RunCompleted => Some(PublicRunState::Completed),
+        ControlEventKind::RunFailed => Some(PublicRunState::Failed),
+        ControlEventKind::RunCancelled => Some(PublicRunState::Cancelled),
+        ControlEventKind::ReconciliationRequired => Some(PublicRunState::NeedsReconciliation),
+        ControlEventKind::RunnerReady
+        | ControlEventKind::PlanCreated
+        | ControlEventKind::RunUpdated => None,
+    }
+}
+
+fn valid_status_transition(from: PublicRunState, to: PublicRunState) -> bool {
+    if from == to {
+        return true;
+    }
+    matches!(
+        (from, to),
+        (
+            PublicRunState::Planned,
+            PublicRunState::Prepared
+                | PublicRunState::Running
+                | PublicRunState::Collecting
+                | PublicRunState::Completed
+                | PublicRunState::Failed
+                | PublicRunState::Cancelled
+        ) | (
+            PublicRunState::Prepared,
+            PublicRunState::Running
+                | PublicRunState::Collecting
+                | PublicRunState::Completed
+                | PublicRunState::Failed
+                | PublicRunState::Cancelled
+        ) | (
+            PublicRunState::Running,
+            PublicRunState::Collecting
+                | PublicRunState::Completed
+                | PublicRunState::Failed
+                | PublicRunState::Cancelled
+        ) | (
+            PublicRunState::Collecting,
+            PublicRunState::Completed | PublicRunState::Failed | PublicRunState::Cancelled
+        ) | (_, PublicRunState::NeedsReconciliation)
+            | (
+                PublicRunState::NeedsReconciliation,
+                PublicRunState::Completed | PublicRunState::Failed | PublicRunState::Cancelled
+            )
+    )
 }
 
 impl fmt::Display for WizardError {
@@ -382,6 +757,31 @@ fn validate(c: &WizardCatalog, s: &WizardSettings, complete: bool) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_control::{AttemptId, RunId};
+    fn plan_reference() -> PlanReference {
+        PlanReference {
+            plan_id: "plan:1".into(),
+            plan_sha256: "c".repeat(64),
+        }
+    }
+    fn control_limits(max_page_items: u16) -> ControlLimits {
+        ControlLimits {
+            max_frame_bytes: 65_536,
+            max_timeout_ms: 1_000,
+            max_page_items,
+            max_in_flight: 4,
+        }
+    }
+    fn run_summary(revision: u64, state: PublicRunState) -> RunSummary {
+        RunSummary {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+            state,
+            created_revision: Revision(4),
+            revision: Revision(revision),
+            plan_sha256: "c".repeat(64),
+        }
+    }
     fn catalog() -> WizardCatalog {
         WizardCatalog {
             control: Capabilities {
@@ -501,5 +901,468 @@ mod tests {
         assert!(!rendered.contains(&"b".repeat(64)));
         assert!(rendered.contains("matching replay"));
         assert!(w.import_json(&vec![b'x'; 65_537]).is_err());
+    }
+
+    #[test]
+    fn launch_is_confirmed_once_and_returns_durable_identity_before_following() {
+        let mut control =
+            RunControl::new(plan_reference(), "launch:1".into(), control_limits(128)).unwrap();
+        assert_eq!(
+            control.launch("yes").unwrap_err(),
+            RunControlError::ConfirmationRequired
+        );
+        assert!(matches!(
+            control.launch("launch run").unwrap(),
+            ControlCall::Launch(LaunchParams { plan_id, .. }) if plan_id == "plan:1"
+        ));
+        assert_eq!(
+            control.launch("launch run").unwrap_err(),
+            RunControlError::InvalidTransition
+        );
+        let mut wrong_plan = run_summary(5, PublicRunState::Running);
+        wrong_plan.plan_sha256 = "d".repeat(64);
+        assert_eq!(
+            control.accept_launch(wrong_plan).unwrap_err(),
+            RunControlError::IdentityMismatch
+        );
+        control
+            .accept_launch(run_summary(5, PublicRunState::Running))
+            .unwrap();
+        assert_eq!(control.phase(), RunControlPhase::Following);
+        assert!(matches!(
+            control.status_call(),
+            Ok(ControlCall::Status { .. })
+        ));
+        assert_eq!(
+            control.events_call().unwrap(),
+            ControlCall::Events(PageParams {
+                after: Some(Revision(5)),
+                limit: RUN_EVENT_PAGE_ITEMS,
+            })
+        );
+    }
+
+    #[test]
+    fn cancellation_acknowledgement_never_fabricates_terminal_state() {
+        let mut control =
+            RunControl::new(plan_reference(), "launch-1".into(), control_limits(128)).unwrap();
+        control.launch("launch run").unwrap();
+        control
+            .accept_launch(run_summary(5, PublicRunState::Running))
+            .unwrap();
+        assert!(matches!(
+            control.cancel("cancel-1".into()).unwrap(),
+            ControlCall::Cancel(CancelParams { run_id, attempt_id, .. })
+                if run_id == RunId("run-1".into())
+                    && attempt_id == AttemptId("attempt-1".into())
+        ));
+        control
+            .accept_cancel(MutationAcknowledgement { accepted: true })
+            .unwrap();
+        assert_eq!(control.phase(), RunControlPhase::CancelPending);
+        control
+            .accept_status(run_summary(6, PublicRunState::Completed))
+            .unwrap();
+        assert_eq!(
+            control.phase(),
+            RunControlPhase::Terminal(PublicRunState::Completed)
+        );
+        assert_eq!(
+            control.summary().map(|summary| summary.state),
+            Some(PublicRunState::Completed)
+        );
+    }
+
+    #[test]
+    fn reconnect_rejects_event_loss_stale_status_and_other_attempts() {
+        let mut control =
+            RunControl::new(plan_reference(), "launch-1".into(), control_limits(128)).unwrap();
+        control.launch("launch run").unwrap();
+        control
+            .accept_launch(run_summary(5, PublicRunState::Running))
+            .unwrap();
+        let event = ControlEvent {
+            revision: Revision(7),
+            kind: ControlEventKind::RunUpdated,
+            run_id: Some(RunId("run-1".into())),
+            attempt_id: Some(AttemptId("attempt-1".into())),
+        };
+        assert_eq!(
+            control
+                .accept_events(Page {
+                    items: vec![event],
+                    next: Some(Revision(7)),
+                    has_more: false,
+                })
+                .unwrap_err(),
+            RunControlError::StaleProjection
+        );
+        let mut stale = run_summary(4, PublicRunState::Running);
+        stale.created_revision = Revision(3);
+        assert_eq!(
+            control.accept_status(stale).unwrap_err(),
+            RunControlError::IdentityMismatch
+        );
+        let mut other = run_summary(6, PublicRunState::Running);
+        other.attempt_id = AttemptId("attempt-2".into());
+        assert_eq!(
+            control.accept_status(other).unwrap_err(),
+            RunControlError::IdentityMismatch
+        );
+        let same_revision_change = run_summary(5, PublicRunState::Collecting);
+        assert_eq!(
+            control.accept_status(same_revision_change).unwrap_err(),
+            RunControlError::StaleProjection
+        );
+        let mut drifted_plan = run_summary(6, PublicRunState::Running);
+        drifted_plan.plan_sha256 = "d".repeat(64);
+        assert_eq!(
+            control.accept_status(drifted_plan).unwrap_err(),
+            RunControlError::IdentityMismatch
+        );
+        control
+            .accept_events(Page {
+                items: vec![ControlEvent {
+                    revision: Revision(6),
+                    kind: ControlEventKind::RunUpdated,
+                    run_id: Some(RunId("run-1".into())),
+                    attempt_id: Some(AttemptId("attempt-1".into())),
+                }],
+                next: Some(Revision(6)),
+                has_more: false,
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn restart_resumes_without_launch_and_terminal_events_are_not_optimistic() {
+        let summary = run_summary(5, PublicRunState::Running);
+        let mut control =
+            RunControl::reconnect(summary, Some(Revision(5)), control_limits(128)).unwrap();
+        assert_eq!(
+            control.launch("launch run").unwrap_err(),
+            RunControlError::InvalidTransition
+        );
+        control
+            .accept_events(Page {
+                items: vec![
+                    ControlEvent {
+                        revision: Revision(6),
+                        kind: ControlEventKind::RunCancelled,
+                        run_id: Some(RunId("run-1".into())),
+                        attempt_id: Some(AttemptId("attempt-1".into())),
+                    },
+                    ControlEvent {
+                        revision: Revision(7),
+                        kind: ControlEventKind::RunUpdated,
+                        run_id: Some(RunId("run-2".into())),
+                        attempt_id: Some(AttemptId("attempt-2".into())),
+                    },
+                ],
+                next: Some(Revision(7)),
+                has_more: true,
+            })
+            .unwrap();
+        assert_eq!(
+            control.phase(),
+            RunControlPhase::Terminal(PublicRunState::Cancelled)
+        );
+        assert_eq!(control.summary().unwrap().revision, Revision(6));
+        assert_eq!(
+            control.events_call().unwrap(),
+            ControlCall::Events(PageParams {
+                after: Some(Revision(7)),
+                limit: RUN_EVENT_PAGE_ITEMS,
+            })
+        );
+    }
+
+    #[test]
+    fn event_pages_and_cancellation_races_remain_bounded_and_fail_closed() {
+        let mut control = RunControl::reconnect(
+            run_summary(5, PublicRunState::Running),
+            Some(Revision(5)),
+            control_limits(128),
+        )
+        .unwrap();
+        control
+            .accept_events(Page {
+                items: Vec::new(),
+                next: None,
+                has_more: false,
+            })
+            .unwrap();
+        assert!(matches!(
+            control.events_call(),
+            Ok(ControlCall::Events(PageParams {
+                after: Some(Revision(5)),
+                ..
+            }))
+        ));
+        assert_eq!(
+            control
+                .accept_events(Page {
+                    items: (0..=RUN_EVENT_PAGE_ITEMS)
+                        .map(|offset| ControlEvent {
+                            revision: Revision(6 + u64::from(offset)),
+                            kind: ControlEventKind::RunUpdated,
+                            run_id: Some(RunId("run-1".into())),
+                            attempt_id: Some(AttemptId("attempt-1".into())),
+                        })
+                        .collect(),
+                    next: Some(Revision(6 + u64::from(RUN_EVENT_PAGE_ITEMS))),
+                    has_more: false,
+                })
+                .unwrap_err(),
+            RunControlError::StaleProjection
+        );
+        control.cancel("cancel-1".into()).unwrap();
+        assert_eq!(
+            control.cancel("cancel-2".into()).unwrap_err(),
+            RunControlError::InvalidTransition
+        );
+        assert_eq!(
+            control
+                .accept_cancel(MutationAcknowledgement { accepted: false })
+                .unwrap_err(),
+            RunControlError::NotAcknowledged
+        );
+        control
+            .accept_status(run_summary(6, PublicRunState::Running))
+            .unwrap();
+        assert_eq!(control.phase(), RunControlPhase::CancelPending);
+        let mut exhausted = RunControl::reconnect(
+            run_summary(u64::MAX, PublicRunState::Running),
+            Some(Revision(u64::MAX)),
+            control_limits(128),
+        )
+        .unwrap();
+        assert_eq!(
+            exhausted
+                .accept_events(Page {
+                    items: vec![ControlEvent {
+                        revision: Revision(u64::MAX),
+                        kind: ControlEventKind::RunUpdated,
+                        run_id: Some(RunId("run-1".into())),
+                        attempt_id: Some(AttemptId("attempt-1".into())),
+                    }],
+                    next: Some(Revision(u64::MAX)),
+                    has_more: false,
+                })
+                .unwrap_err(),
+            RunControlError::StaleProjection
+        );
+    }
+
+    #[test]
+    fn lifecycle_regressions_and_reconciliation_are_not_presented_as_running() {
+        let mut control = RunControl::reconnect(
+            run_summary(5, PublicRunState::Running),
+            Some(Revision(5)),
+            control_limits(128),
+        )
+        .unwrap();
+        assert_eq!(
+            control
+                .accept_status(run_summary(6, PublicRunState::Prepared))
+                .unwrap_err(),
+            RunControlError::StaleProjection
+        );
+        control
+            .accept_events(Page {
+                items: vec![ControlEvent {
+                    revision: Revision(6),
+                    kind: ControlEventKind::ReconciliationRequired,
+                    run_id: Some(RunId("run-1".into())),
+                    attempt_id: Some(AttemptId("attempt-1".into())),
+                }],
+                next: Some(Revision(6)),
+                has_more: false,
+            })
+            .unwrap();
+        assert_eq!(
+            control.phase(),
+            RunControlPhase::Terminal(PublicRunState::NeedsReconciliation)
+        );
+        assert_eq!(
+            control.cancel("cancel-2".into()).unwrap_err(),
+            RunControlError::InvalidTransition
+        );
+    }
+
+    #[test]
+    fn snapshots_events_and_negotiated_pages_preserve_runner_truth() {
+        let mut running = RunControl::reconnect(
+            run_summary(5, PublicRunState::Running),
+            Some(Revision(5)),
+            control_limits(128),
+        )
+        .unwrap();
+        running
+            .accept_status(run_summary(7, PublicRunState::Completed))
+            .unwrap();
+        assert_eq!(
+            running.phase(),
+            RunControlPhase::Terminal(PublicRunState::Completed)
+        );
+
+        let mut prepared = RunControl::reconnect(
+            run_summary(5, PublicRunState::Prepared),
+            Some(Revision(5)),
+            control_limits(7),
+        )
+        .unwrap();
+        assert_eq!(
+            prepared.events_call().unwrap(),
+            ControlCall::Events(PageParams {
+                after: Some(Revision(5)),
+                limit: 7,
+            })
+        );
+        for malformed in [
+            ControlEvent {
+                revision: Revision(6),
+                kind: ControlEventKind::RunCompleted,
+                run_id: None,
+                attempt_id: None,
+            },
+            ControlEvent {
+                revision: Revision(6),
+                kind: ControlEventKind::RunnerReady,
+                run_id: Some(RunId("run-1".into())),
+                attempt_id: Some(AttemptId("attempt-1".into())),
+            },
+        ] {
+            assert_eq!(
+                prepared
+                    .accept_events(Page {
+                        items: vec![malformed],
+                        next: Some(Revision(6)),
+                        has_more: false,
+                    })
+                    .unwrap_err(),
+                RunControlError::StaleProjection
+            );
+            assert!(matches!(
+                prepared.events_call(),
+                Ok(ControlCall::Events(PageParams {
+                    after: Some(Revision(5)),
+                    ..
+                }))
+            ));
+        }
+        let too_large = (0_u64..8)
+            .map(|offset| ControlEvent {
+                revision: Revision(6 + offset),
+                kind: ControlEventKind::RunUpdated,
+                run_id: Some(RunId("run-2".into())),
+                attempt_id: Some(AttemptId("attempt-2".into())),
+            })
+            .collect();
+        assert_eq!(
+            prepared
+                .accept_events(Page {
+                    items: too_large,
+                    next: Some(Revision(13)),
+                    has_more: false,
+                })
+                .unwrap_err(),
+            RunControlError::StaleProjection
+        );
+        prepared
+            .accept_status(run_summary(8, PublicRunState::Completed))
+            .unwrap();
+        assert_eq!(
+            prepared.phase(),
+            RunControlPhase::Terminal(PublicRunState::Completed)
+        );
+    }
+
+    #[test]
+    fn post_terminal_corruption_converges_only_at_a_newer_revision() {
+        let terminal = run_summary(5, PublicRunState::Completed);
+        let mut status_control =
+            RunControl::reconnect(terminal.clone(), Some(Revision(5)), control_limits(128))
+                .unwrap();
+        assert_eq!(
+            status_control
+                .accept_status(run_summary(5, PublicRunState::NeedsReconciliation))
+                .unwrap_err(),
+            RunControlError::StaleProjection
+        );
+        status_control
+            .accept_status(run_summary(6, PublicRunState::NeedsReconciliation))
+            .unwrap();
+        assert_eq!(
+            status_control.phase(),
+            RunControlPhase::Terminal(PublicRunState::NeedsReconciliation)
+        );
+
+        let mut event_control =
+            RunControl::reconnect(terminal, Some(Revision(5)), control_limits(128)).unwrap();
+        for kind in [ControlEventKind::RunFailed, ControlEventKind::RunUpdated] {
+            assert_eq!(
+                event_control
+                    .accept_events(Page {
+                        items: vec![ControlEvent {
+                            revision: Revision(6),
+                            kind,
+                            run_id: Some(RunId("run-1".into())),
+                            attempt_id: Some(AttemptId("attempt-1".into())),
+                        }],
+                        next: Some(Revision(6)),
+                        has_more: false,
+                    })
+                    .unwrap_err(),
+                RunControlError::StaleProjection
+            );
+            assert_eq!(
+                event_control.summary().unwrap().state,
+                PublicRunState::Completed
+            );
+            assert!(matches!(
+                event_control.events_call(),
+                Ok(ControlCall::Events(PageParams {
+                    after: Some(Revision(5)),
+                    ..
+                }))
+            ));
+        }
+        event_control
+            .accept_events(Page {
+                items: vec![ControlEvent {
+                    revision: Revision(6),
+                    kind: ControlEventKind::ReconciliationRequired,
+                    run_id: Some(RunId("run-1".into())),
+                    attempt_id: Some(AttemptId("attempt-1".into())),
+                }],
+                next: Some(Revision(6)),
+                has_more: false,
+            })
+            .unwrap();
+        assert_eq!(
+            event_control.phase(),
+            RunControlPhase::Terminal(PublicRunState::NeedsReconciliation)
+        );
+        assert_eq!(
+            event_control.summary().unwrap().state,
+            PublicRunState::NeedsReconciliation
+        );
+        event_control
+            .accept_events(Page {
+                items: vec![ControlEvent {
+                    revision: Revision(7),
+                    kind: ControlEventKind::RunFailed,
+                    run_id: Some(RunId("run-1".into())),
+                    attempt_id: Some(AttemptId("attempt-1".into())),
+                }],
+                next: Some(Revision(7)),
+                has_more: false,
+            })
+            .unwrap();
+        assert_eq!(
+            event_control.phase(),
+            RunControlPhase::Terminal(PublicRunState::Failed)
+        );
     }
 }
