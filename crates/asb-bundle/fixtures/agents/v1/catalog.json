@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "agents": [
+    {
+      "agent_id": "aider", "version": "0.86.2",
+      "source_revision": "253f0368b873ba30d8ee26e463718f0c03614ddf",
+      "declared_license": "Apache-2.0", "redistribution": "unverified",
+      "source_artifacts": [{"name": "wheel", "sha256": "64f6a0c66c9f4633ad9f479bca3e64ebcba02b9da03c6b604b74a44736b2416e"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["complete transitive Python wheel graph", "per-file license and SBOM agreement"]}
+    },
+    {
+      "agent_id": "codex", "version": "0.153.4", "source_revision": null,
+      "declared_license": "Apache-2.0", "redistribution": "unverified",
+      "source_artifacts": [{"name": "linux-x86-64-executable", "sha256": "56ef98ab4032d317ab26e9b5e5a175650717351edb16ed9cde0cb6d1734d62da"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["immutable upstream source revision", "source-to-binary provenance", "complete transitive runtime graph"]}
+    },
+    {
+      "agent_id": "gemini", "version": "0.58.0",
+      "source_revision": "ac9431c9e2290d68af31a77614ff2fddb2391ca3",
+      "declared_license": "Apache-2.0", "redistribution": "unverified",
+      "source_artifacts": [{"name": "npm-tarball", "sha256": "8ffeb9e7edddffb054764d00749f39e8cc9804ca9b38b9093f906dd2157322ae"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["complete npm dependency graph", "Node runtime and package license closure"]}
+    },
+    {
+      "agent_id": "goose", "version": "1.49.0",
+      "source_revision": "71fc4be1ed729e26b1dc0a4466abdd03be548a53",
+      "declared_license": "Apache-2.0", "redistribution": "unverified",
+      "source_artifacts": [{"name": "linux-x86-64-musl-archive", "sha256": "2715ecb28a2f82ac6298941db40574a44729f0607d87f77953f2690d10fe7cb6"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["complete Rust dependency graph", "reproducible source-to-binary comparison"]}
+    },
+    {
+      "agent_id": "mini-swe", "version": "2.4.6",
+      "source_revision": "a83fcae82d2a08f0ee0c688f9d137b3566c097f8",
+      "declared_license": "MIT", "redistribution": "unverified",
+      "source_artifacts": [{"name": "sdist", "sha256": "0532c8193a763409fa52bb2b5a5d7ac9052dcb1c2cae43945b14b1b7f6ba869a"}, {"name": "wheel", "sha256": "a35463c553ac825c7773b03cfa69cd44958e3af20155dcc5711fdf9e4c67cd54"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["per-distribution hashes and licenses for the 78-package graph", "signed bundle manifest and matching SBOMs"]}
+    },
+    {
+      "agent_id": "opencode", "version": "1.18.29",
+      "source_revision": "16747470f976aca3d362ad730bcd3fe82ecc2c9a",
+      "declared_license": "MIT", "redistribution": "unverified",
+      "source_artifacts": [{"name": "linux-x86-64-executable", "sha256": "ca6c0e1f42be3120595bf6848937e7586ec862c87fa7aa111e89c7cc6e9a4650"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["complete packaged runtime graph", "reproducible source-to-binary comparison"]}
+    },
+    {
+      "agent_id": "opendesk", "version": "0.3.5",
+      "source_revision": "f303069da72412dc90b3214d89da9c102282465f",
+      "declared_license": "MulanPSL-2.0", "redistribution": "unverified",
+      "source_artifacts": [{"name": "npm-tarball", "sha256": "b55e83daf01349f278bd0e788f9c6cbbad700b2f2203309760c6e618070b930d"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["complete npm dependency graph", "Node runtime and package license closure"]}
+    },
+    {
+      "agent_id": "openhands", "version": "1.17.0",
+      "source_revision": "aabf40723d308da0d5f9063008c6793cc86df282",
+      "declared_license": "MIT", "redistribution": "unverified",
+      "source_artifacts": [{"name": "sdk-wheel", "sha256": "3b771e72209453871c3036a562cf33e9ad9642a54bd48edb44f89915ac54709d"}, {"name": "source-archive", "sha256": "2434fe9ef7de2e7ab8e6ca5b771ec82e9a6737d8d091a2ded16b5d23c02da2a7"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["byte-reproducible approved Python environment", "per-distribution license and SBOM closure"]}
+    },
+    {
+      "agent_id": "qwen-code", "version": "0.23.0",
+      "source_revision": "98a9c964158697dd5631d15a62174684ff7bbb53",
+      "declared_license": "Apache-2.0", "redistribution": "unverified",
+      "source_artifacts": [{"name": "linux-x86-64-archive", "sha256": "da20f7227e1daa0834c6dd0b46f23a72a2eeb083b9b21e73cb53e182674b05bd"}],
+      "closure": {"status": "incomplete", "missing_evidence": ["complete bundled Node dependency graph", "per-component license and SBOM closure"]}
+    }
+  ]
+}
