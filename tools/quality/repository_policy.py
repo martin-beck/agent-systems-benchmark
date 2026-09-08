@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 """Check repository policy without network access."""
 
@@ -11,7 +12,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from check_dco import commit_range, validate_dco
+if __package__:
+    from .check_dco import commit_range, validate_dco
+else:
+    from check_dco import commit_range, validate_dco
 
 ROOT = Path(__file__).resolve().parents[2]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -22,6 +26,10 @@ CANARY_WORKFLOW = Path(".github/workflows/development-host-canary.yml")
 CANARY_LABEL = "asb-development-v1-x86_64-ubuntu2404"
 TRUSTED_WORKFLOW = Path(".github/workflows/development-host-trusted.yml")
 QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
+HUAWEI_COPYRIGHT = "Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved."
+SPDX_MIT = "SPDX-License-Identifier: MIT"
+EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
+EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
 OPTIONAL_ARTIFACT_ACTION = (
     "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
 )
@@ -193,16 +201,27 @@ def validate_workflows(manifest: dict[str, object]) -> None:
         fail(f"workflow action pins are absent from the manifest: {sorted(unexpected)}")
 
 
-def validate_sources(files: list[Path]) -> None:
+def validate_sources(files: list[Path], *, root: Path = ROOT) -> None:
     for path in files:
+        relative = path.relative_to(root)
         if path.suffix == ".rs":
-            first = path.read_text(encoding="utf-8").splitlines()[0]
-            if first != "// SPDX-License-Identifier: MIT":
-                fail(f"{path.relative_to(ROOT)} lacks the Rust SPDX header")
-        elif path.suffix in {".py", ".sh"}:
-            leading = path.read_text(encoding="utf-8").splitlines()[:2]
-            if "# SPDX-License-Identifier: MIT" not in leading:
-                fail(f"{path.relative_to(ROOT)} lacks a script SPDX header")
+            expected = [f"// {HUAWEI_COPYRIGHT}", f"// {SPDX_MIT}"]
+            offset = 0
+        elif path.suffix in {".py", ".sh"} or relative in EXTENSIONLESS_SOURCES:
+            expected = [f"# {HUAWEI_COPYRIGHT}", f"# {SPDX_MIT}"]
+            lines = path.read_text(encoding="utf-8").splitlines()
+            offset = int(bool(lines and lines[0].startswith("#!")))
+        else:
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if lines[offset : offset + 2] != expected:
+            fail(
+                f"{relative} lacks the exact adjacent Huawei 2026 and SPDX MIT "
+                f"source header at lines {offset + 1}-{offset + 2}"
+            )
+        for required, label in zip(expected, ("copyright", "SPDX"), strict=True):
+            if lines.count(required) != 1:
+                fail(f"{relative} must contain exactly one canonical {label} line")
 
 
 def validate_markdown(files: list[Path]) -> None:
@@ -254,12 +273,16 @@ def main() -> int:
     parser.add_argument("--base")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--skip-commits", action="store_true")
+    parser.add_argument("--source-headers-only", action="store_true")
     args = parser.parse_args()
     try:
-        manifest = validate_manifest()
         files = tracked_files()
-        validate_workflows(manifest)
         validate_sources(files)
+        if args.source_headers_only:
+            print("repository policy: source headers passed")
+            return 0
+        manifest = validate_manifest()
+        validate_workflows(manifest)
         validate_markdown(files)
         if not args.skip_commits:
             validate_commits(args.base, args.head)

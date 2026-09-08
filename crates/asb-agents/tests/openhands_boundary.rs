@@ -1,3 +1,4 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Isolated compilation and contract checks for the OpenHands adapter.
 use asb_agents::openhands::{

@@ -1,0 +1,25 @@
+name: Huawei MIT source headers
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-headers:
+    name: Exact Huawei 2026 and SPDX MIT headers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enforce exact source headers
+        run: |
+          python3 tools/quality/repository_policy.py --source-headers-only
+          python3 -m unittest tools.quality.test_source_headers

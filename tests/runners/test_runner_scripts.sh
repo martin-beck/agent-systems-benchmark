@@ -1,4 +1,5 @@
 #!/bin/sh
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 set -eu
 if test "$(id -u)" -ne 0; then
