@@ -38,6 +38,14 @@ general language semantics or resistance to an agent that has read the public
 grader source. They are deterministic infrastructure controls, not substitutes
 for established external benchmarks.
 
+Evaluation also binds each constructor-controlled report to a domain-separated
+verifier-contract digest, the exact workload digest, workload ID, and independent
+scoring version before reading the submitted tree. A caller cannot substitute a
+different built-in grader, construct a passing report, or make an agent-written
+grader script or deceptive exit status authoritative. The contract digest is an
+integrity identity, not executable provenance or authentication; production
+scoring separately content-addresses and verifies its staged verifier artifact.
+
 Reference patches must pass; checked counterexample patches must fail. Tests also
 prove clean reset and cleanup, traversal/symlink rejection, byte/file bounds, and
 manifest pin consistency. Patch fixtures use exact-tree zero-context hunks and are

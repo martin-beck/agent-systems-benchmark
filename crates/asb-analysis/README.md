@@ -53,3 +53,19 @@ field identities rather than raw settings or provenance values. A comparable
 classification establishes matched recorded configuration, not causal equivalence:
 unrecorded hardware, service, environmental, or temporal effects can still
 confound a result and require experimental controls.
+
+Offline scoring starts from an immutable, content-addressed verifier observation.
+The observation preserves task, patch, timeout, and environment failures as
+distinct pre-score outcomes. A score revision can be appended only from a
+constructor-controlled protected workload report after the store independently
+re-hashes the submission and verifier artifacts and matches the workload and
+verifier contract identities. Rescoring creates a chained revision and a new
+content-addressed ledger artifact; it never overwrites an earlier reward.
+
+These SHA-256 links detect accidental or post-commit modification. They are not
+signatures, authentication, or proof that an external producer ran trusted code.
+Trust in a score still depends on the protected verifier execution boundary and
+the separately reviewed verifier artifact provenance. Decoded external ledger
+JSON is therefore inspection-only: it cannot append or persist authoritative
+score revisions. An authoritative ledger must be opened from the private durable
+observation boundary.

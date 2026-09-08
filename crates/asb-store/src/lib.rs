@@ -14,6 +14,13 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+mod verification;
+
+pub use verification::{
+    MAX_VERIFICATION_BYTES, VERIFICATION_SCHEMA_VERSION, VerificationObservation,
+    VerificationOutcome,
+};
+
 /// Current immutable-manifest schema version.
 pub const MANIFEST_SCHEMA_VERSION: u16 = 1;
 /// Current journal-record schema version.
@@ -517,6 +524,12 @@ pub enum StoreError {
     /// A path is a symbolic link or not the required object type.
     #[error("unsafe store path")]
     UnsafePath,
+    /// An immutable verification observation already exists.
+    #[error("verification observation already exists")]
+    VerificationExists,
+    /// Verification evidence is invalid or inconsistent.
+    #[error("verification evidence is invalid")]
+    InvalidVerification,
 }
 
 fn require_version(kind: &'static str, actual: u16, supported: u16) -> Result<(), StoreError> {

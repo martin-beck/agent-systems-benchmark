@@ -44,7 +44,11 @@ name = "asb-analysis"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "asb-store",
+ "asb-workloads",
+ "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

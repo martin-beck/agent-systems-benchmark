@@ -16,6 +16,11 @@ name = "asb-analysis"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "asb-store",
+ "asb-workloads",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -98,6 +103,17 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+]
+
+[[package]]
+name = "asb-workloads"
+version = "0.1.0"
+dependencies = [
+ "asb-protocol",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

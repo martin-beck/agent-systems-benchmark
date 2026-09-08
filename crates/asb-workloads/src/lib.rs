@@ -30,6 +30,7 @@ pub const MAX_FILE_BYTES: u64 = 256 * 1024;
 const OWNER_FILE: &str = ".asb-workload-owner";
 const WORKSPACE_DIR: &str = "workspace";
 const CONTENT_DOMAIN: &[u8] = b"asb-workload-content-v1";
+const VERIFIER_DOMAIN: &[u8] = b"asb-protected-verifier-v1";
 
 /// Stable identifiers for the original v1 fixture catalogue.
 pub const FIXTURE_IDS: [&str; 7] = [
@@ -57,6 +58,8 @@ pub enum WorkloadError {
     LimitExceeded,
     /// A submitted tree contained an unsupported object or unexpected file.
     InvalidWorkspace,
+    /// The requested verifier identity does not match the protected grader.
+    VerifierMismatch,
     /// A bounded filesystem operation failed.
     Io(io::Error),
 }
@@ -70,6 +73,7 @@ impl fmt::Display for WorkloadError {
             Self::InvalidManifest => formatter.write_str("invalid pinned workload manifest"),
             Self::LimitExceeded => formatter.write_str("workload file or byte limit exceeded"),
             Self::InvalidWorkspace => formatter.write_str("invalid workload workspace"),
+            Self::VerifierMismatch => formatter.write_str("protected verifier identity mismatch"),
             Self::Io(error) => write!(formatter, "workload I/O failed: {error}"),
         }
     }
@@ -109,7 +113,50 @@ impl From<io::Error> for WorkloadError {
 pub struct GradeReport {
     passed: bool,
     failed_checks: Vec<&'static str>,
+    workload_id: String,
+    workload_sha256: String,
     scoring_version: String,
+    verifier_contract_sha256: String,
+}
+
+/// Constructor-controlled identity of one protected grader contract.
+///
+/// The identity binds the workload manifest and exact allowed output inventory.
+/// The independently staged verifier executable is additionally content-addressed
+/// by the durable observation boundary; this value alone is not an executable
+/// authenticity claim.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerifierSpec {
+    workload_id: String,
+    scoring_version: String,
+    workload_sha256: String,
+    contract_sha256: String,
+}
+
+impl VerifierSpec {
+    /// Workload identity accepted by this verifier.
+    #[must_use]
+    pub fn workload_id(&self) -> &str {
+        &self.workload_id
+    }
+
+    /// Independently versioned scorer identity.
+    #[must_use]
+    pub fn scoring_version(&self) -> &str {
+        &self.scoring_version
+    }
+
+    /// Exact workload content digest accepted by this verifier.
+    #[must_use]
+    pub fn workload_sha256(&self) -> &str {
+        &self.workload_sha256
+    }
+
+    /// Domain-separated digest of the protected verifier contract.
+    #[must_use]
+    pub fn contract_sha256(&self) -> &str {
+        &self.contract_sha256
+    }
 }
 
 impl GradeReport {
@@ -129,6 +176,24 @@ impl GradeReport {
     #[must_use]
     pub fn scoring_version(&self) -> &str {
         &self.scoring_version
+    }
+
+    /// Workload identity bound to this protected result.
+    #[must_use]
+    pub fn workload_id(&self) -> &str {
+        &self.workload_id
+    }
+
+    /// Exact workload content digest bound to this result.
+    #[must_use]
+    pub fn workload_sha256(&self) -> &str {
+        &self.workload_sha256
+    }
+
+    /// Protected verifier contract digest used to produce this result.
+    #[must_use]
+    pub fn verifier_contract_sha256(&self) -> &str {
+        &self.verifier_contract_sha256
     }
 }
 
@@ -154,13 +219,32 @@ impl PreparedWorkload {
 
     /// Evaluate the bounded submitted tree with protected task-specific checks.
     pub fn evaluate(&self) -> Result<GradeReport, WorkloadError> {
+        self.evaluate_with_verifier(&self.fixture.verifier_spec()?)
+    }
+
+    /// Evaluate only when the independently selected verifier contract matches.
+    ///
+    /// Workspace files are enumerated and bounded after the protected identity
+    /// check. Agent-created scripts, tests, exit codes, or self-reported rewards
+    /// are never executed or trusted by this boundary.
+    pub fn evaluate_with_verifier(
+        &self,
+        verifier: &VerifierSpec,
+    ) -> Result<GradeReport, WorkloadError> {
         verify_owner(&self.root, self.fixture.id)?;
+        if verifier != &self.fixture.verifier_spec()? {
+            return Err(WorkloadError::VerifierMismatch);
+        }
         let files = read_workspace(&self.workspace())?;
         let failed_checks = (self.fixture.grade)(&files);
+        let manifest = self.fixture.manifest()?;
         Ok(GradeReport {
             passed: failed_checks.is_empty(),
             failed_checks,
-            scoring_version: self.fixture.manifest()?.scoring_version,
+            workload_id: self.fixture.id.to_owned(),
+            workload_sha256: manifest.content_sha256,
+            scoring_version: manifest.scoring_version,
+            verifier_contract_sha256: verifier.contract_sha256.clone(),
         })
     }
 
@@ -200,6 +284,11 @@ impl OriginalWorkloads {
     /// Acquire is a local pin check; these original fixtures require no network.
     pub fn acquire(id: &str) -> Result<(), WorkloadError> {
         fixture(id)?.validate().map(|_| ())
+    }
+
+    /// Return the constructor-controlled protected verifier identity.
+    pub fn verifier_spec(id: &str) -> Result<VerifierSpec, WorkloadError> {
+        fixture(id)?.verifier_spec()
     }
 
     /// Prepare an exact clean fixture beneath a new absolute private root.
@@ -295,6 +384,27 @@ impl Fixture {
         }
         self.manifest()
     }
+
+    fn verifier_spec(&self) -> Result<VerifierSpec, WorkloadError> {
+        let manifest = self.validate()?;
+        let mut hasher = Sha256::new();
+        hasher.update(VERIFIER_DOMAIN);
+        digest_component(&mut hasher, self.manifest_json.as_bytes());
+        for path in self.allowed {
+            digest_component(&mut hasher, path.as_bytes());
+        }
+        Ok(VerifierSpec {
+            workload_id: self.id.to_owned(),
+            scoring_version: manifest.scoring_version,
+            workload_sha256: manifest.content_sha256,
+            contract_sha256: format!("{:x}", hasher.finalize()),
+        })
+    }
+}
+
+fn digest_component(hasher: &mut Sha256, bytes: &[u8]) {
+    hasher.update((bytes.len() as u64).to_be_bytes());
+    hasher.update(bytes);
 }
 
 fn fixture(id: &str) -> Result<&'static Fixture, WorkloadError> {
@@ -948,6 +1058,39 @@ mod tests {
                 prepared.cleanup().unwrap();
             }
         }
+    }
+
+    #[test]
+    fn protected_verifier_rejects_identity_substitution_and_deceptive_exit() {
+        let correct = OriginalWorkloads::verifier_spec(FIXTURE_IDS[0]).unwrap();
+        let wrong = OriginalWorkloads::verifier_spec(FIXTURE_IDS[1]).unwrap();
+        assert_eq!(correct.workload_id(), FIXTURE_IDS[0]);
+        assert_eq!(correct.scoring_version(), "asb-original-oracle-v1");
+        assert_eq!(correct.workload_sha256().len(), 64);
+        assert_eq!(correct.contract_sha256().len(), 64);
+        assert_ne!(correct.contract_sha256(), wrong.contract_sha256());
+
+        let attempt_root = root("protected-verifier");
+        let prepared = OriginalWorkloads::prepare(FIXTURE_IDS[0], &attempt_root).unwrap();
+        assert!(matches!(
+            prepared.evaluate_with_verifier(&wrong),
+            Err(WorkloadError::VerifierMismatch)
+        ));
+
+        fs::write(
+            prepared.workspace().join("grader.sh"),
+            "#!/bin/sh\nexit 0\n",
+        )
+        .unwrap();
+        let report = prepared.evaluate_with_verifier(&correct).unwrap();
+        assert!(!report.passed());
+        assert!(report.failed_checks().contains(&"workspace.inventory"));
+        fs::remove_file(prepared.workspace().join("grader.sh")).unwrap();
+
+        apply(&prepared.workspace(), FIXTURES[0].counterexamples[0]);
+        let report = prepared.evaluate_with_verifier(&correct).unwrap();
+        assert!(!report.passed());
+        prepared.cleanup().unwrap();
     }
 
     #[test]
