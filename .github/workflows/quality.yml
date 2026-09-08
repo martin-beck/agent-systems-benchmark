@@ -63,6 +63,16 @@ jobs:
             args+=(--base "$RANGE_BASE")
           fi
           python3 tools/quality/repository_policy.py "${args[@]}"
+      - name: Enforce canonical contract consistency
+        env:
+          RANGE_BASE: ${{ steps.range.outputs.base }}
+        run: |
+          python3 -m unittest tools.quality.test_contract_consistency
+          args=(--run-tests)
+          if [[ -n "$RANGE_BASE" ]]; then
+            args+=(--baseline-ref "$RANGE_BASE")
+          fi
+          python3 tools/quality/contract_consistency.py "${args[@]}"
       - name: Validate GitHub workflows
         run: |
           "$ASB_QUALITY_BIN/actionlint" -config-file .github/actionlint.yaml

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "contracts": [
+    {"id":"protocol.extension-manifest","schema":"crates/asb-protocol/schema/v1/extension-manifest.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/extension-manifest.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.workload-manifest","schema":"crates/asb-protocol/schema/v1/workload-manifest.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/workload-manifest.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.experiment-manifest","schema":"crates/asb-protocol/schema/v1/experiment-manifest.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/experiment-manifest.json","crates/asb-protocol/fixtures/v1/experiment-manifest-confounded.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.provider-profile","schema":"crates/asb-protocol/schema/v1/provider-profile.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/provider-profile.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.provider-capabilities","schema":"crates/asb-protocol/schema/v1/provider-capabilities.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/provider-capabilities.json","crates/asb-protocol/fixtures/v1/provider-capabilities-lossy.json","crates/asb-protocol/fixtures/v1/provider-capabilities-unsupported.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.request","schema":"crates/asb-protocol/schema/v1/request.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/negotiate-request.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.notification","schema":"crates/asb-protocol/schema/v1/notification.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/event-notification.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"protocol.result","schema":"crates/asb-protocol/schema/v1/result.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/result.json"],"rust_test":"asb-protocol/schema_conformance"},
+    {"id":"control.request","schema":"crates/asb-control/schema/v1/request.schema.json","fixtures":["crates/asb-control/fixtures/v1/negotiate-request.json","crates/asb-control/fixtures/v1/launch-request.json"],"rust_test":"asb-control/schema_conformance"},
+    {"id":"control.response","schema":"crates/asb-control/schema/v1/response.schema.json","fixtures":["crates/asb-control/fixtures/v1/success-response.json"],"rust_test":"asb-control/schema_conformance"},
+    {"id":"control.event","schema":"crates/asb-control/schema/v1/event.schema.json","fixtures":["crates/asb-control/fixtures/v1/run-event.json"],"rust_test":"asb-control/schema_conformance"},
+    {"id":"replay.cassette","schema":"crates/asb-replay/schema/v1/cassette.schema.json","fixtures":["crates/asb-replay/fixtures/v1/buffered.json","crates/asb-replay/fixtures/v1/events.json","crates/asb-replay/fixtures/v1/gemini-generate-content.json"],"rust_test":"asb-replay/schema_conformance"},
+    {"id":"bundle.runtime","schema":"crates/asb-bundle/schema/v1/runtime-bundle.schema.json","fixtures":["crates/asb-bundle/fixtures/v1/runtime-bundle.json"],"rust_test":"asb-bundle/schema_conformance"},
+    {"id":"workloads.validity","schema":"crates/asb-workloads/registry/v1/benchmark-validity.schema.json","fixtures":["crates/asb-workloads/registry/v1/original-workloads.json"],"rust_test":"asb-workloads/validity_registry"}
+  ],
+  "conformance_commands": [
+    ["cargo","test","-p","asb-protocol","--test","schema_conformance","--locked"],
+    ["cargo","test","-p","asb-control","--test","schema_conformance","--locked"],
+    ["cargo","test","-p","asb-replay","--test","schema_conformance","--locked"],
+    ["cargo","test","-p","asb-bundle","--test","schema_conformance","--locked"],
+    ["cargo","test","-p","asb-workloads","--test","validity_registry","--locked"],
+    ["cargo","test","-p","asb-control","--test","control","--locked"]
+  ],
+  "generated_document": "docs/CONTRACT_CATALOG.md",
+  "capability_snapshot": "crates/asb-protocol/fixtures/v1/provider-capabilities.json"
+}
