@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: MIT
 //! Signed, content-addressed runtime-bundle manifests and offline verification.
 
+mod catalog;
+
+pub use catalog::{
+    AgentClosureEvidence, AgentRuntimeCatalog, AgentRuntimeInventory, CatalogSummary,
+    RedistributionStatus, SUPPORTED_AGENT_IDS, SourceArtifactPin, require_complete_agent_catalog,
+    validate_agent_runtime_catalog,
+};
+
 use asb_runtime::{ProcessLimits, RunningProcess, Termination};
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
