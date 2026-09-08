@@ -43,3 +43,16 @@ def test_qualified_disposable_oracle_runs_with_bounded_command(tmp_path):
         text=True,
     )
     assert json.loads(result.stdout.splitlines()[-1]) == {"exit_code": 0, "workload": "fixture"}
+
+
+def test_oracle_result_validator_accepts_only_bounded_exact_schema(tmp_path):
+    result_file = tmp_path / "result.json"
+    result_file.write_text(json.dumps({"oracle": "fixture-v1", "score": 1}))
+    validator = ROOT / "tools/quality/validate_oracle_result.py"
+    result = subprocess.run([sys.executable, str(validator), str(result_file)], check=True, capture_output=True, text=True)
+    assert json.loads(result.stdout) == {"oracle": "fixture-v1", "score": 1}
+
+    result_file.write_text(json.dumps({"oracle": "fixture-v1", "score": 2, "raw": "secret"}))
+    rejected = subprocess.run([sys.executable, str(validator), str(result_file)], capture_output=True, text=True)
+    assert rejected.returncode != 0
+    assert "exact" in rejected.stderr
