@@ -119,6 +119,18 @@ class ContractConsistencyTests(unittest.TestCase):
                 {"contracts": [{"schema": "schema/v1/example.schema.json"}]},
                 baseline,
             )
+            additive = root / "schema/v1/additive.schema.json"
+            additive.write_text('{"type":"string"}\n')
+            MODULE.ensure_v1_compatibility(
+                root,
+                {
+                    "contracts": [
+                        {"schema": "schema/v1/example.schema.json"},
+                        {"schema": "schema/v1/additive.schema.json"},
+                    ]
+                },
+                baseline,
+            )
 
 
 if __name__ == "__main__":

@@ -259,8 +259,27 @@ def ensure_v1_compatibility(
         return
     if not re.fullmatch(r"[0-9a-f]{40}", baseline_ref):
         raise ContractError("baseline ref must be an exact commit")
+    try:
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{baseline_ref}^{{commit}}"],
+            cwd=root,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ContractError("baseline commit is unavailable") from error
     for entry in catalog["contracts"]:
         schema = entry["schema"]
+        present = subprocess.run(
+            ["git", "cat-file", "-e", f"{baseline_ref}:{schema}"],
+            cwd=root,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if present.returncode != 0:
+            continue
         prior_bytes = subprocess.run(
             ["git", "show", f"{baseline_ref}:{schema}"],
             cwd=root,

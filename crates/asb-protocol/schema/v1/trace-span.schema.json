@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceSpan",
+  "description": "Stable ASB span independent of telemetry vendor or evolving convention.",
+  "type": "object",
+  "properties": {
+    "agent_id": {
+      "description": "Agent identity shared by agent, model, and tool spans.",
+      "$ref": "#/$defs/Id"
+    },
+    "content": {
+      "description": "Optional privacy-safe content evidence. Raw text is not representable.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TraceContentDigest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "end_unix_ns": {
+      "description": "Wall-clock end in Unix nanoseconds.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "kind": {
+      "description": "Operation category.",
+      "$ref": "#/$defs/TraceKind"
+    },
+    "model": {
+      "description": "Requested model identifier for model spans.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operation": {
+      "description": "Low-cardinality operation name.",
+      "type": "string"
+    },
+    "parent_span_id": {
+      "description": "Stable parent identity; only a run root may omit it.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider": {
+      "description": "Provider identifier for model spans.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_id": {
+      "description": "Run identity shared by the causal tree.",
+      "$ref": "#/$defs/Id"
+    },
+    "schema_version": {
+      "description": "Trace schema generation.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "span_id": {
+      "description": "Stable identity of this span.",
+      "$ref": "#/$defs/Id"
+    },
+    "start_unix_ns": {
+      "description": "Wall-clock start in Unix nanoseconds.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "status": {
+      "description": "Terminal outcome.",
+      "$ref": "#/$defs/TraceStatus"
+    },
+    "tool_call_id": {
+      "description": "Tool call identity for tool spans.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tool_name": {
+      "description": "Tool name for tool spans.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trial_id": {
+      "description": "Trial identity shared below the run.",
+      "$ref": "#/$defs/Id"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "trial_id",
+    "agent_id",
+    "span_id",
+    "kind",
+    "operation",
+    "start_unix_ns",
+    "end_unix_ns",
+    "status"
+  ],
+  "$defs": {
+    "Id": {
+      "description": "Stable identifier transported without host-specific meaning.",
+      "type": "string"
+    },
+    "TraceContentDigest": {
+      "description": "Opt-in content evidence containing only length and digest, never raw content.",
+      "type": "object",
+      "properties": {
+        "byte_len": {
+          "description": "Original byte length.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "sha256": {
+          "description": "SHA-256 of the content, encoded as lowercase hexadecimal.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "byte_len"
+      ]
+    },
+    "TraceKind": {
+      "description": "The causal operation represented by a span.",
+      "oneOf": [
+        {
+          "description": "Complete benchmark run.",
+          "type": "string",
+          "const": "run"
+        },
+        {
+          "description": "One trial within a run.",
+          "type": "string",
+          "const": "trial"
+        },
+        {
+          "description": "Agent execution within a trial.",
+          "type": "string",
+          "const": "agent"
+        },
+        {
+          "description": "Model request made by an agent.",
+          "type": "string",
+          "const": "model"
+        },
+        {
+          "description": "Tool invocation made by an agent.",
+          "type": "string",
+          "const": "tool"
+        }
+      ]
+    },
+    "TraceStatus": {
+      "description": "Privacy-safe terminal outcome.",
+      "oneOf": [
+        {
+          "description": "Operation completed successfully.",
+          "type": "string",
+          "const": "ok"
+        },
+        {
+          "description": "Operation failed; details remain in the bounded run journal.",
+          "type": "string",
+          "const": "error"
+        },
+        {
+          "description": "Operation was cancelled.",
+          "type": "string",
+          "const": "cancelled"
+        }
+      ]
+    }
+  }
+}

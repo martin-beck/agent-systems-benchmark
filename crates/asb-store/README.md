@@ -29,3 +29,16 @@ cgroups, and remote effects before resolving an uncertain attempt belongs to
 the runtime/coordinator layer. Filesystem durability still depends on the
 mounted filesystem honoring file and directory `fsync` plus atomic same-volume
 rename.
+
+## Optional trace projection
+
+`TraceExporter` maps validated vendor-neutral ASB causal spans to bounded OTLP
+JSON records. The mapping pins OpenTelemetry GenAI semantic conventions commit
+`b5d8440f6f126738fd50f927752cd669772c517b` and its development schema URL
+`https://opentelemetry.io/schemas/gen-ai-dev/1.42.0-dev`. The exporter performs
+no I/O: a transport drains its bounded queue, while contention or saturation
+drops telemetry rather than delaying or corrupting a run.
+
+Raw prompts, responses, error messages, endpoints, and credentials are not
+representable. Content evidence is limited to an optional digest and byte count
+and is excluded unless explicitly enabled.
