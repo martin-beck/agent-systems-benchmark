@@ -30,6 +30,10 @@ def main() -> int:
             fail(f"duplicate or invalid workload id: {ident!r}")
         seen.add(ident)
         source = item.get("source", {})
+        if source.get("archive_status") not in {"verified", "unverified", "unavailable-at-pinned-revision"}:
+            fail(f"{ident}: archive_status must be explicit")
+        if source.get("archive_status") == "verified" and not re.fullmatch(r"[0-9a-f]{64}", source.get("archive_sha256", "")):
+            fail(f"{ident}: verified archive requires a SHA-256 identity")
         commits = [source.get("commit")] if source.get("commit") else [x.split("@", 1)[1] for x in source.get("repositories", [])]
         if not commits or any(not SHA.fullmatch(commit) for commit in commits):
             fail(f"{ident}: every source revision must be a 40-character lowercase commit")
