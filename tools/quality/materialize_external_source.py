@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Materialize a verified external source archive without executing it."""
 
 import argparse

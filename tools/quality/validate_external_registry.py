@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Validate the opt-in external workload provenance registry without acquiring data."""
 
 import hashlib

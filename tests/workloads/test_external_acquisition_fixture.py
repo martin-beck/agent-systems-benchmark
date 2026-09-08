@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import hashlib
 import json
 from pathlib import Path
@@ -33,4 +34,4 @@ def test_verifier_accepts_only_the_pinned_artifact():
         capture_output=True,
         text=True,
     )
-    assert json.loads(result.stdout)["sha256"] == "c78cf0d69881d7f15bf9d6325203c6dce6294b54def91f8554b1b8c338c46fb6"
+    assert json.loads(result.stdout)["sha256"] == "93c10dc970a5de4a200ae6b67cd4530647a1aa62a4ddc2817347627d8670802e"

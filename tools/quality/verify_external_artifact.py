@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Verify an explicitly acquired external artifact before execution.
 
 This helper only reads a caller-selected file and manifest; it never downloads,

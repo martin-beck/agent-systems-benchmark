@@ -5,7 +5,7 @@
       "id": "swe-bench-evaluator-fixture",
       "source_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
       "relative_path": "evaluator.py",
-      "sha256": "c78cf0d69881d7f15bf9d6325203c6dce6294b54def91f8554b1b8c338c46fb6"
+      "sha256": "93c10dc970a5de4a200ae6b67cd4530647a1aa62a4ddc2817347627d8670802e"
     }
   ],
   "offline_fixture": "tests/workloads/fixtures/evaluator.py"

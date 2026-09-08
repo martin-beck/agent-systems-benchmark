@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import hashlib
 import io
 import subprocess

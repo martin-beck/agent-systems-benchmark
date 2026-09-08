@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Create an external-workload execution plan without performing external effects."""
 
 import argparse
