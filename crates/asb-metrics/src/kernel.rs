@@ -498,6 +498,28 @@ mod tests {
             .unwrap()
         }
 
+        fn staged_for_cleanup(&self) -> StagedTool {
+            let directory = unique_directory(&self.0);
+            fs::create_dir(&directory).unwrap();
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+            let metadata = fs::symlink_metadata(&directory).unwrap();
+            let executable = directory.join("tool");
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o500)
+                .open(&executable)
+                .unwrap()
+                .write_all(b"fixture")
+                .unwrap();
+            StagedTool {
+                directory,
+                executable,
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            }
+        }
+
         fn assert_clean(&self) {
             assert_eq!(fs::read_dir(&self.0).unwrap().count(), 0);
         }
@@ -681,14 +703,13 @@ mod tests {
     #[test]
     fn cleanup_removes_bounded_sidecars_and_rejects_excess() {
         let root = TestRoot::new();
-        let tool = root.harness_tool();
-        let mut staged = StagedTool::new(&root.0, &tool, Duration::from_secs(1)).unwrap();
+        let mut staged = root.staged_for_cleanup();
         fs::write(staged.directory.join("default.profraw"), b"coverage").unwrap();
         std::os::unix::fs::symlink("absent", staged.directory.join("sidecar-link")).unwrap();
         assert!(staged.cleanup());
         root.assert_clean();
 
-        let mut staged = StagedTool::new(&root.0, &tool, Duration::from_secs(1)).unwrap();
+        let mut staged = root.staged_for_cleanup();
         for index in 0..MAX_CLEANUP_ENTRIES {
             fs::write(staged.directory.join(format!("sidecar-{index}")), b"x").unwrap();
         }
