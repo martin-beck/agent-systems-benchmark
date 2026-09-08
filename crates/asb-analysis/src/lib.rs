@@ -6,9 +6,11 @@
 
 mod comparison;
 mod reliability;
+mod scoring;
 
 pub use comparison::*;
 pub use reliability::*;
+pub use scoring::*;
 
 use std::error::Error;
 use std::fmt;

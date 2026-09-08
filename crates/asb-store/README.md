@@ -9,6 +9,13 @@ Recovery is conservative: a journal ending in `running` or `collecting`
 returns `needs_reconciliation`; it never authorizes another execution. Invalid
 paths, unknown schema versions, broken transition order, checksum mismatches,
 truncation, and configured size limits fail closed.
+
+Verifier observations are committed once per run after independently re-hashing
+the referenced environment and optional submission artifacts. They preserve ready, task-failed,
+patch-failed, timed-out, and environment-failed outcomes as distinct durable
+facts; only ready observations can enter offline scoring. Loading repeats both
+the observation self-digest check and the referenced-artifact check.
+
 Store paths are private and final file and directory opens reject symbolic
 links. The fault suite deterministically injects partial-write/disk-full-like
 and rename-boundary failures; it is not evidence from a real ENOSPC filesystem.
