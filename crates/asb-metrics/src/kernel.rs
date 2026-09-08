@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Optional kernel diagnostics backed by digest-pinned native tools.
 
-use asb_runtime::{ProcessLimits, ProcessOutput, RunningProcess, Termination};
+use asb_runtime::{ProcessError, ProcessLimits, ProcessOutput, RunningProcess, Termination};
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
@@ -345,8 +345,7 @@ fn execute(
         .env("LC_ALL", "C")
         .current_dir(directory)
         .stdin(Stdio::null());
-    let mut process =
-        RunningProcess::spawn(command, limits).map_err(|_| UnavailableReason::Absent)?;
+    let mut process = RunningProcess::spawn(command, limits).map_err(map_process)?;
     process
         .wait()
         .cloned()
@@ -419,42 +418,46 @@ fn map_io(error: io::Error) -> UnavailableReason {
     }
 }
 
+fn map_process(error: ProcessError) -> UnavailableReason {
+    match error {
+        ProcessError::Spawn(error) => map_io(error),
+        _ => UnavailableReason::ProbeRejected,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
 
     struct TestRoot(PathBuf);
 
     impl TestRoot {
         fn new() -> Self {
-            let path = unique_directory(&std::env::temp_dir());
+            let executable = std::env::current_exe().unwrap();
+            let path = unique_directory(executable.parent().unwrap());
             fs::create_dir(&path).unwrap();
             fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
             Self(path)
         }
 
-        fn tool(&self, name: &str, body: &str) -> PinnedTool {
-            let path = self.0.join(name);
-            fs::write(&path, body).unwrap();
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o500)).unwrap();
+        fn system_tool(
+            &self,
+            path: &str,
+            version_argument: &str,
+            exact_version: String,
+        ) -> PinnedTool {
+            let bytes = fs::read(path).unwrap();
             PinnedTool::new(
-                path,
-                format!("{:x}", Sha256::digest(body.as_bytes())),
-                "--version".into(),
-                "fixture-v1".into(),
+                PathBuf::from(path),
+                format!("{:x}", Sha256::digest(bytes)),
+                version_argument.into(),
+                exact_version,
             )
             .unwrap()
         }
 
         fn assert_clean(&self) {
-            assert!(fs::read_dir(&self.0).unwrap().all(|entry| {
-                !entry
-                    .unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with("asb-kernel-")
-            }));
+            assert_eq!(fs::read_dir(&self.0).unwrap().count(), 0);
         }
     }
 
@@ -492,6 +495,18 @@ mod tests {
             UnavailableReason::ProbeRejected.to_string(),
             "diagnostic probe was rejected"
         );
+        assert_eq!(
+            map_process(ProcessError::Spawn(io::Error::from(
+                io::ErrorKind::PermissionDenied
+            ))),
+            UnavailableReason::PermissionDenied
+        );
+        assert_eq!(
+            map_process(ProcessError::Spawn(io::Error::from(
+                io::ErrorKind::NotFound
+            ))),
+            UnavailableReason::Absent
+        );
     }
 
     #[test]
@@ -522,32 +537,51 @@ mod tests {
         let diagnostics =
             KernelDiagnostics::new(root.0.clone(), Duration::from_millis(100)).unwrap();
 
-        let success = root.tool(
-            "success",
-            "#!/bin/sh\nif test \"$1\" = --version; then printf fixture-v1; else printf '12.5;msec;task-clock;1;100.0\\n'; fi\n",
-        );
+        let success = root.system_tool("/bin/echo", "fixture-v1", "fixture-v1".into());
         assert_eq!(
-            diagnostics.perf_task_clock(&success, 10),
+            diagnostics.run(
+                &success,
+                &["12.5;msec;task-clock;1;100.0".into()],
+                parse_task_clock,
+            ),
             ProbeResult::available(12_500_000)
         );
         root.assert_clean();
 
-        let denied = root.tool(
-            "denied",
-            "#!/bin/sh\nif test \"$1\" = --version; then printf fixture-v1; else echo 'Operation not permitted /private/value' >&2; exit 1; fi\n",
+        let rejection_tool_version = Command::new("/bin/ls")
+            .arg("--version")
+            .output()
+            .unwrap()
+            .stdout;
+        let denied = root.system_tool(
+            "/bin/ls",
+            "--version",
+            String::from_utf8(rejection_tool_version)
+                .unwrap()
+                .trim_end_matches(['\r', '\n'])
+                .into(),
         );
         assert_eq!(
-            diagnostics.ebpf_feature_count(&denied),
-            ProbeResult::unavailable_reason(UnavailableReason::PermissionDenied)
+            diagnostics.run(&denied, &["definitely-absent".into()], parse_ebpf_features),
+            ProbeResult::unavailable_reason(UnavailableReason::ProbeRejected)
         );
         root.assert_clean();
 
-        let timeout = root.tool(
-            "timeout",
-            "#!/bin/sh\nif test \"$1\" = --version; then printf fixture-v1; else sleep 2; fi\n",
+        let sleep_version = Command::new("/bin/sleep")
+            .arg("--version")
+            .output()
+            .unwrap()
+            .stdout;
+        let timeout = root.system_tool(
+            "/bin/sleep",
+            "--version",
+            String::from_utf8(sleep_version)
+                .unwrap()
+                .trim_end_matches(['\r', '\n'])
+                .into(),
         );
         assert_eq!(
-            diagnostics.ebpf_feature_count(&timeout),
+            diagnostics.run(&timeout, &["2".into()], parse_ebpf_features),
             ProbeResult::unavailable_reason(UnavailableReason::TimedOut)
         );
         root.assert_clean();
@@ -581,12 +615,13 @@ mod tests {
             ProbeResult::unavailable_reason(UnavailableReason::ProbeRejected)
         );
 
-        let malformed = root.tool(
-            "malformed",
-            "#!/bin/sh\nif test \"$1\" = --version; then printf fixture-v1; else printf private-unparseable; fi\n",
-        );
+        let malformed = root.system_tool("/bin/echo", "fixture-v1", "fixture-v1".into());
         assert_eq!(
-            diagnostics.perf_task_clock(&malformed, 10),
+            diagnostics.run(
+                &malformed,
+                &["private-unparseable".into()],
+                parse_task_clock
+            ),
             ProbeResult::unavailable_reason(UnavailableReason::MalformedEvidence)
         );
         root.assert_clean();
