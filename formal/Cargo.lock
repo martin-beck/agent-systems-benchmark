@@ -61,7 +61,9 @@ name = "asb-metrics"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "asb-runtime",
  "rustix",
+ "sha2",
 ]
 
 [[package]]
