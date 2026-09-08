@@ -244,3 +244,19 @@ profile; a constructor-controlled proof is returned only when its canonical dige
 matches the requested profile. Current concrete adapters intentionally do not
 implement this interface until their provider-specific ARs prove real configuration
 output, so the generic boundary makes no live-provider compatibility claim.
+
+The credential boundary currently resolves only an explicitly configured
+`environment` reference. Its SHA-256 binds the versioned reference kind and
+uppercase variable name, never the credential bytes. Resolution verifies that
+non-secret locator digest before reading the one allowlisted variable; the
+result is a non-cloneable, non-serializable value that is consumed when spawning
+one bounded provider process. The child starts with an empty environment and
+receives only the configured credential target. The credential is never added
+to argv or an ASB evidence type.
+
+`file_descriptor` and `helper` references are explicitly unsupported by this
+resolver and fail before any lookup. In particular, an already-open descriptor
+needs a separate one-shot owner/mode/type contract, and a helper needs a bounded
+protocol, deadline, cancellation, and cleanup contract. Callers must not treat
+their presence in the provider-profile schema as implemented live support or
+fall back to ambient credentials.
