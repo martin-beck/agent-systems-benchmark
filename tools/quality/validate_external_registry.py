@@ -32,8 +32,13 @@ def main() -> int:
         source = item.get("source", {})
         if source.get("archive_status") not in {"verified", "unverified", "unavailable-at-pinned-revision"}:
             fail(f"{ident}: archive_status must be explicit")
-        if source.get("archive_status") == "verified" and not re.fullmatch(r"[0-9a-f]{64}", source.get("archive_sha256", "")):
-            fail(f"{ident}: verified archive requires a SHA-256 identity")
+        if source.get("archive_status") == "verified":
+            archive_digest = source.get("archive_sha256")
+            if isinstance(archive_digest, dict):
+                if not archive_digest or any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in archive_digest.values()):
+                    fail(f"{ident}: every verified repository archive requires a SHA-256 identity")
+            elif not re.fullmatch(r"[0-9a-f]{64}", archive_digest or ""):
+                fail(f"{ident}: verified archive requires a SHA-256 identity")
         commits = [source.get("commit")] if source.get("commit") else [x.split("@", 1)[1] for x in source.get("repositories", [])]
         if not commits or any(not SHA.fullmatch(commit) for commit in commits):
             fail(f"{ident}: every source revision must be a 40-character lowercase commit")
