@@ -79,3 +79,20 @@ not native workload qualification. Their empty performance-calibration lists mea
 speedup or host-performance claim. Public tasks make no holdout or contamination-
 resistance claim; imported suites must add their own pinned licenses, dependency
 artifacts, exposure policy, adaptations, and qualification evidence.
+
+## External result workflow
+
+External suites are opt-in and remain unqualified until source archives, evaluator
+image, SBOM, and oracle evidence are independently pinned. The checked-in helpers
+under `tools/quality/` form a fail-closed workflow:
+
+1. verify an acquired artifact with `verify_external_artifact.py`;
+2. materialize it with `materialize_external_source.py` (no execution during extraction);
+3. create a bounded plan with `plan_external_workload.py`;
+4. run only a qualified evaluator with `run_external_workload.py`;
+5. validate its exact bounded result using `validate_oracle_result.py`; and
+6. compare and render results with `compare_external_results.py` and
+   `render_external_report.py`.
+
+Comparisons with different oracle or evaluator identities are reported as
+`non-comparable`; they must not be combined into an unqualified global ranking.
