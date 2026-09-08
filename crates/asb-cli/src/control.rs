@@ -995,7 +995,11 @@ impl RunnerBackend {
         }
     }
 
-    fn refresh(&self, run_id: &str) -> Result<RunRecord, BackendFailure> {
+    fn refresh(
+        &self,
+        run_id: &str,
+        deadline: RequestDeadline,
+    ) -> Result<RunRecord, BackendFailure> {
         let mut catalog = self
             .catalog
             .lock()
@@ -1041,6 +1045,9 @@ impl RunnerBackend {
             let revision = Self::append_event(&mut staged, kind, Some(&record))?;
             record.revision = revision;
             staged.runs.insert(run_id.to_owned(), record.clone());
+            deadline
+                .check()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
             commit_staged_catalog(&self.state_root, &mut catalog, staged)
                 .map_err(|_| BackendFailure::NeedsReconciliation)?;
             if matches!(
@@ -1052,6 +1059,19 @@ impl RunnerBackend {
             }
         }
         Ok(record)
+    }
+
+    fn commit_analysis_before_deadline(
+        &self,
+        bytes: &[u8],
+        digest: &str,
+        deadline: RequestDeadline,
+    ) -> Result<(), BackendFailure> {
+        deadline
+            .check()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        commit_analysis(&self.state_root, bytes, digest)
+            .map_err(|_| BackendFailure::NeedsReconciliation)
     }
 }
 
@@ -1138,7 +1158,7 @@ impl ControlBackend for RunnerBackend {
             ),
             ControlCall::Launch(params) => self.launch(call, params, deadline),
             ControlCall::Status { run_id } => {
-                let record = self.refresh(&run_id.0)?;
+                let record = self.refresh(&run_id.0, deadline)?;
                 self.bind(call, ControlResult::Status(Self::summary(&record)))
             }
             ControlCall::Cancel(params) => {
@@ -1218,7 +1238,7 @@ impl ControlBackend for RunnerBackend {
                     deadline
                         .check()
                         .map_err(|_| BackendFailure::NeedsReconciliation)?;
-                    let state = self.refresh(&params.run_id.0)?.state;
+                    let state = self.refresh(&params.run_id.0, deadline)?.state;
                     if matches!(
                         state,
                         PublicRunState::Completed
@@ -1348,7 +1368,10 @@ impl ControlBackend for RunnerBackend {
             ControlCall::Analyze { run_ids } => {
                 let summaries = run_ids
                     .iter()
-                    .map(|run_id| self.refresh(&run_id.0).map(|record| Self::summary(&record)))
+                    .map(|run_id| {
+                        self.refresh(&run_id.0, deadline)
+                            .map(|record| Self::summary(&record))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 if summaries.iter().any(|summary| {
                     !matches!(
@@ -1363,8 +1386,7 @@ impl ControlBackend for RunnerBackend {
                 let analysis =
                     serde_json::to_vec(&summaries).map_err(|_| BackendFailure::Rejected)?;
                 let digest = format!("{:x}", Sha256::digest(&analysis));
-                commit_analysis(&self.state_root, &analysis, &digest)
-                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+                self.commit_analysis_before_deadline(&analysis, &digest, deadline)?;
                 self.bind(
                     call,
                     ControlResult::Analysis(AnalysisSummary {
@@ -1889,6 +1911,75 @@ mod tests {
         assert!(matches!(result, Err(BackendFailure::NeedsReconciliation)));
         let after = serde_json::to_vec(&*backend.catalog.lock().unwrap()).unwrap();
         assert_eq!(after, before);
+    }
+
+    #[test]
+    fn expired_status_deadline_prevents_refresh_catalog_commit() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let plan = fixture_plan(&scratch.0);
+        let create = ControlCall::CreatePlan(asb_control::MutationParams {
+            idempotency_key: "late-status-plan".into(),
+            definition: serde_json::to_value(&plan).unwrap(),
+        });
+        let created = backend.execute(&create, deadline()).unwrap();
+        let ControlResult::Plan(reference) = created.result else {
+            panic!("plan result");
+        };
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            let mut record = RunRecord {
+                plan_id: reference.plan_id,
+                run_id: plan.run_id.clone(),
+                attempt_id: format!("{}-attempt", plan.run_id),
+                state: PublicRunState::Running,
+                revision: Revision(0),
+                plan_sha256: reference.plan_sha256,
+            };
+            record.revision = RunnerBackend::append_event(
+                &mut catalog,
+                ControlEventKind::RunStarted,
+                Some(&record),
+            )
+            .unwrap();
+            catalog.runs.insert(record.run_id.clone(), record);
+            commit_catalog(&state, &catalog).unwrap();
+        }
+        let before_memory = serde_json::to_vec(&*backend.catalog.lock().unwrap()).unwrap();
+        let before_file = fs::read(state.join("control-catalog.json")).unwrap();
+        let expired = RequestDeadline::start(1).unwrap();
+        thread::sleep(Duration::from_millis(5));
+        assert!(matches!(
+            backend.refresh(&plan.run_id, expired),
+            Err(BackendFailure::NeedsReconciliation)
+        ));
+        assert_eq!(
+            serde_json::to_vec(&*backend.catalog.lock().unwrap()).unwrap(),
+            before_memory
+        );
+        assert_eq!(
+            fs::read(state.join("control-catalog.json")).unwrap(),
+            before_file
+        );
+    }
+
+    #[test]
+    fn expired_analysis_deadline_prevents_artifact_commit() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let bytes = br#"{"bounded":"public"}"#;
+        let digest = format!("{:x}", Sha256::digest(bytes));
+        let expired = RequestDeadline::start(1).unwrap();
+        thread::sleep(Duration::from_millis(5));
+        assert!(matches!(
+            backend.commit_analysis_before_deadline(bytes, &digest, expired),
+            Err(BackendFailure::NeedsReconciliation)
+        ));
+        assert!(!state.join("analyses").exists());
     }
 
     #[test]
