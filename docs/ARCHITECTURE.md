@@ -103,4 +103,9 @@ No default dependency on Python, benchkit, bm-generator, syzkaller or CSB submod
 in the Rust runtime. AR-0601 must demonstrate cancellation, timestamp alignment and
 round-trip result fidelity before calling the integration supported.
 
+The [AR-0601 compatibility audit](CSB_INTEGRATION.md) rejects CSB's high-level runner at this
+boundary. Only the qualified external-application subprocess surface remains eligible, and an
+engineering-workload bridge stays unavailable until its inner executable and result mapping are
+independently bound and verified.
+
 Reference: [CSB](https://github.com/martin-beck/CSB).
