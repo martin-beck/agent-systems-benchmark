@@ -3,15 +3,17 @@
 import json
 from pathlib import Path
 
-
-REGISTRY = Path(__file__).parents[2] / "crates/asb-workloads/registry/v1/external-workloads.json"
+REGISTRY = (
+    Path(__file__).parents[2]
+    / "crates/asb-workloads/registry/v1/external-workloads.json"
+)
 
 
 def test_external_registry_is_pinned_and_non_vendored():
     data = json.loads(REGISTRY.read_text())
     assert data["schema_version"] == 1
     ids = [item["id"] for item in data["workloads"]]
-    assert ids == ["swe-bench", "aider-polyglot", "exercism-tracks"]
+    assert ids == ["swe-bench", "aider-polyglot", "exercism-tracks", "terminal-bench"]
     for item in data["workloads"]:
         assert item["dataset"]["vendored"] is False
         assert item["dataset"]["acquisition"] == "explicit-download"
@@ -22,3 +24,11 @@ def test_external_registry_is_pinned_and_non_vendored():
             "planned-with-toolchain-evidence",
             "unsupported-until-native-evidence",
         }
+
+    terminal = data["workloads"][-1]
+    assert terminal["dataset"]["task_count"] == 66
+    assert terminal["dataset"]["task_reference_kind"] == "harbor-package-sha256"
+    assert terminal["dataset"]["source_tree_matches_packages"] is False
+    assert terminal["evaluator"]["provenance"]["status"] == "planned"
+    assert terminal["network"]["status"] == "unqualified-upstream-default-public"
+    assert terminal["reset"]["status"] == "unverified"
