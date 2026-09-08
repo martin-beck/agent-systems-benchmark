@@ -754,6 +754,438 @@ fn validate(c: &WizardCatalog, s: &WizardSettings, complete: bool) -> Result<(),
     }
 }
 
+/// Version of the multi-agent/shared-provider selection contract.
+pub const MULTI_AGENT_PROVIDER_SELECTION_V1: u16 = 1;
+
+/// A runner-advertised provider profile and the agents for which it is qualified.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SharedProviderChoice {
+    /// Safe display and selection identifier.
+    pub id: ChoiceId,
+    /// Credential-free digest of the complete provider profile.
+    pub profile_sha256: String,
+    /// Complete set of agents qualified for this profile.
+    pub compatible_agents: Vec<ChoiceId>,
+}
+
+/// Negotiated catalog used by the multi-agent/shared-provider selector.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MultiAgentCatalog {
+    /// Generic frontend capabilities.
+    pub control: Capabilities,
+    /// Runner-advertised agent identifiers.
+    pub agents: Vec<ChoiceId>,
+    /// Runner-advertised provider profiles and compatibility sets.
+    pub providers: Vec<SharedProviderChoice>,
+    /// Workload choices.
+    pub workloads: Vec<ChoiceId>,
+    /// Platform choices.
+    pub platforms: Vec<ChoiceId>,
+    /// Metric choices.
+    pub metrics: Vec<ChoiceId>,
+    /// Compatible recording digests.
+    pub recordings: Vec<String>,
+    /// Whether live provider preflight succeeded.
+    pub live_available: bool,
+    /// Maximum repetitions.
+    pub max_repetitions: u32,
+    /// Maximum concurrency.
+    pub max_concurrency: u32,
+}
+
+/// Complete multi-agent settings with exactly one shared provider profile.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MultiAgentSettings {
+    /// Contract generation.
+    pub schema_version: u16,
+    /// Selected agents; order is not semantically significant.
+    pub agents: Vec<ChoiceId>,
+    /// One provider profile applied to every selected agent.
+    pub provider: Option<ChoiceId>,
+    /// Explicit execution source.
+    pub source: Option<ProviderSource>,
+    /// Workload selection.
+    pub workload: Option<ChoiceId>,
+    /// Repetition count.
+    pub repetitions: u32,
+    /// Concurrency.
+    pub concurrency: u32,
+    /// Platform selection.
+    pub platform: Option<ChoiceId>,
+    /// Metric selections.
+    pub metrics: Vec<ChoiceId>,
+    /// Non-secret credential reference digest.
+    pub credential_reference_sha256: Option<String>,
+}
+
+/// The privacy-safe review shown before plan creation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MultiAgentReview {
+    /// Canonically ordered selected agents.
+    pub agents: Vec<ChoiceId>,
+    /// Selected provider identifier.
+    pub provider: ChoiceId,
+    /// Credential-free provider profile digest.
+    pub provider_profile_sha256: String,
+    /// Selected workload.
+    pub workload: ChoiceId,
+    /// Selected platform.
+    pub platform: ChoiceId,
+    /// Repetition count.
+    pub repetitions: u32,
+    /// Concurrency.
+    pub concurrency: u32,
+}
+
+/// Side-effect-free state for selecting several agents and one common profile.
+#[derive(Debug)]
+pub struct MultiAgentWizard {
+    catalog: MultiAgentCatalog,
+    current: MultiAgentSettings,
+    history: Vec<MultiAgentSettings>,
+}
+
+impl MultiAgentWizard {
+    /// Construct a selector from one freshly negotiated runner catalog.
+    pub fn new(catalog: MultiAgentCatalog) -> Result<Self, WizardError> {
+        validate_multi_catalog(&catalog)?;
+        Ok(Self {
+            catalog,
+            current: MultiAgentSettings {
+                schema_version: MULTI_AGENT_PROVIDER_SELECTION_V1,
+                ..MultiAgentSettings::default()
+            },
+            history: Vec::new(),
+        })
+    }
+
+    /// Borrow the current editable settings.
+    pub fn settings(&self) -> &MultiAgentSettings {
+        &self.current
+    }
+
+    /// Search only runner-advertised agents using bounded ASCII folding.
+    pub fn search_agents(&self, query: &str) -> Result<Vec<ChoiceId>, WizardError> {
+        self.search(&self.catalog.agents, query)
+    }
+
+    /// Search only runner-advertised provider profiles.
+    pub fn search_providers(&self, query: &str) -> Result<Vec<ChoiceId>, WizardError> {
+        let values = self
+            .catalog
+            .providers
+            .iter()
+            .map(|provider| provider.id.clone())
+            .collect::<Vec<_>>();
+        self.search(&values, query)
+    }
+
+    /// Return providers compatible with every currently selected agent.
+    pub fn compatible_providers(&self) -> Vec<ChoiceId> {
+        self.catalog
+            .providers
+            .iter()
+            .filter(|provider| {
+                self.current
+                    .agents
+                    .iter()
+                    .all(|agent| provider.compatible_agents.contains(agent))
+            })
+            .map(|provider| provider.id.clone())
+            .collect()
+    }
+
+    /// Select a non-empty, duplicate-free set of runner-advertised agents.
+    pub fn select_agents(&mut self, agents: Vec<ChoiceId>) -> Result<(), WizardError> {
+        let mut next = self.current.clone();
+        next.agents = agents;
+        if let Some(provider) = &next.provider {
+            let choice =
+                provider_choice(&self.catalog, provider).ok_or(WizardError::InvalidSettings)?;
+            if !next
+                .agents
+                .iter()
+                .all(|agent| choice.compatible_agents.contains(agent))
+            {
+                next.provider = None;
+            }
+        }
+        validate_multi(&self.catalog, &next, false)?;
+        self.history.push(self.current.clone());
+        self.current = next;
+        Ok(())
+    }
+
+    /// Toggle one advertised agent while preserving set semantics.
+    pub fn toggle_agent(&mut self, agent: ChoiceId) -> Result<(), WizardError> {
+        let mut agents = self.current.agents.clone();
+        if let Some(index) = agents.iter().position(|value| value == &agent) {
+            agents.remove(index);
+        } else {
+            agents.push(agent);
+        }
+        self.select_agents(agents)
+    }
+
+    /// Clear all selected agents and the now-unbound provider.
+    pub fn clear_agents(&mut self) {
+        self.history.push(self.current.clone());
+        self.current.agents.clear();
+        self.current.provider = None;
+    }
+
+    /// Select one provider only when it supports the complete agent set.
+    pub fn select_provider(&mut self, provider: ChoiceId) -> Result<(), WizardError> {
+        let choice =
+            provider_choice(&self.catalog, &provider).ok_or(WizardError::InvalidSettings)?;
+        if !self
+            .current
+            .agents
+            .iter()
+            .all(|agent| choice.compatible_agents.contains(agent))
+        {
+            return Err(WizardError::InvalidSettings);
+        }
+        let mut next = self.current.clone();
+        next.provider = Some(provider);
+        validate_multi(&self.catalog, &next, false)?;
+        self.history.push(self.current.clone());
+        self.current = next;
+        Ok(())
+    }
+
+    /// Apply workload, source, resource, and evidence settings atomically.
+    pub fn apply(&mut self, next: MultiAgentSettings) -> Result<(), WizardError> {
+        validate_multi(&self.catalog, &next, false)?;
+        self.history.push(self.current.clone());
+        self.current = next;
+        Ok(())
+    }
+
+    /// Restore the previous complete edit.
+    pub fn back(&mut self) -> bool {
+        if let Some(prior) = self.history.pop() {
+            self.current = prior;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Produce a bounded review only after all required choices are complete.
+    pub fn review(&self) -> Result<MultiAgentReview, WizardError> {
+        validate_multi(&self.catalog, &self.current, true)?;
+        let provider = self
+            .current
+            .provider
+            .clone()
+            .ok_or(WizardError::InvalidSettings)?;
+        let choice =
+            provider_choice(&self.catalog, &provider).ok_or(WizardError::InvalidSettings)?;
+        Ok(MultiAgentReview {
+            agents: canonical_agents(&self.current.agents),
+            provider,
+            provider_profile_sha256: choice.profile_sha256.clone(),
+            workload: self
+                .current
+                .workload
+                .clone()
+                .ok_or(WizardError::InvalidSettings)?,
+            platform: self
+                .current
+                .platform
+                .clone()
+                .ok_or(WizardError::InvalidSettings)?,
+            repetitions: self.current.repetitions,
+            concurrency: self.current.concurrency,
+        })
+    }
+
+    /// Render a deterministic, digest-free plain-text review.
+    pub fn render_plain(&self, width: usize) -> Result<String, WizardError> {
+        if !(24..=240).contains(&width) {
+            return Err(WizardError::InvalidSettings);
+        }
+        let provider = self
+            .current
+            .provider
+            .as_ref()
+            .map_or("not selected", |value| value.0.as_str());
+        let agents = if self.current.agents.is_empty() {
+            "none".to_owned()
+        } else {
+            canonical_agents(&self.current.agents)
+                .into_iter()
+                .map(|agent| agent.0)
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        Ok(format!(
+            "ASB multi-agent settings | Agents: {agents}\nProvider: {provider}\nCompatible providers: {}\nExplicit review required; no run starts from this screen.",
+            self.compatible_providers().len()
+        ))
+    }
+
+    /// Build a validation-only request without creating or launching a run.
+    pub fn dry_run(&self) -> Result<ControlCall, WizardError> {
+        if !self.catalog.control.validate_settings {
+            return Err(WizardError::ValidationUnavailable);
+        }
+        validate_multi(&self.catalog, &self.current, true)?;
+        Ok(ControlCall::ValidateSettings {
+            settings: json!(self.current),
+        })
+    }
+
+    /// Build plan creation only after exact explicit confirmation.
+    pub fn confirm_plan(&self, confirmation: &str) -> Result<ControlCall, WizardError> {
+        let review = self.review()?;
+        if !self.catalog.control.run_control {
+            return Err(WizardError::InvalidSettings);
+        }
+        if confirmation != "create plan" {
+            return Err(WizardError::ConfirmationRequired);
+        }
+        Ok(ControlCall::CreatePlan(MutationParams {
+            idempotency_key: "asb-tui-multi-agent-provider-plan-v1".into(),
+            definition: json!({"selection": self.current, "review": review}),
+        }))
+    }
+
+    fn search(&self, values: &[ChoiceId], query: &str) -> Result<Vec<ChoiceId>, WizardError> {
+        if query.len() > 128 || !query.is_ascii() {
+            return Err(WizardError::InvalidSettings);
+        }
+        let query = query.to_ascii_lowercase();
+        Ok(values
+            .iter()
+            .filter(|value| value.0.to_ascii_lowercase().contains(&query))
+            .cloned()
+            .collect())
+    }
+}
+
+fn canonical_agents(agents: &[ChoiceId]) -> Vec<ChoiceId> {
+    let mut result = agents.to_vec();
+    result.sort();
+    result
+}
+
+fn provider_choice<'a>(
+    catalog: &'a MultiAgentCatalog,
+    id: &ChoiceId,
+) -> Option<&'a SharedProviderChoice> {
+    catalog.providers.iter().find(|provider| provider.id == *id)
+}
+
+fn validate_multi_catalog(catalog: &MultiAgentCatalog) -> Result<(), WizardError> {
+    if !choices(&catalog.agents)
+        || !choices(&catalog.workloads)
+        || !choices(&catalog.platforms)
+        || !choices(&catalog.metrics)
+        || catalog.recordings.len() > MAX_CHOICES
+        || !catalog.recordings.iter().all(|value| digest(value))
+        || catalog.recordings.iter().collect::<BTreeSet<_>>().len() != catalog.recordings.len()
+        || catalog.max_repetitions == 0
+        || catalog.max_concurrency == 0
+        || catalog.providers.is_empty()
+        || catalog.providers.len() > MAX_CHOICES
+        || catalog
+            .providers
+            .iter()
+            .map(|provider| &provider.id)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != catalog.providers.len()
+    {
+        return Err(WizardError::InvalidCatalog);
+    }
+    if catalog.providers.iter().any(|provider| {
+        !digest(&provider.profile_sha256)
+            || !choices(&provider.compatible_agents)
+            || provider
+                .compatible_agents
+                .iter()
+                .any(|agent| !catalog.agents.contains(agent))
+    }) {
+        return Err(WizardError::InvalidCatalog);
+    }
+    Ok(())
+}
+
+fn validate_multi(
+    catalog: &MultiAgentCatalog,
+    settings: &MultiAgentSettings,
+    complete: bool,
+) -> Result<(), WizardError> {
+    if settings.schema_version != MULTI_AGENT_PROVIDER_SELECTION_V1
+        || settings.agents.len() > MAX_CHOICES
+        || settings.agents.iter().collect::<BTreeSet<_>>().len() != settings.agents.len()
+        || settings
+            .agents
+            .iter()
+            .any(|agent| !catalog.agents.contains(agent))
+        || settings
+            .provider
+            .as_ref()
+            .is_some_and(|provider| provider_choice(catalog, provider).is_none())
+        || settings.repetitions > catalog.max_repetitions
+        || settings.concurrency > catalog.max_concurrency
+        || settings
+            .workload
+            .as_ref()
+            .is_some_and(|value| !catalog.workloads.contains(value))
+        || settings
+            .platform
+            .as_ref()
+            .is_some_and(|value| !catalog.platforms.contains(value))
+        || settings
+            .metrics
+            .iter()
+            .any(|value| !catalog.metrics.contains(value))
+        || settings.metrics.iter().collect::<BTreeSet<_>>().len() != settings.metrics.len()
+        || settings
+            .credential_reference_sha256
+            .as_ref()
+            .is_some_and(|value| !digest(value))
+        || !(match &settings.source {
+            None => true,
+            Some(ProviderSource::Live) => catalog.live_available,
+            Some(ProviderSource::Replay { cassette_sha256 }) => {
+                catalog.recordings.contains(cassette_sha256)
+            }
+        })
+    {
+        return Err(WizardError::InvalidSettings);
+    }
+    if let Some(provider) = &settings.provider {
+        let choice = provider_choice(catalog, provider).ok_or(WizardError::InvalidSettings)?;
+        if settings
+            .agents
+            .iter()
+            .any(|agent| !choice.compatible_agents.contains(agent))
+        {
+            return Err(WizardError::InvalidSettings);
+        }
+    }
+    let complete_selection = !settings.agents.is_empty()
+        && settings.provider.is_some()
+        && settings.source.is_some()
+        && settings.workload.is_some()
+        && settings.repetitions > 0
+        && settings.concurrency > 0
+        && settings.platform.is_some();
+    if complete && !complete_selection {
+        Err(WizardError::InvalidSettings)
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -817,6 +1249,117 @@ mod tests {
             metrics: vec![ChoiceId("wall-time".into())],
             credential_reference_sha256: Some("b".repeat(64)),
         }
+    }
+
+    fn multi_catalog() -> MultiAgentCatalog {
+        MultiAgentCatalog {
+            control: catalog().control,
+            agents: vec![
+                ChoiceId("codex".into()),
+                ChoiceId("aider".into()),
+                ChoiceId("gemini".into()),
+            ],
+            providers: vec![
+                SharedProviderChoice {
+                    id: ChoiceId("openai-shared".into()),
+                    profile_sha256: "c".repeat(64),
+                    compatible_agents: vec![ChoiceId("aider".into()), ChoiceId("codex".into())],
+                },
+                SharedProviderChoice {
+                    id: ChoiceId("gemini-only".into()),
+                    profile_sha256: "d".repeat(64),
+                    compatible_agents: vec![ChoiceId("gemini".into())],
+                },
+            ],
+            workloads: vec![ChoiceId("bug-fix".into())],
+            platforms: vec![ChoiceId("linux".into())],
+            metrics: vec![ChoiceId("wall-time".into())],
+            recordings: vec!["a".repeat(64)],
+            live_available: true,
+            max_repetitions: 10,
+            max_concurrency: 4,
+        }
+    }
+
+    fn multi_settings() -> MultiAgentSettings {
+        MultiAgentSettings {
+            schema_version: MULTI_AGENT_PROVIDER_SELECTION_V1,
+            agents: vec![ChoiceId("codex".into()), ChoiceId("aider".into())],
+            provider: Some(ChoiceId("openai-shared".into())),
+            source: Some(ProviderSource::Live),
+            workload: Some(ChoiceId("bug-fix".into())),
+            repetitions: 2,
+            concurrency: 1,
+            platform: Some(ChoiceId("linux".into())),
+            metrics: vec![ChoiceId("wall-time".into())],
+            credential_reference_sha256: Some("b".repeat(64)),
+        }
+    }
+
+    #[test]
+    fn multi_agent_selection_requires_one_common_provider_and_is_canonical() {
+        let mut wizard = MultiAgentWizard::new(multi_catalog()).unwrap();
+        assert_eq!(
+            wizard.search_agents("CODE").unwrap(),
+            vec![ChoiceId("codex".into())]
+        );
+        wizard
+            .select_agents(vec![ChoiceId("aider".into()), ChoiceId("codex".into())])
+            .unwrap();
+        assert_eq!(
+            wizard.compatible_providers(),
+            vec![ChoiceId("openai-shared".into())]
+        );
+        wizard
+            .select_provider(ChoiceId("openai-shared".into()))
+            .unwrap();
+        wizard.apply(multi_settings()).unwrap();
+        let review = wizard.review().unwrap();
+        assert_eq!(
+            review.agents,
+            vec![ChoiceId("aider".into()), ChoiceId("codex".into())]
+        );
+        assert_eq!(review.provider_profile_sha256, "c".repeat(64));
+        let rendered = wizard.render_plain(80).unwrap();
+        assert!(rendered.contains("aider,codex"));
+        assert!(!rendered.contains(&"c".repeat(64)));
+        assert!(matches!(
+            wizard.confirm_plan("create plan"),
+            Ok(ControlCall::CreatePlan(_))
+        ));
+    }
+
+    #[test]
+    fn multi_agent_selection_rejects_incompatible_and_stale_inputs() {
+        let mut wizard = MultiAgentWizard::new(multi_catalog()).unwrap();
+        wizard
+            .select_agents(vec![ChoiceId("codex".into())])
+            .unwrap();
+        assert_eq!(
+            wizard.select_provider(ChoiceId("gemini-only".into())),
+            Err(WizardError::InvalidSettings)
+        );
+        assert_eq!(
+            wizard.select_agents(vec![ChoiceId("unknown".into())]),
+            Err(WizardError::InvalidSettings)
+        );
+        assert!(wizard.search_providers("\u{00e9}").is_err());
+        wizard.toggle_agent(ChoiceId("codex".into())).unwrap();
+        assert!(wizard.settings().agents.is_empty());
+        assert!(wizard.back());
+        assert_eq!(wizard.settings().agents, vec![ChoiceId("codex".into())]);
+    }
+
+    #[test]
+    fn multi_agent_catalog_rejects_unbound_provider_compatibility() {
+        let mut catalog = multi_catalog();
+        catalog.providers[0]
+            .compatible_agents
+            .push(ChoiceId("not-advertised".into()));
+        assert_eq!(
+            MultiAgentWizard::new(catalog).unwrap_err(),
+            WizardError::InvalidCatalog
+        );
     }
     #[test]
     fn dry_run_and_create_are_explicit_and_never_launch() {
