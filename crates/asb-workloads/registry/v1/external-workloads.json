@@ -33,6 +33,19 @@
       "attempt_budget": 1,
       "platforms": {"linux-x86_64": "planned", "linux-aarch64": "planned-with-toolchain-evidence"},
       "limitations": ["Track sources are pinned independently", "Toolchain and image digests remain required before qualification"]
+    },
+    {
+      "id": "terminal-bench",
+      "version": "v4.0.0-452bf305",
+      "kind": "terminal-environment",
+      "source": {"repository": "https://github.com/harbor-framework/terminal-bench", "commit": "452bf305c6daa62fc59061d22133a7cbc7c1572e", "license": "Apache-2.0", "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4", "archive_status": "verified", "archive_sha256": "390ee198a0f02fcdf140ac21420e106ce98f26d5f028b3d16b73e2d5137ff392"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "terminal-bench-v4", "manifest_sha256": "ecd296ba053840bd4c0068e8f84e8a6fa829d184d0fd9852becdc19f4c895fcf", "task_count": 66, "task_reference_kind": "harbor-package-sha256", "source_tree_matches_packages": false},
+      "evaluator": {"entrypoint": "harbor run", "version": "4407eb5227a2ff4f0d3f16b2eb48849382fdf276", "repository": "https://github.com/harbor-framework/harbor", "license": "Apache-2.0", "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4", "archive_sha256": "04ec6b077d610896d75ed85b6b5ff88a9a241da6d528419acca66d2307329a21", "image_digest": null, "oracle": "harbor-oracle", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "network": {"status": "unqualified-upstream-default-public"},
+      "reset": {"status": "unverified"},
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["Published Harbor package bytes must be acquired and verified independently because sampled source-tree hashes do not match the dataset package digests", "Only 8 of 66 source Dockerfiles pin a base image digest; selected evaluator images and SBOMs remain unqualified", "No task declares a network policy, so Harbor resolves the upstream default to public network access", "Reset behavior and repeated native oracle success remain unverified"]
     }
   ]
 }
