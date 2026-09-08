@@ -82,6 +82,25 @@ struct ActiveRun {
     cancelled: Arc<AtomicBool>,
 }
 
+struct ActiveRunLease {
+    active: Arc<Mutex<BTreeMap<String, ActiveRun>>>,
+    run_id: String,
+}
+
+impl ActiveRunLease {
+    fn new(active: Arc<Mutex<BTreeMap<String, ActiveRun>>>, run_id: String) -> Self {
+        Self { active, run_id }
+    }
+}
+
+impl Drop for ActiveRunLease {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.active.lock() {
+            active.remove(&self.run_id);
+        }
+    }
+}
+
 struct RunnerBackend {
     state_root: PathBuf,
     runner_instance_id: String,
@@ -793,7 +812,10 @@ impl RunnerBackend {
         record.revision =
             Self::append_event(&mut intent, ControlEventKind::RunUpdated, Some(&record))?;
         intent.runs.insert(record.run_id.clone(), record.clone());
-        let result = self.bind(call, ControlResult::Launch(Self::summary(&record)))?;
+        let result = self.bind(
+            call,
+            ControlResult::Launch(Self::summary(&intent, &record)?),
+        )?;
         intent.mutations.insert(
             key_digest.clone(),
             MutationRecord {
@@ -841,10 +863,8 @@ impl RunnerBackend {
             .name(format!("asb-run-{run_id}"))
             .spawn(move || {
                 let _state_lock = state_lock;
+                let _active_run = ActiveRunLease::new(Arc::clone(&active), run_id.clone());
                 if !start_receiver.recv().unwrap_or(false) {
-                    if let Ok(mut active) = active.lock() {
-                        active.remove(&run_id);
-                    }
                     return;
                 }
                 let execution = AtomicStore::open(&plan.result_root, StoreLimits::default())
@@ -859,7 +879,6 @@ impl RunnerBackend {
                             Arc::clone(&cancelled),
                         )
                     });
-                let mut committed = false;
                 if let Ok(mut catalog) = catalog_state.lock() {
                     let mut staged = catalog.clone();
                     if let Some(mut current) = staged.runs.get(&run_id).cloned() {
@@ -873,10 +892,6 @@ impl RunnerBackend {
                                     | PublicRunState::NeedsReconciliation
                             )
                         {
-                            drop(catalog);
-                            if let Ok(mut active) = active.lock() {
-                                active.remove(&run_id);
-                            }
                             return;
                         }
                         current.state = if execution.is_err()
@@ -901,13 +916,9 @@ impl RunnerBackend {
                         {
                             current.revision = revision;
                             staged.runs.insert(run_id.clone(), current);
-                            committed =
-                                commit_staged_catalog(&state_root, &mut catalog, staged).is_ok();
+                            let _ = commit_staged_catalog(&state_root, &mut catalog, staged);
                         }
                     }
-                }
-                if committed && let Ok(mut active) = active.lock() {
-                    active.remove(&run_id);
                 }
             });
         if worker.is_err() {
@@ -985,14 +996,30 @@ impl RunnerBackend {
             .map_err(|_| BackendFailure::NeedsReconciliation)
     }
 
-    fn summary(record: &RunRecord) -> RunSummary {
-        RunSummary {
+    fn summary(catalog: &Catalog, record: &RunRecord) -> Result<RunSummary, BackendFailure> {
+        let created_revision = catalog
+            .events
+            .iter()
+            .find(|event| {
+                event
+                    .run_id
+                    .as_ref()
+                    .is_some_and(|id| id.0 == record.run_id)
+                    && event
+                        .attempt_id
+                        .as_ref()
+                        .is_some_and(|id| id.0 == record.attempt_id)
+            })
+            .map(|event| event.revision)
+            .ok_or(BackendFailure::NeedsReconciliation)?;
+        Ok(RunSummary {
             run_id: RunId(record.run_id.clone()),
             attempt_id: asb_control::AttemptId(record.attempt_id.clone()),
             state: record.state,
+            created_revision,
             revision: record.revision,
             plan_sha256: record.plan_sha256.clone(),
-        }
+        })
     }
 
     fn refresh(
@@ -1159,7 +1186,14 @@ impl ControlBackend for RunnerBackend {
             ControlCall::Launch(params) => self.launch(call, params, deadline),
             ControlCall::Status { run_id } => {
                 let record = self.refresh(&run_id.0, deadline)?;
-                self.bind(call, ControlResult::Status(Self::summary(&record)))
+                let catalog = self
+                    .catalog
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+                self.bind(
+                    call,
+                    ControlResult::Status(Self::summary(&catalog, &record)?),
+                )
             }
             ControlCall::Cancel(params) => {
                 let request = BoundControlResult::new(
@@ -1287,29 +1321,37 @@ impl ControlBackend for RunnerBackend {
                     .catalog
                     .lock()
                     .map_err(|_| BackendFailure::NeedsReconciliation)?;
-                let mut values = catalog.runs.values().cloned().collect::<Vec<_>>();
-                values.sort_by_key(|record| record.revision);
+                let mut values = catalog
+                    .runs
+                    .values()
+                    .map(|record| Ok((Self::summary(&catalog, record)?.created_revision, record)))
+                    .collect::<Result<Vec<_>, BackendFailure>>()?;
+                values.sort_by_key(|(created_revision, _)| *created_revision);
                 if let Some(after) = page.after {
-                    let oldest = values.first().map_or(Revision(0), |record| record.revision);
-                    let latest = values.last().map_or(Revision(0), |record| record.revision);
+                    let oldest = values
+                        .first()
+                        .map_or(Revision(0), |(revision, _)| *revision);
+                    let latest = values.last().map_or(Revision(0), |(revision, _)| *revision);
                     if after > latest || (oldest.0 > 0 && after.0.saturating_add(1) < oldest.0) {
                         return Err(BackendFailure::StaleCursor);
                     }
                 }
                 let filtered = values
                     .into_iter()
-                    .filter(|record| page.after.is_none_or(|after| record.revision > after))
+                    .filter(|(created_revision, _)| {
+                        page.after.is_none_or(|after| *created_revision > after)
+                    })
                     .collect::<Vec<_>>();
                 let has_more = filtered.len() > usize::from(page.limit);
                 let items = filtered
                     .into_iter()
                     .take(usize::from(page.limit))
-                    .map(|record| Self::summary(&record))
-                    .collect::<Vec<_>>();
+                    .map(|(_, record)| Self::summary(&catalog, record))
+                    .collect::<Result<Vec<_>, _>>()?;
                 self.bind(
                     call,
                     ControlResult::History(Page {
-                        next: items.last().map(|item| item.revision),
+                        next: items.last().map(|item| item.created_revision),
                         items,
                         has_more,
                     }),
@@ -1366,12 +1408,17 @@ impl ControlBackend for RunnerBackend {
                 },
             ),
             ControlCall::Analyze { run_ids } => {
-                let summaries = run_ids
+                let records = run_ids
                     .iter()
-                    .map(|run_id| {
-                        self.refresh(&run_id.0, deadline)
-                            .map(|record| Self::summary(&record))
-                    })
+                    .map(|run_id| self.refresh(&run_id.0, deadline))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let catalog = self
+                    .catalog
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+                let summaries = records
+                    .iter()
+                    .map(|record| Self::summary(&catalog, record))
                     .collect::<Result<Vec<_>, _>>()?;
                 if summaries.iter().any(|summary| {
                     !matches!(
@@ -1561,6 +1608,106 @@ mod tests {
 
     fn deadline() -> RequestDeadline {
         RequestDeadline::start(10_000).unwrap()
+    }
+
+    #[test]
+    fn active_run_lease_retires_worker_even_when_terminal_commit_cannot_complete() {
+        let active = Arc::new(Mutex::new(BTreeMap::from([(
+            "run-with-uncertain-commit".into(),
+            ActiveRun {
+                attempt_id: "attempt-1".into(),
+                cancelled: Arc::new(AtomicBool::new(false)),
+            },
+        )])));
+        let worker_active = Arc::clone(&active);
+        let terminal = thread::spawn(move || -> Result<(), CliError> {
+            let _lease = ActiveRunLease::new(worker_active, "run-with-uncertain-commit".into());
+            Err(CliError::operation("injected terminal catalog failure"))
+        })
+        .join()
+        .unwrap();
+        assert!(terminal.is_err());
+        assert!(active.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn history_cursor_is_stable_when_an_earlier_run_changes_state() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            for ordinal in 1..=2 {
+                let mut plan = fixture_plan(&scratch.0);
+                plan.run_id = format!("history-run-{ordinal}");
+                plan.work_root = scratch.0.join(format!("work-{ordinal}"));
+                plan.result_root = scratch.0.join(format!("result-{ordinal}"));
+                let plan_id = format!("history-plan-{ordinal}");
+                let plan_sha256 = plan_digest(&plan).unwrap();
+                catalog.plans.insert(plan_id.clone(), plan);
+                let mut record = RunRecord {
+                    plan_id,
+                    run_id: format!("history-run-{ordinal}"),
+                    attempt_id: format!("history-attempt-{ordinal}"),
+                    state: PublicRunState::Planned,
+                    revision: Revision(0),
+                    plan_sha256,
+                };
+                record.revision = RunnerBackend::append_event(
+                    &mut catalog,
+                    ControlEventKind::RunUpdated,
+                    Some(&record),
+                )
+                .unwrap();
+                catalog.runs.insert(record.run_id.clone(), record);
+            }
+            commit_catalog(&state, &catalog).unwrap();
+        }
+
+        let first = backend
+            .execute(
+                &ControlCall::History(asb_control::PageParams {
+                    after: None,
+                    limit: 1,
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::History(first) = first.result else {
+            panic!("history result");
+        };
+        assert_eq!(first.items[0].run_id.0, "history-run-1");
+        assert!(first.has_more);
+
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            let mut updated = catalog.runs["history-run-1"].clone();
+            updated.state = PublicRunState::Completed;
+            updated.revision = RunnerBackend::append_event(
+                &mut catalog,
+                ControlEventKind::RunCompleted,
+                Some(&updated),
+            )
+            .unwrap();
+            catalog.runs.insert(updated.run_id.clone(), updated);
+            commit_catalog(&state, &catalog).unwrap();
+        }
+        let second = backend
+            .execute(
+                &ControlCall::History(asb_control::PageParams {
+                    after: first.next,
+                    limit: 1,
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::History(second) = second.result else {
+            panic!("history result");
+        };
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.items[0].run_id.0, "history-run-2");
+        assert!(!second.has_more);
     }
 
     #[test]
@@ -1814,6 +1961,7 @@ mod tests {
                 run_id: RunId(run_id.clone()),
                 attempt_id: asb_control::AttemptId(attempt_id.clone()),
                 state: PublicRunState::Planned,
+                created_revision: launch_revision,
                 revision: launch_revision,
                 plan_sha256,
             }),

@@ -64,6 +64,18 @@ fn schema_and_rust_reject_unknown_or_ambiguous_envelopes() {
     let mut leaked: Value = serde_json::from_str(RESPONSE).unwrap();
     leaked["artifact_path"] = json!("/private/result");
     assert!(!response_validator.is_valid(&leaked));
+
+    let mut missing_creation_cursor: Value = serde_json::from_str(RESPONSE).unwrap();
+    missing_creation_cursor["result"]["value"]["result"]["value"]
+        .as_object_mut()
+        .unwrap()
+        .remove("created_revision");
+    assert!(!response_validator.is_valid(&missing_creation_cursor));
+
+    let mut malformed_creation_cursor: Value = serde_json::from_str(RESPONSE).unwrap();
+    malformed_creation_cursor["result"]["value"]["result"]["value"]["created_revision"] =
+        json!("not-a-revision");
+    assert!(!response_validator.is_valid(&malformed_creation_cursor));
 }
 
 #[test]
@@ -82,6 +94,16 @@ fn generated_schemas_reject_runtime_boundary_negatives() {
 
     let response_schema: Value = serde_json::from_str(RESPONSE_SCHEMA).unwrap();
     let response_validator = jsonschema::validator_for(&response_schema).unwrap();
+    let mut missing_creation_cursor: Value = serde_json::from_str(RESPONSE).unwrap();
+    missing_creation_cursor["result"]["value"]["result"]["value"]
+        .as_object_mut()
+        .unwrap()
+        .remove("created_revision");
+    assert!(!response_validator.is_valid(&missing_creation_cursor));
+    let mut malformed_creation_cursor: Value = serde_json::from_str(RESPONSE).unwrap();
+    malformed_creation_cursor["result"]["value"]["result"]["value"]["created_revision"] =
+        json!("not-a-revision");
+    assert!(!response_validator.is_valid(&malformed_creation_cursor));
     let contradictory_settings = json!({
         "jsonrpc": "2.0",
         "id": 7,

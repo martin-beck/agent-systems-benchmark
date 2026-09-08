@@ -83,6 +83,12 @@ history is stale; one newer than runner truth is invalid. Neither condition is
 reported as an empty successful page. Independent clients advance independent
 cursors, and reconnect cannot create a mutation.
 
+Run history is ordered by each run's immutable `created_revision`; its page
+cursor uses that value even when a returned summary's current `revision`
+advances between requests. State changes therefore cannot duplicate or displace
+a run across history pages. A summary always requires
+`created_revision <= revision`.
+
 Ordinary successful responses use a closed typed result vocabulary bound to the
 request method. It contains only stable IDs, states, revisions, plan or artifact
 digests, sizes, bounded issue enums, booleans, and explicit sensitivity.

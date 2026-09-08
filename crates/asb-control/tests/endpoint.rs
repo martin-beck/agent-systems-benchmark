@@ -172,6 +172,7 @@ fn summary(run_id: &str, state: PublicRunState) -> RunSummary {
         run_id: RunId(run_id.into()),
         attempt_id: AttemptId(format!("{run_id}-attempt")),
         state,
+        created_revision: Revision(1),
         revision: Revision(3),
         plan_sha256: "0".repeat(64),
     }

@@ -11,6 +11,7 @@
           "run_id": "run-public-example",
           "attempt_id": "attempt-public-example",
           "state": "planned",
+          "created_revision": 1,
           "revision": 42,
           "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         }
