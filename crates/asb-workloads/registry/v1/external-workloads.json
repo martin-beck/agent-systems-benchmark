@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workloads": [
+    {
+      "id": "swe-bench",
+      "version": "verified-02e7a74f",
+      "kind": "repository-repair",
+      "source": {"repository": "https://github.com/SWE-bench/SWE-bench", "commit": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e", "license": "MIT"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "verified"},
+      "evaluator": {"entrypoint": "swebench.harness", "version": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e", "image_digest": null, "oracle": "official-tests"},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["Dataset and evaluator are acquired separately", "No native-arm claim without an arm64 image and oracle-parity run"]
+    },
+    {
+      "id": "aider-polyglot",
+      "version": "main-7e0611e7",
+      "kind": "multilanguage-editing",
+      "source": {"repository": "https://github.com/Aider-AI/aider", "commit": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f", "license": "per-exercise"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "public"},
+      "evaluator": {"entrypoint": "aider.benchmarks.polyglot", "version": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f", "image_digest": null, "oracle": "exercise-tests"},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The upstream repository has no SPDX declaration", "Each Exercism exercise license and attribution must be retained"]
+    },
+    {
+      "id": "exercism-tracks",
+      "version": "pinned-20260908",
+      "kind": "multilanguage-editing",
+      "source": {"repositories": ["cpp@413b80a9", "go@97472cfe", "java@f1b22a3d", "javascript@9be84b9e", "python@1f6aab86", "rust@1d3a0f46"], "license": "MIT"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "public"},
+      "evaluator": {"entrypoint": "track-test-runner", "version": "pinned-20260908", "image_digest": null, "oracle": "track-tests"},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "planned-with-toolchain-evidence"},
+      "limitations": ["Track sources are pinned independently", "Toolchain and image digests remain required before qualification"]
+    }
+  ]
+}
