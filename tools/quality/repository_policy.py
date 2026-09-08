@@ -29,8 +29,10 @@ QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
 HUAWEI_COPYRIGHT = "Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved."
 SPDX_MIT = "SPDX-License-Identifier: MIT"
 EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
-TLA_MODULE = re.compile(r"^---- MODULE [A-Za-z][A-Za-z0-9_]* ----$")
-ALLOY_MODULE = re.compile(r"^module [A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z][A-Za-z0-9_]*)*$")
+TLA_MODULE = re.compile(r"^---- MODULE (?P<name>[A-Za-z][A-Za-z0-9_]*) ----$")
+ALLOY_MODULE = re.compile(
+    r"^module (?P<name>[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z][A-Za-z0-9_]*)*)$"
+)
 OPTIONAL_ARTIFACT_ACTION = (
     "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
 )
@@ -213,13 +215,21 @@ def validate_sources(files: list[Path], *, root: Path = ROOT) -> None:
             expected = [f"# {HUAWEI_COPYRIGHT}", f"# {SPDX_MIT}"]
             offset = int(bool(lines and lines[0].startswith("#!")))
         elif path.suffix == ".tla":
-            if not lines or not TLA_MODULE.fullmatch(lines[0]):
-                fail(f"{relative} must begin with its TLA+ module declaration")
+            declaration = TLA_MODULE.fullmatch(lines[0]) if lines else None
+            if declaration is None or declaration.group("name") != path.stem:
+                fail(
+                    f"{relative} must begin with a TLA+ module declaration "
+                    "matching its filename"
+                )
             expected = [f"\\* {HUAWEI_COPYRIGHT}", f"\\* {SPDX_MIT}"]
             offset = 1
         elif path.suffix == ".als":
-            if not lines or not ALLOY_MODULE.fullmatch(lines[0]):
-                fail(f"{relative} must begin with its Alloy module declaration")
+            declaration = ALLOY_MODULE.fullmatch(lines[0]) if lines else None
+            if declaration is None or declaration.group("name").rsplit("/", 1)[-1] != path.stem:
+                fail(
+                    f"{relative} must begin with an Alloy module declaration "
+                    "matching its filename"
+                )
             expected = [f"// {HUAWEI_COPYRIGHT}", f"// {SPDX_MIT}"]
             offset = 1
         else:

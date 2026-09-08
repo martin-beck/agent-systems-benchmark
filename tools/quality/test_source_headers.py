@@ -34,10 +34,13 @@ class SourceHeaderTests(unittest.TestCase):
         self.check("source.sh", f"#!/bin/sh\n# {COPYRIGHT}\n# {SPDX}\nexit 0\n")
         self.check("tools/awq", f"#!/bin/sh\n# {COPYRIGHT}\n# {SPDX}\nexit 0\n")
         self.check(
-            "model.tla", f"---- MODULE Model ----\n\\* {COPYRIGHT}\n\\* {SPDX}\n====\n"
+            "Model.tla", f"---- MODULE Model ----\n\\* {COPYRIGHT}\n\\* {SPDX}\n====\n"
         )
         self.check(
-            "model.als", f"module Model\n// {COPYRIGHT}\n// {SPDX}\nsig A {{}}\n"
+            "Model.als", f"module Model\n// {COPYRIGHT}\n// {SPDX}\nsig A {{}}\n"
+        )
+        self.check(
+            "Model.als", f"module package/Model\n// {COPYRIGHT}\n// {SPDX}\nsig A {{}}\n"
         )
 
     def test_exact_extensionless_launcher_is_required(self) -> None:
@@ -48,13 +51,13 @@ class SourceHeaderTests(unittest.TestCase):
         self.check("tools/awq.exe", "#!/bin/sh\nexit 0\n")
 
     def test_formal_sources_require_headers_after_module_declaration(self) -> None:
-        self.reject("model.tla", "---- MODULE Model ----\nEXTENDS Naturals\n")
-        self.reject("model.als", "module Model\nsig A {}\n")
+        self.reject("Model.tla", "---- MODULE Model ----\nEXTENDS Naturals\n")
+        self.reject("Model.als", "module Model\nsig A {}\n")
 
     def test_tla_header_cannot_displace_module_declaration(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            r"must begin with its TLA\+ module declaration",
+            r"must begin with a TLA\+ module declaration",
         ):
             self.check(
                 "model.tla",
@@ -64,7 +67,7 @@ class SourceHeaderTests(unittest.TestCase):
     def test_alloy_header_cannot_displace_module_declaration(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "must begin with its Alloy module declaration",
+            "must begin with an Alloy module declaration",
         ):
             self.check(
                 "model.als",
@@ -81,6 +84,22 @@ class SourceHeaderTests(unittest.TestCase):
             self.check(
                 "model.als",
                 f"open util/integer\n// {COPYRIGHT}\n// {SPDX}\n",
+            )
+
+    def test_formal_module_names_must_match_filename_stems(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError, r"TLA\+ module declaration matching its filename"
+        ):
+            self.check(
+                "Expected.tla",
+                f"---- MODULE Wrong ----\n\\* {COPYRIGHT}\n\\* {SPDX}\n====\n",
+            )
+        with self.assertRaisesRegex(
+            ValueError, "Alloy module declaration matching its filename"
+        ):
+            self.check(
+                "Expected.als",
+                f"module package/Wrong\n// {COPYRIGHT}\n// {SPDX}\nsig A {{}}\n",
             )
 
     def test_missing_copyright(self) -> None:
