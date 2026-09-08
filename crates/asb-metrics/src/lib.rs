@@ -5,6 +5,9 @@
 
 //! Portable, fail-closed Linux process and cgroup-v2 metrics.
 
+/// Optional, bounded kernel diagnostic probes.
+pub mod kernel;
+
 use asb_protocol::{Aggregation, Id, MetricDescriptor, MetricSample, MetricValue};
 use std::collections::BTreeMap;
 use std::fmt;
