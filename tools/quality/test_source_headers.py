@@ -71,6 +71,18 @@ class SourceHeaderTests(unittest.TestCase):
                 f"// {COPYRIGHT}\n// {SPDX}\nmodule Model\nsig A {{}}\n",
             )
 
+    def test_formal_sources_reject_arbitrary_first_lines(self) -> None:
+        with self.assertRaisesRegex(ValueError, r"TLA\+ module declaration"):
+            self.check(
+                "model.tla",
+                f"not a module\n\\* {COPYRIGHT}\n\\* {SPDX}\n",
+            )
+        with self.assertRaisesRegex(ValueError, "Alloy module declaration"):
+            self.check(
+                "model.als",
+                f"open util/integer\n// {COPYRIGHT}\n// {SPDX}\n",
+            )
+
     def test_missing_copyright(self) -> None:
         self.reject("source.rs", f"// {SPDX}\n")
 
@@ -106,12 +118,20 @@ class SourceHeaderTests(unittest.TestCase):
     def test_nonleading(self) -> None:
         self.reject("source.py", f"# comment\n# {COPYRIGHT}\n# {SPDX}\n")
 
-    def test_duplicate_canonical_line(self) -> None:
-        with self.assertRaisesRegex(ValueError, "exactly one canonical SPDX line"):
-            self.check(
-                "source.py",
-                f"# {COPYRIGHT}\n# {SPDX}\n# {SPDX}\n",
-            )
+    def test_standalone_canonical_literals_are_allowed(self) -> None:
+        self.check(
+            "source.py",
+            f"# {COPYRIGHT}\n# {SPDX}\n"
+            f'data = """\n# {SPDX}\nnot adjacent\n# {COPYRIGHT}\n"""\n',
+        )
+
+    def test_duplicate_canonical_pair_is_rejected(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "exactly one canonical adjacent Huawei/MIT header pair",
+        ):
+            pair = f"# {COPYRIGHT}\n# {SPDX}\n"
+            self.check("source.py", pair + "\npass\n" + pair)
 
 
 if __name__ == "__main__":

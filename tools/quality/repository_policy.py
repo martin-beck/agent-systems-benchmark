@@ -229,9 +229,15 @@ def validate_sources(files: list[Path], *, root: Path = ROOT) -> None:
                 f"{relative} lacks the exact adjacent Huawei 2026 and SPDX MIT "
                 f"source header at lines {offset + 1}-{offset + 2}"
             )
-        for required, label in zip(expected, ("copyright", "SPDX"), strict=True):
-            if lines.count(required) != 1:
-                fail(f"{relative} must contain exactly one canonical {label} line")
+        pair_count = sum(
+            lines[index : index + 2] == expected
+            for index in range(max(len(lines) - 1, 0))
+        )
+        if pair_count != 1:
+            fail(
+                f"{relative} must contain exactly one canonical adjacent "
+                "Huawei/MIT header pair"
+            )
 
 
 def validate_markdown(files: list[Path]) -> None:
