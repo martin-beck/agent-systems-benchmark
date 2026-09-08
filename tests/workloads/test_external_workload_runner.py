@@ -56,3 +56,17 @@ def test_oracle_result_validator_accepts_only_bounded_exact_schema(tmp_path):
     rejected = subprocess.run([sys.executable, str(validator), str(result_file)], capture_output=True, text=True)
     assert rejected.returncode != 0
     assert "exact" in rejected.stderr
+
+
+def test_comparison_requires_shared_evaluator_identity(tmp_path):
+    comparator = ROOT / "tools/quality/compare_external_results.py"
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    first.write_text(json.dumps({"workload": "a", "oracle": "o1", "evaluator": "e1", "score": 1}))
+    second.write_text(json.dumps({"workload": "b", "oracle": "o1", "evaluator": "e1", "score": 0.5}))
+    comparable = subprocess.run([sys.executable, str(comparator), str(first), str(second)], check=True, capture_output=True, text=True)
+    assert json.loads(comparable.stdout)["status"] == "comparable"
+    second.write_text(json.dumps({"workload": "b", "oracle": "o1", "evaluator": "e2", "score": 0.5}))
+    incomparable = subprocess.run([sys.executable, str(comparator), str(first), str(second)], capture_output=True, text=True)
+    assert incomparable.returncode == 2
+    assert json.loads(incomparable.stdout)["status"] == "non-comparable"
