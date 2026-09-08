@@ -13,8 +13,8 @@ use thiserror::Error;
 use crate::{
     BoundControlResult, CONTROL_V1, ControlCall, ControlLimits, ControlRequest, ControlResponse,
     ControlSession, ControlSuccess, FrameError, Negotiated, OwnerSocket, ProtocolError,
-    RequestDeadline, RequestId, Revision, SessionError, error_code, read_frame_until,
-    validate_identity, write_frame_until,
+    RequestDeadline, RequestId, Revision, SessionError, authenticate_owner, error_code,
+    read_frame_until, validate_identity, write_frame_until,
 };
 
 const MAX_REQUESTS_PER_CONNECTION: usize = 1024;
@@ -253,8 +253,20 @@ pub struct ControlClient {
 impl ControlClient {
     /// Connect and negotiate the exact supported protocol before other calls.
     pub fn connect(path: impl AsRef<Path>, limits: ControlLimits) -> Result<Self, EndpointError> {
+        let stream = UnixStream::connect(path)?;
+        Self::from_stream(stream, limits, rustix::process::geteuid().as_raw())
+    }
+
+    fn from_stream(
+        mut stream: UnixStream,
+        limits: ControlLimits,
+        expected_uid: u32,
+    ) -> Result<Self, EndpointError> {
         let limits = limits.validate()?;
-        let mut stream = UnixStream::connect(path)?;
+        // A private server socket authenticates clients, but the independently
+        // started frontend must also reject a socket owned by another user.
+        // Perform this check before sending any request content.
+        authenticate_owner(&stream, expected_uid)?;
         let request = ControlRequest {
             jsonrpc: crate::JSONRPC_VERSION.into(),
             id: RequestId(1),
@@ -385,6 +397,7 @@ pub enum EndpointError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
 
     #[test]
     fn every_backend_failure_has_a_fixed_public_response() {
@@ -441,5 +454,21 @@ mod tests {
             client.call(ControlCall::Capabilities, 10),
             Err(EndpointError::RequestIdExhausted)
         ));
+    }
+
+    #[test]
+    fn client_rejects_wrong_owner_before_sending_negotiation() {
+        let (client, mut peer) = UnixStream::pair().expect("socket pair");
+        let wrong_uid = rustix::process::geteuid().as_raw().wrapping_add(1);
+        assert!(matches!(
+            ControlClient::from_stream(client, ControlLimits::default(), wrong_uid),
+            Err(EndpointError::Transport(
+                crate::TransportError::UnauthorizedPeer { .. }
+            ))
+        ));
+        peer.set_read_timeout(Some(Duration::from_millis(20)))
+            .expect("read timeout");
+        let mut byte = [0_u8; 1];
+        assert_eq!(peer.read(&mut byte).expect("peer closed without data"), 0);
     }
 }

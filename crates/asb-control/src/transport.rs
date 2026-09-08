@@ -15,17 +15,58 @@ use thiserror::Error;
 use crate::ControlLimits;
 
 /// Authenticated local peer identity obtained from the kernel, never client data.
+///
+/// Its fields are intentionally private: callers can inspect an identity but
+/// cannot construct evidence that did not come from `SO_PEERCRED`.
+///
+/// ```compile_fail
+/// use asb_control::PeerIdentity;
+/// let _forged = PeerIdentity { uid: 1000, gid: 1000, pid: 1 };
+/// ```
+///
+/// ```compile_fail
+/// fn rewrite(identity: &mut asb_control::PeerIdentity) {
+///     identity.uid = 0;
+/// }
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PeerIdentity {
     /// Effective Linux user ID.
-    pub uid: u32,
+    uid: u32,
     /// Effective Linux group ID.
-    pub gid: u32,
+    gid: u32,
     /// Linux peer process ID at connection time.
-    pub pid: i32,
+    pid: i32,
 }
 
 impl PeerIdentity {
+    fn from_stream(stream: &UnixStream) -> Result<Self, TransportError> {
+        let credentials = socket_peercred(stream).map_err(io::Error::from)?;
+        Ok(Self {
+            uid: credentials.uid.as_raw(),
+            gid: credentials.gid.as_raw(),
+            pid: credentials.pid.as_raw_pid(),
+        })
+    }
+
+    /// Effective Linux user ID authenticated by the kernel.
+    #[must_use]
+    pub fn uid(self) -> u32 {
+        self.uid
+    }
+
+    /// Effective Linux group ID authenticated by the kernel.
+    #[must_use]
+    pub fn gid(self) -> u32 {
+        self.gid
+    }
+
+    /// Linux peer process ID observed when the connection was authenticated.
+    #[must_use]
+    pub fn pid(self) -> i32 {
+        self.pid
+    }
+
     /// Require the kernel-authenticated peer to match the listener owner.
     pub fn require_owner(self, expected_uid: u32) -> Result<Self, TransportError> {
         if self.uid == expected_uid {
@@ -105,13 +146,7 @@ impl OwnerSocket {
     /// Accept one same-user peer and install bounded blocking I/O deadlines.
     pub fn accept(&self) -> Result<(UnixStream, PeerIdentity), TransportError> {
         let (stream, _) = self.listener.accept()?;
-        let credentials = socket_peercred(&stream).map_err(io::Error::from)?;
-        let identity = PeerIdentity {
-            uid: credentials.uid.as_raw(),
-            gid: credentials.gid.as_raw(),
-            pid: credentials.pid.as_raw_pid(),
-        };
-        let identity = identity.require_owner(self.expected_uid)?;
+        let identity = authenticate_owner(&stream, self.expected_uid)?;
         let deadline = Duration::from_millis(self.limits.max_timeout_ms);
         stream.set_read_timeout(Some(deadline))?;
         stream.set_write_timeout(Some(deadline))?;
@@ -129,6 +164,17 @@ impl OwnerSocket {
     pub fn path(&self) -> &Path {
         &self.path
     }
+}
+
+/// Authenticate the peer at either end of a connected Unix stream.
+///
+/// Servers use this after `accept`; clients use it immediately after
+/// `connect`, before writing negotiation data to an untrusted socket.
+pub fn authenticate_owner(
+    stream: &UnixStream,
+    expected_uid: u32,
+) -> Result<PeerIdentity, TransportError> {
+    PeerIdentity::from_stream(stream)?.require_owner(expected_uid)
 }
 
 /// Apply a request-specific I/O deadline no weaker than negotiated limits.
@@ -205,7 +251,7 @@ pub enum TransportError {
     #[error("local control socket permissions or ownership are unsafe")]
     UnsafeSocket,
     /// Kernel-authenticated peer belongs to another user.
-    #[error("local control peer user {actual_uid} does not match owner {expected_uid}")]
+    #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
         /// Listener owner.
         expected_uid: u32,
@@ -239,5 +285,28 @@ mod tests {
         assert!(!socket.exists());
         drop(listener);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn peer_identity_is_kernel_derived_and_owner_checked() {
+        let (left, right) = UnixStream::pair().expect("socket pair");
+        let expected = geteuid().as_raw();
+        let identity = authenticate_owner(&left, expected).expect("same-user peer");
+        assert_eq!(identity.uid(), expected);
+        assert_eq!(identity.gid(), rustix::process::getegid().as_raw());
+        assert!(identity.pid() > 0);
+        assert!(matches!(
+            authenticate_owner(&right, expected.wrapping_add(1)),
+            Err(TransportError::UnauthorizedPeer {
+                expected_uid,
+                actual_uid
+            }) if expected_uid == expected.wrapping_add(1) && actual_uid == expected
+        ));
+        let rejected = authenticate_owner(&right, expected.wrapping_add(1))
+            .expect_err("wrong owner must fail");
+        assert_eq!(
+            rejected.to_string(),
+            "local control peer is not owned by the expected user"
+        );
     }
 }

@@ -804,8 +804,9 @@ fn owner_socket_is_private_authenticated_and_resize_independent() {
         let client = thread::spawn(move || UnixStream::connect(client_path).unwrap());
         let (server, identity) = listener.accept().unwrap();
         let client = client.join().unwrap();
-        assert_eq!(identity.uid, rustix::process::geteuid().as_raw());
-        assert!(identity.pid > 0);
+        assert_eq!(identity.uid(), rustix::process::geteuid().as_raw());
+        assert_eq!(identity.gid(), rustix::process::getegid().as_raw());
+        assert!(identity.pid() > 0);
         assert!(server.read_timeout().unwrap().is_some());
         assert!(server.write_timeout().unwrap().is_some());
         apply_request_deadline(&server, 25, limits()).unwrap();
@@ -861,20 +862,6 @@ fn owner_socket_refuses_unsafe_paths_and_preserves_replacements() {
         ),
         Err(TransportError::Protocol(_))
     ));
-    let identity = PeerIdentity {
-        uid: 1000,
-        gid: 1000,
-        pid: 7,
-    };
-    assert_eq!(identity.require_owner(1000).unwrap(), identity);
-    assert!(matches!(
-        identity.require_owner(1001),
-        Err(TransportError::UnauthorizedPeer {
-            expected_uid: 1001,
-            actual_uid: 1000
-        })
-    ));
-
     let existing = directory.path.join("existing");
     fs::write(&existing, b"do-not-replace").unwrap();
     assert!(matches!(
