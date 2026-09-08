@@ -8,9 +8,10 @@
 pub mod remote;
 
 use asb_control::{
-    CancelParams, Capabilities, ControlCall, ControlEvent, ControlEventKind, ControlLimits,
-    ControlResult, LaunchParams, MutationAcknowledgement, MutationParams, Page, PageParams,
-    PlanReference, PublicRunState, Revision, RunSummary, validate_digest, validate_idempotency_key,
+    AnalysisSummary, ArtifactMetadata, CancelParams, Capabilities, ControlCall, ControlEvent,
+    ControlEventKind, ControlLimits, ControlResult, LaunchParams, MAX_ANALYSIS_RUNS,
+    MutationAcknowledgement, MutationParams, Page, PageParams, PlanReference, PublicRunState,
+    RepeatParams, Revision, RunId, RunSummary, validate_digest, validate_idempotency_key,
     validate_identity,
 };
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,343 @@ use std::fmt;
 pub const WIZARD_SETTINGS_V1: u16 = 1;
 /// Maximum negotiated entries per selector.
 pub const MAX_CHOICES: usize = 256;
+/// Maximum recent-run summaries retained by one frontend projection.
+pub const MAX_HISTORY_ITEMS: usize = 256;
+
+/// Fail-closed history, repeat, or analysis error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HistoryError {
+    /// The negotiated capabilities or limits do not permit the operation.
+    Unsupported,
+    /// A public identity, digest, page, or response is malformed.
+    InvalidResponse,
+    /// The response does not continue the requested immutable history projection.
+    StaleProjection,
+    /// The selected run is absent or cannot be used for this operation.
+    InvalidSelection,
+    /// An explicit operator confirmation did not match.
+    ConfirmationRequired,
+}
+
+impl fmt::Display for HistoryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Unsupported => "runner does not support this history operation",
+            Self::InvalidResponse => "runner returned an invalid history response",
+            Self::StaleProjection => "history projection requires a fresh bounded query",
+            Self::InvalidSelection => "selected run is unavailable or ineligible",
+            Self::ConfirmationRequired => "explicit history operation confirmation is required",
+        })
+    }
+}
+
+impl std::error::Error for HistoryError {}
+
+/// A newly validated plan derived from an immutable source run.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepeatDraft {
+    source_run_id: RunId,
+    source_plan_sha256: String,
+    plan: PlanReference,
+}
+
+impl RepeatDraft {
+    /// Immutable source run used for the repeat request.
+    pub fn source_run_id(&self) -> &RunId {
+        &self.source_run_id
+    }
+
+    /// Newly created plan, which still requires ordinary launch confirmation.
+    pub fn plan(&self) -> &PlanReference {
+        &self.plan
+    }
+
+    /// Whether the runner's newly validated plan digest differs from the source plan.
+    pub fn pins_changed(&self) -> bool {
+        self.source_plan_sha256 != self.plan.plan_sha256
+    }
+}
+
+/// Opaque analysis result that cannot be mistaken for compatibility evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnalysisProjection {
+    summary: AnalysisSummary,
+}
+
+impl AnalysisProjection {
+    /// Number of exact runs bound by the runner response.
+    pub const fn run_count(&self) -> u16 {
+        self.summary.run_count
+    }
+
+    /// Digest of the separately stored analysis artifact.
+    pub fn artifact_sha256(&self) -> &str {
+        &self.summary.analysis_sha256
+    }
+
+    /// The v1 opaque summary carries no AR-1001 compatibility decision.
+    pub const fn permits_unqualified_claim(&self) -> bool {
+        false
+    }
+}
+
+/// Bounded frontend projection over privacy-reviewed recent-run summaries.
+pub struct HistoryModel {
+    capabilities: Capabilities,
+    limits: ControlLimits,
+    runs: Vec<RunSummary>,
+    cursor: Option<Revision>,
+    has_more: bool,
+    analysis: Option<AnalysisProjection>,
+}
+
+impl HistoryModel {
+    /// Construct an empty bounded projection from negotiated runner properties.
+    pub fn new(capabilities: Capabilities, limits: ControlLimits) -> Result<Self, HistoryError> {
+        if limits.validate().is_err() {
+            return Err(HistoryError::Unsupported);
+        }
+        Ok(Self {
+            capabilities,
+            limits,
+            runs: Vec::new(),
+            cursor: None,
+            has_more: true,
+            analysis: None,
+        })
+    }
+
+    /// Privacy-reviewed summaries retained in immutable creation order.
+    pub fn runs(&self) -> &[RunSummary] {
+        &self.runs
+    }
+
+    /// Whether the runner reported another retained page.
+    pub const fn has_more(&self) -> bool {
+        self.has_more
+    }
+
+    /// Latest opaque analysis artifact identity, if accepted.
+    pub fn analysis(&self) -> Option<&AnalysisProjection> {
+        self.analysis.as_ref()
+    }
+
+    /// Filter the bounded local projection by public run identity and state.
+    pub fn filtered_runs(
+        &self,
+        query: &str,
+        states: &BTreeSet<PublicRunState>,
+    ) -> Result<Vec<&RunSummary>, HistoryError> {
+        if query.len() > 128 || !query.is_ascii() {
+            return Err(HistoryError::InvalidSelection);
+        }
+        let query = query.to_ascii_lowercase();
+        Ok(self
+            .runs
+            .iter()
+            .filter(|run| {
+                (states.is_empty() || states.contains(&run.state))
+                    && run.run_id.0.to_ascii_lowercase().contains(&query)
+            })
+            .collect())
+    }
+
+    /// Request the next bounded recent-run page.
+    pub fn history_call(&self) -> Result<ControlCall, HistoryError> {
+        if !self.has_more || self.runs.len() >= MAX_HISTORY_ITEMS {
+            return Err(HistoryError::InvalidSelection);
+        }
+        let remaining = MAX_HISTORY_ITEMS - self.runs.len();
+        let limit = usize::from(self.limits.max_page_items)
+            .min(remaining)
+            .try_into()
+            .map_err(|_| HistoryError::Unsupported)?;
+        Ok(ControlCall::History(PageParams {
+            after: self.cursor,
+            limit,
+        }))
+    }
+
+    /// Accept exactly the page requested by `call`, without partial mutation.
+    pub fn accept_history(
+        &mut self,
+        call: &ControlCall,
+        page: Page<RunSummary>,
+    ) -> Result<(), HistoryError> {
+        if !matches!(call, ControlCall::History(_))
+            || ControlResult::History(page.clone())
+                .validate_for_call(call, self.limits)
+                .is_err()
+        {
+            return Err(HistoryError::InvalidResponse);
+        }
+        let ControlCall::History(params) = call else {
+            return Err(HistoryError::InvalidResponse);
+        };
+        if params.after != self.cursor || self.runs.len() + page.items.len() > MAX_HISTORY_ITEMS {
+            return Err(HistoryError::StaleProjection);
+        }
+        if let (Some(previous), Some(first)) = (self.runs.last(), page.items.first())
+            && first.created_revision <= previous.created_revision
+        {
+            return Err(HistoryError::StaleProjection);
+        }
+        let incoming_run_ids = page
+            .items
+            .iter()
+            .map(|item| &item.run_id)
+            .collect::<BTreeSet<_>>();
+        if incoming_run_ids.len() != page.items.len()
+            || page
+                .items
+                .iter()
+                .any(|item| self.runs.iter().any(|known| known.run_id == item.run_id))
+        {
+            return Err(HistoryError::StaleProjection);
+        }
+        self.cursor = page.next.or(self.cursor);
+        self.has_more = page.has_more;
+        self.runs.extend(page.items);
+        Ok(())
+    }
+
+    /// Create an explicitly confirmed repeat request for a completed source run.
+    pub fn repeat_call(
+        &self,
+        run_id: &RunId,
+        idempotency_key: String,
+        confirmation: &str,
+    ) -> Result<ControlCall, HistoryError> {
+        if !self.capabilities.repeat {
+            return Err(HistoryError::Unsupported);
+        }
+        if confirmation != "repeat run" {
+            return Err(HistoryError::ConfirmationRequired);
+        }
+        if validate_idempotency_key(&idempotency_key).is_err()
+            || !self
+                .runs
+                .iter()
+                .any(|run| run.run_id == *run_id && run.state == PublicRunState::Completed)
+        {
+            return Err(HistoryError::InvalidSelection);
+        }
+        Ok(ControlCall::Repeat(RepeatParams {
+            run_id: run_id.clone(),
+            idempotency_key,
+        }))
+    }
+
+    /// Accept the newly validated plan while retaining drift and source identity.
+    pub fn accept_repeat(
+        &self,
+        call: &ControlCall,
+        plan: PlanReference,
+    ) -> Result<RepeatDraft, HistoryError> {
+        let ControlCall::Repeat(params) = call else {
+            return Err(HistoryError::InvalidResponse);
+        };
+        if ControlResult::Plan(plan.clone())
+            .validate_for_call(call, self.limits)
+            .is_err()
+            || plan.plan_id == params.run_id.0
+        {
+            return Err(HistoryError::InvalidResponse);
+        }
+        let source = self
+            .runs
+            .iter()
+            .find(|run| run.run_id == params.run_id && run.state == PublicRunState::Completed)
+            .ok_or(HistoryError::InvalidSelection)?;
+        Ok(RepeatDraft {
+            source_run_id: source.run_id.clone(),
+            source_plan_sha256: source.plan_sha256.clone(),
+            plan,
+        })
+    }
+
+    /// Request bounded analysis only for distinct durable terminal runs.
+    pub fn analysis_call(&self, run_ids: Vec<RunId>) -> Result<ControlCall, HistoryError> {
+        if !self.capabilities.analysis
+            || run_ids.is_empty()
+            || run_ids.len() > MAX_ANALYSIS_RUNS
+            || run_ids.iter().collect::<BTreeSet<_>>().len() != run_ids.len()
+            || run_ids.iter().any(|run_id| {
+                !self.runs.iter().any(|run| {
+                    run.run_id == *run_id
+                        && matches!(
+                            run.state,
+                            PublicRunState::Completed
+                                | PublicRunState::Failed
+                                | PublicRunState::Cancelled
+                        )
+                })
+            })
+        {
+            return Err(HistoryError::InvalidSelection);
+        }
+        Ok(ControlCall::Analyze { run_ids })
+    }
+
+    /// Accept opaque, privacy-safe analysis metadata bound to the exact run set.
+    ///
+    /// The current control contract does not expose AR-1001 compatibility fields,
+    /// so callers must not infer an unqualified comparison from this metadata.
+    pub fn accept_analysis(
+        &mut self,
+        call: &ControlCall,
+        summary: AnalysisSummary,
+    ) -> Result<(), HistoryError> {
+        if ControlResult::Analysis(summary.clone())
+            .validate_for_call(call, self.limits)
+            .is_err()
+        {
+            return Err(HistoryError::InvalidResponse);
+        }
+        self.analysis = Some(AnalysisProjection { summary });
+        Ok(())
+    }
+
+    /// Request sensitive artifact metadata only after exact operator confirmation.
+    pub fn artifact_metadata_call(
+        &self,
+        run_id: &RunId,
+        digest: String,
+        confirmation: &str,
+    ) -> Result<ControlCall, HistoryError> {
+        if confirmation != "inspect sensitive artifact" {
+            return Err(HistoryError::ConfirmationRequired);
+        }
+        if validate_digest(&digest).is_err() || !self.runs.iter().any(|run| run.run_id == *run_id) {
+            return Err(HistoryError::InvalidSelection);
+        }
+        Ok(ControlCall::ArtifactMetadata {
+            run_id: run_id.clone(),
+            digest,
+        })
+    }
+
+    /// Validate metadata against the exact confirmed request.
+    pub fn accept_artifact_metadata(
+        &self,
+        call: &ControlCall,
+        metadata: ArtifactMetadata,
+    ) -> Result<ArtifactMetadata, HistoryError> {
+        ControlResult::ArtifactMetadata(metadata.clone())
+            .validate_for_call(call, self.limits)
+            .map_err(|_| HistoryError::InvalidResponse)?;
+        Ok(metadata)
+    }
+
+    /// Render a bounded public summary without plan or artifact digests.
+    pub fn render_plain(&self) -> String {
+        self.runs
+            .iter()
+            .map(|run| format!("{} {:?}", run.run_id.0, run.state))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
 
 /// Public runner-advertised identifier.
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -1428,6 +1766,29 @@ mod tests {
             plan_sha256: "c".repeat(64),
         }
     }
+    fn historical_run(run: &str, created: u64, state: PublicRunState) -> RunSummary {
+        RunSummary {
+            run_id: RunId(run.into()),
+            attempt_id: AttemptId(format!("attempt-{run}")),
+            state,
+            created_revision: Revision(created),
+            revision: Revision(created + 1),
+            plan_sha256: "c".repeat(64),
+        }
+    }
+    fn history_model(max_page_items: u16) -> HistoryModel {
+        HistoryModel::new(
+            Capabilities {
+                validate_settings: true,
+                run_control: true,
+                repeat: true,
+                analysis: true,
+                events: true,
+            },
+            control_limits(max_page_items),
+        )
+        .unwrap()
+    }
     fn catalog() -> WizardCatalog {
         WizardCatalog {
             control: Capabilities {
@@ -1658,6 +2019,240 @@ mod tests {
         assert!(!rendered.contains(&"b".repeat(64)));
         assert!(rendered.contains("matching replay"));
         assert!(w.import_json(&vec![b'x'; 65_537]).is_err());
+    }
+
+    #[test]
+    fn history_pages_are_bounded_immutable_and_redacted() {
+        let mut history = history_model(2);
+        let first_call = history.history_call().unwrap();
+        assert_eq!(
+            first_call,
+            ControlCall::History(PageParams {
+                after: None,
+                limit: 2,
+            })
+        );
+        history
+            .accept_history(
+                &first_call,
+                Page {
+                    items: vec![
+                        historical_run("run-1", 4, PublicRunState::Completed),
+                        historical_run("run-2", 8, PublicRunState::Failed),
+                    ],
+                    next: Some(Revision(8)),
+                    has_more: true,
+                },
+            )
+            .unwrap();
+        let second_call = history.history_call().unwrap();
+        assert_eq!(
+            second_call,
+            ControlCall::History(PageParams {
+                after: Some(Revision(8)),
+                limit: 2,
+            })
+        );
+        let before = history.render_plain();
+        assert!(!before.contains(&"c".repeat(64)));
+        assert_eq!(
+            history
+                .accept_history(
+                    &second_call,
+                    Page {
+                        items: vec![historical_run("run-1", 12, PublicRunState::Completed,)],
+                        next: Some(Revision(12)),
+                        has_more: false,
+                    },
+                )
+                .unwrap_err(),
+            HistoryError::StaleProjection
+        );
+        assert_eq!(history.render_plain(), before);
+        assert_eq!(
+            history
+                .accept_history(
+                    &second_call,
+                    Page {
+                        items: vec![
+                            historical_run("run-3", 12, PublicRunState::Completed),
+                            historical_run("run-3", 16, PublicRunState::Failed),
+                        ],
+                        next: Some(Revision(16)),
+                        has_more: true,
+                    },
+                )
+                .unwrap_err(),
+            HistoryError::StaleProjection
+        );
+        assert_eq!(history.runs().len(), 2);
+        assert_eq!(history.render_plain(), before);
+        assert_eq!(history.history_call().unwrap(), second_call);
+        assert_eq!(
+            history
+                .accept_history(
+                    &first_call,
+                    Page {
+                        items: Vec::new(),
+                        next: None,
+                        has_more: false,
+                    },
+                )
+                .unwrap_err(),
+            HistoryError::StaleProjection
+        );
+        history
+            .accept_history(
+                &second_call,
+                Page {
+                    items: vec![historical_run("run-3", 12, PublicRunState::Cancelled)],
+                    next: Some(Revision(12)),
+                    has_more: false,
+                },
+            )
+            .unwrap();
+        assert!(!history.has_more());
+        let completed = BTreeSet::from([PublicRunState::Completed]);
+        assert_eq!(history.filtered_runs("RUN-1", &completed).unwrap().len(), 1);
+        assert_eq!(
+            history
+                .filtered_runs("run", &BTreeSet::new())
+                .unwrap()
+                .len(),
+            3
+        );
+        assert_eq!(
+            history
+                .filtered_runs(&"x".repeat(129), &BTreeSet::new())
+                .unwrap_err(),
+            HistoryError::InvalidSelection
+        );
+        assert_eq!(
+            history.history_call().unwrap_err(),
+            HistoryError::InvalidSelection
+        );
+    }
+
+    #[test]
+    fn repeat_is_explicit_new_and_reports_revalidation_drift() {
+        let mut history = history_model(8);
+        let call = history.history_call().unwrap();
+        history
+            .accept_history(
+                &call,
+                Page {
+                    items: vec![historical_run("run-source", 4, PublicRunState::Completed)],
+                    next: Some(Revision(4)),
+                    has_more: false,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            history
+                .repeat_call(&RunId("run-source".into()), "repeat-1".into(), "yes")
+                .unwrap_err(),
+            HistoryError::ConfirmationRequired
+        );
+        let repeat = history
+            .repeat_call(&RunId("run-source".into()), "repeat-1".into(), "repeat run")
+            .unwrap();
+        assert_eq!(
+            history
+                .accept_repeat(
+                    &repeat,
+                    PlanReference {
+                        plan_id: "run-source".into(),
+                        plan_sha256: "d".repeat(64),
+                    },
+                )
+                .unwrap_err(),
+            HistoryError::InvalidResponse
+        );
+        let draft = history
+            .accept_repeat(
+                &repeat,
+                PlanReference {
+                    plan_id: "plan-repeat".into(),
+                    plan_sha256: "d".repeat(64),
+                },
+            )
+            .unwrap();
+        assert_eq!(draft.source_run_id(), &RunId("run-source".into()));
+        assert_eq!(draft.plan().plan_id, "plan-repeat");
+        assert!(draft.pins_changed());
+    }
+
+    #[test]
+    fn analysis_and_sensitive_artifacts_fail_closed() {
+        let mut history = history_model(8);
+        let call = history.history_call().unwrap();
+        history
+            .accept_history(
+                &call,
+                Page {
+                    items: vec![
+                        historical_run("run-1", 4, PublicRunState::Completed),
+                        historical_run("run-2", 8, PublicRunState::Running),
+                    ],
+                    next: Some(Revision(8)),
+                    has_more: false,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            history
+                .analysis_call(vec![RunId("run-1".into()), RunId("run-2".into())])
+                .unwrap_err(),
+            HistoryError::InvalidSelection
+        );
+        assert_eq!(
+            history
+                .analysis_call(vec![RunId("run-1".into()), RunId("run-1".into())])
+                .unwrap_err(),
+            HistoryError::InvalidSelection
+        );
+        let analysis_call = history.analysis_call(vec![RunId("run-1".into())]).unwrap();
+        history
+            .accept_analysis(
+                &analysis_call,
+                AnalysisSummary {
+                    run_count: 1,
+                    analysis_sha256: "a".repeat(64),
+                },
+            )
+            .unwrap();
+        assert_eq!(history.analysis().unwrap().run_count(), 1);
+        assert_eq!(
+            history.analysis().unwrap().artifact_sha256(),
+            "a".repeat(64)
+        );
+        assert!(!history.analysis().unwrap().permits_unqualified_claim());
+        assert_eq!(
+            history
+                .artifact_metadata_call(&RunId("run-1".into()), "b".repeat(64), "inspect")
+                .unwrap_err(),
+            HistoryError::ConfirmationRequired
+        );
+        let artifact_call = history
+            .artifact_metadata_call(
+                &RunId("run-1".into()),
+                "b".repeat(64),
+                "inspect sensitive artifact",
+            )
+            .unwrap();
+        assert_eq!(
+            history
+                .accept_artifact_metadata(
+                    &artifact_call,
+                    ArtifactMetadata {
+                        sha256: "c".repeat(64),
+                        size_bytes: 4,
+                        sensitivity: asb_control::ArtifactSensitivity::Sensitive,
+                    },
+                )
+                .unwrap_err(),
+            HistoryError::InvalidResponse
+        );
     }
 
     #[test]
