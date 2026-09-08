@@ -12,6 +12,13 @@ comparison. Provider recording/replay and live-provider selection are not CLI
 commands yet; unsupported and unqualified platform combinations remain visible
 in the public coordination repository.
 
+The `asb-agents` library exposes a versioned `AllAgentsProviderSelection`
+configuration boundary for applying one pinned OpenAI or verified Ollama profile
+to a complete chosen agent set. It returns a complete canonical plan only when
+every selected adapter preserves the same credential-free profile identity.
+Empty, duplicate, mixed-provider, stale-version, lossy and unsupported selections
+fail as a whole; per-agent overrides are deliberately a separate choice.
+
 - Implementation: Rust, safe code, explicit errors and versioned contracts.
 - Target architectures: native x86_64 and aarch64 (arm64).
 - Initial agent targets: OpenCode, OpenDesk CLI, aider and Codex.
