@@ -29,6 +29,7 @@ dependencies = [
 name = "asb-agents"
 version = "0.1.0"
 dependencies = [
+ "asb-core",
  "asb-protocol",
  "asb-replay",
  "asb-runtime",
@@ -43,6 +44,7 @@ dependencies = [
 name = "asb-analysis"
 version = "0.1.0"
 dependencies = [
+ "asb-core",
  "asb-protocol",
  "asb-store",
  "asb-workloads",

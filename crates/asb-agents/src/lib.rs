@@ -4,6 +4,7 @@
 
 //! Built-in coding-agent adapters.
 
+pub mod accounting;
 pub mod aider;
 pub mod codex;
 pub mod gemini;

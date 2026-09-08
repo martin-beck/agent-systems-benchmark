@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+asb-core = { version = "=0.1.0", path = "../asb-core" }
 asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
 asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
 serde = "=1.0.219"

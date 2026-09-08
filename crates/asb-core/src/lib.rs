@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 //! Checked domain primitives for benchmark experiments.
+mod budget;
+
+pub use budget::*;
+
 use std::num::NonZeroU32;
 
 /// A validated inclusive concurrency range.
