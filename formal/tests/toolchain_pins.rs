@@ -1,9 +1,11 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Exact formal-toolchain and workflow pin consistency.
 
 const PINS: &str = include_str!("../toolchains.toml");
 const WORKFLOW: &str = include_str!("../../.github/workflows/formal.yml");
 const MANIFEST: &str = include_str!("../Cargo.toml");
+const TEMPORAL_RUNNER: &str = include_str!("../run_temporal_models.sh");
 
 #[test]
 fn workflow_and_manifest_use_the_reviewed_exact_pins() {
@@ -15,8 +17,11 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
         "loom_source_commit = \"a7033ee06a97c52eb2f8131c095fbea6c6eecba3\"",
         "tla_version = \"1.8.0\"",
         "tla_source_commit = \"b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e\"",
-        "tla_sha256 = \"b658b4e504fdf0b721caf7066320f6b6fe5805f4dd2f717d0e47baba4097205e\"",
-        "tla_bytes = 4487737",
+        "tla_release_asset_id = 551007111",
+        "tla_release_asset_created_at = \"2026-09-08T17:57:45Z\"",
+        "tla_release_asset_url = \"https://api.github.com/repos/tlaplus/tlaplus/releases/assets/551007111\"",
+        "tla_sha256 = \"4c7bb1f6b050d56c197ee9ddd6e57fe521eae175f5043c9fb98b169f7b2d5407\"",
+        "tla_bytes = 4487756",
         "alloy_version = \"6.2.0\"",
         "alloy_source_commit = \"59ba2033993449d483d54acad0e11a7bbf20354f\"",
         "alloy_sha256 = \"6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d\"",
@@ -27,6 +32,10 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
         assert!(PINS.contains(required), "missing pin: {required}");
     }
     assert!(MANIFEST.contains("loom = \"=0.7.2\""));
+    assert!(TEMPORAL_RUNNER.contains(
+        "TLA_URL=https://api.github.com/repos/tlaplus/tlaplus/releases/assets/551007111"
+    ));
+    assert!(TEMPORAL_RUNNER.contains("Accept: application/octet-stream"));
     assert!(
         WORKFLOW
             .contains("model-checking/kani-github-action@f838096619a707b0f6b2118cf435eaccfa33e51f")

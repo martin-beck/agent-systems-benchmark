@@ -1,3 +1,4 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Persistent local runner service behind the typed frontend control boundary.
 

@@ -1,3 +1,4 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Wire-visible control requests, responses, and events.
 

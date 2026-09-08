@@ -1,3 +1,4 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Pinned public OpenAI provider profile and fail-closed adapter translations.
 

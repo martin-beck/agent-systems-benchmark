@@ -1,3 +1,4 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Repeated-trial reliability and mixed-load fairness reports.
 

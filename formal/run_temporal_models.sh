@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 set -euo pipefail
-TLA_SHA256=b658b4e504fdf0b721caf7066320f6b6fe5805f4dd2f717d0e47baba4097205e
+TLA_SHA256=4c7bb1f6b050d56c197ee9ddd6e57fe521eae175f5043c9fb98b169f7b2d5407
 ALLOY_SHA256=6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d
-TLA_BYTES=4487737
+TLA_BYTES=4487756
 ALLOY_BYTES=21062377
-TLA_URL=https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+TLA_URL=https://api.github.com/repos/tlaplus/tlaplus/releases/assets/551007111
 ALLOY_URL=https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v6.2.0/org.alloytools.alloy.dist.jar
 if [[ $# -ne 2 || $1 != /* || $2 != /* ]]; then
   echo "usage: $0 ABSOLUTE_TOOL_DIR ABSOLUTE_NEW_SCRATCH_DIR" >&2
@@ -46,7 +47,8 @@ fetch() {
       exit 2
     fi
     curl --fail --location --proto '=https' --tlsv1.2 --max-time 120 \
-      --max-filesize "$expected_bytes" --output "$path.partial" "$url"
+      --max-filesize "$expected_bytes" --header 'Accept: application/octet-stream' \
+      --header 'X-GitHub-Api-Version: 2022-11-28' --output "$path.partial" "$url"
     [[ $(stat -c '%s' "$path.partial") == "$expected_bytes" ]]
     printf '%s  %s\n' "$expected" "$path.partial" | sha256sum --check --status
     mv "$path.partial" "$path"

@@ -1,3 +1,4 @@
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 """Independent negative and concurrency checks for the replay spike fixture."""
 
