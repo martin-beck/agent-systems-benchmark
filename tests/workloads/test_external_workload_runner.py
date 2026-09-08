@@ -70,3 +70,12 @@ def test_comparison_requires_shared_evaluator_identity(tmp_path):
     incomparable = subprocess.run([sys.executable, str(comparator), str(first), str(second)], capture_output=True, text=True)
     assert incomparable.returncode == 2
     assert json.loads(incomparable.stdout)["status"] == "non-comparable"
+
+
+def test_report_renderer_preserves_non_comparable_status(tmp_path):
+    comparison = tmp_path / "comparison.json"
+    comparison.write_text(json.dumps({"status": "non-comparable", "reason": "evaluator identity differs"}))
+    renderer = ROOT / "tools/quality/render_external_report.py"
+    result = subprocess.run([sys.executable, str(renderer), str(comparison), "--limitations", "image unqualified"], check=True, capture_output=True, text=True)
+    assert "Non-comparable" in result.stdout
+    assert "image unqualified" in result.stdout
