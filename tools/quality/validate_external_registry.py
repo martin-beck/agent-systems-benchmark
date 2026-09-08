@@ -41,6 +41,12 @@ def main() -> int:
             fail(f"{ident}: evaluator identity is incomplete")
         if evaluator.get("image_digest") is not None and not str(evaluator["image_digest"]).startswith("sha256:"):
             fail(f"{ident}: image_digest must be sha256:... or null while planned")
+        provenance = evaluator.get("provenance", {})
+        if provenance.get("status") not in {"planned", "qualified"}:
+            fail(f"{ident}: evaluator provenance status is invalid")
+        if provenance.get("status") == "qualified":
+            if not evaluator.get("image_digest") or not provenance.get("sbom_sha256") or not provenance.get("evidence"):
+                fail(f"{ident}: qualified evaluator requires image, SBOM, and evidence identities")
         if not item.get("limitations"):
             fail(f"{ident}: limitations must be explicit")
     digest = hashlib.sha256(REGISTRY.read_bytes()).hexdigest()
