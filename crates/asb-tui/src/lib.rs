@@ -1075,7 +1075,10 @@ fn canonical_agents(agents: &[ChoiceId]) -> Vec<ChoiceId> {
     result
 }
 
-fn provider_choice(catalog: &MultiAgentCatalog, id: &ChoiceId) -> Option<&SharedProviderChoice> {
+fn provider_choice<'a>(
+    catalog: &'a MultiAgentCatalog,
+    id: &ChoiceId,
+) -> Option<&'a SharedProviderChoice> {
     catalog.providers.iter().find(|provider| provider.id == *id)
 }
 
