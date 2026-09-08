@@ -14,14 +14,14 @@
     },
     {
       "id": "aider-polyglot",
-      "version": "main-7e0611e7",
+      "version": "main-5dc9490b",
       "kind": "multilanguage-editing",
-      "source": {"repository": "https://github.com/Aider-AI/aider", "commit": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f", "license": "per-exercise", "archive_status": "unavailable-at-pinned-revision", "archive_sha256": null},
+      "source": {"repository": "https://github.com/Aider-AI/aider", "commit": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c", "license": "Apache-2.0-and-per-exercise", "archive_status": "verified", "archive_sha256": "e8cbcdcf1dbe765a62a366a1950269bf655529174cc89545ced331cdb128f677"},
       "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "public"},
       "evaluator": {"entrypoint": "aider.benchmarks.polyglot", "version": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f", "image_digest": null, "oracle": "exercise-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
       "attempt_budget": 1,
       "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The upstream repository has no SPDX declaration", "Each Exercism exercise license and attribution must be retained"]
+      "limitations": ["Each Exercism exercise license and attribution must be retained", "Archive is source provenance only; evaluator image and SBOM remain unqualified"]
     },
     {
       "id": "exercism-tracks",
