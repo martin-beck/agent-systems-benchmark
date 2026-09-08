@@ -35,6 +35,8 @@ private immutable copy with an empty environment, bounded output, a deadline, pr
 and explicit staging cleanup. Tool stderr is used only for a small unavailable classification and
 is never returned to callers. Missing tools, mismatched pins, permission denial, timeouts, malformed
 or truncated output, and uncertain cleanup are unavailable evidence rather than zero-valued data.
+Cleanup removes at most 32 direct non-directory sidecars from the identity-checked private staging
+directory; nested content, replacement, races, or excess entries return cleanup-uncertain.
 
 `perf_task_clock` is a short system-wide counter probe. It does not attribute the result to a
 benchmark workload or establish general PMU support. `ebpf_feature_count` counts recognized

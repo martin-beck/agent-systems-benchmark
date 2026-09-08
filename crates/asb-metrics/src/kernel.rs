@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -15,6 +15,7 @@ use std::time::{Duration, SystemTime};
 const MAX_TOOL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 const MAX_VERSION_BYTES: usize = 4096;
+const MAX_CLEANUP_ENTRIES: usize = 32;
 static RUN_NONCE: AtomicU64 = AtomicU64::new(0);
 
 /// Why a diagnostic could not produce trusted evidence.
@@ -240,6 +241,8 @@ impl KernelDiagnostics {
 struct StagedTool {
     directory: PathBuf,
     executable: PathBuf,
+    device: u64,
+    inode: u64,
 }
 
 impl StagedTool {
@@ -264,6 +267,7 @@ impl StagedTool {
         let directory = unique_directory(root);
         fs::create_dir(&directory).map_err(map_io)?;
         fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).map_err(map_io)?;
+        let directory_metadata = fs::symlink_metadata(&directory).map_err(map_io)?;
         let executable = directory.join("tool");
         let mut target = OpenOptions::new()
             .write(true)
@@ -277,6 +281,8 @@ impl StagedTool {
         let staged = Self {
             directory,
             executable,
+            device: directory_metadata.dev(),
+            inode: directory_metadata.ino(),
         };
         if staged.version(pin, timeout)? {
             Ok(staged)
@@ -312,15 +318,48 @@ impl StagedTool {
     }
 
     fn cleanup(&mut self) -> bool {
-        let file_removed = match fs::remove_file(&self.executable) {
-            Ok(()) => true,
-            Err(error) => error.kind() == io::ErrorKind::NotFound,
+        let metadata = match fs::symlink_metadata(&self.directory) {
+            Ok(metadata) => metadata,
+            Err(error) => return error.kind() == io::ErrorKind::NotFound,
         };
-        let directory_removed = match fs::remove_dir(&self.directory) {
-            Ok(()) => true,
-            Err(error) => error.kind() == io::ErrorKind::NotFound,
+        if !metadata.is_dir() || metadata.dev() != self.device || metadata.ino() != self.inode {
+            return false;
+        }
+        let mut paths = Vec::new();
+        let entries = match fs::read_dir(&self.directory) {
+            Ok(entries) => entries,
+            Err(_) => return false,
         };
-        file_removed && directory_removed
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(_) => return false,
+            };
+            if paths.len() == MAX_CLEANUP_ENTRIES {
+                return false;
+            }
+            let metadata = match entry.file_type() {
+                Ok(metadata) => metadata,
+                Err(_) => return false,
+            };
+            if metadata.is_dir() {
+                return false;
+            }
+            paths.push(entry.path());
+        }
+        for path in paths {
+            if fs::remove_file(path).is_err() {
+                return false;
+            }
+        }
+        let metadata = match fs::symlink_metadata(&self.directory) {
+            Ok(metadata) => metadata,
+            Err(_) => return false,
+        };
+        metadata.is_dir()
+            && metadata.dev() == self.device
+            && metadata.ino() == self.inode
+            && fs::remove_dir(&self.directory).is_ok()
     }
 }
 
@@ -354,8 +393,7 @@ fn execute(
 
 impl Drop for StagedTool {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.executable);
-        let _ = fs::remove_dir(&self.directory);
+        let _ = self.cleanup();
     }
 }
 
@@ -638,6 +676,23 @@ mod tests {
                 .unwrap(),
             UnavailableReason::PermissionDenied
         );
+    }
+
+    #[test]
+    fn cleanup_removes_bounded_sidecars_and_rejects_excess() {
+        let root = TestRoot::new();
+        let tool = root.harness_tool();
+        let mut staged = StagedTool::new(&root.0, &tool, Duration::from_secs(1)).unwrap();
+        fs::write(staged.directory.join("default.profraw"), b"coverage").unwrap();
+        std::os::unix::fs::symlink("absent", staged.directory.join("sidecar-link")).unwrap();
+        assert!(staged.cleanup());
+        root.assert_clean();
+
+        let mut staged = StagedTool::new(&root.0, &tool, Duration::from_secs(1)).unwrap();
+        for index in 0..MAX_CLEANUP_ENTRIES {
+            fs::write(staged.directory.join(format!("sidecar-{index}")), b"x").unwrap();
+        }
+        assert!(!staged.cleanup());
     }
 
     #[test]
