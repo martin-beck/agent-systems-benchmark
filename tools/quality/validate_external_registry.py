@@ -9,9 +9,20 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+TERMINAL_BENCH_SOURCE_COMMIT = "452bf305c6daa62fc59061d22133a7cbc7c1572e"
+TERMINAL_BENCH_SOURCE_ARCHIVE = (
+    "390ee198a0f02fcdf140ac21420e106ce98f26d5f028b3d16b73e2d5137ff392"
+)
+TERMINAL_BENCH_DATASET_MANIFEST = (
+    "ecd296ba053840bd4c0068e8f84e8a6fa829d184d0fd9852becdc19f4c895fcf"
+)
+HARBOR_COMMIT = "4407eb5227a2ff4f0d3f16b2eb48849382fdf276"
+HARBOR_ARCHIVE = "04ec6b077d610896d75ed85b6b5ff88a9a241da6d528419acca66d2307329a21"
+APACHE_LICENSE = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
 REGISTRY = (
     Path(__file__).parents[2]
     / "crates/asb-workloads/registry/v1/external-workloads.json"
@@ -22,30 +33,43 @@ def fail(message: str) -> None:
     raise SystemExit(f"external registry: {message}")
 
 
-def validate_terminal_bench(item: dict) -> None:
+def validate_terminal_bench(item: dict[str, Any]) -> None:
     source = item.get("source", {})
     dataset = item.get("dataset", {})
     evaluator = item.get("evaluator", {})
     if item.get("version") != "v4.0.0-452bf305":
         fail("terminal-bench: exact v4 source version is required")
-    if not SHA256.fullmatch(source.get("license_sha256", "")):
-        fail("terminal-bench: source license digest is required")
-    if not SHA256.fullmatch(dataset.get("manifest_sha256", "")):
-        fail("terminal-bench: dataset manifest digest is required")
+    if source.get("commit") != TERMINAL_BENCH_SOURCE_COMMIT:
+        fail("terminal-bench: exact source commit is required")
+    if source.get("archive_sha256") != TERMINAL_BENCH_SOURCE_ARCHIVE:
+        fail("terminal-bench: exact source archive digest is required")
+    if source.get("license_sha256") != APACHE_LICENSE:
+        fail("terminal-bench: exact source license digest is required")
+    if dataset.get("manifest_sha256") != TERMINAL_BENCH_DATASET_MANIFEST:
+        fail("terminal-bench: exact dataset manifest digest is required")
     if dataset.get("task_count") != 66:
         fail("terminal-bench: dataset task count must match the pinned manifest")
     if dataset.get("task_reference_kind") != "harbor-package-sha256":
         fail("terminal-bench: Harbor package digest semantics are required")
     if dataset.get("source_tree_matches_packages") is not False:
         fail("terminal-bench: source checkout must not stand in for package bytes")
-    if evaluator.get("entrypoint") != "harbor run" or not SHA.fullmatch(
-        evaluator.get("version", "")
+    if (
+        evaluator.get("entrypoint") != "harbor run"
+        or evaluator.get("version") != HARBOR_COMMIT
     ):
         fail("terminal-bench: exact Harbor harness identity is required")
-    if not SHA256.fullmatch(
-        evaluator.get("archive_sha256", "")
-    ) or not SHA256.fullmatch(evaluator.get("license_sha256", "")):
-        fail("terminal-bench: Harbor archive and license digests are required")
+    if evaluator.get("archive_sha256") != HARBOR_ARCHIVE:
+        fail("terminal-bench: exact Harbor archive digest is required")
+    if evaluator.get("license_sha256") != APACHE_LICENSE:
+        fail("terminal-bench: exact Harbor license digest is required")
+    if evaluator.get("image_digest") is not None or evaluator.get("provenance") != {
+        "status": "planned",
+        "sbom_sha256": None,
+        "evidence": None,
+    }:
+        fail(
+            "terminal-bench: evaluator must remain unqualified without native evidence"
+        )
     if item.get("network") != {"status": "unqualified-upstream-default-public"}:
         fail("terminal-bench: unresolved public network default must remain explicit")
     if item.get("reset") != {"status": "unverified"}:
@@ -113,15 +137,14 @@ def main() -> int:
         provenance = evaluator.get("provenance", {})
         if provenance.get("status") not in {"planned", "qualified"}:
             fail(f"{ident}: evaluator provenance status is invalid")
-        if provenance.get("status") == "qualified":
-            if (
-                not evaluator.get("image_digest")
-                or not provenance.get("sbom_sha256")
-                or not provenance.get("evidence")
-            ):
-                fail(
-                    f"{ident}: qualified evaluator requires image, SBOM, and evidence identities"
-                )
+        if provenance.get("status") == "qualified" and (
+            not evaluator.get("image_digest")
+            or not provenance.get("sbom_sha256")
+            or not provenance.get("evidence")
+        ):
+            fail(
+                f"{ident}: qualified evaluator requires image, SBOM, and evidence identities"
+            )
         if not item.get("limitations"):
             fail(f"{ident}: limitations must be explicit")
         if ident == "terminal-bench":

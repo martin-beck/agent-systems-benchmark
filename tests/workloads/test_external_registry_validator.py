@@ -51,6 +51,28 @@ def test_terminal_bench_rejects_missing_manifest_pin(tmp_path):
     _rejects(tmp_path, document, "manifest digest")
 
 
+def test_terminal_bench_rejects_changed_source_or_harness_pin(tmp_path):
+    document = _terminal_document()
+    changed_source = deepcopy(document)
+    changed_source["workloads"][-1]["source"]["commit"] = "1" * 40
+    _rejects(tmp_path, changed_source, "source commit")
+    changed_harness = deepcopy(document)
+    changed_harness["workloads"][-1]["evaluator"]["archive_sha256"] = "2" * 64
+    _rejects(tmp_path, changed_harness, "Harbor archive")
+
+
+def test_terminal_bench_cannot_be_marked_qualified_without_native_evidence(tmp_path):
+    document = _terminal_document()
+    evaluator = document["workloads"][-1]["evaluator"]
+    evaluator["image_digest"] = "sha256:" + "1" * 64
+    evaluator["provenance"] = {
+        "status": "qualified",
+        "sbom_sha256": "2" * 64,
+        "evidence": "synthetic-evidence",
+    }
+    _rejects(tmp_path, document, "must remain unqualified")
+
+
 def test_terminal_bench_rejects_network_or_reset_upgrade_without_evidence(tmp_path):
     document = _terminal_document()
     network_upgrade = deepcopy(document)
