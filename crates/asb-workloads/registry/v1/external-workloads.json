@@ -27,7 +27,7 @@
       "id": "exercism-tracks",
       "version": "pinned-20260908",
       "kind": "multilanguage-editing",
-      "source": {"repositories": ["cpp@413b80a9", "go@97472cfe", "java@f1b22a3d", "javascript@9be84b9e", "python@1f6aab86", "rust@1d3a0f46"], "license": "MIT"},
+      "source": {"repositories": ["cpp@413b80a9b94089e4588c50500b8553a59c48cda8", "go@97472cfeecf6da52acb42029fe70a07ba990942a", "java@f1b22a3dc048451303f910fa08b279dea38e189a", "javascript@9be84b9eb31eea9beabbe3f7021a12101379d6e5", "python@1f6aab8667bf653b10cc3799f94352fcdb749db6", "rust@1d3a0f463c0f411dcb5ccbe45e72354da8db58dc"], "license": "MIT"},
       "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "public"},
       "evaluator": {"entrypoint": "track-test-runner", "version": "pinned-20260908", "image_digest": null, "oracle": "track-tests"},
       "attempt_budget": 1,
