@@ -7,6 +7,8 @@ use asb_protocol::{
 };
 use asb_runtime::{ProcessError, ProcessLimits, RunningProcess, Termination};
 use serde::Deserialize;
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, VecDeque};
 use std::fmt;
@@ -563,7 +565,70 @@ fn read_evidence(path: &Path) -> Result<DriverEvidence, AdapterError> {
     if bytes.is_empty() || bytes.len() as u64 > MAX_RESULT_BYTES {
         return Err(AdapterError::InvalidEvidence);
     }
-    serde_json::from_slice(&bytes).map_err(|_| AdapterError::InvalidEvidence)
+    let unique =
+        serde_json::from_slice::<UniqueJson>(&bytes).map_err(|_| AdapterError::InvalidEvidence)?;
+    serde_json::from_value(unique.0).map_err(|_| AdapterError::InvalidEvidence)
+}
+
+struct UniqueJson(Value);
+
+impl<'de> Deserialize<'de> for UniqueJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct UniqueVisitor;
+        impl<'de> Visitor<'de> for UniqueVisitor {
+            type Value = Value;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("JSON without duplicate object keys")
+            }
+            fn visit_bool<E>(self, value: bool) -> Result<Value, E> {
+                Ok(Value::Bool(value))
+            }
+            fn visit_i64<E>(self, value: i64) -> Result<Value, E> {
+                Ok(Value::Number(value.into()))
+            }
+            fn visit_u64<E>(self, value: u64) -> Result<Value, E> {
+                Ok(Value::Number(value.into()))
+            }
+            fn visit_f64<E: de::Error>(self, value: f64) -> Result<Value, E> {
+                serde_json::Number::from_f64(value)
+                    .map(Value::Number)
+                    .ok_or_else(|| E::custom("non-finite number"))
+            }
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<Value, E> {
+                Ok(Value::String(value.into()))
+            }
+            fn visit_string<E>(self, value: String) -> Result<Value, E> {
+                Ok(Value::String(value))
+            }
+            fn visit_none<E>(self) -> Result<Value, E> {
+                Ok(Value::Null)
+            }
+            fn visit_unit<E>(self) -> Result<Value, E> {
+                Ok(Value::Null)
+            }
+            fn visit_seq<A: SeqAccess<'de>>(self, mut values: A) -> Result<Value, A::Error> {
+                let mut result = Vec::new();
+                while let Some(value) = values.next_element::<UniqueJson>()? {
+                    result.push(value.0);
+                }
+                Ok(Value::Array(result))
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut values: A) -> Result<Value, A::Error> {
+                let mut result = Map::new();
+                while let Some(key) = values.next_key::<String>()? {
+                    let value = values.next_value::<UniqueJson>()?.0;
+                    if result.insert(key.clone(), value).is_some() {
+                        return Err(de::Error::custom(format!("duplicate key {key}")));
+                    }
+                }
+                Ok(Value::Object(result))
+            }
+        }
+        deserializer.deserialize_any(UniqueVisitor).map(Self)
+    }
 }
 
 fn map_evidence(
@@ -1040,6 +1105,39 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn evidence_parser_rejects_duplicate_and_unknown_fields() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-openhands-evidence-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("result.json");
+        fs::write(
+            &path,
+            br#"{"version":1,"version":1,"status":"completed","actions":[],"input_tokens":1,"output_tokens":1}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            read_evidence(&path),
+            Err(AdapterError::InvalidEvidence)
+        ));
+        fs::write(
+            &path,
+            br#"{"version":1,"status":"completed","actions":[],"input_tokens":1,"output_tokens":1,"raw":"secret"}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            read_evidence(&path),
+            Err(AdapterError::InvalidEvidence)
+        ));
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
