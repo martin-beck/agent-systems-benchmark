@@ -46,6 +46,42 @@
       "reset": {"status": "unverified"},
       "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
       "limitations": ["Published Harbor package bytes must be acquired and verified independently because sampled source-tree hashes do not match the dataset package digests", "Only 8 of 66 source Dockerfiles pin a base image digest; selected evaluator images and SBOMs remain unqualified", "No task declares a network policy, so Harbor resolves the upstream default to public network access", "Reset behavior and repeated native oracle success remain unverified"]
+    },
+    {
+      "id": "swe-perf",
+      "version": "main-9e8fed28",
+      "kind": "correctness-preserving-performance",
+      "source": {"repository": "https://github.com/SWE-Perf/SWE-Perf", "commit": "9e8fed285ed640b51baaf66b13773706dc95aa45", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "archive_status": "verified", "archive_sha256": "eae21438a7ed072f5a0befd3849f40d6c92d947dea532a2ede55b71487d1f1dd"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/SWE-Perf/SWE-Perf", "revision": "6298f128c550e92ac25af17653cf092224046516", "license": "Apache-2.0", "split": "test", "task_count": 140},
+      "evaluator": {"entrypoint": "python -m run_evaluation", "version": "9e8fed285ed640b51baaf66b13773706dc95aa45", "image_digest": null, "oracle": "repository-tests-plus-runtime", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "performance": {"correctness": "unqualified", "timing": "unqualified", "paired_trials": 0, "uncertainty_method": null, "hardware_control": "unqualified"},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["Pinned source archive has no license file and cannot be treated as executable support", "Dataset license does not establish source-code license", "No paired native baseline, stable timing oracle, evaluator image, SBOM, or reproduction evidence is qualified"]
+    },
+    {
+      "id": "swe-fficiency",
+      "version": "swefficiency-base-12d32a2d",
+      "kind": "correctness-preserving-performance",
+      "source": {"repository": "https://github.com/swefficiency/swefficiency", "commit": "12d32a2d6800824a7d84bdb6797b5708e7b7957f", "license": "Apache-2.0", "license_status": "verified", "license_sha256": "eaed39fc79747b44aa9bde43b0db7fc742fdf616895940c3056d2663e40bac52", "archive_status": "verified", "archive_sha256": "f8d0c3b895dd67d46da8e534092af2986694cb2de494c61547963006964a1945"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/swefficiency/swefficiency", "revision": "7fbfe6c2f1f409afb17acc4c3f737991ec6e1c27", "license": "NOASSERTION", "split": "test", "task_count": 498},
+      "evaluator": {"entrypoint": "swefficiency eval", "version": "12d32a2d6800824a7d84bdb6797b5708e7b7957f", "image_digest": null, "oracle": "guarding-tests-plus-speedup-ratio", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "performance": {"correctness": "unqualified", "timing": "unqualified", "paired_trials": 0, "uncertainty_method": null, "hardware_control": "unqualified"},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The dataset card has no declared license at the pinned revision", "Upstream recommends privileged host setup and mutable prebuilt images that are not content-addressed here", "No paired native baseline, uncertainty estimate, evaluator image, SBOM, or reproduction evidence is qualified"]
+    },
+    {
+      "id": "core-bench",
+      "version": "main-e32a2980",
+      "kind": "computational-reproducibility",
+      "source": {"repository": "https://github.com/siegelz/core-bench", "commit": "e32a2980e72fe6eb04ee04eb749458f570625663", "license": "MIT", "license_status": "verified", "license_sha256": "fa800fc3033ad315e2bf2949afca5c6bcb9f19ad6331d1db996e7dfca1e0eeb8", "archive_status": "verified", "archive_sha256": "1be7112b9c06e19cf0f44051200dca73d8107ec43537d185a2008d9f82c2aa68"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/siegelz/core-bench", "revision": "18ac8edf2532d9edb9d13ae71f715410de6ee5a0", "license": "MIT", "split": "test"},
+      "evaluator": {"entrypoint": "hal-eval --benchmark corebench", "version": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa", "repository": "https://github.com/princeton-pli/hal-harness", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "archive_sha256": "fdcfd347d37b16acc5736e18abe734901345a899b20fefbcab6bdde1e490e607", "image_digest": null, "oracle": "answer-reproduction", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "performance": {"correctness": "unqualified", "timing": "not-applicable", "paired_trials": 0, "uncertainty_method": null, "hardware_control": "unqualified"},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The original harness is unmaintained and recommends HAL", "The pinned HAL evaluator has no license file and is archived", "The original local path uses privileged nested containers and external capsule downloads", "No evaluator image, SBOM, capsule digest set, answer-oracle parity, or native reproduction evidence is qualified"]
     }
   ]
 }

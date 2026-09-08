@@ -23,6 +23,23 @@ TERMINAL_BENCH_DATASET_MANIFEST = (
 HARBOR_COMMIT = "4407eb5227a2ff4f0d3f16b2eb48849382fdf276"
 HARBOR_ARCHIVE = "04ec6b077d610896d75ed85b6b5ff88a9a241da6d528419acca66d2307329a21"
 APACHE_LICENSE = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+PERFORMANCE_PINS = {
+    "swe-perf": {
+        "source": "9e8fed285ed640b51baaf66b13773706dc95aa45",
+        "archive": "eae21438a7ed072f5a0befd3849f40d6c92d947dea532a2ede55b71487d1f1dd",
+        "dataset": "6298f128c550e92ac25af17653cf092224046516",
+    },
+    "swe-fficiency": {
+        "source": "12d32a2d6800824a7d84bdb6797b5708e7b7957f",
+        "archive": "f8d0c3b895dd67d46da8e534092af2986694cb2de494c61547963006964a1945",
+        "dataset": "7fbfe6c2f1f409afb17acc4c3f737991ec6e1c27",
+    },
+    "core-bench": {
+        "source": "e32a2980e72fe6eb04ee04eb749458f570625663",
+        "archive": "1be7112b9c06e19cf0f44051200dca73d8107ec43537d185a2008d9f82c2aa68",
+        "dataset": "18ac8edf2532d9edb9d13ae71f715410de6ee5a0",
+    },
+}
 REGISTRY = (
     Path(__file__).parents[2]
     / "crates/asb-workloads/registry/v1/external-workloads.json"
@@ -74,6 +91,48 @@ def validate_terminal_bench(item: dict[str, Any]) -> None:
         fail("terminal-bench: unresolved public network default must remain explicit")
     if item.get("reset") != {"status": "unverified"}:
         fail("terminal-bench: reset must remain unverified without native evidence")
+
+
+def validate_performance_candidate(item: dict[str, Any]) -> None:
+    ident = item["id"]
+    pins = PERFORMANCE_PINS[ident]
+    source = item.get("source", {})
+    dataset = item.get("dataset", {})
+    evaluator = item.get("evaluator", {})
+    if (
+        source.get("commit") != pins["source"]
+        or source.get("archive_sha256") != pins["archive"]
+    ):
+        fail(f"{ident}: exact source and archive identities are required")
+    if dataset.get("revision") != pins["dataset"]:
+        fail(f"{ident}: exact dataset revision is required")
+    if evaluator.get("image_digest") is not None or evaluator.get("provenance") != {
+        "status": "planned",
+        "sbom_sha256": None,
+        "evidence": None,
+    }:
+        fail(f"{ident}: evaluator must remain unqualified without native evidence")
+    expected_timing = "not-applicable" if ident == "core-bench" else "unqualified"
+    if item.get("performance") != {
+        "correctness": "unqualified",
+        "timing": expected_timing,
+        "paired_trials": 0,
+        "uncertainty_method": None,
+        "hardware_control": "unqualified",
+    }:
+        fail(f"{ident}: performance and reproducibility evidence must remain explicit")
+    if (
+        ident == "swe-perf"
+        and source.get("license_status") != "missing-at-pinned-revision"
+    ):
+        fail("swe-perf: missing source license must remain explicit")
+    if ident == "swe-fficiency" and dataset.get("license") != "NOASSERTION":
+        fail("swe-fficiency: missing dataset license must remain explicit")
+    if (
+        ident == "core-bench"
+        and evaluator.get("license_status") != "missing-at-pinned-revision"
+    ):
+        fail("core-bench: missing recommended evaluator license must remain explicit")
 
 
 def main() -> int:
@@ -149,6 +208,8 @@ def main() -> int:
             fail(f"{ident}: limitations must be explicit")
         if ident == "terminal-bench":
             validate_terminal_bench(item)
+        if ident in PERFORMANCE_PINS:
+            validate_performance_candidate(item)
     digest = hashlib.sha256(args.registry.read_bytes()).hexdigest()
     print(
         json.dumps(
