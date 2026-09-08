@@ -96,7 +96,11 @@ Identity, digest, page ordering, cursor, and success invariants are checked
 before framing and again by the client. They contain no host paths, prompt or
 response bodies, credentials, or private logs.
 Sensitive artifact content requires a separate least-privilege authorization
-boundary.
+boundary. The default endpoint returns metadata only after opening each
+result-store component relative to a held directory descriptor without
+following links, rejecting non-regular or oversized files, and hashing the
+already-open file. This prevents a replaced ancestor or final link from
+redirecting metadata inspection outside the configured result store.
 
 The canonical Rust types, runner endpoint, reusable frontend client, generated
 JSON Schemas, public fixtures, bounded state models, transport/lifecycle tests,

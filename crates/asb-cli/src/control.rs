@@ -9,6 +9,7 @@ use asb_control::{
     RequestDeadline, Revision, RunId, RunSummary, SettingsIssue, SettingsValidation,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::AtomicU64;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -17,6 +18,53 @@ const CATALOG_VERSION: u16 = 1;
 const MAX_CONTROL_CONFIG_BYTES: u64 = 64 * 1024;
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 static CATALOG_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+fn open_artifact_beneath(
+    result_root: &Path,
+    run_id: &str,
+    digest: &str,
+) -> Result<fs::File, BackendFailure> {
+    let mut directory = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(result_root)
+        .map_err(|_| BackendFailure::Rejected)?;
+    for component in ["runs", run_id, "artifacts"] {
+        let path =
+            PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd())).join(component);
+        directory = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)
+            .map_err(|_| BackendFailure::Rejected)?;
+    }
+    let path = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd())).join(digest);
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .map_err(|_| BackendFailure::NotFound)?;
+    let metadata = file.metadata().map_err(|_| BackendFailure::Rejected)?;
+    if !metadata.is_file() {
+        return Err(BackendFailure::Rejected);
+    }
+    Ok(file)
+}
+
+fn digest_open_file(mut file: fs::File) -> Result<String, BackendFailure> {
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|_| BackendFailure::Rejected)?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1491,24 +1539,19 @@ impl ControlBackend for RunnerBackend {
                     .plans
                     .get(&record.plan_id)
                     .ok_or(BackendFailure::NeedsReconciliation)?;
-                let path = plan
-                    .result_root
-                    .join("runs")
-                    .join(&run_id.0)
-                    .join("artifacts")
-                    .join(digest);
-                let metadata = fs::symlink_metadata(&path).map_err(|_| BackendFailure::NotFound)?;
-                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                let file = open_artifact_beneath(&plan.result_root, &run_id.0, digest)?;
+                let size_bytes = file.metadata().map_err(|_| BackendFailure::Rejected)?.len();
+                if size_bytes > StoreLimits::default().max_artifact_bytes {
                     return Err(BackendFailure::Rejected);
                 }
-                if digest_file(&path).map_err(|_| BackendFailure::Rejected)? != *digest {
+                if digest_open_file(file)? != *digest {
                     return Err(BackendFailure::NeedsReconciliation);
                 }
                 self.bind(
                     call,
                     ControlResult::ArtifactMetadata(ArtifactMetadata {
                         sha256: digest.clone(),
-                        size_bytes: metadata.len(),
+                        size_bytes,
                         sensitivity: ArtifactSensitivity::Sensitive,
                     }),
                 )
@@ -1708,6 +1751,134 @@ mod tests {
         assert_eq!(second.items.len(), 1);
         assert_eq!(second.items[0].run_id.0, "history-run-2");
         assert!(!second.has_more);
+    }
+
+    #[test]
+    fn artifact_metadata_rejects_symlinked_artifact_ancestor() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.run_id = "artifact-run".into();
+        plan.result_root = scratch.0.join("results");
+        let plan_id = "artifact-plan".to_owned();
+        let plan_sha256 = plan_digest(&plan).unwrap();
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            catalog.plans.insert(plan_id.clone(), plan);
+            catalog.runs.insert(
+                "artifact-run".into(),
+                RunRecord {
+                    plan_id,
+                    run_id: "artifact-run".into(),
+                    attempt_id: "artifact-attempt".into(),
+                    state: PublicRunState::Completed,
+                    revision: Revision(1),
+                    plan_sha256,
+                },
+            );
+        }
+
+        let outside = scratch.0.join("outside");
+        fs::create_dir_all(&outside).unwrap();
+        let bytes = b"private artifact";
+        let digest = format!("{:x}", Sha256::digest(bytes));
+        fs::write(outside.join(&digest), bytes).unwrap();
+        let run_dir = scratch.0.join("results/runs/artifact-run");
+        let artifacts = run_dir.join("artifacts");
+        fs::create_dir_all(&artifacts).unwrap();
+        fs::write(artifacts.join(&digest), bytes).unwrap();
+        let regular = backend
+            .execute(
+                &ControlCall::ArtifactMetadata {
+                    run_id: RunId("artifact-run".into()),
+                    digest: digest.clone(),
+                },
+                deadline(),
+            )
+            .unwrap();
+        assert_eq!(
+            regular.result,
+            ControlResult::ArtifactMetadata(ArtifactMetadata {
+                sha256: digest.clone(),
+                size_bytes: 16,
+                sensitivity: ArtifactSensitivity::Sensitive,
+            })
+        );
+        fs::remove_dir_all(&artifacts).unwrap();
+        std::os::unix::fs::symlink(&outside, run_dir.join("artifacts")).unwrap();
+
+        assert_eq!(
+            backend.execute(
+                &ControlCall::ArtifactMetadata {
+                    run_id: RunId("artifact-run".into()),
+                    digest: digest.clone(),
+                },
+                deadline(),
+            ),
+            Err(BackendFailure::Rejected)
+        );
+        fs::remove_file(run_dir.join("artifacts")).unwrap();
+        fs::create_dir(&artifacts).unwrap();
+        std::os::unix::fs::symlink(outside.join(&digest), artifacts.join(&digest)).unwrap();
+        assert_eq!(
+            backend.execute(
+                &ControlCall::ArtifactMetadata {
+                    run_id: RunId("artifact-run".into()),
+                    digest,
+                },
+                deadline(),
+            ),
+            Err(BackendFailure::NotFound)
+        );
+    }
+
+    #[test]
+    fn artifact_metadata_rejects_oversized_sparse_file_without_reading_it() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.run_id = "oversized-artifact-run".into();
+        plan.result_root = scratch.0.join("results");
+        let plan_id = "oversized-artifact-plan".to_owned();
+        let plan_sha256 = plan_digest(&plan).unwrap();
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            catalog.plans.insert(plan_id.clone(), plan);
+            catalog.runs.insert(
+                "oversized-artifact-run".into(),
+                RunRecord {
+                    plan_id,
+                    run_id: "oversized-artifact-run".into(),
+                    attempt_id: "oversized-artifact-attempt".into(),
+                    state: PublicRunState::Completed,
+                    revision: Revision(1),
+                    plan_sha256,
+                },
+            );
+        }
+
+        let digest = "a".repeat(64);
+        let artifacts = scratch
+            .0
+            .join("results/runs/oversized-artifact-run/artifacts");
+        fs::create_dir_all(&artifacts).unwrap();
+        let file = fs::File::create(artifacts.join(&digest)).unwrap();
+        file.set_len(StoreLimits::default().max_artifact_bytes + 1)
+            .unwrap();
+        assert_eq!(
+            backend.execute(
+                &ControlCall::ArtifactMetadata {
+                    run_id: RunId("oversized-artifact-run".into()),
+                    digest,
+                },
+                deadline(),
+            ),
+            Err(BackendFailure::Rejected)
+        );
     }
 
     #[test]
