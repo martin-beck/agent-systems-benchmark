@@ -333,6 +333,32 @@ fn assert_trajectory_parity(recorded: &[ExtensionEvent], replayed: &[ExtensionEv
     )));
 }
 
+fn differing_json_paths(left: &Value, right: &Value, path: &str, output: &mut Vec<String>) {
+    match (left, right) {
+        (Value::Object(left), Value::Object(right)) => {
+            let keys = left.keys().chain(right.keys()).collect::<BTreeSet<_>>();
+            for key in keys {
+                match (left.get(key), right.get(key)) {
+                    (Some(left), Some(right)) => {
+                        differing_json_paths(left, right, &format!("{path}/{key}"), output);
+                    }
+                    _ => output.push(format!("{path}/{key}")),
+                }
+            }
+        }
+        (Value::Array(left), Value::Array(right)) => {
+            if left.len() != right.len() {
+                output.push(format!("{path}/length"));
+            }
+            for (index, (left, right)) in left.iter().zip(right).enumerate() {
+                differing_json_paths(left, right, &format!("{path}/{index}"), output);
+            }
+        }
+        _ if left != right => output.push(path.to_owned()),
+        _ => {}
+    }
+}
+
 fn assert_loopback_only_namespace() {
     assert_eq!(
         std::env::var("ASB_REQUIRE_LOOPBACK_ONLY").as_deref(),
@@ -482,6 +508,52 @@ fn pinned_aider_records_and_replays_the_same_graded_trajectory() {
     }
     let replay_cassette = cassette(&exchanges);
     let cancellation_cassette = replay_cassette.clone();
+
+    prepared.reset().unwrap();
+    let comparison_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let comparison_endpoint = Url::parse(&format!(
+        "http://{}/v1",
+        comparison_listener.local_addr().unwrap()
+    ))
+    .unwrap();
+    let comparison_stop = Arc::new(AtomicBool::new(false));
+    let comparison_exchanges = Arc::new(Mutex::new(Vec::new()));
+    let comparison = capture_server(
+        comparison_listener,
+        Arc::clone(&comparison_stop),
+        Arc::clone(&comparison_exchanges),
+    );
+    let mut compared = adapter(
+        &python,
+        &wheel,
+        &prepared.workspace(),
+        &scratch.0.join("comparison-state"),
+        comparison_endpoint,
+    )
+    .start(
+        Id(SESSION.into()),
+        Id(ATTEMPT.into()),
+        prepared.prompt(),
+        limits(Duration::from_secs(30)),
+    )
+    .unwrap();
+    assert_eq!(compared.wait().unwrap().status(), TerminalStatus::Completed);
+    comparison_stop.store(true, Ordering::Release);
+    comparison.join().unwrap();
+    let comparison_exchanges = comparison_exchanges.lock().unwrap();
+    assert_eq!(comparison_exchanges.len(), exchanges.len());
+    for (ordinal, (left, right)) in exchanges
+        .iter()
+        .zip(comparison_exchanges.iter())
+        .enumerate()
+    {
+        let mut paths = Vec::new();
+        differing_json_paths(&left.request.body, &right.request.body, "", &mut paths);
+        assert!(
+            paths.is_empty(),
+            "request {ordinal} changed at privacy-safe JSON paths {paths:?}"
+        );
+    }
 
     prepared.reset().unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();

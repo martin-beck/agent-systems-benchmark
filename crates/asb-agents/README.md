@@ -127,6 +127,9 @@ are assumed not to be replaced or expanded between validation and use.
 
 The pinned Linux x86_64 aider 0.86.2 and CPython 3.12 pair is exercised in a
 fresh user/network namespace containing only an enabled loopback interface.
+The adapter fixes `PYTHONHASHSEED=0` inside its cleared child environment because
+this pinned aider release renders editable files from a Python set; the native
+qualification compares two independent multi-file captures before strict replay.
 An in-memory credential-free OpenAI-compatible fixture returns one buffered
 HTTP 500 response followed by a successful whole-file edit. The qualification
 normalizes both requests, removes authorization with the standard redaction

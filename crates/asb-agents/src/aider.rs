@@ -386,6 +386,10 @@ impl AiderConfig {
             .env("XDG_CACHE_HOME", run_root.join("cache"))
             .env("TMPDIR", run_root.join("tmp"))
             .env("PYTHONPATH", python_path)
+            // Aider 0.86.2 stores editable paths in a Python set before rendering
+            // the request. Fixing the hash seed makes that production request
+            // ordering stable across the separately spawned record/replay clients.
+            .env("PYTHONHASHSEED", "0")
             .env("OPENAI_API_KEY", "asb-credential-free")
             .env("HTTP_PROXY", CLOSED_PROXY)
             .env("HTTPS_PROXY", CLOSED_PROXY)
@@ -817,6 +821,7 @@ mod tests {
 [ "$2" = -m ] || exit 92
 [ "$3" = aider.main ] || exit 93
 [ "$OPENAI_API_KEY" = asb-credential-free ] || exit 94
+[ "$PYTHONHASHSEED" = 0 ] || exit 101
 [ "$HTTP_PROXY" = http://127.0.0.1:9 ] || exit 95
 [ "$NO_PROXY" = 127.0.0.1 ] || exit 96
 case "$HOME" in */home) ;; *) exit 97;; esac
