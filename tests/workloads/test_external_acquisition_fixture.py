@@ -1,6 +1,8 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 
 ROOT = Path(__file__).parents[2]
@@ -21,3 +23,14 @@ def test_offline_acquisition_mismatch_is_rejected():
     artifact = spec["artifacts"][0]
     content = (ROOT / spec["offline_fixture"]).read_bytes() + b"tampered"
     assert hashlib.sha256(content).hexdigest() != artifact["sha256"]
+
+
+def test_verifier_accepts_only_the_pinned_artifact():
+    script = ROOT / "tools/quality/verify_external_artifact.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--manifest", str(SPEC), "--root", str(ROOT / "tests/workloads/fixtures"), "swe-bench-evaluator-fixture"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout)["sha256"] == "c78cf0d69881d7f15bf9d6325203c6dce6294b54def91f8554b1b8c338c46fb6"
