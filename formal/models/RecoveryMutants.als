@@ -1,4 +1,6 @@
 module RecoveryMutants
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
 abstract sig Phase {}
 one sig Planned, Running, Terminal, Uncertain extends Phase {}
 sig Attempt { epoch: one Int, phase: one Phase }

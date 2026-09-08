@@ -29,7 +29,8 @@ QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
 HUAWEI_COPYRIGHT = "Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved."
 SPDX_MIT = "SPDX-License-Identifier: MIT"
 EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
-EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
+TLA_MODULE = re.compile(r"^---- MODULE [A-Za-z][A-Za-z0-9_]* ----$")
+ALLOY_MODULE = re.compile(r"^module [A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z][A-Za-z0-9_]*)*$")
 OPTIONAL_ARTIFACT_ACTION = (
     "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
 )
@@ -204,16 +205,25 @@ def validate_workflows(manifest: dict[str, object]) -> None:
 def validate_sources(files: list[Path], *, root: Path = ROOT) -> None:
     for path in files:
         relative = path.relative_to(root)
+        lines = path.read_text(encoding="utf-8").splitlines()
         if path.suffix == ".rs":
             expected = [f"// {HUAWEI_COPYRIGHT}", f"// {SPDX_MIT}"]
             offset = 0
         elif path.suffix in {".py", ".sh"} or relative in EXTENSIONLESS_SOURCES:
             expected = [f"# {HUAWEI_COPYRIGHT}", f"# {SPDX_MIT}"]
-            lines = path.read_text(encoding="utf-8").splitlines()
             offset = int(bool(lines and lines[0].startswith("#!")))
+        elif path.suffix == ".tla":
+            if not lines or not TLA_MODULE.fullmatch(lines[0]):
+                fail(f"{relative} must begin with its TLA+ module declaration")
+            expected = [f"\\* {HUAWEI_COPYRIGHT}", f"\\* {SPDX_MIT}"]
+            offset = 1
+        elif path.suffix == ".als":
+            if not lines or not ALLOY_MODULE.fullmatch(lines[0]):
+                fail(f"{relative} must begin with its Alloy module declaration")
+            expected = [f"// {HUAWEI_COPYRIGHT}", f"// {SPDX_MIT}"]
+            offset = 1
         else:
             continue
-        lines = path.read_text(encoding="utf-8").splitlines()
         if lines[offset : offset + 2] != expected:
             fail(
                 f"{relative} lacks the exact adjacent Huawei 2026 and SPDX MIT "

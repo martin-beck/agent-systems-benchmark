@@ -1,4 +1,6 @@
 ---- MODULE RecoveryStaleMutation ----
+\* Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+\* SPDX-License-Identifier: MIT
 EXTENDS Recovery
 MutationOwner == CHOOSE a \in Attempts : TRUE
 MutationInit ==
