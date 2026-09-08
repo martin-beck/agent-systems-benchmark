@@ -11,6 +11,7 @@ mod cassette;
 mod migration;
 mod pacing;
 mod redaction;
+mod selection;
 mod service;
 
 pub use cassette::{
@@ -30,6 +31,10 @@ pub use pacing::{
 pub use redaction::{
     DEFAULT_REDACTION_POLICY_VERSION, INTERACTION_REDACTION_POLICY_VERSION, RedactionError,
     RedactionPolicy, RedactionReport, Redactor,
+};
+pub use selection::{
+    ExecutionSource, RecordingDescriptor, RecordingIndex, RecordingOffer, SourceChoice,
+    SourceSelectionError,
 };
 pub use service::{
     DialectCapability, MAX_IO_TIMEOUT, ReplayDeliveryReport, ReplayError, ReplayHttpRequest,
