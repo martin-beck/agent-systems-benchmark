@@ -1,0 +1,584 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchmarkValidityRegistry",
+  "description": "Closed v1 benchmark-validity registry.",
+  "type": "object",
+  "properties": {
+    "format_version": {
+      "description": "Registry format version; v1 is the only accepted value.",
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1
+    },
+    "workloads": {
+      "description": "Workload revisions sorted by `(workload_id, version)`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/WorkloadValidity"
+      },
+      "maxItems": 4096,
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "format_version",
+    "workloads"
+  ],
+  "$defs": {
+    "AdaptationKind": {
+      "description": "Semantic adaptation applied for one platform cell.",
+      "oneOf": [
+        {
+          "description": "Exact workload bytes and grader are used.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "Build/runtime packaging changed without changing task semantics.",
+          "type": "string",
+          "const": "rebuilt"
+        },
+        {
+          "description": "Task or oracle semantics were translated and require parity evidence.",
+          "type": "string",
+          "const": "translated"
+        },
+        {
+          "description": "A disclosed subset of upstream instances is used.",
+          "type": "string",
+          "const": "filtered"
+        }
+      ]
+    },
+    "BaselineEvidence": {
+      "description": "Independent reference and counterexample evidence for the grader revision.",
+      "type": "object",
+      "properties": {
+        "counterexamples_rejected": {
+          "description": "Number of named failure fixtures rejected.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 1000000,
+          "minimum": 0
+        },
+        "counterexamples_total": {
+          "description": "Total named failure fixtures evaluated.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 1000000,
+          "minimum": 1
+        },
+        "reference_artifact_sha256": {
+          "description": "SHA-256 of the reference solution artifact.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reference_passed": {
+          "description": "Whether the reference solution passed the exact scorer.",
+          "type": "boolean"
+        },
+        "scoring_version": {
+          "description": "Independently versioned scorer identity.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scoring_version",
+        "reference_artifact_sha256",
+        "reference_passed",
+        "counterexamples_rejected",
+        "counterexamples_total"
+      ]
+    },
+    "DependencyPin": {
+      "description": "One exact build, evaluator, dataset, or runtime dependency pin.",
+      "type": "object",
+      "properties": {
+        "artifact_sha256": {
+          "description": "Lowercase artifact SHA-256.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ecosystem": {
+          "description": "Package ecosystem or `in-tree`.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "license": {
+          "description": "SPDX license expression.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "name": {
+          "description": "Exact public package/component name.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "version": {
+          "description": "Exact version or immutable revision.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "ecosystem",
+        "name",
+        "version",
+        "artifact_sha256",
+        "license"
+      ]
+    },
+    "ExposurePolicy": {
+      "description": "Explicit public/holdout policy without recording private task identities.",
+      "type": "object",
+      "properties": {
+        "first_public_on": {
+          "description": "First public date; present only for public tasks.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10,
+          "minLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "holdout_set_sha256": {
+          "description": "Salted opaque holdout-set identity; present only for holdouts.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "description": "Public or holdout state.",
+          "$ref": "#/$defs/ExposureStatus"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ]
+    },
+    "ExposureStatus": {
+      "description": "Public exposure and holdout state.",
+      "oneOf": [
+        {
+          "description": "Task content is intentionally public.",
+          "type": "string",
+          "const": "public"
+        },
+        {
+          "description": "Task identity and content remain hidden from evaluated agents.",
+          "type": "string",
+          "const": "holdout"
+        }
+      ]
+    },
+    "PerformanceCalibration": {
+      "description": "Host-local performance threshold and uncertainty calibration.",
+      "type": "object",
+      "properties": {
+        "architecture": {
+          "description": "Canonical architecture.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "artifact_sha256": {
+          "description": "SHA-256 of immutable calibration evidence.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "host_class_sha256": {
+          "description": "Opaque SHA-256 of the nonsecret host calibration class.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "metric": {
+          "description": "Exact performance metric identity.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "platform_id": {
+          "description": "Platform manifest identity.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "sample_count": {
+          "description": "Number of paired calibration samples.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 1000000,
+          "minimum": 2
+        },
+        "threshold": {
+          "description": "Host-local decision threshold.",
+          "type": "number",
+          "format": "double"
+        },
+        "uncertainty": {
+          "description": "Nonnegative uncertainty on the same scale.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "platform_id",
+        "architecture",
+        "host_class_sha256",
+        "metric",
+        "threshold",
+        "uncertainty",
+        "sample_count",
+        "artifact_sha256"
+      ]
+    },
+    "PlatformEvidence": {
+      "description": "Immutable evidence for one platform cell.",
+      "type": "object",
+      "properties": {
+        "artifact_sha256": {
+          "description": "SHA-256 of the evidence artifact.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "kernel_release": {
+          "description": "Exact booted kernel release for native evidence; absent otherwise.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "run_id": {
+          "description": "Public run identity.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "tested_on": {
+          "description": "Evidence collection date.",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "artifact_sha256",
+        "tested_on"
+      ]
+    },
+    "PortabilityRecord": {
+      "description": "Workload support and adaptation state for an exact platform and architecture.",
+      "type": "object",
+      "properties": {
+        "adaptation": {
+          "description": "Exact, rebuilt, translated, or filtered workload relation.",
+          "$ref": "#/$defs/AdaptationKind"
+        },
+        "adaptation_sha256": {
+          "description": "Digest of adaptation bytes; absent for an exact workload.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "architecture": {
+          "description": "Canonical architecture (`x86_64` or `aarch64` in v1).",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "evidence": {
+          "description": "Immutable qualification evidence when build/simulated/native testing is claimed.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlatformEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitation": {
+          "description": "Required explanation for planned, simulated, adapted, or unsupported cells.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "platform_id": {
+          "description": "Platform manifest identity.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "semantic_parity_sha256": {
+          "description": "Semantic-parity evidence digest; required for non-exact adaptations.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "description": "Qualified evidence status.",
+          "$ref": "#/$defs/PortabilityStatus"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "platform_id",
+        "architecture",
+        "status",
+        "adaptation"
+      ]
+    },
+    "PortabilityStatus": {
+      "description": "Evidence-qualified platform status; ordering is not a support hierarchy.",
+      "oneOf": [
+        {
+          "description": "No build or execution evidence has been recorded.",
+          "type": "string",
+          "const": "planned"
+        },
+        {
+          "description": "Compilation or package inspection passed without a native workload run.",
+          "type": "string",
+          "const": "build-only"
+        },
+        {
+          "description": "A simulated or emulated run passed and remains non-native evidence.",
+          "type": "string",
+          "const": "simulated"
+        },
+        {
+          "description": "A real run passed on the exact booted platform recorded in evidence.",
+          "type": "string",
+          "const": "native-tested"
+        },
+        {
+          "description": "The workload revision is explicitly unsupported on this platform cell.",
+          "type": "string",
+          "const": "unsupported"
+        }
+      ]
+    },
+    "SourceKind": {
+      "description": "Source acquisition class.",
+      "oneOf": [
+        {
+          "description": "Content is maintained in the ASB product repository.",
+          "type": "string",
+          "const": "built_in"
+        },
+        {
+          "description": "Content is acquired from a separately pinned upstream source.",
+          "type": "string",
+          "const": "imported"
+        }
+      ]
+    },
+    "SourceProvenance": {
+      "description": "Pinned source and license provenance for one workload revision.",
+      "type": "object",
+      "properties": {
+        "content_sha256": {
+          "description": "Lowercase SHA-256 of the pinned workload content.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "kind": {
+          "description": "Built-in or imported acquisition boundary.",
+          "$ref": "#/$defs/SourceKind"
+        },
+        "license": {
+          "description": "SPDX license expression for task content.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "locator": {
+          "description": "Public source locator or stable built-in namespace.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "revision": {
+          "description": "Immutable upstream or in-tree revision.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "verified_on": {
+          "description": "Calendar date on which the source facts were verified.",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "locator",
+        "revision",
+        "license",
+        "content_sha256",
+        "verified_on"
+      ]
+    },
+    "SplitProvenance": {
+      "description": "Dataset split identity and selection provenance.",
+      "type": "object",
+      "properties": {
+        "instance_count": {
+          "description": "Number of instances represented by this record.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 10000000,
+          "minimum": 1
+        },
+        "name": {
+          "description": "Stable split name.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "selection_sha256": {
+          "description": "Lowercase SHA-256 of the ordered selected instance identities.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "selection_sha256",
+        "instance_count"
+      ]
+    },
+    "WorkloadValidity": {
+      "description": "Validity evidence for one exact workload content/scorer revision.",
+      "type": "object",
+      "properties": {
+        "baseline": {
+          "description": "Protected grader baseline evidence.",
+          "$ref": "#/$defs/BaselineEvidence"
+        },
+        "dependencies": {
+          "description": "Exact direct dependencies relevant to acquisition or grading.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DependencyPin"
+          },
+          "maxItems": 256
+        },
+        "exposure": {
+          "description": "Explicit public/holdout policy.",
+          "$ref": "#/$defs/ExposurePolicy"
+        },
+        "limitations": {
+          "description": "Public, nonsecret limitations for this exact revision.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1
+        },
+        "performance_calibrations": {
+          "description": "Host-local thresholds; empty means no performance claim.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PerformanceCalibration"
+          },
+          "maxItems": 256
+        },
+        "portability": {
+          "description": "Platform and architecture cells, including unsupported cells.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PortabilityRecord"
+          },
+          "maxItems": 256,
+          "minItems": 1
+        },
+        "source": {
+          "description": "Pinned source and license facts.",
+          "$ref": "#/$defs/SourceProvenance"
+        },
+        "split": {
+          "description": "Exact dataset split or in-tree fixture selection.",
+          "$ref": "#/$defs/SplitProvenance"
+        },
+        "version": {
+          "description": "Exact content version.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "workload_id": {
+          "description": "Stable workload identity.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "workload_id",
+        "version",
+        "source",
+        "split",
+        "baseline",
+        "dependencies",
+        "exposure",
+        "portability",
+        "performance_calibrations",
+        "limitations"
+      ]
+    }
+  }
+}

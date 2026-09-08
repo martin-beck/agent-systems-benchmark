@@ -168,6 +168,8 @@ name = "asb-workloads"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "jsonschema",
+ "schemars",
  "serde",
  "serde_json",
  "sha2",
