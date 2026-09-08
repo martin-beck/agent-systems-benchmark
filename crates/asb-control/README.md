@@ -5,7 +5,10 @@ runner and independent frontends such as `asb-tui`. Version 1 uses JSON-RPC
 2.0 bodies with a four-byte big-endian length prefix over a Linux Unix-domain
 socket. The socket is created with mode 0600 inside a same-user directory with
 no group or other access, and every accepted peer is checked with
-`SO_PEERCRED`.
+`SO_PEERCRED`. The frontend performs the same kernel credential check on the
+connected server before sending negotiation or request content; peer identity
+values are inspectable but cannot be constructed through the public API.
+Authentication error text is fixed and does not disclose host user IDs.
 
 The first complete JSON-RPC envelope negotiates an exactly offered supported
 version and intersects frame, deadline, page, and in-flight limits. Calls cover

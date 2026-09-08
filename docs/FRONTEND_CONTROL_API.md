@@ -14,6 +14,9 @@ before backend work. The runtime directory must be a real same-user directory
 with no group or other permissions. ASB refuses every existing socket path, binds mode 0600, and
 checks accepted peers with `SO_PEERCRED`. Cleanup removes the node only if its
 device and inode still identify the socket ASB created.
+The frontend also checks the connected server's kernel credentials before it
+sends negotiation data. Kernel-derived peer identities expose read-only
+accessors and cannot be forged through the public API.
 
 There is no automatic IP listener, including when the process runs under SSH,
 tmux, or screen. Remote control is separately configured, authenticated, and
