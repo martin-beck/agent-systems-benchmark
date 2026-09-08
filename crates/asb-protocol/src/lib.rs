@@ -10,9 +10,11 @@
 
 mod experiment;
 mod provider;
+mod trace;
 
 pub use experiment::*;
 pub use provider::*;
+pub use trace::*;
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, Write};

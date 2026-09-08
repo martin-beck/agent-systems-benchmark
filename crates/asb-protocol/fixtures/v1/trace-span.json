@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "run_id": "run-1",
+  "trial_id": "trial-1",
+  "agent_id": "agent-1",
+  "span_id": "model-1",
+  "parent_span_id": "agent-span-1",
+  "kind": "model",
+  "operation": "chat",
+  "provider": "openai",
+  "model": "model-v1",
+  "tool_call_id": null,
+  "tool_name": null,
+  "start_unix_ns": 10,
+  "end_unix_ns": 20,
+  "status": "ok"
+}

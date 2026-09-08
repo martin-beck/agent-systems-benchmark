@@ -4,7 +4,7 @@
 use asb_protocol::{
     ExperimentManifestV1, ExtensionManifest, ExtensionResult, ProviderProfileCapabilities,
     ProviderProfileError, ProviderProfileV1, ProviderSettingField, RpcNotification, RpcRequest,
-    WorkloadManifest,
+    TraceSpan, WorkloadManifest,
 };
 use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
@@ -42,6 +42,10 @@ const SCHEMAS: &[(&str, &str)] = &[
         "result.schema.json",
         include_str!("../schema/v1/result.schema.json"),
     ),
+    (
+        "trace-span.schema.json",
+        include_str!("../schema/v1/trace-span.schema.json"),
+    ),
 ];
 
 #[test]
@@ -54,6 +58,7 @@ fn checked_in_schemas_equal_rust_types() {
     assert_schema::<RpcRequest>(SCHEMAS[5].1);
     assert_schema::<RpcNotification>(SCHEMAS[6].1);
     assert_schema::<ExtensionResult>(SCHEMAS[7].1);
+    assert_schema::<TraceSpan>(SCHEMAS[8].1);
 }
 
 #[test]
@@ -91,6 +96,7 @@ fn positive_fixtures_validate() {
         include_str!("../fixtures/v1/event-notification.json"),
     );
     validate_fixture(SCHEMAS[7].1, include_str!("../fixtures/v1/result.json"));
+    validate_fixture(SCHEMAS[8].1, include_str!("../fixtures/v1/trace-span.json"));
 
     let manifest: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();

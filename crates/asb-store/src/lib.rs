@@ -14,8 +14,13 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+mod trace;
 mod verification;
 
+pub use trace::{
+    ExportResult, MAX_TRACE_QUEUE_CAPACITY, OTEL_GENAI_SCHEMA_URL, OTEL_GENAI_SEMCONV_REVISION,
+    OtlpAnyValue, OtlpAttribute, OtlpIntegerValue, OtlpJsonSpan, OtlpStringValue, TraceExporter,
+};
 pub use verification::{
     MAX_VERIFICATION_BYTES, VERIFICATION_SCHEMA_VERSION, VerificationObservation,
     VerificationOutcome,
