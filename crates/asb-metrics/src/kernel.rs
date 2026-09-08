@@ -440,18 +440,22 @@ mod tests {
             Self(path)
         }
 
-        fn system_tool(
-            &self,
-            path: &str,
-            version_argument: &str,
-            exact_version: String,
-        ) -> PinnedTool {
-            let bytes = fs::read(path).unwrap();
+        fn harness_tool(&self) -> PinnedTool {
+            let path = std::env::current_exe().unwrap();
+            let bytes = fs::read(&path).unwrap();
+            let output = Command::new(&path).arg("--list").output().unwrap();
+            let version = if output.stdout.is_empty() {
+                output.stderr
+            } else {
+                output.stdout
+            };
+            let version = version.strip_suffix(b"\n").unwrap_or(&version);
+            let version = version.strip_suffix(b"\r").unwrap_or(version);
             PinnedTool::new(
-                PathBuf::from(path),
+                path,
                 format!("{:x}", Sha256::digest(bytes)),
-                version_argument.into(),
-                exact_version,
+                "--list".into(),
+                String::from_utf8(version.to_vec()).unwrap(),
             )
             .unwrap()
         }
@@ -536,57 +540,54 @@ mod tests {
         let root = TestRoot::new();
         let diagnostics =
             KernelDiagnostics::new(root.0.clone(), Duration::from_millis(100)).unwrap();
+        let tool = root.harness_tool();
 
-        let success = root.system_tool("/bin/echo", "fixture-v1", "fixture-v1".into());
         assert_eq!(
             diagnostics.run(
-                &success,
-                &["12.5;msec;task-clock;1;100.0".into()],
+                &tool,
+                &[
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "kernel::tests::fixture_process_success".into(),
+                    "--nocapture".into(),
+                ],
                 parse_task_clock,
             ),
             ProbeResult::available(12_500_000)
         );
         root.assert_clean();
 
-        let rejection_tool_version = Command::new("/bin/ls")
-            .arg("--version")
-            .output()
-            .unwrap()
-            .stdout;
-        let denied = root.system_tool(
-            "/bin/ls",
-            "--version",
-            String::from_utf8(rejection_tool_version)
-                .unwrap()
-                .trim_end_matches(['\r', '\n'])
-                .into(),
-        );
         assert_eq!(
-            diagnostics.run(&denied, &["definitely-absent".into()], parse_ebpf_features),
+            diagnostics.run(
+                &tool,
+                &[
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "kernel::tests::fixture_process_rejected".into(),
+                    "--nocapture".into(),
+                ],
+                parse_ebpf_features,
+            ),
             ProbeResult::unavailable_reason(UnavailableReason::ProbeRejected)
         );
         root.assert_clean();
 
-        let sleep_version = Command::new("/bin/sleep")
-            .arg("--version")
-            .output()
-            .unwrap()
-            .stdout;
-        let timeout = root.system_tool(
-            "/bin/sleep",
-            "--version",
-            String::from_utf8(sleep_version)
-                .unwrap()
-                .trim_end_matches(['\r', '\n'])
-                .into(),
-        );
         assert_eq!(
-            diagnostics.run(&timeout, &["2".into()], parse_ebpf_features),
+            diagnostics.run(
+                &tool,
+                &[
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "kernel::tests::fixture_process_timeout".into(),
+                    "--nocapture".into(),
+                ],
+                parse_ebpf_features,
+            ),
             ProbeResult::unavailable_reason(UnavailableReason::TimedOut)
         );
         root.assert_clean();
 
-        let mut mismatch = success.clone();
+        let mut mismatch = tool.clone();
         mismatch.sha256 = "0".repeat(64);
         assert_eq!(
             diagnostics.perf_task_clock(&mismatch, 10),
@@ -615,11 +616,15 @@ mod tests {
             ProbeResult::unavailable_reason(UnavailableReason::ProbeRejected)
         );
 
-        let malformed = root.system_tool("/bin/echo", "fixture-v1", "fixture-v1".into());
         assert_eq!(
             diagnostics.run(
-                &malformed,
-                &["private-unparseable".into()],
+                &root.harness_tool(),
+                &[
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "kernel::tests::fixture_process_malformed".into(),
+                    "--nocapture".into(),
+                ],
                 parse_task_clock
             ),
             ProbeResult::unavailable_reason(UnavailableReason::MalformedEvidence)
@@ -633,5 +638,29 @@ mod tests {
                 .unwrap(),
             UnavailableReason::PermissionDenied
         );
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture selected explicitly by the bounded boundary test"]
+    fn fixture_process_success() {
+        println!("12.5;msec;task-clock;1;100.0");
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture selected explicitly by the bounded boundary test"]
+    fn fixture_process_rejected() {
+        panic!("synthetic rejection");
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture selected explicitly by the bounded boundary test"]
+    fn fixture_process_timeout() {
+        std::thread::sleep(Duration::from_secs(2));
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture selected explicitly by the bounded boundary test"]
+    fn fixture_process_malformed() {
+        println!("synthetic-unparseable");
     }
 }
