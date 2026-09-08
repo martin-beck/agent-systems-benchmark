@@ -26,6 +26,9 @@ in the public coordination repository.
 - [Related benchmark systems](docs/RELATED_WORK.md)
 - [Formal assurance roadmap](docs/FORMAL_ASSURANCE.md)
 - [Worker process](docs/DEVELOPMENT.md)
+- [Offline quickstart](docs/QUICKSTART.md)
+- [Agent and workload extensions](docs/EXTENSIONS.md)
+- [Reproducibility guide](docs/REPRODUCIBILITY.md)
 - [Coordination tasks](https://github.com/martin-beck/agent-systems-benchmark-state)
 
 ## Build and inspect the CLI

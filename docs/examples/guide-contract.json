@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "commands": [
+    "doctor",
+    "plan",
+    "run",
+    "sweep",
+    "compare",
+    "report",
+    "serve"
+  ],
+  "workloads": [
+    "original.bug-fix",
+    "original.feature-addition",
+    "original.refactoring",
+    "original.test-generation",
+    "original.dependency-migration",
+    "original.build-repair",
+    "original.repository-navigation"
+  ],
+  "unsupported_commands": [
+    "record",
+    "replay"
+  ]
+}
