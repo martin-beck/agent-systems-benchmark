@@ -71,6 +71,7 @@ dependencies = [
 name = "asb-cli"
 version = "0.1.0"
 dependencies = [
+ "asb-agents",
  "asb-analysis",
  "asb-control",
  "asb-metrics",

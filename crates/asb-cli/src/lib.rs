@@ -4,6 +4,11 @@
 
 mod control;
 
+use asb_agents::all_agents_provider::{
+    ALL_AGENTS_PROVIDER_SELECTION_V1, AllAgentsProviderKind, AllAgentsProviderSelection,
+    EffectiveApiMode, SelectedAgent, resolve_openai_selection,
+};
+use asb_agents::openai::OpenAiProfile;
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
 use asb_protocol::{ExperimentManifestV1, Id};
@@ -26,7 +31,7 @@ use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
 use std::ops::Deref;
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,12 +42,15 @@ use std::time::{Duration, Instant};
 const OUTPUT_SCHEMA_VERSION: u16 = 1;
 const PLAN_SCHEMA_VERSION: u16 = 1;
 const MAX_PLAN_BYTES: u64 = 1024 * 1024;
+const MAX_PROVIDER_SELECTION_BYTES: u64 = 64 * 1024;
 const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_ID_BYTES: usize = 128;
 const MAX_CAPTURE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
 const MAX_BUSY_SPAWN_RETRIES: u8 = 3;
 const MAX_POINT_ATTEMPTS: u32 = 4_096;
+const PROVIDER_CATALOG_VERSION: u16 = 1;
+const MAX_SELECTED_AGENTS: usize = 9;
 
 /// Run the command-line interface with process standard streams.
 #[must_use]
@@ -86,9 +94,25 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
+        [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command, selection @ ..] if command == "provider-plan" => {
+            provider_plan(selection, stdout).map(|()| 0)
+        }
+        [command, shell] if command == "completion" => completion(shell, stdout).map(|()| 0),
         [command, path] if command == "plan" => plan(Path::new(path), stdout).map(|()| 0),
+        [command, path, flag, selection] if command == "plan" && flag == "--provider-selection" => {
+            plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
+        }
         [command, path] if command == "run" => execute(Path::new(path), false, stdout, stderr),
+        [command, path, flag, selection] if command == "run" && flag == "--provider-selection" => {
+            execute_with_selection(Path::new(path), Path::new(selection), false, stdout, stderr)
+        }
         [command, path] if command == "sweep" => execute(Path::new(path), true, stdout, stderr),
+        [command, path, flag, selection]
+            if command == "sweep" && flag == "--provider-selection" =>
+        {
+            execute_with_selection(Path::new(path), Path::new(selection), true, stdout, stderr)
+        }
         [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
             compare(runs, stdout).map(|()| 0)
@@ -113,6 +137,9 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
 fn command_name(args: &[OsString]) -> &'static str {
     match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
+        Some("provider-catalog") => "provider-catalog",
+        Some("provider-plan") => "provider-plan",
+        Some("completion") => "completion",
         Some("plan") => "plan",
         Some("run") => "run",
         Some("sweep") => "sweep",
@@ -126,7 +153,18 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb plan EXPERIMENT.toml\n  asb run EXPERIMENT.toml\n  asb sweep EXPERIMENT.toml\n  asb compare RUN...\n  asb report RUN...\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nProvider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+    )
+    .map_err(output_error)
+}
+
+fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
+    if shell != "bash" {
+        return Err(CliError::usage("only bash completion is supported"));
+    }
+    writeln!(
+        output,
+        "complete -W 'doctor provider-catalog provider-plan plan run sweep compare report completion serve --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -159,12 +197,268 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
             cgroup_v2: Path::new("/sys/fs/cgroup/cgroup.controllers").is_file(),
             interactive_stderr: io::stderr().is_terminal(),
             commands: &[
-                "doctor", "plan", "run", "sweep", "compare", "report", "serve",
+                "doctor",
+                "provider-catalog",
+                "provider-plan",
+                "plan",
+                "run",
+                "sweep",
+                "compare",
+                "report",
+                "completion",
+                "serve",
             ],
             batch_agent_boundary: "batch-stdio-v1",
             workloads: OriginalWorkloads::fixture_ids(),
         },
     )
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderCatalogOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    catalog_version: u16,
+    catalog_sha256: String,
+    agents: &'static [&'static str],
+    profiles: [ProviderCatalogEntry; 2],
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderCatalogEntry {
+    id: &'static str,
+    model: &'static str,
+    credential_source: &'static str,
+    selectable: bool,
+    unavailable_reason: Option<&'static str>,
+}
+
+const AGENT_IDS: [&str; 9] = [
+    "opencode",
+    "opendesk",
+    "aider",
+    "codex",
+    "gemini",
+    "qwen_code",
+    "goose",
+    "mini_swe",
+    "openhands",
+];
+
+fn provider_catalog_digest() -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"asb-cli-provider-catalog-v1\0");
+    for agent in AGENT_IDS {
+        digest.update(agent.as_bytes());
+        digest.update([0]);
+    }
+    digest.update(b"openai\0");
+    digest.update(asb_agents::openai::OPENAI_MODEL.as_bytes());
+    digest.update(b"\0environment\0selectable\0ollama\0");
+    digest.update(asb_agents::ollama::OLLAMA_MODEL.as_bytes());
+    digest.update(b"\0none\0requires-verified-daemon\0");
+    format!("{:x}", digest.finalize())
+}
+
+fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
+    write_json(
+        output,
+        &ProviderCatalogOutput {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "provider-catalog",
+            catalog_version: PROVIDER_CATALOG_VERSION,
+            catalog_sha256: provider_catalog_digest(),
+            agents: &AGENT_IDS,
+            profiles: [
+                ProviderCatalogEntry {
+                    id: "openai",
+                    model: asb_agents::openai::OPENAI_MODEL,
+                    credential_source: "environment",
+                    selectable: true,
+                    unavailable_reason: None,
+                },
+                ProviderCatalogEntry {
+                    id: "ollama",
+                    model: asb_agents::ollama::OLLAMA_MODEL,
+                    credential_source: "none",
+                    selectable: false,
+                    unavailable_reason: Some("verified local daemon evidence is unavailable"),
+                },
+            ],
+        },
+    )
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderPlanOutput {
+    schema_version: u16,
+    ok: bool,
+    command: String,
+    dry_run: bool,
+    catalog_sha256: String,
+    selection_sha256: String,
+    provider_profile: String,
+    provider_profile_sha256: String,
+    model: String,
+    credential_source: String,
+    credential_reference_sha256: String,
+    effective: Vec<EffectiveCliAgent>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct EffectiveCliAgent {
+    agent: String,
+    profile_sha256: String,
+    api_mode: EffectiveApiMode,
+}
+
+fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let mut catalog_sha256 = None;
+    let mut provider = None;
+    let mut credential_reference_sha256 = None;
+    let mut agents = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| CliError::usage("provider-plan options require values"))?;
+        match flag {
+            "--catalog-sha256" if catalog_sha256.replace(value.as_str()).is_none() => {}
+            "--provider-profile" if provider.replace(value.as_str()).is_none() => {}
+            "--credential-reference-sha256"
+                if credential_reference_sha256
+                    .replace(value.as_str())
+                    .is_none() => {}
+            "--agent" if agents.len() < MAX_SELECTED_AGENTS => agents.push(parse_agent(value)?),
+            "--catalog-sha256" | "--provider-profile" | "--credential-reference-sha256" => {
+                return Err(CliError::usage(
+                    "provider-plan option was supplied more than once",
+                ));
+            }
+            "--agent" => {
+                return Err(CliError::validation("selected agent set exceeds its bound"));
+            }
+            _ => return Err(CliError::usage("unsupported provider-plan option")),
+        }
+        index += 2;
+    }
+    let expected_catalog = provider_catalog_digest();
+    if catalog_sha256 != Some(expected_catalog.as_str()) {
+        return Err(CliError::validation(
+            "provider catalog identity is stale or absent",
+        ));
+    }
+    let provider = provider.ok_or_else(|| CliError::validation("provider profile is absent"))?;
+    if provider == "ollama" {
+        return Err(CliError::validation(
+            "provider profile is advertised but unavailable without verified daemon evidence",
+        ));
+    }
+    if provider != "openai" {
+        return Err(CliError::validation("unknown provider profile"));
+    }
+    let credential_reference_sha256 = credential_reference_sha256
+        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
+    let profile = OpenAiProfile::new(credential_reference_sha256)
+        .map_err(|_| CliError::validation("credential reference identity is invalid"))?;
+    let selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: AllAgentsProviderKind::OpenAi,
+        agents,
+    };
+    let plan = resolve_openai_selection(&selection, &profile).map_err(|_| {
+        CliError::validation("provider profile is incompatible with selected agents")
+    })?;
+    let effective = plan
+        .effective()
+        .iter()
+        .map(|item| EffectiveCliAgent {
+            agent: agent_id(item.agent).to_owned(),
+            profile_sha256: item.profile_sha256.clone(),
+            api_mode: item.api_mode,
+        })
+        .collect::<Vec<_>>();
+    let canonical_selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: AllAgentsProviderKind::OpenAi,
+        agents: effective
+            .iter()
+            .map(|item| parse_agent(&item.agent))
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+    let selection_sha256 =
+        provider_selection_digest(&expected_catalog, &canonical_selection, &effective)?;
+    write_json(
+        output,
+        &ProviderPlanOutput {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "provider-plan".to_owned(),
+            dry_run: true,
+            catalog_sha256: expected_catalog,
+            selection_sha256,
+            provider_profile: "openai".to_owned(),
+            provider_profile_sha256: plan.profile_sha256().to_owned(),
+            model: asb_agents::openai::OPENAI_MODEL.to_owned(),
+            credential_source: "environment".to_owned(),
+            credential_reference_sha256: credential_reference_sha256.to_owned(),
+            effective,
+        },
+    )
+}
+
+fn provider_selection_digest(
+    catalog_sha256: &str,
+    selection: &AllAgentsProviderSelection,
+    effective: &[EffectiveCliAgent],
+) -> Result<String, CliError> {
+    let canonical = serde_json::to_vec(&(
+        PROVIDER_CATALOG_VERSION,
+        catalog_sha256,
+        selection,
+        effective,
+    ))
+    .map_err(|_| CliError::operation("provider plan cannot be encoded"))?;
+    let mut digest = Sha256::new();
+    digest.update(b"asb-cli-provider-plan-v1\0");
+    digest.update(canonical);
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+const fn agent_id(agent: SelectedAgent) -> &'static str {
+    match agent {
+        SelectedAgent::OpenCode => "opencode",
+        SelectedAgent::OpenDesk => "opendesk",
+        SelectedAgent::Aider => "aider",
+        SelectedAgent::Codex => "codex",
+        SelectedAgent::Gemini => "gemini",
+        SelectedAgent::QwenCode => "qwen_code",
+        SelectedAgent::Goose => "goose",
+        SelectedAgent::MiniSwe => "mini_swe",
+        SelectedAgent::OpenHands => "openhands",
+    }
+}
+
+fn parse_agent(value: &str) -> Result<SelectedAgent, CliError> {
+    match value {
+        "opencode" => Ok(SelectedAgent::OpenCode),
+        "opendesk" => Ok(SelectedAgent::OpenDesk),
+        "aider" => Ok(SelectedAgent::Aider),
+        "codex" => Ok(SelectedAgent::Codex),
+        "gemini" => Ok(SelectedAgent::Gemini),
+        "qwen_code" => Ok(SelectedAgent::QwenCode),
+        "goose" => Ok(SelectedAgent::Goose),
+        "mini_swe" => Ok(SelectedAgent::MiniSwe),
+        "openhands" => Ok(SelectedAgent::OpenHands),
+        _ => Err(CliError::validation("unknown selected agent")),
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -268,10 +562,38 @@ struct PlanOutput<'a> {
     warmups: u32,
     concurrency: u32,
     sweep_max_concurrency: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_selection_sha256: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_profile_sha256: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_profile: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_model: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    credential_source: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effective_agents: Option<&'a [EffectiveCliAgent]>,
 }
 
 fn plan(path: &Path, output: &mut dyn Write) -> Result<(), CliError> {
-    let plan = load_and_validate(path)?;
+    render_plan(path, None, output)
+}
+
+fn plan_with_selection(
+    path: &Path,
+    selection_path: &Path,
+    output: &mut dyn Write,
+) -> Result<(), CliError> {
+    render_plan(path, Some(selection_path), output)
+}
+
+fn render_plan(
+    path: &Path,
+    selection_path: Option<&Path>,
+    output: &mut dyn Write,
+) -> Result<(), CliError> {
+    let (plan, selection) = load_plan_and_selection(path, selection_path)?;
     write_json(
         output,
         &PlanOutput {
@@ -288,8 +610,152 @@ fn plan(path: &Path, output: &mut dyn Write) -> Result<(), CliError> {
             warmups: plan.point.warmups,
             concurrency: plan.point.concurrency,
             sweep_max_concurrency: plan.point.sweep_max_concurrency,
+            provider_selection_sha256: selection
+                .as_ref()
+                .map(|value| value.selection_sha256.as_str()),
+            provider_profile_sha256: selection
+                .as_ref()
+                .map(|value| value.provider_profile_sha256.as_str()),
+            provider_profile: selection
+                .as_ref()
+                .map(|value| value.provider_profile.as_str()),
+            provider_model: selection.as_ref().map(|value| value.model.as_str()),
+            credential_source: selection
+                .as_ref()
+                .map(|value| value.credential_source.as_str()),
+            effective_agents: selection.as_ref().map(|value| value.effective.as_slice()),
         },
     )
+}
+
+fn load_plan_and_selection(
+    path: &Path,
+    selection_path: Option<&Path>,
+) -> Result<(PlanFile, Option<ProviderPlanOutput>), CliError> {
+    let plan = load_and_validate(path)?;
+    let selection = selection_path.map(load_provider_selection).transpose()?;
+    if let Some(selection) = &selection {
+        validate_selection_binding(&plan, selection)?;
+    }
+    Ok((plan, selection))
+}
+
+fn load_provider_selection(path: &Path) -> Result<ProviderPlanOutput, CliError> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|_| CliError::validation("provider selection is unavailable"))?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_PROVIDER_SELECTION_BYTES
+    {
+        return Err(CliError::validation(
+            "provider selection is not a bounded regular file",
+        ));
+    }
+    let file = fs::File::open(path)
+        .map_err(|_| CliError::validation("provider selection cannot be opened"))?;
+    let opened = file
+        .metadata()
+        .map_err(|_| CliError::validation("provider selection metadata cannot be read"))?;
+    if !opened.is_file()
+        || opened.len() > MAX_PROVIDER_SELECTION_BYTES
+        || opened.dev() != metadata.dev()
+        || opened.ino() != metadata.ino()
+    {
+        return Err(CliError::validation(
+            "provider selection changed during validation",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(usize::try_from(metadata.len()).unwrap_or(0));
+    file.take(MAX_PROVIDER_SELECTION_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| CliError::validation("provider selection cannot be read"))?;
+    if bytes.len() as u64 > MAX_PROVIDER_SELECTION_BYTES {
+        return Err(CliError::validation(
+            "provider selection exceeds its byte limit",
+        ));
+    }
+    let selection: ProviderPlanOutput = serde_json::from_slice(&bytes)
+        .map_err(|_| CliError::validation("provider selection syntax or shape is invalid"))?;
+    validate_provider_selection(&selection)?;
+    Ok(selection)
+}
+
+fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliError> {
+    if value.schema_version != OUTPUT_SCHEMA_VERSION
+        || !value.ok
+        || value.command != "provider-plan"
+        || !value.dry_run
+        || value.catalog_sha256 != provider_catalog_digest()
+        || value.provider_profile != "openai"
+        || value.model != asb_agents::openai::OPENAI_MODEL
+        || value.credential_source != "environment"
+        || !valid_sha256(&value.credential_reference_sha256)
+        || !valid_sha256(&value.provider_profile_sha256)
+        || value.effective.is_empty()
+        || value.effective.len() > MAX_SELECTED_AGENTS
+    {
+        return Err(CliError::validation(
+            "provider selection identity is invalid",
+        ));
+    }
+    let agents = value
+        .effective
+        .iter()
+        .map(|item| parse_agent(&item.agent))
+        .collect::<Result<Vec<_>, _>>()?;
+    let verification_profile = OpenAiProfile::new(&value.credential_reference_sha256)
+        .map_err(|_| CliError::operation("provider verifier profile cannot be created"))?;
+    let selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: AllAgentsProviderKind::OpenAi,
+        agents,
+    };
+    let expected = resolve_openai_selection(&selection, &verification_profile)
+        .map_err(|_| CliError::validation("provider selection is incompatible"))?;
+    if expected.profile_sha256() != value.provider_profile_sha256
+        || value
+            .effective
+            .iter()
+            .zip(expected.effective())
+            .any(|(actual, expected)| {
+                actual.agent != agent_id(expected.agent)
+                    || actual.api_mode != expected.api_mode
+                    || actual.profile_sha256 != expected.profile_sha256
+            })
+        || provider_selection_digest(&value.catalog_sha256, &selection, &value.effective)?
+            != value.selection_sha256
+    {
+        return Err(CliError::validation(
+            "provider selection content address is invalid",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_selection_binding(
+    plan: &PlanFile,
+    selection: &ProviderPlanOutput,
+) -> Result<(), CliError> {
+    let selected = selection
+        .effective
+        .iter()
+        .any(|item| item.agent == plan.experiment.agent.implementation);
+    if !selected
+        || plan.experiment.model.provider != selection.provider_profile
+        || plan.experiment.model.model != selection.model
+        || plan
+            .experiment
+            .model
+            .settings
+            .additional_settings_sha256
+            .as_deref()
+            != Some(selection.provider_profile_sha256.as_str())
+    {
+        return Err(CliError::validation(
+            "provider selection does not match the experiment identity",
+        ));
+    }
+    Ok(())
 }
 
 fn load_and_validate(path: &Path) -> Result<PlanFile, CliError> {
@@ -578,17 +1044,25 @@ struct ExecutionDefinition {
     batch_protocol: String,
     requested_point: PointInput,
     executed_concurrency: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provider_selection_sha256: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct StoredRunDefinition {
     experiment: ExperimentManifestV1,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provider_selection: Option<ProviderPlanOutput>,
     execution: ExecutionDefinition,
     execution_sha256: String,
 }
 
-fn execution_definition(plan: &PlanFile, concurrency: u32) -> ExecutionDefinition {
+fn execution_definition(
+    plan: &PlanFile,
+    concurrency: u32,
+    selection: Option<&ProviderPlanOutput>,
+) -> ExecutionDefinition {
     ExecutionDefinition {
         plan_schema_version: plan.schema_version,
         workload: plan.workload.clone(),
@@ -596,6 +1070,7 @@ fn execution_definition(plan: &PlanFile, concurrency: u32) -> ExecutionDefinitio
         batch_protocol: "batch-stdio-v1".to_owned(),
         requested_point: plan.point,
         executed_concurrency: concurrency,
+        provider_selection_sha256: selection.map(|value| value.selection_sha256.clone()),
     }
 }
 
@@ -610,6 +1085,24 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
         .experiment
         .validate()
         .map_err(|_| CliError::validation("run experiment is invalid"))?;
+    if let Some(selection) = &definition.provider_selection {
+        validate_provider_selection(selection)?;
+        let synthetic_plan = PlanFile {
+            schema_version: definition.execution.plan_schema_version,
+            run_id: "stored-validation".to_owned(),
+            result_root: PathBuf::from("/stored-validation-results"),
+            work_root: PathBuf::from("/stored-validation-work"),
+            workload: definition.execution.workload.clone(),
+            agent: BatchAgent {
+                executable: PathBuf::from("/stored-validation-agent"),
+                executable_sha256: definition.execution.agent_executable_sha256.clone(),
+                arguments: Vec::new(),
+            },
+            point: definition.execution.requested_point,
+            experiment: definition.experiment.clone(),
+        };
+        validate_selection_binding(&synthetic_plan, selection)?;
+    }
     let workload = OriginalWorkloads::describe(&definition.execution.workload)
         .map_err(|_| CliError::validation("stored run workload is invalid"))?;
     if definition.execution.plan_schema_version != PLAN_SCHEMA_VERSION
@@ -626,6 +1119,11 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             .build(definition.execution.executed_concurrency)
             .is_err()
         || execution_digest(&definition.execution)? != definition.execution_sha256
+        || definition.execution.provider_selection_sha256.as_deref()
+            != definition
+                .provider_selection
+                .as_ref()
+                .map(|value| value.selection_sha256.as_str())
     {
         return Err(CliError::validation("run execution definition is invalid"));
     }
@@ -641,6 +1139,10 @@ struct ExecuteOutput {
     points: Vec<PointOutput>,
     highest_confirmed_capacity: Option<u32>,
     cancelled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_selection_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_profile_sha256: Option<String>,
 }
 
 fn execute(
@@ -649,7 +1151,27 @@ fn execute(
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    let plan = load_and_validate(path)?;
+    execute_inner(path, None, sweep, output, progress)
+}
+
+fn execute_with_selection(
+    path: &Path,
+    selection_path: &Path,
+    sweep: bool,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    execute_inner(path, Some(selection_path), sweep, output, progress)
+}
+
+fn execute_inner(
+    path: &Path,
+    selection_path: Option<&Path>,
+    sweep: bool,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    let (plan, selection) = load_plan_and_selection(path, selection_path)?;
     if sweep && plan.point.sweep_max_concurrency.is_none() {
         return Err(CliError::validation("sweep requires sweep_max_concurrency"));
     }
@@ -686,11 +1208,12 @@ fn execute(
             plan.run_id.clone()
         };
         let _ = writeln!(progress, "starting {run_id}");
-        let point = run_point(
+        let point = run_point_with_selection(
             Arc::clone(&store),
             &plan,
             run_id.clone(),
             concurrency,
+            selection.as_ref(),
             Arc::clone(&cancelled),
         )?;
         let decision = match point.decision {
@@ -719,6 +1242,12 @@ fn execute(
             points,
             highest_confirmed_capacity: highest_confirmed_capacity(&capacity),
             cancelled: cancelled.load(Ordering::SeqCst),
+            provider_selection_sha256: selection
+                .as_ref()
+                .map(|value| value.selection_sha256.clone()),
+            provider_profile_sha256: selection
+                .as_ref()
+                .map(|value| value.provider_profile_sha256.clone()),
         },
     )?;
     Ok(exit_code)
@@ -746,9 +1275,20 @@ fn run_point(
     concurrency: u32,
     cancelled: Arc<AtomicBool>,
 ) -> Result<PointOutput, CliError> {
+    run_point_with_selection(store, plan, run_id, concurrency, None, cancelled)
+}
+
+fn run_point_with_selection(
+    store: Arc<AtomicStore>,
+    plan: &PlanFile,
+    run_id: String,
+    concurrency: u32,
+    selection: Option<&ProviderPlanOutput>,
+    cancelled: Arc<AtomicBool>,
+) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
-    let execution = execution_definition(plan, concurrency);
+    let execution = execution_definition(plan, concurrency, selection);
     let execution_sha256 = execution_digest(&execution)?;
     let manifest = RunManifest {
         schema_version: MANIFEST_SCHEMA_VERSION,
@@ -756,6 +1296,7 @@ fn run_point(
         attempt_id: Id(attempt_id.clone()),
         definition: serde_json::to_value(&StoredRunDefinition {
             experiment: plan.experiment.clone(),
+            provider_selection: selection.cloned(),
             execution,
             execution_sha256: execution_sha256.clone(),
         })
@@ -1397,6 +1938,10 @@ struct ReportRun {
     event_count: usize,
     terminal_state: Option<&'static str>,
     execution_sha256: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_selection_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_profile_sha256: Option<String>,
     point: Option<Value>,
 }
 
@@ -1422,6 +1967,14 @@ fn report(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             event_count: journal.len(),
             terminal_state: journal.last().map(|event| state_name(event.state)),
             execution_sha256: definition.execution_sha256,
+            provider_selection_sha256: definition
+                .provider_selection
+                .as_ref()
+                .map(|value| value.selection_sha256.clone()),
+            provider_profile_sha256: definition
+                .provider_selection
+                .as_ref()
+                .map(|value| value.provider_profile_sha256.clone()),
             point,
         });
     }
@@ -2080,6 +2633,397 @@ mod tests {
         assert_eq!(error["error"]["code"], "usage");
     }
 
+    fn provider_args(catalog: &str, agents: &[&str]) -> Vec<OsString> {
+        let mut args = vec![
+            "provider-plan".into(),
+            "--catalog-sha256".into(),
+            catalog.into(),
+            "--provider-profile".into(),
+            "openai".into(),
+            "--credential-reference-sha256".into(),
+            "a".repeat(64).into(),
+        ];
+        for agent in agents {
+            args.push("--agent".into());
+            args.push((*agent).into());
+        }
+        args
+    }
+
+    fn run_json(args: &[OsString]) -> (u8, Value) {
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        let exit = run(args, &mut output, &mut diagnostic);
+        assert!(diagnostic.is_empty());
+        (exit, serde_json::from_slice(&output).unwrap())
+    }
+
+    fn run_json_with_progress(args: &[OsString]) -> (u8, Value) {
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        let exit = run(args, &mut output, &mut diagnostic);
+        assert!(
+            String::from_utf8(diagnostic)
+                .unwrap()
+                .starts_with("starting ")
+        );
+        (exit, serde_json::from_slice(&output).unwrap())
+    }
+
+    fn provider_selection_fixture(root: &Path, name: &str, agents: &[&str]) -> (PathBuf, Value) {
+        let args = provider_args(&provider_catalog_digest(), agents);
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut diagnostic), 0);
+        assert!(diagnostic.is_empty());
+        let value = serde_json::from_slice(&output).unwrap();
+        let path = root.join(name);
+        fs::write(&path, output).unwrap();
+        (path, value)
+    }
+
+    fn bind_openai_selection(plan: &mut PlanFile, selection: &Value, agent: &str) {
+        plan.experiment.agent.implementation = agent.to_owned();
+        plan.experiment.model.provider = "openai".to_owned();
+        plan.experiment.model.model = asb_agents::openai::OPENAI_MODEL.to_owned();
+        plan.experiment.model.settings.additional_settings_sha256 = Some(
+            selection["provider_profile_sha256"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
+        plan.experiment.refresh_content_address().unwrap();
+    }
+
+    #[test]
+    fn provider_catalog_and_multi_agent_plan_are_stable_and_secret_free() {
+        let (exit, catalog) = run_json(&["provider-catalog".into()]);
+        assert_eq!(exit, 0);
+        assert_eq!(catalog["catalog_version"], PROVIDER_CATALOG_VERSION);
+        assert_eq!(catalog["profiles"][0]["id"], "openai");
+        assert_eq!(catalog["profiles"][0]["selectable"], true);
+        assert_eq!(catalog["profiles"][1]["id"], "ollama");
+        assert_eq!(catalog["profiles"][1]["selectable"], false);
+        let catalog_sha256 = catalog["catalog_sha256"].as_str().unwrap();
+        assert_eq!(catalog_sha256.len(), 64);
+
+        let args = provider_args(catalog_sha256, &["codex", "opendesk"]);
+        let (exit, plan) = run_json(&args);
+        assert_eq!(exit, 0);
+        assert_eq!(plan["command"], "provider-plan");
+        assert_eq!(plan["dry_run"], true);
+        assert_eq!(plan["catalog_sha256"], catalog_sha256);
+        assert_eq!(plan["provider_profile"], "openai");
+        assert_eq!(plan["model"], asb_agents::openai::OPENAI_MODEL);
+        assert_eq!(plan["credential_source"], "environment");
+        assert_eq!(plan["credential_reference_sha256"], "a".repeat(64));
+        assert_eq!(plan["effective"][0]["agent"], "opendesk");
+        assert_eq!(plan["effective"][0]["api_mode"], "chat_completions");
+        assert_eq!(plan["effective"][1]["agent"], "codex");
+        assert_eq!(plan["effective"][1]["api_mode"], "responses");
+        assert!(
+            plan["effective"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["profile_sha256"] == plan["provider_profile_sha256"])
+        );
+        assert_eq!(plan["selection_sha256"].as_str().unwrap().len(), 64);
+        let encoded = serde_json::to_string(&plan).unwrap();
+        assert!(!encoded.contains("api_key"));
+        assert!(!encoded.contains("authorization"));
+        assert_eq!(run_json(&args), (exit, plan));
+    }
+
+    #[test]
+    fn provider_plan_rejects_stale_unknown_duplicate_and_incompatible_input() {
+        let catalog = provider_catalog_digest();
+        for (agents, expected_message) in [
+            (
+                Vec::<&str>::new(),
+                "provider profile is incompatible with selected agents",
+            ),
+            (
+                vec!["codex", "codex"],
+                "provider profile is incompatible with selected agents",
+            ),
+            (
+                vec!["codex", "gemini"],
+                "provider profile is incompatible with selected agents",
+            ),
+        ] {
+            let (exit, error) = run_json(&provider_args(&catalog, &agents));
+            assert_eq!(exit, 3);
+            assert_eq!(error["error"]["message"], expected_message);
+        }
+
+        let mut stale = provider_args(&"0".repeat(64), &["codex"]);
+        let (exit, error) = run_json(&stale);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "provider catalog identity is stale or absent"
+        );
+        stale[2] = catalog.clone().into();
+        stale[4] = "unknown".into();
+        let (exit, error) = run_json(&stale);
+        assert_eq!(exit, 3);
+        assert_eq!(error["error"]["message"], "unknown provider profile");
+
+        let mut unavailable = provider_args(&catalog, &["codex"]);
+        unavailable[4] = "ollama".into();
+        let (exit, error) = run_json(&unavailable);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "provider profile is advertised but unavailable without verified daemon evidence"
+        );
+
+        let mut unknown_agent = provider_args(&catalog, &["codex"]);
+        unknown_agent.extend(["--agent".into(), "not-an-agent".into()]);
+        let (exit, error) = run_json(&unknown_agent);
+        assert_eq!(exit, 3);
+        assert_eq!(error["error"]["message"], "unknown selected agent");
+    }
+
+    #[test]
+    fn provider_plan_bounds_options_and_has_no_filesystem_effect() {
+        let scratch = Scratch::new("provider-plan");
+        let before = fs::read_dir(&scratch.0).unwrap().count();
+        let catalog = provider_catalog_digest();
+        let mut too_many = provider_args(&catalog, &AGENT_IDS);
+        too_many.extend(["--agent".into(), "codex".into()]);
+        let (exit, error) = run_json(&too_many);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "selected agent set exceeds its bound"
+        );
+
+        let mut repeated = provider_args(&catalog, &["codex"]);
+        repeated.extend(["--provider-profile".into(), "openai".into()]);
+        let (exit, error) = run_json(&repeated);
+        assert_eq!(exit, 2);
+        assert_eq!(
+            error["error"]["message"],
+            "provider-plan option was supplied more than once"
+        );
+
+        let mut missing_value = provider_args(&catalog, &["codex"]);
+        missing_value.push("--agent".into());
+        let (exit, error) = run_json(&missing_value);
+        assert_eq!(exit, 2);
+        assert_eq!(
+            error["error"]["message"],
+            "provider-plan options require values"
+        );
+        assert_eq!(fs::read_dir(&scratch.0).unwrap().count(), before);
+    }
+
+    #[test]
+    fn provider_selection_manifest_drives_plan_run_sweep_compare_and_report() {
+        let scratch = Scratch::new("provider-consumption");
+        let (selection_path, selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", &["codex", "opendesk"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "provider-run");
+        bind_openai_selection(&mut plan, &selection, "codex");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+
+        let selection_arg = selection_path.as_os_str().to_owned();
+        let plan_arg = plan_path.as_os_str().to_owned();
+        let (exit, rendered) = run_json(&[
+            "plan".into(),
+            plan_arg.clone(),
+            "--provider-selection".into(),
+            selection_arg.clone(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(
+            rendered["provider_selection_sha256"],
+            selection["selection_sha256"]
+        );
+        assert_eq!(
+            rendered["provider_profile_sha256"],
+            selection["provider_profile_sha256"]
+        );
+
+        let (exit, executed) = run_json_with_progress(&[
+            "run".into(),
+            plan_arg,
+            "--provider-selection".into(),
+            selection_arg,
+        ]);
+        assert_eq!(exit, 0);
+        let first_run = plan.result_root.join("runs/provider-run");
+        let (_, report) = run_json(&["report".into(), first_run.as_os_str().to_owned()]);
+        assert_eq!(
+            report["runs"][0]["provider_selection_sha256"],
+            selection["selection_sha256"]
+        );
+        assert_eq!(executed["run_ids"][0], "provider-run");
+
+        let (alternate_path, alternate) =
+            provider_selection_fixture(&scratch.0, "alternate.json", &["codex", "aider"]);
+        let alternate_plan_path = scratch.0.join("alternate.toml");
+        plan.run_id = "provider-alternate".to_owned();
+        plan.result_root = scratch.0.join("alternate-results");
+        plan.work_root = scratch.0.join("alternate-work");
+        bind_openai_selection(&mut plan, &alternate, "codex");
+        fs::write(&alternate_plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        assert_eq!(
+            run_json_with_progress(&[
+                "run".into(),
+                alternate_plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                alternate_path.as_os_str().to_owned(),
+            ])
+            .0,
+            0
+        );
+        let second_run = plan.result_root.join("runs/provider-alternate");
+        let (exit, comparison) = run_json(&[
+            "compare".into(),
+            first_run.as_os_str().to_owned(),
+            second_run.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(comparison["comparable"], false);
+        assert_eq!(comparison["differences"], json!(["execution"]));
+
+        plan.run_id = "provider-sweep".to_owned();
+        plan.result_root = scratch.0.join("sweep-results");
+        plan.work_root = scratch.0.join("sweep-work");
+        fs::write(&alternate_plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let (exit, sweep) = run_json_with_progress(&[
+            "sweep".into(),
+            alternate_plan_path.as_os_str().to_owned(),
+            "--provider-selection".into(),
+            alternate_path.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(sweep["points"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn provider_selection_import_fails_closed_before_run_effects() {
+        let scratch = Scratch::new("provider-import-negative");
+        let (selection_path, mut selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", &["codex", "opendesk"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "provider-negative");
+        bind_openai_selection(&mut plan, &selection, "codex");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        selection["effective"][0]["profile_sha256"] = Value::String("0".repeat(64));
+        fs::write(&selection_path, serde_json::to_vec(&selection).unwrap()).unwrap();
+        let (exit, error) = run_json(&[
+            "run".into(),
+            plan_path.as_os_str().to_owned(),
+            "--provider-selection".into(),
+            selection_path.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "provider selection content address is invalid"
+        );
+        assert!(!plan.result_root.exists());
+
+        let (_, clean) =
+            provider_selection_fixture(&scratch.0, "clean.json", &["codex", "opendesk"]);
+        fs::write(&selection_path, serde_json::to_vec(&clean).unwrap()).unwrap();
+        plan.experiment.agent.implementation = "aider".to_owned();
+        plan.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        assert_eq!(
+            run_json(&[
+                "run".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+            ])
+            .0,
+            3
+        );
+        assert!(!plan.result_root.exists());
+
+        bind_openai_selection(&mut plan, &clean, "codex");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let mut stale = clean.clone();
+        stale["catalog_sha256"] = Value::String("0".repeat(64));
+        fs::write(&selection_path, serde_json::to_vec(&stale).unwrap()).unwrap();
+        assert_eq!(
+            run_json(&[
+                "plan".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+            ])
+            .0,
+            3
+        );
+
+        let mut unknown = clean.clone();
+        unknown["unexpected"] = json!(true);
+        fs::write(&selection_path, serde_json::to_vec(&unknown).unwrap()).unwrap();
+        assert_eq!(
+            run_json(&[
+                "plan".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+            ])
+            .0,
+            3
+        );
+
+        let link = scratch.0.join("selection-link.json");
+        std::os::unix::fs::symlink(&selection_path, &link).unwrap();
+        assert_eq!(
+            run_json(&[
+                "plan".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                link.as_os_str().to_owned(),
+            ])
+            .0,
+            3
+        );
+
+        let oversized = scratch.0.join("oversized-selection.json");
+        let file = fs::File::create(&oversized).unwrap();
+        file.set_len(MAX_PROVIDER_SELECTION_BYTES + 1).unwrap();
+        assert_eq!(
+            run_json(&[
+                "plan".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                oversized.as_os_str().to_owned(),
+            ])
+            .0,
+            3
+        );
+        assert!(!plan.result_root.exists());
+    }
+
+    #[test]
+    fn bash_completion_is_stable_and_rejects_unknown_shells() {
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run(
+                &["completion".into(), "bash".into()],
+                &mut output,
+                &mut diagnostic
+            ),
+            0
+        );
+        let completion = String::from_utf8(output).unwrap();
+        assert!(
+            completion.contains("provider-catalog provider-plan plan run sweep compare report")
+        );
+        assert!(!completion.contains('\u{1b}'));
+        assert_eq!(run_json(&["completion".into(), "zsh".into()]).0, 2);
+    }
+
     #[test]
     fn invalid_plan_fails_before_run_roots_or_process_effects() {
         let scratch = Scratch::new("invalid");
@@ -2342,7 +3286,7 @@ mod tests {
             scheduler_attempts,
             attempt_failures: Vec::new(),
         };
-        let execution = execution_definition(&plan, 1);
+        let execution = execution_definition(&plan, 1, None);
         let execution_sha256 = execution_digest(&execution).unwrap();
         let evidence = json!({"execution_sha256": execution_sha256, "point": &point});
         assert!(
@@ -2366,6 +3310,7 @@ mod tests {
                 attempt_id: Id("maximum-evidence-attempt".into()),
                 definition: serde_json::to_value(StoredRunDefinition {
                     experiment: plan.experiment.clone(),
+                    provider_selection: None,
                     execution,
                     execution_sha256: execution_sha256.clone(),
                 })
