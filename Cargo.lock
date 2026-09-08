@@ -170,6 +170,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "asb-tui"
+version = "0.1.0"
+dependencies = [
+ "asb-control",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "asb-workloads"
 version = "0.1.0"
 dependencies = [
