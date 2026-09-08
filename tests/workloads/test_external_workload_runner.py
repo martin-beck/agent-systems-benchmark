@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 import subprocess
 import sys
+import json
 from pathlib import Path
 
 
@@ -26,3 +27,19 @@ def test_unknown_evaluator_is_rejected(tmp_path):
     )
     assert result.returncode != 0
     assert "unknown" in result.stderr
+
+
+def test_qualified_disposable_oracle_runs_with_bounded_command(tmp_path):
+    registry = tmp_path / "registry.json"
+    registry.write_text(json.dumps({"workloads": [{
+        "id": "fixture",
+        "evaluator": {"provenance": {"status": "qualified", "sbom_sha256": "a" * 64, "evidence": "fixture-evidence-v1"}, "image_digest": "sha256:" + "b" * 64},
+    }]}))
+    oracle = ROOT / "tests/workloads/fixtures/oracle.py"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "fixture", "--root", str(tmp_path), "--registry", str(registry), "--", sys.executable, str(oracle)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout.splitlines()[-1]) == {"exit_code": 0, "workload": "fixture"}
