@@ -1152,13 +1152,13 @@ fn validate_multi(
             .credential_reference_sha256
             .as_ref()
             .is_some_and(|value| !digest(value))
-        || match &settings.source {
+        || !(match &settings.source {
             None => true,
             Some(ProviderSource::Live) => catalog.live_available,
             Some(ProviderSource::Replay { cassette_sha256 }) => {
                 catalog.recordings.contains(cassette_sha256)
             }
-        } == false
+        })
     {
         return Err(WizardError::InvalidSettings);
     }
