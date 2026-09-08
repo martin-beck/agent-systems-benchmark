@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 //! Isolated compilation and contract checks for the OpenHands adapter.
-#![allow(dead_code)]
-
-#[path = "../src/openhands.rs"]
-mod openhands;
+use asb_agents::openhands::{
+    OpenHandsArtifact, OpenHandsConfig, SDK_WHEEL_SHA256, SUPPORTED_VERSION,
+    TESTED_ENVIRONMENT_SHA256, UPSTREAM_ARCHIVE_SHA256, UPSTREAM_REVISION, UPSTREAM_TREE,
+};
 
 use asb_protocol::{Event, Id, TerminalStatus};
 use asb_runtime::ProcessLimits;
-use openhands::{OpenHandsArtifact, OpenHandsConfig};
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
@@ -28,12 +27,35 @@ fn manifest_records_exact_maintained_sdk_pin() {
         Url::parse("http://127.0.0.1:8080/v1").unwrap(),
         "asb-loopback",
         8,
-        OpenHandsArtifact::LinuxX86_64V1_45_0,
+        OpenHandsArtifact::LinuxX86_64V1_17_0,
     )
     .unwrap();
     let manifest = config.manifest();
     assert_eq!(manifest.extension_id.0, "agent.openhands");
-    assert!(manifest.implementation_version.contains("1.45.0"));
+    assert!(manifest.implementation_version.contains("1.17.0"));
+    assert_eq!(SUPPORTED_VERSION, "1.17.0");
+    assert_eq!(
+        UPSTREAM_REVISION,
+        "aabf40723d308da0d5f9063008c6793cc86df282"
+    );
+    assert_eq!(UPSTREAM_TREE, "850dd602d64b8d19560e63c2d9a4d44c48db82f4");
+    for digest in [
+        SDK_WHEEL_SHA256,
+        UPSTREAM_ARCHIVE_SHA256,
+        TESTED_ENVIRONMENT_SHA256,
+    ] {
+        assert_eq!(digest.len(), 64);
+        assert!(digest.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    }
+
+    let freeze = include_str!("fixtures/openhands-sdk-1.17.0.freeze.txt");
+    let packages = freeze.lines().collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(packages.len(), 120);
+    assert!(packages.contains("openhands-sdk==1.17.0"));
+    assert!(packages.contains("agent-client-protocol==0.8.1"));
+    assert!(packages.contains("lmnr==0.7.24"));
+    assert!(!freeze.contains("lmnr-claude-code-proxy"));
+    assert!(!freeze.to_ascii_lowercase().contains("proprietary"));
 }
 
 struct RemoveDirectory(PathBuf);
@@ -111,7 +133,7 @@ fn respond(stream: &mut TcpStream, value: Value) {
 }
 
 #[test]
-#[ignore = "requires pinned OpenHands SDK 1.45.0 Python environment on Linux x86_64"]
+#[ignore = "requires pinned OpenHands SDK 1.17.0 Python environment on Linux x86_64"]
 fn pinned_sdk_edits_with_bounded_confirmation_and_usage() {
     assert_eq!(std::env::consts::ARCH, "x86_64");
     let root = fixture_root();
@@ -163,7 +185,7 @@ fn pinned_sdk_edits_with_bounded_confirmation_and_usage() {
         Url::parse(&format!("http://{address}/v1")).unwrap(),
         "asb-loopback",
         1,
-        OpenHandsArtifact::LinuxX86_64V1_45_0,
+        OpenHandsArtifact::LinuxX86_64V1_17_0,
     )
     .unwrap();
     let limits = ProcessLimits::new(

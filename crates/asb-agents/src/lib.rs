@@ -11,5 +11,6 @@ pub mod goose;
 pub mod mini_swe;
 pub mod opencode;
 pub mod opendesk;
+pub mod openhands;
 pub mod provider;
 pub mod qwen_code;

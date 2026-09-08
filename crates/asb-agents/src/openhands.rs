@@ -20,24 +20,24 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
-/// OpenHands SDK release implemented by this adapter.
-pub const SUPPORTED_VERSION: &str = "1.45.0";
-/// Signed upstream tag commit inspected for this adapter.
-pub const UPSTREAM_REVISION: &str = "49ea74587c376b90700f6eff128c3d9b57585d27";
+/// Newest OpenHands SDK release whose official lock avoids proprietary runtime dependencies.
+pub const SUPPORTED_VERSION: &str = "1.17.0";
+/// Immutable upstream tag commit inspected for this adapter.
+pub const UPSTREAM_REVISION: &str = "aabf40723d308da0d5f9063008c6793cc86df282";
 /// Immutable upstream source tree for the inspected tag.
-pub const UPSTREAM_TREE: &str = "639a6850375c0d8e04c9f045a5a74c15fea0406c";
-/// SHA-256 of the universal OpenHands SDK 1.45.0 wheel.
+pub const UPSTREAM_TREE: &str = "850dd602d64b8d19560e63c2d9a4d44c48db82f4";
+/// SHA-256 of the universal OpenHands SDK 1.17.0 wheel.
 pub const SDK_WHEEL_SHA256: &str =
-    "298cf9c3e468046a871063f130261252c756bf779f5dc875bf666edf46e249bc";
-/// SHA-256 of the independently downloaded OpenHands SDK 1.45.0 source archive.
-pub const SDK_SDIST_SHA256: &str =
-    "2138b721ce617ad5e212d948fae21f450faf7ecd779fcdbfa77734dfbe028eb8";
+    "3b771e72209453871c3036a562cf33e9ad9642a54bd48edb44f89915ac54709d";
+/// SHA-256 of the independently downloaded upstream source archive.
+pub const UPSTREAM_ARCHIVE_SHA256: &str =
+    "2434fe9ef7de2e7ab8e6ca5b771ec82e9a6737d8d091a2ded16b5d23c02da2a7";
 /// SHA-256 of the natively exercised Ubuntu CPython 3.12 executable.
 pub const TESTED_PYTHON_LINUX_X86_64_SHA256: &str =
     "1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118";
 /// Content digest of the complete, sorted SDK-only Python environment.
 pub const TESTED_ENVIRONMENT_SHA256: &str =
-    "9ea2011f5139075edd29a6b5d559ea8af85eaf31c76cbdac4bb88aee0dc62773";
+    "6372756912734f6275362a8b66c3758fd2b2adeab776eb2a0be7935f34abb9b2";
 /// Largest accepted prompt in UTF-8 bytes.
 pub const MAX_PROMPT_BYTES: usize = 4 * 1024 * 1024;
 /// Largest accepted number of SDK tool actions.
@@ -57,14 +57,14 @@ const FAILURE_CODE: i32 = -32_100;
 /// Content-pinned OpenHands artifact understood by this adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OpenHandsArtifact {
-    /// OpenHands SDK 1.45.0 exercised with CPython 3.12 on Linux x86_64.
-    LinuxX86_64V1_45_0,
+    /// OpenHands SDK 1.17.0 exercised with CPython 3.12 on Linux x86_64.
+    LinuxX86_64V1_17_0,
 }
 
 impl OpenHandsArtifact {
     const fn digest(self) -> &'static str {
         match self {
-            Self::LinuxX86_64V1_45_0 => SDK_WHEEL_SHA256,
+            Self::LinuxX86_64V1_17_0 => SDK_WHEEL_SHA256,
         }
     }
 }
@@ -665,8 +665,7 @@ fn map_evidence(
         let mut ids = BTreeSet::new();
         for action in &value.actions {
             if action.name != "write"
-                || action.id.is_empty()
-                || action.id.len() > MAX_ID_BYTES
+                || !valid_remote_id(&action.id)
                 || !ids.insert(action.id.clone())
             {
                 return Err(AdapterError::InvalidEvidence);
@@ -776,6 +775,14 @@ fn valid_endpoint(endpoint: &Url) -> bool {
 
 fn valid_id(value: &Id) -> bool {
     !value.0.is_empty() && value.0.len() <= MAX_ID_BYTES
+}
+
+fn valid_remote_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_ID_BYTES
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':'))
 }
 
 fn exact_file(path: &Path) -> Result<bool, AdapterError> {
@@ -1021,6 +1028,14 @@ mod tests {
     use std::os::unix::fs::{PermissionsExt, symlink};
     use std::time::Duration;
 
+    struct RemoveDirectory(PathBuf);
+
+    impl Drop for RemoveDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn evidence_requires_positive_usage_and_bounded_unique_actions() {
         let session = Id("s".into());
@@ -1086,6 +1101,7 @@ mod tests {
             vec![make("one", "write", true), make("one", "write", true)],
             vec![make("one", "shell", true)],
             vec![make("one", "write", false)],
+            vec![make("private value", "write", true)],
         ] {
             let evidence = DriverEvidence {
                 version: 1,
@@ -1118,6 +1134,7 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
+        let _remove = RemoveDirectory(root.clone());
         let path = root.join("result.json");
         fs::write(
             &path,
@@ -1137,7 +1154,6 @@ mod tests {
             read_evidence(&path),
             Err(AdapterError::InvalidEvidence)
         ));
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -1152,6 +1168,7 @@ mod tests {
         ));
         let source = root.join("source");
         let target = root.join("target");
+        let _remove = RemoveDirectory(root.clone());
         fs::create_dir_all(source.join("package")).unwrap();
         fs::create_dir_all(&target).unwrap();
         fs::write(source.join("package/module.py"), "value = 1\n").unwrap();
@@ -1162,7 +1179,6 @@ mod tests {
             digest_tree(&source, None),
             Err(AdapterError::DependencyMismatch)
         ));
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -1180,6 +1196,7 @@ mod tests {
         let environment = root.join("site-packages");
         let workspace = root.join("workspace");
         let state = root.join("state");
+        let _remove = RemoveDirectory(root.clone());
         fs::create_dir_all(&environment).unwrap();
         fs::create_dir_all(&workspace).unwrap();
         fs::create_dir_all(&state).unwrap();
@@ -1196,7 +1213,7 @@ mod tests {
             Url::parse("http://127.0.0.1:1/v1").unwrap(),
             "fixture",
             1,
-            OpenHandsArtifact::LinuxX86_64V1_45_0,
+            OpenHandsArtifact::LinuxX86_64V1_17_0,
         )
         .unwrap();
         config.python_digest_override = Some(digest_file(&python, MAX_RUNTIME_BYTES).unwrap());
@@ -1222,6 +1239,5 @@ mod tests {
         let outcome = running.wait().unwrap();
         assert_eq!(outcome.status(), TerminalStatus::Cancelled);
         assert!(fs::read_dir(&state).unwrap().next().is_none());
-        fs::remove_dir_all(root).unwrap();
     }
 }
