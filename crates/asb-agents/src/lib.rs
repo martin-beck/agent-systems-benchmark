@@ -6,6 +6,7 @@
 
 pub mod accounting;
 pub mod aider;
+pub mod all_agents_provider;
 pub mod codex;
 pub mod gemini;
 pub mod goose;
