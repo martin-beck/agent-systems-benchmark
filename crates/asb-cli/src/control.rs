@@ -1654,6 +1654,26 @@ mod tests {
     }
 
     #[test]
+    fn control_configuration_rejects_network_listener_fields_without_effects() {
+        let scratch = Scratch::new();
+        let config = scratch.0.join("control.toml");
+        let socket = scratch.0.join("control.sock");
+        let state = scratch.0.join("state");
+        fs::write(
+            &config,
+            format!(
+                "schema_version = 1\nsocket_path = {:?}\nstate_root = {:?}\ntcp_listen = \"127.0.0.1:0\"\n",
+                socket, state
+            ),
+        )
+        .unwrap();
+
+        assert!(load_config(&config).is_err());
+        assert!(!socket.exists());
+        assert!(!state.exists());
+    }
+
+    #[test]
     fn active_run_lease_retires_worker_even_when_terminal_commit_cannot_complete() {
         let active = Arc::new(Mutex::new(BTreeMap::from([(
             "run-with-uncertain-commit".into(),
@@ -2333,6 +2353,24 @@ mod tests {
         let ControlResult::Plan(reference) = created.result else {
             panic!("plan");
         };
+        let initial_events = first
+            .call(
+                ControlCall::Events(asb_control::PageParams {
+                    after: None,
+                    limit: 8,
+                }),
+                5_000,
+            )
+            .unwrap()
+            .into_result()
+            .unwrap();
+        let ControlSuccess::Operation(initial_events) = initial_events else {
+            panic!("operation");
+        };
+        let ControlResult::Events(initial_events) = initial_events.result else {
+            panic!("events");
+        };
+        let reconnect_cursor = initial_events.next.expect("created-plan event cursor");
         drop(first);
 
         let launch_call = ControlCall::Launch(asb_control::LaunchParams {
@@ -2377,6 +2415,36 @@ mod tests {
                 .into_result()
                 .unwrap()
         );
+        let resumed_events = second
+            .call(
+                ControlCall::Events(asb_control::PageParams {
+                    after: Some(reconnect_cursor),
+                    limit: 8,
+                }),
+                5_000,
+            )
+            .unwrap()
+            .into_result()
+            .unwrap();
+        let ControlSuccess::Operation(resumed_events) = resumed_events else {
+            panic!("operation");
+        };
+        let ControlResult::Events(resumed_events) = resumed_events.result else {
+            panic!("events");
+        };
+        assert!(!resumed_events.items.is_empty());
+        assert_eq!(
+            resumed_events.items[0].revision,
+            Revision(reconnect_cursor.0 + 1)
+        );
+        assert!(resumed_events.items.iter().any(|event| {
+            event.kind == ControlEventKind::RunStarted
+                && event
+                    .run_id
+                    .as_ref()
+                    .is_some_and(|run_id| run_id.0 == plan.run_id)
+        }));
+        let terminal_cursor = resumed_events.next.expect("resumed event cursor");
         let history = second
             .call(
                 ControlCall::History(asb_control::PageParams {
@@ -2427,6 +2495,34 @@ mod tests {
             ));
             thread::sleep(Duration::from_millis(10));
         }
+        let terminal_events = second
+            .call(
+                ControlCall::Events(asb_control::PageParams {
+                    after: Some(terminal_cursor),
+                    limit: 8,
+                }),
+                5_000,
+            )
+            .unwrap()
+            .into_result()
+            .unwrap();
+        let ControlSuccess::Operation(terminal_events) = terminal_events else {
+            panic!("operation");
+        };
+        let ControlResult::Events(terminal_events) = terminal_events.result else {
+            panic!("events");
+        };
+        assert_eq!(
+            terminal_events.items.first().map(|event| event.revision),
+            Some(Revision(terminal_cursor.0 + 1))
+        );
+        assert!(terminal_events.items.iter().any(|event| {
+            event.kind == ControlEventKind::RunCompleted
+                && event
+                    .run_id
+                    .as_ref()
+                    .is_some_and(|run_id| run_id.0 == plan.run_id)
+        }));
         drop(second);
         service.join().unwrap().unwrap();
     }
