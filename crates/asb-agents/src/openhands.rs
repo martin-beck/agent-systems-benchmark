@@ -953,6 +953,8 @@ os.replace(temporary, result)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::time::Duration;
 
     #[test]
     fn evidence_requires_positive_usage_and_bounded_unique_actions() {
@@ -1003,5 +1005,125 @@ mod tests {
             &Url::parse("http://127.0.0.1:1/v1").unwrap()
         ));
         assert!(!valid_id(&Id(String::new())));
+    }
+
+    #[test]
+    fn evidence_rejects_excess_duplicate_unknown_and_failed_actions() {
+        let session = Id("s".into());
+        let attempt = Id("a".into());
+        let make = |id: &str, name: &str, success| DriverAction {
+            id: id.into(),
+            name: name.into(),
+            success,
+        };
+        for actions in [
+            vec![make("one", "write", true), make("two", "write", true)],
+            vec![make("one", "write", true), make("one", "write", true)],
+            vec![make("one", "shell", true)],
+            vec![make("one", "write", false)],
+        ] {
+            let evidence = DriverEvidence {
+                version: 1,
+                status: "completed".into(),
+                actions,
+                input_tokens: 1,
+                output_tokens: 1,
+            };
+            assert!(
+                map_evidence(
+                    Some(&evidence),
+                    &session,
+                    &attempt,
+                    TerminalStatus::Completed,
+                    1
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn environment_digest_rejects_symlinks_and_copies_regular_content() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-openhands-tree-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source = root.join("source");
+        let target = root.join("target");
+        fs::create_dir_all(source.join("package")).unwrap();
+        fs::create_dir_all(&target).unwrap();
+        fs::write(source.join("package/module.py"), "value = 1\n").unwrap();
+        let source_digest = digest_tree(&source, Some(&target)).unwrap();
+        assert_eq!(source_digest, digest_tree(&target, None).unwrap());
+        symlink("/etc/passwd", source.join("package/escape")).unwrap();
+        assert!(matches!(
+            digest_tree(&source, None),
+            Err(AdapterError::DependencyMismatch)
+        ));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn cancellation_reaps_and_cleans_private_state() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-openhands-cancel-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let python = root.join("python");
+        let wheel = root.join("sdk.whl");
+        let environment = root.join("site-packages");
+        let workspace = root.join("workspace");
+        let state = root.join("state");
+        fs::create_dir_all(&environment).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&state).unwrap();
+        fs::write(&python, "#!/bin/sh\nsleep 30\n").unwrap();
+        fs::set_permissions(&python, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(&wheel, "fixture wheel").unwrap();
+        fs::write(environment.join("module.py"), "fixture = True\n").unwrap();
+        let mut config = OpenHandsConfig::new(
+            &python,
+            &wheel,
+            &environment,
+            &workspace,
+            &state,
+            Url::parse("http://127.0.0.1:1/v1").unwrap(),
+            "fixture",
+            1,
+            OpenHandsArtifact::LinuxX86_64V1_45_0,
+        )
+        .unwrap();
+        config.python_digest_override = Some(digest_file(&python, MAX_RUNTIME_BYTES).unwrap());
+        config.wheel_digest_override = Some(digest_file(&wheel, MAX_RUNTIME_BYTES).unwrap());
+        config.environment_digest_override = Some(digest_tree(&environment, None).unwrap());
+        let limits = ProcessLimits::new(
+            1024,
+            1024,
+            Duration::from_secs(10),
+            Duration::from_millis(100),
+            Duration::from_millis(5),
+        )
+        .unwrap();
+        let mut running = config
+            .start(
+                Id("session".into()),
+                Id("attempt".into()),
+                "fixture",
+                limits,
+            )
+            .unwrap();
+        running.cancel().unwrap();
+        let outcome = running.wait().unwrap();
+        assert_eq!(outcome.status(), TerminalStatus::Cancelled);
+        assert!(fs::read_dir(&state).unwrap().next().is_none());
+        fs::remove_dir_all(root).unwrap();
     }
 }
