@@ -1,0 +1,1 @@
+{"exceptions":[],"extensions":[],"fixture_paths":["fixtures/broken"],"profiles":["core","docs","formal-evidence","github-actions","privacy","python","rust","schemas","shell","supply-chain"],"schema_version":1,"unknown_formats":"error"}
