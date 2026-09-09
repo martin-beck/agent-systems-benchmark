@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "provider": "openjiuwen",
+  "project": "openJiuwen agent-core",
+  "official_repository": "https://github.com/openJiuwen-ai/agent-core",
+  "package_repository": "https://pypi.org/project/openjiuwen/",
+  "upstream_source_repository": "https://gitcode.com/openJiuwen/agent-core.git",
+  "source_default_branch": "develop",
+  "source_tag": "v0.1.17.post1",
+  "source_revision": "4d56dad14b67cdb8fbb3fe58a5654ac8c3e3b815",
+  "source_commit_signed": false,
+  "release_published_at": "2026-08-26T03:49:06.021882Z",
+  "license": {
+    "spdx_id": "Apache-2.0",
+    "asset": "openjiuwen-license.txt",
+    "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+  },
+  "package": {
+    "name": "openjiuwen",
+    "version": "0.1.17.post1",
+    "filename": "openjiuwen-0.1.17.post1-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/b2/1f/3c2ec12cb98c137ea0ec2d3ed1e3ac8bda57cea8226ae16a23947c2bb79a/openjiuwen-0.1.17.post1-py3-none-any.whl",
+    "sha256": "21e9479c6b858cda28c250d63066f862fc0915cf2039edb00f016cbec7f9abba",
+    "size_bytes": 5850168,
+    "source_distribution": {
+      "filename": "openjiuwen-0.1.17.post1.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/b5/b8/22b1f519309a775e6afe099617faa18e9d595e71eeee22225b5227be5184/openjiuwen-0.1.17.post1.tar.gz",
+      "sha256": "c0e4ca7723e2abab3e6cc79eee7c10b26d6f725f8bbee083d9a573d6f92271d0",
+      "size_bytes": 4562264
+    },
+    "requires_python": ">=3.11,<3.14",
+    "python_abi": "py3-none-any",
+    "runtime_lock": "openjiuwen-runtime.lock",
+    "runtime_lock_sha256": "51cc9028ede719a7eb4d63f614e69badf1e73dd7f70b1207fb271711c0da5578"
+  },
+  "executable": {
+    "kind": "python-console-script",
+    "entrypoint": "openjiuwen",
+    "module": "openjiuwen.harness.cli.cli:cli",
+    "artifact_sha256": "21e9479c6b858cda28c250d63066f862fc0915cf2039edb00f016cbec7f9abba",
+    "execution_evidence": "provenance-only; live execution is a later qualification phase"
+  },
+  "protocol": {
+    "mode": "python-console-script-stdio",
+    "declared_remote_protocols": ["A2A", "MCP"],
+    "asb_claim": "not-qualified",
+    "network": "disabled-by-default-for-provenance"
+  },
+  "supported_platform": {
+    "upstream_declared_operating_systems": ["linux", "macos", "windows"],
+    "upstream_declared_python": ">=3.11,<3.14",
+    "package_architecture": "any",
+    "asb_evidence": "provenance-only; native and live support remain unqualified"
+  },
+  "limitations": [
+    "The upstream source commit and package are immutable pins, but upstream does not publish a signed source tag.",
+    "The wheel is executable package evidence, not proof of a working model, provider, tool, A2A, or MCP session.",
+    "The dependency lock is resolved for CPython 3.11 on x86_64-unknown-linux-gnu and is not a cross-platform qualification.",
+    "No credentials, model endpoint, prompt, response, or private runtime state is included."
+  ]
+}
