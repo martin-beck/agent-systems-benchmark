@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import re
 import stat
 import sys
+import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
@@ -25,6 +27,7 @@ MAX_LEASE_SECONDS = 2 * 60 * 60
 MAX_CLOCK_SECONDS = 4_102_444_800  # 2100-01-01T00:00:00Z
 CAPACITY_ID = re.compile(r"^dev-x86-[0-9a-f]{12}$")
 OWNER_ID = re.compile(r"^[a-z][a-z0-9._-]{0,63}$")
+DIGEST = re.compile(r"^[0-9a-f]{64}$")
 STATES = {"available", "reserved", "needs_reconciliation"}
 FIELDS = {
     "schema_version",
@@ -41,6 +44,15 @@ FIELDS = {
 STATE_NAME = "state.json"
 LOCK_NAME = "lifecycle.lock"
 TEMP_NAME = ".state.json.tmp"
+EVIDENCE_FIELDS = {
+    "schema_version",
+    "capacity_id",
+    "owner",
+    "revision",
+    "observed_at",
+    "outcome",
+    "teardown_artifact_sha256",
+}
 
 
 class CapacityError(ValueError):
@@ -53,6 +65,70 @@ class ClosedParser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         del message
         raise CapacityError("capacity command is malformed")
+
+
+@dataclass(frozen=True)
+class CleanupEvidence:
+    """Canonical receipt binding a clean observation to teardown evidence."""
+
+    schema_version: int
+    capacity_id: str
+    owner: str
+    revision: int
+    observed_at: int
+    outcome: str
+    teardown_artifact_sha256: str
+
+    @classmethod
+    def from_json(cls, payload: bytes) -> CleanupEvidence:
+        """Parse one closed, canonical cleanup receipt."""
+        if not payload or len(payload) > 4096:
+            raise CapacityError("cleanup evidence exceeds its byte bound")
+        try:
+            raw = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise CapacityError("cleanup evidence is not valid JSON") from error
+        if not isinstance(raw, dict) or set(raw) != EVIDENCE_FIELDS:
+            raise CapacityError("cleanup evidence fields are not closed")
+        try:
+            evidence = cls(**raw)
+        except TypeError as error:
+            raise CapacityError("cleanup evidence fields are malformed") from error
+        evidence.validate()
+        if evidence.to_json() != payload:
+            raise CapacityError("cleanup evidence is not canonical")
+        return evidence
+
+    def validate(self) -> None:
+        """Reject receipts that are unbound, identifying, or malformed."""
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != SCHEMA_VERSION
+        ):
+            raise CapacityError("unsupported cleanup evidence schema")
+        if not isinstance(self.capacity_id, str) or not CAPACITY_ID.fullmatch(
+            self.capacity_id
+        ):
+            raise CapacityError("cleanup capacity identity is invalid")
+        if not isinstance(self.owner, str) or not OWNER_ID.fullmatch(self.owner):
+            raise CapacityError("cleanup owner is invalid")
+        if type(self.revision) is not int or not 0 <= self.revision < 2**63:
+            raise CapacityError("cleanup revision is invalid")
+        if (
+            type(self.observed_at) is not int
+            or not 0 <= self.observed_at <= MAX_CLOCK_SECONDS
+        ):
+            raise CapacityError("cleanup observation time is invalid")
+        if self.outcome != "clean":
+            raise CapacityError("cleanup outcome is not clean")
+        if not isinstance(self.teardown_artifact_sha256, str) or not DIGEST.fullmatch(
+            self.teardown_artifact_sha256
+        ):
+            raise CapacityError("cleanup artifact digest is invalid")
+
+    def to_json(self) -> bytes:
+        """Return the canonical receipt representation."""
+        return json.dumps(asdict(self), sort_keys=True, separators=(",", ":")).encode()
 
 
 @dataclass(frozen=True)
@@ -110,7 +186,10 @@ class CapacityState:
 
     def validate(self) -> None:
         """Reject unsupported, identifying, unbounded, or inconsistent state."""
-        if self.schema_version != SCHEMA_VERSION:
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != SCHEMA_VERSION
+        ):
             raise CapacityError("unsupported capacity schema")
         if not isinstance(self.capacity_id, str) or not CAPACITY_ID.fullmatch(
             self.capacity_id
@@ -120,9 +199,12 @@ class CapacityState:
             raise CapacityError("capacity class is unsupported")
         if type(self.revision) is not int or not 0 <= self.revision < 2**63:
             raise CapacityError("capacity revision is invalid")
-        if self.state not in STATES:
+        if not isinstance(self.state, str) or self.state not in STATES:
             raise CapacityError("capacity state is invalid")
-        if self.cost_ceiling_microunits != 0:
+        if (
+            type(self.cost_ceiling_microunits) is not int
+            or self.cost_ceiling_microunits != 0
+        ):
             raise CapacityError("external capacity cost is not authorized")
         if self.state == "available":
             if (self.owner, self.issued_at, self.expires_at) != (None, None, None):
@@ -231,16 +313,23 @@ class CapacityState:
             raise CapacityError("lease ownership differs")
         return replace(self, revision=self.revision + 1, state="needs_reconciliation")
 
-    def reconcile_clean(
-        self, *, expected_revision: int, owner: str, observed_clean: bool
-    ) -> CapacityState:
-        """Return fenced capacity only after an operator proves cleanup."""
+    def reconcile_clean(self, *, evidence: CleanupEvidence, now: int) -> CapacityState:
+        """Return fenced capacity only for exact, timely teardown evidence."""
         self.validate()
-        self._expect(expected_revision)
-        if self.state != "needs_reconciliation" or self.owner != owner:
+        evidence.validate()
+        self._expect(evidence.revision)
+        if (
+            self.state != "needs_reconciliation"
+            or self.owner != evidence.owner
+            or self.capacity_id != evidence.capacity_id
+        ):
             raise CapacityError("reconciliation ownership differs")
-        if observed_clean is not True:
-            raise CapacityError("capacity cleanup is not proven")
+        if (
+            self.issued_at is None
+            or type(now) is not int
+            or not self.issued_at <= evidence.observed_at <= now <= MAX_CLOCK_SECONDS
+        ):
+            raise CapacityError("cleanup evidence time is invalid")
         return replace(
             self,
             revision=self.revision + 1,
@@ -276,6 +365,44 @@ def _read_bounded_fd(descriptor: int) -> bytes:
             raise CapacityError("capacity state exceeds its byte bound")
         chunks.append(chunk)
     return b"".join(chunks)
+
+
+def _read_private_document(path: Path, expected_uid: int) -> bytes:
+    """Read one stable owner-only receipt without following a link."""
+    descriptor = -1
+    try:
+        before = path.lstat()
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_uid != expected_uid
+            or stat.S_IMODE(before.st_mode) != 0o600
+            or before.st_nlink != 1
+            or before.st_size > 4096
+        ):
+            raise CapacityError("cleanup evidence ownership or mode differs")
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        opened = os.fstat(descriptor)
+        if _entry(opened) != _entry(before):
+            raise CapacityError("cleanup evidence changed before read")
+        payload = _read_bounded_fd(descriptor)
+        after = os.fstat(descriptor)
+        current = path.lstat()
+    except OSError as error:
+        raise CapacityError("cleanup evidence cannot be read safely") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if _entry(opened) != _entry(after) or _entry(current) != _entry(before):
+        raise CapacityError("cleanup evidence changed during read")
+    return payload
+
+
+def _trusted_now() -> int:
+    """Read the process clock; lease time is never accepted from CLI input."""
+    now = time.time_ns() // 1_000_000_000
+    if not 0 <= now <= MAX_CLOCK_SECONDS:
+        raise CapacityError("trusted clock is outside the supported range")
+    return now
 
 
 class CapacityLedger:
@@ -484,12 +611,10 @@ class CapacityLedger:
         return after
 
 
-def _common_transition(parser: argparse.ArgumentParser, *, timed: bool) -> None:
+def _common_transition(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--expected-revision", required=True, type=int)
     parser.add_argument("--owner", required=True)
-    if timed:
-        parser.add_argument("--now", required=True, type=int)
 
 
 def parser() -> ClosedParser:
@@ -503,15 +628,16 @@ def parser() -> ClosedParser:
     show.add_argument("--root", required=True, type=Path)
     for name in ("acquire", "renew"):
         transition = commands.add_parser(name)
-        _common_transition(transition, timed=True)
+        _common_transition(transition)
         transition.add_argument("--ttl-seconds", required=True, type=int)
     release = commands.add_parser("release")
-    _common_transition(release, timed=True)
+    _common_transition(release)
     uncertain = commands.add_parser("uncertain")
-    _common_transition(uncertain, timed=False)
+    _common_transition(uncertain)
     reconcile = commands.add_parser("reconcile")
-    _common_transition(reconcile, timed=False)
-    reconcile.add_argument("--observed-clean", action="store_true")
+    reconcile.add_argument("--root", required=True, type=Path)
+    reconcile.add_argument("--evidence-file", required=True, type=Path)
+    reconcile.add_argument("--teardown-artifact", required=True, type=Path)
     return result
 
 
@@ -523,29 +649,32 @@ def execute(args: argparse.Namespace) -> CapacityState:
     if args.command == "show":
         return ledger.load()
     if args.command == "acquire":
+        now = _trusted_now()
         return ledger.transition(
             lambda state: state.acquire(
                 expected_revision=args.expected_revision,
                 owner=args.owner,
-                now=args.now,
+                now=now,
                 ttl_seconds=args.ttl_seconds,
             )
         )
     if args.command == "renew":
+        now = _trusted_now()
         return ledger.transition(
             lambda state: state.renew(
                 expected_revision=args.expected_revision,
                 owner=args.owner,
-                now=args.now,
+                now=now,
                 ttl_seconds=args.ttl_seconds,
             )
         )
     if args.command == "release":
+        now = _trusted_now()
         return ledger.transition(
             lambda state: state.release(
                 expected_revision=args.expected_revision,
                 owner=args.owner,
-                now=args.now,
+                now=now,
             )
         )
     if args.command == "uncertain":
@@ -555,12 +684,18 @@ def execute(args: argparse.Namespace) -> CapacityState:
             )
         )
     if args.command == "reconcile":
+        evidence = CleanupEvidence.from_json(
+            _read_private_document(args.evidence_file, os.getuid())
+        )
+        teardown_artifact = _read_private_document(args.teardown_artifact, os.getuid())
+        if (
+            hashlib.sha256(teardown_artifact).hexdigest()
+            != evidence.teardown_artifact_sha256
+        ):
+            raise CapacityError("cleanup artifact digest differs")
+        now = _trusted_now()
         return ledger.transition(
-            lambda state: state.reconcile_clean(
-                expected_revision=args.expected_revision,
-                owner=args.owner,
-                observed_clean=args.observed_clean,
-            )
+            lambda state: state.reconcile_clean(evidence=evidence, now=now)
         )
     raise CapacityError("capacity command is unsupported")
 
