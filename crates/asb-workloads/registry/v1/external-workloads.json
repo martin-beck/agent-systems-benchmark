@@ -82,6 +82,50 @@
       "attempt_budget": 1,
       "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
       "limitations": ["The original harness is unmaintained and recommends HAL", "The pinned HAL evaluator has no license file and is archived", "The original local path uses privileged nested containers and external capsule downloads", "No evaluator image, SBOM, capsule digest set, answer-oracle parity, or native reproduction evidence is qualified"]
+    },
+    {
+      "id": "swe-bench-pro",
+      "version": "main-ca10a60a",
+      "kind": "repository-repair",
+      "source": {"repository": "https://github.com/scaleapi/SWE-bench_Pro-os", "commit": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5", "license": "MIT", "license_sha256": "03a44b2f703779d3f34c18e056da5b893537ca61588e6b15b615a4a612e77fb9", "archive_status": "verified", "archive_sha256": "c1058143eba29553d02fd8cb9c55ec2f0c04aa7093f4ba6fc5af43b57f5d73e0"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro", "revision": "7ab5114912baf22bb098818e604c02fe7ad2c11f", "split": "test", "license": "NOASSERTION"},
+      "evaluator": {"entrypoint": "python swe_bench_pro_eval.py", "version": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5", "repository": "https://github.com/scaleapi/SWE-bench_Pro-os", "license": "MIT", "license_sha256": "03a44b2f703779d3f34c18e056da5b893537ca61588e6b15b615a4a612e77fb9", "image_digest": null, "oracle": "official-repository-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The dataset and per-instance Docker images are acquired separately and are not vendored", "This is a patch-and-tests benchmark, not evidence of complete autonomous-agent performance", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+    },
+    {
+      "id": "bigcodebench",
+      "version": "v0.2.4-9059fb84",
+      "kind": "function-level-code-generation",
+      "source": {"repository": "https://github.com/bigcode-project/bigcodebench", "commit": "9059fb84d1188c02edeac4995361656a2fdecbef", "license": "Apache-2.0", "license_sha256": "a858540b8dfd0c74db6953edaae85bde0b671643a7e2fb04a065f4dfd25fc28c", "archive_status": "verified", "archive_sha256": "b95cc1e4adc1d1d1f888785ce5614930d11097805a3e6925e2b948f1b93683b1"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/bigcode/bigcodebench", "revision": "b74c0d0bf70d2c0bc459be537895cca163007f1a", "split": "complete-and-instruct", "task_count": 1140, "license": "Apache-2.0"},
+      "evaluator": {"entrypoint": "bigcodebench.evaluate", "version": "v0.2.4-9059fb84", "repository": "https://github.com/bigcode-project/bigcodebench", "license": "Apache-2.0", "license_sha256": "a858540b8dfd0c74db6953edaae85bde0b671643a7e2fb04a065f4dfd25fc28c", "image_digest": null, "oracle": "official-execution-checks", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["Complete and instruct splits are code-generation controls rather than repository-agent evaluations", "The default remote execution service is not an ASB-qualified evaluator boundary", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+    },
+    {
+      "id": "evalplus",
+      "version": "v0.3.1-e5d0ed0b",
+      "kind": "function-level-code-correctness",
+      "source": {"repository": "https://github.com/evalplus/evalplus", "commit": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2", "license": "Apache-2.0", "license_sha256": "fcc1f77fe5443b21bfc4dfcc3d66f7654f599b91582df771850e5e876986a103", "archive_status": "verified", "archive_sha256": "490f08728db1da8a73df89ada48f8ad0270fbd667895838348e64506095a2d49"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/evalplus/humanevalplus", "revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b", "split": "humaneval-plus-and-mbpp-plus", "license": "MIT"},
+      "evaluator": {"entrypoint": "evalplus.evaluate", "version": "v0.3.1-e5d0ed0b", "repository": "https://github.com/evalplus/evalplus", "license": "Apache-2.0", "license_sha256": "fcc1f77fe5443b21bfc4dfcc3d66f7654f599b91582df771850e5e876986a103", "image_digest": null, "oracle": "expanded-independent-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["HumanEval+ and MBPP+ are small function-level correctness controls, not repository-agent evaluations", "Dataset release and evaluator are acquired separately and are not vendored", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+    },
+    {
+      "id": "livecodebench",
+      "version": "release-v6-28fef95e",
+      "kind": "time-windowed-code-generation",
+      "source": {"repository": "https://github.com/LiveCodeBench/LiveCodeBench", "commit": "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24", "license": "MIT", "license_sha256": "104099948b78ebc36f2e951b3a7973b956adfa7d39aaec0d1512f97a2686d15d", "archive_status": "verified", "archive_sha256": "cd2b592e51ef9aec0f8e92ebb2b8b579f1e519fbcaaeb9e63e4f0ffbf3f18bb1"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/livecodebench/code_generation_lite", "revision": "0fe84c3912ea0c4d4a78037083943e8f0c4dd505", "split": "release_v6", "task_count": 1055, "license": "NOASSERTION"},
+      "evaluator": {"entrypoint": "python -m lcb_runner.runner.main", "version": "release_v6", "repository": "https://github.com/LiveCodeBench/LiveCodeBench", "license": "MIT", "license_sha256": "104099948b78ebc36f2e951b3a7973b956adfa7d39aaec0d1512f97a2686d15d", "image_digest": null, "oracle": "official-time-windowed-checker", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The repository is continuously updated; release_v6 dataset identity is separate from the source checkout", "This is a time-windowed code-generation benchmark, not complete autonomous-agent evidence", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
     }
   ]
 }

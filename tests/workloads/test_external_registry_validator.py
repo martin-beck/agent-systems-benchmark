@@ -16,7 +16,7 @@ def test_external_registry_validator_reports_stable_digest():
     result = json.loads(first)
     assert result == json.loads(second)
     assert result["schema_version"] == 1
-    assert result["workloads"] == 7
+    assert result["workloads"] == 11
     assert len(result["registry_sha256"]) == 64
 
 
@@ -114,3 +114,23 @@ def test_performance_candidates_reject_missing_pins_and_false_qualification(tmp_
     assert by_id["swe-perf"]["source"]["license"] == "NOASSERTION"
     assert by_id["swe-fficiency"]["dataset"]["license"] == "NOASSERTION"
     assert by_id["core-bench"]["evaluator"]["license"] == "NOASSERTION"
+
+
+def test_additional_suites_reject_pin_or_qualification_drift(tmp_path):
+    document = _terminal_document()
+    for ident in ["swe-bench-pro", "bigcodebench", "evalplus", "livecodebench"]:
+        changed = deepcopy(document)
+        changed_by_id = {item["id"]: item for item in changed["workloads"]}
+        changed_by_id[ident]["dataset"]["revision"] = "0" * 40
+        _rejects(tmp_path, changed, f"{ident}: exact dataset revision")
+
+        changed = deepcopy(document)
+        changed_by_id = {item["id"]: item for item in changed["workloads"]}
+        evaluator = changed_by_id[ident]["evaluator"]
+        evaluator["image_digest"] = "sha256:" + "1" * 64
+        evaluator["provenance"] = {
+            "status": "qualified",
+            "sbom_sha256": "2" * 64,
+            "evidence": "synthetic-evidence",
+        }
+        _rejects(tmp_path, changed, f"{ident}: evaluator must remain unqualified")
