@@ -31,7 +31,20 @@
     "requires_python": ">=3.11,<3.14",
     "python_abi": "py3-none-any",
     "runtime_lock": "openjiuwen-runtime.lock",
-    "runtime_lock_sha256": "51cc9028ede719a7eb4d63f614e69badf1e73dd7f70b1207fb271711c0da5578"
+    "runtime_lock_sha256": "80eb51ce8e71515453dd44f53138c9ffcbb9e042f60a127120d16e5af875a365",
+    "runtime_lock_resolution": {
+      "resolver": "uv",
+      "resolver_version": "0.9.28",
+      "resolver_sha256": "085e6be0fbb5f63c7ba39829703a7229cd62d2bd0b78ae145da9bf897e0fc007",
+      "requirement": "openjiuwen[cli,observability]==0.1.17.post1",
+      "python_version": "3.11",
+      "python_platform": "x86_64-unknown-linux-gnu",
+      "package_count": 170,
+      "inventory_sha256": "05ac9dae97b398b18f2d466cda559ad6cde0485b7e449cf4772a545935debeab",
+      "required_extras": ["cli", "observability"],
+      "prompt_toolkit_version": "3.0.53",
+      "opentelemetry_sdk_version": "1.44.0"
+    }
   },
   "executable": {
     "kind": "python-console-script",
