@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "evidence_class": "synthetic",
+  "candidate": "mockagents",
+  "version": "0.5.0",
+  "source_commit": "6ddb03e54a14484e5929a19673f0cfd8a1975f07",
+  "artifact": {
+    "platform": "linux-amd64",
+    "size": 10194803,
+    "sha256": "1b2e6fb9d3bb96c680f9f9c819c2669939751baf45abb35b1370c97f1d291458"
+  },
+  "network": "loopback-only",
+  "credentials": "none",
+  "cases": {
+    "openai_chat_buffered": "5098559fec95074aa894604cdef6d9e98bc9a215e8020bb88e4584669a81d7ea",
+    "openai_responses": "02c8ee57666a0fc5dc8de5b483da8d2d3b1d3334cc79f345febb13de25e0e811",
+    "anthropic_buffered": "ac3f598f72f7d547366409f2f1bad38305f1143831ca45fe58748c831c395d3d",
+    "anthropic_sse": "c9f6b93de4aa04f42334f01c03780d5f3a76dd0a775080583744e4272b047b8c",
+    "unmatched_route": "pass"
+  },
+  "repeatability": "stable semantic hashes across repeated buffered calls",
+  "unsupported": [
+    "linux-arm64 was not executed on this host",
+    "hostile fault matrix, tool calls, cancellation, and backpressure remain unqualified"
+  ]
+}
