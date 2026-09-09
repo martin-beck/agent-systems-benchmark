@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import re
+import stat
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 
+import jsonschema
 import native_evidence as native
 
 MAX_EVIDENCE_BYTES = 1 << 20
@@ -27,6 +30,90 @@ LIMITATIONS = [
 
 class PortabilityError(RuntimeError):
     """A hosted portability precondition or check failed."""
+
+
+def _bounded_json(path: Path) -> dict[str, Any]:
+    """Read one bounded no-follow regular JSON object."""
+    descriptor = -1
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_EVIDENCE_BYTES:
+            raise PortabilityError("platform evidence is not a bounded regular file")
+        data = os.read(descriptor, MAX_EVIDENCE_BYTES + 1)
+        if len(data) > MAX_EVIDENCE_BYTES or os.read(descriptor, 1):
+            raise PortabilityError("platform evidence exceeds byte limit")
+        decoded = json.loads(data.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise PortabilityError("platform evidence cannot be decoded safely") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if not isinstance(decoded, dict):
+        raise PortabilityError("platform evidence must be one object")
+    return cast(dict[str, Any], decoded)
+
+
+def _remove_candidate(path: Path, output_root: Path) -> None:
+    """Remove only a direct candidate artifact beneath the trusted output root."""
+    try:
+        if path.absolute().parent != output_root.absolute():
+            return
+        metadata = path.lstat()
+        if stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+            path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def validate_artifact(
+    route: str,
+    native_path: Path,
+    hosted_path: Path,
+    output_root: Path,
+    source: Path,
+) -> str:
+    """Validate exact route/schema exclusivity or erase candidate artifacts."""
+    candidates = (native_path, hosted_path)
+    try:
+        if route not in {"native-qualification", "hosted-portability"}:
+            raise PortabilityError("platform evidence route is invalid")
+        if native_path == hosted_path or any(
+            path.absolute().parent != output_root.absolute() for path in candidates
+        ):
+            raise PortabilityError("platform evidence paths are not isolated")
+        selected, absent, schema_name, expected = {
+            "native-qualification": (
+                native_path,
+                hosted_path,
+                "native-evidence.schema.json",
+                ("native-run", "native-functional"),
+            ),
+            "hosted-portability": (
+                hosted_path,
+                native_path,
+                "hosted-portability.schema.json",
+                ("hosted-portability", "functional-portability-only"),
+            ),
+        }[route]
+        if absent.exists() or absent.is_symlink():
+            raise PortabilityError("more than one platform evidence kind exists")
+        report = _bounded_json(selected)
+        schema = _bounded_json(source / "platforms/v1" / schema_name)
+        try:
+            jsonschema.Draft202012Validator.check_schema(schema)
+            jsonschema.Draft202012Validator(schema).validate(report)
+        except jsonschema.exceptions.SchemaError as error:
+            raise PortabilityError("platform evidence schema is invalid") from error
+        except jsonschema.exceptions.ValidationError as error:
+            raise PortabilityError("platform evidence does not match its closed schema") from error
+        if (report.get("kind"), report.get("qualification")) != expected:
+            raise PortabilityError("platform evidence route and claim differ")
+        return route
+    except PortabilityError:
+        for candidate in candidates:
+            _remove_candidate(candidate, output_root)
+        raise
 
 
 def release_route(release: dict[str, str], root: Path = Path("/")) -> str:
@@ -138,10 +225,27 @@ def main() -> int:
     emit.add_argument("--output-root", type=Path, required=True)
     emit.add_argument("--root", type=Path, default=Path("/"))
     emit.add_argument("--check", action="append", type=native.parse_check, required=True)
+    validate = subparsers.add_parser("validate-artifact")
+    validate.add_argument("--route", required=True)
+    validate.add_argument("--native-file", type=Path, required=True)
+    validate.add_argument("--hosted-file", type=Path, required=True)
+    validate.add_argument("--output-root", type=Path, required=True)
+    validate.add_argument("--source", type=Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == "route":
             print(release_route(_read_release(args.root), args.root))
+            return 0
+        if args.command == "validate-artifact":
+            print(
+                validate_artifact(
+                    args.route,
+                    args.native_file,
+                    args.hosted_file,
+                    args.output_root.absolute(),
+                    args.source.absolute(),
+                )
+            )
             return 0
         report = collect(
             args.runner_label,

@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -150,11 +152,117 @@ class HostedPortabilityTests(unittest.TestCase):
         self.assertIn("hosted_portability.py route", workflow)
         self.assertIn("hosted_portability.py collect", workflow)
         self.assertIn("native_evidence.py", workflow)
+        self.assertIn("hosted_portability.py validate-artifact", workflow)
         self.assertIn("steps.evidence.outputs.kind == 'hosted-portability'", workflow)
         self.assertIn("steps.evidence.outputs.kind == 'native-qualification'", workflow)
         self.assertIn("hosted-portability-${{ matrix.runner }}", workflow)
         self.assertIn("native-qualification-${{ matrix.runner }}", workflow)
         self.assertNotIn("continue-on-error", workflow)
+        self.assertNotIn("name: Native platform evidence", workflow)
+        self.assertNotIn("name: Native Ubuntu", workflow)
+
+    def test_executable_routing_validates_schema_and_cleans_every_failure(self) -> None:
+        tool = TOOLS / "hosted_portability.py"
+        native_fixtures = sorted(
+            (ROOT / "platforms/v1/native-evidence").glob(
+                "ubuntu-24.04-x86_64-native-*.json"
+            )
+        )
+        self.assertEqual(len(native_fixtures), 1)
+        native_fixture = native_fixtures[0]
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            output_root = Path(temporary)
+            hosted = output_root / "hosted.json"
+            native_file = output_root / "native.json"
+
+            hosted.write_text(json.dumps(self.report))
+            success = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    "hosted-portability", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(success.returncode, 0)
+            self.assertEqual(success.stdout.strip(), "hosted-portability")
+            self.assertTrue(hosted.is_file())
+
+            malformed = copy.deepcopy(self.report)
+            malformed["qualification"] = "native-functional"
+            hosted.unlink()
+            hosted.write_text(json.dumps(malformed))
+            rejected = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    "hosted-portability", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(rejected.returncode, 1)
+            self.assertEqual(
+                rejected.stdout.strip(),
+                "ERROR: platform evidence does not match its closed schema",
+            )
+            self.assertEqual(rejected.stderr, "")
+            self.assertFalse(hosted.exists())
+            self.assertFalse(native_file.exists())
+
+            shutil.copyfile(native_fixture, native_file)
+            native_success = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    "native-qualification", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(native_success.returncode, 0)
+            self.assertEqual(native_success.stdout.strip(), "native-qualification")
+            self.assertEqual(native_success.stderr, "")
+            self.assertTrue(native_file.is_file())
+            native_file.unlink()
+
+            hosted.write_text(json.dumps(self.report))
+            shutil.copyfile(native_fixture, native_file)
+            ambiguous = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    "native-qualification", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(ambiguous.returncode, 1)
+            self.assertEqual(
+                ambiguous.stdout.strip(),
+                "ERROR: more than one platform evidence kind exists",
+            )
+            self.assertEqual(ambiguous.stderr, "")
+            self.assertFalse(hosted.exists())
+            self.assertFalse(native_file.exists())
+
+            hosted.write_text(json.dumps(self.report))
+            invalid_route = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    "unknown", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(invalid_route.returncode, 1)
+            self.assertEqual(
+                invalid_route.stdout.strip(), "ERROR: platform evidence route is invalid"
+            )
+            self.assertEqual(invalid_route.stderr, "")
+            self.assertFalse(hosted.exists())
 
 
 if __name__ == "__main__":
