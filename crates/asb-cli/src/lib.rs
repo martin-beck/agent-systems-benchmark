@@ -3,12 +3,17 @@
 //! Stable terminal and automation interface for Agent Systems Benchmark.
 
 mod control;
+mod provider_launch;
 
 use asb_agents::all_agents_provider::{
     ALL_AGENTS_PROVIDER_SELECTION_V1, AllAgentsProviderKind, AllAgentsProviderSelection,
     EffectiveApiMode, SelectedAgent, resolve_openai_selection,
 };
 use asb_agents::openai::OpenAiProfile;
+use asb_agents::provider_launch::{
+    LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
+    RuntimeBundleIdentity,
+};
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
 use asb_protocol::{ExperimentManifestV1, Id};
@@ -897,6 +902,58 @@ fn validate_selection_binding(
     Ok(())
 }
 
+fn build_provider_launch(
+    plan: &PlanFile,
+    selection: &ProviderPlanOutput,
+    run_id: &str,
+    attempt_id: &str,
+) -> Result<ProviderLaunchRecord, CliError> {
+    let selected = selection
+        .effective
+        .iter()
+        .find(|value| value.agent == plan.experiment.agent.implementation)
+        .ok_or_else(|| {
+            CliError::validation("provider selection does not include the launched agent")
+        })?;
+    let selected_agent = parse_agent(&selected.agent)?;
+    let profile = OpenAiProfile::new(&selection.credential_reference_sha256)
+        .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
+    let projection = ProviderLaunchProjection::openai(&profile, selected_agent)
+        .map_err(|_| CliError::validation("selected adapter has no exact provider route"))?;
+    let input = ProviderLaunchV1 {
+        schema_version: asb_agents::provider_launch::PROVIDER_LAUNCH_V1,
+        catalog_sha256: selection.catalog_sha256.clone(),
+        selection_sha256: selection.selection_sha256.clone(),
+        provider_profile_sha256: selection.provider_profile_sha256.clone(),
+        agent: selected.agent.clone(),
+        adapter: selected.agent.clone(),
+        api_mode: projection.api_mode(),
+        provider: projection.provider().to_owned(),
+        model: projection.model().to_owned(),
+        settings_sha256: projection.settings_sha256().to_owned(),
+        // The v1 plan carries one verified executable identity. Until the
+        // runtime-bundle manifest is part of the plan, the executable's
+        // content address is the fail-closed bundle identity as well.
+        runtime: RuntimeBundleIdentity {
+            bundle_sha256: plan.agent.executable_sha256.clone(),
+            executable_sha256: plan.agent.executable_sha256.clone(),
+        },
+        credential: projection.credential().clone(),
+        workload_sha256: plan.experiment.workload.workload_sha256.clone(),
+        run_id: run_id.to_owned(),
+        attempt_id: attempt_id.to_owned(),
+        policy: LaunchPolicy {
+            max_stdout_bytes: MAX_CAPTURE_BYTES as u64,
+            max_stderr_bytes: MAX_CAPTURE_BYTES as u64,
+            timeout_ms: plan.point.timeout_ms,
+            max_environment_entries: 8,
+            max_argv_entries: 1,
+        },
+    };
+    ProviderLaunchRecord::bind(input, &projection)
+        .map_err(|_| CliError::validation("provider-aware launch binding is invalid"))
+}
+
 fn load_and_validate(path: &Path) -> Result<PlanFile, CliError> {
     let metadata = fs::symlink_metadata(path)
         .map_err(|_| CliError::validation("experiment plan is unavailable"))?;
@@ -1185,6 +1242,8 @@ struct ExecutionDefinition {
     executed_concurrency: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     provider_selection_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provider_launch_sha256: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1193,6 +1252,8 @@ struct StoredRunDefinition {
     experiment: ExperimentManifestV1,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     provider_selection: Option<ProviderPlanOutput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provider_launch: Option<ProviderLaunchRecord>,
     execution: ExecutionDefinition,
     execution_sha256: String,
 }
@@ -1201,6 +1262,7 @@ fn execution_definition(
     plan: &PlanFile,
     concurrency: u32,
     selection: Option<&ProviderPlanOutput>,
+    launch: Option<&ProviderLaunchRecord>,
 ) -> ExecutionDefinition {
     ExecutionDefinition {
         plan_schema_version: plan.schema_version,
@@ -1210,6 +1272,7 @@ fn execution_definition(
         requested_point: plan.point,
         executed_concurrency: concurrency,
         provider_selection_sha256: selection.map(|value| value.selection_sha256.clone()),
+        provider_launch_sha256: launch.map(|value| value.launch_sha256.clone()),
     }
 }
 
@@ -1242,6 +1305,32 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
         };
         validate_selection_binding(&synthetic_plan, selection)?;
     }
+    if let Some(launch) = &definition.provider_launch {
+        launch
+            .validate()
+            .map_err(|_| CliError::validation("stored provider launch is invalid"))?;
+        let selection = definition.provider_selection.as_ref();
+        if selection.is_none()
+            || definition.execution.provider_launch_sha256.as_deref()
+                != Some(launch.launch_sha256.as_str())
+            || launch.input.run_id.is_empty()
+            || selection.is_some_and(|value| {
+                launch.input.catalog_sha256 != value.catalog_sha256
+                    || launch.input.selection_sha256 != value.selection_sha256
+                    || launch.input.provider_profile_sha256 != value.provider_profile_sha256
+                    || launch.input.provider != value.provider_profile
+                    || launch.input.model != value.model
+            })
+            || launch.input.agent != definition.experiment.agent.implementation
+            || launch.input.workload_sha256 != definition.experiment.workload.workload_sha256
+            || launch.input.runtime.executable_sha256
+                != definition.execution.agent_executable_sha256
+        {
+            return Err(CliError::validation(
+                "stored provider launch is not bound to its execution",
+            ));
+        }
+    }
     let workload = OriginalWorkloads::describe(&definition.execution.workload)
         .map_err(|_| CliError::validation("stored run workload is invalid"))?;
     if definition.execution.plan_schema_version != PLAN_SCHEMA_VERSION
@@ -1263,6 +1352,11 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
                 .provider_selection
                 .as_ref()
                 .map(|value| value.selection_sha256.as_str())
+        || definition.execution.provider_launch_sha256.as_deref()
+            != definition
+                .provider_launch
+                .as_ref()
+                .map(|value| value.launch_sha256.as_str())
     {
         return Err(CliError::validation("run execution definition is invalid"));
     }
@@ -1282,6 +1376,8 @@ struct ExecuteOutput {
     provider_selection_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_profile_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_launch_sha256: Option<String>,
 }
 
 fn execute(
@@ -1337,6 +1433,7 @@ fn execute_inner(
     let mut run_ids = Vec::with_capacity(concurrencies.len());
     let mut points = Vec::with_capacity(concurrencies.len());
     let mut capacity = Vec::with_capacity(concurrencies.len());
+    let mut provider_launch_sha256 = None;
     for concurrency in concurrencies {
         if cancelled.load(Ordering::SeqCst) {
             break;
@@ -1355,6 +1452,13 @@ fn execute_inner(
             selection.as_ref(),
             Arc::clone(&cancelled),
         )?;
+        if provider_launch_sha256.is_none() {
+            provider_launch_sha256 = selection.as_ref().map(|value| {
+                build_provider_launch(&plan, value, &run_id, &format!("{run_id}-attempt"))
+                    .expect("launch was validated before execution")
+                    .launch_sha256
+            });
+        }
         let decision = match point.decision {
             "pass" => CapacityDecision::Pass,
             "fail" => CapacityDecision::Fail,
@@ -1387,6 +1491,7 @@ fn execute_inner(
             provider_profile_sha256: selection
                 .as_ref()
                 .map(|value| value.provider_profile_sha256.clone()),
+            provider_launch_sha256,
         },
     )?;
     Ok(exit_code)
@@ -1427,7 +1532,12 @@ fn run_point_with_selection(
 ) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
-    let execution = execution_definition(plan, concurrency, selection);
+    // Bind and verify provider selection before creating any durable run or
+    // preparing a work root. A metadata-only selection is never launchable.
+    let launch = selection
+        .map(|value| build_provider_launch(plan, value, &run_id, &attempt_id))
+        .transpose()?;
+    let execution = execution_definition(plan, concurrency, selection, launch.as_ref());
     let execution_sha256 = execution_digest(&execution)?;
     let manifest = RunManifest {
         schema_version: MANIFEST_SCHEMA_VERSION,
@@ -1436,6 +1546,7 @@ fn run_point_with_selection(
         definition: serde_json::to_value(&StoredRunDefinition {
             experiment: plan.experiment.clone(),
             provider_selection: selection.cloned(),
+            provider_launch: launch.clone(),
             execution,
             execution_sha256: execution_sha256.clone(),
         })
@@ -1474,6 +1585,7 @@ fn run_point_with_selection(
     let summaries = Arc::new(Mutex::new(Vec::<AttemptSummary>::new()));
     let attempt_failures = Arc::new(Mutex::new(Vec::<AttemptFailureEvidence>::new()));
     let plan_owned = plan.clone();
+    let launch_owned = launch.clone();
     let work_root = plan.work_root.clone();
     let run_for_attempt = run_id.clone();
     let summaries_for_attempt = Arc::clone(&summaries);
@@ -1491,6 +1603,7 @@ fn run_point_with_selection(
                 &run_for_attempt,
                 context.input_id(),
                 context.is_warmup(),
+                launch_owned.as_ref(),
                 Arc::clone(&cancelled_for_attempt),
             );
             let outcome = match summary.as_ref() {
@@ -1655,6 +1768,7 @@ fn run_attempt(
     run_id: &str,
     input_id: u32,
     warmup: bool,
+    launch: Option<&ProviderLaunchRecord>,
     cancelled: Arc<AtomicBool>,
 ) -> Result<Option<AttemptSummary>, CliError> {
     if cancelled.load(Ordering::SeqCst) {
@@ -1709,6 +1823,7 @@ fn run_attempt(
         &agent_snapshot,
         &prompt,
         limits,
+        launch,
     )?;
     let collector = LinuxCollector::host();
     let mut metric = collector.collect_process(process.pid(), 0);
@@ -1781,7 +1896,18 @@ fn spawn_verified_agent(
     agent_snapshot: &Path,
     prompt: &fs::File,
     limits: ProcessLimits,
+    launch: Option<&ProviderLaunchRecord>,
 ) -> Result<(RunningProcess, u8), CliError> {
+    if let Some(launch) = launch {
+        launch
+            .validate()
+            .map_err(|_| CliError::validation("provider-aware launch changed before spawn"))?;
+        if launch.input.runtime.executable_sha256 != plan.agent.executable_sha256 {
+            return Err(CliError::validation(
+                "provider-aware executable identity changed before spawn",
+            ));
+        }
+    }
     for retry in 0..=MAX_BUSY_SPAWN_RETRIES {
         let stdin = prompt
             .try_clone()
@@ -1796,6 +1922,25 @@ fn spawn_verified_agent(
             .env("PATH", "/usr/bin:/bin")
             .env("ASB_BATCH_PROTOCOL", "batch-stdio-v1")
             .stdin(Stdio::from(stdin));
+        if let Some(launch) = launch {
+            command
+                .env(provider_launch::LAUNCH_VERSION_ENV, "1")
+                .env(provider_launch::LAUNCH_DIGEST_ENV, &launch.launch_sha256)
+                .env(provider_launch::PROVIDER_ENV, &launch.input.provider)
+                .env(provider_launch::MODEL_ENV, &launch.input.model)
+                .env(
+                    provider_launch::API_MODE_ENV,
+                    format!("{:?}", launch.input.api_mode).to_lowercase(),
+                )
+                .env(
+                    provider_launch::PROFILE_DIGEST_ENV,
+                    &launch.input.provider_profile_sha256,
+                )
+                .env(
+                    provider_launch::CREDENTIAL_REFERENCE_ENV,
+                    &launch.input.credential.reference_sha256,
+                );
+        }
         match RunningProcess::spawn(command, limits) {
             Ok(process) => return Ok((process, retry)),
             Err(ProcessError::Spawn(error)) if should_retry_busy(error.raw_os_error(), retry) => {
@@ -2081,6 +2226,8 @@ struct ReportRun {
     provider_selection_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_profile_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_launch_sha256: Option<String>,
     point: Option<Value>,
 }
 
@@ -2114,6 +2261,10 @@ fn report(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
                 .provider_selection
                 .as_ref()
                 .map(|value| value.provider_profile_sha256.clone()),
+            provider_launch_sha256: definition
+                .provider_launch
+                .as_ref()
+                .map(|value| value.launch_sha256.clone()),
             point,
         });
     }
@@ -2697,7 +2848,7 @@ mod tests {
         let path = root.join("fixture-agent");
         fs::write(
             &path,
-            b"#!/bin/sh\ntest ! -e ../.asb-private/prompt || exit 97\nprintf '%s\\n' 'def parse_line(line):' '    if line.endswith(\"\\r\"):' '        line = line[:-1]' '    return line' > parser.py\n",
+            b"#!/bin/sh\ntest ! -e ../.asb-private/prompt || exit 97\nif [ \"${ASB_PROVIDER_LAUNCH_V1:-}\" = 1 ]; then\n  test \"${ASB_PROVIDER_LAUNCH_SHA256:-}\" != \"\" || exit 98\n  test \"${ASB_PROVIDER:-}\" = openai || exit 99\n  test \"${ASB_PROVIDER_MODEL:-}\" != \"\" || exit 100\n  test \"${ASB_PROVIDER_PROFILE_SHA256:-}\" != \"\" || exit 101\nfi\nprintf '%s\\n' 'def parse_line(line):' '    if line.endswith(\"\\r\"):' '        line = line[:-1]' '    return line' > parser.py\n",
         )
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
@@ -2994,10 +3145,21 @@ mod tests {
         ]);
         assert_eq!(exit, 0);
         let first_run = plan.result_root.join("runs/provider-run");
+        assert_eq!(
+            executed["provider_launch_sha256"].as_str().unwrap().len(),
+            64
+        );
         let (_, report) = run_json(&["report".into(), first_run.as_os_str().to_owned()]);
         assert_eq!(
             report["runs"][0]["provider_selection_sha256"],
             selection["selection_sha256"]
+        );
+        assert_eq!(
+            report["runs"][0]["provider_launch_sha256"]
+                .as_str()
+                .unwrap()
+                .len(),
+            64
         );
         assert_eq!(executed["run_ids"][0], "provider-run");
 
@@ -3333,6 +3495,7 @@ mod tests {
             "timeout",
             0,
             false,
+            None,
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap()
@@ -3360,6 +3523,7 @@ mod tests {
             "replacement",
             0,
             false,
+            None,
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap_err();
@@ -3425,7 +3589,7 @@ mod tests {
             scheduler_attempts,
             attempt_failures: Vec::new(),
         };
-        let execution = execution_definition(&plan, 1, None);
+        let execution = execution_definition(&plan, 1, None, None);
         let execution_sha256 = execution_digest(&execution).unwrap();
         let evidence = json!({"execution_sha256": execution_sha256, "point": &point});
         assert!(
@@ -3450,6 +3614,7 @@ mod tests {
                 definition: serde_json::to_value(StoredRunDefinition {
                     experiment: plan.experiment.clone(),
                     provider_selection: None,
+                    provider_launch: None,
                     execution,
                     execution_sha256: execution_sha256.clone(),
                 })

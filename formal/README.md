@@ -11,15 +11,14 @@ on both disposable x86_64 and aarch64 workers.
 
 | Tool | Official source pin | Archive SHA-256 | License evidence |
 | --- | --- | --- | --- |
-| TLC 1.8.0 | TLA+ commit b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e; GitHub release asset 551007111 | 4c7bb1f6b050d56c197ee9ddd6e57fe521eae175f5043c9fb98b169f7b2d5407 | upstream repository MIT file inspected |
+| TLC 1.8.0 | TLA+ commit b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e; GitHub release asset 551679598 | 13885c0971b5faf31c89b89b90784c2bf3e2939632aa1ab10499504627e47209 | upstream repository MIT file inspected |
 | Alloy 6.2.0 | Alloy commit 59ba2033993449d483d54acad0e11a7bbf20354f | 6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d | upstream 6.2.0 LICENSE declares current code MIT |
 | Temurin JRE | 17.0.20+8 through setup-java commit dded0888837ed1f317902acf8a20df0ad188d165 | action-managed distribution | Eclipse Temurin binary license boundary |
 
-The upstream v1.8.0 TLA+ release asset was recreated when the release was published on
-2026-09-08. The current official asset is pinned through immutable GitHub asset ID
-551007111, its API-reported size and digest, and embedded source revision b123b226.
-It differs from the earlier pre-publication archive only in build and tag fields in
-the JAR manifest; the 2,093 extracted entries and all non-manifest contents match.
+The upstream v1.8.0 TLA+ release asset was recreated on 2026-09-09. The current official
+`tla2tools.jar` is pinned through immutable GitHub asset ID 551679598, its release URL,
+API-reported size and digest, and embedded source revision b123b226. The release URL is used
+for runner portability; the byte-size and SHA-256 checks remain mandatory.
 
 ## Evidence classification and bounds
 

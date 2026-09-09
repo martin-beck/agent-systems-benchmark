@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "command": "run",
+  "launch_environment": [
+    "ASB_PROVIDER_LAUNCH_V1",
+    "ASB_PROVIDER_LAUNCH_SHA256",
+    "ASB_PROVIDER",
+    "ASB_PROVIDER_MODEL",
+    "ASB_PROVIDER_API_MODE",
+    "ASB_PROVIDER_PROFILE_SHA256",
+    "ASB_PROVIDER_CREDENTIAL_REFERENCE_SHA256"
+  ],
+  "network": "unchanged-live-or-existing-replay-policy",
+  "secret_material": "never-public"
+}

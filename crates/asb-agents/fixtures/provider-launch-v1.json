@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "catalog_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "selection_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "provider_profile_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "agent": "codex",
+  "adapter": "codex",
+  "api_mode": "responses",
+  "provider": "openai",
+  "model": "pinned-model",
+  "settings_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "runtime": {
+    "bundle_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "executable_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "credential": {
+    "kind": "environment",
+    "reference_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "workload_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "run_id": "run-1",
+  "attempt_id": "run-1-attempt",
+  "policy": {
+    "max_stdout_bytes": 1,
+    "max_stderr_bytes": 1,
+    "timeout_ms": 1,
+    "max_environment_entries": 1,
+    "max_argv_entries": 1
+  }
+}
