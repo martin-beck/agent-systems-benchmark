@@ -32,6 +32,11 @@ allowed-signers verification directly. Contributors add their public signing
 identity through review before their commits can pass; private keys are never
 stored in this repository.
 
+The [signed merge procedure](MERGE_INTEGRITY.md) also binds the integration commit's parents and
+tree to the approved base and pull-request head. All GitHub web merge modes are disabled and audited;
+the local publisher rechecks remote refs and uses an exact force-with-lease. A later signed
+attestation does not make an earlier unsigned or non-DCO merge compliant.
+
 The negative suite invokes the production gate commands against controlled
 defects. It proves rejection of mutable Actions, missing DCO/signatures,
 malformed and unsafe workflows, a synthetic credential, a denied dependency, a
