@@ -2,9 +2,9 @@
 # Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 set -euo pipefail
-TLA_SHA256=13885c0971b5faf31c89b89b90784c2bf3e2939632aa1ab10499504627e47209
+TLA_SHA256=f3a6ba408f84e155d23c75aecc4c89322cfb99822b56d4525833419230cab8bb
 ALLOY_SHA256=6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d
-TLA_BYTES=4489230
+TLA_BYTES=4489229
 ALLOY_BYTES=21062377
 TLA_URL=https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
 ALLOY_URL=https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v6.2.0/org.alloytools.alloy.dist.jar
