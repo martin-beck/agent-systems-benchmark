@@ -1,0 +1,19 @@
+[
+  {"id": "extra-root", "path": [], "key": "hostname", "value": "private"},
+  {"id": "wrong-kind", "path": ["kind"], "value": "native-run"},
+  {"id": "forged-qualification", "path": ["qualification"], "value": "native-functional"},
+  {"id": "performance-claim", "path": ["performance_baseline"], "value": true},
+  {"id": "wrong-runner", "path": ["runner_label"], "value": "self-hosted"},
+  {"id": "unsafe-run-id", "path": ["run_id"], "value": "bad/run"},
+  {"id": "wrong-architecture", "path": ["observed", "architecture"], "value": "aarch64"},
+  {"id": "wrong-distribution", "path": ["observed", "distribution", "id"], "value": "debian"},
+  {"id": "wrong-version-family", "path": ["observed", "distribution", "version_id"], "value": "24.10"},
+  {"id": "exact-native-forgery", "path": ["observed", "distribution", "exact_native_release"], "value": true},
+  {"id": "malformed-release", "path": ["observed", "distribution", "version"], "value": "24.04.5"},
+  {"id": "exact-native-version-forged-as-hosted", "path": ["observed", "distribution", "version"], "value": "24.04.4 LTS (Noble Numbat)"},
+  {"id": "missing-sandbox", "path": ["checks", "sandbox"], "delete": true},
+  {"id": "failed-check", "path": ["checks", "process", "status"], "value": "failed"},
+  {"id": "extra-distribution-field", "path": ["observed", "distribution"], "key": "codename", "value": "noble"},
+  {"id": "unpinned-source", "path": ["source", "commit"], "value": "tip"},
+  {"id": "duplicate-limit", "path": ["limitations", 3], "value": "rolling-hosted-image"}
+]

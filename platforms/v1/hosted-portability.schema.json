@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://martin-beck.github.io/agent-systems-benchmark/schema/hosted-portability-v1.json",
+  "title": "ASB rolling hosted portability evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "kind", "qualification", "performance_baseline", "runner_label", "run_id", "source", "observed", "checks", "limitations"],
+  "properties": {
+    "format_version": {"const": 1},
+    "kind": {"const": "hosted-portability"},
+    "qualification": {"const": "functional-portability-only"},
+    "performance_baseline": {"const": false},
+    "runner_label": {"const": "ubuntu-24.04"},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "source": {"$ref": "#/$defs/source"},
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "distribution"],
+      "properties": {
+        "architecture": {"const": "x86_64"},
+        "distribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version_id", "version", "exact_native_release"],
+          "properties": {
+            "id": {"const": "ubuntu"},
+            "version_id": {"const": "24.04"},
+            "version": {"type": "string", "pattern": "^24[.]04[.]([5-9]|[1-9][0-9]+) LTS [(]Noble Numbat[)]$", "maxLength": 64},
+            "exact_native_release": {"const": false}
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process", "metrics", "sandbox"],
+      "properties": {
+        "process": {"$ref": "#/$defs/check"},
+        "metrics": {"$ref": "#/$defs/check"},
+        "sandbox": {"$ref": "#/$defs/check"}
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {"const": "rolling-hosted-image"},
+        {"const": "not-native-qualification"},
+        {"const": "not-performance-baseline"},
+        {"const": "native-aarch64-unqualified"}
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_commit", "commit", "tree"],
+      "properties": {
+        "base_commit": {"$ref": "#/$defs/commit"},
+        "commit": {"$ref": "#/$defs/commit"},
+        "tree": {"$ref": "#/$defs/commit"}
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["argv_sha256", "output_bytes", "output_sha256", "status"],
+      "properties": {
+        "argv_sha256": {"$ref": "#/$defs/digest"},
+        "output_bytes": {"type": "integer", "minimum": 0, "maximum": 16777216},
+        "output_sha256": {"$ref": "#/$defs/digest"},
+        "status": {"const": "passed"}
+      }
+    }
+  }
+}

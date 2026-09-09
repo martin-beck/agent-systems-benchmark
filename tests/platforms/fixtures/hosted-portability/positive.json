@@ -1,0 +1,48 @@
+{
+  "checks": {
+    "metrics": {
+      "argv_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "output_bytes": 12,
+      "output_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "passed"
+    },
+    "process": {
+      "argv_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "output_bytes": 12,
+      "output_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "passed"
+    },
+    "sandbox": {
+      "argv_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "output_bytes": 12,
+      "output_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "passed"
+    }
+  },
+  "format_version": 1,
+  "kind": "hosted-portability",
+  "limitations": [
+    "rolling-hosted-image",
+    "not-native-qualification",
+    "not-performance-baseline",
+    "native-aarch64-unqualified"
+  ],
+  "observed": {
+    "architecture": "x86_64",
+    "distribution": {
+      "exact_native_release": false,
+      "id": "ubuntu",
+      "version": "24.04.5 LTS (Noble Numbat)",
+      "version_id": "24.04"
+    }
+  },
+  "performance_baseline": false,
+  "qualification": "functional-portability-only",
+  "run_id": "gha-123-1",
+  "runner_label": "ubuntu-24.04",
+  "source": {
+    "base_commit": "cccccccccccccccccccccccccccccccccccccccc",
+    "commit": "dddddddddddddddddddddddddddddddddddddddd",
+    "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  }
+}
