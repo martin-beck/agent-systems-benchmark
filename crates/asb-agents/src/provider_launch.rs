@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Content-addressed provider-aware launch binding.
 
-use crate::all_agents_provider::EffectiveApiMode;
+use crate::all_agents_provider::{EffectiveApiMode, SelectedAgent};
+use crate::openai::{OpenAiAgent, OpenAiProfile};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -120,6 +121,8 @@ pub enum ProviderLaunchError {
     ProjectionMismatch(&'static str),
     /// The record digest does not match its input.
     DigestMismatch,
+    /// The selected adapter has no exact pinned route.
+    UnsupportedAdapter,
 }
 
 impl fmt::Display for ProviderLaunchError {
@@ -139,6 +142,9 @@ impl fmt::Display for ProviderLaunchError {
             }
             Self::DigestMismatch => {
                 formatter.write_str("provider launch digest does not match input")
+            }
+            Self::UnsupportedAdapter => {
+                formatter.write_str("selected adapter has no exact pinned provider route")
             }
         }
     }
@@ -243,22 +249,95 @@ impl ProviderLaunchRecord {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProviderLaunchProjection {
     /// Agent identity applied by the adapter.
-    pub agent: String,
+    agent: String,
     /// Adapter identity applied by the adapter.
-    pub adapter: String,
+    adapter: String,
     /// Provider family applied by the adapter.
-    pub provider: String,
+    provider: String,
     /// Model applied by the adapter.
-    pub model: String,
+    model: String,
     /// API mode applied by the adapter.
-    pub api_mode: EffectiveApiMode,
+    api_mode: EffectiveApiMode,
     /// Settings identity applied by the adapter.
-    pub settings_sha256: String,
+    settings_sha256: String,
     /// Resolver identity applied by the adapter.
-    pub credential: CredentialResolverIdentity,
+    credential: CredentialResolverIdentity,
 }
 
 impl ProviderLaunchProjection {
+    /// Agent identity applied by the adapter.
+    pub fn agent(&self) -> &str {
+        &self.agent
+    }
+    /// Adapter identity applied by the adapter.
+    pub fn adapter(&self) -> &str {
+        &self.adapter
+    }
+    /// Provider family applied by the adapter.
+    pub fn provider(&self) -> &str {
+        &self.provider
+    }
+    /// Model spelling applied by the adapter.
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+    /// API route applied by the adapter.
+    pub const fn api_mode(&self) -> EffectiveApiMode {
+        self.api_mode
+    }
+    /// Settings identity applied by the adapter.
+    pub fn settings_sha256(&self) -> &str {
+        &self.settings_sha256
+    }
+    /// Secret-free credential resolver identity applied by the adapter.
+    pub fn credential(&self) -> &CredentialResolverIdentity {
+        &self.credential
+    }
+
+    /// Construct an exact projection from the pinned OpenAI adapter translation.
+    pub fn openai(
+        profile: &OpenAiProfile,
+        agent: SelectedAgent,
+    ) -> Result<Self, ProviderLaunchError> {
+        let openai_agent = match agent {
+            SelectedAgent::OpenCode => OpenAiAgent::OpenCode,
+            SelectedAgent::OpenDesk => OpenAiAgent::OpenDesk,
+            SelectedAgent::Aider => OpenAiAgent::Aider,
+            SelectedAgent::Codex => OpenAiAgent::Codex,
+            SelectedAgent::Gemini => OpenAiAgent::Gemini,
+            SelectedAgent::QwenCode => OpenAiAgent::QwenCode,
+            SelectedAgent::Goose => OpenAiAgent::Goose,
+            SelectedAgent::MiniSwe => OpenAiAgent::MiniSwe,
+            SelectedAgent::OpenHands => OpenAiAgent::OpenHands,
+        };
+        let route = profile
+            .translate(openai_agent, profile.provider_profile())
+            .map_err(|_| ProviderLaunchError::UnsupportedAdapter)?;
+        let api_mode = match route.api_mode() {
+            crate::openai::OpenAiApiMode::ChatCompletions => EffectiveApiMode::ChatCompletions,
+            crate::openai::OpenAiApiMode::Responses => EffectiveApiMode::Responses,
+        };
+        Ok(Self {
+            agent: agent_id(agent).to_owned(),
+            adapter: agent_id(agent).to_owned(),
+            provider: "openai".to_owned(),
+            model: route.model().to_owned(),
+            api_mode,
+            settings_sha256: profile.provider_profile().settings_sha256.clone(),
+            credential: CredentialResolverIdentity {
+                kind: CredentialResolverKind::Environment,
+                reference_sha256: profile
+                    .provider_profile()
+                    .credential
+                    .reference_sha256
+                    .clone()
+                    .ok_or(ProviderLaunchError::InvalidDigest(
+                        "credential.reference_sha256",
+                    ))?,
+            },
+        })
+    }
+
     fn validate_against(&self, input: &ProviderLaunchV1) -> Result<(), ProviderLaunchError> {
         if self.agent != input.agent {
             return Err(ProviderLaunchError::ProjectionMismatch("agent"));
@@ -282,6 +361,20 @@ impl ProviderLaunchProjection {
             return Err(ProviderLaunchError::ProjectionMismatch("credential"));
         }
         Ok(())
+    }
+}
+
+fn agent_id(agent: SelectedAgent) -> &'static str {
+    match agent {
+        SelectedAgent::OpenCode => "opencode",
+        SelectedAgent::OpenDesk => "opendesk",
+        SelectedAgent::Aider => "aider",
+        SelectedAgent::Codex => "codex",
+        SelectedAgent::Gemini => "gemini",
+        SelectedAgent::QwenCode => "qwen_code",
+        SelectedAgent::Goose => "goose",
+        SelectedAgent::MiniSwe => "mini_swe",
+        SelectedAgent::OpenHands => "openhands",
     }
 }
 

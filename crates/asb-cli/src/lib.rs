@@ -11,8 +11,8 @@ use asb_agents::all_agents_provider::{
 };
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::provider_launch::{
-    CredentialResolverIdentity, CredentialResolverKind, LaunchPolicy, ProviderLaunchProjection,
-    ProviderLaunchRecord, ProviderLaunchV1, RuntimeBundleIdentity,
+    LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
+    RuntimeBundleIdentity,
 };
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
@@ -915,6 +915,11 @@ fn build_provider_launch(
         .ok_or_else(|| {
             CliError::validation("provider selection does not include the launched agent")
         })?;
+    let selected_agent = parse_agent(&selected.agent)?;
+    let profile = OpenAiProfile::new(&selection.credential_reference_sha256)
+        .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
+    let projection = ProviderLaunchProjection::openai(&profile, selected_agent)
+        .map_err(|_| CliError::validation("selected adapter has no exact provider route"))?;
     let input = ProviderLaunchV1 {
         schema_version: asb_agents::provider_launch::PROVIDER_LAUNCH_V1,
         catalog_sha256: selection.catalog_sha256.clone(),
@@ -922,10 +927,10 @@ fn build_provider_launch(
         provider_profile_sha256: selection.provider_profile_sha256.clone(),
         agent: selected.agent.clone(),
         adapter: selected.agent.clone(),
-        api_mode: selected.api_mode,
-        provider: selection.provider_profile.clone(),
-        model: selection.model.clone(),
-        settings_sha256: selection.provider_profile_sha256.clone(),
+        api_mode: projection.api_mode(),
+        provider: projection.provider().to_owned(),
+        model: projection.model().to_owned(),
+        settings_sha256: projection.settings_sha256().to_owned(),
         // The v1 plan carries one verified executable identity. Until the
         // runtime-bundle manifest is part of the plan, the executable's
         // content address is the fail-closed bundle identity as well.
@@ -933,10 +938,7 @@ fn build_provider_launch(
             bundle_sha256: plan.agent.executable_sha256.clone(),
             executable_sha256: plan.agent.executable_sha256.clone(),
         },
-        credential: CredentialResolverIdentity {
-            kind: CredentialResolverKind::Environment,
-            reference_sha256: selection.credential_reference_sha256.clone(),
-        },
+        credential: projection.credential().clone(),
         workload_sha256: plan.experiment.workload.workload_sha256.clone(),
         run_id: run_id.to_owned(),
         attempt_id: attempt_id.to_owned(),
@@ -947,15 +949,6 @@ fn build_provider_launch(
             max_environment_entries: 8,
             max_argv_entries: 1,
         },
-    };
-    let projection = ProviderLaunchProjection {
-        agent: input.agent.clone(),
-        adapter: input.adapter.clone(),
-        provider: input.provider.clone(),
-        model: input.model.clone(),
-        api_mode: input.api_mode,
-        settings_sha256: input.settings_sha256.clone(),
-        credential: input.credential.clone(),
     };
     ProviderLaunchRecord::bind(input, &projection)
         .map_err(|_| CliError::validation("provider-aware launch binding is invalid"))
