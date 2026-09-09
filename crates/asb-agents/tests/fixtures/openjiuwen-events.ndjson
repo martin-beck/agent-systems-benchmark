@@ -3,3 +3,5 @@
 {"scenario":"tool_corrupt","terminal":"failure","edit":false}
 {"scenario":"http_error","max_requests":8,"terminal":"failure","edit":false}
 {"scenario":"trickle","terminal":"cancelled","edit":false}
+{"scenario":"usage","agent_parsed":{"input_tokens":101,"output_tokens":7,"total_tokens":108}}
+{"scenario":"child_escape","terminal":"cancelled","edit":false,"detached_survivor":false}

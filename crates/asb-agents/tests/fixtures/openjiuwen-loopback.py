@@ -17,12 +17,12 @@ def chunk(delta, finish=None, usage=None):
 def main():
     parser = argparse.ArgumentParser()
     for item in ("port-file", "receipt", "target", "events"): parser.add_argument("--" + item, required=True)
-    parser.add_argument("--mode", choices=("success", "delay", "malformed", "tool_corrupt", "http_error", "trickle"), required=True)
+    parser.add_argument("--mode", choices=("success", "usage", "delay", "malformed", "tool_corrupt", "http_error", "trickle", "child_escape"), required=True)
     args = parser.parse_args()
     events = [json.loads(line) for line in pathlib.Path(args.events).read_text().splitlines()]
     requests = [item["request"] for item in events if "request" in item]
     scenarios = {item["scenario"] for item in events if "scenario" in item}
-    if requests != [1, 2] or scenarios != {"tool_corrupt", "http_error", "trickle"}: raise SystemExit("fixture scenario inventory is not closed")
+    if requests != [1, 2] or scenarios != {"tool_corrupt", "http_error", "trickle", "usage", "child_escape"}: raise SystemExit("fixture scenario inventory is not closed")
     if events[1]["prompt_tokens"] <= 0 or events[1]["completion_tokens"] <= 0 or events[1]["prompt_tokens"] + events[1]["completion_tokens"] != events[1]["total_tokens"]: raise SystemExit("fixture usage is not positive and internally consistent")
     state = {"requests": 0, "tool_result_seen": False}
     class Handler(BaseHTTPRequestHandler):
@@ -43,11 +43,18 @@ def main():
             self.send_response(200); self.send_header("content-type", "text/event-stream"); self.end_headers()
             if args.mode == "malformed": self.wfile.write(b"data: {not-json}\n\n"); self.wfile.flush(); return
             if args.mode == "trickle": self.wfile.write(b"data: "); self.wfile.flush(); time.sleep(30); return
-            if not state["tool_result_seen"]:
+            if args.mode == "usage":
+                self.wfile.write(event(chunk({"role":"assistant","content":events[1]["content"]})))
+                self.wfile.write(event(chunk({}, "stop", {"prompt_tokens":events[1]["prompt_tokens"],"completion_tokens":events[1]["completion_tokens"],"total_tokens":events[1]["total_tokens"]})))
+                receipt = json.loads(pathlib.Path(args.receipt).read_text()); receipt["positive_usage_sent"] = True
+                pathlib.Path(args.receipt).write_text(json.dumps(receipt, sort_keys=True) + "\n")
+            elif not state["tool_result_seen"]:
                 names = [t.get("function", {}).get("name", "") for t in body.get("tools", [])]
                 bash = next((name for name in names if name == "bash" or name.startswith("bash_")), "")
                 if not bash: self.send_error(400); return
-                arguments = "{" if args.mode == "tool_corrupt" else json.dumps({"command":"printf 'ASB_OPENJIUWEN_EDIT\\n' > " + args.target})
+                if args.mode == "tool_corrupt": arguments = "{"
+                elif args.mode == "child_escape": arguments = json.dumps({"command":"setsid /bin/sh -c 'sleep 2; printf escaped > " + args.target + ".escape' >/dev/null 2>&1 & printf %s $! > " + args.target + ".pid; sleep 30"})
+                else: arguments = json.dumps({"command":"printf 'ASB_OPENJIUWEN_EDIT\\n' > " + args.target})
                 self.wfile.write(event(chunk({"role":"assistant","tool_calls":[{"index":0,"id":"asb_call_1","type":"function","function":{"name":bash,"arguments":arguments}}]})))
                 self.wfile.write(event(chunk({}, "tool_calls")))
             else:
