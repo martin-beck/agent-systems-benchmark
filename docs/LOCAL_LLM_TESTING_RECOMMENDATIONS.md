@@ -107,6 +107,12 @@ digests, quantization/template, dialect/routes/parser, sampling, CPU/GPU/runtime
 thread/batch/context/scheduler settings, isolation, probe, warm-up, concurrency and
 teardown. Model bytes need not repeat; trials measure variability.
 
+The grouped profile workstream maintains a fail-closed machine-readable evidence
+boundary in [`tools/local-inference-profiles/profiles-v1.json`](../tools/local-inference-profiles/profiles-v1.json).
+Profiles without complete immutable model, tokenizer, runtime, hardware, and
+repeated-trial evidence remain explicitly `unqualified` and non-selectable; they
+must not be silently routed through Ollama or a mock.
+
 ## Independent grading
 
 Where a benchmark claims independent grading, the candidate execution path cannot

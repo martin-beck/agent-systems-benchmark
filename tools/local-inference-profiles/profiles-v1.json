@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "id": "llama_cpp",
+      "status": "unqualified",
+      "selectable": false,
+      "frontend": {
+        "name": "llama.cpp server",
+        "version": "0.4.0",
+        "source": "https://github.com/ggml-org/llama.cpp",
+        "revision": "5266f24da75dc449bd56cbed7addb9c8e4a6a73e",
+        "tree": null,
+        "license": "MIT"
+      },
+      "backend": null,
+      "model": {"name": "not-selected", "sha256": null, "tokenizer_sha256": null},
+      "routes": ["anthropic_messages", "openai_chat"],
+      "configuration": {
+        "template": "not-qualified",
+        "parser": "not-qualified",
+        "sampling": "not-qualified",
+        "runtime": "not-qualified",
+        "isolation": {"network": "loopback_only", "credentials": "stripped", "resource_limits": "bounded", "teardown": "verified"}
+      },
+      "qualification": {
+        "hardware": "not-tested",
+        "runtime": "not-tested",
+        "trials": 0,
+        "variability": "not-measured",
+        "reason": "No immutable executable, model, tokenizer, or hardware trial evidence is available in ASB."
+      }
+    },
+    {
+      "id": "localai",
+      "status": "unqualified",
+      "selectable": false,
+      "frontend": {
+        "name": "LocalAI",
+        "version": "4.9.0",
+        "source": "https://github.com/mudler/LocalAI",
+        "revision": "f7ad3f70eb5d8a0ddf80e08557f0d7df28cf032e",
+        "tree": null,
+        "license": "MIT"
+      },
+      "backend": null,
+      "model": {"name": "not-selected", "sha256": null, "tokenizer_sha256": null},
+      "routes": ["anthropic_messages", "openai_chat"],
+      "configuration": {
+        "template": "not-qualified",
+        "parser": "not-qualified",
+        "sampling": "not-qualified",
+        "runtime": "not-qualified",
+        "isolation": {"network": "loopback_only", "credentials": "stripped", "resource_limits": "bounded", "teardown": "verified"}
+      },
+      "qualification": {
+        "hardware": "not-tested",
+        "runtime": "not-tested",
+        "trials": 0,
+        "variability": "not-measured",
+        "reason": "LocalAI requires a separately pinned backend and model before it can be treated as an inference engine."
+      }
+    },
+    {
+      "id": "ollama",
+      "status": "unqualified",
+      "selectable": false,
+      "frontend": {
+        "name": "Ollama",
+        "version": "0.33.1",
+        "source": "https://github.com/ollama/ollama",
+        "revision": "13f2fb8c99278469b954429d5541019f4d83a4d0",
+        "tree": "b3e63b82943bb57e17d501fa137d1abae26ee1f6",
+        "license": "MIT"
+      },
+      "backend": null,
+      "model": {"name": "qwen3-coder:30b", "sha256": null, "tokenizer_sha256": null},
+      "routes": ["openai_chat", "openai_responses"],
+      "configuration": {
+        "template": "qwen3moe-Q4_K_M",
+        "parser": "ollama-openai-compatible",
+        "sampling": "temperature=0.7;top_p=0.8",
+        "runtime": "linux-x86_64",
+        "isolation": {"network": "loopback_only", "credentials": "stripped", "resource_limits": "bounded", "teardown": "verified"}
+      },
+      "qualification": {
+        "hardware": "not-reproduced-in-this-profile-worktree",
+        "runtime": "daemon and model probe exists in asb-agents::ollama",
+        "trials": 0,
+        "variability": "not-measured",
+        "reason": "Existing Ollama code lacks an independently recorded tokenizer digest and repeated trial manifest; retain runtime support but do not overclaim this grouped profile."
+      }
+    },
+    {
+      "id": "vllm",
+      "status": "unqualified",
+      "selectable": false,
+      "frontend": {
+        "name": "vLLM",
+        "version": "0.28.0",
+        "source": "https://github.com/vllm-project/vllm",
+        "revision": "2cf0a6915ce544dc493a0990f2ea38d81601128a",
+        "tree": null,
+        "license": "Apache-2.0"
+      },
+      "backend": null,
+      "model": {"name": "not-selected", "sha256": null, "tokenizer_sha256": null},
+      "routes": ["openai_chat", "openai_responses"],
+      "configuration": {
+        "template": "not-qualified",
+        "parser": "not-qualified",
+        "sampling": "generation-config-not-pinned",
+        "runtime": "not-tested",
+        "isolation": {"network": "loopback_only", "credentials": "stripped", "resource_limits": "bounded", "teardown": "verified"}
+      },
+      "qualification": {
+        "hardware": "not-tested",
+        "runtime": "not-tested",
+        "trials": 0,
+        "variability": "not-measured",
+        "reason": "No pinned image, model/tokenizer, parser, parallelism, or GPU trial evidence is available in ASB."
+      }
+    }
+  ]
+}
