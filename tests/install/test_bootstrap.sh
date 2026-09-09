@@ -4,9 +4,11 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 SCRIPT=$ROOT/tools/install/bootstrap.sh
+LIFECYCLE=$ROOT/tools/install/lifecycle.sh
 test -f "$SCRIPT"
 test "$(head -n 3 "$SCRIPT" | tail -n 1)" = '# SPDX-License-Identifier: MIT'
 sh -n "$SCRIPT"
+sh -n "$LIFECYCLE"
 if ASB_MANIFEST_URL=http://example.invalid ASB_MANIFEST_SHA256= \
     ASB_DATA_ROOT=/tmp/asb-test ASB_CONFIG_ROOT=/tmp/asb-test-config \
     ASB_RUNTIME_ROOT=/tmp/asb-test-run "$SCRIPT" >/dev/null 2>&1; then
@@ -95,4 +97,10 @@ test -L "$BASE/data/current"
 test -x "$BASE/data/current/asb"
 test -f "$BASE/config/config.toml"
 test "$(stat -c '%a' "$BASE/config/config.toml")" = 600
+ASB_DATA_ROOT="$BASE/data" ASB_CONFIG_ROOT="$BASE/config" ASB_RUNTIME_ROOT="$BASE/run" "$LIFECYCLE" status | grep -F 'current=releases/fixture-v1'
+ASB_DATA_ROOT="$BASE/data" ASB_CONFIG_ROOT="$BASE/config" ASB_RUNTIME_ROOT="$BASE/run" "$LIFECYCLE" backup >/dev/null
+test -d "$BASE/data/backups"
+ASB_DATA_ROOT="$BASE/data" ASB_CONFIG_ROOT="$BASE/config" ASB_RUNTIME_ROOT="$BASE/run" "$LIFECYCLE" repair
+ASB_DATA_ROOT="$BASE/data" ASB_CONFIG_ROOT="$BASE/config" ASB_RUNTIME_ROOT="$BASE/run" "$LIFECYCLE" uninstall | grep -F "retained-data=$BASE/data"
+test ! -e "$BASE/data/current"
 printf 'bootstrap positive installation test passed\n'

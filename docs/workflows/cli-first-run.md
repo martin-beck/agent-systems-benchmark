@@ -96,3 +96,14 @@ with `ASB_SERVICE_MODE=disabled` and start the supervised `asb serve` command
 only after reviewing the installed `asb doctor` result. On systems without a
 user systemd manager, the installer prints that supervised command and does not
 daemonize it implicitly. Set `ASB_NO_TUI=1` for noninteractive installation.
+
+## Lifecycle operations
+
+Run `tools/install/lifecycle.sh status` to inspect the active release, `backup`
+before maintenance, `repair` to restore service/configuration drift, and
+`rollback` only when the recorded prior release passes `asb doctor`. Upgrades
+must first be installed as a new authenticated release by `bootstrap.sh`; no
+lifecycle command silently cancels active benchmark runs or mutates durable
+results. `uninstall` removes only the user service link and active link, prints
+retained paths, and never purges releases, recordings, results, indexes, or trust
+state implicitly.
