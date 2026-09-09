@@ -1566,36 +1566,206 @@ impl ControlBackend for RunnerBackend {
 mod tests {
     use super::*;
     use asb_control::ControlSuccess;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{PermissionsExt, symlink};
     use std::sync::atomic::AtomicU64;
 
     static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-    struct Scratch(PathBuf);
+    struct Scratch(PathBuf, fs::File);
+
+    impl std::ops::Deref for Scratch {
+        type Target = Path;
+
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
 
     impl Scratch {
         fn new() -> Self {
-            let root = std::env::var_os("ASB_TEST_ROOT")
-                .map(PathBuf::from)
-                .unwrap_or_else(std::env::temp_dir)
-                .join(format!(
-                    "asb-control-runner-{}-{}",
-                    std::process::id(),
-                    TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-                ));
-            fs::DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(&root)
-                .unwrap();
-            Self(fs::canonicalize(root).unwrap())
+            let base = test_scratch_base().unwrap();
+            create_test_scratch(&base, "runner").unwrap()
         }
     }
 
     impl Drop for Scratch {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            let Ok(identity) = self.1.metadata() else {
+                return;
+            };
+            let Ok(metadata) = fs::symlink_metadata(&self.0) else {
+                return;
+            };
+            if metadata.is_dir()
+                && !metadata.file_type().is_symlink()
+                && metadata.dev() == identity.dev()
+                && metadata.ino() == identity.ino()
+            {
+                let _ = fs::remove_dir_all(&self.0);
+            }
         }
+    }
+
+    fn contains_symlink(path: &Path) -> bool {
+        let mut current = PathBuf::new();
+        for component in path.components() {
+            current.push(component.as_os_str());
+            if fs::symlink_metadata(&current)
+                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn validate_test_base(path: &Path) -> Result<PathBuf, &'static str> {
+        if !path.is_absolute() || contains_symlink(path) {
+            return Err("test scratch base is not an absolute real path");
+        }
+        let metadata = fs::symlink_metadata(path).map_err(|_| "test scratch base is missing")?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err("test scratch base is not a directory");
+        }
+        let canonical = fs::canonicalize(path).map_err(|_| "test scratch base is not canonical")?;
+        let repository = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))
+            .map_err(|_| "repository root is not canonical")?;
+        if canonical.starts_with(&repository) || repository.starts_with(&canonical) {
+            return Err("test scratch base overlaps the repository");
+        }
+        Ok(canonical)
+    }
+
+    fn test_scratch_base() -> Result<PathBuf, &'static str> {
+        let configured = std::env::var_os("ASB_TEST_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        validate_test_base(&configured)
+    }
+
+    fn validate_test_scratch(path: &Path, expected_uid: u32) -> Result<fs::Metadata, &'static str> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| "test scratch root is missing")?;
+        if !path.is_absolute()
+            || metadata.file_type().is_symlink()
+            || !metadata.is_dir()
+            || metadata.uid() != expected_uid
+            || metadata.permissions().mode() & 0o777 != 0o700
+        {
+            return Err("test scratch root identity is unsafe");
+        }
+        let canonical = fs::canonicalize(path).map_err(|_| "test scratch root is not canonical")?;
+        let repository = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))
+            .map_err(|_| "repository root is not canonical")?;
+        if canonical != path
+            || canonical.starts_with(&repository)
+            || repository.starts_with(&canonical)
+        {
+            return Err("test scratch root aliases the repository");
+        }
+        Ok(metadata)
+    }
+
+    fn create_test_scratch(base: &Path, label: &str) -> Result<Scratch, &'static str> {
+        let base = validate_test_base(base)?;
+        let sequence = TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| "system clock precedes epoch")?
+            .as_nanos();
+        create_test_scratch_with_identity(&base, label, sequence, epoch)
+    }
+
+    fn create_test_scratch_with_identity(
+        base: &Path,
+        label: &str,
+        sequence: u64,
+        epoch: u128,
+    ) -> Result<Scratch, &'static str> {
+        for attempt in 0..128_u8 {
+            let path = base.join(format!(
+                ".asb-control-{label}-{}-{sequence}-{epoch}-{attempt}",
+                std::process::id()
+            ));
+            match fs::DirBuilder::new().mode(0o700).create(&path) {
+                Ok(()) => {
+                    let uid = fs::metadata("/proc/self")
+                        .map_err(|_| "current process identity is unavailable")?
+                        .uid();
+                    let metadata = validate_test_scratch(&path, uid)?;
+                    let identity = fs::File::open(&path)
+                        .map_err(|_| "test scratch identity cannot be retained")?;
+                    let retained = identity
+                        .metadata()
+                        .map_err(|_| "test scratch identity cannot be read")?;
+                    if (metadata.dev(), metadata.ino()) != (retained.dev(), retained.ino()) {
+                        return Err("test scratch identity changed during creation");
+                    }
+                    return Ok(Scratch(path, identity));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(_) => return Err("test scratch root cannot be created"),
+            }
+        }
+        Err("test scratch collision limit exceeded")
+    }
+
+    #[test]
+    fn test_scratch_roots_are_unique_private_and_symlink_safe() {
+        let base = validate_test_base(&std::env::temp_dir()).unwrap();
+        let container = create_test_scratch(&base, "container").unwrap();
+        assert!(validate_test_base(Path::new(".")).is_err());
+        let regular_file = container.join("not-a-directory");
+        fs::write(&regular_file, b"unchanged").unwrap();
+        assert!(validate_test_base(&regular_file).is_err());
+        let repository_alias = container.join("repository-alias");
+        symlink(env!("CARGO_MANIFEST_DIR"), &repository_alias).unwrap();
+        assert!(validate_test_base(&repository_alias).is_err());
+
+        let sequence = u64::MAX;
+        let epoch = 1_u128;
+        let collision = container.join(format!(
+            ".asb-control-collision-{}-{sequence}-{epoch}-0",
+            std::process::id()
+        ));
+        fs::create_dir(&collision).unwrap();
+        fs::write(collision.join("must-remain"), b"stale").unwrap();
+        let root =
+            create_test_scratch_with_identity(&container, "collision", sequence, epoch).unwrap();
+        assert_ne!(root.0, collision);
+        assert_eq!(fs::read(collision.join("must-remain")).unwrap(), b"stale");
+
+        let leaf_symlink = container.join(format!(
+            ".asb-control-leaf-symlink-{}-{sequence}-{epoch}-0",
+            std::process::id()
+        ));
+        symlink(env!("CARGO_MANIFEST_DIR"), &leaf_symlink).unwrap();
+        let symlink_safe =
+            create_test_scratch_with_identity(&container, "leaf-symlink", sequence, epoch).unwrap();
+        assert_ne!(symlink_safe.0, leaf_symlink);
+        assert!(
+            fs::symlink_metadata(&leaf_symlink)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+
+        let metadata = fs::symlink_metadata(&root.0).unwrap();
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
+        assert!(validate_test_scratch(&root.0, metadata.uid().wrapping_add(1)).is_err());
+        fs::set_permissions(&root.0, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(validate_test_scratch(&root.0, metadata.uid()).is_err());
+        fs::set_permissions(&root.0, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let substituted = create_test_scratch(&container, "substituted").unwrap();
+        let substituted_path = substituted.0.clone();
+        fs::remove_dir(&substituted_path).unwrap();
+        fs::create_dir(&substituted_path).unwrap();
+        fs::write(substituted_path.join("must-remain"), b"replacement").unwrap();
+        drop(substituted);
+        assert_eq!(
+            fs::read(substituted_path.join("must-remain")).unwrap(),
+            b"replacement"
+        );
     }
 
     fn fixture_plan(root: &Path) -> PlanFile {
