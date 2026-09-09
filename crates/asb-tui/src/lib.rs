@@ -1186,6 +1186,217 @@ fn validate_multi(
     }
 }
 
+/// Version of the explicit record/replay frontend workflow.
+pub const RECORD_REPLAY_TUI_WORKFLOW_V1: u16 = 1;
+
+/// A compatible recording offered by the runner without captured content.
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingChoice {
+    /// Stable public cassette identity.
+    pub cassette_id: String,
+    /// Authenticated cassette root.
+    pub cassette_sha256: String,
+}
+
+/// Why a nearby recording is not selectable.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingUnavailableReason {
+    /// The provider profile differs.
+    ProviderProfileMismatch,
+    /// The agent contract differs.
+    AgentMismatch,
+    /// The cassette failed authentication or completeness checks.
+    InvalidOrIncomplete,
+}
+
+/// A non-selectable recording explanation safe for the TUI.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnavailableRecording {
+    /// Stable public cassette identity, if one was available.
+    pub cassette_id: String,
+    /// Fail-closed reason.
+    pub reason: RecordingUnavailableReason,
+}
+
+/// Negotiated record/replay choices and disclosed live consequences.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingWorkflowCatalog {
+    /// Workflow schema version.
+    pub schema_version: u16,
+    /// Selected agent identity.
+    pub agent: ChoiceId,
+    /// Credential-free provider profile identity.
+    pub provider_profile_sha256: String,
+    /// Exact compatible recordings only.
+    pub compatible: Vec<RecordingChoice>,
+    /// Nearby but unavailable recordings with reasons.
+    pub unavailable: Vec<UnavailableRecording>,
+    /// Whether live provider preflight succeeded.
+    pub live_available: bool,
+    /// Network consequence displayed before live recording.
+    pub live_network: String,
+    /// Estimated cost in minor currency units.
+    pub estimated_cost_minor: u64,
+}
+
+/// Explicit source selected in the record/replay wizard.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingSource {
+    /// Record a new live provider interaction.
+    LiveRecording,
+    /// Replay exactly one compatible cassette.
+    Replay {
+        /// Authenticated cassette root selected from the compatible catalog.
+        cassette_sha256: String,
+    },
+}
+
+/// Safe, non-secret confirmation summary.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct RecordingWorkflowReview {
+    /// Selected source.
+    pub source: RecordingSource,
+    /// Network policy after confirmation.
+    pub network: String,
+    /// Estimated cost in minor currency units.
+    pub estimated_cost_minor: u64,
+    /// Whether all required acknowledgements are present.
+    pub ready: bool,
+    /// Explicit label used by result consumers.
+    pub result_label: &'static str,
+}
+
+/// Stateful, explicit record/replay workflow for the terminal frontend.
+#[derive(Debug)]
+pub struct RecordingWorkflow {
+    catalog: RecordingWorkflowCatalog,
+    source: Option<RecordingSource>,
+    acknowledge_network: bool,
+    acknowledge_cost: bool,
+    acknowledge_recording: bool,
+}
+
+impl RecordingWorkflow {
+    /// Validate negotiated choices and create an unconfirmed workflow.
+    pub fn new(catalog: RecordingWorkflowCatalog) -> Result<Self, WizardError> {
+        if catalog.schema_version != RECORD_REPLAY_TUI_WORKFLOW_V1
+            || !digest(&catalog.provider_profile_sha256)
+            || catalog.agent.0.is_empty()
+            || catalog.agent.0.len() > 128
+            || catalog.compatible.len() > MAX_CHOICES
+            || catalog.unavailable.len() > MAX_CHOICES
+            || catalog
+                .compatible
+                .iter()
+                .any(|choice| choice.cassette_id.is_empty() || !digest(&choice.cassette_sha256))
+            || catalog.compatible.windows(2).any(|pair| pair[0] > pair[1])
+            || catalog
+                .unavailable
+                .iter()
+                .any(|choice| choice.cassette_id.is_empty())
+        {
+            return Err(WizardError::InvalidCatalog);
+        }
+        Ok(Self {
+            catalog,
+            source: None,
+            acknowledge_network: false,
+            acknowledge_cost: false,
+            acknowledge_recording: false,
+        })
+    }
+
+    /// Select a live recording after provider preflight.
+    pub fn select_live_recording(&mut self) -> Result<(), WizardError> {
+        if !self.catalog.live_available {
+            return Err(WizardError::InvalidSettings);
+        }
+        self.source = Some(RecordingSource::LiveRecording);
+        Ok(())
+    }
+
+    /// Select exactly one compatible replay cassette.
+    pub fn select_replay(&mut self, cassette_sha256: &str) -> Result<(), WizardError> {
+        if !self
+            .catalog
+            .compatible
+            .iter()
+            .any(|choice| choice.cassette_sha256 == cassette_sha256)
+        {
+            return Err(WizardError::InvalidSettings);
+        }
+        self.source = Some(RecordingSource::Replay {
+            cassette_sha256: cassette_sha256.to_owned(),
+        });
+        Ok(())
+    }
+
+    /// Acknowledge the disclosed network consequence.
+    pub fn acknowledge_network(&mut self) {
+        self.acknowledge_network = true;
+    }
+
+    /// Acknowledge the disclosed estimated cost.
+    pub fn acknowledge_cost(&mut self) {
+        self.acknowledge_cost = true;
+    }
+
+    /// Confirm creating a persistent live recording.
+    pub fn acknowledge_recording(&mut self) {
+        self.acknowledge_recording = true;
+    }
+
+    /// Return the explicit confirmation summary without launching anything.
+    pub fn review(&self) -> Result<RecordingWorkflowReview, WizardError> {
+        let source = self.source.clone().ok_or(WizardError::InvalidSettings)?;
+        let live = matches!(source, RecordingSource::LiveRecording);
+        let ready = if live {
+            self.acknowledge_network && self.acknowledge_cost && self.acknowledge_recording
+        } else {
+            true
+        };
+        Ok(RecordingWorkflowReview {
+            source,
+            network: if live {
+                self.catalog.live_network.clone()
+            } else {
+                "denied (strict cassette replay)".to_owned()
+            },
+            estimated_cost_minor: if live {
+                self.catalog.estimated_cost_minor
+            } else {
+                0
+            },
+            ready,
+            result_label: if live {
+                "live_recording"
+            } else {
+                "strict_replay"
+            },
+        })
+    }
+
+    /// Render choices and unavailable reasons without digests or captured content.
+    pub fn render_plain(&self) -> Result<String, WizardError> {
+        let review = self.review()?;
+        Ok(format!(
+            "ASB record/replay | Agent: {}\nCompatible recordings: {}\nUnavailable recordings: {}\nSource: {}\nNetwork: {}\nEstimated cost (minor): {}\nReady: {}",
+            self.catalog.agent.0,
+            self.catalog.compatible.len(),
+            self.catalog.unavailable.len(),
+            review.result_label,
+            review.network,
+            review.estimated_cost_minor,
+            review.ready
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1906,6 +2117,66 @@ mod tests {
         assert_eq!(
             event_control.phase(),
             RunControlPhase::Terminal(PublicRunState::Failed)
+        );
+    }
+
+    fn recording_catalog() -> RecordingWorkflowCatalog {
+        RecordingWorkflowCatalog {
+            schema_version: RECORD_REPLAY_TUI_WORKFLOW_V1,
+            agent: ChoiceId("codex".into()),
+            provider_profile_sha256: "a".repeat(64),
+            compatible: vec![RecordingChoice {
+                cassette_id: "fixture-a".into(),
+                cassette_sha256: "b".repeat(64),
+            }],
+            unavailable: vec![UnavailableRecording {
+                cassette_id: "fixture-near-match".into(),
+                reason: RecordingUnavailableReason::ProviderProfileMismatch,
+            }],
+            live_available: true,
+            live_network: "provider network; credentials required".into(),
+            estimated_cost_minor: 3,
+        }
+    }
+
+    #[test]
+    fn recording_workflow_requires_explicit_live_acknowledgements() {
+        let mut workflow = RecordingWorkflow::new(recording_catalog()).unwrap();
+        workflow.select_live_recording().unwrap();
+        let review = workflow.review().unwrap();
+        assert!(!review.ready);
+        workflow.acknowledge_network();
+        workflow.acknowledge_cost();
+        workflow.acknowledge_recording();
+        let review = workflow.review().unwrap();
+        assert!(review.ready);
+        assert_eq!(review.result_label, "live_recording");
+        assert!(
+            workflow
+                .render_plain()
+                .unwrap()
+                .contains("Unavailable recordings: 1")
+        );
+    }
+
+    #[test]
+    fn recording_workflow_replay_is_exact_and_network_denied() {
+        let mut workflow = RecordingWorkflow::new(recording_catalog()).unwrap();
+        workflow.select_replay(&"b".repeat(64)).unwrap();
+        let review = workflow.review().unwrap();
+        assert!(review.ready);
+        assert_eq!(review.result_label, "strict_replay");
+        assert_eq!(review.network, "denied (strict cassette replay)");
+        assert!(workflow.select_replay(&"c".repeat(64)).is_err());
+    }
+
+    #[test]
+    fn recording_workflow_rejects_untrusted_catalog_shapes() {
+        let mut catalog = recording_catalog();
+        catalog.compatible[0].cassette_sha256 = "B".repeat(64);
+        assert_eq!(
+            RecordingWorkflow::new(catalog).unwrap_err(),
+            WizardError::InvalidCatalog
         );
     }
 }

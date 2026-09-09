@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use url::Url;
@@ -136,7 +137,7 @@ impl RedactionPolicy {
 }
 
 /// Non-sensitive evidence describing a completed redaction.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RedactionReport {
     /// Applied policy version.
     pub policy_version: u16,

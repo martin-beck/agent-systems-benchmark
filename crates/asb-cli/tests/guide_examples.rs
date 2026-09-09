@@ -194,9 +194,9 @@ fn public_guides_reference_the_executable_contract() {
     let reproducibility = include_str!("../../../docs/REPRODUCIBILITY.md");
     for guide in [quickstart, extensions, reproducibility] {
         assert!(guide.contains("guide-contract.json") || guide.contains("guide_examples"));
-        assert!(!guide.contains("asb record "));
-        assert!(!guide.contains("asb replay "));
     }
+    assert!(quickstart.contains("asb record CAPTURE.json CASSETTE.json"));
+    assert!(quickstart.contains("asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT"));
     for command in contract["commands"].as_array().unwrap() {
         let row = format!("| `{}` | supported |", command.as_str().unwrap());
         assert!(quickstart.contains(&row));

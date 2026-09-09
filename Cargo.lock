@@ -76,6 +76,7 @@ dependencies = [
  "asb-control",
  "asb-metrics",
  "asb-protocol",
+ "asb-replay",
  "asb-runtime",
  "asb-store",
  "asb-workloads",

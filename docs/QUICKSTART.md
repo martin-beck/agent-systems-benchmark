@@ -69,9 +69,24 @@ selectable. Ollama remains advertised but unavailable until local-daemon
 evidence has been verified; there is no silent fallback. Bash completion is
 available with `source <(asb completion bash)`.
 
-The current CLI does not provide provider recording, replay selection, workload
-download, installation, or live-provider credential setup. Those must not be
-inferred from the in-tree replay libraries.
+## Recording once and replaying later
+
+Recording is opt-in and requires a bounded `RecordingCapture` JSON envelope
+with explicit `record`, `network`, and (when nonzero) `cost` acknowledgements.
+The command redacts and atomically seals the capture; its stdout contains only
+catalog metadata, never prompts, responses, or credentials:
+
+```sh
+asb record CAPTURE.json CASSETTE.json
+asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT
+```
+
+Replay authenticates the cassette, requires an exact provider-profile and agent
+match, labels the result `strict_replay`, and denies provider network access.
+Incomplete, corrupt, stale, or incompatible cassettes fail before execution.
+The TUI exposes the same choices through `RecordingWorkflow`: compatible
+recordings are selectable, near matches carry an explicit unavailable reason,
+and live recording shows network and cost consequences before confirmation.
 
 ## Tested command support
 
@@ -88,7 +103,7 @@ This table is checked against live `doctor` output and
 | `sweep` | supported |
 | `compare` | supported |
 | `report` | supported |
+| `record` | supported |
+| `replay` | supported |
 | `completion` | supported |
 | `serve` | supported |
-| `record` | unsupported |
-| `replay` | unsupported |

@@ -9,6 +9,8 @@
     "sweep",
     "compare",
     "report",
+    "record",
+    "replay",
     "completion",
     "serve"
   ],
@@ -21,8 +23,5 @@
     "original.build-repair",
     "original.repository-navigation"
   ],
-  "unsupported_commands": [
-    "record",
-    "replay"
-  ]
+  "unsupported_commands": []
 }
