@@ -126,6 +126,28 @@
       "attempt_budget": 1,
       "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
       "limitations": ["The repository is continuously updated; release_v6 dataset identity is separate from the source checkout", "This is a time-windowed code-generation benchmark, not complete autonomous-agent evidence", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+    },
+    {
+      "id": "swe-lancer",
+      "version": "frontier-evals-51052ced",
+      "kind": "long-horizon-repository-and-proposal",
+      "source": {"repository": "https://github.com/openai/frontier-evals", "commit": "51052cede8cc608f95bb00346635e03759013e5a", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "archive_status": "unavailable-at-pinned-revision"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://github.com/openai/frontier-evals", "revision": "51052cede8cc608f95bb00346635e03759013e5a", "split": "swelancer", "license": "NOASSERTION"},
+      "evaluator": {"entrypoint": "frontier-evals/project/swelancer", "version": "51052cede8cc608f95bb00346635e03759013e5a", "repository": "https://github.com/openai/frontier-evals", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "image_digest": null, "oracle": "offline-task-tests-and-managerial-labels", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The original SWELancer repository is archived and the maintained code moved into frontier-evals", "Source archive and license evidence were unavailable at this pinned revision and must be refreshed before execution", "This records an evolving workload boundary only; task setup, evaluator images, contamination cutoff, reset behavior, and native qualification remain unverified"]
+    },
+    {
+      "id": "swe-rebench",
+      "version": "swe-bench-fork-e4907b7a",
+      "kind": "continuously-refreshed-repository-repair",
+      "source": {"repository": "https://github.com/SWE-rebench/SWE-bench-fork", "commit": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284", "license": "MIT", "archive_status": "unavailable-at-pinned-revision"},
+      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/nebius/SWE-rebench", "revision": "89cdfbab4ab1bd8f5a658bb212d1b63624f4f881", "split": "default", "license": "CC-BY-4.0"},
+      "evaluator": {"entrypoint": "swe-bench-fork", "version": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284", "repository": "https://github.com/SWE-rebench/SWE-bench-fork", "license": "MIT", "image_digest": null, "oracle": "repository-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "attempt_budget": 1,
+      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
+      "limitations": ["The dataset is continuously refreshed, so the revision and contamination cutoff must be repinned for every evaluation window", "Source archive bytes and task-image digests are not yet qualified", "No evaluator SBOM, deterministic reset evidence, independent grading audit, or native qualification is claimed"]
     }
   ]
 }

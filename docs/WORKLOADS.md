@@ -32,6 +32,8 @@ and failure evidence without publishing task secrets or raw private transcripts.
 | [BigCodeBench](https://github.com/bigcode-project/bigcodebench) | Library-oriented code generation | Component workload, not complete agent evaluation |
 | [HumanEval+ / MBPP+ via EvalPlus](https://github.com/evalplus/evalplus) | Fast code correctness controls | Small synthetic controls; weak proxy for repository engineering |
 | [LiveCodeBench](https://github.com/LiveCodeBench/LiveCodeBench) | Time-windowed coding evaluation | Pin release/window; separate code-generation claims from agent systems claims |
+| [SWE-Lancer](https://github.com/openai/frontier-evals/tree/main/project/swelancer) | Long-horizon repository repair and proposal decisions | Archived source boundary; license/archive, task-image, contamination-cutoff, and native evidence remain unqualified |
+| [SWE-rebench](https://huggingface.co/datasets/nebius/SWE-rebench) | Continuously refreshed, decontaminated repository repair | Repin every evaluation window; task images, reset, grading, and native evidence remain unqualified |
 
 The AR-0404 catalogue also records four optional, provenance-only suite boundaries in
 `crates/asb-workloads/registry/v1/external-workloads.json`: SWE-bench Pro (`main-ca10a60a`),
@@ -41,6 +43,14 @@ identity, and explicit-download/non-vendored policy. All evaluator and native-pl
 remain `planned` or unsupported until immutable evaluator images, SBOMs, reset/fault evidence,
 and real native runs are independently qualified. These are code-generation or correctness
 controls and must not be reported as complete agent-performance results.
+
+AR-0406 adds SWE-Lancer and SWE-rebench as explicit-download, non-vendored, provenance-only
+boundaries. SWE-Lancer is pinned to frontier-evals commit `51052ced` and remains unavailable for
+execution until its archived source/license and offline evaluator boundary are repinned. SWE-rebench
+is pinned to SWE-bench-fork `e4907b7a` and dataset revision `89cdfbab`; its CC-BY-4.0 dataset,
+continuously changing task window, and missing immutable task-image/evaluator evidence require a
+fresh contamination cutoff for each future evaluation. Neither entry claims an evaluator or native
+platform result.
 
 Before enabling any external suite, record code and dataset licenses separately,
 task revision, evaluator version, image digests and redistributable assets.
