@@ -17,11 +17,11 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
         "loom_source_commit = \"a7033ee06a97c52eb2f8131c095fbea6c6eecba3\"",
         "tla_version = \"1.8.0\"",
         "tla_source_commit = \"b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e\"",
-        "tla_release_asset_id = 551658253",
-        "tla_release_asset_created_at = \"2026-09-09T00:46:34Z\"",
-        "tla_release_asset_url = \"https://api.github.com/repos/tlaplus/tlaplus/releases/assets/551658253\"",
-        "tla_sha256 = \"0d1f3b48ed121054c03cbd0ac12a1fad0c3dfd932921b9fd0921773a36a88f43\"",
-        "tla_bytes = 4489044",
+        "tla_release_asset_id = 551679598",
+        "tla_release_asset_created_at = \"2026-09-09T00:59:49Z\"",
+        "tla_release_asset_url = \"https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar\"",
+        "tla_sha256 = \"13885c0971b5faf31c89b89b90784c2bf3e2939632aa1ab10499504627e47209\"",
+        "tla_bytes = 4489230",
         "alloy_version = \"6.2.0\"",
         "alloy_source_commit = \"59ba2033993449d483d54acad0e11a7bbf20354f\"",
         "alloy_sha256 = \"6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d\"",
@@ -33,7 +33,7 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
     }
     assert!(MANIFEST.contains("loom = \"=0.7.2\""));
     assert!(TEMPORAL_RUNNER.contains(
-        "TLA_URL=https://api.github.com/repos/tlaplus/tlaplus/releases/assets/551658253"
+        "TLA_URL=https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar"
     ));
     assert!(TEMPORAL_RUNNER.contains("Accept: application/octet-stream"));
     assert!(

@@ -2,11 +2,11 @@
 # Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 set -euo pipefail
-TLA_SHA256=0d1f3b48ed121054c03cbd0ac12a1fad0c3dfd932921b9fd0921773a36a88f43
+TLA_SHA256=13885c0971b5faf31c89b89b90784c2bf3e2939632aa1ab10499504627e47209
 ALLOY_SHA256=6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d
-TLA_BYTES=4489044
+TLA_BYTES=4489230
 ALLOY_BYTES=21062377
-TLA_URL=https://api.github.com/repos/tlaplus/tlaplus/releases/assets/551658253
+TLA_URL=https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
 ALLOY_URL=https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v6.2.0/org.alloytools.alloy.dist.jar
 if [[ $# -ne 2 || $1 != /* || $2 != /* ]]; then
   echo "usage: $0 ABSOLUTE_TOOL_DIR ABSOLUTE_NEW_SCRATCH_DIR" >&2
