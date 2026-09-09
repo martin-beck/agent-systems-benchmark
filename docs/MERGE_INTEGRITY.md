@@ -18,10 +18,14 @@ python3 tools/integration/merge_pr.py \
 ```
 
 The command refuses a dirty tree, stale target or pull-request ref, non-descendant head, wrong
-tree, missing DCO, or untrusted signature. It uses `git commit-tree -S` to create a signed,
-DCO-trailered no-fast-forward merge with parents exactly `BASE_OID HEAD_OID` and tree exactly
-`TREE_OID`. Publication rechecks `main` and uses an exact `--force-with-lease`; ambiguity requires
-read-only remote reconciliation before another attempt.
+tree, missing DCO, untrusted signature, or a signer principal that differs from the matching
+author, committer, and DCO identity. It uses `git commit-tree -S` to create a signed, DCO-trailered
+no-fast-forward merge with parents exactly `BASE_OID HEAD_OID` and tree exactly `TREE_OID`.
+Publication reads the target and pull-request refs together immediately before and after the push
+and uses an exact `--force-with-lease`. A transport error is not proof of failure: if the post-error
+read shows the exact merge, it records acceptance; unchanged or divergent state fails closed and
+requires a new invocation after reconciliation. Diagnostics are bounded and generic and never
+copy Git, transport, user, machine, path, or credential text.
 
 Repository administrators disable every GitHub web merge mode after reviewing the change:
 

@@ -7,8 +7,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
+from pathlib import Path
+
+if __package__:
+    from .merge_pr import bounded_command
+else:
+    from merge_pr import bounded_command
 
 REQUIRED = {
     "allow_merge_commit": False,
@@ -20,14 +25,9 @@ REQUIRED = {
 
 
 def fetch(repository: str) -> dict[str, object]:
-    result = subprocess.run(
-        ["gh", "api", f"repos/{repository}"],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    result = bounded_command(Path.cwd(), "gh", "api", f"repos/{repository}")
     if result.returncode:
-        raise ValueError(result.stderr.strip() or "GitHub settings query failed")
+        raise ValueError("GitHub settings query failed")
     return json.loads(result.stdout)
 
 
@@ -35,9 +35,9 @@ def apply(repository: str) -> dict[str, object]:
     command = ["gh", "api", "--method", "PATCH", f"repos/{repository}"]
     for key, value in REQUIRED.items():
         command.extend(["-F", f"{key}={str(value).lower()}"])
-    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    result = bounded_command(Path.cwd(), *command)
     if result.returncode:
-        raise ValueError(result.stderr.strip() or "GitHub settings update failed")
+        raise ValueError("GitHub settings update failed")
     return json.loads(result.stdout)
 
 
@@ -70,7 +70,10 @@ def main() -> int:
         if not isinstance(settings, dict):
             raise TypeError("repository settings response must be an object")
         validate(settings)
-    except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+    except OSError:
+        print("merge settings: bounded local operation failed", file=sys.stderr)
+        return 1
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
         print(f"merge settings: {error}", file=sys.stderr)
         return 1
     print("merge settings: incompatible web merge modes are disabled")
