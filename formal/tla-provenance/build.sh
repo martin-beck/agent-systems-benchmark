@@ -72,7 +72,13 @@ docker_cmd=(docker)
 if ! docker info >/dev/null 2>&1; then
     docker_cmd=(sudo -n docker)
 fi
-"${docker_cmd[@]}" inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$image" | grep -Fx 'sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e linux/amd64' >/dev/null
+if ! "${docker_cmd[@]}" image inspect --format \
+    '{"config_id":{{json .Id}},"repo_digests":{{json .RepoDigests}},"os":{{json .Os}},"architecture":{{json .Architecture}}}' \
+    "$image" 2>/dev/null \
+    | "$script_dir/verify_image_identity.sh" "$image" linux amd64; then
+    echo "OCI image inspection or verification failed" >&2
+    exit 65
+fi
 "${docker_cmd[@]}" run --rm -i --pull never --network none "$image" sha256sum -c - >/dev/null <<'EOF'
 4b9abebc4338048a7c2dc184e9f800deb349366bdf28eb23c2677a77b4c87726  /opt/java/openjdk/legal/java.base/LICENSE
 a44eb7b5caf5534c6ef536b21edb40b4d6babf91bf97d9d45596868618b2c6fb  /opt/java/openjdk/legal/java.base/ASSEMBLY_EXCEPTION
