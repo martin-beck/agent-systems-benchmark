@@ -206,3 +206,56 @@ fn public_guides_reference_the_executable_contract() {
         assert!(quickstart.contains(&row));
     }
 }
+
+#[test]
+fn beginner_workflow_hub_has_complete_links_and_honest_boundaries() {
+    let hub = include_str!("../../../docs/workflows/README.md");
+    let cli = include_str!("../../../docs/workflows/cli-first-run.md");
+    let tui = include_str!("../../../docs/workflows/tui-first-run.md");
+    let multi = include_str!("../../../docs/workflows/multi-agent-provider.md");
+    let replay = include_str!("../../../docs/workflows/record-replay.md");
+    let recovery = include_str!("../../../docs/workflows/troubleshooting.md");
+    for link in [
+        "cli-first-run.md",
+        "tui-first-run.md",
+        "multi-agent-provider.md",
+        "record-replay.md",
+        "troubleshooting.md",
+    ] {
+        assert!(hub.contains(link), "workflow hub missing {link}");
+    }
+    for command in [
+        "asb doctor",
+        "asb plan",
+        "asb run",
+        "asb sweep",
+        "asb report",
+        "asb compare",
+        "asb provider-catalog",
+        "asb provider-plan",
+        "asb record",
+        "asb replay",
+    ] {
+        assert!(
+            cli.contains(command) || multi.contains(command) || replay.contains(command),
+            "workflow docs missing {command}"
+        );
+    }
+    for model in [
+        "MultiAgentWizard",
+        "RunControl",
+        "ControlCall::ValidateSettings",
+        "ControlCall::CreatePlan",
+    ] {
+        assert!(tui.contains(model), "TUI guide missing {model}");
+    }
+    assert!(replay.contains("RecordingWorkflow"));
+    assert!(hub.contains("does not promise a keyboard map"));
+    assert!(recovery.contains("needs_reconciliation"));
+    let home_prefix = format!("{}home{}", '/', '/');
+    let private_host = ["ai", "ws"].join("-");
+    for guide in [hub, cli, tui, multi, replay, recovery] {
+        assert!(!guide.contains(&home_prefix));
+        assert!(!guide.contains(&private_host));
+    }
+}
