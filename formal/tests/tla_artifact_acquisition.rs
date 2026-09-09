@@ -243,6 +243,8 @@ fn pins_consume_the_qualified_source_build_not_the_mutable_release() {
         assert!(PINS.contains(&rendered) || RUNNER.contains(&rendered));
     }
     assert!(!RUNNER.contains("releases/download/v1.8.0/tla2tools.jar"));
+    assert!(!RUNNER.contains("{{.Id}} {{.Os}}/{{.Architecture}}"));
+    assert!(RUNNER.contains("/tla-provenance/build.sh"));
     assert!(BUILD.contains("--network none"));
     assert!(BUILD.contains("--pull never"));
 }

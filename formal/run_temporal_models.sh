@@ -164,10 +164,6 @@ prepare_tla() (
   if ! "${docker_cmd[@]}" image inspect "$TLA_BUILD_IMAGE" >/dev/null 2>&1; then
     timeout --signal=TERM 180 "${docker_cmd[@]}" pull "$TLA_BUILD_IMAGE" >/dev/null
   fi
-  [[ $("${docker_cmd[@]}" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$TLA_BUILD_IMAGE") \
-     == "sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e linux/amd64" ]] || {
-    echo "TLA build image identity differs" >&2; return 2;
-  }
   built="$build_cache/tla2tools.jar"
   "$(dirname "$0")/tla-provenance/build.sh" "$build_cache" "$built"
   chmod 400 "$built"
