@@ -25,6 +25,8 @@ def test_external_registry_is_pinned_and_non_vendored():
         "bigcodebench",
         "evalplus",
         "livecodebench",
+        "swe-lancer",
+        "swe-rebench",
     ]
     for item in data["workloads"]:
         assert item["dataset"]["vendored"] is False
@@ -55,10 +57,21 @@ def test_external_registry_is_pinned_and_non_vendored():
         assert item["performance"]["paired_trials"] == 0
         assert item["performance"]["uncertainty_method"] is None
 
-    for item in data["workloads"][-4:]:
+    for item in [
+        item for item in data["workloads"]
+        if item["id"] in {"swe-bench-pro", "bigcodebench", "evalplus", "livecodebench"}
+    ]:
         assert item["source"]["archive_status"] == "verified"
         assert len(item["source"]["commit"]) == 40
         assert len(item["source"]["archive_sha256"]) == 64
         assert len(item["dataset"]["revision"]) == 40
         assert item["evaluator"]["provenance"]["status"] == "planned"
         assert item["platforms"]["linux-aarch64"] == "unsupported-until-native-evidence"
+
+    evolving = {
+        item["id"]: item
+        for item in data["workloads"]
+        if item["id"] in {"swe-lancer", "swe-rebench"}
+    }
+    assert evolving["swe-lancer"]["source"]["archive_status"] == "unavailable-at-pinned-revision"
+    assert evolving["swe-rebench"]["dataset"]["license"] == "CC-BY-4.0"

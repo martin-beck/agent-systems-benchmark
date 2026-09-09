@@ -16,7 +16,7 @@ def test_external_registry_validator_reports_stable_digest():
     result = json.loads(first)
     assert result == json.loads(second)
     assert result["schema_version"] == 1
-    assert result["workloads"] == 11
+    assert result["workloads"] == 13
     assert len(result["registry_sha256"]) == 64
 
 
