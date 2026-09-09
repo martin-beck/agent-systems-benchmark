@@ -10,6 +10,50 @@ use std::io::{IsTerminal, stdin, stdout};
 /// Maximum terminal dimension accepted from an environment hint.
 pub const MAX_TERMINAL_DIMENSION: u16 = 16_384;
 
+/// Responsive layout selected from the current authoritative dimensions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LayoutClass {
+    /// A one-column, keyboard-first view for very small terminals.
+    Compact,
+    /// A reduced table view that preserves labels and focus.
+    Standard,
+    /// Full panels and numeric detail are available.
+    Wide,
+}
+
+/// Current dimensions and responsive layout decision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResponsiveLayout {
+    /// Authoritative width used for this frame.
+    pub columns: u16,
+    /// Authoritative height used for this frame.
+    pub lines: u16,
+    /// Layout class for this frame only.
+    pub class: LayoutClass,
+}
+
+impl ResponsiveLayout {
+    /// Select a safe layout; missing dimensions use the compact fallback.
+    pub fn from_dimensions(columns: Option<u16>, lines: Option<u16>) -> Self {
+        let columns = columns.unwrap_or(1).max(1);
+        let lines = lines.unwrap_or(1).max(1);
+        let class = if columns < 40 || lines < 8 {
+            LayoutClass::Compact
+        } else if columns < 100 || lines < 20 {
+            LayoutClass::Standard
+        } else {
+            LayoutClass::Wide
+        };
+        Self {
+            columns,
+            lines,
+            class,
+        }
+    }
+}
+
 /// Evidence supplied by the channel and terminal, kept separate from policy.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -268,5 +312,25 @@ mod tests {
         value.term = Some("xterm".into());
         value.lines = Some(MAX_TERMINAL_DIMENSION + 1);
         assert_eq!(value.validate(), Err(TerminalError::InvalidEvidence));
+    }
+
+    #[test]
+    fn responsive_layout_never_trusts_missing_or_tiny_dimensions() {
+        assert_eq!(
+            ResponsiveLayout::from_dimensions(Some(1), Some(1)).class,
+            LayoutClass::Compact
+        );
+        assert_eq!(
+            ResponsiveLayout::from_dimensions(Some(80), Some(24)).class,
+            LayoutClass::Standard
+        );
+        assert_eq!(
+            ResponsiveLayout::from_dimensions(Some(160), Some(50)).class,
+            LayoutClass::Wide
+        );
+        assert_eq!(
+            ResponsiveLayout::from_dimensions(None, None).class,
+            LayoutClass::Compact
+        );
     }
 }
