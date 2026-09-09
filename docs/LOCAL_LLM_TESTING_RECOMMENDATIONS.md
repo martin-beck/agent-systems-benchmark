@@ -6,14 +6,14 @@ exact pinned revision before ASB calls them supported.
 
 Primary project sources:
 
-- [MockAgents](https://github.com/mockagents/mockagents)
-- [CopilotKit aimock](https://github.com/CopilotKit/aimock)
-- [larsakerlund/llmock](https://github.com/larsakerlund/llmock)
-- [piyook/llm-mock](https://github.com/piyook/llm-mock)
-- [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)
-- [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
-- [vLLM OpenAI-compatible server](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/)
-- [LocalAI overview](https://localai.io/docs/overview/index.html)
+- [MockAgents](https://github.com/mockagents/mockagents/tree/6ddb03e54a14484e5929a19673f0cfd8a1975f07)
+- [CopilotKit aimock](https://github.com/CopilotKit/aimock/tree/7323e819bce1b971dc2b7907407401b7d65bbe8c)
+- [larsakerlund/llmock](https://github.com/larsakerlund/llmock/tree/9121df067b0a0af1c27f57d3d81f3f128528b586)
+- [piyook/llm-mock](https://github.com/piyook/llm-mock/tree/96895387780934fcfbb59311ff99c987dde7f4a0)
+- [Ollama OpenAI compatibility](https://github.com/ollama/ollama/tree/13f2fb8c99278469b954429d5541019f4d83a4d0)
+- [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/5266f24da75dc449bd56cbed7addb9c8e4a6a73e/tools/server/README.md)
+- [vLLM OpenAI-compatible server](https://github.com/vllm-project/vllm/tree/2cf0a6915ce544dc493a0990f2ea38d81601128a)
+- [LocalAI overview](https://github.com/mudler/LocalAI/tree/f7ad3f70eb5d8a0ddf80e08557f0d7df28cf032e)
 
 Release tags and commits below are the assessed identities. Implementing tasks must
 refresh upstream facts, then preserve immutable source and artifact digests in their
@@ -87,7 +87,7 @@ protocol doubles, not another replay engine.
 
 ## Local-inference candidates
 
-- **Ollama:** ASB pins loopback-only 0.33.1 and a model digest. Its docs describe
+- **Ollama:** ASB pins loopback-only 0.33.1 at source commit `13f2fb8c99278469b954429d5541019f4d83a4d0` and a model digest. Its docs describe
   partial OpenAI compatibility and non-stateful Responses. Update server, model,
   templates, routes and wire expectations together.
 - **llama.cpp:** v0.4.0 peels to
@@ -116,7 +116,7 @@ may test grader protocol plumbing with public fixtures, but its score is synthet
 test evidence; a candidate local model, the same engine/model profile, or replayed
 candidate output cannot be promoted to independent model-quality evidence.
 
-AR-0884 owns the acceptance boundary: retain grader provider/model/artifact and
+AR-0892 owns the acceptance boundary: retain grader provider/model/artifact and
 evidence-class provenance, reject candidate/grader identity overlap and unavailable
 grader fallback, and publish a hostile same-profile rejection plus an independently
 provisioned grading artifact for every quality comparison claiming independence.
@@ -131,15 +131,15 @@ unprivileged with bounded resources, and expose no public listener.
 | AR | Deliverable | Depends on |
 | --- | --- | --- |
 | AR-0879 | Research decision/task graph | Existing provider/replay/workflow work |
-| AR-0880 | OpenAI+Anthropic mock conformance | AR-0879 |
-| AR-0881 | Fixture/privacy-safe evidence contract | AR-0880 |
-| AR-0882 | Selected credential-free CI double | AR-0880, AR-0881 |
-| AR-0883 | Grouped local-inference profiles | AR-0879, AR-0312/0313/0315 |
-| AR-0884 | Mock/replay/local/live evidence | AR-0882, AR-0883 |
-| AR-0885 | CLI setup/diagnostics | AR-0882/0883/0884, AR-0869/0871/0872 |
-| AR-0886 | TUI parity after existing TUI/CI work | AR-0885, AR-0870, AR-0873 |
+| AR-0888 | OpenAI+Anthropic mock conformance | AR-0879 |
+| AR-0889 | Fixture/privacy-safe evidence contract | AR-0888 |
+| AR-0890 | Selected credential-free CI double | AR-0888, AR-0889 |
+| AR-0891 | Grouped local-inference profiles | AR-0879, AR-0312/0313/0315 |
+| AR-0892 | Mock/replay/local/live evidence | AR-0890, AR-0891 |
+| AR-0893 | CLI setup/diagnostics | AR-0890, AR-0891, AR-0892, AR-0869/0871/0872 |
+| AR-0894 | TUI parity after existing TUI/CI work | AR-0893, AR-0870, AR-0873 |
 
-AR-0886 claims no screen or shortcut before implementation; CLI remains operational.
+AR-0894 claims no screen or shortcut before implementation; CLI remains operational.
 AR-0874 refreshes docs only after owning ARs finish. Each task publishes exact pins,
 hostile cases, labels and unsupported cases. CI denies provider networking and keeps
 no secrets. Local jobs cannot silently skip to mocks. Compatibility matrices derive
