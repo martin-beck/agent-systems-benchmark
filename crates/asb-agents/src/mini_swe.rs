@@ -1445,6 +1445,22 @@ mod tests {
 
     const MAX_PROC_STAT_BYTES: u64 = 4096;
     const MAX_PID_EVIDENCE_BYTES: u64 = 32;
+    const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;
+    const MAX_PROC_ENTRIES: usize = 65_536;
+    const MAX_PROCESS_GROUP_MEMBERS: usize = 1_024;
+
+    fn canonical_repository_root() -> io::Result<PathBuf> {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let repository = manifest
+            .ancestors()
+            .nth(2)
+            .ok_or_else(|| io::Error::other("repository root is unavailable"))?;
+        fs::canonicalize(repository)
+    }
+
+    fn paths_overlap(left: &Path, right: &Path) -> bool {
+        left.starts_with(right) || right.starts_with(left)
+    }
 
     struct PrivateTestRoot {
         base: fs::File,
@@ -1477,8 +1493,12 @@ mod tests {
                 return Err(io::Error::other("invalid test-root identity"));
             }
             let before = fs::symlink_metadata(base_path)?;
-            if !before.file_type().is_dir() || fs::canonicalize(base_path)? != base_path {
+            let canonical_base = fs::canonicalize(base_path)?;
+            if !before.file_type().is_dir() || canonical_base != base_path {
                 return Err(io::Error::other("unsafe test-root base"));
+            }
+            if paths_overlap(&canonical_base, &canonical_repository_root()?) {
+                return Err(io::Error::other("test root overlaps repository"));
             }
             let mode = before.mode() & 0o7777;
             let effective_uid = fs::metadata("/proc/self")?.uid();
@@ -1582,6 +1602,22 @@ mod tests {
         digits.parse().ok().filter(|pid| *pid > 0)
     }
 
+    fn parse_pid_list_evidence(bytes: &[u8]) -> Option<Vec<u32>> {
+        if bytes.is_empty() || bytes.len() > MAX_PID_LIST_EVIDENCE_BYTES as usize {
+            return None;
+        }
+        let text = std::str::from_utf8(bytes).ok()?;
+        let mut pids = Vec::new();
+        for line in text.lines() {
+            let pid = parse_pid_evidence(line.as_bytes())?;
+            if pids.contains(&pid) {
+                return None;
+            }
+            pids.push(pid);
+        }
+        (!pids.is_empty()).then_some(pids)
+    }
+
     fn parse_process_identity(expected_pid: u32, bytes: &[u8]) -> Option<ProcessIdentity> {
         if bytes.is_empty() || bytes.len() > MAX_PROC_STAT_BYTES as usize {
             return None;
@@ -1628,6 +1664,44 @@ mod tests {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
         }
+    }
+
+    fn process_group_members(process_group: u32, session: u32) -> io::Result<Vec<ProcessIdentity>> {
+        let mut members = Vec::new();
+        for (index, entry) in fs::read_dir("/proc")?.enumerate() {
+            if index >= MAX_PROC_ENTRIES {
+                return Err(io::Error::other("process table exceeds test bound"));
+            }
+            let entry = entry?;
+            let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|name| name.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            let Some(identity) = read_process_identity(pid)? else {
+                continue;
+            };
+            if identity.process_group == process_group && identity.session == session {
+                if members.len() >= MAX_PROCESS_GROUP_MEMBERS {
+                    return Err(io::Error::other("process group exceeds test bound"));
+                }
+                members.push(identity);
+            }
+        }
+        members.sort_by_key(|identity| identity.pid);
+        Ok(members)
+    }
+
+    fn runnable_group_members(
+        process_group: u32,
+        session: u32,
+    ) -> io::Result<Vec<ProcessIdentity>> {
+        Ok(process_group_members(process_group, session)?
+            .into_iter()
+            .filter(|identity| identity.state != b'Z')
+            .collect())
     }
 
     fn classify_original(
@@ -2013,7 +2087,10 @@ EOF
             &python,
             r#"#!/bin/sh
 sleep 30 &
-echo $! > "$5/child.pid"
+first=$!
+sleep 30 &
+second=$!
+printf '%s\n%s\n' "$first" "$second" > "$5/children.pids"
 wait
 "#,
         )
@@ -2045,14 +2122,24 @@ wait
         let mut running = config
             .start(Id("s".into()), Id("a".into()), "prompt", limits)
             .unwrap();
-        let pid_path = root.join("workspace/child.pid");
+        let pid_path = root.join("workspace/children.pids");
         let readiness_deadline = Instant::now() + Duration::from_secs(2);
-        let (child_pid, original) = loop {
-            if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_EVIDENCE_BYTES)
-                && let Some(pid) = parse_pid_evidence(&bytes)
-                && let Ok(Some(identity)) = read_process_identity(pid)
+        let (children, original_group) = loop {
+            if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
+                && let Some(pids) = parse_pid_list_evidence(&bytes)
+                && pids.len() == 2
+                && let Ok(members) = process_group_members(
+                    running.pid(),
+                    pids.first()
+                        .and_then(|pid| read_process_identity(*pid).ok().flatten())
+                        .map(|identity| identity.session)
+                        .unwrap_or(0),
+                )
+                && pids
+                    .iter()
+                    .all(|pid| members.iter().any(|identity| identity.pid == *pid))
             {
-                break (pid, identity);
+                break (pids, members);
             }
             assert!(
                 Instant::now() < readiness_deadline,
@@ -2060,27 +2147,36 @@ wait
             );
             std::thread::sleep(Duration::from_millis(5));
         };
-        assert_eq!(original.process_group, running.pid());
+        assert_eq!(children.len(), 2);
+        let session = original_group
+            .iter()
+            .find(|identity| identity.pid == children[0])
+            .unwrap()
+            .session;
+        assert!(
+            original_group
+                .iter()
+                .any(|identity| identity.pid == running.pid())
+        );
+        assert!(original_group.iter().all(|identity| {
+            identity.process_group == running.pid() && identity.session == session
+        }));
         running.cancel().unwrap();
         assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
         let terminal_deadline = Instant::now() + Duration::from_secs(2);
-        let final_state = loop {
-            let state = classify_original(original, read_process_identity(child_pid).unwrap());
-            if state != OriginalProcessState::Runnable {
-                break state;
+        loop {
+            if runnable_group_members(running.pid(), session)
+                .unwrap()
+                .is_empty()
+            {
+                break;
             }
             assert!(
                 Instant::now() < terminal_deadline,
                 "owned descendant remained runnable"
             );
             std::thread::sleep(Duration::from_millis(5));
-        };
-        assert!(matches!(
-            final_state,
-            OriginalProcessState::Missing
-                | OriginalProcessState::Reused
-                | OriginalProcessState::Zombie
-        ));
+        }
         scratch.cleanup().unwrap();
     }
 
@@ -2142,6 +2238,8 @@ wait
         );
         let oversized = vec![b"x"[0]; MAX_PROC_STAT_BYTES as usize + 1];
         assert_eq!(parse_process_identity(17, &oversized), None);
+        assert_eq!(parse_pid_list_evidence(b"17\n18\n"), Some(vec![17, 18]));
+        assert_eq!(parse_pid_list_evidence(b"17\n17\n"), None);
     }
 
     #[test]
@@ -2175,6 +2273,15 @@ wait
             .unwrap();
         fs::set_permissions(&unsafe_base, fs::Permissions::from_mode(0o777)).unwrap();
         assert!(PrivateTestRoot::create_named(&unsafe_base, "child".into()).is_err());
+        let repository = canonical_repository_root().unwrap();
+        assert!(PrivateTestRoot::create_named(&repository, "overlap".into()).is_err());
+        assert!(
+            PrivateTestRoot::create_named(&repository.join("crates"), "overlap".into()).is_err()
+        );
+        assert!(
+            PrivateTestRoot::create_named(repository.parent().unwrap(), "ancestor-overlap".into())
+                .is_err()
+        );
 
         let name = "owned-root".to_owned();
         let mut scratch = PrivateTestRoot::create_named(&fixture, name.clone()).unwrap();
