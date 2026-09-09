@@ -26,6 +26,7 @@ CANARY_WORKFLOW = Path(".github/workflows/development-host-canary.yml")
 CANARY_LABEL = "asb-development-v1-x86_64-ubuntu2404"
 TRUSTED_WORKFLOW = Path(".github/workflows/development-host-trusted.yml")
 QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
+EMULATED_AARCH64_WORKFLOW = Path(".github/workflows/emulated-aarch64.yml")
 HUAWEI_COPYRIGHT = "Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved."
 SPDX_MIT = "SPDX-License-Identifier: MIT"
 EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
@@ -103,9 +104,21 @@ def validate_workflows(manifest: dict[str, object]) -> None:
         is_canary = relative == CANARY_WORKFLOW
         is_trusted = relative == TRUSTED_WORKFLOW
         is_quality = relative == QUALITY_WORKFLOW
+        is_emulated_aarch64 = relative == EMULATED_AARCH64_WORKFLOW
         is_protected = is_canary or is_trusted
         if "pull_request_target:" in text:
             fail(f"{relative} uses pull_request_target")
+        if "ubuntu-24.04-arm" in text and ("  pull_request:\n" in text or "  push:\n" in text):
+            fail(f"{relative} makes native ARM64 an automatic development gate")
+        if is_emulated_aarch64:
+            required_emulated_fragments = (
+                '"on":\n  push:\n    branches: [main]\n  pull_request:\n',
+                "runs-on: ubuntu-24.04\n",
+                "QEMU_LD_PREFIX:",
+                "trap cleanup EXIT",
+            )
+            if any(fragment not in text for fragment in required_emulated_fragments):
+                fail(f"{relative} is not a required bounded QEMU AArch64 gate")
         if is_protected:
             triggers = re.search(r"^on:\n((?:  [^\n]*\n)*)", text, re.MULTILINE)
             if triggers is None or triggers.group(1) != "  workflow_dispatch:\n":
@@ -185,7 +198,7 @@ def validate_workflows(manifest: dict[str, object]) -> None:
         for raw_runner in runners:
             runner = raw_runner.split(" #", 1)[0].strip(" '\"")
             if runner == "${{ matrix.runner }}":
-                if "runner: [ubuntu-24.04, ubuntu-24.04-arm]" not in text:
+                if "runner: [ubuntu-24.04]" not in text:
                     fail(f"{relative} has an unbounded runner matrix")
             elif (
                 not (is_protected and runner == f"[{CANARY_LABEL}]")

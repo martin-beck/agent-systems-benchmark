@@ -130,22 +130,37 @@ fn first_allowed_cpu() -> u32 {
 }
 
 fn native_backend() -> Option<SandboxBackend> {
-    let backend = SandboxBackend::new(
-        ToolPin::new(PathBuf::from("/usr/bin/bwrap"), BWRAP_VERSION.into()).ok()?,
-        ToolPin::new(
-            PathBuf::from("/usr/bin/systemd-run"),
-            SYSTEMD_VERSION.into(),
-        )
-        .ok()?,
-        ToolPin::new(PathBuf::from("/usr/bin/systemctl"), SYSTEMD_VERSION.into()).ok()?,
-        ToolPin::new(PathBuf::from("/usr/bin/taskset"), TASKSET_VERSION.into()).ok()?,
-    );
+    fn unavailable(error: impl std::fmt::Display) -> Option<SandboxBackend> {
+        if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_some() {
+            panic!("required native sandbox capability unavailable: {error}");
+        }
+        eprintln!("native sandbox capability unavailable: {error}");
+        None
+    }
+    let bubblewrap = match ToolPin::new(PathBuf::from("/usr/bin/bwrap"), BWRAP_VERSION.into()) {
+        Ok(value) => value,
+        Err(error) => return unavailable(error),
+    };
+    let systemd_run = match ToolPin::new(
+        PathBuf::from("/usr/bin/systemd-run"),
+        SYSTEMD_VERSION.into(),
+    ) {
+        Ok(value) => value,
+        Err(error) => return unavailable(error),
+    };
+    let systemctl = match ToolPin::new(PathBuf::from("/usr/bin/systemctl"), SYSTEMD_VERSION.into())
+    {
+        Ok(value) => value,
+        Err(error) => return unavailable(error),
+    };
+    let taskset = match ToolPin::new(PathBuf::from("/usr/bin/taskset"), TASKSET_VERSION.into()) {
+        Ok(value) => value,
+        Err(error) => return unavailable(error),
+    };
+    let backend = SandboxBackend::new(bubblewrap, systemd_run, systemctl, taskset);
     match backend.probe() {
         Ok(()) => Some(backend),
-        Err(error) => {
-            eprintln!("native sandbox capability unavailable: {error}");
-            None
-        }
+        Err(error) => unavailable(error),
     }
 }
 

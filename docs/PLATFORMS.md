@@ -14,6 +14,13 @@ filesystem for an architecture. It does not identify the host kernel, prove that
 the image starts, install an agent, execute a workload or establish native support.
 A cross-build is never promoted to `native-tested`. That label requires a digest
 for an artifact produced by a run on the named native architecture and kernel.
+The artifact must be a bounded, sanitized report produced by
+`tools/platforms/native_evidence.py`. The manifest validator checks its SHA-256,
+source commit and tree, reviewed base ancestry, platform, architecture, booted
+kernel provenance, run ID, cgroup v2 and PSI probes, and the exact process,
+metrics and optional sandbox check set. The closed report contract is
+[`native-evidence.schema.json`](../platforms/v1/native-evidence.schema.json).
+A partial report remains useful evidence but cannot promote a cell.
 
 All available cells below are initially `planned`. Arch aarch64 is `unsupported`
 because the official Arch Linux image index contains only amd64; Arch Linux ARM is
@@ -23,7 +30,7 @@ cells after exact runtime evidence exists.
 
 | Family | Pinned release/snapshot | libc baseline | amd64 image | arm64 image | Native kernel evidence |
 | --- | --- | --- | --- | --- | --- |
-| Ubuntu | 24.04.4 LTS | glibc 2.39 | planned | planned | planned |
+| Ubuntu | 24.04.4 LTS | glibc 2.39 | planned | planned | x86_64 native-tested; aarch64 planned |
 | Debian | 13.6 (trixie) | glibc 2.41 | planned | planned | planned |
 | Fedora | 44 | glibc 2.43 | planned | planned | planned |
 | Rocky Linux | 9.7 | glibc 2.34 | planned | planned | planned |
@@ -69,6 +76,68 @@ artifact retrieval. This establishes availability and contents only. Host cgroup
 v2 delegation, systemd, SELinux/AppArmor, perf permission, PSI, BTF, native kernel
 identity, agent startup and workload success all remain explicitly unverified.
 
+## Native qualification boundary
+
+The dedicated `native-platforms.yml` workflow runs on a disposable native Ubuntu
+x86_64 GitHub runner. It checks out the exact pull-request head, then
+runs argv-only bounded process and native-metrics tests, attempts the delegated
+sandbox boundary in fail-closed mode, and uploads only canonical JSON. Command
+and output digests are retained; raw logs, hostnames, environment contents and
+private filesystem paths are excluded. Hosted runners without user-systemd delegation
+produce `native-functional-partial`, never a false `native-tested` result.
+
+Native reports bind the exact manifest release to bounded operating-system
+release evidence. Ubuntu requires `VERSION="24.04.4 LTS (Noble Numbat)"`;
+Debian requires both `VERSION="13 (trixie)"` and `/etc/debian_version` equal to
+`13.6`; openEuler requires `VERSION="24.03 (LTS-SP2)"` and
+`/etc/openEuler-release` equal to `openEuler release 24.03 (LTS-SP2)`. Major
+version, substring and prefix matches are insufficient.
+
+Reports retain the kernel LSM registration list and observed SELinux mode.
+AppArmor registration is recorded as `registered-unproven`: registration alone
+does not prove enforcement, and AR-0702 has no denial oracle that would justify
+that stronger claim. SELinux is recorded as enforcing or permissive only when
+the live state is readable. Missing privilege or state makes qualification
+partial rather than silently treating policy as disabled.
+
+Sandbox prerequisites are platform-specific reviewed pins. The Ubuntu profile
+uses bubblewrap `0.9.0-1ubuntu0.1`, systemd `255.4-1ubuntu8.17`, and
+util-linux `2.39.3-9ubuntu6.6` from packages.ubuntu.com. The Debian 13.6
+profile uses bubblewrap `0.12.0-1~deb13u1`, systemd
+`257.13-1~deb13u1`, and util-linux `2.41.5-0+deb13u1` from
+packages.debian.org. The openEuler 24.03 LTS-SP2 profile uses bubblewrap
+`0.8.0-2.oe2403sp2`, systemd `255-43.oe2403sp2`, and util-linux
+`2.39.1-22.oe2403sp2` from the official repo.openeuler.org source-package
+index. The collector queries the native package database for ownership, exact
+version and architecture; binds every sandbox executable to the installed dpkg
+manifest or a clean RPM verification result; and records bounded binary and
+package-record digests. It also binds the booted kernel to its installed package
+record and integrity data, plus digests of live kernel notes and `/proc/version`
+(and the Ubuntu version signature when present). Reports retain only public
+package identities and public source URLs; validation rejects metadata or binary
+drift.
+
+Publication walks every output component relative to a pre-opened trusted root
+using directory file descriptors and `O_NOFOLLOW`, then links a newly-created
+temporary file into an absent destination. Intermediate and final symlink races
+therefore fail without creating or replacing data outside the trusted root.
+Before and after native checks, collection also verifies the exact source HEAD,
+tree, clean state and ancestry from the reviewed base. Validation rechecks those
+immutable identities against the candidate repository. Reports are canonical,
+bounded to 1 MiB, restrict each check output to 16 MiB, use a closed
+virtualization vocabulary, and reject control text, credential markers and
+private host/path identifiers.
+
+Virtual machines using the requested native instruction set may establish
+functional behavior, but every report sets `performance_baseline` to false.
+Containers and QEMU, UML or Bochs emulation are rejected as native evidence.
+Performance claims require separately controlled native resources.
+
+AR-0703 tracks optional future disposable booted Debian 13 and openEuler 24.03
+LTS-SP2 native ARM64 lab cells. Their absence does not block AR-0702 or development.
+The required AArch64 portability path is the pinned QEMU lane; it does not substitute
+for native ARM64 kernel, performance, or support-cell evidence.
+
 To refresh a candidate, first inspect its mutable tag, then inspect/export the
 resolved digest. Review all changes rather than replacing digests automatically:
 
@@ -89,10 +158,15 @@ The [native x86 capacity contract](NATIVE_X86_CAPACITY.md) qualifies one explici
 authorized existing Ubuntu x86_64 host as a bounded credential-free functional cell. Its
 sanitized evidence is separate from the distribution support matrix: it does not promote a
 platform or agent cell, establish an uncontended performance baseline, activate persistent
-runner routing, or provide native aarch64 capacity. AR-0702 remains responsible for native
-platform support claims.
+runner routing, or provide native ARM64 capacity. Native ARM64 is optional future qualification;
+AR-0702 completes from required native x86_64 and applicable pinned QEMU AArch64 evidence.
 
 ## Emulated aarch64 portability lane
+
+The [native ARM64 policy](NATIVE_AARCH64_POLICY.md) defines this lane as the required AArch64
+development gate where userspace emulation is technically meaningful and keeps native ARM64
+hardware evidence optional and non-blocking.
+
 
 [The emulation manifest](../platforms/v1/emulated-aarch64.json) defines a
 separate x86_64-hosted QEMU user-mode lane. It cross-builds the real workspace
@@ -107,7 +181,8 @@ This lane is labeled only emulated-aarch64. QEMU user mode shares the booted
 x86_64 host kernel; the recorded kernel release is host provenance, never guest
 or native-aarch64 evidence. It does not qualify native hardware, native kernels,
 timing, contention, architecture performance, distribution boot, Debian,
-openEuler, or any cell owned by AR-0702/AR-0703. The closed evidence contract
+openEuler, or a native support cell. It is nevertheless the required AArch64
+portability gate wherever userspace execution is technically meaningful. The closed evidence contract
 rejects those claim elevations and unknown fields.
 
 The binfmt interpreter receives the same digest-pinned guest userspace prefix as

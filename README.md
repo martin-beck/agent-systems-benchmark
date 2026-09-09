@@ -20,10 +20,12 @@ Empty, duplicate, mixed-provider, stale-version, lossy and unsupported selection
 fail as a whole; per-agent overrides are deliberately a separate choice.
 
 - Implementation: Rust, safe code, explicit errors and versioned contracts.
-- Target architectures: native x86_64 and aarch64 (arm64).
+- Target architectures: required native x86_64 and pinned QEMU-emulated AArch64;
+  native ARM64 is optional future qualification.
 - Initial agent targets: OpenCode, OpenDesk CLI, aider and Codex.
 - License: MIT, matching the CSB project's source license.
 - [Development plan](docs/PLAN.md)
+- [Native ARM64 and emulated AArch64 policy](docs/NATIVE_AARCH64_POLICY.md)
 - [Architecture and extension API](docs/ARCHITECTURE.md)
 - [Measurement methodology](docs/METHODOLOGY.md)
 - [Workload catalogue](docs/WORKLOADS.md)

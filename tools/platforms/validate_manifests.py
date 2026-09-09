@@ -8,8 +8,10 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import hashlib
 import json
 import re
+import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,9 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PLATFORMS = ROOT / "platforms/v1/platforms.json"
 DEFAULT_AGENTS = ROOT / "platforms/v1/agents.json"
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
+COMMIT = re.compile(r"^[0-9a-f]{40}$")
+EVIDENCE_PATH = re.compile(r"^platforms/v1/native-evidence/[A-Za-z0-9._-]+\.json$")
+RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PINNED_IMAGE = re.compile(r"^docker\.io/[a-z0-9_./-]+@sha256:[0-9a-f]{64}$")
 TAGGED_IMAGE = re.compile(r"^docker\.io/[a-z0-9_./-]+:[A-Za-z0-9_.-]+$")
 ARCHES = {"x86_64": "amd64", "aarch64": "arm64"}
@@ -44,6 +49,67 @@ HOST_CAPABILITIES = {
     "PSI",
     "BTF",
 }
+NATIVE_DISTRIBUTIONS = {
+    "ubuntu-24.04": ("ubuntu", "24.04", "24.04.4 LTS (Noble Numbat)",
+                       "24.04.4 LTS (Noble Numbat)"),
+    "debian-13": ("debian", "13", "13 (trixie)", "13.6"),
+    "openeuler-24.03-lts-sp2": (
+        "openEuler", "24.03", "24.03 (LTS-SP2)", "openEuler release 24.03 (LTS-SP2)"
+    ),
+}
+NATIVE_SANDBOX_TOOLS = {
+    "ubuntu-24.04": (
+        ("/usr/bin/bwrap", "bubblewrap 0.9.0", "bubblewrap", "0.9.0-1ubuntu0.1",
+         "https://packages.ubuntu.com/noble-updates/bubblewrap"),
+        ("/usr/bin/systemd-run", "systemd 255 (255.4-1ubuntu8.17)", "systemd",
+         "255.4-1ubuntu8.17", "https://packages.ubuntu.com/noble-updates/systemd"),
+        ("/usr/bin/systemctl", "systemd 255 (255.4-1ubuntu8.17)", "systemd",
+         "255.4-1ubuntu8.17", "https://packages.ubuntu.com/noble-updates/systemd"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.39.3", "util-linux",
+         "2.39.3-9ubuntu6.6",
+         "https://packages.ubuntu.com/noble-updates/util-linux"),
+    ),
+    "debian-13": (
+        ("/usr/bin/bwrap", "bubblewrap 0.12.0", "bubblewrap", "0.12.0-1~deb13u1",
+         "https://packages.debian.org/trixie/bubblewrap"),
+        ("/usr/bin/systemd-run", "systemd 257 (257.13-1~deb13u1)", "systemd",
+         "257.13-1~deb13u1", "https://packages.debian.org/trixie/systemd"),
+        ("/usr/bin/systemctl", "systemd 257 (257.13-1~deb13u1)", "systemd",
+         "257.13-1~deb13u1", "https://packages.debian.org/trixie/systemd"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.41.5", "util-linux",
+         "2.41.5-0+deb13u1",
+         "https://packages.debian.org/trixie/util-linux"),
+    ),
+    "openeuler-24.03-lts-sp2": (
+        ("/usr/bin/bwrap", "bubblewrap 0.8.0", "bubblewrap", "0.8.0-2.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/systemd-run", "systemd 255 (255-43.oe2403sp2)", "systemd",
+         "255-43.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/systemctl", "systemd 255 (255-43.oe2403sp2)", "systemd",
+         "255-43.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+        ("/usr/bin/taskset", "taskset from util-linux 2.39.1", "util-linux",
+         "2.39.1-22.oe2403sp2",
+         "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/"),
+    ),
+}
+NATIVE_KERNEL_SOURCES = {
+    "ubuntu-24.04": "https://packages.ubuntu.com/noble-updates/kernel/",
+    "debian-13": "https://packages.debian.org/trixie/kernel/",
+    "openeuler-24.03-lts-sp2": "https://repo.openeuler.org/openEuler-24.03-LTS-SP2/source/Packages/",
+}
+NATIVE_VIRTUALIZATION = {
+    "none", "kvm", "vmware", "microsoft", "oracle", "xen", "zvm",
+    "parallels", "amazon", "google",
+}
+REPORT_KEYS = {
+    "format_version", "kind", "qualification", "performance_baseline", "platform_id",
+    "architecture", "distribution", "kernel_release", "kernel_provenance",
+    "virtualization", "run_id", "source_commit", "source_tree", "source_base_commit",
+    "capabilities", "sandbox_tools", "checks",
+}
+NATIVE_SCHEMA = ROOT / "platforms/v1/native-evidence.schema.json"
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -70,9 +136,258 @@ def valid_integrity(value: object) -> bool:
     return len(decoded) == 64 and base64.b64encode(decoded).decode("ascii") == encoded
 
 
-def validate(platforms: dict[str, Any], agents: dict[str, Any]) -> list[str]:
-    """Return all semantic validation failures."""
+def validate_native_schema() -> list[str]:
+    """Require the checked-in schema to close the same top-level report shape."""
+    try:
+        schema = load(NATIVE_SCHEMA)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return ["native evidence schema is unavailable or invalid"]
+    required = schema.get("required")
+    if (
+        schema.get("type") != "object"
+        or schema.get("additionalProperties") is not False
+        or not isinstance(required, list)
+        or set(required) != REPORT_KEYS
+        or set(schema.get("properties", {})) != REPORT_KEYS
+    ):
+        return ["native evidence schema fields differ from validator contract"]
+    return []
+
+
+def report_strings_are_safe(value: object) -> bool:
+    """Reject controls, private identifiers, credentials and oversized report strings."""
+    if isinstance(value, str):
+        lower = value.lower()
+        return (
+            0 < len(value.encode()) <= 4096
+            and not any(ord(character) < 32 or ord(character) == 127 for character in value)
+            and not any(needle in lower for needle in (
+                "/home/", "ai-ws", "node26", "k920b", "password=", "passwd=", "token=",
+                "secret=", "api_key=", "authorization: bearer ",
+                "-----begin private key-----", "-----begin openssh private key-----",
+            ))
+        )
+    if isinstance(value, list):
+        return all(report_strings_are_safe(item) for item in value)
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and report_strings_are_safe(key) and report_strings_are_safe(item)
+            for key, item in value.items()
+        )
+    return value is None or isinstance(value, (bool, int))
+
+
+def validate_native_report(
+    evidence: dict[str, Any], row: dict[str, Any], ident: str, arch: str, root: Path
+) -> list[str]:
+    """Validate a native claim against one immutable sanitized report."""
     errors: list[str] = []
+    relative = evidence.get("artifact_path")
+    if not isinstance(relative, str) or not EVIDENCE_PATH.fullmatch(relative):
+        return [f"{ident}/{arch}: native evidence path is unsafe or missing"]
+    path = root / relative
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1 << 20:
+            raise ValueError
+        data = path.read_bytes()
+        report = json.loads(data)
+        if not isinstance(report, dict):
+            raise ValueError
+    except (OSError, ValueError, json.JSONDecodeError):
+        return [f"{ident}/{arch}: native evidence artifact is unavailable or invalid"]
+    digest = "sha256:" + hashlib.sha256(data).hexdigest()
+    if digest != evidence.get("artifact_digest"):
+        errors.append(f"{ident}/{arch}: native evidence artifact digest differs")
+    if set(report) != REPORT_KEYS:
+        errors.append(f"{ident}/{arch}: native report fields differ from schema")
+    canonical = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
+    if data != canonical:
+        errors.append(f"{ident}/{arch}: native report is not canonical JSON")
+    if not report_strings_are_safe(report):
+        errors.append(f"{ident}/{arch}: native report privacy or safe-string boundary differs")
+    expected = {
+        "format_version": 1,
+        "kind": "native-run",
+        "qualification": "native-functional",
+        "performance_baseline": False,
+        "platform_id": ident,
+        "architecture": arch,
+        "kernel_release": evidence.get("kernel_release"),
+        "run_id": evidence.get("run_id"),
+    }
+    for key, value in expected.items():
+        if report.get(key) != value:
+            errors.append(f"{ident}/{arch}: native report {key} binding differs")
+    if not RUN_ID.fullmatch(str(report.get("run_id", ""))):
+        errors.append(f"{ident}/{arch}: native report run ID is unsafe")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+~-]{0,254}", str(report.get("kernel_release", ""))):
+        errors.append(f"{ident}/{arch}: native report kernel release is unsafe")
+    if not COMMIT.fullmatch(report.get("source_commit", "")):
+        errors.append(f"{ident}/{arch}: native report source commit is not immutable")
+    for field in ("source_tree", "source_base_commit"):
+        if not COMMIT.fullmatch(report.get(field, "")):
+            errors.append(f"{ident}/{arch}: native report {field} is not immutable")
+    if all(COMMIT.fullmatch(report.get(field, "")) for field in (
+        "source_commit", "source_tree", "source_base_commit"
+    )):
+        try:
+            observed_tree = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", report["source_commit"] + "^{tree}"],
+                check=True, capture_output=True, text=True, timeout=10,
+            ).stdout.strip()
+            current = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], check=True,
+                capture_output=True, text=True, timeout=10,
+            ).stdout.strip()
+            for ancestor, descendant in (
+                (report["source_base_commit"], report["source_commit"]),
+                (report["source_commit"], current),
+            ):
+                subprocess.run(
+                    ["git", "-C", str(root), "merge-base", "--is-ancestor", ancestor, descendant],
+                    check=True, capture_output=True, timeout=10,
+                )
+            if observed_tree != report["source_tree"]:
+                raise ValueError
+        except (OSError, subprocess.SubprocessError, ValueError):
+            errors.append(f"{ident}/{arch}: native report source ancestry/tree differs")
+    distribution = report.get("distribution", {})
+    expected_id, expected_version, expected_name, release_value = NATIVE_DISTRIBUTIONS.get(
+        ident, ("", "", "", "")
+    )
+    if not isinstance(distribution, dict):
+        distribution = {}
+    if (
+        distribution.get("id") != expected_id
+        or distribution.get("version_id") != expected_version
+        or distribution.get("version") != expected_name
+        or distribution.get("manifest_release") != row.get("release")
+        or set(distribution) != {
+            "id", "version_id", "version", "release_evidence", "manifest_release"
+        }
+    ):
+        errors.append(f"{ident}/{arch}: native report distribution binding differs")
+    release_evidence = distribution.get("release_evidence")
+    if release_evidence != release_value:
+        errors.append(f"{ident}/{arch}: native report exact release evidence differs")
+    if report.get("virtualization") not in NATIVE_VIRTUALIZATION:
+        errors.append(f"{ident}/{arch}: native report virtualization is not closed and native")
+    capabilities = report.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+    if capabilities.get("cgroup_v2") != "available" or capabilities.get("psi") != "available":
+        errors.append(f"{ident}/{arch}: cgroup v2 and PSI evidence are required")
+    if capabilities.get("sandbox") != "passed":
+        errors.append(f"{ident}/{arch}: sandbox capability did not pass")
+    security = capabilities.get("security_modules", {})
+    if (
+        not isinstance(security, dict)
+        or set(security) != {"apparmor", "selinux"}
+        or security.get("apparmor") not in {"registered-unproven", "not-registered"}
+        or security.get("selinux") not in {
+            "enforcing-observed", "permissive-observed", "not-registered"
+        }
+    ):
+        errors.append(f"{ident}/{arch}: AppArmor and SELinux state must be available")
+    observed_tools = report.get("sandbox_tools")
+    expected_tools = NATIVE_SANDBOX_TOOLS.get(ident, ())
+    if not isinstance(observed_tools, list) or len(observed_tools) != len(expected_tools):
+        errors.append(f"{ident}/{arch}: sandbox tool pins or provenance differ")
+    else:
+        expected_architecture = {"x86_64": "amd64", "aarch64": "arm64"}[arch]
+        if ident.startswith("openeuler"):
+            expected_architecture = arch
+        tool_keys = {
+            "executable", "version", "version_output_sha256", "package", "package_version",
+            "package_architecture", "source", "binary_sha256", "package_manifest_sha256",
+            "package_integrity",
+        }
+        for observed, expected_tool in zip(observed_tools, expected_tools, strict=True):
+            executable, version, package, package_version, source = expected_tool
+            fixed = {
+                "executable": executable, "version": version, "package": package,
+                "package_version": package_version, "package_architecture": expected_architecture,
+                "source": source, "package_integrity": "verified",
+            }
+            if (
+                not isinstance(observed, dict) or set(observed) != tool_keys
+                or any(observed.get(key) != value for key, value in fixed.items())
+                or any(not SHA256.fullmatch(observed.get(key, "")) for key in (
+                    "version_output_sha256", "binary_sha256", "package_manifest_sha256"
+                ))
+            ):
+                errors.append(f"{ident}/{arch}: sandbox tool pins or provenance differ")
+                break
+    kernel = report.get("kernel_provenance")
+    kernel_keys = {
+        "package", "package_version", "package_architecture", "package_source",
+        "package_integrity", "package_manifest_sha256", "image_package_digest",
+        "running_notes_sha256", "running_version_sha256", "version_signature",
+    }
+    expected_package_arch = {"x86_64": "amd64", "aarch64": "arm64"}[arch]
+    if ident.startswith("openeuler"):
+        expected_package_arch = arch
+    if (
+        not isinstance(kernel, dict) or set(kernel) != kernel_keys
+        or kernel.get("package_architecture") != expected_package_arch
+        or kernel.get("package_source") != NATIVE_KERNEL_SOURCES.get(ident)
+        or any(not SHA256.fullmatch(kernel.get(key, "")) for key in (
+            "package_manifest_sha256", "running_notes_sha256", "running_version_sha256"
+        ))
+        or not isinstance(kernel.get("package_version"), str)
+        or not kernel.get("package_version")
+    ):
+        errors.append(f"{ident}/{arch}: booted kernel provenance is incomplete")
+    elif ident in {"ubuntu-24.04", "debian-13"}:
+        if (
+            kernel.get("package") != "linux-image-" + str(report.get("kernel_release"))
+            or kernel.get("package_integrity") != "package-manifest-bound"
+            or not re.fullmatch(r"[0-9a-f]{32}", kernel.get("image_package_digest", ""))
+        ):
+            errors.append(f"{ident}/{arch}: booted kernel package binding differs")
+        if ident == "ubuntu-24.04":
+            flavor = str(report.get("kernel_release", "")).rsplit("-", 1)[-1]
+            expected_signature = f"Ubuntu {kernel.get('package_version')}-{flavor} "
+            if not str(kernel.get("version_signature", "")).startswith(expected_signature):
+                errors.append(f"{ident}/{arch}: booted kernel version signature differs")
+    elif (
+        kernel.get("package") not in {"kernel", "kernel-core"}
+        or kernel.get("package_integrity") != "rpm-verified"
+        or kernel.get("image_package_digest") != "rpm-verified"
+    ):
+        errors.append(f"{ident}/{arch}: booted kernel package binding differs")
+    checks = report.get("checks", {})
+    if not isinstance(checks, dict):
+        checks = {}
+    if set(checks) != {"process", "metrics", "sandbox"}:
+        errors.append(f"{ident}/{arch}: native report check set differs")
+    for name in ("process", "metrics", "sandbox"):
+        result = checks.get(name, {})
+        if not isinstance(result, dict):
+            result = {}
+        if result.get("status") != "passed":
+            errors.append(f"{ident}/{arch}: required native check {name} did not pass")
+        for field in ("argv_sha256", "output_sha256"):
+            if not SHA256.fullmatch(result.get(field, "")):
+                errors.append(f"{ident}/{arch}: native check {name} lacks {field}")
+        if (
+            set(result) != {"status", "argv_sha256", "output_sha256", "output_bytes"}
+            or not isinstance(result.get("output_bytes"), int)
+            or isinstance(result.get("output_bytes"), bool)
+            or not 0 <= result.get("output_bytes", -1) <= 16 << 20
+        ):
+            errors.append(f"{ident}/{arch}: native check {name} output bounds differ")
+    serialized = json.dumps(report, ensure_ascii=True, sort_keys=True)
+    if len(serialized.encode()) > 1 << 20:
+        errors.append(f"{ident}/{arch}: native report privacy or size boundary differs")
+    return errors
+
+
+def validate(
+    platforms: dict[str, Any], agents: dict[str, Any], root: Path = ROOT
+) -> list[str]:
+    """Return all semantic validation failures."""
+    errors: list[str] = validate_native_schema()
     if platforms.get("format_version") != 1 or agents.get("format_version") != 1:
         errors.append("format_version must equal 1")
     if set(platforms.get("evidence_statuses", [])) != STATUSES:
@@ -168,6 +483,8 @@ def validate(platforms: dict[str, Any], agents: dict[str, Any]) -> list[str]:
                 )
                 if not bound:
                     errors.append(f"{ident}/{arch}: native-tested requires bound native-run evidence")
+                else:
+                    errors.extend(validate_native_report(evidence, row, ident, arch, root))
     return errors
 
 

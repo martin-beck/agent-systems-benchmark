@@ -1,0 +1,112 @@
+{
+  "architecture": "x86_64",
+  "capabilities": {
+    "cgroup_v2": "available",
+    "psi": "available",
+    "sandbox": "passed",
+    "security_modules": {
+      "apparmor": "registered-unproven",
+      "selinux": "not-registered"
+    }
+  },
+  "checks": {
+    "metrics": {
+      "argv_sha256": "sha256:9638076543f0f5ea934a90a3f678d5c879d4694da6a20497efa1d6449989e1f8",
+      "output_bytes": 951,
+      "output_sha256": "sha256:cc8798d9764486d030040bad1f7bc7dbc9ec1a537094097cb56dc21b3631ba64",
+      "status": "passed"
+    },
+    "process": {
+      "argv_sha256": "sha256:305efe4a61860419f9e645ec76021a622cab41326c3266554d428a2c169396ee",
+      "output_bytes": 760,
+      "output_sha256": "sha256:14d4ed11edd339537ef3fcb63f3aac0fcbc8dd0415c4189a3165a09930890d57",
+      "status": "passed"
+    },
+    "sandbox": {
+      "argv_sha256": "sha256:b21dec8751a25637c47759a4e12a0b3d453f3d9cc360ec46d3031196bd3075f8",
+      "output_bytes": 1062,
+      "output_sha256": "sha256:fd7d54541e4da47015d3acc1962bd0d07e22d8393efbbdfcd93f1d1eb7398024",
+      "status": "passed"
+    }
+  },
+  "distribution": {
+    "id": "ubuntu",
+    "manifest_release": "24.04.4 LTS",
+    "release_evidence": "24.04.4 LTS (Noble Numbat)",
+    "version": "24.04.4 LTS (Noble Numbat)",
+    "version_id": "24.04"
+  },
+  "format_version": 1,
+  "kernel_provenance": {
+    "image_package_digest": "90a4202b3d270361346bf20f324d65b4",
+    "package": "linux-image-7.0.0-28-generic",
+    "package_architecture": "amd64",
+    "package_integrity": "package-manifest-bound",
+    "package_manifest_sha256": "sha256:2a178058ccc97289e7fe0ed6c4a1c4f2c95861ae02aaabded9171c4ec1a08945",
+    "package_source": "https://packages.ubuntu.com/noble-updates/kernel/",
+    "package_version": "7.0.0-28.28~24.04.1",
+    "running_notes_sha256": "sha256:452425484695151ba8de3716da09fb69aa7d798079aeac4a0ea76c788c3f8b94",
+    "running_version_sha256": "sha256:3e63c1a05191d29c2b5631b08f3e91e1c605d1ac7a18ddd2d76aa0bb7370242a",
+    "version_signature": "Ubuntu 7.0.0-28.28~24.04.1-generic 7.0.12"
+  },
+  "kernel_release": "7.0.0-28-generic",
+  "kind": "native-run",
+  "performance_baseline": false,
+  "platform_id": "ubuntu-24.04",
+  "qualification": "native-functional",
+  "run_id": "aiws-eab89b7",
+  "sandbox_tools": [
+    {
+      "binary_sha256": "sha256:52231e1caf55bcbc667b269f49c63599a6f7db4767ae6a039580d0ff853db712",
+      "executable": "/usr/bin/bwrap",
+      "package": "bubblewrap",
+      "package_architecture": "amd64",
+      "package_integrity": "verified",
+      "package_manifest_sha256": "sha256:4e520d548034f13aad3a6e4fdabd745ec3f4095d9388f0e71fbca287f3e169c2",
+      "package_version": "0.9.0-1ubuntu0.1",
+      "source": "https://packages.ubuntu.com/noble-updates/bubblewrap",
+      "version": "bubblewrap 0.9.0",
+      "version_output_sha256": "sha256:768cbc123919b1947f8c6300cd28def976edaf6345fdce763054b781ad58dad5"
+    },
+    {
+      "binary_sha256": "sha256:dbc8b988a849d5c9d7ef2de7068a6f107021bc6c11e0d7864c73f373eef726a7",
+      "executable": "/usr/bin/systemd-run",
+      "package": "systemd",
+      "package_architecture": "amd64",
+      "package_integrity": "verified",
+      "package_manifest_sha256": "sha256:806aa11032406880521568ba587570d4c10e7abffe3743a6bfa022f8728db430",
+      "package_version": "255.4-1ubuntu8.17",
+      "source": "https://packages.ubuntu.com/noble-updates/systemd",
+      "version": "systemd 255 (255.4-1ubuntu8.17)",
+      "version_output_sha256": "sha256:a604dcacc730955474de6c69c15faa8b5f22c24acb0f502e97a088cf9a18fa2a"
+    },
+    {
+      "binary_sha256": "sha256:e0d3d0e9444da1b2b58c792c3f5028b69f049b77d5ca17b3ec0d09f89117225b",
+      "executable": "/usr/bin/systemctl",
+      "package": "systemd",
+      "package_architecture": "amd64",
+      "package_integrity": "verified",
+      "package_manifest_sha256": "sha256:806aa11032406880521568ba587570d4c10e7abffe3743a6bfa022f8728db430",
+      "package_version": "255.4-1ubuntu8.17",
+      "source": "https://packages.ubuntu.com/noble-updates/systemd",
+      "version": "systemd 255 (255.4-1ubuntu8.17)",
+      "version_output_sha256": "sha256:a604dcacc730955474de6c69c15faa8b5f22c24acb0f502e97a088cf9a18fa2a"
+    },
+    {
+      "binary_sha256": "sha256:a431738fadddc2e2326c8ab81843e72f4011658379381aef1502a6ddb1c1115b",
+      "executable": "/usr/bin/taskset",
+      "package": "util-linux",
+      "package_architecture": "amd64",
+      "package_integrity": "verified",
+      "package_manifest_sha256": "sha256:aa27c3404d237e0f319b94cf6ce9c3aa03b6888ff2b0fb4b086d4a0bd745dea2",
+      "package_version": "2.39.3-9ubuntu6.6",
+      "source": "https://packages.ubuntu.com/noble-updates/util-linux",
+      "version": "taskset from util-linux 2.39.3",
+      "version_output_sha256": "sha256:b68ee5af5d3bf3a3aaf24179f8b09337d37dd9a490538c8fba2dfff9df8fc05b"
+    }
+  ],
+  "source_base_commit": "a4e1a9de985a4c9f22628c6d604a6e62f4f173e3",
+  "source_commit": "eab89b719537c593ec994b0e7e738232fc6390da",
+  "source_tree": "7af62b3e204a24e0239a317b1cd881f475f9822a",
+  "virtualization": "none"
+}

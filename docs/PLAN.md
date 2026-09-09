@@ -5,8 +5,9 @@
 Agent Systems Benchmark (ASB) will be a Rust Linux terminal framework that
 measures the sustainable concurrency of real AI coding agents under explicit
 task-quality, response-latency and system-resource bounds. It will support
-OpenCode, OpenDesk CLI, aider and Codex through independent adapters; native
-x86_64 and aarch64; mainstream Linux families plus openEuler; versioned
+OpenCode, OpenDesk CLI, aider and Codex through independent adapters; required
+native x86_64 and pinned QEMU-emulated AArch64 where applicable; optional future
+native ARM64; mainstream Linux families plus openEuler; versioned
 software-engineering workloads; and deterministic provider-response replay.
 
 A result is publishable only when the run manifest, immutable workload and
@@ -112,8 +113,10 @@ stream/tool/cancel/error trajectories and artifact grading reproduce.
 
 ### Phase 5: platform and workload breadth
 
-AR-0701 pins current distro/image/agent availability. AR-0702 supplies native
-x86_64/aarch64 evidence with openEuler first-class. AR-0402 and AR-0403 add
+AR-0701 pins current distro/image/agent availability. AR-0702 supplies required
+native x86_64 and pinned QEMU-emulated AArch64 evidence, with native ARM64 retained
+as optional future qualification and openEuler support labeled per cell. AR-0402
+and AR-0403 add
 SWE-bench, Aider Polyglot and Terminal-Bench. AR-0404 evaluates code-generation
 controls. AR-1007 maintains validity and portability. AR-0405 evaluates
 performance/reproducibility workloads and AR-0406 evolving long-horizon tasks.
@@ -173,7 +176,7 @@ raw prompts or secrets, become public evidence.
 ## Initial quality targets
 
 Bootstrap: format, Clippy, tests, rustdoc, release build and CLI smoke on native
-GitHub x86_64/aarch64; coordinator strict typing, 20 fault tests and at least 95%
+GitHub x86_64 plus pinned QEMU-emulated AArch64; coordinator strict typing, 20 fault tests and at least 95%
 branch-aware coverage. AR-0003 adds cargo-llvm-cov with 90% overall and 95% for
 core/protocol/replay, cargo-deny/audit, actionlint/zizmor/Gitleaks, schema/docs
 checks and immutable Action pins. AR-0901/0902 later add proofs, model tests,

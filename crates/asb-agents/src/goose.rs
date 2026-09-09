@@ -34,7 +34,7 @@ pub const LINUX_X86_64_MUSL_ARCHIVE_SHA256: &str =
 /// SHA-256 of the upstream Linux aarch64 musl release archive.
 pub const LINUX_AARCH64_MUSL_ARCHIVE_SHA256: &str =
     "e0614bcc944b48dc2f3b2a171946a745ad6a57abd0a972ae714adfecb9104b36";
-/// SHA-256 of the Linux aarch64 musl executable selected for native CI.
+/// SHA-256 of the Linux aarch64 musl executable retained for emulated and optional native evidence.
 pub const TESTED_LINUX_AARCH64_MUSL_SHA256: &str =
     "aeb66147b9ec9379b384083bec9e58ab3f0f39d1c9faa5a4403c368662d2a046";
 /// Largest accepted prompt in UTF-8 bytes.

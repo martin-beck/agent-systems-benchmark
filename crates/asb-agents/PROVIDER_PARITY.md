@@ -25,7 +25,7 @@ credential, authorization value, endpoint authority, or host path is retained.
 | Ollama, eight agents | synthetic pinned probe and translation | Does not execute the 18.6 GB model |
 | Gemini | unsupported | Native Google API is not profile-equivalent |
 | Replay/live choice | deterministic in-process conformance | Does not claim network namespace enforcement |
-| Platforms | hosted x86_64/aarch64 CI after publication | Native distro matrix remains unqualified |
+| Platforms | required native x86_64 and QEMU-emulated AArch64 CI | Native ARM64 remains optional future qualification |
 
 Accordingly, this harness is structural conformance evidence. Real pinned-agent
 wire captures, retry/deadline/cancellation observations, and native platform

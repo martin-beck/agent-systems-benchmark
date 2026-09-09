@@ -214,12 +214,29 @@ def main() -> int:
             cwd=broken,
         )
 
+        native_arm_gate = temp / "native-arm-gate"
+        shutil.copytree(ROOT, native_arm_gate, ignore=shutil.ignore_patterns(".git", "target"))
+        workflow = native_arm_gate / ".github/workflows/verify.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                "runner: [ubuntu-24.04]", "runner: [ubuntu-24.04-arm]"
+            ),
+            encoding="utf-8",
+        )
+        init_git(native_arm_gate)
+        git(native_arm_gate, "add", ".")
+        must_fail(
+            "automatic native ARM64 gate",
+            ["python3", str(native_arm_gate / "tools/quality/repository_policy.py"), "--skip-commits"],
+            cwd=native_arm_gate,
+        )
+
         persistent = temp / "persistent-runner"
         shutil.copytree(ROOT, persistent, ignore=shutil.ignore_patterns(".git", "target"))
         workflow = persistent / ".github/workflows/verify.yml"
         workflow.write_text(
             workflow.read_text(encoding="utf-8").replace(
-                "runner: [ubuntu-24.04, ubuntu-24.04-arm]", "runner: [self-hosted]"
+                "runner: [ubuntu-24.04]", "runner: [self-hosted]"
             ),
             encoding="utf-8",
         )
