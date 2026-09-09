@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {"id": "mockagents", "version": "0.5.0", "revision": "6ddb03e54a14484e5929a19673f0cfd8a1975f07", "license": "Apache-2.0", "source": "https://github.com/mockagents/mockagents"},
+    {"id": "aimock", "version": "1.40.0", "revision": "7323e819bce1b971dc2b7907407401b7d65bbe8c", "license": "MIT", "source": "https://github.com/CopilotKit/aimock"},
+    {"id": "llmock-rust", "version": "0.1.2", "revision": "9121df067b0a0af1c27f57d3d81f3f128528b586", "license": "MIT", "source": "https://github.com/larsakerlund/llmock"},
+    {"id": "llm-mock-node", "version": "3.3.6", "revision": "96895387780934fcfbb59311ff99c987dde7f4a0", "license": "MIT", "source": "https://github.com/piyook/llm-mock"}
+  ],
+  "fixture": {"protocols": ["openai-chat", "openai-responses", "anthropic-messages"], "network": "loopback-only", "credentials": "none"}
+}
