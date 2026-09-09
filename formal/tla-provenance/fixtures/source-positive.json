@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "source_commit": "b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e",
+  "container_image": "eclipse-temurin@sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e",
+  "container_architecture": "linux/amd64",
+  "dependency_count": 31,
+  "output_bytes": 4512486,
+  "output_sha256": "8c200a88d151c6c183c8dbc57a6b633d135e7a2b18242a3afbf243a9e4b68d3e",
+  "output_file_entries": 2087
+}

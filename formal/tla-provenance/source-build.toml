@@ -1,0 +1,318 @@
+# SPDX-License-Identifier: MIT
+schema_version = 1
+source_repository = "https://github.com/tlaplus/tlaplus"
+source_commit = "b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e"
+source_archive_url = "https://codeload.github.com/tlaplus/tlaplus/tar.gz/b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e"
+source_archive_bytes = 82989507
+source_archive_sha256 = "1f96ee7ef950e456794d13b7e4d8123c345a91528257a3a41b7cc1b506d1b58f"
+source_license = "MIT"
+source_license_path = "LICENSE"
+source_license_sha256 = "3fa3a845ce5eb7b9b3508701dc1aa4d084b6b2c27cbae8cd44d277d10ee411bf"
+
+ant_version = "1.10.15"
+ant_archive_url = "https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.15-bin.tar.gz"
+ant_archive_bytes = 6925830
+ant_archive_sha256 = "71334d7e5d98cfe53d6c429a648a5021137a967378667306c5f613dff5180506"
+ant_archive_sha512 = "d78427aff207592c024ff1552dc04f7b57065a195c42d398fcffe7a0145e8d00cd46786f5aa52e77ab0fdf81334f065eb8011eecd2b48f7228e97ff4cb20d16c"
+ant_license_path = "apache-ant-1.10.15/LICENSE"
+ant_license_sha256 = "6d62d1dd52f932865d6f1e28920d53d0a6f9730ef6b8e02c48d99f470e160a0d"
+ant_notice_path = "apache-ant-1.10.15/NOTICE"
+ant_notice_sha256 = "9bb3ffffe75d4d79d4e0cdd173050fcf93db0acccfa16af55cd10405d7523218"
+ant_license = "Apache-2.0"
+
+container_image = "eclipse-temurin@sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e"
+container_architecture = "linux/amd64"
+java_distribution = "Eclipse Temurin"
+java_version = "17.0.20+8"
+java_license = "GPL-2.0-only WITH Classpath-exception-2.0"
+java_license_receipts = ["/opt/java/openjdk/legal/java.base/LICENSE=4b9abebc4338048a7c2dc184e9f800deb349366bdf28eb23c2677a77b4c87726", "/opt/java/openjdk/legal/java.base/ASSEMBLY_EXCEPTION=a44eb7b5caf5534c6ef536b21edb40b4d6babf91bf97d9d45596868618b2c6fb", "/opt/java/openjdk/legal/java.base/ADDITIONAL_LICENSE_INFO=a69bce275ba7a3570af6579cb0f55682cd75fedfcd49e0e8e9022270c447c916"]
+container_tool_license_receipts = ["/usr/share/doc/bash/copyright=da7a8d93abf1eccdeaf326642c8ce9ed760f3a973ca46f3f69b3cf755bb81ade", "/usr/share/doc/coreutils/copyright=350c1a60923248396acdf5aa3d20cdd5156e82648b3411bf9dff3a16b1ce9c7e", "/usr/share/doc/findutils/copyright=e4ad5b1bb6aa6e7aa93d7e2b516e1ae8de6e75b20cfb4c18934d111d3e918ae4", "/usr/share/doc/tar/copyright=5e07fa97dc98e502dc15d09d4c14647ec77509f949267a30d1341cadf84d629f"]
+network = "none"
+environment = ["HOME=/tmp", "TZ=UTC", "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "SOURCE_DATE_EPOCH=1788915600", "JAVA_HOME=/opt/java/openjdk", "PATH=/opt/java/openjdk/bin:/usr/bin:/bin"]
+build_arguments = ["compile", "dist", "user.name=asb-builder", "BUILD_TAG=asb-reproducible", "Build-Rev=b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e", "TODAY=2026-09-09", "ISO8601=2026-09-09T01:00:00.0Z"]
+canonical_zip_timestamp = "1980-01-01T00:00:02Z"
+output_bytes = 4512486
+output_sha256 = "8c200a88d151c6c183c8dbc57a6b633d135e7a2b18242a3afbf243a9e4b68d3e"
+output_file_entries = 2087
+dependency_count = 31
+
+# license_evidence is a path inside the pinned source archive, an entry inside the
+# named JAR, or immutable metadata inside the named JAR. It is never fetched at build time.
+[[dependency]]
+path = "CommunityModules.jar"
+sha256 = "3cacb3d9af6ae4de500d32c83b227a5d8ab492e1030b70b2941ac77fa2aa3a14"
+package = "https://github.com/tlaplus/CommunityModules/releases/tag/202412190202"
+scope = "runtime"
+license = "MIT"
+license_evidence = "CommunityModules.jar!/LICENSE"
+license_evidence_sha256 = "f93a9309b13244337f55615e5b441ff00b124a1cd83c2f55924ba08fb0be42c7"
+
+[[dependency]]
+path = "cglib-nodep-3.1.jar"
+sha256 = "3a9ab1f5de15b49dedc7e96d35363c4c43a2b2cd42275f5d4731846042f3fcf2"
+package = "pkg:maven/cglib/cglib-nodep@3.1"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "easymock-3.3.1.jar"
+sha256 = "10b56fa121a51631be283403c95e83f7200471ea17b564653838b583a14be750"
+package = "pkg:maven/org.easymock/easymock@3.3.1"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "gson/gson-2.14.0.jar"
+sha256 = "2cbd119bf1961c28788310963dc80ba65f58cdeec1dd139c8bdb1240faa2c36f"
+package = "pkg:maven/com.google.code.gson/gson@2.14.0"
+scope = "runtime"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "hamcrest-core-1.3.jar"
+sha256 = "66fdef91e9739348df7a096aa384a5685f4e875584cce89386a7a47251c4d8e9"
+package = "pkg:maven/org.hamcrest/hamcrest-core@1.3"
+scope = "development"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "jacocoant.jar"
+sha256 = "a09cffd62cbeae030e83d210389d98297a6a8fd00249f617f1660137bf29b4a8"
+package = "pkg:maven/org.jacoco/org.jacoco.ant@0.8.15"
+scope = "development"
+license = "EPL-2.0"
+license_evidence = "javax.mail/mailapi-1.6.8.jar!/META-INF/LICENSE.md"
+license_evidence_sha256 = "6e1f002892b81cbe0647019b150c8a056efc1add565671a4f8af629b6cd2cc7b"
+
+[[dependency]]
+path = "javacc-4.0.jar"
+sha256 = "cfbab2d6acdb3764e2bcb5c0842a59f583cb5e8ba2eb5c13a8db98368aadcc2f"
+package = "pkg:maven/net.java.dev.javacc/javacc@4.0"
+scope = "development"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "javax.mail/javax.activation_1.1.0.v201211130549.jar"
+sha256 = "89690179f5e4e8c0963efb1a18d43f852e5334bc0bb68337eea2e78d24aad360"
+package = "pkg:maven/javax.activation/activation@1.1"
+scope = "runtime"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "javax.mail/mailapi-1.6.8.jar"
+sha256 = "7e48062979926440efc304514035bff83199d9fbb34470fbc6355f0827755914"
+package = "pkg:maven/com.sun.mail/mailapi@1.6.8"
+scope = "runtime"
+license = "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0"
+license_evidence = "javax.mail/mailapi-1.6.8.jar!/META-INF/LICENSE.md"
+license_evidence_sha256 = "6e1f002892b81cbe0647019b150c8a056efc1add565671a4f8af629b6cd2cc7b"
+
+[[dependency]]
+path = "javax.mail/smtp-1.6.8.jar"
+sha256 = "a4279756e05745caf682e89079516056d2be4fd4199590a508e498a4e8da9379"
+package = "pkg:maven/com.sun.mail/smtp@1.6.8"
+scope = "runtime"
+license = "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0"
+license_evidence = "javax.mail/mailapi-1.6.8.jar!/META-INF/LICENSE.md"
+license_evidence_sha256 = "6e1f002892b81cbe0647019b150c8a056efc1add565671a4f8af629b6cd2cc7b"
+
+[[dependency]]
+path = "jgit-buildnumber-ant-task-1.2.10.jar"
+sha256 = "52444c6f9ea33cc9c5be67dbcc6f099bf8efd36c137e0bb392eaa06769ecf52e"
+package = "pkg:maven/ru.concerteza.buildnumber/jgit-buildnumber-ant-task@1.2.10"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "jline/jline-builtins-3.25.0.jar"
+sha256 = "e1d840428076d3c0d26b0991330940987704fb0900780e8b7bf395963339252a"
+package = "pkg:maven/org.jline/jline-builtins@3.25.0"
+scope = "runtime"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "jline/jline-console-3.25.0.jar"
+sha256 = "5375744669e5016ba084664385f38fc09459dd4288a8c8718dc40e3e4ed2ab9f"
+package = "pkg:maven/org.jline/jline-console@3.25.0"
+scope = "runtime"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "jline/jline-reader-3.25.0.jar"
+sha256 = "97822ad3bf4052a3cee424b3dcf913e307fb825e633eca772a7927cb52f7e9d8"
+package = "pkg:maven/org.jline/jline-reader@3.25.0"
+scope = "runtime"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "jline/jline-terminal-3.25.0.jar"
+sha256 = "063c85e6c86fec3375012447cf4adc66ff519e3d04eb4d7f3bb7f89f2266122c"
+package = "pkg:maven/org.jline/jline-terminal@3.25.0"
+scope = "runtime"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "jmh/commons-math3-3.2.jar"
+sha256 = "6268a9a0ea3e769fc493a21446664c0ef668e48c93d126791f6f3f757978fee2"
+package = "pkg:maven/org.apache.commons/commons-math3@3.2"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "jmh/jmh-core-1.21.jar"
+sha256 = "79aecd73ffb5d95d88b1ac36b505fa30ae3e83788e936838e2be9a51074fd2dd"
+package = "pkg:maven/org.openjdk.jmh/jmh-core@1.21"
+scope = "development"
+license = "GPL-2.0-only WITH Classpath-exception-2.0"
+license_evidence = "jmh/jmh-core-1.21.jar!/LICENSE"
+license_evidence_sha256 = "4b9abebc4338048a7c2dc184e9f800deb349366bdf28eb23c2677a77b4c87726"
+
+[[dependency]]
+path = "jmh/jmh-generator-annprocess-1.21.jar"
+sha256 = "c5636ecbc617732f5acf41f94521cf6ae4f5bc6ad3512e82416fbbaabe805fe5"
+package = "pkg:maven/org.openjdk.jmh/jmh-generator-annprocess@1.21"
+scope = "development"
+license = "GPL-2.0-only WITH Classpath-exception-2.0"
+license_evidence = "jmh/jmh-core-1.21.jar!/LICENSE"
+license_evidence_sha256 = "4b9abebc4338048a7c2dc184e9f800deb349366bdf28eb23c2677a77b4c87726"
+
+[[dependency]]
+path = "jmh/jopt-simple-4.6.jar"
+sha256 = "3fcfbe3203c2ea521bf7640484fd35d6303186ea2e08e72f032d640ca067ffda"
+package = "pkg:maven/net.sf.jopt-simple/jopt-simple@4.6"
+scope = "development"
+license = "MIT"
+license_evidence = "CommunityModules.jar!/LICENSE"
+license_evidence_sha256 = "f93a9309b13244337f55615e5b441ff00b124a1cd83c2f55924ba08fb0be42c7"
+
+[[dependency]]
+path = "jpf-classes.jar"
+sha256 = "bc5c387f6f68416678e34fb75d3d547f1e3538d7b4dda850891407184b7f1a05"
+package = "https://github.com/javapathfinder/jpf-core"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "jpf.jar"
+sha256 = "6efcd596a5c6eccd856e8dab10f78b43ad6bb39212f537c90ff09cb2c002f135"
+package = "https://github.com/javapathfinder/jpf-core"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "jpf/jgraphx.jar"
+sha256 = "fda0d5c99de4b2c21b8a23f1716f947f49412ac7da38007e6250ef03a7e927b3"
+package = "https://github.com/jgraph/jgraphx"
+scope = "development"
+license = "BSD-3-Clause"
+license_evidence = "hamcrest-core-1.3.jar!/LICENSE.txt"
+license_evidence_sha256 = "1cde867cab5c8e842929da5391cef98b4017314822270e934e8e2eef3767c666"
+
+[[dependency]]
+path = "jpf/jpf-shell.jar"
+sha256 = "2d436520bb7cdf48c724af42a3ddc4941a6aa0be42a10c74324eaa0d5edf8743"
+package = "https://github.com/javapathfinder/jpf-shell"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "jpf/jpf-visual.jar"
+sha256 = "5d9e36c07228fa46876f7cb0d8691d9d9f74799b02218a6150284756262f40d9"
+package = "https://github.com/javapathfinder/jpf-visual"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "junit-4.12.jar"
+sha256 = "59721f0805e223d84b90677887d9ff567dc534d7c502ca903c0c2b17f05c116a"
+package = "pkg:maven/junit/junit@4.12"
+scope = "development"
+license = "EPL-1.0"
+license_evidence = "junit-4.12.jar!/LICENSE-junit.txt"
+license_evidence_sha256 = "9648bb2891b9813970bddb68d4be8a5e6ec8280d0180a53dfb29236b579c55bb"
+
+[[dependency]]
+path = "lsp/org.eclipse.lsp4j.debug_0.21.1.v20230829-0012.jar"
+sha256 = "4eb8196cc60e832a75080c855f4723b138b6fa7bf287b72d5ae2c05b97528e05"
+package = "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.debug@0.21.1"
+scope = "runtime"
+license = "EPL-2.0"
+license_evidence = "javax.mail/mailapi-1.6.8.jar!/META-INF/LICENSE.md"
+license_evidence_sha256 = "6e1f002892b81cbe0647019b150c8a056efc1add565671a4f8af629b6cd2cc7b"
+
+[[dependency]]
+path = "lsp/org.eclipse.lsp4j.jsonrpc.debug_0.21.1.v20230829-0012.jar"
+sha256 = "4219852a8350f638a407832bcbfa27d43cfe36546fb023a6d9a972218ddbd967"
+package = "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc.debug@0.21.1"
+scope = "runtime"
+license = "EPL-2.0"
+license_evidence = "javax.mail/mailapi-1.6.8.jar!/META-INF/LICENSE.md"
+license_evidence_sha256 = "6e1f002892b81cbe0647019b150c8a056efc1add565671a4f8af629b6cd2cc7b"
+
+[[dependency]]
+path = "lsp/org.eclipse.lsp4j.jsonrpc_0.21.1.v20230829-0012.jar"
+sha256 = "a1ed2343f91d290d71dd94f901f13bfdc69c3d36db52a383d8a80f5f432e4358"
+package = "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.21.1"
+scope = "runtime"
+license = "EPL-2.0"
+license_evidence = "javax.mail/mailapi-1.6.8.jar!/META-INF/LICENSE.md"
+license_evidence_sha256 = "6e1f002892b81cbe0647019b150c8a056efc1add565671a4f8af629b6cd2cc7b"
+
+[[dependency]]
+path = "objenesis-2.1.jar"
+sha256 = "20ea11db199dea47939e490856a12972c9e96a4d847be8f2eff47aeca9f0dff8"
+package = "pkg:maven/org.objenesis/objenesis@2.1"
+scope = "development"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+
+[[dependency]]
+path = "org.eclipse.jgit-2.3.1.201302201838-r.jar"
+sha256 = "8b4bdab5f1a608bfab59e4293141de8a473423049cb1fd14fdcd7a4ce0fcce93"
+package = "pkg:maven/org.eclipse.jgit/org.eclipse.jgit@2.3.1.201302201838-r"
+scope = "development"
+license = "EPL-1.0"
+license_evidence = "junit-4.12.jar!/LICENSE-junit.txt"
+license_evidence_sha256 = "9648bb2891b9813970bddb68d4be8a5e6ec8280d0180a53dfb29236b579c55bb"
+
+[[dependency]]
+path = "prettier4j-0.3.2.jar"
+sha256 = "c798de2c5c19cb03ceb27b264c6a7e74bbd94e243f9a08b0f05906980369882f"
+package = "pkg:maven/com.opencastsoftware/prettier4j@0.3.2"
+scope = "runtime"
+license = "Apache-2.0"
+license_evidence = "cglib-nodep-3.1.jar!/LICENSE"
+license_evidence_sha256 = "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
