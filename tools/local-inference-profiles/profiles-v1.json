@@ -74,7 +74,7 @@
         "license": "MIT"
       },
       "backend": null,
-      "model": {"name": "qwen3-coder:30b", "sha256": null, "tokenizer_sha256": null},
+      "model": {"name": "qwen3-coder:30b", "sha256": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca", "tokenizer_sha256": null},
       "routes": ["openai_chat", "openai_responses"],
       "configuration": {
         "template": "qwen3moe-Q4_K_M",
@@ -84,11 +84,11 @@
         "isolation": {"network": "loopback_only", "credentials": "stripped", "resource_limits": "bounded", "teardown": "verified"}
       },
       "qualification": {
-        "hardware": "not-reproduced-in-this-profile-worktree",
-        "runtime": "daemon and model probe exists in asb-agents::ollama",
-        "trials": 0,
-        "variability": "not-measured",
-        "reason": "Existing Ollama code lacks an independently recorded tokenizer digest and repeated trial manifest; retain runtime support but do not overclaim this grouped profile."
+        "hardware": "linux-x86_64-development-cell",
+        "runtime": "Ollama 0.33.1 read-only /api/version and /api/tags probe",
+        "trials": 1,
+        "variability": "identity-only; generation variability not measured",
+        "reason": "Read-only identity probe passed, but an independently recorded tokenizer digest and repeated generation trials remain absent."
       }
     },
     {

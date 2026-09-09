@@ -159,8 +159,8 @@ def _validate_profile(value: Any) -> None:
     if value["status"] == "unqualified":
         if not isinstance(reason, str) or not reason:
             raise ProfileError("unqualified profile needs an explicit reason")
-        if model["sha256"] is not None or model["tokenizer_sha256"] is not None:
-            raise ProfileError("unqualified profile cannot claim model digests")
+        if model["tokenizer_sha256"] is not None:
+            raise ProfileError("unqualified profile cannot claim tokenizer evidence")
     elif reason is not None or model["sha256"] is None or model["tokenizer_sha256"] is None:
         raise ProfileError("qualified profile lacks complete model evidence")
 

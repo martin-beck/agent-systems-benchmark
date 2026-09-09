@@ -25,6 +25,9 @@ class ProfileTests(unittest.TestCase):
 
     def test_unqualified_profiles_are_not_selectable(self) -> None:
         self.assertEqual([], [item["id"] for item in self.value["profiles"] if item["selectable"]])
+        ollama = self.value["profiles"][2]
+        self.assertEqual("06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca", ollama["model"]["sha256"])
+        self.assertIsNone(ollama["model"]["tokenizer_sha256"])
 
     def test_hostile_mutations_fail_closed(self) -> None:
         mutations = []
