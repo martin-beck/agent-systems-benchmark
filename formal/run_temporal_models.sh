@@ -12,6 +12,7 @@ TLA_SOURCE_BYTES=82989507
 ANT_URL=https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.15-bin.tar.gz
 ANT_SHA256=71334d7e5d98cfe53d6c429a648a5021137a967378667306c5f613dff5180506
 ANT_BYTES=6925830
+TRANSFER_SLACK_BYTES=1048576
 TLA_BUILD_IMAGE=eclipse-temurin@sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e
 ALLOY_URL=https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v6.2.0/org.alloytools.alloy.dist.jar
 if [[ $# -ne 2 || $1 != /* || $2 != /* ]]; then
@@ -64,6 +65,7 @@ verify_dir() {
 acquire_input() (
   local url=$1 path=$2 expected=$3 expected_bytes=$4 approved_host=$5
   local lock="$path.lock" partial="$path.partial" effective acquired=0 created=0
+  local transfer_ceiling=$((expected_bytes + TRANSFER_SLACK_BYTES))
   for _ in $(seq 1 100); do
     if mkdir -m 700 "$lock" 2>/dev/null; then acquired=1; break; fi
     sleep 0.1
@@ -84,10 +86,13 @@ acquire_input() (
   }
   created=1
   chmod 600 "$partial"
-  effective=$(curl --fail --silent --show-error --location --max-redirs 3 \
+  if ! effective=$(curl --fail --silent --location --max-redirs 3 \
     --proto '=https' --proto-redir '=https' --tlsv1.2 --max-time 180 \
-    --max-filesize "$expected_bytes" --retry 2 --retry-delay 1 --retry-max-time 180 \
-    --output "$partial" --write-out '%{url_effective}' "$url")
+    --max-filesize "$transfer_ceiling" --retry 2 --retry-delay 1 --retry-max-time 180 \
+    --output "$partial" --write-out '%{url_effective}' "$url" 2>/dev/null); then
+    echo "build input acquisition failed" >&2
+    return 2
+  fi
   python3 - "$effective" "$approved_host" <<'PY'
 import sys, urllib.parse
 url = urllib.parse.urlsplit(sys.argv[1])
@@ -178,6 +183,8 @@ prepare_tla() (
 )
 fetch() {
   local url=$1 path=$2 expected=$3 expected_bytes=$4
+  local partial="$path.partial"
+  local transfer_ceiling=$((expected_bytes + TRANSFER_SLACK_BYTES))
   if [[ -e "$path" || -L "$path" ]]; then
     if [[ ! -f "$path" || -L "$path" ]]; then
       echo "tool path must be a regular non-symlink file: $path" >&2
@@ -188,16 +195,25 @@ fetch() {
       echo "offline tool missing: $path" >&2
       exit 2
     fi
-    if [[ -e "$path.partial" || -L "$path.partial" ]]; then
+    if [[ -e "$partial" || -L "$partial" ]]; then
       echo "partial tool path already exists" >&2
       exit 2
     fi
-    curl --fail --location --proto '=https' --tlsv1.2 --max-time 120 \
-      --max-filesize "$expected_bytes" --header 'Accept: application/octet-stream' \
-      --header 'X-GitHub-Api-Version: 2022-11-28' --output "$path.partial" "$url"
-    [[ $(stat -c '%s' "$path.partial") == "$expected_bytes" ]]
-    printf '%s  %s\n' "$expected" "$path.partial" | sha256sum --check --status
-    mv "$path.partial" "$path"
+    if ! curl --fail --silent --location --proto '=https' --tlsv1.2 --max-time 120 \
+      --max-filesize "$transfer_ceiling" --header 'Accept: application/octet-stream' \
+      --header 'X-GitHub-Api-Version: 2022-11-28' --output "$partial" "$url" \
+      2>/dev/null; then
+      rm -f -- "$partial"
+      echo "tool acquisition failed" >&2
+      exit 2
+    fi
+    if [[ $(stat -c '%s' "$partial") != "$expected_bytes" ]] \
+       || ! printf '%s  %s\n' "$expected" "$partial" | sha256sum --check --status; then
+      rm -f -- "$partial"
+      echo "downloaded tool failed integrity checks" >&2
+      exit 2
+    fi
+    mv "$partial" "$path"
   fi
   [[ -f "$path" && ! -L "$path" ]]
   [[ $(stat -c '%s' "$path") == "$expected_bytes" ]]

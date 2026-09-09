@@ -38,6 +38,7 @@ const ONLINE_MUTATIONS: &[&str] = &[
     "disconnect",
     "redirect-loop",
     "redirect-host",
+    "transfer-ceiling",
     "download-digest",
     "download-size",
     "destination-race",
@@ -143,10 +144,12 @@ printf %s 'bounded deterministic TLA fixture' >"$2"
         r#"#!/bin/sh
 output=
 url=
+max_filesize=
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output) output=$2; shift 2 ;;
-    --write-out|--max-redirs|--proto|--proto-redir|--max-time|--max-filesize|--retry|--retry-delay|--retry-max-time) shift 2 ;;
+    --max-filesize) max_filesize=$2; shift 2 ;;
+    --write-out|--max-redirs|--proto|--proto-redir|--max-time|--retry|--retry-delay|--retry-max-time) shift 2 ;;
     --fail|--silent|--show-error|--location|--tlsv1.2) shift ;;
     *) url=$1; shift ;;
   esac
@@ -156,11 +159,18 @@ case "${MOCK_CURL_MODE:-ok}" in
   timeout|stalled) exit 28 ;;
   disconnect) printf partial >"$output"; exit 18 ;;
   redirect-loop) exit 47 ;;
+  transfer-ceiling) printf %s PRIVATE-CURL-SENTINEL >&2; exit 63 ;;
   sentinel) exit 99 ;;
 esac
 case "$url" in
-  https://codeload.github.com/*) printf %s 'bounded source fixture' >"$output" ;;
-  https://archive.apache.org/*) printf %s 'bounded ant fixture' >"$output" ;;
+  https://codeload.github.com/*)
+    [ "$max_filesize" -gt 22 ] || exit 63
+    printf %s 'bounded source fixture' >"$output"
+    ;;
+  https://archive.apache.org/*)
+    [ "$max_filesize" -gt 19 ] || exit 63
+    printf %s 'bounded ant fixture' >"$output"
+    ;;
   *) exit 97 ;;
 esac
 case "${MOCK_CURL_MODE:-ok}" in
@@ -387,6 +397,12 @@ fn bounded_online_acquisition_faults_do_not_promote() {
             .output()
             .expect("run online fault");
         assert!(!output.status.success(), "online fault accepted: {name}");
+        if name == "transfer-ceiling" {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(!stderr.contains("PRIVATE-CURL-SENTINEL"));
+            assert!(stderr.contains("build input acquisition failed"));
+            assert!(stderr.len() <= 128, "unbounded acquisition error: {stderr}");
+        }
         if name == "output-race" {
             assert_ne!(
                 fs::read(cache_path(&cache)).expect("read raced output"),

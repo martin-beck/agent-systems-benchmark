@@ -16,6 +16,7 @@
   "disconnect",
   "redirect-loop",
   "redirect-host",
+  "transfer-ceiling",
   "download-digest",
   "download-size",
   "destination-race",
