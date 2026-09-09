@@ -26,7 +26,7 @@
           "properties": {
             "id": {"const": "ubuntu"},
             "version_id": {"const": "24.04"},
-            "version": {"type": "string", "pattern": "^24[.]04[.]([5-9]|[1-9][0-9]+) LTS [(]Noble Numbat[)]$", "maxLength": 64},
+            "version": {"type": "string", "pattern": "^24[.]04[.]([4-9]|[1-9][0-9]+) LTS [(]Noble Numbat[)]$", "maxLength": 64},
             "exact_native_release": {"const": false}
           }
         }

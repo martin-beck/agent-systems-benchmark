@@ -68,8 +68,19 @@ class HostedPortabilityTests(unittest.TestCase):
     def test_release_routes_do_not_equate_patch_releases(self) -> None:
         exact = "24.04.4 LTS (Noble Numbat)"
         rolling = "24.04.5 LTS (Noble Numbat)"
-        self.assertEqual(HOSTED.release_route(release(exact)), "native-qualification")
-        self.assertEqual(HOSTED.release_route(release(rolling)), "hosted-portability")
+        self.assertEqual(
+            HOSTED.release_route(release(exact), "github-hosted"), "hosted-portability"
+        )
+        self.assertEqual(
+            HOSTED.release_route(release(exact), "trusted-native"), "native-qualification"
+        )
+        self.assertEqual(
+            HOSTED.release_route(release(rolling), "github-hosted"), "hosted-portability"
+        )
+        with self.assertRaisesRegex(HOSTED.PortabilityError, "native release"):
+            HOSTED.release_route(release(rolling), "trusted-native")
+        with self.assertRaisesRegex(HOSTED.PortabilityError, "execution class"):
+            HOSTED.release_route(release(exact), "forged")
         with self.assertRaisesRegex(HOSTED.native.EvidenceError, "exact pinned release"):
             HOSTED.native.validate_platform("ubuntu-24.04", release(rolling), Path("/"))
         for malformed in (
@@ -79,7 +90,7 @@ class HostedPortabilityTests(unittest.TestCase):
             release("24.04.5 LTS (Other)"),
         ):
             with self.assertRaises(HOSTED.PortabilityError):
-                HOSTED.release_route(malformed)
+                HOSTED.release_route(malformed, "github-hosted")
 
     def test_collect_is_bound_to_rolling_release_source_and_exact_checks(self) -> None:
         check = {
@@ -89,21 +100,51 @@ class HostedPortabilityTests(unittest.TestCase):
             "status": "passed",
         }
         checks = [(name, ["/usr/bin/true"]) for name in ("process", "metrics", "sandbox")]
-        os_release = "ID=ubuntu\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\n"
-        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
-            root = Path(temporary)
-            (root / "etc").mkdir()
-            (root / "etc/os-release").write_text(os_release)
-            with (
-                mock.patch.object(HOSTED.platform, "machine", return_value="x86_64"),
-                mock.patch.object(HOSTED, "_source", side_effect=[("d" * 40, "e" * 40), ("d" * 40, "e" * 40)]),
-                mock.patch.object(HOSTED, "_run", return_value=check),
-            ):
-                report = HOSTED.collect("ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks, root)
-            HOSTED._validate_schema(report, self.schema, self.schema)
-            self.assertFalse(report["observed"]["distribution"]["exact_native_release"])
-            with self.assertRaisesRegex(HOSTED.PortabilityError, "exactly"):
-                HOSTED.collect("ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks[:-1], root)
+        for version in (
+            "24.04.4 LTS (Noble Numbat)",
+            "24.04.5 LTS (Noble Numbat)",
+        ):
+            os_release = f'ID=ubuntu\nVERSION_ID="24.04"\nVERSION="{version}"\n'
+            with self.subTest(version=version), tempfile.TemporaryDirectory(
+                dir=ROOT
+            ) as temporary:
+                root = Path(temporary)
+                (root / "etc").mkdir()
+                (root / "etc/os-release").write_text(os_release)
+                with (
+                    mock.patch.object(HOSTED.platform, "machine", return_value="x86_64"),
+                    mock.patch.object(
+                        HOSTED,
+                        "_source",
+                        side_effect=[("d" * 40, "e" * 40), ("d" * 40, "e" * 40)],
+                    ),
+                    mock.patch.object(HOSTED, "_run", return_value=check),
+                ):
+                    report = HOSTED.collect(
+                        "ubuntu-24.04",
+                        "x86_64",
+                        "gha-123-1",
+                        ROOT,
+                        "c" * 40,
+                        checks,
+                        "github-hosted",
+                        root,
+                    )
+                HOSTED._validate_schema(report, self.schema, self.schema)
+                self.assertEqual(report["kind"], "hosted-portability")
+                self.assertEqual(report["qualification"], "functional-portability-only")
+                self.assertFalse(report["observed"]["distribution"]["exact_native_release"])
+                with self.assertRaisesRegex(HOSTED.PortabilityError, "exactly"):
+                    HOSTED.collect(
+                        "ubuntu-24.04",
+                        "x86_64",
+                        "gha-123-1",
+                        ROOT,
+                        "c" * 40,
+                        checks[:-1],
+                        "github-hosted",
+                        root,
+                    )
 
     def test_failures_redact_raw_check_diagnostics_and_source_races(self) -> None:
         with mock.patch.object(
@@ -132,7 +173,8 @@ class HostedPortabilityTests(unittest.TestCase):
                 self.assertRaisesRegex(HOSTED.PortabilityError, "changed"),
             ):
                 HOSTED.collect(
-                    "ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks, root
+                    "ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40,
+                    checks, "github-hosted", root,
                 )
 
     def test_sandbox_unavailability_is_partial_bounded_and_not_native(self) -> None:
@@ -176,7 +218,8 @@ class HostedPortabilityTests(unittest.TestCase):
                 mock.patch.object(HOSTED, "_run_sandbox", return_value=unavailable),
             ):
                 report = HOSTED.collect(
-                    "ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks, root
+                    "ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40,
+                    checks, "github-hosted", root,
                 )
         HOSTED._validate_schema(report, self.schema, self.schema)
         self.assertEqual(report["qualification"], "functional-portability-partial")
@@ -237,6 +280,7 @@ class HostedPortabilityTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable, "-S", str(tool), "collect", "--runner-label", "ubuntu-24.04",
+                    "--execution-class", "github-hosted",
                     "--architecture", "x86_64", "--run-id", "gha-negative-1",
                     "--source", str(source), "--base-commit", base, "--output", str(output),
                     "--output-root", str(output_root), "--root", str(os_root),
@@ -272,8 +316,11 @@ class HostedPortabilityTests(unittest.TestCase):
 
     def test_workflow_keeps_artifact_kinds_distinct_and_conditional(self) -> None:
         workflow = (ROOT / ".github/workflows/native-platforms.yml").read_text()
-        self.assertIn("hosted_portability.py route", workflow)
+        self.assertIn(
+            "hosted_portability.py route --execution-class github-hosted", workflow
+        )
         self.assertIn("hosted_portability.py collect", workflow)
+        self.assertIn("--execution-class github-hosted", workflow)
         self.assertIn("native_evidence.py", workflow)
         self.assertIn("hosted_portability.py validate-artifact", workflow)
         self.assertIn("steps.evidence.outputs.kind == 'hosted-portability'", workflow)
@@ -283,6 +330,59 @@ class HostedPortabilityTests(unittest.TestCase):
         self.assertNotIn("continue-on-error", workflow)
         self.assertNotIn("name: Native platform evidence", workflow)
         self.assertNotIn("name: Native Ubuntu", workflow)
+
+    def test_exact_release_on_hosted_route_never_creates_native_artifact(self) -> None:
+        tool = TOOLS / "hosted_portability.py"
+        exact_release = (
+            'ID=ubuntu\nVERSION_ID="24.04"\n'
+            'VERSION="24.04.4 LTS (Noble Numbat)"\n'
+        )
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            output_root = Path(temporary)
+            observed_root = output_root / "observed"
+            (observed_root / "etc").mkdir(parents=True)
+            (observed_root / "etc/os-release").write_text(exact_release)
+            routed = subprocess.run(
+                [
+                    sys.executable, str(tool), "route", "--execution-class",
+                    "github-hosted", "--root", str(observed_root),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(routed.returncode, 0, routed.stdout)
+            self.assertEqual(routed.stdout.strip(), "hosted-portability")
+
+            hosted = output_root / "hosted.json"
+            native_file = output_root / "native.json"
+            hosted.write_text(json.dumps(self.report))
+            validated = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    routed.stdout.strip(), "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(validated.returncode, 0, validated.stdout)
+            self.assertEqual(validated.stdout.strip(), "hosted-portability")
+            self.assertTrue(hosted.is_file())
+            self.assertFalse(native_file.exists())
+
+            native_file.write_text("{}")
+            crossed = subprocess.run(
+                [
+                    sys.executable, str(tool), "validate-artifact", "--route",
+                    "hosted-portability", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(crossed.returncode, 1)
+            self.assertEqual(crossed.stderr, "")
+            self.assertFalse(hosted.exists())
+            self.assertFalse(native_file.exists())
 
     def test_executable_routing_validates_schema_and_cleans_every_failure(self) -> None:
         tool = TOOLS / "hosted_portability.py"

@@ -34,7 +34,7 @@ LIMITATIONS = [
 SANDBOX_UNAVAILABLE = b"native sandbox capability unavailable:"
 SANDBOX_LIMITATION = "native-sandbox-unavailable"
 SCHEMA_SHA256 = {
-    "hosted-portability.schema.json": "4e2f29272ccc50f0535fb8d1bee1499ea69102254f35e3504ee7db0195f5fac4",
+    "hosted-portability.schema.json": "50646c9648afc2963580ef55209a9c967277ed7023fe0bd546898767bbb6ed00",
     "native-evidence.schema.json": "332056435d69dd8cdd237e7b587289c8b31e75f514c04ecdec04bd75e4356017",
 }
 
@@ -272,18 +272,24 @@ def validate_artifact(
         raise
 
 
-def release_route(release: dict[str, str], root: Path = Path("/")) -> str:
-    """Select the exact-native or rolling-hosted route without conflating them."""
+def release_route(
+    release: dict[str, str], execution_class: str, root: Path = Path("/")
+) -> str:
+    """Select a route from explicit execution provenance and release identity."""
     profile = native.PLATFORMS["ubuntu-24.04"]
     if release.get("ID") != profile["id"] or release.get("VERSION_ID") != profile["version_id"]:
         raise PortabilityError("hosted distribution does not match the declared runner family")
     version = release.get("VERSION", "")
-    if version == profile["version"]:
+    if execution_class == "trusted-native":
         try:
             native.validate_platform("ubuntu-24.04", release, root)
         except native.EvidenceError as error:
             raise PortabilityError("exact native release evidence is inconsistent") from error
         return "native-qualification"
+    if execution_class != "github-hosted":
+        raise PortabilityError("platform execution class is invalid")
+    if version == profile["version"]:
+        return "hosted-portability"
     rolling = ROLLING_VERSION.fullmatch(version)
     if rolling is None or int(rolling.group(1)) <= 4:
         raise PortabilityError("hosted distribution release is malformed or outside the rolling family")
@@ -383,6 +389,7 @@ def collect(
     source: Path,
     base_commit: str,
     checks: list[tuple[str, list[str]]],
+    execution_class: str,
     root: Path = Path("/"),
 ) -> dict[str, Any]:
     """Run the closed functional set and return a privacy-safe projection."""
@@ -396,8 +403,8 @@ def collect(
         release = native.parse_os_release(native.read_bounded(root / "etc/os-release"))
     except (OSError, native.EvidenceError) as error:
         raise PortabilityError("hosted release evidence is unavailable") from error
-    if release_route(release, root) != "hosted-portability":
-        raise PortabilityError("exact reviewed release requires the native qualification route")
+    if release_route(release, execution_class, root) != "hosted-portability":
+        raise PortabilityError("trusted native execution requires the native qualification route")
     if [name for name, _ in checks] != ["process", "metrics", "sandbox"]:
         raise PortabilityError("checks must be exactly process, metrics, and sandbox")
     if len({name for name, _ in checks}) != len(checks):
@@ -451,6 +458,9 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     route = subparsers.add_parser("route")
     route.add_argument("--root", type=Path, default=Path("/"))
+    route.add_argument(
+        "--execution-class", choices=("github-hosted", "trusted-native"), required=True
+    )
     emit = subparsers.add_parser("collect")
     emit.add_argument("--runner-label", required=True)
     emit.add_argument("--architecture", required=True)
@@ -460,6 +470,9 @@ def main() -> int:
     emit.add_argument("--output", type=Path, required=True)
     emit.add_argument("--output-root", type=Path, required=True)
     emit.add_argument("--root", type=Path, default=Path("/"))
+    emit.add_argument(
+        "--execution-class", choices=("github-hosted", "trusted-native"), required=True
+    )
     emit.add_argument("--check", action="append", type=native.parse_check, required=True)
     validate = subparsers.add_parser("validate-artifact")
     validate.add_argument("--route", required=True)
@@ -470,7 +483,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "route":
-            print(release_route(_read_release(args.root), args.root))
+            print(release_route(_read_release(args.root), args.execution_class, args.root))
             return 0
         if args.command == "validate-artifact":
             print(
@@ -490,6 +503,7 @@ def main() -> int:
             args.source.resolve(strict=True),
             args.base_commit,
             args.check,
+            args.execution_class,
             args.root.resolve(strict=True),
         )
         encoded = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()

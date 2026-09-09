@@ -41,7 +41,7 @@ jobs:
           NATIVE_EVIDENCE_FILE: ${{ runner.temp }}/native-qualification-${{ matrix.runner }}.json
           RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          route="$(python3 tools/platforms/hosted_portability.py route)"
+          route="$(python3 tools/platforms/hosted_portability.py route --execution-class github-hosted)"
           case "$route" in
             native-qualification)
               python3 tools/platforms/native_evidence.py \
@@ -58,6 +58,7 @@ jobs:
               ;;
             hosted-portability)
               python3 tools/platforms/hosted_portability.py collect \
+                --execution-class github-hosted \
                 --runner-label ubuntu-24.04 \
                 --architecture "$(uname -m)" \
                 --run-id "$RUN_ID" \

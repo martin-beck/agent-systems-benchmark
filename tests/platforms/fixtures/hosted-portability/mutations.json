@@ -12,7 +12,7 @@
   {"id": "wrong-version-family", "path": ["observed", "distribution", "version_id"], "value": "24.10"},
   {"id": "exact-native-forgery", "path": ["observed", "distribution", "exact_native_release"], "value": true},
   {"id": "malformed-release", "path": ["observed", "distribution", "version"], "value": "24.04.5"},
-  {"id": "exact-native-version-forged-as-hosted", "path": ["observed", "distribution", "version"], "value": "24.04.4 LTS (Noble Numbat)"},
+  {"id": "unsupported-pre-pin-release", "path": ["observed", "distribution", "version"], "value": "24.04.3 LTS (Noble Numbat)"},
   {"id": "missing-sandbox", "path": ["checks", "sandbox"], "delete": true},
   {"id": "failed-check", "path": ["checks", "process", "status"], "value": "failed"},
   {"id": "extra-distribution-field", "path": ["observed", "distribution"], "key": "codename", "value": "noble"},
