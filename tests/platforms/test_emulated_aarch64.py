@@ -109,6 +109,8 @@ class EmulatedAarch64Tests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("runs-on: ubuntu-24.04", workflow)
+        self.assertIn("pull_request:", workflow)
+        self.assertRegex(workflow, r"push:\n    branches: \[main\]")
         self.assertNotIn("runs-on: ubuntu-24.04-arm", workflow)
         self.assertIn("timeout-minutes: 20", workflow)
         self.assertIn("trap cleanup EXIT", workflow)

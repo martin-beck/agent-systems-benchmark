@@ -6,6 +6,11 @@ Use the configured remote development host and second-drive storage for source,
 worktrees, toolchains, caches, artifacts and all build/test activity. Host details
 belong only in ignored runtime configuration, not public coordination state.
 
+Native ARM64 capacity is optional future qualification and never blocks development or release.
+Use the pinned QEMU AArch64 lane for applicable userspace portability checks; keep native kernel,
+PMU, eBPF, timing, contention, performance, and support-cell claims explicitly unqualified until
+separate native evidence exists. See [the native ARM64 policy](NATIVE_AARCH64_POLICY.md).
+
 ## Start and recover
 
 Read PLAN, ARCHITECTURE and QUALITY and preserve all existing work. Reconcile

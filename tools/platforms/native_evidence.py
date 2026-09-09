@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 """Collect privacy-safe, fail-closed native Linux qualification evidence."""
 

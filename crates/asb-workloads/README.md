@@ -49,9 +49,10 @@ scoring separately content-addresses and verifies its staged verifier artifact.
 Reference patches must pass; checked counterexample patches must fail. Tests also
 prove clean reset and cleanup, traversal/symlink rejection, byte/file bounds, and
 manifest pin consistency. Patch fixtures use exact-tree zero-context hunks and are
-applied with `git apply --unidiff-zero`. Native x86_64 and aarch64 CI exercise the same offline
-Rust implementation. No live API, network destination, compiler for fixture
-languages, or external dataset is required.
+applied with `git apply --unidiff-zero`. Native x86_64 and pinned QEMU-emulated
+AArch64 CI exercise the same offline Rust implementation. Native ARM64 remains
+optional future qualification. No live API, network destination, compiler for
+fixture languages, or external dataset is required.
 
 Controlled runs set `ASB_TEST_SCRATCH` to an absolute directory on the configured
 development volume. If it is absent, tests use an absolute `CARGO_TARGET_DIR`

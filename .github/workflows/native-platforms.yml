@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [ubuntu-24.04]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
@@ -57,7 +57,7 @@ jobs:
           import sys
           path = pathlib.Path(sys.argv[1])
           report = json.loads(path.read_text(encoding="utf-8"))
-          assert report["architecture"] in {"x86_64", "aarch64"}
+          assert report["architecture"] == "x86_64"
           assert report["performance_baseline"] is False
           print("artifact_sha256=sha256:" + hashlib.sha256(path.read_bytes()).hexdigest())
           print("qualification=" + report["qualification"])

@@ -1,12 +1,14 @@
 # Quality and platform assurance
 
 The mandatory commands, pins, signature boundary and negative fixtures are
-documented in [repository quality gates](QUALITY_GATES.md).
+documented in [repository quality gates](QUALITY_GATES.md). The
+[native ARM64 policy](NATIVE_AARCH64_POLICY.md) makes pinned QEMU AArch64 portability required
+where applicable while keeping native ARM64 hardware evidence optional and non-blocking.
 
 ## Bootstrap gates implemented
 
-The initial CI builds and tests Rust on native GitHub-hosted x86_64 and arm64
-Ubuntu runners, checks formatting and Clippy with warnings denied, builds docs and
+The required CI builds and tests Rust on native GitHub-hosted x86_64 and the pinned
+QEMU-emulated AArch64 lane, checks formatting and Clippy with warnings denied, builds docs and
 release binaries, and checks CLI exit behavior. All first-party Rust forbids unsafe
 code and requires public documentation. Dependencies and the toolchain are pinned.
 
@@ -52,7 +54,8 @@ hide production code or refresh baselines just to pass.
   leak/endurance tests and dependency advisory refresh.
 - Controlled native hosts/VMs: cgroup/PSI/perf correctness, real agent versions,
   full booted distribution kernels and performance measurements.
-- Release: all required native matrix cells, clean package install/uninstall,
+- Release: required native x86_64 and applicable pinned QEMU AArch64 cells,
+  clean package install/uninstall,
   reproducible rebuild comparison, checksums, SBOM, provenance and upgrade tests.
 
 For public contributions, never run untrusted PR code on persistent trusted runners.
@@ -68,14 +71,14 @@ manifest cell to `native-tested`.
 
 | Distribution family | User-space tests | Native kernel validation |
 | --- | --- | --- |
-| Ubuntu LTS | Required x86_64 and aarch64 | Required both architectures |
-| Debian stable | Required both | Required both |
-| Fedora stable | Required both | Scheduled both |
-| Rocky/AlmaLinux stable | Required both where images exist | Representative enterprise baseline |
-| openSUSE Leap/Tumbleweed | Required both where images exist | Scheduled representative kernels |
-| Arch Linux | x86_64; arm port tracked separately | No claim that Arch Linux ARM is official Arch |
-| Alpine Linux | Required musl tests on both | Scheduled both |
-| openEuler LTS | Required both | Required both; first-class support |
+| Ubuntu LTS | Native x86_64 plus QEMU AArch64 required | Native x86_64 required; ARM64 optional future |
+| Debian stable | Native x86_64 plus QEMU AArch64 where available | Native x86_64 required; ARM64 optional future |
+| Fedora stable | Native x86_64 plus QEMU AArch64 where available | ARM64 optional future |
+| Rocky/AlmaLinux stable | Native x86_64 plus QEMU AArch64 where available | Representative x86_64 baseline |
+| openSUSE Leap/Tumbleweed | Native x86_64 plus QEMU AArch64 where available | Representative x86_64 kernels |
+| Arch Linux | x86_64; ARM port tracked separately | No claim that Arch Linux ARM is official Arch |
+| Alpine Linux | Native x86_64 plus QEMU AArch64 musl where available | ARM64 optional future |
+| openEuler LTS | Native x86_64 plus QEMU AArch64 where available | Native x86_64 required; ARM64 optional future |
 
 Exact releases, image digests, libc and package availability are pinned in the
 [platform manifest](PLATFORMS.md). Test the

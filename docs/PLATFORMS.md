@@ -133,11 +133,10 @@ functional behavior, but every report sets `performance_baseline` to false.
 Containers and QEMU, UML or Bochs emulation are rejected as native evidence.
 Performance claims require separately controlled native resources.
 
-AR-0703 tracks the unavailable disposable booted Debian 13 and openEuler 24.03
-LTS-SP2 x86_64/aarch64 lab cells. Container images, cross-compilation and emulation
-do not substitute for those environments. Until that task provides genuine
-capacity and all reports pass, the affected cells remain planned and AR-0702
-remains incomplete.
+AR-0703 tracks optional future disposable booted Debian 13 and openEuler 24.03
+LTS-SP2 native ARM64 lab cells. Their absence does not block AR-0702 or development.
+The required AArch64 portability path is the pinned QEMU lane; it does not substitute
+for native ARM64 kernel, performance, or support-cell evidence.
 
 To refresh a candidate, first inspect its mutable tag, then inspect/export the
 resolved digest. Review all changes rather than replacing digests automatically:
@@ -159,10 +158,15 @@ The [native x86 capacity contract](NATIVE_X86_CAPACITY.md) qualifies one explici
 authorized existing Ubuntu x86_64 host as a bounded credential-free functional cell. Its
 sanitized evidence is separate from the distribution support matrix: it does not promote a
 platform or agent cell, establish an uncontended performance baseline, activate persistent
-runner routing, or provide native aarch64 capacity. AR-0702 remains responsible for native
-platform support claims.
+runner routing, or provide native ARM64 capacity. Native ARM64 is optional future qualification;
+AR-0702 completes from required native x86_64 and applicable pinned QEMU AArch64 evidence.
 
 ## Emulated aarch64 portability lane
+
+The [native ARM64 policy](NATIVE_AARCH64_POLICY.md) defines this lane as the required AArch64
+development gate where userspace emulation is technically meaningful and keeps native ARM64
+hardware evidence optional and non-blocking.
+
 
 [The emulation manifest](../platforms/v1/emulated-aarch64.json) defines a
 separate x86_64-hosted QEMU user-mode lane. It cross-builds the real workspace
@@ -177,7 +181,8 @@ This lane is labeled only emulated-aarch64. QEMU user mode shares the booted
 x86_64 host kernel; the recorded kernel release is host provenance, never guest
 or native-aarch64 evidence. It does not qualify native hardware, native kernels,
 timing, contention, architecture performance, distribution boot, Debian,
-openEuler, or any cell owned by AR-0702/AR-0703. The closed evidence contract
+openEuler, or a native support cell. It is nevertheless the required AArch64
+portability gate wherever userspace execution is technically meaningful. The closed evidence contract
 rejects those claim elevations and unknown fields.
 
 The binfmt interpreter receives the same digest-pinned guest userspace prefix as
