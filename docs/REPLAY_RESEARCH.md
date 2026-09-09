@@ -7,6 +7,9 @@ and run the same conformance suite before choosing dependencies or importing cod
 The pinned-code and bounded-spike assessment is recorded in
 [REPLAY_EVALUATION.md](REPLAY_EVALUATION.md). It selects a small safe Rust
 implementation and makes no provider or native-platform support claim.
+The separate [double and local-inference recommendation](LOCAL_LLM_TESTING_RECOMMENDATIONS.md)
+classifies synthetic fixtures, cassette replay and pinned local inference, and
+records dependency-ordered qualification tasks without claiming they exist.
 
 ## Literature
 
