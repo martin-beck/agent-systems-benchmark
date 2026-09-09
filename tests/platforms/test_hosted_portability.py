@@ -13,8 +13,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import jsonschema
-
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools/platforms"
 sys.path.insert(0, str(TOOLS))
@@ -35,10 +33,9 @@ class HostedPortabilityTests(unittest.TestCase):
         self.report = json.loads((fixture_root / "positive.json").read_text())
         self.mutations = json.loads((fixture_root / "mutations.json").read_text())
         self.schema = json.loads((ROOT / "platforms/v1/hosted-portability.schema.json").read_text())
-        self.validator = jsonschema.Draft202012Validator(self.schema)
 
     def test_closed_schema_positive_and_every_declared_mutation(self) -> None:
-        self.validator.validate(self.report)
+        HOSTED._validate_schema(self.report, self.schema, self.schema)
         seen: set[str] = set()
         for mutation in self.mutations:
             self.assertNotIn(mutation["id"], seen)
@@ -57,8 +54,8 @@ class HostedPortabilityTests(unittest.TestCase):
                 del target[path[-1]]
             else:
                 target[path[-1]] = mutation["value"]
-            with self.assertRaises(jsonschema.ValidationError, msg=mutation["id"]):
-                self.validator.validate(candidate)
+            with self.assertRaises(HOSTED.PortabilityError, msg=mutation["id"]):
+                HOSTED._validate_schema(candidate, self.schema, self.schema)
         self.assertEqual(len(seen), 17)
         serialized = json.dumps(self.report, sort_keys=True).lower()
         for forbidden in ("hostname", "/home/", "/srv/data/projects", "api_key", "bearer ", "authorization:"):
@@ -99,7 +96,7 @@ class HostedPortabilityTests(unittest.TestCase):
                 mock.patch.object(HOSTED, "_run", return_value=check),
             ):
                 report = HOSTED.collect("ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks, root)
-            self.validator.validate(report)
+            HOSTED._validate_schema(report, self.schema, self.schema)
             self.assertFalse(report["observed"]["distribution"]["exact_native_release"])
             with self.assertRaisesRegex(HOSTED.PortabilityError, "exactly"):
                 HOSTED.collect("ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks[:-1], root)
@@ -262,6 +259,56 @@ class HostedPortabilityTests(unittest.TestCase):
                 invalid_route.stdout.strip(), "ERROR: platform evidence route is invalid"
             )
             self.assertEqual(invalid_route.stderr, "")
+            self.assertFalse(hosted.exists())
+
+    def test_validator_runs_without_site_packages_or_ambient_dependencies(self) -> None:
+        tool = TOOLS / "hosted_portability.py"
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            output_root = Path(temporary)
+            hosted = output_root / "hosted.json"
+            native_file = output_root / "native.json"
+            hosted.write_text(json.dumps(self.report))
+            result = subprocess.run(
+                [
+                    sys.executable, "-S", str(tool), "validate-artifact", "--route",
+                    "hosted-portability", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(ROOT),
+                ],
+                capture_output=True, text=True, check=False,
+                env={"PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1"},
+            )
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(result.stdout.strip(), "hosted-portability")
+            self.assertEqual(result.stderr, "")
+            self.assertTrue(hosted.is_file())
+            self.assertFalse(native_file.exists())
+
+            source = output_root / "source"
+            schemas = source / "platforms/v1"
+            schemas.mkdir(parents=True)
+            schema_path = schemas / "hosted-portability.schema.json"
+            schema_path.write_bytes(
+                (ROOT / "platforms/v1/hosted-portability.schema.json").read_bytes() + b"\n"
+            )
+            hosted.unlink()
+            hosted.write_text(json.dumps(self.report))
+            altered_schema = subprocess.run(
+                [
+                    sys.executable, "-S", str(tool), "validate-artifact", "--route",
+                    "hosted-portability", "--native-file", str(native_file),
+                    "--hosted-file", str(hosted), "--output-root", str(output_root),
+                    "--source", str(source),
+                ],
+                capture_output=True, text=True, check=False,
+                env={"PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1"},
+            )
+            self.assertEqual(altered_schema.returncode, 1)
+            self.assertEqual(
+                altered_schema.stdout.strip(),
+                "ERROR: platform evidence schema identity is not exact",
+            )
+            self.assertEqual(altered_schema.stderr, "")
             self.assertFalse(hosted.exists())
 
 

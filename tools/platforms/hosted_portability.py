@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -14,8 +15,8 @@ import stat
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlparse
 
-import jsonschema
 import native_evidence as native
 
 MAX_EVIDENCE_BYTES = 1 << 20
@@ -26,13 +27,17 @@ LIMITATIONS = [
     "not-performance-baseline",
     "native-aarch64-unqualified",
 ]
+SCHEMA_SHA256 = {
+    "hosted-portability.schema.json": "93d47a8042c6c872c6854e60293ca0c56d09fdddc4ffab3e9e47e9d6ae5cc0f9",
+    "native-evidence.schema.json": "332056435d69dd8cdd237e7b587289c8b31e75f514c04ecdec04bd75e4356017",
+}
 
 
 class PortabilityError(RuntimeError):
     """A hosted portability precondition or check failed."""
 
 
-def _bounded_json(path: Path) -> dict[str, Any]:
+def _bounded_json(path: Path, expected_sha256: str | None = None) -> dict[str, Any]:
     """Read one bounded no-follow regular JSON object."""
     descriptor = -1
     try:
@@ -43,6 +48,8 @@ def _bounded_json(path: Path) -> dict[str, Any]:
         data = os.read(descriptor, MAX_EVIDENCE_BYTES + 1)
         if len(data) > MAX_EVIDENCE_BYTES or os.read(descriptor, 1):
             raise PortabilityError("platform evidence exceeds byte limit")
+        if expected_sha256 is not None and hashlib.sha256(data).hexdigest() != expected_sha256:
+            raise PortabilityError("platform evidence schema identity is not exact")
         decoded = json.loads(data.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise PortabilityError("platform evidence cannot be decoded safely") from error
@@ -52,6 +59,105 @@ def _bounded_json(path: Path) -> dict[str, Any]:
     if not isinstance(decoded, dict):
         raise PortabilityError("platform evidence must be one object")
     return cast(dict[str, Any], decoded)
+
+
+def _resolve_ref(root: dict[str, Any], reference: str) -> dict[str, Any]:
+    """Resolve the closed local-reference form used by pinned platform schemas."""
+    if not reference.startswith("#/$defs/") or "/" in reference.removeprefix("#/$defs/"):
+        raise PortabilityError("platform evidence schema reference is unsupported")
+    target = root.get("$defs", {}).get(reference.removeprefix("#/$defs/"))
+    if not isinstance(target, dict):
+        raise PortabilityError("platform evidence schema reference is invalid")
+    return cast(dict[str, Any], target)
+
+
+def _matches_schema(value: Any, schema: dict[str, Any], root: dict[str, Any]) -> bool:
+    try:
+        _validate_schema(value, schema, root)
+    except PortabilityError:
+        return False
+    return True
+
+
+def _validate_schema(value: Any, schema: dict[str, Any], root: dict[str, Any]) -> None:
+    """Validate the exact, digest-pinned platform-schema keyword closure."""
+    if "$ref" in schema:
+        _validate_schema(value, _resolve_ref(root, cast(str, schema["$ref"])), root)
+        return
+    if "oneOf" in schema:
+        alternatives = cast(list[dict[str, Any]], schema["oneOf"])
+        if sum(_matches_schema(value, option, root) for option in alternatives) != 1:
+            raise PortabilityError("platform evidence does not match its closed schema")
+        return
+    if "const" in schema and value != schema["const"]:
+        raise PortabilityError("platform evidence does not match its closed schema")
+    if "enum" in schema and value not in cast(list[Any], schema["enum"]):
+        raise PortabilityError("platform evidence does not match its closed schema")
+
+    declared_type = cast(str | None, schema.get("type"))
+    valid_type = declared_type is None or {
+        "object": isinstance(value, dict),
+        "array": isinstance(value, list),
+        "string": isinstance(value, str),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+        "boolean": isinstance(value, bool),
+    }.get(declared_type, False)
+    if not valid_type:
+        raise PortabilityError("platform evidence does not match its closed schema")
+
+    if isinstance(value, dict) and declared_type == "object":
+        properties = cast(dict[str, dict[str, Any]], schema.get("properties", {}))
+        required = cast(list[str], schema.get("required", []))
+        if any(key not in value for key in required):
+            raise PortabilityError("platform evidence does not match its closed schema")
+        if schema.get("additionalProperties") is False and any(
+            key not in properties for key in value
+        ):
+            raise PortabilityError("platform evidence does not match its closed schema")
+        for key, item in value.items():
+            if key in properties:
+                _validate_schema(item, properties[key], root)
+
+    if isinstance(value, list) and declared_type == "array":
+        minimum = cast(int, schema.get("minItems", 0))
+        maximum = cast(int | None, schema.get("maxItems"))
+        if len(value) < minimum or (maximum is not None and len(value) > maximum):
+            raise PortabilityError("platform evidence does not match its closed schema")
+        if schema.get("uniqueItems") and len({json.dumps(item, sort_keys=True) for item in value}) != len(value):
+            raise PortabilityError("platform evidence does not match its closed schema")
+        prefix = cast(list[dict[str, Any]], schema.get("prefixItems", []))
+        for item, item_schema in zip(value, prefix, strict=False):
+            _validate_schema(item, item_schema, root)
+        remaining = value[len(prefix) :]
+        items = schema.get("items")
+        if items is False and remaining:
+            raise PortabilityError("platform evidence does not match its closed schema")
+        if isinstance(items, dict):
+            for item in remaining if prefix else value:
+                _validate_schema(item, cast(dict[str, Any], items), root)
+
+    if isinstance(value, str) and declared_type == "string":
+        minimum_length = cast(int, schema.get("minLength", 0))
+        maximum_length = cast(int | None, schema.get("maxLength"))
+        if len(value) < minimum_length or (
+            maximum_length is not None and len(value) > maximum_length
+        ):
+            raise PortabilityError("platform evidence does not match its closed schema")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and re.search(pattern, value) is None:
+            raise PortabilityError("platform evidence does not match its closed schema")
+        if schema.get("format") == "uri":
+            parsed = urlparse(value)
+            if not parsed.scheme or not parsed.netloc:
+                raise PortabilityError("platform evidence does not match its closed schema")
+
+    if isinstance(value, int) and not isinstance(value, bool) and declared_type == "integer":
+        minimum_value = cast(int | None, schema.get("minimum"))
+        maximum_value = cast(int | None, schema.get("maximum"))
+        if (minimum_value is not None and value < minimum_value) or (
+            maximum_value is not None and value > maximum_value
+        ):
+            raise PortabilityError("platform evidence does not match its closed schema")
 
 
 def _remove_candidate(path: Path, output_root: Path) -> None:
@@ -99,14 +205,10 @@ def validate_artifact(
         if absent.exists() or absent.is_symlink():
             raise PortabilityError("more than one platform evidence kind exists")
         report = _bounded_json(selected)
-        schema = _bounded_json(source / "platforms/v1" / schema_name)
-        try:
-            jsonschema.Draft202012Validator.check_schema(schema)
-            jsonschema.Draft202012Validator(schema).validate(report)
-        except jsonschema.exceptions.SchemaError as error:
-            raise PortabilityError("platform evidence schema is invalid") from error
-        except jsonschema.exceptions.ValidationError as error:
-            raise PortabilityError("platform evidence does not match its closed schema") from error
+        schema = _bounded_json(
+            source / "platforms/v1" / schema_name, SCHEMA_SHA256[schema_name]
+        )
+        _validate_schema(report, schema, schema)
         if (report.get("kind"), report.get("qualification")) != expected:
             raise PortabilityError("platform evidence route and claim differ")
         return route
