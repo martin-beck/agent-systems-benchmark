@@ -33,6 +33,15 @@ and failure evidence without publishing task secrets or raw private transcripts.
 | [HumanEval+ / MBPP+ via EvalPlus](https://github.com/evalplus/evalplus) | Fast code correctness controls | Small synthetic controls; weak proxy for repository engineering |
 | [LiveCodeBench](https://github.com/LiveCodeBench/LiveCodeBench) | Time-windowed coding evaluation | Pin release/window; separate code-generation claims from agent systems claims |
 
+The AR-0404 catalogue also records four optional, provenance-only suite boundaries in
+`crates/asb-workloads/registry/v1/external-workloads.json`: SWE-bench Pro (`main-ca10a60a`),
+BigCodeBench (`v0.2.4-9059fb84`), EvalPlus (`v0.3.1-e5d0ed0b`), and LiveCodeBench release v6
+(`release-v6-28fef95e`). Each entry pins its source archive, dataset revision, license, evaluator
+identity, and explicit-download/non-vendored policy. All evaluator and native-platform cells
+remain `planned` or unsupported until immutable evaluator images, SBOMs, reset/fault evidence,
+and real native runs are independently qualified. These are code-generation or correctness
+controls and must not be reported as complete agent-performance results.
+
 Before enabling any external suite, record code and dataset licenses separately,
 task revision, evaluator version, image digests and redistributable assets.
 Acquire datasets explicitly; do not vendor them into the source repository.

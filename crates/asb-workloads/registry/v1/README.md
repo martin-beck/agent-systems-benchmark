@@ -13,6 +13,11 @@ has no repository SPDX declaration; its per-exercise licenses and attribution
 are therefore mandatory. Unsupported arm64 cells must remain explicit until
 native oracle-parity evidence exists.
 
+The AR-0404 optional-suite pins cover SWE-bench Pro, BigCodeBench, EvalPlus, and
+LiveCodeBench release v6. Their source archives and dataset revisions are
+content-addressed, while evaluator provenance remains planned; registry presence
+never implies executable or native support.
+
 The Terminal-Bench v4 record deliberately pins the source release, dataset
 manifest, and Harbor harness as different identities. The manifest points to
 published Harbor package digests; a tag checkout is not a substitute for those

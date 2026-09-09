@@ -21,6 +21,10 @@ def test_external_registry_is_pinned_and_non_vendored():
         "swe-perf",
         "swe-fficiency",
         "core-bench",
+        "swe-bench-pro",
+        "bigcodebench",
+        "evalplus",
+        "livecodebench",
     ]
     for item in data["workloads"]:
         assert item["dataset"]["vendored"] is False
@@ -43,8 +47,18 @@ def test_external_registry_is_pinned_and_non_vendored():
     assert terminal["network"]["status"] == "unqualified-upstream-default-public"
     assert terminal["reset"]["status"] == "unverified"
 
-    for item in data["workloads"][-3:]:
+    for item in data["workloads"]:
+        if item["id"] not in {"swe-perf", "swe-fficiency", "core-bench"}:
+            continue
         assert item["evaluator"]["provenance"]["status"] == "planned"
         assert item["performance"]["correctness"] == "unqualified"
         assert item["performance"]["paired_trials"] == 0
         assert item["performance"]["uncertainty_method"] is None
+
+    for item in data["workloads"][-4:]:
+        assert item["source"]["archive_status"] == "verified"
+        assert len(item["source"]["commit"]) == 40
+        assert len(item["source"]["archive_sha256"]) == 64
+        assert len(item["dataset"]["revision"]) == 40
+        assert item["evaluator"]["provenance"]["status"] == "planned"
+        assert item["platforms"]["linux-aarch64"] == "unsupported-until-native-evidence"

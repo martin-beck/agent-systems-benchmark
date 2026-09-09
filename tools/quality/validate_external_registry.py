@@ -40,6 +40,32 @@ PERFORMANCE_PINS = {
         "dataset": "18ac8edf2532d9edb9d13ae71f715410de6ee5a0",
     },
 }
+ADDITIONAL_SUITE_PINS = {
+    "swe-bench-pro": {
+        "version": "main-ca10a60a",
+        "source": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5",
+        "archive": "c1058143eba29553d02fd8cb9c55ec2f0c04aa7093f4ba6fc5af43b57f5d73e0",
+        "dataset": "7ab5114912baf22bb098818e604c02fe7ad2c11f",
+    },
+    "bigcodebench": {
+        "version": "v0.2.4-9059fb84",
+        "source": "9059fb84d1188c02edeac4995361656a2fdecbef",
+        "archive": "b95cc1e4adc1d1d1f888785ce5614930d11097805a3e6925e2b948f1b93683b1",
+        "dataset": "b74c0d0bf70d2c0bc459be537895cca163007f1a",
+    },
+    "evalplus": {
+        "version": "v0.3.1-e5d0ed0b",
+        "source": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
+        "archive": "490f08728db1da8a73df89ada48f8ad0270fbd667895838348e64506095a2d49",
+        "dataset": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b",
+    },
+    "livecodebench": {
+        "version": "release-v6-28fef95e",
+        "source": "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24",
+        "archive": "cd2b592e51ef9aec0f8e92ebb2b8b579f1e519fbcaaeb9e63e4f0ffbf3f18bb1",
+        "dataset": "0fe84c3912ea0c4d4a78037083943e8f0c4dd505",
+    },
+}
 REGISTRY = (
     Path(__file__).parents[2]
     / "crates/asb-workloads/registry/v1/external-workloads.json"
@@ -135,6 +161,32 @@ def validate_performance_candidate(item: dict[str, Any]) -> None:
         fail("core-bench: missing recommended evaluator license must remain explicit")
 
 
+def validate_additional_suite(item: dict[str, Any]) -> None:
+    ident = item["id"]
+    pins = ADDITIONAL_SUITE_PINS[ident]
+    source = item.get("source", {})
+    dataset = item.get("dataset", {})
+    evaluator = item.get("evaluator", {})
+    if item.get("version") != pins["version"]:
+        fail(f"{ident}: exact suite version is required")
+    if source.get("commit") != pins["source"]:
+        fail(f"{ident}: exact source commit is required")
+    if source.get("archive_sha256") != pins["archive"]:
+        fail(f"{ident}: exact source archive digest is required")
+    if dataset.get("revision") != pins["dataset"]:
+        fail(f"{ident}: exact dataset revision is required")
+    if evaluator.get("image_digest") is not None or evaluator.get("provenance") != {
+        "status": "planned",
+        "sbom_sha256": None,
+        "evidence": None,
+    }:
+        fail(f"{ident}: evaluator must remain unqualified without native evidence")
+    if source.get("license") not in {"MIT", "Apache-2.0"}:
+        fail(f"{ident}: source license must be an explicit SPDX license")
+    if dataset.get("vendored") is not False or dataset.get("acquisition") != "explicit-download":
+        fail(f"{ident}: dataset must remain explicit-download and non-vendored")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--registry", type=Path, default=REGISTRY)
@@ -210,6 +262,8 @@ def main() -> int:
             validate_terminal_bench(item)
         if ident in PERFORMANCE_PINS:
             validate_performance_candidate(item)
+        if ident in ADDITIONAL_SUITE_PINS:
+            validate_additional_suite(item)
     digest = hashlib.sha256(args.registry.read_bytes()).hexdigest()
     print(
         json.dumps(
