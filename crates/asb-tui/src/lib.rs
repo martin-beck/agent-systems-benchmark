@@ -4,6 +4,9 @@
 #![deny(missing_docs)]
 //! Capability-driven state for the independent settings wizard.
 
+/// Safe, configuration-driven SSH discovery and remote-proxy command planning.
+pub mod remote;
+
 use asb_control::{
     CancelParams, Capabilities, ControlCall, ControlEvent, ControlEventKind, ControlLimits,
     ControlResult, LaunchParams, MutationAcknowledgement, MutationParams, Page, PageParams,
