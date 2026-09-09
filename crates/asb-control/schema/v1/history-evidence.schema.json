@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HistoryEvidence",
+  "description": "Bounded provenance and outcome evidence for one history item.",
+  "type": "object",
+  "properties": {
+    "agent_id": {
+      "description": "Public agent identity, or an explicit unavailable marker.",
+      "type": "string"
+    },
+    "created_at": {
+      "description": "RFC3339 UTC creation time, never inferred from list order.",
+      "type": "string"
+    },
+    "outcome": {
+      "description": "Durable terminal outcome.",
+      "$ref": "#/$defs/DurableOutcome"
+    },
+    "platform_id": {
+      "description": "Public platform identity, never a host path or hostname.",
+      "type": "string"
+    },
+    "provider_source": {
+      "description": "Public provider source/profile identity, never a credential.",
+      "type": "string"
+    },
+    "result_integrity": {
+      "description": "Whether all required result evidence is intact.",
+      "$ref": "#/$defs/ResultIntegrity"
+    },
+    "unavailable_reasons": {
+      "description": "Explicit reason codes for unavailable fields/evidence.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SettingsIssue"
+      }
+    },
+    "workload_id": {
+      "description": "Immutable workload identity and revision.",
+      "type": "string"
+    },
+    "workload_revision": {
+      "description": "Workload content/scorer revision.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "created_at",
+    "agent_id",
+    "provider_source",
+    "workload_id",
+    "workload_revision",
+    "platform_id",
+    "result_integrity",
+    "outcome",
+    "unavailable_reasons"
+  ],
+  "$defs": {
+    "DurableOutcome": {
+      "description": "Durable public outcome used by the history extension.",
+      "oneOf": [
+        {
+          "description": "Required evidence was collected successfully.",
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "description": "Execution or evidence collection failed durably.",
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "description": "Cancellation reached a durable terminal state.",
+          "type": "string",
+          "const": "cancelled"
+        },
+        {
+          "description": "Outcome is unavailable and must not be rendered as success or zero.",
+          "type": "string",
+          "const": "unavailable"
+        }
+      ]
+    },
+    "ResultIntegrity": {
+      "description": "Result-integrity state exposed by the history extension.",
+      "oneOf": [
+        {
+          "description": "All required public result records are verified.",
+          "type": "string",
+          "const": "verified"
+        },
+        {
+          "description": "Some required evidence is absent.",
+          "type": "string",
+          "const": "incomplete"
+        },
+        {
+          "description": "Evidence was present but failed integrity checks.",
+          "type": "string",
+          "const": "invalid"
+        }
+      ]
+    },
+    "SettingsIssue": {
+      "description": "Stable, non-sensitive settings diagnostic.",
+      "oneOf": [
+        {
+          "description": "The settings shape or syntax is invalid.",
+          "type": "string",
+          "const": "invalid_format"
+        },
+        {
+          "description": "A requested capability is unavailable.",
+          "type": "string",
+          "const": "unsupported_capability"
+        },
+        {
+          "description": "A referenced immutable component cannot be verified.",
+          "type": "string",
+          "const": "unverified_component"
+        },
+        {
+          "description": "A configured resource bound is invalid.",
+          "type": "string",
+          "const": "invalid_resource_bound"
+        }
+      ]
+    }
+  }
+}

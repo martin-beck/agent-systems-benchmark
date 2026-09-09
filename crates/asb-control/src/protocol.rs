@@ -14,6 +14,8 @@ use thiserror::Error;
 pub const JSONRPC_VERSION: &str = "2.0";
 /// Current control protocol generation.
 pub const CONTROL_V1: ControlVersion = ControlVersion { major: 1, minor: 0 };
+/// Version of the additive history and analysis evidence extension.
+pub const CONTROL_HISTORY_ANALYSIS_V1: ControlVersion = ControlVersion { major: 1, minor: 1 };
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
 /// Absolute maximum request deadline.
@@ -518,6 +520,182 @@ pub struct RunSummary {
     pub revision: Revision,
     /// Content digest of the immutable plan.
     pub plan_sha256: String,
+}
+
+/// Explicit availability of a public history field.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceAvailability {
+    /// The field is present and independently verified.
+    Available,
+    /// The field could not be obtained; the reason is recorded separately.
+    Unavailable,
+}
+
+/// Result-integrity state exposed by the history extension.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResultIntegrity {
+    /// All required public result records are verified.
+    Verified,
+    /// Some required evidence is absent.
+    Incomplete,
+    /// Evidence was present but failed integrity checks.
+    Invalid,
+}
+
+/// Durable public outcome used by the history extension.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DurableOutcome {
+    /// Required evidence was collected successfully.
+    Completed,
+    /// Execution or evidence collection failed durably.
+    Failed,
+    /// Cancellation reached a durable terminal state.
+    Cancelled,
+    /// Outcome is unavailable and must not be rendered as success or zero.
+    Unavailable,
+}
+
+/// Bounded provenance and outcome evidence for one history item.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryEvidence {
+    /// RFC3339 UTC creation time, never inferred from list order.
+    pub created_at: String,
+    /// Public agent identity, or an explicit unavailable marker.
+    pub agent_id: String,
+    /// Public provider source/profile identity, never a credential.
+    pub provider_source: String,
+    /// Immutable workload identity and revision.
+    pub workload_id: String,
+    /// Workload content/scorer revision.
+    pub workload_revision: String,
+    /// Public platform identity, never a host path or hostname.
+    pub platform_id: String,
+    /// Whether all required result evidence is intact.
+    pub result_integrity: ResultIntegrity,
+    /// Durable terminal outcome.
+    pub outcome: DurableOutcome,
+    /// Explicit reason codes for unavailable fields/evidence.
+    pub unavailable_reasons: Vec<SettingsIssue>,
+}
+
+/// A typed analysis confounder; values are identities, not private details.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AnalysisConfounder {
+    /// Stable confounder category.
+    pub kind: String,
+    /// Public bounded explanation.
+    pub description: String,
+}
+
+/// Compatibility decision supplied by the experiment-comparability contract.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalysisCompatibility {
+    /// All required identities and controls match.
+    Comparable,
+    /// A typed confounder or missing evidence prevents comparison.
+    NotComparable,
+    /// Compatibility evidence is unavailable.
+    Unavailable,
+}
+
+/// Machine-checked analysis evidence bound to exact runs and revisions.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AnalysisEvidence {
+    /// Exact run identities included in the analysis.
+    pub run_ids: Vec<RunId>,
+    /// Exact durable revisions paired with `run_ids`.
+    pub revisions: Vec<Revision>,
+    /// AR-1001 compatibility decision.
+    pub compatibility: AnalysisCompatibility,
+    /// Every exclusion/confounder retained deterministically.
+    pub confounders: Vec<AnalysisConfounder>,
+    /// Metric identity, or `unavailable` when no metric exists.
+    pub metric: String,
+    /// Scoring identity, or `unavailable` when no scorer exists.
+    pub scoring: String,
+    /// Whether uncertainty was computed.
+    pub uncertainty_available: bool,
+    /// Aggregate result-integrity state.
+    pub result_integrity: ResultIntegrity,
+    /// Digest of sensitive detailed analysis, if one exists.
+    pub detail_sha256: Option<String>,
+}
+
+impl HistoryEvidence {
+    /// Validate bounded public fields and explicit unavailable semantics.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        if self.created_at.len() < 20
+            || self.created_at.len() > MAX_PUBLIC_STRING_BYTES
+            || !self.created_at.ends_with('Z')
+        {
+            return Err(ProtocolError::UnsafePublicValue);
+        }
+        for value in [
+            &self.agent_id,
+            &self.provider_source,
+            &self.workload_id,
+            &self.workload_revision,
+            &self.platform_id,
+        ] {
+            validate_public_string(value)?;
+        }
+        if self.unavailable_reasons.len() > MAX_PAGE_ITEMS as usize
+            || (self.outcome == DurableOutcome::Unavailable && self.unavailable_reasons.is_empty())
+            || (self.result_integrity != ResultIntegrity::Verified
+                && self.unavailable_reasons.is_empty())
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+
+impl AnalysisEvidence {
+    /// Validate exact-run binding, confounder completeness, and digest bounds.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        if self.run_ids.is_empty()
+            || self.run_ids.len() > MAX_ANALYSIS_RUNS
+            || self.run_ids.len() != self.revisions.len()
+            || self.run_ids.iter().collect::<BTreeSet<_>>().len() != self.run_ids.len()
+            || self.confounders.len() > MAX_ANALYSIS_RUNS
+        {
+            return Err(ProtocolError::InvalidAnalysisSet);
+        }
+        for run_id in &self.run_ids {
+            validate_identity(&run_id.0)?;
+        }
+        validate_public_string(&self.metric)?;
+        validate_public_string(&self.scoring)?;
+        let mut kinds = BTreeSet::new();
+        for confounder in &self.confounders {
+            validate_identity(&confounder.kind)?;
+            validate_public_string(&confounder.description)?;
+            if !kinds.insert(&confounder.kind) {
+                return Err(ProtocolError::InvalidResponse);
+            }
+        }
+        if self.compatibility == AnalysisCompatibility::Comparable
+            && (!self.confounders.is_empty()
+                || self.result_integrity != ResultIntegrity::Verified
+                || !self.uncertainty_available)
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if self.compatibility != AnalysisCompatibility::Comparable && self.confounders.is_empty() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if let Some(digest) = &self.detail_sha256 {
+            validate_digest(digest)?;
+        }
+        Ok(())
+    }
 }
 
 /// Privacy-reviewed public runner event.

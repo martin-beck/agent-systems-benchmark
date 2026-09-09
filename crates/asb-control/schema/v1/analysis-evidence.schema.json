@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisEvidence",
+  "description": "Machine-checked analysis evidence bound to exact runs and revisions.",
+  "type": "object",
+  "properties": {
+    "compatibility": {
+      "description": "AR-1001 compatibility decision.",
+      "$ref": "#/$defs/AnalysisCompatibility"
+    },
+    "confounders": {
+      "description": "Every exclusion/confounder retained deterministically.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AnalysisConfounder"
+      }
+    },
+    "detail_sha256": {
+      "description": "Digest of sensitive detailed analysis, if one exists.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metric": {
+      "description": "Metric identity, or `unavailable` when no metric exists.",
+      "type": "string"
+    },
+    "result_integrity": {
+      "description": "Aggregate result-integrity state.",
+      "$ref": "#/$defs/ResultIntegrity"
+    },
+    "revisions": {
+      "description": "Exact durable revisions paired with `run_ids`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Revision"
+      }
+    },
+    "run_ids": {
+      "description": "Exact run identities included in the analysis.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RunId"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "scoring": {
+      "description": "Scoring identity, or `unavailable` when no scorer exists.",
+      "type": "string"
+    },
+    "uncertainty_available": {
+      "description": "Whether uncertainty was computed.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "run_ids",
+    "revisions",
+    "compatibility",
+    "confounders",
+    "metric",
+    "scoring",
+    "uncertainty_available",
+    "result_integrity"
+  ],
+  "$defs": {
+    "AnalysisCompatibility": {
+      "description": "Compatibility decision supplied by the experiment-comparability contract.",
+      "oneOf": [
+        {
+          "description": "All required identities and controls match.",
+          "type": "string",
+          "const": "comparable"
+        },
+        {
+          "description": "A typed confounder or missing evidence prevents comparison.",
+          "type": "string",
+          "const": "not_comparable"
+        },
+        {
+          "description": "Compatibility evidence is unavailable.",
+          "type": "string",
+          "const": "unavailable"
+        }
+      ]
+    },
+    "AnalysisConfounder": {
+      "description": "A typed analysis confounder; values are identities, not private details.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Public bounded explanation.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Stable confounder category.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "description"
+      ]
+    },
+    "ResultIntegrity": {
+      "description": "Result-integrity state exposed by the history extension.",
+      "oneOf": [
+        {
+          "description": "All required public result records are verified.",
+          "type": "string",
+          "const": "verified"
+        },
+        {
+          "description": "Some required evidence is absent.",
+          "type": "string",
+          "const": "incomplete"
+        },
+        {
+          "description": "Evidence was present but failed integrity checks.",
+          "type": "string",
+          "const": "invalid"
+        }
+      ]
+    },
+    "Revision": {
+      "description": "Opaque durable revision used to resume event streams.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "RunId": {
+      "description": "Opaque stable run identity.",
+      "type": "string"
+    }
+  }
+}

@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 
 use asb_control::*;
+use schemars::schema_for;
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -24,6 +25,76 @@ fn limits() -> ControlLimits {
         max_page_items: 3,
         max_in_flight: 2,
     }
+}
+
+#[test]
+fn history_extension_requires_explicit_public_provenance_and_failure_reason() {
+    let mut evidence = HistoryEvidence {
+        created_at: "2026-09-09T04:00:00Z".into(),
+        agent_id: "agent-codex".into(),
+        provider_source: "replay:fixture-v1".into(),
+        workload_id: "original.bug-fix".into(),
+        workload_revision: "asb-original-v1".into(),
+        platform_id: "linux-x86_64".into(),
+        result_integrity: ResultIntegrity::Verified,
+        outcome: DurableOutcome::Completed,
+        unavailable_reasons: Vec::new(),
+    };
+    evidence.validate().unwrap();
+    evidence.outcome = DurableOutcome::Unavailable;
+    assert_eq!(evidence.validate(), Err(ProtocolError::InvalidResponse));
+    evidence.unavailable_reasons = vec![SettingsIssue::UnverifiedComponent];
+    evidence.validate().unwrap();
+    evidence.created_at = "/private/host/time".into();
+    assert_eq!(evidence.validate(), Err(ProtocolError::UnsafePublicValue));
+}
+
+#[test]
+fn analysis_extension_binds_runs_and_rejects_false_comparability() {
+    let mut evidence = AnalysisEvidence {
+        run_ids: vec![RunId("run-a".into()), RunId("run-b".into())],
+        revisions: vec![Revision(10), Revision(12)],
+        compatibility: AnalysisCompatibility::Comparable,
+        confounders: Vec::new(),
+        metric: "pass-at-1".into(),
+        scoring: "oracle-v1".into(),
+        uncertainty_available: true,
+        result_integrity: ResultIntegrity::Verified,
+        detail_sha256: None,
+    };
+    evidence.validate().unwrap();
+    evidence.confounders.push(AnalysisConfounder {
+        kind: "platform".into(),
+        description: "different platform identities".into(),
+    });
+    assert_eq!(evidence.validate(), Err(ProtocolError::InvalidResponse));
+    evidence.compatibility = AnalysisCompatibility::NotComparable;
+    evidence.validate().unwrap();
+    evidence.run_ids.push(RunId("run-a".into()));
+    assert_eq!(evidence.validate(), Err(ProtocolError::InvalidAnalysisSet));
+}
+
+#[test]
+fn history_analysis_extension_has_closed_generated_schemas() {
+    assert_eq!(
+        CONTROL_HISTORY_ANALYSIS_V1,
+        ControlVersion { major: 1, minor: 1 }
+    );
+    let history_schema = serde_json::to_value(schema_for!(HistoryEvidence)).unwrap();
+    let analysis_schema = serde_json::to_value(schema_for!(AnalysisEvidence)).unwrap();
+    assert_eq!(history_schema["additionalProperties"], json!(false));
+    assert_eq!(analysis_schema["additionalProperties"], json!(false));
+    let mut hostile = json!({
+        "created_at":"2026-09-09T04:00:00Z","agent_id":"agent-codex",
+        "provider_source":"replay:fixture-v1","workload_id":"original.bug-fix",
+        "workload_revision":"asb-original-v1","platform_id":"linux-x86_64",
+        "result_integrity":"verified","outcome":"completed","unavailable_reasons":[],
+        "unexpected":"secret"
+    });
+    let validator = jsonschema::validator_for(&history_schema).unwrap();
+    assert!(!validator.is_valid(&hostile));
+    hostile["unexpected"] = Value::Null;
+    assert!(!validator.is_valid(&hostile));
 }
 
 fn negotiate(limits: ControlLimits) -> NegotiateParams {

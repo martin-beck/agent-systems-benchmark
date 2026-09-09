@@ -3,8 +3,9 @@
 //! Checked-in schemas and bounded public fixture conformance.
 
 use asb_control::{
-    ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlResponse, ProtocolError,
-    control_event_schema, control_request_schema, control_response_schema, validate_request,
+    AnalysisEvidence, ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlResponse,
+    HistoryEvidence, ProtocolError, analysis_evidence_schema, control_event_schema,
+    control_request_schema, control_response_schema, history_evidence_schema, validate_request,
 };
 use serde_json::{Value, json};
 
@@ -15,6 +16,10 @@ const NEGOTIATE: &str = include_str!("../fixtures/v1/negotiate-request.json");
 const LAUNCH: &str = include_str!("../fixtures/v1/launch-request.json");
 const RESPONSE: &str = include_str!("../fixtures/v1/success-response.json");
 const EVENT: &str = include_str!("../fixtures/v1/run-event.json");
+const HISTORY_EVIDENCE: &str = include_str!("../fixtures/v1/history-evidence.json");
+const ANALYSIS_EVIDENCE: &str = include_str!("../fixtures/v1/analysis-evidence.json");
+const HISTORY_SCHEMA: &str = include_str!("../schema/v1/history-evidence.schema.json");
+const ANALYSIS_SCHEMA: &str = include_str!("../schema/v1/analysis-evidence.schema.json");
 
 fn validate(schema: &str, document: &str) {
     let schema: Value = serde_json::from_str(schema).unwrap();
@@ -41,6 +46,16 @@ fn public_fixtures_match_schemas_and_rust_types() {
         .validate()
         .unwrap();
     serde_json::from_str::<ControlEvent>(EVENT).unwrap();
+    validate(HISTORY_SCHEMA, HISTORY_EVIDENCE);
+    validate(ANALYSIS_SCHEMA, ANALYSIS_EVIDENCE);
+    serde_json::from_str::<HistoryEvidence>(HISTORY_EVIDENCE)
+        .unwrap()
+        .validate()
+        .unwrap();
+    serde_json::from_str::<AnalysisEvidence>(ANALYSIS_EVIDENCE)
+        .unwrap()
+        .validate()
+        .unwrap();
 }
 
 #[test]
@@ -158,6 +173,8 @@ fn checked_in_schemas_equal_fresh_generation() {
     let generated_request = serde_json::to_value(control_request_schema()).unwrap();
     let generated_response = serde_json::to_value(control_response_schema()).unwrap();
     let generated_event = serde_json::to_value(control_event_schema()).unwrap();
+    let generated_history = serde_json::to_value(history_evidence_schema()).unwrap();
+    let generated_analysis = serde_json::to_value(analysis_evidence_schema()).unwrap();
     assert_eq!(
         serde_json::from_str::<Value>(REQUEST_SCHEMA).unwrap(),
         generated_request
@@ -169,5 +186,13 @@ fn checked_in_schemas_equal_fresh_generation() {
     assert_eq!(
         serde_json::from_str::<Value>(EVENT_SCHEMA).unwrap(),
         generated_event
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(HISTORY_SCHEMA).unwrap(),
+        generated_history
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(ANALYSIS_SCHEMA).unwrap(),
+        generated_analysis
     );
 }

@@ -110,3 +110,16 @@ cancel a launched run, endpoint restart plus retry does not duplicate it,
 malformed negotiation cannot reach the backend, invalid typed backend output is
 not written, trickled ingress consumes the same absolute request budget, and
 late backend outcomes are joined and rejected without post-response effects.
+
+## History and analysis evidence extension
+
+`CONTROL_HISTORY_ANALYSIS_V1` (`1.1`) defines additive, machine-checked evidence
+types for clients that opt into the history/analysis extension. `HistoryEvidence`
+requires explicit UTC creation time, public agent/provider/workload/platform
+identities, result integrity, durable outcome, and bounded reasons whenever
+evidence is unavailable or incomplete. `AnalysisEvidence` binds every analysis
+to unique run IDs and paired durable revisions, records typed confounders, and
+cannot label a set comparable unless integrity and uncertainty evidence are
+present and no confounder exists. Unknown JSON fields are rejected. These types
+are intentionally additive: existing v1 (`1.0`) envelopes remain compatible;
+serialized CLI/backend integration is a subsequent step.

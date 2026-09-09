@@ -1,0 +1,11 @@
+{
+  "run_ids": ["run-a", "run-b"],
+  "revisions": [10, 12],
+  "compatibility": "comparable",
+  "confounders": [],
+  "metric": "pass-at-1",
+  "scoring": "oracle-v1",
+  "uncertainty_available": true,
+  "result_integrity": "verified",
+  "detail_sha256": null
+}
