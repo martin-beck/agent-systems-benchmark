@@ -1,0 +1,10 @@
+[
+  {
+    "name": "matching-config-id",
+    "config_id": "sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e"
+  },
+  {
+    "name": "distinct-config-id",
+    "config_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  }
+]
