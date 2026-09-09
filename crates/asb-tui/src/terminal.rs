@@ -202,8 +202,8 @@ impl RenderPolicy {
     /// Compact, stable diagnostic suitable for `doctor` output.
     pub fn doctor_line(&self, evidence: &TerminalEvidence) -> String {
         format!(
-            "tier={:?} tty={} channel={} size={}x{} unicode={} mouse={} focus={} no_color={}",
-            self.tier,
+            "tier={} tty={} channel={} size={}x{} unicode={} mouse={} focus={} no_color={}",
+            tier_name(self.tier),
             evidence.tty,
             channel(evidence),
             evidence
@@ -218,6 +218,12 @@ impl RenderPolicy {
     }
 }
 
+/// Produce the privacy-safe terminal capability diagnostic.
+pub fn doctor(evidence: TerminalEvidence) -> Result<String, TerminalError> {
+    let policy = RenderPolicy::from_evidence(&evidence)?;
+    Ok(policy.doctor_line(&evidence))
+}
+
 fn channel(evidence: &TerminalEvidence) -> &'static str {
     if evidence.tmux {
         "tmux"
@@ -229,6 +235,15 @@ fn channel(evidence: &TerminalEvidence) -> &'static str {
         "local-tty"
     } else {
         "non-tty"
+    }
+}
+
+fn tier_name(tier: CapabilityTier) -> &'static str {
+    match tier {
+        CapabilityTier::Plain => "plain",
+        CapabilityTier::BasicColor => "basic_color",
+        CapabilityTier::IndexedColor => "indexed_color",
+        CapabilityTier::TrueColor => "true_color",
     }
 }
 
@@ -332,5 +347,14 @@ mod tests {
             ResponsiveLayout::from_dimensions(None, None).class,
             LayoutClass::Compact
         );
+    }
+
+    #[test]
+    fn doctor_output_contains_no_environment_values() {
+        let mut value = evidence();
+        value.term_program = Some("private-terminal-name".into());
+        let output = doctor(value).unwrap();
+        assert!(!output.contains("private-terminal-name"));
+        assert!(output.contains("tier=true_color"));
     }
 }
