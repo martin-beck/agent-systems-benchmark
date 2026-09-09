@@ -45,7 +45,7 @@ separate and never pool them as one benchmark population.
 ## Deterministic-double candidates
 
 - **MockAgents:** `mockagents/mockagents` v0.5.0 peels to
-  `6ddb03eea14484e5929a19673f0cfd8a1975f07` (Apache-2.0). Docs advertise Go,
+  `6ddb03e54a14484e5929a19673f0cfd8a1975f07` (Apache-2.0). Docs advertise Go,
   OpenAI/Anthropic, Responses, SSE, tools, scenarios, faults, contracts and replay.
   First spike candidate; independently test every claimed wire behavior.
 - **CopilotKit aimock:** v1.40.0 is
@@ -106,6 +106,20 @@ A local profile records immutable frontend/backend artifacts, model/tokenizer
 digests, quantization/template, dialect/routes/parser, sampling, CPU/GPU/runtime,
 thread/batch/context/scheduler settings, isolation, probe, warm-up, concurrency and
 teardown. Model bytes need not repeat; trials measure variability.
+
+## Independent grading
+
+Where a benchmark claims independent grading, the candidate execution path cannot
+grade itself. The grader must use a separately selected and proven provider/model
+profile, credentials, process state and network authorization. A synthetic double
+may test grader protocol plumbing with public fixtures, but its score is synthetic
+test evidence; a candidate local model, the same engine/model profile, or replayed
+candidate output cannot be promoted to independent model-quality evidence.
+
+AR-0884 owns the acceptance boundary: retain grader provider/model/artifact and
+evidence-class provenance, reject candidate/grader identity overlap and unavailable
+grader fallback, and publish a hostile same-profile rejection plus an independently
+provisioned grading artifact for every quality comparison claiming independence.
 
 ## Privacy, provenance and delivery
 
