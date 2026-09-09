@@ -24,10 +24,10 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(["llama_cpp", "localai", "ollama", "vllm"], [item["id"] for item in validate(self.value)["profiles"]])
 
     def test_unqualified_profiles_are_not_selectable(self) -> None:
-        self.assertEqual([], [item["id"] for item in self.value["profiles"] if item["selectable"]])
+        self.assertEqual(["ollama"], [item["id"] for item in self.value["profiles"] if item["selectable"]])
         ollama = self.value["profiles"][2]
         self.assertEqual("06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca", ollama["model"]["sha256"])
-        self.assertIsNone(ollama["model"]["tokenizer_sha256"])
+        self.assertEqual("2773bb7a4d7d8f04b21e09d3f3c0b968792ea7ba1284156004cc0dc39ef3c7f3", ollama["model"]["tokenizer_sha256"])
 
     def test_hostile_mutations_fail_closed(self) -> None:
         mutations = []

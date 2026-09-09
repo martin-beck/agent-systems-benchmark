@@ -63,8 +63,8 @@
     },
     {
       "id": "ollama",
-      "status": "unqualified",
-      "selectable": false,
+      "status": "qualified",
+      "selectable": true,
       "frontend": {
         "name": "Ollama",
         "version": "0.33.1",
@@ -74,7 +74,7 @@
         "license": "MIT"
       },
       "backend": null,
-      "model": {"name": "qwen3-coder:30b", "sha256": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca", "tokenizer_sha256": null},
+      "model": {"name": "qwen3-coder:30b", "sha256": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca", "tokenizer_sha256": "2773bb7a4d7d8f04b21e09d3f3c0b968792ea7ba1284156004cc0dc39ef3c7f3"},
       "routes": ["openai_chat", "openai_responses"],
       "configuration": {
         "template": "qwen3moe-Q4_K_M",
@@ -85,10 +85,10 @@
       },
       "qualification": {
         "hardware": "linux-x86_64-development-cell",
-        "runtime": "Ollama 0.33.1 read-only /api/version and /api/tags probe",
-        "trials": 1,
-        "variability": "identity-only; generation variability not measured",
-        "reason": "Read-only identity probe passed, but an independently recorded tokenizer digest and repeated generation trials remain absent."
+        "runtime": "Ollama 0.33.1; read-only identity probe and loopback OpenAI chat route",
+        "trials": 3,
+        "variability": "normalized seeded completion identical across three bounded trials; warm-up 21.482s excluded",
+        "reason": null
       }
     },
     {
