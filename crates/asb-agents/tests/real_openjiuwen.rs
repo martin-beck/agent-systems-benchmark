@@ -5,9 +5,9 @@
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::ffi::OsString;
-use std::fs;
+use std::fs::{self, DirBuilder};
 use std::io::Read;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt, symlink};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
@@ -28,7 +28,9 @@ const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
 struct Scratch(PathBuf);
 impl Drop for Scratch {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        if validate_scratch_root(&self.0).is_ok() {
+            let _ = fs::remove_dir_all(&self.0);
+        }
     }
 }
 struct Server(Child);
@@ -98,39 +100,77 @@ fn bounded_capture_rejects_oversized_output() {
             .stdin(Stdio::null()),
     );
 }
-fn scratch_root(configured: Option<OsString>) -> PathBuf {
-    configured
+fn scratch_base(configured: Option<OsString>) -> Result<PathBuf, &'static str> {
+    let base = configured
         .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
+        .unwrap_or_else(std::env::temp_dir);
+    if !base.is_absolute()
+        || fs::symlink_metadata(&base)
+            .map_err(|_| "scratch base is missing")?
+            .file_type()
+            .is_symlink()
+        || !base.is_dir()
+    {
+        return Err("scratch base is not an absolute real directory");
+    }
+    let canonical = fs::canonicalize(&base).map_err(|_| "scratch base is not canonical")?;
+    let repository = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))
+        .map_err(|_| "repository root is not canonical")?;
+    if canonical.starts_with(&repository) || repository.starts_with(&canonical) {
+        return Err("scratch base overlaps the repository");
+    }
+    Ok(canonical)
 }
-fn scratch_at(root: PathBuf, label: &str) -> Scratch {
-    assert!(root.is_absolute());
-    let path = root.join("asb-integration-fixtures").join(format!(
-        "asb-real-openjiuwen-{label}-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    fs::create_dir_all(&path).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
-    validate_scratch_root(&path).unwrap();
-    Scratch(path)
+fn scratch_at(base: PathBuf, label: &str) -> Result<Scratch, &'static str> {
+    let base = scratch_base(Some(base.into_os_string()))?;
+    let epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "system clock precedes epoch")?
+        .as_nanos();
+    for attempt in 0..128_u8 {
+        let path = base.join(format!(
+            ".asb-real-openjiuwen-{label}-{}-{epoch}-{attempt}",
+            std::process::id()
+        ));
+        match DirBuilder::new().mode(0o700).create(&path) {
+            Ok(()) => {
+                if let Err(error) = validate_scratch_root(&path) {
+                    let _ = fs::remove_dir(&path);
+                    return Err(error);
+                }
+                return Ok(Scratch(path));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err("scratch leaf creation failed"),
+        }
+    }
+    Err("scratch leaf collision bound exceeded")
 }
 fn scratch(label: &str) -> Scratch {
-    scratch_at(scratch_root(std::env::var_os("CARGO_TARGET_DIR")), label)
+    let base = scratch_base(std::env::var_os("CARGO_TARGET_DIR")).unwrap();
+    scratch_at(base, label).unwrap()
 }
 fn validate_scratch_root(path: &Path) -> Result<(), &'static str> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    if !path.is_absolute() || path.starts_with(repository) || path.is_symlink() {
+    if !path.is_absolute() {
+        return Err("scratch root is not absolute");
+    }
+    let metadata = fs::symlink_metadata(path).map_err(|_| "scratch root is missing")?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err("scratch root overlaps or aliases the repository");
     }
-    let mode = fs::metadata(path)
-        .map_err(|_| "scratch root is missing")?
-        .permissions()
-        .mode();
-    if mode & 0o077 != 0 {
+    let canonical = fs::canonicalize(path).map_err(|_| "scratch root is not canonical")?;
+    let repository = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))
+        .map_err(|_| "repository root is not canonical")?;
+    if canonical.starts_with(&repository) || repository.starts_with(&canonical) {
+        return Err("scratch root overlaps or aliases the repository");
+    }
+    let current_uid = fs::metadata("/proc/self")
+        .map_err(|_| "current process identity unavailable")?
+        .uid();
+    if metadata.uid() != current_uid {
+        return Err("scratch root is not owned by the current user");
+    }
+    if metadata.permissions().mode() & 0o777 != 0o700 {
         return Err("scratch root is not private");
     }
     Ok(())
@@ -425,9 +465,9 @@ fn assert_terminal_failure(output: &Output, root: &Path, label: &str) {
 #[test]
 fn scratch_roots_reject_repository_overlap_and_public_permissions() {
     assert!(validate_scratch_root(Path::new(env!("CARGO_MANIFEST_DIR"))).is_err());
-    let fallback_root = scratch_root(None);
+    let fallback_root = scratch_base(None).unwrap();
     assert_eq!(fallback_root, std::env::temp_dir());
-    let fallback = scratch_at(fallback_root, "fallback");
+    let fallback = scratch_at(fallback_root, "fallback").unwrap();
     assert!(fallback.0.starts_with(std::env::temp_dir()));
 
     let configured_root = std::env::temp_dir().join(format!(
@@ -441,17 +481,23 @@ fn scratch_roots_reject_repository_overlap_and_public_permissions() {
     fs::create_dir(&configured_root).unwrap();
     fs::set_permissions(&configured_root, fs::Permissions::from_mode(0o700)).unwrap();
     assert_eq!(
-        scratch_root(Some(configured_root.clone().into_os_string())),
+        scratch_base(Some(configured_root.clone().into_os_string())).unwrap(),
         configured_root
     );
-    let configured = scratch_at(configured_root.clone(), "configured");
+    let configured = scratch_at(configured_root.clone(), "configured").unwrap();
     assert!(configured.0.starts_with(&configured_root));
     drop(configured);
     fs::remove_dir_all(&configured_root).unwrap();
 
-    let root = scratch_at(std::env::temp_dir(), "permissions");
+    let hostile = scratch_at(std::env::temp_dir(), "hostile-parent").unwrap();
+    let alias = hostile.0.join("repository-alias");
+    symlink(env!("CARGO_MANIFEST_DIR"), &alias).unwrap();
+    assert!(scratch_at(alias, "must-fail").is_err());
+
+    let root = scratch_at(std::env::temp_dir(), "permissions").unwrap();
     fs::set_permissions(&root.0, fs::Permissions::from_mode(0o755)).unwrap();
     assert!(validate_scratch_root(&root.0).is_err());
+    fs::set_permissions(&root.0, fs::Permissions::from_mode(0o700)).unwrap();
 }
 fn assert_safe_output(output: &Output, root: &Path) {
     let combined = format!(
