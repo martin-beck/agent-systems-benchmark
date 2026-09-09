@@ -45,7 +45,8 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
         "cargo metadata --locked --format-version 1 --manifest-path formal/Cargo.toml --no-deps >/dev/null"
     ));
     assert!(WORKFLOW.contains("toolchain install 1.93.0"));
-    assert!(WORKFLOW.contains("ubuntu-24.04-arm"));
+    assert!(WORKFLOW.contains("runner: [ubuntu-24.04]"));
+    assert!(!WORKFLOW.contains("ubuntu-24.04-arm"));
     assert!(WORKFLOW.contains(
         "actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165"
     ));
