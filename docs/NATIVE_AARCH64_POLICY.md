@@ -8,10 +8,10 @@ The required AArch64 development gate is the pinned x86_64-hosted QEMU user-mode
 .github/workflows/emulated-aarch64.yml whenever the behavior can be tested without a native
 kernel or architecture-specific performance facility. It covers:
 
-- cross-compilation and release-binary startup;
-- userspace protocol, replay, adapter, bundle, CLI, and TUI logic;
-- portable error, cancellation, cleanup, and malformed-input paths; and
-- architecture-specific dependency closure when the pinned guest userspace contains it.
+- cross-compilation of the complete workspace for the pinned AArch64 target;
+- executed AArch64 protocol, replay, bundle, and adapter-library tests;
+- release CLI build and startup under QEMU; and
+- architecture-specific dependency closure exposed by those builds and executed tests.
 
 The emulated workflow runs for pull requests and main. Its QEMU packages, cross toolchain, Rust
 target, and ARM64 userspace image are pinned, and its temporary roots are deleted on every exit.

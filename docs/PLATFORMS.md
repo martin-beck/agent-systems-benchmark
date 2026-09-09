@@ -78,8 +78,8 @@ identity, agent startup and workload success all remain explicitly unverified.
 
 ## Native qualification boundary
 
-The dedicated `native-platforms.yml` workflow runs on disposable native Ubuntu
-x86_64 and aarch64 GitHub runners. It checks out the exact pull-request head,
+The dedicated `native-platforms.yml` workflow runs on a disposable native Ubuntu
+x86_64 GitHub runner. It checks out the exact pull-request head, then
 runs argv-only bounded process and native-metrics tests, attempts the delegated
 sandbox boundary in fail-closed mode, and uploads only canonical JSON. Command
 and output digests are retained; raw logs, hostnames, environment contents and
