@@ -17,5 +17,9 @@
   "redirect-loop",
   "redirect-host",
   "download-digest",
-  "download-size"
+  "download-size",
+  "destination-race",
+  "cache-directory-mode",
+  "archive-hardlink",
+  "output-race"
 ]

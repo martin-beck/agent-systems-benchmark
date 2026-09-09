@@ -19,8 +19,12 @@ The upstream v1.8.0 prerelease repeatedly replaced the bytes published under its
 download path, so ASB does not consume or repin that mutable asset. The runner instead consumes
 AR-0878's deterministic, license-complete source-build contract. Online mode retrieves only the
 digest-pinned source and Ant archives, pulls the digest-pinned build image, builds with network
-disabled, and verifies the exact qualified output. Offline mode accepts only an already cached,
-byte-identical, owner-controlled, single-link output JAR and performs no acquisition.
+disabled, and verifies the exact qualified output. Before building, the runner requires an
+owner-controlled source-cache directory and regular, single-link archive inputs, then copies and
+revalidates them in a private build snapshot so later cache replacement cannot change the build.
+Create-new hard-link promotion detects destination races without overwriting either input or
+output. Offline mode accepts only an already cached, byte-identical, owner-controlled, single-link
+output JAR and performs no acquisition.
 
 ## Evidence classification and bounds
 
@@ -71,5 +75,6 @@ formal/run_temporal_models.sh /absolute/tool-cache /absolute/new-scratch
 The Kani command is a deliberate negative. The temporal runner verifies pinned
 archive hashes, rejects pre-existing scratch directories, checks the positive
 models, and requires every deliberate model mutation to produce a counterexample.
-Set ASB_FORMAL_OFFLINE=1 only after both exact archives are present. No proof
-result establishes native platform support, timing, fairness or liveness.
+Set ASB_FORMAL_OFFLINE=1 only after the exact qualified output JAR is present; offline mode does not
+build from archived inputs. No proof result establishes native platform support, timing, fairness
+or liveness.

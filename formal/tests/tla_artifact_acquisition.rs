@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Fail-closed cache boundary for the deterministic TLA+ artifact.
 
+use std::collections::BTreeSet;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::{PermissionsExt, symlink};
@@ -17,6 +18,34 @@ const PINS: &str = include_str!("../toolchains.toml");
 const POSITIVE: &str = include_str!("../fixtures/tla-artifact-positive.json");
 const MUTATIONS: &str = include_str!("../fixtures/tla-artifact-mutations.json");
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+const OFFLINE_MUTATIONS: &[&str] = &[
+    "missing",
+    "digest",
+    "size",
+    "symlink",
+    "hardlink",
+    "world-writable",
+];
+const ONLINE_MUTATIONS: &[&str] = &[
+    "partial",
+    "http-404",
+    "http-403",
+    "http-429",
+    "http-500",
+    "timeout",
+    "stalled",
+    "disconnect",
+    "redirect-loop",
+    "redirect-host",
+    "download-digest",
+    "download-size",
+    "destination-race",
+    "cache-directory-mode",
+    "archive-hardlink",
+    "output-race",
+];
+const NETWORK_MUTATIONS: &[&str] = &["offline-network"];
 
 struct Scratch(PathBuf);
 
@@ -64,8 +93,8 @@ fn fixture_runner(scratch: &Scratch) -> (PathBuf, Vec<u8>) {
         )
         .replace("ANT_BYTES=6925830", "ANT_BYTES=19")
         .replace(
-            "\"$(dirname \"$0\")/tla-provenance/build.sh\" \"$cache\" \"$output\"",
-            "mock-build \"$cache\" \"$output\"",
+            "\"$(dirname \"$0\")/tla-provenance/build.sh\" \"$build_cache\" \"$built\"",
+            "mock-build \"$build_cache\" \"$built\"",
         );
     let runner = scratch.0.join("runner.sh");
     fs::write(&runner, source).expect("write fixture runner");
@@ -94,7 +123,19 @@ exit 98
     .expect("write docker mock");
     fs::write(
         bin.join("mock-build"),
-        "#!/bin/sh\nsleep \"${MOCK_BUILD_DELAY:-0}\"\nprintf %s 'bounded deterministic TLA fixture' >\"$2\"\n",
+        r#"#!/bin/sh
+sleep "${MOCK_BUILD_DELAY:-0}"
+if [ "${MOCK_SWAP_ORIGINAL:-0}" = 1 ]; then
+  rm -f -- "$MOCK_ORIGINAL_CACHE/tlaplus-b123b226.tar.gz"
+  printf %s tampered >"$MOCK_ORIGINAL_CACHE/tlaplus-b123b226.tar.gz"
+fi
+[ "$(cat "$1/tlaplus-b123b226.tar.gz")" = "bounded source fixture" ] || exit 96
+[ "$(cat "$1/apache-ant-1.10.15-bin.tar.gz")" = "bounded ant fixture" ] || exit 96
+if [ "${MOCK_CURL_MODE:-ok}" = output-race ]; then
+  printf %s intruder >"$MOCK_FINAL_OUTPUT"
+fi
+printf %s 'bounded deterministic TLA fixture' >"$2"
+"#,
     )
     .expect("write build mock");
     fs::write(
@@ -124,6 +165,7 @@ case "$url" in
 esac
 case "${MOCK_CURL_MODE:-ok}" in
   redirect-host) printf %s 'https://unapproved.invalid/artifact' ;;
+  destination-race) cp -- "$output" "${output%.partial}"; printf %s "$url" ;;
   download-digest) printf X | dd of="$output" bs=1 seek=0 conv=notrunc status=none; printf %s "$url" ;;
   download-size) printf X >>"$output"; printf %s "$url" ;;
   *) printf %s "$url" ;;
@@ -151,6 +193,32 @@ fn run_offline(runner: &Path, root: &Path, scratch: &Path) -> std::process::Outp
 
 fn cache_path(root: &Path) -> PathBuf {
     root.join("tla2tools-v1.8.0.jar")
+}
+
+fn mutation_names() -> Vec<String> {
+    serde_json::from_str::<Value>(MUTATIONS)
+        .expect("mutation fixture JSON")
+        .as_array()
+        .expect("mutation array")
+        .iter()
+        .map(|value| value.as_str().expect("mutation name").to_owned())
+        .collect()
+}
+
+#[test]
+fn every_declared_mutation_has_one_executed_test_partition() {
+    let declared = mutation_names().into_iter().collect::<BTreeSet<_>>();
+    let executed = OFFLINE_MUTATIONS
+        .iter()
+        .chain(ONLINE_MUTATIONS)
+        .chain(NETWORK_MUTATIONS)
+        .map(|name| (*name).to_owned())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        declared.len(),
+        OFFLINE_MUTATIONS.len() + ONLINE_MUTATIONS.len() + 1
+    );
+    assert_eq!(declared, executed);
 }
 
 #[test]
@@ -197,10 +265,7 @@ fn hostile_offline_cache_entries_fail_closed() {
     let mutations: Value = serde_json::from_str(MUTATIONS).expect("mutation fixture JSON");
     for name in mutations.as_array().expect("mutation array") {
         let name = name.as_str().expect("mutation name");
-        if !matches!(
-            name,
-            "missing" | "digest" | "size" | "symlink" | "hardlink" | "world-writable"
-        ) {
+        if !OFFLINE_MUTATIONS.contains(&name) {
             continue;
         }
         let scratch = Scratch::new();
@@ -282,21 +347,7 @@ fn bounded_online_acquisition_faults_do_not_promote() {
     let mutations: Value = serde_json::from_str(MUTATIONS).expect("mutation fixture JSON");
     for name in mutations.as_array().expect("mutation array") {
         let name = name.as_str().expect("mutation name");
-        if !matches!(
-            name,
-            "partial"
-                | "http-404"
-                | "http-403"
-                | "http-429"
-                | "http-500"
-                | "timeout"
-                | "stalled"
-                | "disconnect"
-                | "redirect-loop"
-                | "redirect-host"
-                | "download-digest"
-                | "download-size"
-        ) {
+        if !ONLINE_MUTATIONS.contains(&name) {
             continue;
         }
         let scratch = Scratch::new();
@@ -309,20 +360,44 @@ fn bounded_online_acquisition_faults_do_not_promote() {
         if name == "partial" {
             fs::create_dir(cache.join("tla-source-cache")).expect("create source cache");
             fs::write(&source_partial, b"owned partial").expect("write pre-existing partial");
+        } else if name == "cache-directory-mode" {
+            fs::create_dir(cache.join("tla-source-cache")).expect("create source cache");
+            fs::set_permissions(
+                cache.join("tla-source-cache"),
+                fs::Permissions::from_mode(0o777),
+            )
+            .expect("make source cache unsafe");
+        } else if name == "archive-hardlink" {
+            let source_cache = cache.join("tla-source-cache");
+            fs::create_dir(&source_cache).expect("create source cache");
+            fs::set_permissions(&source_cache, fs::Permissions::from_mode(0o700))
+                .expect("make source cache private");
+            let other = source_cache.join("other");
+            fs::write(&other, b"bounded source fixture").expect("write archive origin");
+            fs::hard_link(&other, source_cache.join("tlaplus-b123b226.tar.gz"))
+                .expect("create archive hardlink");
         }
         let output = Command::new(runner)
             .args([&cache, &scratch.0.join("run")])
             .env_clear()
             .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
             .env("MOCK_CURL_MODE", name)
+            .env("MOCK_FINAL_OUTPUT", cache_path(&cache))
             .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
             .output()
             .expect("run online fault");
         assert!(!output.status.success(), "online fault accepted: {name}");
-        assert!(
-            !cache_path(&cache).exists(),
-            "fault promoted output: {name}"
-        );
+        if name == "output-race" {
+            assert_ne!(
+                fs::read(cache_path(&cache)).expect("read raced output"),
+                bytes_fixture()
+            );
+        } else {
+            assert!(
+                !cache_path(&cache).exists(),
+                "fault promoted output: {name}"
+            );
+        }
         if name == "partial" {
             assert_eq!(
                 fs::read(source_partial).expect("read owned partial"),
@@ -331,7 +406,47 @@ fn bounded_online_acquisition_faults_do_not_promote() {
         } else {
             assert!(!source_partial.exists(), "fault retained partial: {name}");
         }
+        assert!(
+            fs::read_dir(&cache)
+                .expect("read tool cache")
+                .all(|entry| !entry
+                    .expect("read tool-cache entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".tla-build-inputs.")),
+            "fault retained private build snapshot: {name}"
+        );
     }
+}
+
+fn bytes_fixture() -> Vec<u8> {
+    b"bounded deterministic TLA fixture".to_vec()
+}
+
+#[test]
+fn private_build_snapshot_resists_original_archive_replacement() {
+    let scratch = Scratch::new();
+    let (runner, bytes) = fixture_runner(&scratch);
+    let bin = mock_tools(&scratch);
+    let cache = scratch.0.join("cache");
+    fs::create_dir(&cache).expect("create cache");
+    fs::set_permissions(&cache, fs::Permissions::from_mode(0o700)).expect("make cache private");
+    let output = Command::new(runner)
+        .args([&cache, &scratch.0.join("run")])
+        .env_clear()
+        .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+        .env("MOCK_SWAP_ORIGINAL", "1")
+        .env("MOCK_ORIGINAL_CACHE", cache.join("tla-source-cache"))
+        .env("MOCK_FINAL_OUTPUT", cache_path(&cache))
+        .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
+        .output()
+        .expect("run replacement race");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(cache_path(&cache)).expect("read output"), bytes);
 }
 
 #[test]
@@ -380,6 +495,7 @@ fn concurrent_acquisition_converges_on_one_verified_output() {
 
 #[test]
 fn offline_missing_and_partial_inputs_never_invoke_network() {
+    assert_eq!(NETWORK_MUTATIONS, &["offline-network"]);
     let scratch = Scratch::new();
     let (runner, _) = fixture_runner(&scratch);
     let cache = scratch.0.join("cache");
@@ -388,17 +504,23 @@ fn offline_missing_and_partial_inputs_never_invoke_network() {
     fs::write(cache_path(&cache).with_extension("jar.partial"), b"partial").expect("write partial");
     let bin = scratch.0.join("bin");
     fs::create_dir(&bin).expect("create bin");
-    fs::write(bin.join("curl"), "#!/bin/sh\nexit 99\n").expect("write curl sentinel");
+    let marker = scratch.0.join("curl-invoked");
+    fs::write(
+        bin.join("curl"),
+        "#!/bin/sh\nprintf invoked >\"$MOCK_CURL_MARKER\"\nexit 99\n",
+    )
+    .expect("write curl sentinel");
     fs::set_permissions(bin.join("curl"), fs::Permissions::from_mode(0o700))
         .expect("make sentinel executable");
     let output = Command::new(runner)
         .args([&cache, &scratch.0.join("run")])
         .env_clear()
         .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+        .env("MOCK_CURL_MARKER", &marker)
         .env("ASB_FORMAL_OFFLINE", "1")
         .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
         .output()
         .expect("run offline sentinel");
     assert_eq!(output.status.code(), Some(2));
-    assert!(!cache.join("curl-invoked").exists());
+    assert!(!marker.exists());
 }

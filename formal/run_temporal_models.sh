@@ -55,6 +55,12 @@ verify_file() {
      && $(stat -c '%s' "$path") == "$expected_bytes" ]] \
     && printf '%s  %s\n' "$expected" "$path" | sha256sum --check --status
 }
+verify_dir() {
+  local path=$1
+  [[ -d "$path" && ! -L "$path" \
+     && $(stat -c '%u' "$path") == $(id -u) \
+     && $((8#$(stat -c '%a' "$path") & 8#022)) -eq 0 ]]
+}
 acquire_input() (
   local url=$1 path=$2 expected=$3 expected_bytes=$4 approved_host=$5
   local lock="$path.lock" partial="$path.partial" effective acquired=0 created=0
@@ -93,7 +99,10 @@ PY
     echo "downloaded build input failed integrity checks" >&2; return 2;
   }
   chmod 400 "$partial"
-  mv -n "$partial" "$path" || return 2
+  ln -- "$partial" "$path" || {
+    echo "build input destination appeared during acquisition" >&2; return 2;
+  }
+  rm -- "$partial"
   created=0
   verify_file "$path" "$expected" "$expected_bytes" || {
     echo "promoted build input failed integrity checks" >&2; return 2;
@@ -103,6 +112,7 @@ PY
 prepare_tla() (
   local output=$1 cache="$tool_dir/tla-source-cache" acquired=0
   local lock="$output.acquire.lock"
+  local build_cache built
   local docker_cmd=(docker)
   if [[ -e "$output" || -L "$output" ]]; then
     verify_file "$output" "$TLA_SHA256" "$TLA_BYTES" || {
@@ -117,13 +127,32 @@ prepare_tla() (
     sleep 0.2
   done
   [[ $acquired == 1 ]] || { echo "TLA build lock unavailable" >&2; return 2; }
-  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  trap '[[ -z ${build_cache:-} ]] || rm -rf -- "$build_cache"; [[ -z ${built:-} ]] || rm -f -- "$built"; rmdir "$lock" 2>/dev/null || true' EXIT
   if verify_file "$output" "$TLA_SHA256" "$TLA_BYTES"; then return; fi
-  mkdir -m 700 "$cache" 2>/dev/null || [[ -d "$cache" && ! -L "$cache" ]] || return 2
+  mkdir -m 700 "$cache" 2>/dev/null || verify_dir "$cache" || {
+    echo "source cache directory must be owner-controlled" >&2; return 2;
+  }
+  verify_dir "$cache" || {
+    echo "source cache directory must be owner-controlled" >&2; return 2;
+  }
   acquire_input "$TLA_SOURCE_URL" "$cache/tlaplus-b123b226.tar.gz" \
     "$TLA_SOURCE_SHA256" "$TLA_SOURCE_BYTES" codeload.github.com
   acquire_input "$ANT_URL" "$cache/apache-ant-1.10.15-bin.tar.gz" \
     "$ANT_SHA256" "$ANT_BYTES" archive.apache.org
+  build_cache=$(mktemp -d "$tool_dir/.tla-build-inputs.XXXXXXXX")
+  chmod 700 "$build_cache"
+  cp --reflink=never --no-preserve=mode,ownership,timestamps \
+    "$cache/tlaplus-b123b226.tar.gz" "$build_cache/tlaplus-b123b226.tar.gz"
+  cp --reflink=never --no-preserve=mode,ownership,timestamps \
+    "$cache/apache-ant-1.10.15-bin.tar.gz" "$build_cache/apache-ant-1.10.15-bin.tar.gz"
+  chmod 400 "$build_cache"/*.tar.gz
+  if ! verify_file "$build_cache/tlaplus-b123b226.tar.gz" \
+      "$TLA_SOURCE_SHA256" "$TLA_SOURCE_BYTES" \
+     || ! verify_file "$build_cache/apache-ant-1.10.15-bin.tar.gz" \
+      "$ANT_SHA256" "$ANT_BYTES"; then
+    echo "private build input snapshot failed integrity checks" >&2
+    return 2
+  fi
   if ! docker info >/dev/null 2>&1; then
     docker_cmd=(sudo -n docker)
   fi
@@ -134,11 +163,18 @@ prepare_tla() (
      == "sha256:c0d1549d1e0f5fa5b83622ec0033b00456107e0b1d0cfcce4c1d831532ce621e linux/amd64" ]] || {
     echo "TLA build image identity differs" >&2; return 2;
   }
-  "$(dirname "$0")/tla-provenance/build.sh" "$cache" "$output"
-  chmod 400 "$output"
-  verify_file "$output" "$TLA_SHA256" "$TLA_BYTES" || {
+  built="$build_cache/tla2tools.jar"
+  "$(dirname "$0")/tla-provenance/build.sh" "$build_cache" "$built"
+  chmod 400 "$built"
+  verify_file "$built" "$TLA_SHA256" "$TLA_BYTES" || {
     echo "source-built TLA tool failed integrity checks" >&2; return 2;
   }
+  ln -- "$built" "$output" || {
+    echo "TLA output destination appeared during build" >&2; return 2;
+  }
+  rm -- "$built"
+  built=
+  verify_file "$output" "$TLA_SHA256" "$TLA_BYTES" || return 2
 )
 fetch() {
   local url=$1 path=$2 expected=$3 expected_bytes=$4
