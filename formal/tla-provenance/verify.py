@@ -126,6 +126,34 @@ LICENSE_EVIDENCE = {
         "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
     ),
 }
+EXTERNAL_LICENSE_PROVENANCE = {
+    "javacc-4.0.jar": {
+        "license_source_repository": "https://github.com/javacc/javacc",
+        "license_source_ref": "refs/tags/release_40",
+        "license_source_commit": "368da68784dca6b29dcf10043f056535b2c835a1",
+        "license_source_archive_url": "https://codeload.github.com/javacc/javacc/tar.gz/368da68784dca6b29dcf10043f056535b2c835a1",
+        "license_source_archive_bytes": 767184,
+        "license_source_archive_sha256": "712420087c0ae91fd221062f0407a47e7abf6478b5ce24b40c7eda509910d27f",
+        "license_source_path": "LICENSE",
+        "license_source_raw_sha256": "687da1ab44259f7ff84f01d666ad20d7392d599ff2476039581e3bec0417fd2d",
+        "license_receipt_transform": "strip_trailing_ascii_whitespace",
+        "license_applicability_path": "build.xml",
+        "license_applicability_sha256": "20c2de4787cd1d98cca75072f9191680f15b75174249cc30064365ca0a8b62bb",
+    },
+    "prettier4j-0.3.2.jar": {
+        "license_source_repository": "https://github.com/opencastsoftware/prettier4j",
+        "license_source_ref": "refs/tags/v0.3.2",
+        "license_source_commit": "48a56fca69a616fa9d555acf4dd0cf6958eb60d0",
+        "license_source_archive_url": "https://codeload.github.com/opencastsoftware/prettier4j/tar.gz/48a56fca69a616fa9d555acf4dd0cf6958eb60d0",
+        "license_source_archive_bytes": 83041,
+        "license_source_archive_sha256": "9f7bf63096ed8974b64b5489886e11831b962768f78ab5844da347d665ff75bd",
+        "license_source_path": "LICENSE",
+        "license_source_raw_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "license_receipt_transform": "identity",
+        "license_applicability_path": "build.gradle.kts",
+        "license_applicability_sha256": "d62095cdd0c17f90be6aa6351900f06a21b865b526d09775cb0f3e536ed3e769",
+    },
+}
 
 try:
     raw = Path(MANIFEST_NAME).read_bytes()
@@ -243,6 +271,19 @@ build_keys = {
     "license_evidence",
     "license_evidence_sha256",
 }
+external_license_keys = build_keys | {
+    "license_source_repository",
+    "license_source_ref",
+    "license_source_commit",
+    "license_source_archive_url",
+    "license_source_archive_bytes",
+    "license_source_archive_sha256",
+    "license_source_path",
+    "license_source_raw_sha256",
+    "license_receipt_transform",
+    "license_applicability_path",
+    "license_applicability_sha256",
+}
 excluded_keys = {"path", "sha256", "classification"}
 for entry in artifacts:
     path = entry.get("path")
@@ -254,7 +295,10 @@ for entry in artifacts:
         fail("artifact path or digest malformed")
     paths.append(path)
     if entry.get("classification") == "build_input":
-        if set(entry) != build_keys or path not in BUILD_INPUTS:
+        expected_keys = (
+            external_license_keys if path in EXTERNAL_LICENSE_PROVENANCE else build_keys
+        )
+        if set(entry) != expected_keys or path not in BUILD_INPUTS:
             fail("build-input classification or keys changed")
         if (
             entry["license_evidence"],
@@ -267,6 +311,11 @@ for entry in artifacts:
             != "eb54f66b56b349d3d65c476ce7e7f12f1b2dcee141f6b1f75cae20cc1d9bb012"
         ):
             fail("build-input coordinate receipt changed")
+        expected_provenance = EXTERNAL_LICENSE_PROVENANCE.get(path)
+        if expected_provenance is not None and any(
+            entry[key] != value for key, value in expected_provenance.items()
+        ):
+            fail("external license source/applicability receipt changed")
         build_paths.add(path)
     elif entry.get("classification") == "excluded_source_artifact":
         if set(entry) != excluded_keys or path not in EXCLUDED:
@@ -283,7 +332,7 @@ if (
     fail("artifact inventory/classification differs from the reviewed partition")
 if (
     hashlib.sha256(raw).hexdigest()
-    != "c9d0617afc9824e7a735c80e26808ba87fabffab87b889a95c2bd7ad51af2ba1"
+    != "fb1db170399854988cf7820247860d4b217efdb6cbd1651256844569a164c750"
 ):
     fail("manifest bytes do not match the reviewed contract")
 if MODE == "manifest":

@@ -17,6 +17,18 @@ artifacts deliberately have no license-applicability claim. `jpf-shell.jar` appl
 unknown; it is not asserted to be Apache-2.0 or NOSA-1.3. Ant, Temurin, and container-tool legal
 receipts are also exact-bound.
 
+The two retained JARs whose own archives contain no usable license receipt are bound to immutable
+upstream source evidence. JavaCC 4.0 uses tag `release_40`, commit
+`368da68784dca6b29dcf10043f056535b2c835a1`, and source-archive SHA-256
+`712420087c0ae91fd221062f0407a47e7abf6478b5ce24b40c7eda509910d27f`; its local
+BSD-3-Clause receipt is the upstream `LICENSE` with trailing ASCII whitespace removed, and the
+commit's `build.xml` binds the JavaCC 4.0 applicability. prettier4j 0.3.2 uses tag `v0.3.2`, commit
+`48a56fca69a616fa9d555acf4dd0cf6958eb60d0`, and source-archive SHA-256
+`9f7bf63096ed8974b64b5489886e11831b962768f78ab5844da347d665ff75bd`; its upstream
+`LICENSE` is retained byte-for-byte and `build.gradle.kts` binds the package/license applicability.
+The verifier rejects any change to these repositories, refs, commits, archives, transforms, or
+applicability receipts.
+
 Deleting each retained input must prevent reproduction of the reviewed output. Two independent
 clean builds repack payloads with the pinned JDK `jar`, no generated manifest, and the ZIP minimum
 timestamp, producing identical 4,512,486-byte artifacts with SHA-256
