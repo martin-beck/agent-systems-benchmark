@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -18,9 +19,14 @@ SETTINGS = ROOT / "tools/integration/repository_settings.py"
 
 
 def command(
-    cwd: Path, *args: str, check: bool = True
+    cwd: Path,
+    *args: str,
+    check: bool = True,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, cwd=cwd, text=True, capture_output=True, check=check)
+    return subprocess.run(
+        args, cwd=cwd, text=True, capture_output=True, check=check, env=env
+    )
 
 
 class Fixture:
@@ -95,6 +101,49 @@ class Fixture:
             "Merge reviewed PR #7",
             *extra,
         ]
+
+    def fake_git_environment(
+        self, mode: str, drift_oid: str | None = None
+    ) -> dict[str, str]:
+        fake_bin = self.root / f"fake-git-{mode}"
+        fake_bin.mkdir()
+        script = fake_bin / "git"
+        script.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, subprocess, sys\n"
+            "real = os.environ['ASB_REAL_GIT']\n"
+            "args = sys.argv[1:]\n"
+            "mode = os.environ['ASB_FAKE_GIT_MODE']\n"
+            "if args and args[0] == 'ls-remote' and mode == 'private-diagnostic':\n"
+            "    sys.stderr.write(os.environ['ASB_PRIVATE_SENTINEL'] * 70000)\n"
+            "    raise SystemExit(1)\n"
+            "if args and args[0] == 'push':\n"
+            "    if mode == 'target-race':\n"
+            "        subprocess.run([real, '--git-dir', os.environ['ASB_REMOTE'], "
+            "'update-ref', 'refs/heads/main', os.environ['ASB_DRIFT_OID']], check=True)\n"
+            "    result = subprocess.run([real, *args])\n"
+            "    if mode == 'pr-drift':\n"
+            "        subprocess.run([real, '--git-dir', os.environ['ASB_REMOTE'], "
+            "'update-ref', 'refs/pull/7/head', os.environ['ASB_DRIFT_OID']], check=True)\n"
+            "    if mode == 'accepted-error':\n"
+            "        raise SystemExit(1)\n"
+            "    raise SystemExit(result.returncode)\n"
+            "os.execv(real, [real, *args])\n",
+            encoding="utf-8",
+        )
+        script.chmod(0o755)
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PATH": f"{fake_bin}:{environment['PATH']}",
+                "ASB_REAL_GIT": shutil.which("git", path=os.environ["PATH"]) or "git",
+                "ASB_FAKE_GIT_MODE": mode,
+                "ASB_REMOTE": str(self.remote),
+                "ASB_DRIFT_OID": drift_oid or self.base,
+                "ASB_PRIVATE_SENTINEL": "private-user-machine-path-secret-token",
+            }
+        )
+        return environment
 
 
 class MergeIntegrityTests(unittest.TestCase):
@@ -179,6 +228,126 @@ class MergeIntegrityTests(unittest.TestCase):
                     ).returncode,
                     0,
                 )
+
+    def test_rejects_signer_identity_spoof(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-merge-identity-") as raw:
+            fixture = Fixture(Path(raw))
+            command(fixture.repository, "git", "checkout", "-qb", "spoof", fixture.base)
+            (fixture.repository / "spoof").write_text("spoof\n", encoding="utf-8")
+            command(fixture.repository, "git", "add", ".")
+            command(
+                fixture.repository,
+                "git",
+                "-c",
+                "user.name=Victim",
+                "-c",
+                "user.email=victim@example.invalid",
+                "commit",
+                "-S",
+                "-s",
+                "-qm",
+                "spoofed identity",
+            )
+            fixture.head = fixture.oid("HEAD")
+            fixture.tree = fixture.oid("HEAD^{tree}")
+            command(
+                fixture.repository,
+                "git",
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                "HEAD:refs/pull/7/head",
+            )
+            command(fixture.repository, "git", "checkout", "-q", "main")
+            result = command(fixture.repository, *fixture.merge_command(), check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("signer principal", result.stderr)
+            self.assertNotIn("Victim", result.stderr)
+
+    def test_rejects_github_generated_merge_head(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-merge-github-") as raw:
+            fixture = Fixture(Path(raw))
+            github_merge = command(
+                fixture.repository,
+                "git",
+                "-c",
+                "commit.gpgsign=false",
+                "commit-tree",
+                "-p",
+                fixture.base,
+                "-p",
+                fixture.head,
+                fixture.tree,
+                check=True,
+            ).stdout.strip()
+            command(
+                fixture.repository,
+                "git",
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                f"{github_merge}:refs/pull/7/head",
+            )
+            fixture.head = github_merge
+            result = command(fixture.repository, *fixture.merge_command(), check=False)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_reconciles_accepted_push_error(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-merge-accepted-error-") as raw:
+            fixture = Fixture(Path(raw))
+            result = command(
+                fixture.repository,
+                *fixture.merge_command("--push"),
+                env=fixture.fake_git_environment("accepted-error"),
+            )
+            values = dict(line.split("=", 1) for line in result.stdout.splitlines())
+            self.assertEqual(values["PUBLISHED"], "1")
+            self.assertEqual(values["PUBLICATION"], "accepted-after-error")
+            self.assertEqual(
+                command(
+                    fixture.repository,
+                    "git",
+                    "--git-dir",
+                    str(fixture.remote),
+                    "rev-parse",
+                    "refs/heads/main",
+                ).stdout.strip(),
+                values["MERGE"],
+            )
+
+    def test_fails_closed_on_pr_or_target_drift_during_push(self) -> None:
+        for mode, drift in (("pr-drift", None), ("target-race", "head")):
+            with (
+                self.subTest(mode=mode),
+                tempfile.TemporaryDirectory(prefix="asb-merge-atomic-") as raw,
+            ):
+                fixture = Fixture(Path(raw))
+                drift_oid = fixture.head if drift == "head" else fixture.base
+                result = command(
+                    fixture.repository,
+                    *fixture.merge_command("--push"),
+                    check=False,
+                    env=fixture.fake_git_environment(mode, drift_oid),
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertLess(len(result.stderr), 256)
+
+    def test_diagnostics_are_bounded_generic_and_private(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-merge-private-") as raw:
+            fixture = Fixture(Path(raw))
+            sentinel = "private-user-machine-path-secret-token"
+            result = command(
+                fixture.repository,
+                *fixture.merge_command(),
+                check=False,
+                env=fixture.fake_git_environment("private-diagnostic"),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn(sentinel, result.stderr)
+            self.assertNotIn(str(fixture.remote), result.stderr)
+            self.assertLess(len(result.stderr), 256)
 
     def test_settings_oracle_rejects_every_web_merge_mode(self) -> None:
         good = {
