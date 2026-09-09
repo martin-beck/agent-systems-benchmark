@@ -6,6 +6,8 @@
 
 /// Safe, configuration-driven SSH discovery and remote-proxy command planning.
 pub mod remote;
+/// Terminal capability evidence and conservative rendering policy.
+pub mod terminal;
 
 use asb_control::{
     AnalysisSummary, ArtifactMetadata, CancelParams, Capabilities, ControlCall, ControlEvent,
