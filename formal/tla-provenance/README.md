@@ -15,7 +15,8 @@ verifies Apache Ant's LICENSE and NOTICE, Temurin legal files, and container too
 JavaCC 4.0 and prettier4j 0.3.2 lack an embedded usable license receipt, so their manifest entries
 also bind the authoritative upstream repository, immutable tag and commit, commit-addressed archive
 size and digest, license path and digest, receipt transformation, and package-applicability file
-digest. JavaCC's local receipt strips only trailing ASCII whitespace from the upstream `LICENSE`;
+digest. JavaCC's local receipt strips only per-line trailing ASCII whitespace from the upstream
+`LICENSE`;
 prettier4j's receipt is byte-identical to upstream. These closed fields are checked semantically and
 covered by provenance mutation negatives.
 

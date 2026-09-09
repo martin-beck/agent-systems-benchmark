@@ -136,7 +136,7 @@ EXTERNAL_LICENSE_PROVENANCE = {
         "license_source_archive_sha256": "712420087c0ae91fd221062f0407a47e7abf6478b5ce24b40c7eda509910d27f",
         "license_source_path": "LICENSE",
         "license_source_raw_sha256": "687da1ab44259f7ff84f01d666ad20d7392d599ff2476039581e3bec0417fd2d",
-        "license_receipt_transform": "strip_trailing_ascii_whitespace",
+        "license_receipt_transform": "strip_trailing_ascii_whitespace_per_line",
         "license_applicability_path": "build.xml",
         "license_applicability_sha256": "20c2de4787cd1d98cca75072f9191680f15b75174249cc30064365ca0a8b62bb",
     },
@@ -332,7 +332,7 @@ if (
     fail("artifact inventory/classification differs from the reviewed partition")
 if (
     hashlib.sha256(raw).hexdigest()
-    != "fb1db170399854988cf7820247860d4b217efdb6cbd1651256844569a164c750"
+    != "16522bf4d56b88d8ec309820b78c5417e4d71d96bfd5a9066859666938ea9aab"
 ):
     fail("manifest bytes do not match the reviewed contract")
 if MODE == "manifest":
