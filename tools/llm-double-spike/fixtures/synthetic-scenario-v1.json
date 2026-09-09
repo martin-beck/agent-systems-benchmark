@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scenario_id": "openai-tool-cancel-v1",
+  "evidence_origin": "synthetic",
+  "protocol": "openai-responses",
+  "seed": 17,
+  "events": [
+    {"sequence": 0, "session": "alpha", "kind": "request", "payload": {"model": "fixture", "stream": true}},
+    {"sequence": 1, "session": "alpha", "kind": "sse", "payload": {"type": "response.output_text.delta", "text": "fixture"}},
+    {"sequence": 2, "session": "alpha", "kind": "tool_call", "payload": {"name": "read_file", "arguments": {"path": "src/lib.rs"}}},
+    {"sequence": 3, "session": "alpha", "kind": "tool_result", "payload": {"ok": true}},
+    {"sequence": 4, "session": "alpha", "kind": "cancelled", "payload": {"reason": "client_disconnect"}},
+    {"sequence": 5, "session": "beta", "kind": "fault", "payload": {"status": 429, "retryable": true}}
+  ]
+}
