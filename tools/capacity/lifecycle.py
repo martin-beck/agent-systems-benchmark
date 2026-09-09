@@ -314,7 +314,7 @@ class CapacityState:
         return replace(self, revision=self.revision + 1, state="needs_reconciliation")
 
     def reconcile_clean(self, *, evidence: CleanupEvidence, now: int) -> CapacityState:
-        """Return fenced capacity only for exact, timely teardown evidence."""
+        """Validate a receipt but stay fenced without an authenticated verifier."""
         self.validate()
         evidence.validate()
         self._expect(evidence.revision)
@@ -330,14 +330,7 @@ class CapacityState:
             or not self.issued_at <= evidence.observed_at <= now <= MAX_CLOCK_SECONDS
         ):
             raise CapacityError("cleanup evidence time is invalid")
-        return replace(
-            self,
-            revision=self.revision + 1,
-            state="available",
-            owner=None,
-            issued_at=None,
-            expires_at=None,
-        )
+        raise CapacityError("authenticated cleanup verifier is unavailable")
 
 
 def _entry(metadata: os.stat_result) -> tuple[int, ...]:

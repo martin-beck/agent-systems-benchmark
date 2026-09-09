@@ -77,7 +77,7 @@ class CapacityLifecycleTests(unittest.TestCase):
             with self.subTest(case=case), self.assertRaises(LIFECYCLE.CapacityError):
                 case()
 
-    def test_uncertain_effect_requires_exact_positive_reconciliation(self) -> None:
+    def test_uncertain_effect_stays_fenced_without_authenticated_verifier(self) -> None:
         leased = self.available.acquire(
             expected_revision=0, owner="worker-a", now=1000, ttl_seconds=60
         )
@@ -103,8 +103,13 @@ class CapacityLifecycleTests(unittest.TestCase):
                 self.assertRaises(LIFECYCLE.CapacityError),
             ):
                 uncertain.reconcile_clean(evidence=receipt, now=now)
-        clean = uncertain.reconcile_clean(evidence=evidence, now=1010)
-        self.assertEqual((clean.state, clean.revision), ("available", 3))
+        with self.assertRaisesRegex(
+            LIFECYCLE.CapacityError, "authenticated cleanup verifier"
+        ):
+            uncertain.reconcile_clean(evidence=evidence, now=1010)
+        self.assertEqual(
+            (uncertain.state, uncertain.revision), ("needs_reconciliation", 2)
+        )
 
     def test_closed_canonical_parser_rejects_private_or_unsupported_identity(
         self,
@@ -289,7 +294,7 @@ class CapacityLifecycleTests(unittest.TestCase):
             self.assertTrue(replaced)
             self.assertEqual((root / "state.json").read_bytes(), original)
 
-    def test_cli_lifecycle_fixture_reaches_clean_terminal_state(self) -> None:
+    def test_cli_forged_self_consistent_cleanup_evidence_is_atomic(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             root.chmod(0o700)
@@ -349,28 +354,33 @@ class CapacityLifecycleTests(unittest.TestCase):
             evidence_path = root / "cleanup-evidence.json"
             evidence_path.write_bytes(receipt.to_json())
             evidence_path.chmod(0o600)
-            with mock.patch.object(LIFECYCLE, "_trusted_now", return_value=1010):
-                reconciled = LIFECYCLE.execute(
-                    LIFECYCLE.parser().parse_args(
-                        (
-                            "reconcile",
-                            "--root",
-                            str(root),
-                            "--evidence-file",
-                            str(evidence_path),
-                            "--teardown-artifact",
-                            str(artifact_path),
-                        )
+            error = StringIO()
+            with (
+                mock.patch.object(LIFECYCLE, "_trusted_now", return_value=1010),
+                redirect_stderr(error),
+            ):
+                reconcile_result = LIFECYCLE.main(
+                    (
+                        "reconcile",
+                        "--root",
+                        str(root),
+                        "--evidence-file",
+                        str(evidence_path),
+                        "--teardown-artifact",
+                        str(artifact_path),
                     )
                 )
-            states = [initialize, acquired, uncertain, reconciled]
+            self.assertEqual(reconcile_result, 2)
+            self.assertEqual(
+                error.getvalue(), "ERROR: capacity lifecycle request rejected\n"
+            )
+            states = [initialize, acquired, uncertain]
             self.assertEqual(
                 [(state.revision, state.state) for state in states],
                 [
                     (0, "available"),
                     (1, "reserved"),
                     (2, "needs_reconciliation"),
-                    (3, "available"),
                 ],
             )
             self.assertEqual(LIFECYCLE.CapacityLedger(root).load(), states[-1])
