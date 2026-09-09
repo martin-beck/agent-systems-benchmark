@@ -3,6 +3,8 @@
   {"id": "wrong-kind", "path": ["kind"], "value": "native-run"},
   {"id": "forged-qualification", "path": ["qualification"], "value": "native-functional"},
   {"id": "performance-claim", "path": ["performance_baseline"], "value": true},
+  {"id": "boolean-for-integer-const", "path": ["format_version"], "value": true},
+  {"id": "numeric-for-boolean-const", "path": ["performance_baseline"], "value": 0},
   {"id": "wrong-runner", "path": ["runner_label"], "value": "self-hosted"},
   {"id": "unsafe-run-id", "path": ["run_id"], "value": "bad/run"},
   {"id": "wrong-architecture", "path": ["observed", "architecture"], "value": "aarch64"},

@@ -79,6 +79,35 @@ def _matches_schema(value: Any, schema: dict[str, Any], root: dict[str, Any]) ->
     return True
 
 
+def _json_equal(left: Any, right: Any) -> bool:
+    """Compare JSON values without Python's bool-as-int equality leak."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left == right
+    if isinstance(left, (int, float)) or isinstance(right, (int, float)):
+        return (
+            isinstance(left, (int, float))
+            and not isinstance(left, bool)
+            and isinstance(right, (int, float))
+            and not isinstance(right, bool)
+            and left == right
+        )
+    if isinstance(left, list) or isinstance(right, list):
+        return (
+            isinstance(left, list)
+            and isinstance(right, list)
+            and len(left) == len(right)
+            and all(_json_equal(a, b) for a, b in zip(left, right, strict=True))
+        )
+    if isinstance(left, dict) or isinstance(right, dict):
+        return (
+            isinstance(left, dict)
+            and isinstance(right, dict)
+            and left.keys() == right.keys()
+            and all(_json_equal(left[key], right[key]) for key in left)
+        )
+    return type(left) is type(right) and left == right
+
+
 def _validate_schema(value: Any, schema: dict[str, Any], root: dict[str, Any]) -> None:
     """Validate the exact, digest-pinned platform-schema keyword closure."""
     if "$ref" in schema:
@@ -89,9 +118,11 @@ def _validate_schema(value: Any, schema: dict[str, Any], root: dict[str, Any]) -
         if sum(_matches_schema(value, option, root) for option in alternatives) != 1:
             raise PortabilityError("platform evidence does not match its closed schema")
         return
-    if "const" in schema and value != schema["const"]:
+    if "const" in schema and not _json_equal(value, schema["const"]):
         raise PortabilityError("platform evidence does not match its closed schema")
-    if "enum" in schema and value not in cast(list[Any], schema["enum"]):
+    if "enum" in schema and not any(
+        _json_equal(value, option) for option in cast(list[Any], schema["enum"])
+    ):
         raise PortabilityError("platform evidence does not match its closed schema")
 
     declared_type = cast(str | None, schema.get("type"))
@@ -123,8 +154,10 @@ def _validate_schema(value: Any, schema: dict[str, Any], root: dict[str, Any]) -
         maximum = cast(int | None, schema.get("maxItems"))
         if len(value) < minimum or (maximum is not None and len(value) > maximum):
             raise PortabilityError("platform evidence does not match its closed schema")
-        if schema.get("uniqueItems") and len({json.dumps(item, sort_keys=True) for item in value}) != len(value):
-            raise PortabilityError("platform evidence does not match its closed schema")
+        if schema.get("uniqueItems"):
+            for index, item in enumerate(value):
+                if any(_json_equal(item, other) for other in value[index + 1 :]):
+                    raise PortabilityError("platform evidence does not match its closed schema")
         prefix = cast(list[dict[str, Any]], schema.get("prefixItems", []))
         for item, item_schema in zip(value, prefix, strict=False):
             _validate_schema(item, item_schema, root)

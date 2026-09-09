@@ -56,7 +56,11 @@ class HostedPortabilityTests(unittest.TestCase):
                 target[path[-1]] = mutation["value"]
             with self.assertRaises(HOSTED.PortabilityError, msg=mutation["id"]):
                 HOSTED._validate_schema(candidate, self.schema, self.schema)
-        self.assertEqual(len(seen), 17)
+        self.assertEqual(len(seen), 19)
+        with self.assertRaises(HOSTED.PortabilityError):
+            HOSTED._validate_schema(True, {"enum": [1]}, {"enum": [1]})
+        with self.assertRaises(HOSTED.PortabilityError):
+            HOSTED._validate_schema(0, {"enum": [False]}, {"enum": [False]})
         serialized = json.dumps(self.report, sort_keys=True).lower()
         for forbidden in ("hostname", "/home/", "/srv/data/projects", "api_key", "bearer ", "authorization:"):
             self.assertNotIn(forbidden, serialized)
@@ -207,6 +211,29 @@ class HostedPortabilityTests(unittest.TestCase):
             self.assertEqual(rejected.stderr, "")
             self.assertFalse(hosted.exists())
             self.assertFalse(native_file.exists())
+
+            for field, invalid in (("format_version", True), ("performance_baseline", 0)):
+                wrong_json_type = copy.deepcopy(self.report)
+                wrong_json_type[field] = invalid
+                hosted.write_text(json.dumps(wrong_json_type))
+                rejected_type = subprocess.run(
+                    [
+                        sys.executable, "-S", str(tool), "validate-artifact", "--route",
+                        "hosted-portability", "--native-file", str(native_file),
+                        "--hosted-file", str(hosted), "--output-root", str(output_root),
+                        "--source", str(ROOT),
+                    ],
+                    capture_output=True, text=True, check=False,
+                    env={"PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1"},
+                )
+                self.assertEqual(rejected_type.returncode, 1)
+                self.assertEqual(
+                    rejected_type.stdout.strip(),
+                    "ERROR: platform evidence does not match its closed schema",
+                )
+                self.assertEqual(rejected_type.stderr, "")
+                self.assertFalse(hosted.exists())
+                self.assertFalse(native_file.exists())
 
             shutil.copyfile(native_fixture, native_file)
             native_success = subprocess.run(
