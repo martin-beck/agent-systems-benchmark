@@ -55,7 +55,6 @@ jobs:
                 --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
                 --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
                 --optional-check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
-              evidence_file="$NATIVE_EVIDENCE_FILE"
               ;;
             hosted-portability)
               python3 tools/platforms/hosted_portability.py collect \
@@ -68,8 +67,7 @@ jobs:
                 --output-root "$RUNNER_TEMP" \
                 --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
                 --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
-                --check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
-              evidence_file="$HOSTED_EVIDENCE_FILE"
+                --check 'sandbox=["cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
               ;;
             *)
               echo "ERROR: platform evidence route is invalid"

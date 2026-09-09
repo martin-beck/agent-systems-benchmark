@@ -11,7 +11,11 @@ import json
 import os
 import platform
 import re
+import selectors
+import signal
 import stat
+import subprocess
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
@@ -27,8 +31,10 @@ LIMITATIONS = [
     "not-performance-baseline",
     "native-aarch64-unqualified",
 ]
+SANDBOX_UNAVAILABLE = b"native sandbox capability unavailable:"
+SANDBOX_LIMITATION = "native-sandbox-unavailable"
 SCHEMA_SHA256 = {
-    "hosted-portability.schema.json": "93d47a8042c6c872c6854e60293ca0c56d09fdddc4ffab3e9e47e9d6ae5cc0f9",
+    "hosted-portability.schema.json": "4e2f29272ccc50f0535fb8d1bee1499ea69102254f35e3504ee7db0195f5fac4",
     "native-evidence.schema.json": "332056435d69dd8cdd237e7b587289c8b31e75f514c04ecdec04bd75e4356017",
 }
 
@@ -221,18 +227,16 @@ def validate_artifact(
             path.absolute().parent != output_root.absolute() for path in candidates
         ):
             raise PortabilityError("platform evidence paths are not isolated")
-        selected, absent, schema_name, expected = {
+        selected, absent, schema_name = {
             "native-qualification": (
                 native_path,
                 hosted_path,
                 "native-evidence.schema.json",
-                ("native-run", "native-functional"),
             ),
             "hosted-portability": (
                 hosted_path,
                 native_path,
                 "hosted-portability.schema.json",
-                ("hosted-portability", "functional-portability-only"),
             ),
         }[route]
         if absent.exists() or absent.is_symlink():
@@ -242,8 +246,25 @@ def validate_artifact(
             source / "platforms/v1" / schema_name, SCHEMA_SHA256[schema_name]
         )
         _validate_schema(report, schema, schema)
-        if (report.get("kind"), report.get("qualification")) != expected:
+        if route == "native-qualification" and (
+            report.get("kind"), report.get("qualification")
+        ) != ("native-run", "native-functional"):
             raise PortabilityError("platform evidence route and claim differ")
+        if route == "hosted-portability":
+            sandbox = cast(dict[str, Any], cast(dict[str, Any], report["checks"])["sandbox"])
+            unavailable = sandbox["status"] == "unavailable"
+            expected_qualification = (
+                "functional-portability-partial"
+                if unavailable
+                else "functional-portability-only"
+            )
+            limitations = cast(list[str], report["limitations"])
+            if (
+                report["kind"] != "hosted-portability"
+                or report["qualification"] != expected_qualification
+                or (SANDBOX_LIMITATION in limitations) != unavailable
+            ):
+                raise PortabilityError("platform evidence route and claim differ")
         return route
     except PortabilityError:
         for candidate in candidates:
@@ -276,11 +297,83 @@ def _source(source: Path, base_commit: str) -> tuple[str, str]:
         raise PortabilityError("source identity is not immutable") from error
 
 
-def _run(argv: Sequence[str], source: Path) -> dict[str, Any]:
+def _run(slot: str, argv: Sequence[str], source: Path) -> dict[str, Any]:
     try:
         return cast(dict[str, Any], native.run_check(argv, source))
     except native.EvidenceError as error:
-        raise PortabilityError("hosted portability check did not pass") from error
+        raise PortabilityError(f"hosted portability {slot} check did not pass") from error
+
+
+def _check_projection(argv: Sequence[str], output: bytes, status: str) -> dict[str, Any]:
+    """Project only fixed status and bounded digests, never subprocess text."""
+    return {
+        "argv_sha256": "sha256:"
+        + hashlib.sha256(
+            json.dumps(list(argv), separators=(",", ":"), ensure_ascii=True).encode()
+        ).hexdigest(),
+        "output_bytes": len(output),
+        "output_sha256": "sha256:" + hashlib.sha256(output).hexdigest(),
+        "status": status,
+    }
+
+
+def _run_sandbox(argv: Sequence[str], source: Path, timeout: int = 900) -> dict[str, Any]:
+    """Run the sandbox checks and classify only their fixed unavailable marker."""
+    if not argv or any(not isinstance(item, str) or not item for item in argv):
+        raise PortabilityError("hosted portability sandbox check did not pass")
+    try:
+        process = subprocess.Popen(
+            list(argv), cwd=source, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, close_fds=True, start_new_session=True,
+        )
+    except OSError as error:
+        raise PortabilityError("hosted portability sandbox check did not pass") from error
+    assert process.stdout is not None
+    output = bytearray()
+    deadline = time.monotonic() + timeout
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+    failed = False
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failed = True
+                break
+            events = selector.select(min(remaining, 1.0))
+            if not events and process.poll() is not None:
+                events = [(selector.get_key(process.stdout), selectors.EVENT_READ)]
+            for key, _ in events:
+                chunk = os.read(key.fd, 65536)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                output.extend(chunk)
+                if len(output) > native.MAX_OUTPUT_BYTES:
+                    failed = True
+                    break
+            if failed:
+                break
+        if failed:
+            os.killpg(process.pid, signal.SIGKILL)
+        returncode = process.wait(timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        raise PortabilityError("hosted portability sandbox check did not pass") from error
+    finally:
+        selector.close()
+        process.stdout.close()
+    if failed or returncode != 0:
+        raise PortabilityError("hosted portability sandbox check did not pass")
+    if SANDBOX_UNAVAILABLE in output:
+        result = _check_projection(argv, bytes(output), "unavailable")
+        result["limitation"] = SANDBOX_LIMITATION
+        return result
+    return _check_projection(argv, bytes(output), "passed")
 
 
 def collect(
@@ -310,13 +403,20 @@ def collect(
     if len({name for name, _ in checks}) != len(checks):
         raise PortabilityError("hosted check names must be unique")
     commit, tree = _source(source, base_commit)
-    results = {name: _run(argv, source) for name, argv in checks}
+    results = {
+        name: (_run_sandbox(argv, source) if name == "sandbox" else _run(name, argv, source))
+        for name, argv in checks
+    }
     if _source(source, base_commit) != (commit, tree):
         raise PortabilityError("source identity changed while checks ran")
     return {
         "format_version": 1,
         "kind": "hosted-portability",
-        "qualification": "functional-portability-only",
+        "qualification": (
+            "functional-portability-partial"
+            if results["sandbox"]["status"] == "unavailable"
+            else "functional-portability-only"
+        ),
         "performance_baseline": False,
         "runner_label": runner_label,
         "run_id": run_id,
@@ -331,7 +431,8 @@ def collect(
             },
         },
         "checks": results,
-        "limitations": LIMITATIONS,
+        "limitations": LIMITATIONS
+        + ([SANDBOX_LIMITATION] if results["sandbox"]["status"] == "unavailable" else []),
     }
 
 

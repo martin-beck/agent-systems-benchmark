@@ -55,6 +55,11 @@ evidence under its distinct closed schema. That document is explicitly
 native qualification artifact. Any other distribution family, malformed identity, failed check,
 unsafe output path or partial evidence fails before artifact retention.
 
+If the rolling hosted service cannot provide the exact native sandbox boundary, the sandbox check
+is recorded as `unavailable`, the projection is `functional-portability-partial`, and the fixed
+`native-sandbox-unavailable` limitation is present. A nonzero sandbox test remains a hard failure;
+unavailability is never renamed to a passed check or native qualification.
+
 The hosted projection contains only the runner label, public distribution and architecture,
 immutable source commit/tree, and argv/output digests. It excludes command output, raw diagnostics,
 environment values, hostnames, account identifiers, credentials and private paths. Pinned QEMU

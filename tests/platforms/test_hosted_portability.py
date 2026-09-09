@@ -111,7 +111,8 @@ class HostedPortabilityTests(unittest.TestCase):
             "run_check",
             side_effect=HOSTED.native.EvidenceError("PRIVATE_SENTINEL"),
         ), self.assertRaises(HOSTED.PortabilityError) as caught:
-            HOSTED._run(["/usr/bin/false"], ROOT)
+            HOSTED._run("process", ["/usr/bin/false"], ROOT)
+        self.assertEqual(str(caught.exception), "hosted portability process check did not pass")
         self.assertNotIn("PRIVATE_SENTINEL", str(caught.exception))
 
         checks = [(name, ["/usr/bin/true"]) for name in ("process", "metrics", "sandbox")]
@@ -133,6 +134,127 @@ class HostedPortabilityTests(unittest.TestCase):
                 HOSTED.collect(
                     "ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks, root
                 )
+
+    def test_sandbox_unavailability_is_partial_bounded_and_not_native(self) -> None:
+        unavailable = HOSTED._run_sandbox(
+            [
+                sys.executable,
+                "-c",
+                "import sys; print('native sandbox capability unavailable: fixed', file=sys.stderr)",
+            ],
+            ROOT,
+        )
+        self.assertEqual(unavailable["status"], "unavailable")
+        self.assertEqual(unavailable["limitation"], "native-sandbox-unavailable")
+        self.assertNotIn("fixed", json.dumps(unavailable))
+        with self.assertRaisesRegex(
+            HOSTED.PortabilityError, "hosted portability sandbox check did not pass"
+        ):
+            HOSTED._run_sandbox(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; print('native sandbox capability unavailable: private'); sys.exit(1)",
+                ],
+                ROOT,
+            )
+
+        checks = [(name, ["/usr/bin/true"]) for name in ("process", "metrics", "sandbox")]
+        os_release = "ID=ubuntu\nVERSION_ID=24.04\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\n"
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            root = Path(temporary)
+            (root / "etc").mkdir()
+            (root / "etc/os-release").write_text(os_release)
+            with (
+                mock.patch.object(HOSTED.platform, "machine", return_value="x86_64"),
+                mock.patch.object(
+                    HOSTED,
+                    "_source",
+                    side_effect=[("d" * 40, "e" * 40), ("d" * 40, "e" * 40)],
+                ),
+                mock.patch.object(HOSTED, "_run", return_value=self.report["checks"]["process"]),
+                mock.patch.object(HOSTED, "_run_sandbox", return_value=unavailable),
+            ):
+                report = HOSTED.collect(
+                    "ubuntu-24.04", "x86_64", "gha-123-1", ROOT, "c" * 40, checks, root
+                )
+        HOSTED._validate_schema(report, self.schema, self.schema)
+        self.assertEqual(report["qualification"], "functional-portability-partial")
+        self.assertIn("native-sandbox-unavailable", report["limitations"])
+        self.assertNotEqual(report["kind"], "native-run")
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            output_root = Path(temporary)
+            hosted = output_root / "hosted.json"
+            native_file = output_root / "native.json"
+            hosted.write_text(json.dumps(report))
+            self.assertEqual(
+                HOSTED.validate_artifact(
+                    "hosted-portability", native_file, hosted, output_root, ROOT
+                ),
+                "hosted-portability",
+            )
+            forged = copy.deepcopy(report)
+            forged["qualification"] = "functional-portability-only"
+            hosted.unlink()
+            hosted.write_text(json.dumps(forged))
+            with self.assertRaisesRegex(HOSTED.PortabilityError, "route and claim"):
+                HOSTED.validate_artifact(
+                    "hosted-portability", native_file, hosted, output_root, ROOT
+                )
+            self.assertFalse(hosted.exists())
+
+    def test_failed_public_check_slot_creates_no_artifact(self) -> None:
+        tool = TOOLS / "hosted_portability.py"
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            output_root = root / "output"
+            os_root = root / "os"
+            (source / "platforms/v1").mkdir(parents=True)
+            output_root.mkdir()
+            (os_root / "etc").mkdir(parents=True)
+            (os_root / "etc/os-release").write_text(
+                "ID=ubuntu\nVERSION_ID=24.04\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\n"
+            )
+            shutil.copyfile(
+                ROOT / "platforms/v1/hosted-portability.schema.json",
+                source / "platforms/v1/hosted-portability.schema.json",
+            )
+            subprocess.run(["git", "init", "-q"], cwd=source, check=True)
+            subprocess.run(["git", "add", "."], cwd=source, check=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                    "commit", "-q", "-m", "fixture",
+                ],
+                cwd=source,
+                check=True,
+            )
+            base = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=source, text=True
+            ).strip()
+            output = output_root / "hosted.json"
+            result = subprocess.run(
+                [
+                    sys.executable, "-S", str(tool), "collect", "--runner-label", "ubuntu-24.04",
+                    "--architecture", "x86_64", "--run-id", "gha-negative-1",
+                    "--source", str(source), "--base-commit", base, "--output", str(output),
+                    "--output-root", str(output_root), "--root", str(os_root),
+                    "--check", 'process=["/usr/bin/false"]',
+                    "--check", 'metrics=["/usr/bin/true"]',
+                    "--check", 'sandbox=["/usr/bin/true"]',
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env={"PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1"},
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(
+                result.stdout.strip(), "ERROR: hosted portability process check did not pass"
+            )
+            self.assertEqual(result.stderr, "")
+            self.assertFalse(output.exists())
 
     def test_atomic_output_rejects_stale_file_and_symlinked_parent(self) -> None:
         with tempfile.TemporaryDirectory(dir=ROOT) as temporary:

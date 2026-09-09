@@ -8,7 +8,7 @@
   "properties": {
     "format_version": {"const": 1},
     "kind": {"const": "hosted-portability"},
-    "qualification": {"const": "functional-portability-only"},
+    "qualification": {"enum": ["functional-portability-only", "functional-portability-partial"]},
     "performance_baseline": {"const": false},
     "runner_label": {"const": "ubuntu-24.04"},
     "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
@@ -39,19 +39,20 @@
       "properties": {
         "process": {"$ref": "#/$defs/check"},
         "metrics": {"$ref": "#/$defs/check"},
-        "sandbox": {"$ref": "#/$defs/check"}
+        "sandbox": {"oneOf": [{"$ref": "#/$defs/check"}, {"$ref": "#/$defs/unavailableCheck"}]}
       }
     },
     "limitations": {
       "type": "array",
       "uniqueItems": true,
       "minItems": 4,
-      "maxItems": 4,
+      "maxItems": 5,
       "prefixItems": [
         {"const": "rolling-hosted-image"},
         {"const": "not-native-qualification"},
         {"const": "not-performance-baseline"},
-        {"const": "native-aarch64-unqualified"}
+        {"const": "native-aarch64-unqualified"},
+        {"const": "native-sandbox-unavailable"}
       ],
       "items": false
     }
@@ -78,6 +79,18 @@
         "output_bytes": {"type": "integer", "minimum": 0, "maximum": 16777216},
         "output_sha256": {"$ref": "#/$defs/digest"},
         "status": {"const": "passed"}
+      }
+    },
+    "unavailableCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["argv_sha256", "output_bytes", "output_sha256", "status", "limitation"],
+      "properties": {
+        "argv_sha256": {"$ref": "#/$defs/digest"},
+        "output_bytes": {"type": "integer", "minimum": 0, "maximum": 16777216},
+        "output_sha256": {"$ref": "#/$defs/digest"},
+        "status": {"const": "unavailable"},
+        "limitation": {"const": "native-sandbox-unavailable"}
       }
     }
   }
