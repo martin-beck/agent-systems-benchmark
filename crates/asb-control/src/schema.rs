@@ -5,7 +5,7 @@
 use schemars::{JsonSchema, Schema, schema_for};
 use serde_json::{Value, json};
 
-use crate::{ControlEvent, ControlRequest, ControlResponse};
+use crate::{AnalysisEvidence, ControlEvent, ControlRequest, ControlResponse, HistoryEvidence};
 
 fn canonical<T: JsonSchema>() -> Schema {
     let mut value = serde_json::to_value(schema_for!(T)).expect("schema serializes");
@@ -196,4 +196,14 @@ pub fn control_event_schema() -> Schema {
     let mut schema = canonical::<ControlEvent>();
     event_association(&mut schema);
     schema
+}
+
+/// Canonical schema for the additive history evidence extension.
+pub fn history_evidence_schema() -> Schema {
+    canonical::<HistoryEvidence>()
+}
+
+/// Canonical schema for the additive analysis evidence extension.
+pub fn analysis_evidence_schema() -> Schema {
+    canonical::<AnalysisEvidence>()
 }

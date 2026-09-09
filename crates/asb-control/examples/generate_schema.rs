@@ -5,7 +5,10 @@
 use std::fs;
 use std::path::PathBuf;
 
-use asb_control::{control_event_schema, control_request_schema, control_response_schema};
+use asb_control::{
+    analysis_evidence_schema, control_event_schema, control_request_schema,
+    control_response_schema, history_evidence_schema,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = std::env::args_os()
@@ -16,6 +19,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     write(&output, "request.schema.json", &control_request_schema())?;
     write(&output, "response.schema.json", &control_response_schema())?;
     write(&output, "event.schema.json", &control_event_schema())?;
+    write(
+        &output,
+        "history-evidence.schema.json",
+        &history_evidence_schema(),
+    )?;
+    write(
+        &output,
+        "analysis-evidence.schema.json",
+        &analysis_evidence_schema(),
+    )?;
     Ok(())
 }
 

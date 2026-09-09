@@ -15,6 +15,9 @@ mod transport;
 pub use endpoint::*;
 pub use frame::*;
 pub use protocol::*;
-pub use schema::{control_event_schema, control_request_schema, control_response_schema};
+pub use schema::{
+    analysis_evidence_schema, control_event_schema, control_request_schema,
+    control_response_schema, history_evidence_schema,
+};
 pub use state::*;
 pub use transport::*;
