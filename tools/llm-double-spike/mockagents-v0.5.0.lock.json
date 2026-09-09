@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "candidate": "mockagents",
+  "version": "0.5.0",
+  "source": {
+    "repository": "https://github.com/mockagents/mockagents",
+    "tag": "v0.5.0",
+    "tag_object": "c218b03faa5b6be9c6b165b304c86a176cffa07f",
+    "commit": "6ddb03e54a14484e5929a19673f0cfd8a1975f07"
+  },
+  "license": {"name": "Apache-2.0", "git_blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64"},
+  "artifacts": {
+    "linux-amd64": {
+      "url": "https://github.com/mockagents/mockagents/releases/download/v0.5.0/mockagents_0.5.0_linux_amd64.tar.gz",
+      "size": 10194803,
+      "sha256": "1b2e6fb9d3bb96c680f9f9c819c2669939751baf45abb35b1370c97f1d291458"
+    },
+    "linux-arm64": {
+      "url": "https://github.com/mockagents/mockagents/releases/download/v0.5.0/mockagents_0.5.0_linux_arm64.tar.gz",
+      "size": 9390255,
+      "sha256": "08662b32bb562b390ebfbba2fc48d23754055236de9fa13364890260f888e7d1"
+    }
+  },
+  "checksums": {
+    "url": "https://github.com/mockagents/mockagents/releases/download/v0.5.0/checksums.txt",
+    "size": 511,
+    "sha256": "516b2fc57077d9927f971317e84f7c5477d25093c5de38680d1c50617c93c320"
+  }
+}
