@@ -29,6 +29,8 @@ use thiserror::Error;
 pub const SCHEMA_VERSION: u32 = 1;
 /// SSH signature namespace used only for ASB runtime bundles.
 pub const SIGNATURE_NAMESPACE: &str = "asb-runtime-bundle-v1";
+/// Version of the signed platform release-manifest contract.
+pub const PLATFORM_MANIFEST_SCHEMA_VERSION: u32 = 1;
 /// Maximum accepted manifest size.
 pub const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 /// Maximum accepted SBOM size per document.
@@ -88,6 +90,100 @@ pub struct RuntimeTarget {
     /// Exact libc ABI version required by the bundle.
     #[schemars(length(min = 1, max = 4096))]
     pub libc_version: String,
+}
+
+/// Signed release metadata used for explainable, fail-closed platform selection.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlatformReleaseManifest {
+    /// Exact release-manifest schema version.
+    #[schemars(schema_with = "platform_manifest_schema_version")]
+    pub schema_version: u32,
+    /// Immutable source revision that produced every listed artifact.
+    #[schemars(regex(pattern = r"^[0-9a-f]{40}$"))]
+    pub source_revision: String,
+    /// RFC3339 UTC expiry; expired manifests are never selected.
+    #[schemars(length(min = 20, max = 64))]
+    pub expires_at: String,
+    /// Minimum protocol version accepted by the release.
+    pub protocol_min: u32,
+    /// Maximum protocol version accepted by the release.
+    pub protocol_max: u32,
+    /// Complete immutable platform artifact set.
+    #[schemars(length(min = 1, max = 32))]
+    pub artifacts: Vec<PlatformArtifact>,
+}
+
+/// One content-addressed artifact selectable for one exact native target.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlatformArtifact {
+    /// Stable artifact identity.
+    #[schemars(length(min = 1, max = 128))]
+    pub artifact_id: String,
+    /// Exact target supported by the artifact.
+    pub target: RuntimeTarget,
+    /// Immutable HTTPS location; credentials and query strings are forbidden.
+    #[schemars(length(min = 12, max = 4096))]
+    pub url: String,
+    /// Exact downloaded archive digest.
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"))]
+    pub sha256: String,
+    /// Exact archive size.
+    pub size: u64,
+    /// Detached signature digest, checked before extraction.
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"))]
+    pub signature_sha256: String,
+}
+
+fn platform_manifest_schema_version(_: &mut SchemaGenerator) -> Schema {
+    json_schema!({"type": "integer", "const": PLATFORM_MANIFEST_SCHEMA_VERSION})
+}
+
+/// Validate release-manifest bounds and select exactly one compatible artifact.
+pub fn select_platform_artifact<'a>(
+    manifest: &'a PlatformReleaseManifest,
+    expected: &ExpectedTarget<'_>,
+    protocol_version: u32,
+    now_utc: &str,
+) -> Result<&'a PlatformArtifact, VerifyError> {
+    if manifest.schema_version != PLATFORM_MANIFEST_SCHEMA_VERSION
+        || manifest.source_revision.len() != 40
+        || !is_lower_hex(&manifest.source_revision)
+        || manifest.protocol_min > manifest.protocol_max
+        || protocol_version < manifest.protocol_min
+        || protocol_version > manifest.protocol_max
+        || manifest.expires_at.len() < 20
+        || !manifest.expires_at.ends_with('Z')
+        || now_utc >= manifest.expires_at.as_str()
+    {
+        return Err(VerifyError::Target(
+            "release manifest is expired or incompatible".into(),
+        ));
+    }
+    let mut matches = manifest.artifacts.iter().filter(|artifact| {
+        artifact.target.operating_system == expected.operating_system
+            && artifact.target.architecture == expected.architecture
+            && artifact.target.libc == expected.libc
+            && artifact.target.libc_version == expected.libc_version
+    });
+    let artifact = matches
+        .next()
+        .ok_or_else(|| VerifyError::Target("no exact native artifact matches".into()))?;
+    if matches.next().is_some()
+        || artifact.artifact_id.is_empty()
+        || !artifact.url.starts_with("https://")
+        || artifact.url.contains('?')
+        || artifact.url.contains('#')
+        || validate_hash(&artifact.sha256).is_err()
+        || validate_hash(&artifact.signature_sha256).is_err()
+        || artifact.size == 0
+    {
+        return Err(VerifyError::Target(
+            "platform artifact is ambiguous or malformed".into(),
+        ));
+    }
+    Ok(artifact)
 }
 
 /// One regular file in the runtime bundle.
@@ -735,6 +831,12 @@ fn validate_hash(value: &str) -> Result<(), VerifyError> {
     }
 }
 
+fn is_lower_hex(value: &str) -> bool {
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 fn bounded_nonempty(name: &str, value: &str) -> Result<(), VerifyError> {
     if value.is_empty() || value.len() > MAX_STRING_BYTES || value.chars().any(char::is_control) {
         Err(VerifyError::Metadata(format!(
@@ -753,4 +855,73 @@ fn sha256(bytes: &[u8]) -> String {
 #[must_use]
 pub fn manifest_schema() -> schemars::Schema {
     schemars::schema_for!(RuntimeBundleManifest)
+}
+
+/// Generate the canonical JSON Schema for signed platform release manifests.
+#[must_use]
+pub fn platform_manifest_schema() -> schemars::Schema {
+    schemars::schema_for!(PlatformReleaseManifest)
+}
+
+#[cfg(test)]
+mod platform_tests {
+    use super::*;
+
+    fn manifest() -> PlatformReleaseManifest {
+        PlatformReleaseManifest {
+            schema_version: PLATFORM_MANIFEST_SCHEMA_VERSION,
+            source_revision: "a".repeat(40),
+            expires_at: "2099-01-01T00:00:00Z".into(),
+            protocol_min: 1,
+            protocol_max: 2,
+            artifacts: vec![PlatformArtifact {
+                artifact_id: "runner-linux-x86_64".into(),
+                target: RuntimeTarget {
+                    operating_system: "linux".into(),
+                    architecture: "x86_64".into(),
+                    libc: "glibc".into(),
+                    libc_version: "2.39".into(),
+                },
+                url: "https://downloads.example.invalid/asb.tar.zst".into(),
+                sha256: "b".repeat(64),
+                size: 42,
+                signature_sha256: "c".repeat(64),
+            }],
+        }
+    }
+
+    #[test]
+    fn platform_selection_is_exact_and_version_bounded() {
+        let value = manifest();
+        let expected = ExpectedTarget {
+            operating_system: "linux",
+            architecture: "x86_64",
+            libc: "glibc",
+            libc_version: "2.39",
+        };
+        assert_eq!(
+            select_platform_artifact(&value, &expected, 1, "2026-01-01T00:00:00Z")
+                .unwrap()
+                .artifact_id,
+            "runner-linux-x86_64"
+        );
+        assert!(select_platform_artifact(&value, &expected, 3, "2026-01-01T00:00:00Z").is_err());
+        assert!(select_platform_artifact(&value, &expected, 1, "2100-01-01T00:00:00Z").is_err());
+    }
+
+    #[test]
+    fn platform_selection_rejects_ambiguous_or_non_https_artifacts() {
+        let mut value = manifest();
+        value.artifacts.push(value.artifacts[0].clone());
+        let expected = ExpectedTarget {
+            operating_system: "linux",
+            architecture: "x86_64",
+            libc: "glibc",
+            libc_version: "2.39",
+        };
+        assert!(select_platform_artifact(&value, &expected, 1, "2026-01-01T00:00:00Z").is_err());
+        value.artifacts.truncate(1);
+        value.artifacts[0].url = "http://downloads.example.invalid/asb.tar.zst".into();
+        assert!(select_platform_artifact(&value, &expected, 1, "2026-01-01T00:00:00Z").is_err());
+    }
 }
