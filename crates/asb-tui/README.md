@@ -15,3 +15,10 @@ covers every selected agent can be chosen. Selection is canonicalized before
 the privacy-safe review and explicit plan confirmation. Stale catalogs,
 duplicates, incompatible profiles, unsupported choices, and non-ASCII or
 oversized searches fail closed; no launch occurs from selection or review.
+
+The `RecordingWorkflow` model supplies the corresponding record/replay journey.
+It exposes only exact compatible cassette choices, keeps near matches with a
+typed unavailable reason, and requires explicit acknowledgements for live
+recording's network, cost, and persistence consequences. Replay is labeled
+`strict_replay` and carries a denied-network policy; no launch is implied by
+catalogue display or review.

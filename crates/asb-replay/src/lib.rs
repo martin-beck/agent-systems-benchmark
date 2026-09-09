@@ -14,6 +14,7 @@ mod pacing;
 mod redaction;
 mod selection;
 mod service;
+mod workflow;
 
 pub use cassette::{
     CASSETTE_SCHEMA_VERSION, Cassette, CassetteContents, CassetteError, CassetteEvent,
@@ -40,4 +41,9 @@ pub use selection::{
 pub use service::{
     DialectCapability, MAX_IO_TIMEOUT, ReplayDeliveryReport, ReplayError, ReplayHttpRequest,
     ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService, dialect_capabilities,
+};
+pub use workflow::{
+    MAX_WORKFLOW_AGENT_BYTES, NetworkConsequence, RecordedArtifact, RecordingCapture,
+    RecordingConfirmation, RecordingMetadata, RecordingWorkflowError,
+    RECORDING_WORKFLOW_SCHEMA_VERSION, choose_source, seal_recording,
 };

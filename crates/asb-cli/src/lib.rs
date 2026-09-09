@@ -12,6 +12,10 @@ use asb_agents::openai::OpenAiProfile;
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
 use asb_protocol::{ExperimentManifestV1, Id};
+use asb_replay::{
+    CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
+    SourceChoice, seal_recording,
+};
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
     StopReason, SystemClock, capacity_order, highest_confirmed_capacity,
@@ -120,6 +124,12 @@ fn dispatch(
         [command, runs @ ..] if command == "report" && !runs.is_empty() => {
             report(runs, stdout).map(|()| 0)
         }
+        [command, input, output] if command == "record" => {
+            record(Path::new(input), Path::new(output), stdout).map(|()| 0)
+        }
+        [command, cassette, profile, agent] if command == "replay" => {
+            replay(Path::new(cassette), profile, agent, stdout).map(|()| 0)
+        }
         _ => Err(CliError::usage("unsupported arguments; use asb --help")),
     }
 }
@@ -146,6 +156,8 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("compare") => "compare",
         Some("report") => "report",
         Some("serve") => "serve",
+        Some("record") => "record",
+        Some("replay") => "replay",
         _ => "cli",
     }
 }
@@ -155,7 +167,9 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         output,
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nProvider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
-    .map_err(output_error)
+    .map_err(output_error)?;
+    writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
+        .map_err(output_error)
 }
 
 fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
@@ -164,9 +178,132 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor provider-catalog provider-plan plan run sweep compare report completion serve --help --version' asb"
+        "complete -W 'doctor provider-catalog provider-plan plan run sweep compare report record replay completion serve --help --version' asb"
     )
     .map_err(output_error)
+}
+
+#[derive(Serialize)]
+struct ReplayWorkflowOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    source: ExecutionSource,
+    network: &'static str,
+    provider_profile_sha256: String,
+    agent_id: String,
+    cassette_sha256: String,
+}
+
+fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "recording capture")?;
+    let capture: RecordingCapture = serde_json::from_slice(&bytes)
+        .map_err(|_| CliError::validation("recording capture syntax or shape is invalid"))?;
+    let artifact =
+        seal_recording(capture, Default::default(), CassetteLimits::default()).map_err(|_| {
+            CliError::validation("recording capture is incomplete, unsafe, or unapproved")
+        })?;
+    let encoded = serde_json::to_vec(&artifact.cassette)
+        .map_err(|_| CliError::operation("recording cassette cannot be encoded"))?;
+    if encoded.len() > MAX_CAPTURE_BYTES {
+        return Err(CliError::validation(
+            "recording cassette exceeds its byte limit",
+        ));
+    }
+    write_atomic_private(output, &encoded)?;
+    write_json(stdout, &artifact.metadata)
+}
+
+fn replay(
+    cassette_path: &Path,
+    provider_profile_sha256: &str,
+    agent_id: &str,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
+    let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
+        .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+    let descriptor = RecordingDescriptor {
+        provider_profile_sha256: provider_profile_sha256.to_owned(),
+        agent_id: agent_id.to_owned(),
+        cassette_sha256: cassette.integrity.digest.clone(),
+    };
+    let mut index = RecordingIndex::new();
+    index.insert(descriptor, &cassette).map_err(|_| {
+        CliError::validation("recording cassette is not compatible with this selection")
+    })?;
+    let source = asb_replay::choose_source(
+        &index,
+        provider_profile_sha256,
+        agent_id,
+        false,
+        Some(&SourceChoice::Replay {
+            cassette_sha256: cassette.integrity.digest.clone(),
+        }),
+    )
+    .map_err(|_| CliError::validation("recording cassette is not an exact compatible replay"))?;
+    write_json(
+        stdout,
+        &ReplayWorkflowOutput {
+            schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            ok: true,
+            command: "replay",
+            source,
+            network: "denied",
+            provider_profile_sha256: provider_profile_sha256.to_owned(),
+            agent_id: agent_id.to_owned(),
+            cassette_sha256: cassette.integrity.digest,
+        },
+    )
+}
+
+fn read_bounded_json(
+    path: &Path,
+    maximum: usize,
+    label: &'static str,
+) -> Result<Vec<u8>, CliError> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|_| CliError::validation("workflow input is unavailable"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() as usize > maximum
+    {
+        return Err(CliError::validation(label));
+    }
+    let file = fs::File::open(path).map_err(|_| CliError::validation(label))?;
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take((maximum as u64).saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|_| CliError::validation(label))?;
+    if bytes.len() > maximum {
+        return Err(CliError::validation(label));
+    }
+    Ok(bytes)
+}
+
+fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && metadata.file_type().is_symlink()
+    {
+        return Err(CliError::validation(
+            "workflow output cannot replace a symlink",
+        ));
+    }
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let temporary = parent.join(format!(".asb-record-{}.tmp", std::process::id()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&temporary)
+        .map_err(|_| CliError::operation("workflow output cannot be staged"))?;
+    if file.write_all(bytes).is_err() || file.sync_all().is_err() {
+        let _ = fs::remove_file(&temporary);
+        return Err(CliError::operation("workflow output cannot be written"));
+    }
+    drop(file);
+    fs::rename(&temporary, path).map_err(|_| {
+        let _ = fs::remove_file(&temporary);
+        CliError::operation("workflow output cannot be installed")
+    })
 }
 
 #[derive(Serialize)]
@@ -205,6 +342,8 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
                 "sweep",
                 "compare",
                 "report",
+                "record",
+                "replay",
                 "completion",
                 "serve",
             ],
@@ -3621,5 +3760,67 @@ mod tests {
                 .unwrap()
                 .contains("could not write")
         );
+    }
+
+    #[test]
+    fn record_and_replay_commands_are_explicit_private_and_network_denied() {
+        let scratch = Scratch::new("record-replay");
+        let capture_path = scratch.0.join("capture.json");
+        let cassette_path = scratch.0.join("cassette.json");
+        let cassette = asb_replay::decode_cassette(
+            include_bytes!("../../asb-replay/fixtures/v1/buffered.json"),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        let capture = asb_replay::RecordingCapture {
+            schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            provider_profile_sha256: "a".repeat(64),
+            agent_id: "codex".into(),
+            network: asb_replay::NetworkConsequence::LoopbackOnly,
+            estimated_cost_minor: 0,
+            confirmation: asb_replay::RecordingConfirmation {
+                record: true,
+                network: true,
+                cost: false,
+            },
+            contents: cassette.contents,
+        };
+        fs::write(&capture_path, serde_json::to_vec(&capture).unwrap()).unwrap();
+        let mut record_output = Vec::new();
+        let mut diagnostics = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "record".into(),
+                    capture_path.as_os_str().to_owned(),
+                    cassette_path.as_os_str().to_owned(),
+                ],
+                &mut record_output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        assert!(cassette_path.is_file());
+        let metadata: Value = serde_json::from_slice(&record_output).unwrap();
+        let digest = metadata["cassette_sha256"].as_str().unwrap().to_owned();
+        assert_eq!(metadata["source"], "live_recording");
+        let mut replay_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "replay".into(),
+                    cassette_path.as_os_str().to_owned(),
+                    "a".repeat(64).into(),
+                    "codex".into(),
+                ],
+                &mut replay_output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        let replay: Value = serde_json::from_slice(&replay_output).unwrap();
+        assert_eq!(replay["network"], "denied");
+        assert_eq!(replay["cassette_sha256"], digest);
+        assert_eq!(replay["source"]["replay"]["cassette_sha256"], digest);
     }
 }
