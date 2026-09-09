@@ -30,3 +30,11 @@ directory is safe to execute. Installation must verify a quiescent private stagi
 atomically publish the verified tree; sandboxing and process containment remain runtime concerns.
 The supplied ssh-keygen and allowed-signers locations must likewise be operator-owned and
 quiescent during verification.
+
+`PlatformReleaseManifest` and `select_platform_artifact` provide the separate
+selection boundary used before downloading a bundle. They bind one source
+revision, protocol range, UTC expiry, and content-addressed HTTPS artifact to
+an exact OS/architecture/libc identity. Selection rejects expiry, protocol
+skew, ambiguous targets, non-HTTPS locations, malformed digests, and zero-sized
+payloads before any download or extraction. The signed `RuntimeBundleManifest`
+remains authoritative for the extracted tree.
