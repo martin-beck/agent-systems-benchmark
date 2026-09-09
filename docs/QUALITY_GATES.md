@@ -70,6 +70,11 @@ rejects missing, duplicate, default, squash, rebase, escaped-newline, and
 title-cased publication recipes; a future GitHub merge must end in the exact
 lowercase author-matching trailer documented above.
 
+The [signed merge procedure](MERGE_INTEGRITY.md) also binds the integration commit's parents and
+tree to the approved base and pull-request head. All GitHub web merge modes are disabled and audited;
+the local publisher rechecks remote refs and uses an exact force-with-lease. A later signed
+attestation does not make an earlier unsigned or non-DCO merge compliant.
+
 The negative suite invokes the production gate commands against controlled
 defects. It proves rejection of mutable Actions, missing DCO/signatures,
 malformed and unsafe workflows, a synthetic credential, a denied dependency, a
