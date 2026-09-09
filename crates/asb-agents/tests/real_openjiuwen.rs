@@ -4,6 +4,7 @@
 #![allow(missing_docs)]
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::ffi::OsString;
 use std::fs;
 use std::io::Read;
 use std::os::unix::fs::PermissionsExt;
@@ -97,8 +98,12 @@ fn bounded_capture_rejects_oversized_output() {
             .stdin(Stdio::null()),
     );
 }
-fn scratch(label: &str) -> Scratch {
-    let root = PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("external target root"));
+fn scratch_root(configured: Option<OsString>) -> PathBuf {
+    configured
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+}
+fn scratch_at(root: PathBuf, label: &str) -> Scratch {
     assert!(root.is_absolute());
     let path = root.join("asb-integration-fixtures").join(format!(
         "asb-real-openjiuwen-{label}-{}-{}",
@@ -112,6 +117,9 @@ fn scratch(label: &str) -> Scratch {
     fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
     validate_scratch_root(&path).unwrap();
     Scratch(path)
+}
+fn scratch(label: &str) -> Scratch {
+    scratch_at(scratch_root(std::env::var_os("CARGO_TARGET_DIR")), label)
 }
 fn validate_scratch_root(path: &Path) -> Result<(), &'static str> {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -417,7 +425,31 @@ fn assert_terminal_failure(output: &Output, root: &Path, label: &str) {
 #[test]
 fn scratch_roots_reject_repository_overlap_and_public_permissions() {
     assert!(validate_scratch_root(Path::new(env!("CARGO_MANIFEST_DIR"))).is_err());
-    let root = scratch("permissions");
+    let fallback_root = scratch_root(None);
+    assert_eq!(fallback_root, std::env::temp_dir());
+    let fallback = scratch_at(fallback_root, "fallback");
+    assert!(fallback.0.starts_with(std::env::temp_dir()));
+
+    let configured_root = std::env::temp_dir().join(format!(
+        "asb-explicit-target-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&configured_root).unwrap();
+    fs::set_permissions(&configured_root, fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(
+        scratch_root(Some(configured_root.clone().into_os_string())),
+        configured_root
+    );
+    let configured = scratch_at(configured_root.clone(), "configured");
+    assert!(configured.0.starts_with(&configured_root));
+    drop(configured);
+    fs::remove_dir_all(&configured_root).unwrap();
+
+    let root = scratch_at(std::env::temp_dir(), "permissions");
     fs::set_permissions(&root.0, fs::Permissions::from_mode(0o755)).unwrap();
     assert!(validate_scratch_root(&root.0).is_err());
 }
