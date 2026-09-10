@@ -1448,6 +1448,7 @@ mod tests {
     const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;
     const MAX_PROC_ENTRIES: usize = 65_536;
     const MAX_PROCESS_GROUP_MEMBERS: usize = 1_024;
+    const TEST_DIRECTORY_FLAGS: i32 = 0x000b_0000;
 
     fn canonical_repository_root() -> io::Result<PathBuf> {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1462,13 +1463,23 @@ mod tests {
         left.starts_with(right) || right.starts_with(left)
     }
 
+    fn open_bound_directory(path: &Path, expected: &Path) -> io::Result<fs::File> {
+        let directory = OpenOptions::new()
+            .read(true)
+            .custom_flags(TEST_DIRECTORY_FLAGS)
+            .open(path)?;
+        let fd_target = fs::canonicalize(format!("/proc/self/fd/{}", directory.as_raw_fd()))?;
+        if fd_target != expected {
+            return Err(io::Error::other("test-root directory binding changed"));
+        }
+        Ok(directory)
+    }
+
     struct PrivateTestRoot {
         base: fs::File,
         root: fs::File,
         path: PathBuf,
         name: String,
-        device: u64,
-        inode: u64,
         cleanup_attempted: bool,
     }
 
@@ -1500,24 +1511,21 @@ mod tests {
             if paths_overlap(&canonical_base, &canonical_repository_root()?) {
                 return Err(io::Error::other("test root overlaps repository"));
             }
-            let mode = before.mode() & 0o7777;
+            let base = open_bound_directory(base_path, &canonical_base)?;
+            let opened = base.metadata()?;
+            let mode = opened.mode() & 0o7777;
             let effective_uid = fs::metadata("/proc/self")?.uid();
-            let private_owner = before.uid() == effective_uid && mode & 0o022 == 0;
+            let private_owner = opened.uid() == effective_uid && mode & 0o022 == 0;
             let sticky_shared = mode & 0o1002 == 0o1002;
             if !private_owner && !sticky_shared {
                 return Err(io::Error::other("unsafe test-root base"));
-            }
-            let base = fs::File::open(base_path)?;
-            let opened = base.metadata()?;
-            if opened.dev() != before.dev() || opened.ino() != before.ino() {
-                return Err(io::Error::other("test-root base changed"));
             }
             let base_anchor = PathBuf::from(format!("/proc/self/fd/{}", base.as_raw_fd()));
             let path = base_path.join(&name);
             fs::DirBuilder::new()
                 .mode(0o700)
                 .create(base_anchor.join(&name))?;
-            let root = fs::File::open(base_anchor.join(&name))?;
+            let root = open_bound_directory(&base_anchor.join(&name), &path)?;
             let metadata = root.metadata()?;
             if metadata.uid() != effective_uid
                 || metadata.mode() & 0o7777 != 0o700
@@ -1530,8 +1538,6 @@ mod tests {
                 root,
                 path,
                 name,
-                device: metadata.dev(),
-                inode: metadata.ino(),
                 cleanup_attempted: false,
             })
         }
@@ -1553,14 +1559,14 @@ mod tests {
                 }
             }
             let base_anchor = PathBuf::from(format!("/proc/self/fd/{}", self.base.as_raw_fd()));
-            let linked = fs::symlink_metadata(base_anchor.join(&self.name))?;
+            let linked_path = base_anchor.join(&self.name);
+            let linked = fs::symlink_metadata(&linked_path)?;
             if linked.file_type().is_symlink()
-                || linked.dev() != self.device
-                || linked.ino() != self.inode
+                || fs::canonicalize(&linked_path)? != fs::canonicalize(&root_anchor)?
             {
                 return Err(io::Error::other("test root changed before cleanup"));
             }
-            fs::remove_dir(base_anchor.join(&self.name))
+            fs::remove_dir(linked_path)
         }
     }
 
@@ -2254,8 +2260,12 @@ wait
             std::process::id()
         ));
         fs::DirBuilder::new().mode(0o700).create(&fixture).unwrap();
+        let canonical_fixture = fs::canonicalize(&fixture).unwrap();
+        assert!(open_bound_directory(&fixture, &canonical_fixture).is_ok());
+        assert!(open_bound_directory(&fixture, &base).is_err());
         let redirected = fixture.join("redirected");
         std::os::unix::fs::symlink(&base, &redirected).unwrap();
+        assert!(open_bound_directory(&redirected, &base).is_err());
         assert!(PrivateTestRoot::create_named(&redirected, "child".into()).is_err());
         let leaf = fixture.join("leaf");
         std::os::unix::fs::symlink(&base, &leaf).unwrap();
