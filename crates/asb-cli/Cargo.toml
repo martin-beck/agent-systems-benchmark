@@ -16,6 +16,7 @@ asb-replay = { version = "=0.1.0", path = "../asb-replay" }
 asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
 asb-store = { version = "=0.1.0", path = "../asb-store" }
 asb-workloads = { version = "=0.1.0", path = "../asb-workloads" }
+schemars = "=1.0.4"
 serde = { version = "=1.0.219", features = ["derive"] }
 serde_json = "=1.0.143"
 sha2 = "=0.10.9"
@@ -23,9 +24,16 @@ signal-hook = "=0.3.18"
 toml = "=0.8.23"
 libc = "=0.2.189"
 
+[dev-dependencies]
+jsonschema = { version = "=0.33.0", default-features = false }
+
 [[bin]]
 name = "asb"
 path = "src/main.rs"
+
+[[example]]
+name = "generate-capabilities-schema"
+path = "examples/generate_capabilities_schema.rs"
 
 [lints]
 workspace = true

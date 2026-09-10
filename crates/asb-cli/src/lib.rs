@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Stable terminal and automation interface for Agent Systems Benchmark.
 
+pub mod capabilities;
 mod control;
 mod provider_launch;
 
@@ -103,6 +104,11 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
+        [command, format, value]
+            if command == "capabilities" && format == "--format" && value == "json" =>
+        {
+            write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
+        }
         [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
@@ -152,6 +158,7 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
 fn command_name(args: &[OsString]) -> &'static str {
     match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
+        Some("capabilities") => "capabilities",
         Some("provider-catalog") => "provider-catalog",
         Some("provider-plan") => "provider-plan",
         Some("completion") => "completion",
@@ -170,7 +177,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nProvider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb capabilities --format json\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
@@ -183,7 +190,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor provider-catalog provider-plan plan run sweep compare report record replay completion serve --help --version' asb"
+        "complete -W 'doctor capabilities provider-catalog provider-plan plan run sweep compare report record replay completion serve --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -340,6 +347,7 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
             interactive_stderr: io::stderr().is_terminal(),
             commands: &[
                 "doctor",
+                "capabilities",
                 "provider-catalog",
                 "provider-plan",
                 "plan",

@@ -1,0 +1,6 @@
+{
+  "asb_tui_repository": "https://github.com/martin-beck/asb-tui",
+  "asb_tui_revision": "3d2b6b537da817469bf8a39841ccf9a79a4c370f",
+  "schema_path": "protocol/v1/capabilities.schema.json",
+  "schema_sha256": "3d9eb5a8a9b24bbecb7593cc46cd1283053e3dce91b82b6917dec1abe6da0294"
+}

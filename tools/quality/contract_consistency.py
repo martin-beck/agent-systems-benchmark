@@ -18,6 +18,7 @@ MAX_FIXTURES_PER_CONTRACT = 128
 IDENTIFIER = re.compile(r"[a-z0-9][a-z0-9.-]{0,127}\Z")
 CAPABILITY_NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 SCHEMA_ROOTS = (
+    "crates/asb-cli/schema/v1",
     "crates/asb-protocol/schema/v1",
     "crates/asb-control/schema/v1",
     "crates/asb-replay/schema/v1",
@@ -25,6 +26,7 @@ SCHEMA_ROOTS = (
     "crates/asb-workloads/registry/v1",
 )
 REQUIRED_COMMANDS = (
+    ("cargo", "test", "-p", "asb-cli", "--test", "capability_contract", "--locked"),
     ("cargo", "test", "-p", "asb-protocol", "--test", "schema_conformance", "--locked"),
     ("cargo", "test", "-p", "asb-control", "--test", "schema_conformance", "--locked"),
     ("cargo", "test", "-p", "asb-replay", "--test", "schema_conformance", "--locked"),
@@ -190,7 +192,7 @@ def load_catalog(root: Path, catalog_path: Path) -> dict[str, Any]:
     if commands != [list(command) for command in REQUIRED_COMMANDS]:
         raise ContractError("conformance commands are not the closed allowlist")
     registered_tests = {entry["rust_test"] for entry in raw["contracts"]}
-    executed_tests = {f"{command[3]}/{command[5]}" for command in REQUIRED_COMMANDS[:5]}
+    executed_tests = {f"{command[3]}/{command[5]}" for command in REQUIRED_COMMANDS[:-1]}
     if registered_tests != executed_tests:
         raise ContractError("Rust round-trip registrations and commands differ")
     relative_path(root, raw["generated_document"])
