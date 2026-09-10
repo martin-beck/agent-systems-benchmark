@@ -10,19 +10,99 @@ use asb_control::{
 use serde_json::Value;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::process::Command;
+use std::ffi::OsStr;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Output};
 
 const FIXTURE: &[u8] = include_bytes!("../fixtures/asb-tui-capabilities-v1.json");
 const SCHEMA: &str = include_str!("../schema/v1/capabilities.schema.json");
 const PROVENANCE: &str = include_str!("../fixtures/asb-tui-capabilities-v1.provenance.json");
+const MAX_COVERAGE_SINK_BYTES: usize = 4_096;
+
+fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("asb-cli must remain beneath the workspace crates directory")
+        .to_path_buf()
+}
+
+fn validated_coverage_sink(value: &OsStr) -> Option<&OsStr> {
+    let text = value.to_str()?;
+    if text.is_empty()
+        || text.len() > MAX_COVERAGE_SINK_BYTES
+        || text.chars().any(char::is_control)
+        || !text.contains("%p")
+        || !text.ends_with(".profraw")
+    {
+        return None;
+    }
+
+    let path = Path::new(value);
+    let resolved_parent = fs::canonicalize(path.parent()?).ok()?;
+    let resolved_workspace = fs::canonicalize(workspace_root()).ok()?;
+    if !path.is_absolute()
+        || path.components().any(|part| part == Component::ParentDir)
+        || resolved_parent.starts_with(resolved_workspace)
+    {
+        return None;
+    }
+    Some(value)
+}
+
+fn isolated_asb_command_with_sink(sink: Option<&OsStr>) -> Result<Command, ()> {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_asb"));
+    command.env_clear();
+    if let Some(sink) = sink {
+        let sink = validated_coverage_sink(sink).ok_or(())?;
+        command.env("LLVM_PROFILE_FILE", sink);
+    }
+    Ok(command)
+}
+
+fn isolated_asb_command() -> Command {
+    isolated_asb_command_with_sink(std::env::var_os("LLVM_PROFILE_FILE").as_deref())
+        .expect("LLVM_PROFILE_FILE must name an absolute external per-process profraw sink")
+}
+
+fn run_capabilities(arguments: &[&str]) -> Output {
+    isolated_asb_command()
+        .arg("capabilities")
+        .args(arguments)
+        .output()
+        .unwrap()
+}
+
+fn default_profiles_beneath(path: &Path, found: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(path).unwrap() {
+        let entry = entry.unwrap();
+        let file_type = entry.file_type().unwrap();
+        if file_type.is_dir() {
+            default_profiles_beneath(&entry.path(), found);
+        } else if file_type.is_file()
+            && entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.starts_with("default_") && name.ends_with(".profraw"))
+        {
+            found.push(entry.path());
+        }
+    }
+}
+
+fn assert_checkout_has_no_default_profiles() {
+    let mut found = Vec::new();
+    default_profiles_beneath(&workspace_root(), &mut found);
+    assert!(
+        found.is_empty(),
+        "unexpected checkout coverage files: {found:?}"
+    );
+}
 
 #[test]
 fn executable_emits_the_exact_standalone_frontend_fixture() {
-    let output = Command::new(env!("CARGO_BIN_EXE_asb"))
-        .args(["capabilities", "--format", "json"])
-        .env_clear()
-        .output()
-        .unwrap();
+    let output = run_capabilities(&["--format", "json"]);
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     assert_eq!(output.stdout, FIXTURE);
@@ -115,18 +195,76 @@ fn command_rejects_every_noncanonical_invocation_without_side_effects() {
         vec!["json"],
         vec!["--format", "json", "extra"],
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_asb"))
-            .arg("capabilities")
-            .args(arguments)
-            .env_clear()
-            .output()
-            .unwrap();
+        let output = run_capabilities(&arguments);
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stderr.is_empty());
         let error: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(error["command"], "capabilities");
         assert_eq!(error["error"]["code"], "usage");
     }
+}
+
+#[test]
+fn isolated_children_forward_only_a_valid_external_coverage_sink() {
+    let valid = OsStr::new("/tmp/asb-capability-%p-%m.profraw");
+    let command = isolated_asb_command_with_sink(Some(valid)).unwrap();
+    let variables: Vec<_> = command.get_envs().collect();
+    assert_eq!(
+        variables,
+        vec![(OsStr::new("LLVM_PROFILE_FILE"), Some(valid))]
+    );
+
+    let checkout_sink = workspace_root().join("default_%p.profraw");
+    for malformed in [
+        OsStr::new(""),
+        OsStr::new("relative.profraw"),
+        OsStr::new("/tmp/../checkout.profraw"),
+        OsStr::new("/tmp/control\n.profraw"),
+        OsStr::new("/tmp/shared.profraw"),
+        OsStr::new("/tmp/asb-capability-%p.txt"),
+        checkout_sink.as_os_str(),
+    ] {
+        assert!(isolated_asb_command_with_sink(Some(malformed)).is_err());
+    }
+
+    let oversized = format!("/tmp/{}.profraw", "a".repeat(MAX_COVERAGE_SINK_BYTES));
+    assert!(isolated_asb_command_with_sink(Some(OsStr::new(&oversized))).is_err());
+    assert!(
+        isolated_asb_command_with_sink(None)
+            .unwrap()
+            .get_envs()
+            .next()
+            .is_none()
+    );
+}
+
+#[test]
+fn canonical_and_failing_children_are_parallel_safe_and_leave_checkout_clean() {
+    assert_checkout_has_no_default_profiles();
+    let invocations = [
+        vec!["--format", "json"],
+        Vec::new(),
+        vec!["--format"],
+        vec!["--format", "yaml"],
+        vec!["json"],
+        vec!["--format", "json", "extra"],
+    ];
+    let outputs = std::thread::scope(|scope| {
+        let handles: Vec<_> = invocations
+            .iter()
+            .map(|arguments| scope.spawn(move || run_capabilities(arguments)))
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert!(outputs[0].status.success());
+    assert_eq!(outputs[0].stdout, FIXTURE);
+    for output in &outputs[1..] {
+        assert_eq!(output.status.code(), Some(2));
+    }
+    assert_checkout_has_no_default_profiles();
 }
 
 #[test]
