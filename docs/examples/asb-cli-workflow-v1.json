@@ -1,0 +1,359 @@
+{
+  "normalization": [
+    "scenario paths",
+    "platform probes",
+    "timing and metric counts",
+    "content digests"
+  ],
+  "scenario": "credential-free offline original.bug-fix",
+  "schema_version": 1,
+  "source_revision": "32df706413a6f165f086941426a5c793bd5e01e8",
+  "steps": [
+    {
+      "argv": [
+        "asb",
+        "doctor"
+      ],
+      "exit_code": 0,
+      "stderr": [],
+      "stdout": {
+        "architecture": "<normalized-architecture>",
+        "batch_agent_boundary": "batch-stdio-v1",
+        "cgroup_v2": "<normalized-cgroup_v2>",
+        "command": "doctor",
+        "commands": [
+          "doctor",
+          "capabilities",
+          "provider-catalog",
+          "provider-plan",
+          "plan",
+          "run",
+          "sweep",
+          "compare",
+          "report",
+          "record",
+          "replay",
+          "completion",
+          "serve"
+        ],
+        "interactive_stderr": "<normalized-interactive_stderr>",
+        "linux": true,
+        "ok": true,
+        "procfs": "<normalized-procfs>",
+        "schema_version": 1,
+        "workloads": [
+          "original.bug-fix",
+          "original.feature-addition",
+          "original.refactoring",
+          "original.test-generation",
+          "original.dependency-migration",
+          "original.build-repair",
+          "original.repository-navigation"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "plan",
+        "${SCENARIO_ROOT}/first/experiment.toml"
+      ],
+      "exit_code": 0,
+      "stderr": [],
+      "stdout": {
+        "agent_executable_sha256": "<sha256>",
+        "agent_implementation": "asb-example",
+        "command": "plan",
+        "concurrency": 1,
+        "experiment_sha256": "<sha256>",
+        "measured": 1,
+        "ok": true,
+        "plan_schema_version": 1,
+        "run_id": "capture-first",
+        "schema_version": 1,
+        "sweep_max_concurrency": null,
+        "warmups": 0,
+        "workload": "original.bug-fix"
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "run",
+        "${SCENARIO_ROOT}/first/experiment.toml"
+      ],
+      "exit_code": 0,
+      "stderr": [
+        "starting capture-first"
+      ],
+      "stdout": {
+        "cancelled": false,
+        "command": "run",
+        "highest_confirmed_capacity": 1,
+        "ok": true,
+        "points": [
+          {
+            "admission_stop_reason": "completed",
+            "admitted": 1,
+            "attempt_failures": [],
+            "attempts": [
+              {
+                "elapsed_ns": "<normalized-elapsed_ns>",
+                "exit_code": 0,
+                "failed_check_count": 0,
+                "grade_passed": true,
+                "input_id": 0,
+                "metric_available_count": "<normalized-metric_available_count>",
+                "metric_sample_count": "<normalized-metric_sample_count>",
+                "metric_unavailable_count": "<normalized-metric_unavailable_count>",
+                "outcome": "completed",
+                "output_truncated": false,
+                "phase": "measured",
+                "signal": null,
+                "spawn_retry_count": 0,
+                "stderr_bytes": 0,
+                "stdout_bytes": 0,
+                "termination": "exited"
+              }
+            ],
+            "cancelled": 0,
+            "completed": 1,
+            "concurrency": 1,
+            "decision": "pass",
+            "failed": 0,
+            "infrastructure_failures": 0,
+            "missed": 0,
+            "scheduler_attempts": [
+              {
+                "finished_at_ns": "<normalized-finished_at_ns>",
+                "input_id": 0,
+                "miss_reason": null,
+                "missed": false,
+                "outcome": "completed",
+                "phase": "measured",
+                "queue_delay_ns": "<normalized-queue_delay_ns>",
+                "scheduled_at_ns": "<normalized-scheduled_at_ns>",
+                "started_at_ns": "<normalized-started_at_ns>"
+              }
+            ],
+            "stop_reason": "completed",
+            "timed_out": 0
+          }
+        ],
+        "run_ids": [
+          "capture-first"
+        ],
+        "schema_version": 1
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "report",
+        "${SCENARIO_ROOT}/first/results/runs/capture-first"
+      ],
+      "exit_code": 0,
+      "stderr": [],
+      "stdout": {
+        "command": "report",
+        "ok": true,
+        "runs": [
+          {
+            "attempt_id": "capture-first-attempt",
+            "event_count": 5,
+            "execution_sha256": "<sha256>",
+            "point": {
+              "admission_stop_reason": "completed",
+              "admitted": 1,
+              "attempt_failures": [],
+              "attempts": [
+                {
+                  "elapsed_ns": "<normalized-elapsed_ns>",
+                  "exit_code": 0,
+                  "failed_check_count": 0,
+                  "grade_passed": true,
+                  "input_id": 0,
+                  "metric_available_count": "<normalized-metric_available_count>",
+                  "metric_sample_count": "<normalized-metric_sample_count>",
+                  "metric_unavailable_count": "<normalized-metric_unavailable_count>",
+                  "outcome": "completed",
+                  "output_truncated": false,
+                  "phase": "measured",
+                  "signal": null,
+                  "spawn_retry_count": 0,
+                  "stderr_bytes": 0,
+                  "stdout_bytes": 0,
+                  "termination": "exited"
+                }
+              ],
+              "cancelled": 0,
+              "completed": 1,
+              "concurrency": 1,
+              "decision": "pass",
+              "failed": 0,
+              "infrastructure_failures": 0,
+              "missed": 0,
+              "scheduler_attempts": [
+                {
+                  "finished_at_ns": "<normalized-finished_at_ns>",
+                  "input_id": 0,
+                  "miss_reason": null,
+                  "missed": false,
+                  "outcome": "completed",
+                  "phase": "measured",
+                  "queue_delay_ns": "<normalized-queue_delay_ns>",
+                  "scheduled_at_ns": "<normalized-scheduled_at_ns>",
+                  "started_at_ns": "<normalized-started_at_ns>"
+                }
+              ],
+              "stop_reason": "completed",
+              "timed_out": 0
+            },
+            "run_id": "capture-first",
+            "terminal_state": "completed"
+          }
+        ],
+        "schema_version": 1
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "run",
+        "${SCENARIO_ROOT}/second/experiment.toml"
+      ],
+      "exit_code": 0,
+      "stderr": [
+        "starting capture-second"
+      ],
+      "stdout": {
+        "cancelled": false,
+        "command": "run",
+        "highest_confirmed_capacity": 1,
+        "ok": true,
+        "points": [
+          {
+            "admission_stop_reason": "completed",
+            "admitted": 1,
+            "attempt_failures": [],
+            "attempts": [
+              {
+                "elapsed_ns": "<normalized-elapsed_ns>",
+                "exit_code": 0,
+                "failed_check_count": 0,
+                "grade_passed": true,
+                "input_id": 0,
+                "metric_available_count": "<normalized-metric_available_count>",
+                "metric_sample_count": "<normalized-metric_sample_count>",
+                "metric_unavailable_count": "<normalized-metric_unavailable_count>",
+                "outcome": "completed",
+                "output_truncated": false,
+                "phase": "measured",
+                "signal": null,
+                "spawn_retry_count": 0,
+                "stderr_bytes": 0,
+                "stdout_bytes": 0,
+                "termination": "exited"
+              }
+            ],
+            "cancelled": 0,
+            "completed": 1,
+            "concurrency": 1,
+            "decision": "pass",
+            "failed": 0,
+            "infrastructure_failures": 0,
+            "missed": 0,
+            "scheduler_attempts": [
+              {
+                "finished_at_ns": "<normalized-finished_at_ns>",
+                "input_id": 0,
+                "miss_reason": null,
+                "missed": false,
+                "outcome": "completed",
+                "phase": "measured",
+                "queue_delay_ns": "<normalized-queue_delay_ns>",
+                "scheduled_at_ns": "<normalized-scheduled_at_ns>",
+                "started_at_ns": "<normalized-started_at_ns>"
+              }
+            ],
+            "stop_reason": "completed",
+            "timed_out": 0
+          }
+        ],
+        "run_ids": [
+          "capture-second"
+        ],
+        "schema_version": 1
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "compare",
+        "${SCENARIO_ROOT}/first/results/runs/capture-first",
+        "${SCENARIO_ROOT}/second/results/runs/capture-second"
+      ],
+      "exit_code": 0,
+      "stderr": [],
+      "stdout": {
+        "command": "compare",
+        "comparable": true,
+        "differences": [],
+        "ok": true,
+        "schema_version": 1
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "record",
+        "${SCENARIO_ROOT}/capture.json",
+        "${SCENARIO_ROOT}/cassette.json"
+      ],
+      "exit_code": 0,
+      "stderr": [],
+      "stdout": {
+        "agent_id": "codex",
+        "cassette_id": "fixture-buffered",
+        "cassette_sha256": "<sha256>",
+        "complete": true,
+        "interactions": 1,
+        "network": "loopback_only",
+        "provider_profile_sha256": "<sha256>",
+        "redaction": {
+          "distinct_values": 0,
+          "policy_version": 1,
+          "replacements": 0
+        },
+        "schema_version": 1,
+        "source": "live_recording"
+      }
+    },
+    {
+      "argv": [
+        "asb",
+        "replay",
+        "${SCENARIO_ROOT}/cassette.json",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "codex"
+      ],
+      "exit_code": 0,
+      "stderr": [],
+      "stdout": {
+        "agent_id": "codex",
+        "cassette_sha256": "<sha256>",
+        "command": "replay",
+        "network": "denied",
+        "ok": true,
+        "provider_profile_sha256": "<sha256>",
+        "schema_version": 1,
+        "source": {
+          "replay": {
+            "cassette_id": "fixture-buffered",
+            "cassette_sha256": "<sha256>"
+          }
+        }
+      }
+    }
+  ]
+}
