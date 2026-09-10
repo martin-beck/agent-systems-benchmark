@@ -1479,6 +1479,24 @@ mod tests {
         Ok(directory)
     }
 
+    fn open_bound_entry(base: &fs::File, name: &str) -> io::Result<fs::File> {
+        let descriptor = rustix::fs::openat(
+            base,
+            name,
+            rustix::fs::OFlags::RDONLY
+                | rustix::fs::OFlags::DIRECTORY
+                | rustix::fs::OFlags::NOFOLLOW
+                | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )?;
+        let linked = rustix::fs::statat(base, name, rustix::fs::AtFlags::SYMLINK_NOFOLLOW)?;
+        let opened = rustix::fs::fstat(&descriptor)?;
+        if linked.st_dev != opened.st_dev || linked.st_ino != opened.st_ino {
+            return Err(io::Error::other("test-root directory binding changed"));
+        }
+        Ok(fs::File::from(descriptor))
+    }
+
     struct PrivateTestRoot {
         base: fs::File,
         root: fs::File,
@@ -1528,8 +1546,7 @@ mod tests {
             let path = base_path.join(&name);
             let linked_path = base_anchor.join(&name);
             fs::DirBuilder::new().mode(0o700).create(&linked_path)?;
-            let linked_target = fs::canonicalize(&linked_path)?;
-            let root = open_bound_directory(&linked_path, &linked_target)?;
+            let root = open_bound_entry(&base, &name)?;
             let metadata = root.metadata()?;
             if metadata.uid() != effective_uid
                 || metadata.mode() & 0o7777 != 0o700
@@ -2265,11 +2282,12 @@ wait
         ));
         fs::DirBuilder::new().mode(0o700).create(&fixture).unwrap();
         let canonical_fixture = fs::canonicalize(&fixture).unwrap();
-        assert!(open_bound_directory(&fixture, &canonical_fixture).is_ok());
+        let fixture_handle = open_bound_directory(&fixture, &canonical_fixture).unwrap();
         assert!(open_bound_directory(&fixture, &base).is_err());
         let redirected = fixture.join("redirected");
         std::os::unix::fs::symlink(&base, &redirected).unwrap();
         assert!(open_bound_directory(&redirected, &base).is_err());
+        assert!(open_bound_entry(&fixture_handle, "redirected").is_err());
         assert!(PrivateTestRoot::create_named(&redirected, "child".into()).is_err());
         let leaf = fixture.join("leaf");
         std::os::unix::fs::symlink(&base, &leaf).unwrap();
