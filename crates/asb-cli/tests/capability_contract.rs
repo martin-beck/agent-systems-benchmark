@@ -28,6 +28,20 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn has_symlinked_ancestor(path: &Path) -> bool {
+    let mut prefix = PathBuf::new();
+    for component in path.components() {
+        prefix.push(component);
+        match fs::symlink_metadata(&prefix) {
+            Ok(metadata) if metadata.file_type().is_symlink() => return true,
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(_) => return true,
+        }
+    }
+    false
+}
+
 fn validated_coverage_sink(value: &OsStr) -> Option<&OsStr> {
     let text = value.to_str()?;
     if text.is_empty()
@@ -40,12 +54,16 @@ fn validated_coverage_sink(value: &OsStr) -> Option<&OsStr> {
     }
 
     let path = Path::new(value);
-    let resolved_parent = fs::canonicalize(path.parent()?).ok()?;
-    let resolved_workspace = fs::canonicalize(workspace_root()).ok()?;
     if !path.is_absolute()
         || path.components().any(|part| part == Component::ParentDir)
-        || resolved_parent.starts_with(resolved_workspace)
+        || has_symlinked_ancestor(path)
     {
+        return None;
+    }
+    let parent = fs::canonicalize(path.parent()?).ok()?;
+    let workspace = fs::canonicalize(workspace_root()).ok()?;
+    let workspace_target = workspace.join("target");
+    if parent.starts_with(&workspace) && !parent.starts_with(workspace_target) {
         return None;
     }
     Some(value)
@@ -214,6 +232,16 @@ fn isolated_children_forward_only_a_valid_external_coverage_sink() {
         vec![(OsStr::new("LLVM_PROFILE_FILE"), Some(valid))]
     );
 
+    let hosted = workspace_root()
+        .join("target")
+        .join("agent-systems-benchmark-%p-%32m.profraw");
+    fs::create_dir_all(hosted.parent().unwrap()).unwrap();
+    let command = isolated_asb_command_with_sink(Some(hosted.as_os_str())).unwrap();
+    assert_eq!(
+        command.get_envs().collect::<Vec<_>>(),
+        vec![(OsStr::new("LLVM_PROFILE_FILE"), Some(hosted.as_os_str()))]
+    );
+
     let checkout_sink = workspace_root().join("default_%p.profraw");
     for malformed in [
         OsStr::new(""),
@@ -236,6 +264,18 @@ fn isolated_children_forward_only_a_valid_external_coverage_sink() {
             .next()
             .is_none()
     );
+
+    let symlink_root =
+        std::env::temp_dir().join(format!("asb-capability-sink-{}", std::process::id()));
+    let real_root = symlink_root.join("real");
+    let linked_root = symlink_root.join("linked");
+    fs::create_dir_all(&real_root).unwrap();
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+    let symlink_sink = linked_root.join("coverage-%p.profraw");
+    assert!(isolated_asb_command_with_sink(Some(symlink_sink.as_os_str())).is_err());
+    fs::remove_file(linked_root).unwrap();
+    fs::remove_dir(real_root).unwrap();
+    fs::remove_dir(symlink_root).unwrap();
 }
 
 #[test]
