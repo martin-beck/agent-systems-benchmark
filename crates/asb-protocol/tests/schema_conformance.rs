@@ -3,9 +3,10 @@
 //! Generated-schema and fixture conformance checks.
 
 use asb_protocol::{
-    ExperimentManifestV1, ExtensionManifest, ExtensionResult, MeasurementCatalogV1,
-    ProviderProfileCapabilities, ProviderProfileError, ProviderProfileV1, ProviderSettingField,
-    RpcNotification, RpcRequest, TraceSpan, WorkloadManifest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, MeasurementCatalogError,
+    MeasurementCatalogV1, ProviderProfileCapabilities, ProviderProfileError, ProviderProfileV1,
+    ProviderSettingField, RpcNotification, RpcRequest, TraceSpan, WorkloadManifest,
+    baseline_measurement_catalog,
 };
 use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
@@ -106,6 +107,7 @@ fn positive_fixtures_validate() {
     for fixture in [
         include_str!("../fixtures/v1/measurement-catalog.json"),
         include_str!("../fixtures/v1/measurement-catalog-empty.json"),
+        include_str!("../fixtures/v1/measurement-catalog-maximal.json"),
     ] {
         validate_fixture(SCHEMAS[9].1, fixture);
         serde_json::from_str::<MeasurementCatalogV1>(fixture)
@@ -113,6 +115,9 @@ fn positive_fixtures_validate() {
             .validate()
             .unwrap();
     }
+    let baseline: MeasurementCatalogV1 =
+        serde_json::from_str(include_str!("../fixtures/v1/measurement-catalog.json")).unwrap();
+    assert_eq!(baseline, baseline_measurement_catalog());
 
     let manifest: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
@@ -122,6 +127,51 @@ fn positive_fixtures_validate() {
     ))
     .unwrap();
     confounded.validate().unwrap();
+}
+
+#[test]
+fn measurement_catalog_negative_fixtures_fail_closed() {
+    let schema: Value = serde_json::from_str(SCHEMAS[9].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+
+    for malformed in [
+        include_str!("../fixtures/v1/measurement-catalog-unknown-field.json"),
+        include_str!("../fixtures/v1/measurement-catalog-wrong-version.json"),
+    ] {
+        let value: Value = serde_json::from_str(malformed).unwrap();
+        assert!(!validator.is_valid(&value));
+    }
+
+    for (fixture, expected) in [
+        (
+            include_str!("../fixtures/v1/measurement-catalog-duplicate.json"),
+            MeasurementCatalogError::DuplicateMeasurement,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-unit-mismatch.json"),
+            MeasurementCatalogError::IncompatibleUnit,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-privacy.json"),
+            MeasurementCatalogError::UnsafePublicText,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-unsupported-csb.json"),
+            MeasurementCatalogError::UnqualifiedExternalSupported,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-digest-mismatch.json"),
+            MeasurementCatalogError::DigestMismatch,
+        ),
+    ] {
+        let value: Value = serde_json::from_str(fixture).unwrap();
+        assert!(validator.is_valid(&value));
+        let catalog: MeasurementCatalogV1 = serde_json::from_value(value).unwrap();
+        assert_eq!(catalog.validate(), Err(expected));
+    }
+
+    let unknown = include_str!("../fixtures/v1/measurement-catalog-unknown-field.json");
+    assert!(serde_json::from_str::<MeasurementCatalogV1>(unknown).is_err());
 }
 
 #[test]

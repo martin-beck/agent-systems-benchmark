@@ -1,0 +1,5389 @@
+{
+  "schema_version": 1,
+  "catalog_sha256": "ee93ba61ad6dbe091e6ead1daee912a09d681c262385f7ba9b26910b663446b3",
+  "groups": [
+    {
+      "id": "system_resources",
+      "label": "System resources",
+      "description": "CPU, memory, faults, and physical IO attributed to a process or cgroup."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "synthetic.metric_000",
+      "name": "Synthetic boundary metric 000",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_001",
+      "name": "Synthetic boundary metric 001",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_002",
+      "name": "Synthetic boundary metric 002",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_003",
+      "name": "Synthetic boundary metric 003",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_004",
+      "name": "Synthetic boundary metric 004",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_005",
+      "name": "Synthetic boundary metric 005",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_006",
+      "name": "Synthetic boundary metric 006",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_007",
+      "name": "Synthetic boundary metric 007",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_008",
+      "name": "Synthetic boundary metric 008",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_009",
+      "name": "Synthetic boundary metric 009",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_010",
+      "name": "Synthetic boundary metric 010",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_011",
+      "name": "Synthetic boundary metric 011",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_012",
+      "name": "Synthetic boundary metric 012",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_013",
+      "name": "Synthetic boundary metric 013",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_014",
+      "name": "Synthetic boundary metric 014",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_015",
+      "name": "Synthetic boundary metric 015",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_016",
+      "name": "Synthetic boundary metric 016",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_017",
+      "name": "Synthetic boundary metric 017",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_018",
+      "name": "Synthetic boundary metric 018",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_019",
+      "name": "Synthetic boundary metric 019",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_020",
+      "name": "Synthetic boundary metric 020",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_021",
+      "name": "Synthetic boundary metric 021",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_022",
+      "name": "Synthetic boundary metric 022",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_023",
+      "name": "Synthetic boundary metric 023",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_024",
+      "name": "Synthetic boundary metric 024",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_025",
+      "name": "Synthetic boundary metric 025",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_026",
+      "name": "Synthetic boundary metric 026",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_027",
+      "name": "Synthetic boundary metric 027",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_028",
+      "name": "Synthetic boundary metric 028",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_029",
+      "name": "Synthetic boundary metric 029",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_030",
+      "name": "Synthetic boundary metric 030",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_031",
+      "name": "Synthetic boundary metric 031",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_032",
+      "name": "Synthetic boundary metric 032",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_033",
+      "name": "Synthetic boundary metric 033",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_034",
+      "name": "Synthetic boundary metric 034",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_035",
+      "name": "Synthetic boundary metric 035",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_036",
+      "name": "Synthetic boundary metric 036",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_037",
+      "name": "Synthetic boundary metric 037",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_038",
+      "name": "Synthetic boundary metric 038",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_039",
+      "name": "Synthetic boundary metric 039",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_040",
+      "name": "Synthetic boundary metric 040",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_041",
+      "name": "Synthetic boundary metric 041",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_042",
+      "name": "Synthetic boundary metric 042",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_043",
+      "name": "Synthetic boundary metric 043",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_044",
+      "name": "Synthetic boundary metric 044",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_045",
+      "name": "Synthetic boundary metric 045",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_046",
+      "name": "Synthetic boundary metric 046",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_047",
+      "name": "Synthetic boundary metric 047",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_048",
+      "name": "Synthetic boundary metric 048",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_049",
+      "name": "Synthetic boundary metric 049",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_050",
+      "name": "Synthetic boundary metric 050",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_051",
+      "name": "Synthetic boundary metric 051",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_052",
+      "name": "Synthetic boundary metric 052",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_053",
+      "name": "Synthetic boundary metric 053",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_054",
+      "name": "Synthetic boundary metric 054",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_055",
+      "name": "Synthetic boundary metric 055",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_056",
+      "name": "Synthetic boundary metric 056",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_057",
+      "name": "Synthetic boundary metric 057",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_058",
+      "name": "Synthetic boundary metric 058",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_059",
+      "name": "Synthetic boundary metric 059",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_060",
+      "name": "Synthetic boundary metric 060",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_061",
+      "name": "Synthetic boundary metric 061",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_062",
+      "name": "Synthetic boundary metric 062",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_063",
+      "name": "Synthetic boundary metric 063",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_064",
+      "name": "Synthetic boundary metric 064",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_065",
+      "name": "Synthetic boundary metric 065",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_066",
+      "name": "Synthetic boundary metric 066",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_067",
+      "name": "Synthetic boundary metric 067",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_068",
+      "name": "Synthetic boundary metric 068",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_069",
+      "name": "Synthetic boundary metric 069",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_070",
+      "name": "Synthetic boundary metric 070",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_071",
+      "name": "Synthetic boundary metric 071",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_072",
+      "name": "Synthetic boundary metric 072",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_073",
+      "name": "Synthetic boundary metric 073",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_074",
+      "name": "Synthetic boundary metric 074",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_075",
+      "name": "Synthetic boundary metric 075",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_076",
+      "name": "Synthetic boundary metric 076",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_077",
+      "name": "Synthetic boundary metric 077",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_078",
+      "name": "Synthetic boundary metric 078",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_079",
+      "name": "Synthetic boundary metric 079",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_080",
+      "name": "Synthetic boundary metric 080",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_081",
+      "name": "Synthetic boundary metric 081",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_082",
+      "name": "Synthetic boundary metric 082",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_083",
+      "name": "Synthetic boundary metric 083",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_084",
+      "name": "Synthetic boundary metric 084",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_085",
+      "name": "Synthetic boundary metric 085",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_086",
+      "name": "Synthetic boundary metric 086",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_087",
+      "name": "Synthetic boundary metric 087",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_088",
+      "name": "Synthetic boundary metric 088",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_089",
+      "name": "Synthetic boundary metric 089",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_090",
+      "name": "Synthetic boundary metric 090",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_091",
+      "name": "Synthetic boundary metric 091",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_092",
+      "name": "Synthetic boundary metric 092",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_093",
+      "name": "Synthetic boundary metric 093",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_094",
+      "name": "Synthetic boundary metric 094",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_095",
+      "name": "Synthetic boundary metric 095",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_096",
+      "name": "Synthetic boundary metric 096",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_097",
+      "name": "Synthetic boundary metric 097",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_098",
+      "name": "Synthetic boundary metric 098",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_099",
+      "name": "Synthetic boundary metric 099",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_100",
+      "name": "Synthetic boundary metric 100",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_101",
+      "name": "Synthetic boundary metric 101",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_102",
+      "name": "Synthetic boundary metric 102",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_103",
+      "name": "Synthetic boundary metric 103",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_104",
+      "name": "Synthetic boundary metric 104",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_105",
+      "name": "Synthetic boundary metric 105",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_106",
+      "name": "Synthetic boundary metric 106",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_107",
+      "name": "Synthetic boundary metric 107",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_108",
+      "name": "Synthetic boundary metric 108",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_109",
+      "name": "Synthetic boundary metric 109",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_110",
+      "name": "Synthetic boundary metric 110",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_111",
+      "name": "Synthetic boundary metric 111",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_112",
+      "name": "Synthetic boundary metric 112",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_113",
+      "name": "Synthetic boundary metric 113",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_114",
+      "name": "Synthetic boundary metric 114",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_115",
+      "name": "Synthetic boundary metric 115",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_116",
+      "name": "Synthetic boundary metric 116",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_117",
+      "name": "Synthetic boundary metric 117",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_118",
+      "name": "Synthetic boundary metric 118",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_119",
+      "name": "Synthetic boundary metric 119",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_120",
+      "name": "Synthetic boundary metric 120",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_121",
+      "name": "Synthetic boundary metric 121",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_122",
+      "name": "Synthetic boundary metric 122",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_123",
+      "name": "Synthetic boundary metric 123",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_124",
+      "name": "Synthetic boundary metric 124",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_125",
+      "name": "Synthetic boundary metric 125",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_126",
+      "name": "Synthetic boundary metric 126",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    },
+    {
+      "id": "synthetic.metric_127",
+      "name": "Synthetic boundary metric 127",
+      "description": "A direct bounded Linux kernel counter collected by ASB.",
+      "group": "system_resources",
+      "quantity": "count",
+      "unit": "{event}",
+      "aggregation": "counter",
+      "scope": "cgroup",
+      "provenance": {
+        "source": "asb_metrics_cgroup_v2",
+        "qualification": "implemented"
+      },
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "live": {
+        "status": "supported"
+      },
+      "replay": {
+        "status": "supported"
+      },
+      "platforms": [
+        {
+          "operating_system": "linux",
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ]
+    }
+  ]
+}

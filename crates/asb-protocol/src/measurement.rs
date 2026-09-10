@@ -14,7 +14,7 @@ use crate::Aggregation;
 /// Current measurement catalog schema generation.
 pub const MEASUREMENT_CATALOG_SCHEMA_V1: u16 = 1;
 /// Maximum semantic groups accepted in one catalog.
-pub const MAX_MEASUREMENT_GROUPS: usize = 16;
+pub const MAX_MEASUREMENT_GROUPS: usize = 7;
 /// Maximum definitions accepted in one catalog.
 pub const MAX_MEASUREMENTS: usize = 128;
 /// Maximum UTF-8 bytes accepted in a public label or description.
@@ -298,7 +298,7 @@ pub struct MeasurementCatalogV1 {
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
     pub catalog_sha256: String,
     /// Stable groups in enum order.
-    #[schemars(length(max = 16))]
+    #[schemars(length(max = 7))]
     pub groups: Vec<MeasurementGroup>,
     /// Stable definitions in ascending ID order.
     #[schemars(length(max = 128))]
@@ -401,6 +401,15 @@ impl MeasurementCatalogV1 {
             validate_measurement(measurement)?;
         }
 
+        if group_ids.iter().any(|group| {
+            !self
+                .measurements
+                .iter()
+                .any(|measurement| measurement.group == *group)
+        }) {
+            return Err(MeasurementCatalogError::EmptyGroup);
+        }
+
         if self.catalog_sha256.len() != 64
             || !self
                 .catalog_sha256
@@ -496,17 +505,19 @@ fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
 }
 
 fn validate_identifier(value: &str) -> Result<(), MeasurementCatalogError> {
-    let valid = (3..=128).contains(&value.len())
-        && value
-            .bytes()
-            .next()
-            .is_some_and(|byte| byte.is_ascii_lowercase())
-        && value.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'.' || byte == b'_'
-        })
+    let bytes = value.as_bytes();
+    let valid = (3..=128).contains(&bytes.len())
+        && bytes[0].is_ascii_lowercase()
         && value.contains('.')
-        && !value.contains("..")
-        && !value.ends_with('.');
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'.' || *byte == b'_'
+        })
+        && bytes
+            .last()
+            .is_some_and(|byte| byte.is_ascii_alphanumeric())
+        && bytes
+            .windows(2)
+            .all(|pair| !(matches!(pair[0], b'.' | b'_') && matches!(pair[1], b'.' | b'_')));
     valid
         .then_some(())
         .ok_or(MeasurementCatalogError::InvalidIdentifier)
@@ -587,6 +598,9 @@ pub enum MeasurementCatalogError {
     /// Definition refers to a group absent from this catalog.
     #[error("unknown measurement group")]
     UnknownGroup,
+    /// A published group has no selectable definitions.
+    #[error("empty measurement group")]
+    EmptyGroup,
     /// Stable definition identity is malformed.
     #[error("invalid measurement identifier")]
     InvalidIdentifier,
@@ -637,31 +651,6 @@ fn baseline_groups() -> Vec<MeasurementGroup> {
             MeasurementGroupId::SchedulingContention,
             "Scheduling and contention",
             "Pressure and throttling signals that do not by themselves establish causation.",
-        ),
-        (
-            MeasurementGroupId::Latency,
-            "Latency",
-            "Queue, readiness, response, and completion timing evidence.",
-        ),
-        (
-            MeasurementGroupId::QualityReliability,
-            "Quality and reliability",
-            "Independent correctness, failure, timeout, retry, and cancellation evidence.",
-        ),
-        (
-            MeasurementGroupId::Fairness,
-            "Fairness",
-            "Per-agent and mixed-workload service distribution evidence.",
-        ),
-        (
-            MeasurementGroupId::Cost,
-            "Cost",
-            "Provider-reported monetary evidence with explicit absence semantics.",
-        ),
-        (
-            MeasurementGroupId::Provenance,
-            "Provenance",
-            "Harness, collector, replay, and experiment identity evidence.",
         ),
     ]
     .into_iter()
@@ -972,8 +961,14 @@ mod tests {
     fn baseline_is_complete_stable_and_excludes_optional_csb() {
         let catalog = baseline_measurement_catalog();
         catalog.validate().unwrap();
-        assert_eq!(catalog.groups.len(), 7);
+        assert_eq!(catalog.groups.len(), 2);
         assert_eq!(catalog.measurements.len(), 25);
+        assert!(catalog.groups.iter().all(|group| {
+            catalog
+                .measurements
+                .iter()
+                .any(|measurement| measurement.group == group.id)
+        }));
         assert!(catalog.measurements.iter().all(|measurement| {
             measurement.provenance.source != MeasurementSource::OptionalCsb
         }));
@@ -1004,7 +999,7 @@ mod tests {
         let group = baseline_groups()[0].clone();
         let definition = baseline_definitions()[0].clone();
         assert_eq!(
-            MeasurementCatalogV1::new(vec![group; MAX_MEASUREMENT_GROUPS + 1], Vec::new()),
+            MeasurementCatalogV1::new(vec![group.clone(); MAX_MEASUREMENT_GROUPS + 1], Vec::new()),
             Err(MeasurementCatalogError::TooManyGroups)
         );
         let mut definitions = Vec::new();
@@ -1018,6 +1013,34 @@ mod tests {
             MeasurementCatalogV1::new(vec![baseline_groups()[0].clone()], definitions),
             Err(MeasurementCatalogError::TooManyMeasurements)
         );
+
+        let mut definitions = Vec::new();
+        for index in 0..MAX_MEASUREMENTS {
+            let mut item = definition.clone();
+            item.id = format!("synthetic.metric_{index}");
+            item.name = format!("Synthetic metric {index}");
+            definitions.push(item);
+        }
+        let maximal = MeasurementCatalogV1::new(vec![group], definitions).unwrap();
+        assert_eq!(maximal.measurements.len(), MAX_MEASUREMENTS);
+    }
+
+    #[test]
+    fn advertised_groups_must_have_selectable_definitions() {
+        let baseline = baseline_measurement_catalog();
+        let empty = MeasurementGroup {
+            id: MeasurementGroupId::Latency,
+            label: "Latency".into(),
+            description: "Completion timing evidence.".into(),
+        };
+        assert_eq!(
+            MeasurementCatalogV1::new(
+                [baseline.groups.clone(), vec![empty]].concat(),
+                baseline.measurements
+            ),
+            Err(MeasurementCatalogError::EmptyGroup)
+        );
+        assert!(MeasurementCatalogV1::new(Vec::new(), Vec::new()).is_ok());
     }
 
     #[test]
@@ -1112,8 +1135,22 @@ mod tests {
         item.id = "Bad ID".into();
         check(item, MeasurementCatalogError::InvalidIdentifier);
         let mut item = original.clone();
+        item.id = "bad.__id".into();
+        check(item, MeasurementCatalogError::InvalidIdentifier);
+        let mut item = original.clone();
         item.id = "valid.metric".into();
         item.platforms.clear();
+        check(item, MeasurementCatalogError::InvalidPlatform);
+        let mut noncanonical = baseline.clone();
+        noncanonical.measurements[0].platforms[0]
+            .architectures
+            .reverse();
+        assert_eq!(
+            noncanonical.validate(),
+            Err(MeasurementCatalogError::InvalidPlatform)
+        );
+        let mut item = original.clone();
+        item.platforms.push(item.platforms[0].clone());
         check(item, MeasurementCatalogError::InvalidPlatform);
         let mut item = original.clone();
         item.evidence_limits.clear();
@@ -1121,5 +1158,28 @@ mod tests {
         let mut item = original;
         item.overhead.minimum_interval_ns = 0;
         check(item, MeasurementCatalogError::InvalidOverhead);
+    }
+
+    #[test]
+    fn public_text_is_ascii_and_duplicate_errors_are_specific() {
+        let baseline = baseline_measurement_catalog();
+        let first = baseline.measurements[0].clone();
+        let mut unicode = first.clone();
+        unicode.name = "Synthetic metric alpha".replace("alpha", "\u{03b1}");
+        assert_eq!(
+            MeasurementCatalogV1::new(baseline.groups.clone(), vec![unicode]),
+            Err(MeasurementCatalogError::UnsafePublicText)
+        );
+        assert_eq!(
+            MeasurementCatalogV1::new(
+                vec![baseline.groups[0].clone(), baseline.groups[0].clone()],
+                vec![first.clone()]
+            ),
+            Err(MeasurementCatalogError::DuplicateGroup)
+        );
+        assert_eq!(
+            MeasurementCatalogV1::new(baseline.groups, vec![first.clone(), first]),
+            Err(MeasurementCatalogError::DuplicateMeasurement)
+        );
     }
 }

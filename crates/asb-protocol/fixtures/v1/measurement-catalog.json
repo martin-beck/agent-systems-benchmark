@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "catalog_sha256": "2800c47e30e4edaa3953c5f14cc0ad5aaada759abc1403aabc56e8f6f7b64157",
+  "catalog_sha256": "8d0ddcd4c83eda50ea12ab09cc89dc9497109a1a6b31fc79d5f4151a3c1e48bd",
   "groups": [
     {
       "id": "system_resources",
@@ -11,31 +11,6 @@
       "id": "scheduling_contention",
       "label": "Scheduling and contention",
       "description": "Pressure and throttling signals that do not by themselves establish causation."
-    },
-    {
-      "id": "latency",
-      "label": "Latency",
-      "description": "Queue, readiness, response, and completion timing evidence."
-    },
-    {
-      "id": "quality_reliability",
-      "label": "Quality and reliability",
-      "description": "Independent correctness, failure, timeout, retry, and cancellation evidence."
-    },
-    {
-      "id": "fairness",
-      "label": "Fairness",
-      "description": "Per-agent and mixed-workload service distribution evidence."
-    },
-    {
-      "id": "cost",
-      "label": "Cost",
-      "description": "Provider-reported monetary evidence with explicit absence semantics."
-    },
-    {
-      "id": "provenance",
-      "label": "Provenance",
-      "description": "Harness, collector, replay, and experiment identity evidence."
     }
   ],
   "measurements": [

@@ -17,7 +17,7 @@
       "items": {
         "$ref": "#/$defs/MeasurementGroup"
       },
-      "maxItems": 16
+      "maxItems": 7
     },
     "measurements": {
       "description": "Stable definitions in ascending ID order.",

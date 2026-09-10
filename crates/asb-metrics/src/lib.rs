@@ -786,7 +786,7 @@ fn push(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use asb_protocol::{MeasurementSource, baseline_measurement_catalog};
+    use asb_protocol::{MeasurementScope, MeasurementSource, baseline_measurement_catalog};
     use std::collections::BTreeSet;
 
     #[test]
@@ -928,6 +928,28 @@ mod tests {
             .collect();
         assert_eq!(emitted.len(), 25);
         assert_eq!(emitted, catalogued);
+        for sample in process.samples().iter().chain(cgroup.samples()) {
+            let definition = catalog
+                .measurements
+                .iter()
+                .find(|measurement| measurement.id == sample.descriptor.metric_id.0)
+                .unwrap();
+            assert_eq!(definition.unit, sample.descriptor.unit);
+            assert_eq!(definition.aggregation, sample.descriptor.aggregation);
+            match definition.provenance.source {
+                MeasurementSource::AsbMetricsProcfs => {
+                    assert_eq!(definition.scope, MeasurementScope::Process);
+                    assert_eq!(sample.descriptor.scope, "process");
+                    assert!(sample.descriptor.source.starts_with("procfs:"));
+                }
+                MeasurementSource::AsbMetricsCgroupV2 => {
+                    assert_eq!(definition.scope, MeasurementScope::Cgroup);
+                    assert_eq!(sample.descriptor.scope, "cgroup");
+                    assert!(sample.descriptor.source.starts_with("cgroup2:"));
+                }
+                source => panic!("unexpected baseline source {source:?}"),
+            }
+        }
     }
 
     #[test]
