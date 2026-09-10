@@ -1,0 +1,22 @@
+[
+  "empty",
+  "malformed",
+  "oversized",
+  "trailing-json",
+  "duplicate-field",
+  "unknown-field",
+  "missing-field",
+  "config-id-malformed",
+  "repo-digests-null",
+  "repo-digests-empty",
+  "repo-digests-extra",
+  "repo-digest-tag",
+  "repo-digest-wrong-name",
+  "repo-digest-wrong-value",
+  "repo-digest-prefix",
+  "repo-digest-suffix",
+  "local-id-only",
+  "wrong-os",
+  "wrong-architecture",
+  "non-utf8"
+]

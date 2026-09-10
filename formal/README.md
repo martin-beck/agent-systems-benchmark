@@ -11,14 +11,20 @@ on both disposable x86_64 and aarch64 workers.
 
 | Tool | Official source pin | Archive SHA-256 | License evidence |
 | --- | --- | --- | --- |
-| TLC 1.8.0 | TLA+ commit b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e; GitHub release asset 551753628 | a1fc0bfe391d99fdd86f579a63ff68c0950010e9dde551f1192b867d5c8f4efd | upstream repository MIT file inspected |
+| TLC 1.8.0 | deterministic source build from TLA+ commit b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e | 8c200a88d151c6c183c8dbc57a6b633d135e7a2b18242a3afbf243a9e4b68d3e | closed source/build-input license receipts |
 | Alloy 6.2.0 | Alloy commit 59ba2033993449d483d54acad0e11a7bbf20354f | 6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d | upstream 6.2.0 LICENSE declares current code MIT |
 | Temurin JRE | 17.0.20+8 through setup-java commit dded0888837ed1f317902acf8a20df0ad188d165 | action-managed distribution | Eclipse Temurin binary license boundary |
 
-The upstream v1.8.0 TLA+ release asset was recreated yet again on 2026-09-09. The current official
-`tla2tools.jar` is pinned through immutable GitHub asset ID 551753628, its release URL,
-API-reported size and digest, and embedded source revision b123b226. The release URL is used
-for runner portability; the byte-size and SHA-256 checks remain mandatory.
+The upstream v1.8.0 prerelease repeatedly replaced the bytes published under its stable-looking
+download path, so ASB does not consume or repin that mutable asset. The runner instead consumes
+AR-0878's deterministic, license-complete source-build contract. Online mode retrieves only the
+digest-pinned source and Ant archives, pulls the digest-pinned build image, builds with network
+disabled, and verifies the exact qualified output. Before building, the runner requires an
+owner-controlled source-cache directory and regular, single-link archive inputs, then copies and
+revalidates them in a private build snapshot so later cache replacement cannot change the build.
+Create-new hard-link promotion detects destination races without overwriting either input or
+output. Offline mode accepts only an already cached, byte-identical, owner-controlled, single-link
+output JAR and performs no acquisition.
 
 ## Evidence classification and bounds
 
@@ -69,5 +75,6 @@ formal/run_temporal_models.sh /absolute/tool-cache /absolute/new-scratch
 The Kani command is a deliberate negative. The temporal runner verifies pinned
 archive hashes, rejects pre-existing scratch directories, checks the positive
 models, and requires every deliberate model mutation to produce a counterexample.
-Set ASB_FORMAL_OFFLINE=1 only after both exact archives are present. No proof
-result establishes native platform support, timing, fairness or liveness.
+Set ASB_FORMAL_OFFLINE=1 only after the exact qualified output JAR is present; offline mode does not
+build from archived inputs. No proof result establishes native platform support, timing, fairness
+or liveness.

@@ -1,4 +1,4 @@
-name: Native platform evidence
+name: Hosted portability and native qualification
 "on":
   push:
     branches: [main]
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   qualify:
-    name: Native Ubuntu (${{ matrix.runner }})
+    name: Platform evidence (${{ matrix.runner }})
     strategy:
       fail-fast: false
       matrix:
@@ -32,41 +32,70 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends bubblewrap=0.9.0-1ubuntu0.1
-      - name: Collect bounded native evidence
+      - name: Collect classified platform evidence
+        id: evidence
         env:
           BASE_COMMIT: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           CARGO_TARGET_DIR: ${{ runner.temp }}/asb-native-target
-          EVIDENCE_FILE: ${{ runner.temp }}/native-${{ matrix.runner }}.json
+          HOSTED_EVIDENCE_FILE: ${{ runner.temp }}/hosted-portability-${{ matrix.runner }}.json
+          NATIVE_EVIDENCE_FILE: ${{ runner.temp }}/native-qualification-${{ matrix.runner }}.json
           RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          python3 tools/platforms/native_evidence.py \
-            --platform-id ubuntu-24.04 \
-            --architecture "$(uname -m)" \
-            --run-id "$RUN_ID" \
-            --source "$GITHUB_WORKSPACE" \
-            --base-commit "$BASE_COMMIT" \
-            --output "$EVIDENCE_FILE" \
+          route="$(python3 tools/platforms/hosted_portability.py route --execution-class github-hosted)"
+          case "$route" in
+            native-qualification)
+              python3 tools/platforms/native_evidence.py \
+                --platform-id ubuntu-24.04 \
+                --architecture "$(uname -m)" \
+                --run-id "$RUN_ID" \
+                --source "$GITHUB_WORKSPACE" \
+                --base-commit "$BASE_COMMIT" \
+                --output "$NATIVE_EVIDENCE_FILE" \
+                --output-root "$RUNNER_TEMP" \
+                --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
+                --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
+                --optional-check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
+              ;;
+            hosted-portability)
+              python3 tools/platforms/hosted_portability.py collect \
+                --execution-class github-hosted \
+                --runner-label ubuntu-24.04 \
+                --architecture "$(uname -m)" \
+                --run-id "$RUN_ID" \
+                --source "$GITHUB_WORKSPACE" \
+                --base-commit "$BASE_COMMIT" \
+                --output "$HOSTED_EVIDENCE_FILE" \
+                --output-root "$RUNNER_TEMP" \
+                --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
+                --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
+                --check 'sandbox=["cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
+              ;;
+            *)
+              echo "ERROR: platform evidence route is invalid"
+              exit 1
+              ;;
+          esac
+          validated="$(python3 tools/platforms/hosted_portability.py validate-artifact \
+            --route "$route" \
+            --native-file "$NATIVE_EVIDENCE_FILE" \
+            --hosted-file "$HOSTED_EVIDENCE_FILE" \
             --output-root "$RUNNER_TEMP" \
-            --check 'process=["cargo","test","--locked","-p","asb-runtime","--test","process_boundary","--","--test-threads=1"]' \
-            --check 'metrics=["cargo","test","--locked","-p","asb-metrics","--test","native_linux","--","--test-threads=1"]' \
-            --optional-check 'sandbox=["env","ASB_REQUIRE_NATIVE_SANDBOX=1","cargo","test","--locked","-p","asb-runtime","--test","sandbox_boundary","--","--test-threads=1"]'
-          python3 - "$EVIDENCE_FILE" <<'PY'
-          import hashlib
-          import json
-          import pathlib
-          import sys
-          path = pathlib.Path(sys.argv[1])
-          report = json.loads(path.read_text(encoding="utf-8"))
-          assert report["architecture"] == "x86_64"
-          assert report["performance_baseline"] is False
-          print("artifact_sha256=sha256:" + hashlib.sha256(path.read_bytes()).hexdigest())
-          print("qualification=" + report["qualification"])
-          PY
-      - name: Retain sanitized evidence
-        if: always()
+            --source "$GITHUB_WORKSPACE")"
+          test "$validated" = "$route"
+          echo "kind=$validated" >> "$GITHUB_OUTPUT"
+      - name: Retain rolling-hosted portability evidence
+        if: steps.evidence.outputs.kind == 'hosted-portability'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: native-ubuntu-${{ matrix.runner }}
-          path: ${{ runner.temp }}/native-${{ matrix.runner }}.json
+          name: hosted-portability-${{ matrix.runner }}
+          path: ${{ runner.temp }}/hosted-portability-${{ matrix.runner }}.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain exact native qualification evidence
+        if: steps.evidence.outputs.kind == 'native-qualification'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-qualification-${{ matrix.runner }}
+          path: ${{ runner.temp }}/native-qualification-${{ matrix.runner }}.json
           if-no-files-found: error
           retention-days: 30

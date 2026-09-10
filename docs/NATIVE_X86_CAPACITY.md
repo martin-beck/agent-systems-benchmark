@@ -38,3 +38,32 @@ not claimed without a denial oracle; SELinux is unavailable on the qualified hos
 The committed [Ubuntu native functional report](../platforms/v1/native-x86-evidence/ubuntu-24-04-x86-64-native-functional.json)
 binds the successful disposable run to its exact source commit and tree. The adjacent
 `native-x86-capacity.schema.json` is the closed evidence contract.
+
+## Rolling hosted runners are not native qualification
+
+The `ubuntu-24.04` GitHub-hosted label is rolling. Its patch release can advance independently of
+the exact Ubuntu 24.04.4 identity above. The native validator continues to reject every different
+patch release, including Ubuntu 24.04.5; hosted labels are never treated as aliases for the
+reviewed release.
+
+The native-platform workflow first classifies the public distribution identity. On the exact
+reviewed release it invokes the unchanged native evidence collector and retains an artifact only
+after that collector succeeds. On a newer well-formed Noble 24.04 patch release it instead runs the
+same bounded process, metrics and sandbox functional checks and emits `hosted-portability`
+evidence under its distinct closed schema. That document is explicitly
+`functional-portability-only`, is not a performance baseline, and cannot become or overwrite a
+native qualification artifact. Any other distribution family, malformed identity, failed check,
+unsafe output path or partial evidence fails before artifact retention.
+
+If the rolling hosted service cannot provide the exact native sandbox boundary, the sandbox check
+is recorded as `unavailable`, the projection is `functional-portability-partial`, and the fixed
+`native-sandbox-unavailable` limitation is present. A nonzero sandbox test remains a hard failure;
+unavailability is never renamed to a passed check or native qualification.
+
+The hosted projection contains only the runner label, public distribution and architecture,
+immutable source commit/tree, and argv/output digests. It excludes command output, raw diagnostics,
+environment values, hostnames, account identifiers, credentials and private paths. Pinned QEMU
+AArch64 remains the required portable AArch64 lane; genuine native AArch64 remains optional and
+unqualified without separate immutable evidence. A future Ubuntu 24.04.5 native qualification
+requires a separate reviewed pin update and new evidence rather than reinterpretation of the
+historical Ubuntu 24.04.4 result.
