@@ -1526,10 +1526,10 @@ mod tests {
             }
             let base_anchor = PathBuf::from(format!("/proc/self/fd/{}", base.as_raw_fd()));
             let path = base_path.join(&name);
-            fs::DirBuilder::new()
-                .mode(0o700)
-                .create(base_anchor.join(&name))?;
-            let root = open_bound_directory(&base_anchor.join(&name), &path)?;
+            let linked_path = base_anchor.join(&name);
+            fs::DirBuilder::new().mode(0o700).create(&linked_path)?;
+            let linked_target = fs::canonicalize(&linked_path)?;
+            let root = open_bound_directory(&linked_path, &linked_target)?;
             let metadata = root.metadata()?;
             if metadata.uid() != effective_uid
                 || metadata.mode() & 0o7777 != 0o700
