@@ -29,6 +29,7 @@ fail as a whole; per-agent overrides are deliberately a separate choice.
 - [Architecture and extension API](docs/ARCHITECTURE.md)
 - [Measurement methodology](docs/METHODOLOGY.md)
 - [Workload catalogue](docs/WORKLOADS.md)
+- [Measurement catalog](docs/MEASUREMENT_CATALOG.md)
 - [Replay research](docs/REPLAY_RESEARCH.md)
 - [Quality and support matrix](docs/QUALITY.md)
 - [Pinned platform manifests](docs/PLATFORMS.md)

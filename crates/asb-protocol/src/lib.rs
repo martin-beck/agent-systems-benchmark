@@ -10,10 +10,12 @@
 //! no Rust dynamic-library ABI.
 
 mod experiment;
+mod measurement;
 mod provider;
 mod trace;
 
 pub use experiment::*;
+pub use measurement::*;
 pub use provider::*;
 pub use trace::*;
 
