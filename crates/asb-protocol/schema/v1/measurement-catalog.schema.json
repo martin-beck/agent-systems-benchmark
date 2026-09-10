@@ -1,0 +1,563 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MeasurementCatalogV1",
+  "description": "Authoritative v1 catalog with a deterministic content address.",
+  "type": "object",
+  "properties": {
+    "catalog_sha256": {
+      "description": "SHA-256 of the canonical catalog contents excluding this field.",
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "groups": {
+      "description": "Stable groups in enum order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MeasurementGroup"
+      },
+      "maxItems": 16
+    },
+    "measurements": {
+      "description": "Stable definitions in ascending ID order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MeasurementDefinition"
+      },
+      "maxItems": 128
+    },
+    "schema_version": {
+      "description": "Closed schema generation; exactly 1.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 1,
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "catalog_sha256",
+    "groups",
+    "measurements"
+  ],
+  "$defs": {
+    "Aggregation": {
+      "description": "Metric aggregation semantics.",
+      "oneOf": [
+        {
+          "description": "Point-in-time gauge.",
+          "type": "string",
+          "const": "gauge"
+        },
+        {
+          "description": "Monotonic cumulative counter.",
+          "type": "string",
+          "const": "counter"
+        },
+        {
+          "description": "Sample distribution.",
+          "type": "string",
+          "const": "distribution"
+        }
+      ]
+    },
+    "MeasurementArchitecture": {
+      "description": "Supported machine architecture.",
+      "oneOf": [
+        {
+          "description": "64-bit x86.",
+          "type": "string",
+          "const": "x86_64"
+        },
+        {
+          "description": "64-bit Arm.",
+          "type": "string",
+          "const": "aarch64"
+        }
+      ]
+    },
+    "MeasurementDefinition": {
+      "description": "One selectable, renderer-independent measurement definition.",
+      "type": "object",
+      "properties": {
+        "aggregation": {
+          "description": "Aggregation semantics.",
+          "$ref": "#/$defs/Aggregation"
+        },
+        "description": {
+          "description": "Public evidence meaning, containing no runtime or host material.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "evidence_limits": {
+          "description": "Explicit interpretation limits.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementEvidenceLimit"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        },
+        "group": {
+          "description": "Semantic group identity.",
+          "$ref": "#/$defs/MeasurementGroupId"
+        },
+        "id": {
+          "description": "Stable dotted identifier.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 3,
+          "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$"
+        },
+        "live": {
+          "description": "Live-provider execution support.",
+          "$ref": "#/$defs/MeasurementModeSupport"
+        },
+        "name": {
+          "description": "Short public name, unique under ASCII case folding.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "overhead": {
+          "description": "Collection overhead contract.",
+          "$ref": "#/$defs/MeasurementOverhead"
+        },
+        "platforms": {
+          "description": "Explicit platform constraints.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementPlatform"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        },
+        "provenance": {
+          "description": "Source and qualification.",
+          "$ref": "#/$defs/MeasurementProvenance"
+        },
+        "quantity": {
+          "description": "Quantity used to validate the unit.",
+          "$ref": "#/$defs/MeasurementQuantity"
+        },
+        "replay": {
+          "description": "Recorded-response replay execution support.",
+          "$ref": "#/$defs/MeasurementModeSupport"
+        },
+        "scope": {
+          "description": "Ownership scope.",
+          "$ref": "#/$defs/MeasurementScope"
+        },
+        "unit": {
+          "description": "Exact UCUM-style unit.",
+          "type": "string",
+          "maxLength": 32,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "group",
+        "quantity",
+        "unit",
+        "aggregation",
+        "scope",
+        "provenance",
+        "overhead",
+        "live",
+        "replay",
+        "platforms",
+        "evidence_limits"
+      ]
+    },
+    "MeasurementEvidenceLimit": {
+      "description": "Closed limits on valid interpretation.",
+      "oneOf": [
+        {
+          "description": "Missing evidence remains unavailable and is never zero-filled.",
+          "type": "string",
+          "const": "missing_is_unavailable"
+        },
+        {
+          "description": "A counter does not by itself establish causation.",
+          "type": "string",
+          "const": "not_causal"
+        },
+        {
+          "description": "Values are comparable only under compatible experiment provenance.",
+          "type": "string",
+          "const": "requires_comparable_experiment"
+        },
+        {
+          "description": "Collection elapsed time must accompany the samples.",
+          "type": "string",
+          "const": "collector_overhead_recorded"
+        }
+      ]
+    },
+    "MeasurementGroup": {
+      "description": "One stable semantic group and its bounded public explanation.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Public semantic boundary for the group.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "id": {
+          "description": "Stable machine identity.",
+          "$ref": "#/$defs/MeasurementGroupId"
+        },
+        "label": {
+          "description": "Short public display-independent label.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "description"
+      ]
+    },
+    "MeasurementGroupId": {
+      "description": "Stable semantic group identifiers. Their serialized names are public API.",
+      "oneOf": [
+        {
+          "description": "CPU, memory, storage, and network resource consumption.",
+          "type": "string",
+          "const": "system_resources"
+        },
+        {
+          "description": "Scheduling pressure, throttling, and explicitly non-causal contention evidence.",
+          "type": "string",
+          "const": "scheduling_contention"
+        },
+        {
+          "description": "Queue, readiness, first-response, and completion latency.",
+          "type": "string",
+          "const": "latency"
+        },
+        {
+          "description": "Independent correctness and reliability outcomes.",
+          "type": "string",
+          "const": "quality_reliability"
+        },
+        {
+          "description": "Per-agent and mixed-workload fairness evidence.",
+          "type": "string",
+          "const": "fairness"
+        },
+        {
+          "description": "Provider-reported or explicitly unavailable cost evidence.",
+          "type": "string",
+          "const": "cost"
+        },
+        {
+          "description": "Harness, collector, replay, and experiment provenance evidence.",
+          "type": "string",
+          "const": "provenance"
+        }
+      ]
+    },
+    "MeasurementModeSupport": {
+      "description": "Explicit support state for live or replay execution.",
+      "oneOf": [
+        {
+          "description": "The authoritative implementation can attempt this measurement.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "supported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "No value may be inferred; the reason is closed and explicit.",
+          "type": "object",
+          "properties": {
+            "reason": {
+              "description": "Why the value is unavailable.",
+              "$ref": "#/$defs/MeasurementUnavailableReason"
+            },
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status",
+            "reason"
+          ]
+        }
+      ]
+    },
+    "MeasurementOperatingSystem": {
+      "description": "Supported operating-system family.",
+      "oneOf": [
+        {
+          "description": "Linux userspace and kernel interfaces.",
+          "type": "string",
+          "const": "linux"
+        }
+      ]
+    },
+    "MeasurementOverhead": {
+      "description": "Static collection-overhead boundary.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Reviewed qualitative class.",
+          "$ref": "#/$defs/MeasurementOverheadClass"
+        },
+        "minimum_interval_ns": {
+          "description": "Smallest supported interval between samples.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 1
+        },
+        "requires_privilege": {
+          "description": "Whether collection requires elevated privilege.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "minimum_interval_ns",
+        "requires_privilege"
+      ]
+    },
+    "MeasurementOverheadClass": {
+      "description": "Qualitative collection overhead class with an explicit interval floor.",
+      "oneOf": [
+        {
+          "description": "Direct bounded counter reads; actual elapsed overhead remains recorded per collection.",
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "description": "Additional sampling or processing with a material perturbation risk.",
+          "type": "string",
+          "const": "material"
+        }
+      ]
+    },
+    "MeasurementPlatform": {
+      "description": "Closed platform constraint for a measurement definition.",
+      "type": "object",
+      "properties": {
+        "architectures": {
+          "description": "Architectures with implemented portable parsing.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementArchitecture"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        },
+        "operating_system": {
+          "description": "Required operating-system family.",
+          "$ref": "#/$defs/MeasurementOperatingSystem"
+        },
+        "required_features": {
+          "description": "Required kernel/userspace interfaces.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementPlatformFeature"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operating_system",
+        "architectures",
+        "required_features"
+      ]
+    },
+    "MeasurementPlatformFeature": {
+      "description": "Required platform facility.",
+      "oneOf": [
+        {
+          "description": "A mounted, readable Linux procfs.",
+          "type": "string",
+          "const": "procfs"
+        },
+        {
+          "description": "A delegated, readable unified cgroup-v2 hierarchy.",
+          "type": "string",
+          "const": "cgroup_v2"
+        }
+      ]
+    },
+    "MeasurementProvenance": {
+      "description": "Closed provenance for one definition.",
+      "type": "object",
+      "properties": {
+        "qualification": {
+          "description": "Current evidence qualification.",
+          "$ref": "#/$defs/MeasurementQualification"
+        },
+        "source": {
+          "description": "Authoritative component/source class.",
+          "$ref": "#/$defs/MeasurementSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "qualification"
+      ]
+    },
+    "MeasurementQualification": {
+      "description": "Evidence qualification attached to a measurement source.",
+      "oneOf": [
+        {
+          "description": "Directly implemented and contract-tested by ASB.",
+          "type": "string",
+          "const": "implemented"
+        },
+        {
+          "description": "Defined but not yet supported by an authoritative implementation.",
+          "type": "string",
+          "const": "unqualified"
+        }
+      ]
+    },
+    "MeasurementQuantity": {
+      "description": "Physical or logical quantity represented by a measurement.",
+      "oneOf": [
+        {
+          "description": "Duration or cumulative CPU/pressure time.",
+          "type": "string",
+          "const": "time"
+        },
+        {
+          "description": "Byte count or instantaneous byte quantity.",
+          "type": "string",
+          "const": "bytes"
+        },
+        {
+          "description": "Discrete event count.",
+          "type": "string",
+          "const": "count"
+        },
+        {
+          "description": "Dimensionless ratio.",
+          "type": "string",
+          "const": "ratio"
+        },
+        {
+          "description": "Independently defined normalized score.",
+          "type": "string",
+          "const": "score"
+        },
+        {
+          "description": "Monetary value with separately bound currency provenance.",
+          "type": "string",
+          "const": "currency"
+        }
+      ]
+    },
+    "MeasurementScope": {
+      "description": "Measurement ownership scope.",
+      "oneOf": [
+        {
+          "description": "One operating-system process.",
+          "type": "string",
+          "const": "process"
+        },
+        {
+          "description": "One delegated cgroup-v2 subtree.",
+          "type": "string",
+          "const": "cgroup"
+        },
+        {
+          "description": "One complete benchmark attempt.",
+          "type": "string",
+          "const": "attempt"
+        },
+        {
+          "description": "One complete run or comparison set.",
+          "type": "string",
+          "const": "run"
+        }
+      ]
+    },
+    "MeasurementSource": {
+      "description": "Closed source vocabulary; no host path or caller string enters the catalog.",
+      "oneOf": [
+        {
+          "description": "Linux procfs counters read by `asb-metrics`.",
+          "type": "string",
+          "const": "asb_metrics_procfs"
+        },
+        {
+          "description": "Linux cgroup-v2 counters read by `asb-metrics`.",
+          "type": "string",
+          "const": "asb_metrics_cgroup_v2"
+        },
+        {
+          "description": "Durable ASB runner journal evidence.",
+          "type": "string",
+          "const": "asb_runner_journal"
+        },
+        {
+          "description": "Independently versioned grader output.",
+          "type": "string",
+          "const": "independent_grader"
+        },
+        {
+          "description": "Provider-reported usage with explicit absence semantics.",
+          "type": "string",
+          "const": "provider_usage"
+        },
+        {
+          "description": "Optional CSB-derived evidence that is not baseline-qualified.",
+          "type": "string",
+          "const": "optional_csb"
+        }
+      ]
+    },
+    "MeasurementUnavailableReason": {
+      "description": "Why one execution mode cannot provide a measurement.",
+      "oneOf": [
+        {
+          "description": "No qualified collector implements this definition.",
+          "type": "string",
+          "const": "not_qualified"
+        },
+        {
+          "description": "The execution platform cannot expose the required evidence.",
+          "type": "string",
+          "const": "platform_unsupported"
+        },
+        {
+          "description": "Required permissions were not granted.",
+          "type": "string",
+          "const": "permission_required"
+        },
+        {
+          "description": "The measurement does not have meaning in this mode.",
+          "type": "string",
+          "const": "not_applicable"
+        }
+      ]
+    }
+  }
+}

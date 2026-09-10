@@ -23,6 +23,10 @@ workspace = true
 name = "generate-schemas"
 path = "examples/generate_schemas.rs"
 
+[[example]]
+name = "generate-measurement-fixtures"
+path = "examples/generate_measurement_fixtures.rs"
+
 [[bin]]
 name = "asb-example-plugin"
 path = "src/bin/asb_example_plugin.rs"

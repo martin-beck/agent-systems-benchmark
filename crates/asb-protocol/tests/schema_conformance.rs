@@ -3,9 +3,9 @@
 //! Generated-schema and fixture conformance checks.
 
 use asb_protocol::{
-    ExperimentManifestV1, ExtensionManifest, ExtensionResult, ProviderProfileCapabilities,
-    ProviderProfileError, ProviderProfileV1, ProviderSettingField, RpcNotification, RpcRequest,
-    TraceSpan, WorkloadManifest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, MeasurementCatalogV1,
+    ProviderProfileCapabilities, ProviderProfileError, ProviderProfileV1, ProviderSettingField,
+    RpcNotification, RpcRequest, TraceSpan, WorkloadManifest,
 };
 use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
@@ -47,6 +47,10 @@ const SCHEMAS: &[(&str, &str)] = &[
         "trace-span.schema.json",
         include_str!("../schema/v1/trace-span.schema.json"),
     ),
+    (
+        "measurement-catalog.schema.json",
+        include_str!("../schema/v1/measurement-catalog.schema.json"),
+    ),
 ];
 
 #[test]
@@ -60,6 +64,7 @@ fn checked_in_schemas_equal_rust_types() {
     assert_schema::<RpcNotification>(SCHEMAS[6].1);
     assert_schema::<ExtensionResult>(SCHEMAS[7].1);
     assert_schema::<TraceSpan>(SCHEMAS[8].1);
+    assert_schema::<MeasurementCatalogV1>(SCHEMAS[9].1);
 }
 
 #[test]
@@ -98,6 +103,16 @@ fn positive_fixtures_validate() {
     );
     validate_fixture(SCHEMAS[7].1, include_str!("../fixtures/v1/result.json"));
     validate_fixture(SCHEMAS[8].1, include_str!("../fixtures/v1/trace-span.json"));
+    for fixture in [
+        include_str!("../fixtures/v1/measurement-catalog.json"),
+        include_str!("../fixtures/v1/measurement-catalog-empty.json"),
+    ] {
+        validate_fixture(SCHEMAS[9].1, fixture);
+        serde_json::from_str::<MeasurementCatalogV1>(fixture)
+            .unwrap()
+            .validate()
+            .unwrap();
+    }
 
     let manifest: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
