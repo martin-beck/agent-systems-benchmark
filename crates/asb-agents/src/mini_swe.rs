@@ -1446,8 +1446,6 @@ mod tests {
     const MAX_PROC_STAT_BYTES: u64 = 4096;
     const MAX_PID_EVIDENCE_BYTES: u64 = 32;
     const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;
-    const MAX_PROC_ENTRIES: usize = 65_536;
-    const MAX_PROCESS_GROUP_MEMBERS: usize = 1_024;
 
     fn canonical_repository_root() -> io::Result<PathBuf> {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1643,6 +1641,25 @@ mod tests {
         (!pids.is_empty()).then_some(pids)
     }
 
+    fn parse_child_pid_evidence(bytes: &[u8]) -> Option<Vec<u32>> {
+        if bytes.len() > MAX_PID_LIST_EVIDENCE_BYTES as usize
+            || bytes
+                .iter()
+                .any(|byte| !byte.is_ascii_digit() && *byte != b" "[0])
+        {
+            return None;
+        }
+        let mut pids = Vec::new();
+        for token in std::str::from_utf8(bytes).ok()?.split_ascii_whitespace() {
+            let pid = token.parse::<u32>().ok().filter(|pid| *pid > 0)?;
+            if pids.contains(&pid) {
+                return None;
+            }
+            pids.push(pid);
+        }
+        Some(pids)
+    }
+
     fn parse_process_identity(expected_pid: u32, bytes: &[u8]) -> Option<ProcessIdentity> {
         if bytes.is_empty() || bytes.len() > MAX_PROC_STAT_BYTES as usize {
             return None;
@@ -1691,42 +1708,19 @@ mod tests {
         }
     }
 
-    fn process_group_members(process_group: u32, session: u32) -> io::Result<Vec<ProcessIdentity>> {
-        let mut members = Vec::new();
-        for (index, entry) in fs::read_dir("/proc")?.enumerate() {
-            if index >= MAX_PROC_ENTRIES {
-                return Err(io::Error::other("process table exceeds test bound"));
-            }
-            let entry = entry?;
-            let Some(pid) = entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u32>().ok())
-            else {
-                continue;
-            };
-            let Some(identity) = read_process_identity(pid)? else {
-                continue;
-            };
-            if identity.process_group == process_group && identity.session == session {
-                if members.len() >= MAX_PROCESS_GROUP_MEMBERS {
-                    return Err(io::Error::other("process group exceeds test bound"));
-                }
-                members.push(identity);
-            }
+    fn read_direct_children(pid: u32) -> io::Result<Option<Vec<u32>>> {
+        let path = PathBuf::from("/proc")
+            .join(pid.to_string())
+            .join("task")
+            .join(pid.to_string())
+            .join("children");
+        match read_bounded(&path, MAX_PID_LIST_EVIDENCE_BYTES) {
+            Ok(bytes) => parse_child_pid_evidence(&bytes)
+                .map(Some)
+                .ok_or_else(|| io::Error::other("malformed child process evidence")),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
         }
-        members.sort_by_key(|identity| identity.pid);
-        Ok(members)
-    }
-
-    fn runnable_group_members(
-        process_group: u32,
-        session: u32,
-    ) -> io::Result<Vec<ProcessIdentity>> {
-        Ok(process_group_members(process_group, session)?
-            .into_iter()
-            .filter(|identity| identity.state != b'Z')
-            .collect())
     }
 
     fn classify_original(
@@ -2102,7 +2096,16 @@ EOF
     fn cancellation_leaves_no_runnable_owned_descendant() {
         let mut scratch = PrivateTestRoot::new("descendant").unwrap();
         let root = scratch.path().to_path_buf();
-        let fifo_path = root.join("block");
+        let root_anchor = std::env::var_os("QEMU_LD_PREFIX").map_or_else(
+            || root.clone(),
+            |prefix| {
+                PathBuf::from(prefix).join(
+                    root.strip_prefix("/")
+                        .expect("private test root must be absolute"),
+                )
+            },
+        );
+        let helper_fifo_path = root_anchor.join("block");
         rustix::fs::mkfifoat(
             &scratch.root,
             "block",
@@ -2116,7 +2119,6 @@ EOF
             rustix::fs::Mode::empty(),
         )
         .unwrap();
-        let pid_path = root.join("children.pids");
         let mut command = Command::new("/bin/sh");
         command.args([
             "-c",
@@ -2124,12 +2126,11 @@ EOF
 first=$!
 (read ignored < "$1") &
 second=$!
-printf "%s\n%s\n" "$first" "$second" > "$2"
 wait
 "#,
             "asb-cancellation-helper",
         ]);
-        command.arg(&fifo_path).arg(&pid_path);
+        command.arg(&helper_fifo_path);
         let limits = ProcessLimits::new(
             1024,
             1024,
@@ -2147,21 +2148,24 @@ wait
         };
         let readiness_deadline = Instant::now() + Duration::from_secs(15);
         let (children, original_group) = loop {
-            if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
-                && let Some(pids) = parse_pid_list_evidence(&bytes)
-                && pids.len() == 2
-                && let Ok(members) = process_group_members(
-                    running.pid(),
-                    pids.first()
-                        .and_then(|pid| read_process_identity(*pid).ok().flatten())
-                        .map(|identity| identity.session)
-                        .unwrap_or(0),
-                )
-                && pids
-                    .iter()
-                    .all(|pid| members.iter().any(|identity| identity.pid == *pid))
+            if let Ok(Some(leader)) = read_process_identity(running.pid())
+                && let Ok(Some(children)) = read_direct_children(running.pid())
+                && children.len() == 2
             {
-                break (pids, members);
+                let members = children
+                    .iter()
+                    .filter_map(|pid| read_process_identity(*pid).ok().flatten())
+                    .collect::<Vec<_>>();
+                if members.len() == 2
+                    && members.iter().all(|identity| {
+                        identity.process_group == running.pid()
+                            && identity.session == leader.session
+                    })
+                {
+                    let mut original_group = vec![leader];
+                    original_group.extend(members);
+                    break (children, original_group);
+                }
             }
             assert!(
                 Instant::now() < readiness_deadline,
@@ -2187,10 +2191,14 @@ wait
         assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
         let terminal_deadline = Instant::now() + Duration::from_secs(10);
         loop {
-            if runnable_group_members(running.pid(), session)
-                .unwrap()
-                .is_empty()
-            {
+            if original_group.iter().all(|identity| {
+                matches!(
+                    classify_original(*identity, read_process_identity(identity.pid).unwrap()),
+                    OriginalProcessState::Missing
+                        | OriginalProcessState::Reused
+                        | OriginalProcessState::Zombie
+                )
+            }) {
                 break;
             }
             assert!(
@@ -2263,6 +2271,14 @@ wait
         assert_eq!(parse_process_identity(17, &oversized), None);
         assert_eq!(parse_pid_list_evidence(b"17\n18\n"), Some(vec![17, 18]));
         assert_eq!(parse_pid_list_evidence(b"17\n17\n"), None);
+        assert_eq!(parse_child_pid_evidence(b"17 18 "), Some(vec![17, 18]));
+        assert_eq!(parse_child_pid_evidence(b""), Some(Vec::new()));
+        assert_eq!(parse_child_pid_evidence(b"17 17 "), None);
+        for evidence in [b"0 ".as_slice(), b"17\n", b"17\t18", b"17 x"] {
+            assert_eq!(parse_child_pid_evidence(evidence), None);
+        }
+        let oversized_children = vec![b"1"[0]; MAX_PID_LIST_EVIDENCE_BYTES as usize + 1];
+        assert_eq!(parse_child_pid_evidence(&oversized_children), None);
     }
 
     #[test]
