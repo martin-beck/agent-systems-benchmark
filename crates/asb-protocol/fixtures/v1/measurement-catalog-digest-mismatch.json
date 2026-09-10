@@ -47,7 +47,9 @@
       "replay": {
         "status": "supported"
       },
+      "resolution_ns": 0,
       "scope": "cgroup",
+      "source_identity": "cgroup_v2_cpu_stat",
       "unit": "{event}"
     }
   ],

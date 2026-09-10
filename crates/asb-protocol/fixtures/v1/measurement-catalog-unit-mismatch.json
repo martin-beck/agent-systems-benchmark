@@ -1,5 +1,5 @@
 {
-  "catalog_sha256": "2e41a33f4624edeeeb001ee63133f78a3e76b9d1f241a12ffc8a2fe59d58b2ae",
+  "catalog_sha256": "dd196af95a66cc083a3d3d136adfe8522f7ac0abc653ccb0eceeda263bdeb2f0",
   "groups": [
     {
       "description": "CPU, memory, faults, and physical IO attributed to a process or cgroup.",
@@ -47,7 +47,9 @@
       "replay": {
         "status": "supported"
       },
+      "resolution_ns": 0,
       "scope": "cgroup",
+      "source_identity": "cgroup_v2_cpu_stat",
       "unit": "By"
     }
   ],

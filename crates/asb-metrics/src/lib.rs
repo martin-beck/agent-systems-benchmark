@@ -936,16 +936,19 @@ mod tests {
                 .unwrap();
             assert_eq!(definition.unit, sample.descriptor.unit);
             assert_eq!(definition.aggregation, sample.descriptor.aggregation);
+            assert_eq!(
+                definition.source_identity.runtime_descriptor(),
+                sample.descriptor.source
+            );
+            assert_eq!(definition.resolution_ns, sample.descriptor.resolution_ns);
             match definition.provenance.source {
                 MeasurementSource::AsbMetricsProcfs => {
                     assert_eq!(definition.scope, MeasurementScope::Process);
                     assert_eq!(sample.descriptor.scope, "process");
-                    assert!(sample.descriptor.source.starts_with("procfs:"));
                 }
                 MeasurementSource::AsbMetricsCgroupV2 => {
                     assert_eq!(definition.scope, MeasurementScope::Cgroup);
                     assert_eq!(sample.descriptor.scope, "cgroup");
-                    assert!(sample.descriptor.source.starts_with("cgroup2:"));
                 }
                 source => panic!("unexpected baseline source {source:?}"),
             }

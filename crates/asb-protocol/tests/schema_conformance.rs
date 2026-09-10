@@ -110,13 +110,12 @@ fn positive_fixtures_validate() {
         include_str!("../fixtures/v1/measurement-catalog-maximal.json"),
     ] {
         validate_fixture(SCHEMAS[9].1, fixture);
-        serde_json::from_str::<MeasurementCatalogV1>(fixture)
-            .unwrap()
-            .validate()
-            .unwrap();
+        MeasurementCatalogV1::from_slice_bounded(fixture.as_bytes()).unwrap();
     }
-    let baseline: MeasurementCatalogV1 =
-        serde_json::from_str(include_str!("../fixtures/v1/measurement-catalog.json")).unwrap();
+    let baseline = MeasurementCatalogV1::from_slice_bounded(include_bytes!(
+        "../fixtures/v1/measurement-catalog.json"
+    ))
+    .unwrap();
     assert_eq!(baseline, baseline_measurement_catalog());
 
     let manifest: ExperimentManifestV1 =
@@ -166,12 +165,54 @@ fn measurement_catalog_negative_fixtures_fail_closed() {
     ] {
         let value: Value = serde_json::from_str(fixture).unwrap();
         assert!(validator.is_valid(&value));
-        let catalog: MeasurementCatalogV1 = serde_json::from_value(value).unwrap();
-        assert_eq!(catalog.validate(), Err(expected));
+        assert_eq!(
+            MeasurementCatalogV1::from_slice_bounded(fixture.as_bytes()),
+            Err(expected)
+        );
     }
 
     let unknown = include_str!("../fixtures/v1/measurement-catalog-unknown-field.json");
-    assert!(serde_json::from_str::<MeasurementCatalogV1>(unknown).is_err());
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(unknown.as_bytes()),
+        Err(MeasurementCatalogError::InvalidWire)
+    );
+}
+
+#[test]
+fn measurement_catalog_schema_and_bounded_wire_reject_size_adversaries() {
+    let schema: Value = serde_json::from_str(SCHEMAS[9].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let baseline: Value =
+        serde_json::from_str(include_str!("../fixtures/v1/measurement-catalog.json")).unwrap();
+
+    let mut too_many = baseline.clone();
+    let representative = too_many["measurements"][0].clone();
+    *too_many["measurements"].as_array_mut().unwrap() =
+        vec![representative; asb_protocol::MAX_MEASUREMENTS + 1];
+    assert!(!validator.is_valid(&too_many));
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(&serde_json::to_vec(&too_many).unwrap()),
+        Err(MeasurementCatalogError::TooManyMeasurements)
+    );
+
+    let mut nested = baseline.clone();
+    let platform = nested["measurements"][0]["platforms"][0].clone();
+    *nested["measurements"][0]["platforms"]
+        .as_array_mut()
+        .unwrap() = vec![platform; 9];
+    assert!(!validator.is_valid(&nested));
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(&serde_json::to_vec(&nested).unwrap()),
+        Err(MeasurementCatalogError::InvalidPlatform)
+    );
+
+    let mut long_text = baseline;
+    long_text["measurements"][0]["name"] = Value::String("x".repeat(257));
+    assert!(!validator.is_valid(&long_text));
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(&serde_json::to_vec(&long_text).unwrap()),
+        Err(MeasurementCatalogError::UnsafePublicText)
+    );
 }
 
 #[test]

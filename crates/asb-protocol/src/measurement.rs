@@ -3,6 +3,7 @@
 //! Versioned, content-addressed measurement catalog semantics.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Read;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,6 +20,8 @@ pub const MAX_MEASUREMENT_GROUPS: usize = 7;
 pub const MAX_MEASUREMENTS: usize = 128;
 /// Maximum UTF-8 bytes accepted in a public label or description.
 pub const MAX_MEASUREMENT_TEXT_BYTES: usize = 256;
+/// Maximum encoded bytes accepted from an untrusted catalog transport.
+pub const MAX_MEASUREMENT_CATALOG_WIRE_BYTES: usize = 256 * 1024;
 
 const CATALOG_DIGEST_DOMAIN: &[u8] = b"asb-measurement-catalog-v1\0";
 
@@ -51,10 +54,10 @@ pub struct MeasurementGroup {
     /// Stable machine identity.
     pub id: MeasurementGroupId,
     /// Short public display-independent label.
-    #[schemars(length(min = 1, max = 256))]
+    #[schemars(regex(pattern = r"^[ -?A-~]+$"), length(min = 1, max = 256))]
     pub label: String,
     /// Public semantic boundary for the group.
-    #[schemars(length(min = 1, max = 256))]
+    #[schemars(regex(pattern = r"^[ -?A-~]+$"), length(min = 1, max = 256))]
     pub description: String,
 }
 
@@ -106,6 +109,51 @@ pub enum MeasurementSource {
     ProviderUsage,
     /// Optional CSB-derived evidence that is not baseline-qualified.
     OptionalCsb,
+}
+
+/// Closed, path-free identity for an exact runtime descriptor source.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasurementSourceIdentity {
+    /// Process counters from procfs stat.
+    ProcfsProcessStat,
+    /// Process counters from procfs IO.
+    ProcfsProcessIo,
+    /// Cgroup-v2 CPU statistics.
+    CgroupV2CpuStat,
+    /// Cgroup-v2 current memory.
+    CgroupV2MemoryCurrent,
+    /// Cgroup-v2 peak memory.
+    CgroupV2MemoryPeak,
+    /// Cgroup-v2 memory statistics.
+    CgroupV2MemoryStat,
+    /// Cgroup-v2 IO statistics.
+    CgroupV2IoStat,
+    /// Cgroup-v2 CPU pressure.
+    CgroupV2CpuPressure,
+    /// Cgroup-v2 memory pressure.
+    CgroupV2MemoryPressure,
+    /// Cgroup-v2 IO pressure.
+    CgroupV2IoPressure,
+}
+
+impl MeasurementSourceIdentity {
+    /// Exact source spelling used by runtime metric descriptors.
+    #[must_use]
+    pub const fn runtime_descriptor(self) -> &'static str {
+        match self {
+            Self::ProcfsProcessStat => "procfs:/proc/[pid]/stat",
+            Self::ProcfsProcessIo => "procfs:/proc/[pid]/io",
+            Self::CgroupV2CpuStat => "cgroup2:cpu.stat",
+            Self::CgroupV2MemoryCurrent => "cgroup2:memory.current",
+            Self::CgroupV2MemoryPeak => "cgroup2:memory.peak",
+            Self::CgroupV2MemoryStat => "cgroup2:memory.stat",
+            Self::CgroupV2IoStat => "cgroup2:io.stat",
+            Self::CgroupV2CpuPressure => "cgroup2:cpu.pressure",
+            Self::CgroupV2MemoryPressure => "cgroup2:memory.pressure",
+            Self::CgroupV2IoPressure => "cgroup2:io.pressure",
+        }
+    }
 }
 
 /// Evidence qualification attached to a measurement source.
@@ -255,10 +303,10 @@ pub struct MeasurementDefinition {
     )]
     pub id: String,
     /// Short public name, unique under ASCII case folding.
-    #[schemars(length(min = 1, max = 256))]
+    #[schemars(regex(pattern = r"^[ -?A-~]+$"), length(min = 1, max = 256))]
     pub name: String,
     /// Public evidence meaning, containing no runtime or host material.
-    #[schemars(length(min = 1, max = 256))]
+    #[schemars(regex(pattern = r"^[ -?A-~]+$"), length(min = 1, max = 256))]
     pub description: String,
     /// Semantic group identity.
     pub group: MeasurementGroupId,
@@ -273,6 +321,10 @@ pub struct MeasurementDefinition {
     pub scope: MeasurementScope,
     /// Source and qualification.
     pub provenance: MeasurementProvenance,
+    /// Closed identity mapping exactly to the runtime descriptor source string.
+    pub source_identity: MeasurementSourceIdentity,
+    /// Nominal runtime descriptor resolution in nanoseconds; zero means unspecified.
+    pub resolution_ns: u64,
     /// Collection overhead contract.
     pub overhead: MeasurementOverhead,
     /// Live-provider execution support.
@@ -288,8 +340,16 @@ pub struct MeasurementDefinition {
 }
 
 /// Authoritative v1 catalog with a deterministic content address.
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
+///
+/// Direct generic deserialization is intentionally unavailable; untrusted bytes must use the
+/// bounded constructors.
+///
+/// ```compile_fail
+/// use asb_protocol::MeasurementCatalogV1;
+/// let _: MeasurementCatalogV1 = serde_json::from_str("{}").unwrap();
+/// ```
+#[derive(Clone, Debug, Eq, JsonSchema, PartialEq, Serialize)]
+#[schemars(deny_unknown_fields)]
 pub struct MeasurementCatalogV1 {
     /// Closed schema generation; exactly 1.
     #[schemars(range(min = 1, max = 1))]
@@ -305,6 +365,15 @@ pub struct MeasurementCatalogV1 {
     pub measurements: Vec<MeasurementDefinition>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementCatalogWire {
+    schema_version: u16,
+    catalog_sha256: String,
+    groups: Vec<MeasurementGroup>,
+    measurements: Vec<MeasurementDefinition>,
+}
+
 #[derive(Serialize)]
 struct CatalogAddress<'a> {
     schema_version: u16,
@@ -318,6 +387,7 @@ impl MeasurementCatalogV1 {
         mut groups: Vec<MeasurementGroup>,
         mut measurements: Vec<MeasurementDefinition>,
     ) -> Result<Self, MeasurementCatalogError> {
+        preflight_catalog(&groups, &measurements)?;
         groups.sort_by_key(|group| group.id);
         for measurement in &mut measurements {
             for platform in &mut measurement.platforms {
@@ -337,6 +407,35 @@ impl MeasurementCatalogV1 {
         catalog.catalog_sha256 = catalog.computed_digest()?;
         catalog.validate()?;
         Ok(catalog)
+    }
+
+    /// Decode and validate an untrusted in-memory catalog under a hard wire-size ceiling.
+    pub fn from_slice_bounded(bytes: &[u8]) -> Result<Self, MeasurementCatalogError> {
+        if bytes.len() > MAX_MEASUREMENT_CATALOG_WIRE_BYTES {
+            return Err(MeasurementCatalogError::WireTooLarge);
+        }
+        let wire: MeasurementCatalogWire =
+            serde_json::from_slice(bytes).map_err(|_| MeasurementCatalogError::InvalidWire)?;
+        let catalog = Self {
+            schema_version: wire.schema_version,
+            catalog_sha256: wire.catalog_sha256,
+            groups: wire.groups,
+            measurements: wire.measurements,
+        };
+        catalog.validate()?;
+        Ok(catalog)
+    }
+
+    /// Read, decode, and validate an untrusted catalog without an unbounded read or allocation.
+    pub fn from_reader_bounded(reader: impl Read) -> Result<Self, MeasurementCatalogError> {
+        let limit = u64::try_from(MAX_MEASUREMENT_CATALOG_WIRE_BYTES)
+            .map_err(|_| MeasurementCatalogError::WireTooLarge)?;
+        let mut bytes = Vec::with_capacity(MAX_MEASUREMENT_CATALOG_WIRE_BYTES.min(8192));
+        reader
+            .take(limit.saturating_add(1))
+            .read_to_end(&mut bytes)
+            .map_err(|_| MeasurementCatalogError::InvalidWire)?;
+        Self::from_slice_bounded(&bytes)
     }
 
     /// Validate every structural, semantic, privacy, and content-address invariant.
@@ -436,6 +535,46 @@ impl MeasurementCatalogV1 {
     }
 }
 
+fn preflight_catalog(
+    groups: &[MeasurementGroup],
+    measurements: &[MeasurementDefinition],
+) -> Result<(), MeasurementCatalogError> {
+    if groups.len() > MAX_MEASUREMENT_GROUPS {
+        return Err(MeasurementCatalogError::TooManyGroups);
+    }
+    if measurements.len() > MAX_MEASUREMENTS {
+        return Err(MeasurementCatalogError::TooManyMeasurements);
+    }
+    for group in groups {
+        validate_public_text(&group.label)?;
+        validate_public_text(&group.description)?;
+    }
+    for measurement in measurements {
+        validate_identifier(&measurement.id)?;
+        validate_public_text(&measurement.name)?;
+        validate_public_text(&measurement.description)?;
+        validate_unit(measurement.quantity, &measurement.unit)?;
+        if measurement.platforms.is_empty() || measurement.platforms.len() > 8 {
+            return Err(MeasurementCatalogError::InvalidPlatform);
+        }
+        if measurement.platforms.iter().any(|platform| {
+            platform.architectures.is_empty()
+                || platform.architectures.len() > 8
+                || platform.required_features.is_empty()
+                || platform.required_features.len() > 8
+        }) {
+            return Err(MeasurementCatalogError::InvalidPlatform);
+        }
+        if measurement.evidence_limits.is_empty() || measurement.evidence_limits.len() > 8 {
+            return Err(MeasurementCatalogError::InvalidEvidenceLimits);
+        }
+        if measurement.overhead.minimum_interval_ns == 0 {
+            return Err(MeasurementCatalogError::InvalidOverhead);
+        }
+    }
+    Ok(())
+}
+
 fn validate_measurement(
     measurement: &MeasurementDefinition,
 ) -> Result<(), MeasurementCatalogError> {
@@ -496,6 +635,35 @@ fn validate_measurement(
                 })
     {
         return Err(MeasurementCatalogError::UnqualifiedExternalSupported);
+    }
+    let (expected_source, expected_scope, expected_feature) = match measurement.source_identity {
+        MeasurementSourceIdentity::ProcfsProcessStat
+        | MeasurementSourceIdentity::ProcfsProcessIo => (
+            MeasurementSource::AsbMetricsProcfs,
+            MeasurementScope::Process,
+            MeasurementPlatformFeature::Procfs,
+        ),
+        MeasurementSourceIdentity::CgroupV2CpuStat
+        | MeasurementSourceIdentity::CgroupV2MemoryCurrent
+        | MeasurementSourceIdentity::CgroupV2MemoryPeak
+        | MeasurementSourceIdentity::CgroupV2MemoryStat
+        | MeasurementSourceIdentity::CgroupV2IoStat
+        | MeasurementSourceIdentity::CgroupV2CpuPressure
+        | MeasurementSourceIdentity::CgroupV2MemoryPressure
+        | MeasurementSourceIdentity::CgroupV2IoPressure => (
+            MeasurementSource::AsbMetricsCgroupV2,
+            MeasurementScope::Cgroup,
+            MeasurementPlatformFeature::CgroupV2,
+        ),
+    };
+    if measurement.provenance.source != expected_source
+        || measurement.scope != expected_scope
+        || measurement
+            .platforms
+            .iter()
+            .any(|platform| platform.required_features.as_slice() != [expected_feature])
+    {
+        return Err(MeasurementCatalogError::InvalidSourceIdentity);
     }
     Ok(())
 }
@@ -574,6 +742,12 @@ fn validate_unit(quantity: MeasurementQuantity, unit: &str) -> Result<(), Measur
 /// Measurement catalog validation failure.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub enum MeasurementCatalogError {
+    /// Untrusted encoded input exceeded the fixed transport ceiling.
+    #[error("measurement catalog wire input exceeds its byte limit")]
+    WireTooLarge,
+    /// Untrusted encoded input is not a valid closed catalog shape.
+    #[error("measurement catalog wire input is invalid")]
+    InvalidWire,
     /// Unknown breaking schema generation.
     #[error("unsupported measurement catalog schema version {0}")]
     UnsupportedSchemaVersion(u16),
@@ -622,6 +796,9 @@ pub enum MeasurementCatalogError {
     /// Source and qualification disagree.
     #[error("invalid measurement provenance")]
     InvalidProvenance,
+    /// Exact source identity, scope, platform feature, and source class disagree.
+    #[error("invalid measurement source identity")]
+    InvalidSourceIdentity,
     /// Optional external evidence was advertised before qualification.
     #[error("unqualified external measurement advertised as supported")]
     UnqualifiedExternalSupported,
@@ -907,6 +1084,7 @@ fn kernel_definition(
     feature: MeasurementPlatformFeature,
     contention: bool,
 ) -> MeasurementDefinition {
+    let (source_identity, resolution_ns) = runtime_descriptor_semantics(id);
     let mut limits = vec![
         MeasurementEvidenceLimit::MissingIsUnavailable,
         MeasurementEvidenceLimit::RequiresComparableExperiment,
@@ -934,6 +1112,8 @@ fn kernel_definition(
             source,
             qualification: MeasurementQualification::Implemented,
         },
+        source_identity,
+        resolution_ns,
         overhead: MeasurementOverhead {
             class: MeasurementOverheadClass::Low,
             minimum_interval_ns: 1_000_000,
@@ -953,9 +1133,45 @@ fn kernel_definition(
     }
 }
 
+fn runtime_descriptor_semantics(id: &str) -> (MeasurementSourceIdentity, u64) {
+    match id {
+        "process.cpu.user_time" | "process.cpu.system_time" => {
+            (MeasurementSourceIdentity::ProcfsProcessStat, 10_000_000)
+        }
+        "process.memory.resident" | "process.faults.minor" | "process.faults.major" => {
+            (MeasurementSourceIdentity::ProcfsProcessStat, 0)
+        }
+        "process.io.read" | "process.io.write" => (MeasurementSourceIdentity::ProcfsProcessIo, 0),
+        "cgroup.cpu.usage"
+        | "cgroup.cpu.user"
+        | "cgroup.cpu.system"
+        | "cgroup.cpu.throttled_time" => (MeasurementSourceIdentity::CgroupV2CpuStat, 1_000),
+        "cgroup.cpu.periods" | "cgroup.cpu.throttled_periods" => {
+            (MeasurementSourceIdentity::CgroupV2CpuStat, 0)
+        }
+        "cgroup.memory.current" => (MeasurementSourceIdentity::CgroupV2MemoryCurrent, 0),
+        "cgroup.memory.peak" => (MeasurementSourceIdentity::CgroupV2MemoryPeak, 0),
+        "cgroup.faults.minor" | "cgroup.faults.major" => {
+            (MeasurementSourceIdentity::CgroupV2MemoryStat, 0)
+        }
+        "cgroup.io.read" | "cgroup.io.write" => (MeasurementSourceIdentity::CgroupV2IoStat, 0),
+        "cgroup.pressure.cpu.some" | "cgroup.pressure.cpu.full" => {
+            (MeasurementSourceIdentity::CgroupV2CpuPressure, 1_000)
+        }
+        "cgroup.pressure.memory.some" | "cgroup.pressure.memory.full" => {
+            (MeasurementSourceIdentity::CgroupV2MemoryPressure, 1_000)
+        }
+        "cgroup.pressure.io.some" | "cgroup.pressure.io.full" => {
+            (MeasurementSourceIdentity::CgroupV2IoPressure, 1_000)
+        }
+        _ => unreachable!("baseline metric identity is statically closed"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
 
     #[test]
     fn baseline_is_complete_stable_and_excludes_optional_csb() {
@@ -1023,6 +1239,80 @@ mod tests {
         }
         let maximal = MeasurementCatalogV1::new(vec![group], definitions).unwrap();
         assert_eq!(maximal.measurements.len(), MAX_MEASUREMENTS);
+    }
+
+    #[test]
+    fn preflight_rejects_attacker_work_before_canonicalization() {
+        let baseline = baseline_measurement_catalog();
+        let mut oversized = vec![baseline.measurements[0].clone(); MAX_MEASUREMENTS + 1];
+        oversized[0].id = "Bad ID".into();
+        assert_eq!(
+            MeasurementCatalogV1::new(baseline.groups.clone(), oversized),
+            Err(MeasurementCatalogError::TooManyMeasurements)
+        );
+
+        let mut nested = baseline.measurements[0].clone();
+        nested.name = "z".repeat(MAX_MEASUREMENT_TEXT_BYTES + 1);
+        nested.platforms.reverse();
+        assert_eq!(
+            MeasurementCatalogV1::new(baseline.groups.clone(), vec![nested]),
+            Err(MeasurementCatalogError::UnsafePublicText)
+        );
+
+        let mut nested = baseline.measurements[0].clone();
+        nested.platforms = vec![nested.platforms[0].clone(); 9];
+        assert_eq!(
+            MeasurementCatalogV1::new(baseline.groups, vec![nested]),
+            Err(MeasurementCatalogError::InvalidPlatform)
+        );
+    }
+
+    #[test]
+    fn untrusted_wire_reads_and_allocations_are_bounded() {
+        let fixture = include_bytes!("../fixtures/v1/measurement-catalog.json");
+        assert_eq!(
+            MeasurementCatalogV1::from_slice_bounded(fixture).unwrap(),
+            baseline_measurement_catalog()
+        );
+        assert_eq!(
+            MeasurementCatalogV1::from_slice_bounded(&vec![
+                b' ';
+                MAX_MEASUREMENT_CATALOG_WIRE_BYTES + 1
+            ]),
+            Err(MeasurementCatalogError::WireTooLarge)
+        );
+        assert_eq!(
+            MeasurementCatalogV1::from_slice_bounded(b"{"),
+            Err(MeasurementCatalogError::InvalidWire)
+        );
+
+        struct Endless {
+            bytes_read: usize,
+        }
+        impl io::Read for &mut Endless {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                buffer.fill(b' ');
+                self.bytes_read += buffer.len();
+                Ok(buffer.len())
+            }
+        }
+        let mut endless = Endless { bytes_read: 0 };
+        assert_eq!(
+            MeasurementCatalogV1::from_reader_bounded(&mut endless),
+            Err(MeasurementCatalogError::WireTooLarge)
+        );
+        assert_eq!(endless.bytes_read, MAX_MEASUREMENT_CATALOG_WIRE_BYTES + 1);
+
+        struct Failing;
+        impl io::Read for Failing {
+            fn read(&mut self, _buffer: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::other("synthetic read failure"))
+            }
+        }
+        assert_eq!(
+            MeasurementCatalogV1::from_reader_bounded(Failing),
+            Err(MeasurementCatalogError::InvalidWire)
+        );
     }
 
     #[test]
@@ -1110,6 +1400,13 @@ mod tests {
         assert_eq!(
             MeasurementCatalogV1::new(baseline.groups.clone(), vec![unsupported]),
             Err(MeasurementCatalogError::InvalidProvenance)
+        );
+
+        let mut mismatched = baseline.measurements[0].clone();
+        mismatched.source_identity = MeasurementSourceIdentity::ProcfsProcessIo;
+        assert_eq!(
+            MeasurementCatalogV1::new(baseline.groups.clone(), vec![mismatched]),
+            Err(MeasurementCatalogError::InvalidSourceIdentity)
         );
 
         let mut stale = baseline;

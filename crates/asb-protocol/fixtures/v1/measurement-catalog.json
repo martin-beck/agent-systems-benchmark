@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "catalog_sha256": "8d0ddcd4c83eda50ea12ab09cc89dc9497109a1a6b31fc79d5f4151a3c1e48bd",
+  "catalog_sha256": "0ffbbae180ef178fdc905acd0c4307b5df661d6823a9ed34303cc6010216785f",
   "groups": [
     {
       "id": "system_resources",
@@ -27,6 +27,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -69,6 +71,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_stat",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -111,6 +115,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -154,6 +160,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_stat",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -197,6 +205,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_stat",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -239,6 +249,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_stat",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -281,6 +293,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_memory_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -323,6 +337,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_memory_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -365,6 +381,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_io_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -407,6 +425,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_io_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -449,6 +469,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_memory_current",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -491,6 +513,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_memory_peak",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -533,6 +557,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_pressure",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -576,6 +602,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_cpu_pressure",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -619,6 +647,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_io_pressure",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -662,6 +692,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_io_pressure",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -705,6 +737,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_memory_pressure",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -748,6 +782,8 @@
         "source": "asb_metrics_cgroup_v2",
         "qualification": "implemented"
       },
+      "source_identity": "cgroup_v2_memory_pressure",
+      "resolution_ns": 1000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -791,6 +827,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_stat",
+      "resolution_ns": 10000000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -833,6 +871,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_stat",
+      "resolution_ns": 10000000,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -875,6 +915,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -917,6 +959,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -959,6 +1003,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_io",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -1001,6 +1047,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_io",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,
@@ -1043,6 +1091,8 @@
         "source": "asb_metrics_procfs",
         "qualification": "implemented"
       },
+      "source_identity": "procfs_process_stat",
+      "resolution_ns": 0,
       "overhead": {
         "class": "low",
         "minimum_interval_ns": 1000000,

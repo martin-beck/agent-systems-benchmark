@@ -7,7 +7,10 @@ selection interaction, or terminal behavior.
 ## Baseline scope
 
 The v1 baseline contains exactly the metrics emitted by `asb-metrics` portable Linux procfs and
-cgroup-v2 collectors. Every published group contains at least one definition. Consumers must use
+cgroup-v2 collectors. Every definition carries the exact runtime descriptor unit, aggregation,
+scope, nominal `resolution_ns`, and a closed path-free source identity. The source identity maps to
+the runtime descriptor spelling through `MeasurementSourceIdentity::runtime_descriptor`; callers
+never supply a host path. Every published group contains at least one definition. Consumers must use
 the catalog's `groups` and `measurements` arrays rather than constructing empty taxonomy groups from
 the schema enum. Missing runtime evidence remains unavailable and is never converted to zero.
 
@@ -36,6 +39,11 @@ ASCII text, names, units, sources, platform requirements, support modes, overhea
 limits are validated before use. Unknown fields fail deserialization. Duplicate IDs, case-folded
 name collisions, incompatible units, empty advertised groups, noncanonical input, unsupported
 versions, stale digests, and privacy-sensitive public text fail closed.
+
+Untrusted JSON must enter through `MeasurementCatalogV1::from_slice_bounded` or
+`MeasurementCatalogV1::from_reader_bounded`. Both enforce a 256 KiB wire ceiling before decoding;
+the reader consumes at most the ceiling plus one byte. Constructor preflight rejects top-level and
+nested count bounds and public text byte bounds before sorting, canonical serialization, or hashing.
 
 The checked baseline and empty fixtures live in `crates/asb-protocol/fixtures/v1`; the generated
 schema lives in `crates/asb-protocol/schema/v1/measurement-catalog.schema.json`.

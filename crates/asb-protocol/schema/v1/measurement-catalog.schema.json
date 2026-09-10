@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "MeasurementCatalogV1",
-  "description": "Authoritative v1 catalog with a deterministic content address.",
+  "description": "Authoritative v1 catalog with a deterministic content address.\n\nDirect generic deserialization is intentionally unavailable; untrusted bytes must use the\nbounded constructors.\n\n```compile_fail\nuse asb_protocol::MeasurementCatalogV1;\nlet _: MeasurementCatalogV1 = serde_json::from_str(\"{}\").unwrap();\n```",
   "type": "object",
   "properties": {
     "catalog_sha256": {
@@ -90,7 +90,8 @@
           "description": "Public evidence meaning, containing no runtime or host material.",
           "type": "string",
           "maxLength": 256,
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
         },
         "evidence_limits": {
           "description": "Explicit interpretation limits.",
@@ -120,7 +121,8 @@
           "description": "Short public name, unique under ASCII case folding.",
           "type": "string",
           "maxLength": 256,
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
         },
         "overhead": {
           "description": "Collection overhead contract.",
@@ -147,9 +149,19 @@
           "description": "Recorded-response replay execution support.",
           "$ref": "#/$defs/MeasurementModeSupport"
         },
+        "resolution_ns": {
+          "description": "Nominal runtime descriptor resolution in nanoseconds; zero means unspecified.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
         "scope": {
           "description": "Ownership scope.",
           "$ref": "#/$defs/MeasurementScope"
+        },
+        "source_identity": {
+          "description": "Closed identity mapping exactly to the runtime descriptor source string.",
+          "$ref": "#/$defs/MeasurementSourceIdentity"
         },
         "unit": {
           "description": "Exact UCUM-style unit.",
@@ -169,6 +181,8 @@
         "aggregation",
         "scope",
         "provenance",
+        "source_identity",
+        "resolution_ns",
         "overhead",
         "live",
         "replay",
@@ -209,7 +223,8 @@
           "description": "Public semantic boundary for the group.",
           "type": "string",
           "maxLength": 256,
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
         },
         "id": {
           "description": "Stable machine identity.",
@@ -219,7 +234,8 @@
           "description": "Short public display-independent label.",
           "type": "string",
           "maxLength": 256,
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
         }
       },
       "additionalProperties": false,
@@ -531,6 +547,61 @@
           "description": "Optional CSB-derived evidence that is not baseline-qualified.",
           "type": "string",
           "const": "optional_csb"
+        }
+      ]
+    },
+    "MeasurementSourceIdentity": {
+      "description": "Closed, path-free identity for an exact runtime descriptor source.",
+      "oneOf": [
+        {
+          "description": "Process counters from procfs stat.",
+          "type": "string",
+          "const": "procfs_process_stat"
+        },
+        {
+          "description": "Process counters from procfs IO.",
+          "type": "string",
+          "const": "procfs_process_io"
+        },
+        {
+          "description": "Cgroup-v2 CPU statistics.",
+          "type": "string",
+          "const": "cgroup_v2_cpu_stat"
+        },
+        {
+          "description": "Cgroup-v2 current memory.",
+          "type": "string",
+          "const": "cgroup_v2_memory_current"
+        },
+        {
+          "description": "Cgroup-v2 peak memory.",
+          "type": "string",
+          "const": "cgroup_v2_memory_peak"
+        },
+        {
+          "description": "Cgroup-v2 memory statistics.",
+          "type": "string",
+          "const": "cgroup_v2_memory_stat"
+        },
+        {
+          "description": "Cgroup-v2 IO statistics.",
+          "type": "string",
+          "const": "cgroup_v2_io_stat"
+        },
+        {
+          "description": "Cgroup-v2 CPU pressure.",
+          "type": "string",
+          "const": "cgroup_v2_cpu_pressure"
+        },
+        {
+          "description": "Cgroup-v2 memory pressure.",
+          "type": "string",
+          "const": "cgroup_v2_memory_pressure"
+        },
+        {
+          "description": "Cgroup-v2 IO pressure.",
+          "type": "string",
+          "const": "cgroup_v2_io_pressure"
         }
       ]
     },
