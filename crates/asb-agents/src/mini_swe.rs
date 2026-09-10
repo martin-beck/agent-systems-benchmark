@@ -1439,8 +1439,310 @@ fn digest_file(path: &Path) -> Result<String, AdapterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
-    use std::time::Duration;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+    use std::time::{Duration, Instant};
+
+    const MAX_PROC_STAT_BYTES: u64 = 4096;
+    const MAX_PID_EVIDENCE_BYTES: u64 = 32;
+    const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;
+
+    fn canonical_repository_root() -> io::Result<PathBuf> {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let repository = manifest
+            .ancestors()
+            .nth(2)
+            .ok_or_else(|| io::Error::other("repository root is unavailable"))?;
+        fs::canonicalize(repository)
+    }
+
+    fn paths_overlap(left: &Path, right: &Path) -> bool {
+        left.starts_with(right) || right.starts_with(left)
+    }
+
+    fn open_bound_directory(path: &Path, expected: &Path) -> io::Result<fs::File> {
+        let flags = rustix::fs::OFlags::RDONLY
+            | rustix::fs::OFlags::DIRECTORY
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::CLOEXEC;
+        let descriptor = rustix::fs::open(path, flags, rustix::fs::Mode::empty())?;
+        let expected_descriptor = rustix::fs::open(expected, flags, rustix::fs::Mode::empty())?;
+        let opened = rustix::fs::fstat(&descriptor)?;
+        let expected_opened = rustix::fs::fstat(&expected_descriptor)?;
+        if opened.st_dev != expected_opened.st_dev || opened.st_ino != expected_opened.st_ino {
+            return Err(io::Error::other("test-root directory binding changed"));
+        }
+        Ok(fs::File::from(descriptor))
+    }
+
+    fn open_bound_entry(base: &fs::File, name: &str) -> io::Result<fs::File> {
+        let descriptor = rustix::fs::openat(
+            base,
+            name,
+            rustix::fs::OFlags::RDONLY
+                | rustix::fs::OFlags::DIRECTORY
+                | rustix::fs::OFlags::NOFOLLOW
+                | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )?;
+        let linked = rustix::fs::statat(base, name, rustix::fs::AtFlags::SYMLINK_NOFOLLOW)?;
+        let opened = rustix::fs::fstat(&descriptor)?;
+        if linked.st_dev != opened.st_dev || linked.st_ino != opened.st_ino {
+            return Err(io::Error::other("test-root directory binding changed"));
+        }
+        Ok(fs::File::from(descriptor))
+    }
+
+    struct PrivateTestRoot {
+        base: fs::File,
+        root: fs::File,
+        path: PathBuf,
+        name: String,
+        cleanup_attempted: bool,
+    }
+
+    impl PrivateTestRoot {
+        fn new(label: &str) -> io::Result<Self> {
+            let base = fs::canonicalize(std::env::temp_dir())?;
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| io::Error::other("test clock is before epoch"))?
+                .as_nanos();
+            let name = format!("asb-mini-swe-{label}-{}-{nonce}", std::process::id());
+            Self::create_named(&base, name)
+        }
+
+        fn create_named(base_path: &Path, name: String) -> io::Result<Self> {
+            if name.is_empty()
+                || name.len() > 160
+                || !name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
+            {
+                return Err(io::Error::other("invalid test-root identity"));
+            }
+            let before = fs::symlink_metadata(base_path)?;
+            let canonical_base = fs::canonicalize(base_path)?;
+            if !before.file_type().is_dir() || canonical_base != base_path {
+                return Err(io::Error::other("unsafe test-root base"));
+            }
+            if paths_overlap(&canonical_base, &canonical_repository_root()?) {
+                return Err(io::Error::other("test root overlaps repository"));
+            }
+            let base = open_bound_directory(base_path, &canonical_base)?;
+            let opened = base.metadata()?;
+            let mode = opened.mode() & 0o7777;
+            let effective_uid = fs::metadata("/proc/self")?.uid();
+            let private_owner = opened.uid() == effective_uid && mode & 0o022 == 0;
+            let sticky_shared = mode & 0o1002 == 0o1002;
+            if !private_owner && !sticky_shared {
+                return Err(io::Error::other("unsafe test-root base"));
+            }
+            let base_anchor = PathBuf::from(format!("/proc/self/fd/{}", base.as_raw_fd()));
+            let path = base_path.join(&name);
+            let linked_path = base_anchor.join(&name);
+            fs::DirBuilder::new().mode(0o700).create(&linked_path)?;
+            let root = open_bound_entry(&base, &name)?;
+            let metadata = root.metadata()?;
+            if metadata.uid() != effective_uid
+                || metadata.mode() & 0o7777 != 0o700
+                || metadata.nlink() != 2
+            {
+                return Err(io::Error::other("unsafe created test root"));
+            }
+            Ok(Self {
+                base,
+                root,
+                path,
+                name,
+                cleanup_attempted: false,
+            })
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+
+        fn cleanup(&mut self) -> io::Result<()> {
+            self.cleanup_attempted = true;
+            let root_anchor = PathBuf::from(format!("/proc/self/fd/{}", self.root.as_raw_fd()));
+            for entry in fs::read_dir(&root_anchor)? {
+                let entry = entry?;
+                let metadata = fs::symlink_metadata(entry.path())?;
+                if metadata.file_type().is_dir() {
+                    fs::remove_dir_all(entry.path())?;
+                } else {
+                    fs::remove_file(entry.path())?;
+                }
+            }
+            let base_anchor = PathBuf::from(format!("/proc/self/fd/{}", self.base.as_raw_fd()));
+            let linked_path = base_anchor.join(&self.name);
+            let linked = fs::symlink_metadata(&linked_path)?;
+            if linked.file_type().is_symlink()
+                || fs::canonicalize(&linked_path)? != fs::canonicalize(&root_anchor)?
+            {
+                return Err(io::Error::other("test root changed before cleanup"));
+            }
+            fs::remove_dir(linked_path)
+        }
+    }
+
+    impl Drop for PrivateTestRoot {
+        fn drop(&mut self) {
+            if !self.cleanup_attempted {
+                let _ = self.cleanup();
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    struct ProcessIdentity {
+        pid: u32,
+        state: u8,
+        process_group: u32,
+        session: u32,
+        start_time: u64,
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum OriginalProcessState {
+        Missing,
+        Reused,
+        Zombie,
+        Runnable,
+        ChangedOwnership,
+    }
+
+    fn parse_pid_evidence(bytes: &[u8]) -> Option<u32> {
+        if bytes.is_empty() || bytes.len() > MAX_PID_EVIDENCE_BYTES as usize {
+            return None;
+        }
+        let text = std::str::from_utf8(bytes).ok()?;
+        let digits = text.strip_suffix("\n").unwrap_or(text);
+        if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        digits.parse().ok().filter(|pid| *pid > 0)
+    }
+
+    fn parse_pid_list_evidence(bytes: &[u8]) -> Option<Vec<u32>> {
+        if bytes.is_empty() || bytes.len() > MAX_PID_LIST_EVIDENCE_BYTES as usize {
+            return None;
+        }
+        let text = std::str::from_utf8(bytes).ok()?;
+        let mut pids = Vec::new();
+        for line in text.lines() {
+            let pid = parse_pid_evidence(line.as_bytes())?;
+            if pids.contains(&pid) {
+                return None;
+            }
+            pids.push(pid);
+        }
+        (!pids.is_empty()).then_some(pids)
+    }
+
+    fn parse_child_pid_evidence(bytes: &[u8]) -> Option<Vec<u32>> {
+        if bytes.len() > MAX_PID_LIST_EVIDENCE_BYTES as usize
+            || bytes
+                .iter()
+                .any(|byte| !byte.is_ascii_digit() && *byte != b" "[0])
+        {
+            return None;
+        }
+        let mut pids = Vec::new();
+        for token in std::str::from_utf8(bytes).ok()?.split_ascii_whitespace() {
+            let pid = token.parse::<u32>().ok().filter(|pid| *pid > 0)?;
+            if pids.contains(&pid) {
+                return None;
+            }
+            pids.push(pid);
+        }
+        Some(pids)
+    }
+
+    fn parse_process_identity(expected_pid: u32, bytes: &[u8]) -> Option<ProcessIdentity> {
+        if bytes.is_empty() || bytes.len() > MAX_PROC_STAT_BYTES as usize {
+            return None;
+        }
+        let text = std::str::from_utf8(bytes).ok()?;
+        let (identity, fields) = text.rsplit_once(") ")?;
+        let (pid, _) = identity.split_once(" (")?;
+        if pid.parse::<u32>().ok()? != expected_pid {
+            return None;
+        }
+        let fields: Vec<&str> = fields.split_whitespace().collect();
+        if fields.len() < 20
+            || fields[0].len() != 1
+            || !b"RSDZTtXxKWPI".contains(&fields[0].as_bytes()[0])
+        {
+            return None;
+        }
+        Some(ProcessIdentity {
+            pid: expected_pid,
+            state: fields[0].as_bytes()[0],
+            process_group: fields[2].parse().ok()?,
+            session: fields[3].parse().ok()?,
+            start_time: fields[19].parse().ok()?,
+        })
+    }
+
+    fn read_bounded(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
+        let mut bytes = Vec::new();
+        fs::File::open(path)?
+            .take(limit + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limit {
+            return Err(io::Error::other("bounded test evidence is oversized"));
+        }
+        Ok(bytes)
+    }
+
+    fn read_process_identity(pid: u32) -> io::Result<Option<ProcessIdentity>> {
+        let path = PathBuf::from("/proc").join(pid.to_string()).join("stat");
+        match read_bounded(&path, MAX_PROC_STAT_BYTES) {
+            Ok(bytes) => parse_process_identity(pid, &bytes)
+                .map(Some)
+                .ok_or_else(|| io::Error::other("malformed process identity")),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn read_direct_children(pid: u32) -> io::Result<Option<Vec<u32>>> {
+        let path = PathBuf::from("/proc")
+            .join(pid.to_string())
+            .join("task")
+            .join(pid.to_string())
+            .join("children");
+        match read_bounded(&path, MAX_PID_LIST_EVIDENCE_BYTES) {
+            Ok(bytes) => parse_child_pid_evidence(&bytes)
+                .map(Some)
+                .ok_or_else(|| io::Error::other("malformed child process evidence")),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn classify_original(
+        original: ProcessIdentity,
+        observed: Option<ProcessIdentity>,
+    ) -> OriginalProcessState {
+        let Some(observed) = observed else {
+            return OriginalProcessState::Missing;
+        };
+        if observed.pid != original.pid || observed.start_time != original.start_time {
+            return OriginalProcessState::Reused;
+        }
+        if observed.process_group != original.process_group || observed.session != original.session
+        {
+            return OriginalProcessState::ChangedOwnership;
+        }
+        if observed.state == b"Z"[0] {
+            OriginalProcessState::Zombie
+        } else {
+            OriginalProcessState::Runnable
+        }
+    }
 
     fn ids() -> (Id, Id) {
         (Id("session".into()), Id("attempt".into()))
@@ -1791,73 +2093,257 @@ EOF
     }
 
     #[test]
-    fn cancellation_reaps_owned_descendant_group() {
-        let base = std::env::var_os("CARGO_TARGET_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(std::env::temp_dir);
-        let root = base.join(format!("asb-mini-swe-descendant-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("workspace")).unwrap();
-        fs::create_dir_all(root.join("state")).unwrap();
-        let python = root.join("venv/bin/python");
-        let wheel = root.join("package.whl");
-        fs::create_dir_all(python.parent().unwrap()).unwrap();
-        fs::write(&wheel, b"fixture").unwrap();
-        fs::write(
-            &python,
-            r#"#!/bin/sh
-sleep 30 &
-echo $! > "$5/child.pid"
+    fn cancellation_leaves_no_runnable_owned_descendant() {
+        let mut scratch = PrivateTestRoot::new("descendant").unwrap();
+        let root = scratch.path().to_path_buf();
+        let root_anchor = std::env::var_os("QEMU_LD_PREFIX").map_or_else(
+            || root.clone(),
+            |prefix| {
+                PathBuf::from(prefix).join(
+                    root.strip_prefix("/")
+                        .expect("private test root must be absolute"),
+                )
+            },
+        );
+        let helper_fifo_path = root_anchor.join("block");
+        rustix::fs::mkfifoat(
+            &scratch.root,
+            "block",
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        let fifo_guard = rustix::fs::openat(
+            &scratch.root,
+            "block",
+            rustix::fs::OFlags::RDWR | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )
+        .unwrap();
+        let mut command = Command::new("/bin/sh");
+        command.args([
+            "-c",
+            r#"(read ignored < "$1") &
+first=$!
+(read ignored < "$1") &
+second=$!
 wait
 "#,
-        )
-        .unwrap();
-        let mut mode = fs::metadata(&python).unwrap().permissions();
-        mode.set_mode(0o700);
-        fs::set_permissions(&python, mode).unwrap();
-        let mut config = MiniSweConfig::new(
-            &python,
-            &wheel,
-            root.join("workspace"),
-            root.join("state"),
-            Url::parse("http://127.0.0.1:1/v1/").unwrap(),
-            "fixture",
-            MiniSweArtifact::LinuxX86_64V2_4_6,
-        )
-        .unwrap();
-        config.wheel_digest_override = Some(digest_file(&wheel).unwrap());
-        config.python_digest_override = Some(digest_file(&python).unwrap());
-        boundary_tests::install_test_environment(&mut config);
+            "asb-cancellation-helper",
+        ]);
+        command.arg(&helper_fifo_path);
         let limits = ProcessLimits::new(
             1024,
             1024,
-            Duration::from_secs(10),
+            Duration::from_secs(30),
             Duration::from_millis(20),
             Duration::from_millis(5),
         )
         .unwrap();
-        let mut running = config
-            .start(Id("s".into()), Id("a".into()), "prompt", limits)
-            .unwrap();
-        let pid_path = root.join("workspace/child.pid");
-        for _ in 0..200 {
-            if pid_path.exists() {
-                break;
+        let mut running = RunningMiniSwe {
+            process: RunningProcess::spawn(command, limits).unwrap(),
+            session_id: Id("s".into()),
+            attempt_id: Id("a".into()),
+            trajectory_path: root.join("unused-trajectory"),
+            run_root: None,
+        };
+        let readiness_deadline = Instant::now() + Duration::from_secs(15);
+        let (children, original_group) = loop {
+            if let Ok(Some(leader)) = read_process_identity(running.pid())
+                && let Ok(Some(children)) = read_direct_children(running.pid())
+                && children.len() == 2
+            {
+                let members = children
+                    .iter()
+                    .filter_map(|pid| read_process_identity(*pid).ok().flatten())
+                    .collect::<Vec<_>>();
+                if members.len() == 2
+                    && members.iter().all(|identity| {
+                        identity.process_group == running.pid()
+                            && identity.session == leader.session
+                    })
+                {
+                    let mut original_group = vec![leader];
+                    original_group.extend(members);
+                    break (children, original_group);
+                }
             }
+            assert!(
+                Instant::now() < readiness_deadline,
+                "helper readiness timed out"
+            );
             std::thread::sleep(Duration::from_millis(5));
-        }
-        let child = fs::read_to_string(&pid_path).unwrap();
+        };
+        assert_eq!(children.len(), 2);
+        let session = original_group
+            .iter()
+            .find(|identity| identity.pid == children[0])
+            .unwrap()
+            .session;
+        assert!(
+            original_group
+                .iter()
+                .any(|identity| identity.pid == running.pid())
+        );
+        assert!(original_group.iter().all(|identity| {
+            identity.process_group == running.pid() && identity.session == session
+        }));
         running.cancel().unwrap();
         assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
-        let proc_path = PathBuf::from("/proc").join(child.trim());
-        for _ in 0..200 {
-            if !proc_path.exists() {
+        let terminal_deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if original_group.iter().all(|identity| {
+                matches!(
+                    classify_original(*identity, read_process_identity(identity.pid).unwrap()),
+                    OriginalProcessState::Missing
+                        | OriginalProcessState::Reused
+                        | OriginalProcessState::Zombie
+                )
+            }) {
                 break;
             }
+            assert!(
+                Instant::now() < terminal_deadline,
+                "owned descendant remained runnable"
+            );
             std::thread::sleep(Duration::from_millis(5));
         }
-        assert!(!proc_path.exists());
-        fs::remove_dir_all(root).unwrap();
+        drop(fifo_guard);
+        scratch.cleanup().unwrap();
+    }
+
+    #[test]
+    fn descendant_identity_evidence_fails_closed_and_distinguishes_reuse() {
+        assert_eq!(parse_pid_evidence(b"17\n"), Some(17));
+        for evidence in [
+            b"".as_slice(),
+            b"0",
+            b" 17\n",
+            b"17  ",
+            b"x",
+            &[b"1"[0]; 33],
+        ] {
+            assert_eq!(parse_pid_evidence(evidence), None);
+        }
+        let stat = b"17 (fixture helper) S 1 9 8 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 44 20";
+        let original = parse_process_identity(17, stat).unwrap();
+        assert_eq!(original.process_group, 9);
+        assert_eq!(original.session, 8);
+        assert_eq!(original.start_time, 44);
+        assert_eq!(
+            classify_original(original, None),
+            OriginalProcessState::Missing
+        );
+        let mut changed = original;
+        changed.start_time += 1;
+        assert_eq!(
+            classify_original(original, Some(changed)),
+            OriginalProcessState::Reused
+        );
+        changed = original;
+        changed.process_group += 1;
+        assert_eq!(
+            classify_original(original, Some(changed)),
+            OriginalProcessState::ChangedOwnership
+        );
+        changed = original;
+        changed.state = b"Z"[0];
+        assert_eq!(
+            classify_original(original, Some(changed)),
+            OriginalProcessState::Zombie
+        );
+        assert_eq!(
+            classify_original(original, Some(original)),
+            OriginalProcessState::Runnable
+        );
+        assert_eq!(
+            parse_process_identity(18, stat),
+            None,
+            "a PID mismatch cannot be credited as the original process"
+        );
+        assert_eq!(
+            parse_process_identity(
+                17,
+                b"17 (fixture helper) ? 1 9 8 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 44 20"
+            ),
+            None
+        );
+        let oversized = vec![b"x"[0]; MAX_PROC_STAT_BYTES as usize + 1];
+        assert_eq!(parse_process_identity(17, &oversized), None);
+        assert_eq!(parse_pid_list_evidence(b"17\n18\n"), Some(vec![17, 18]));
+        assert_eq!(parse_pid_list_evidence(b"17\n17\n"), None);
+        assert_eq!(parse_child_pid_evidence(b"17 18 "), Some(vec![17, 18]));
+        assert_eq!(parse_child_pid_evidence(b""), Some(Vec::new()));
+        assert_eq!(parse_child_pid_evidence(b"17 17 "), None);
+        for evidence in [b"0 ".as_slice(), b"17\n", b"17\t18", b"17 x"] {
+            assert_eq!(parse_child_pid_evidence(evidence), None);
+        }
+        let oversized_children = vec![b"1"[0]; MAX_PID_LIST_EVIDENCE_BYTES as usize + 1];
+        assert_eq!(parse_child_pid_evidence(&oversized_children), None);
+    }
+
+    #[test]
+    fn private_test_root_rejects_redirection_and_preserves_replacement() {
+        let base = fs::canonicalize(std::env::temp_dir()).unwrap();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let fixture = base.join(format!(
+            "asb-mini-swe-root-negative-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::DirBuilder::new().mode(0o700).create(&fixture).unwrap();
+        let canonical_fixture = fs::canonicalize(&fixture).unwrap();
+        let fixture_handle = open_bound_directory(&fixture, &canonical_fixture).unwrap();
+        assert!(open_bound_directory(&fixture, &base).is_err());
+        let redirected = fixture.join("redirected");
+        std::os::unix::fs::symlink(&base, &redirected).unwrap();
+        assert!(open_bound_directory(&redirected, &base).is_err());
+        assert!(open_bound_entry(&fixture_handle, "redirected").is_err());
+        assert!(PrivateTestRoot::create_named(&redirected, "child".into()).is_err());
+        let leaf = fixture.join("leaf");
+        std::os::unix::fs::symlink(&base, &leaf).unwrap();
+        assert!(PrivateTestRoot::create_named(&fixture, "leaf".into()).is_err());
+        assert!(
+            fs::symlink_metadata(&leaf)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        let unsafe_base = fixture.join("unsafe-base");
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&unsafe_base)
+            .unwrap();
+        fs::set_permissions(&unsafe_base, fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(PrivateTestRoot::create_named(&unsafe_base, "child".into()).is_err());
+        let repository = canonical_repository_root().unwrap();
+        assert!(PrivateTestRoot::create_named(&repository, "overlap".into()).is_err());
+        assert!(
+            PrivateTestRoot::create_named(&repository.join("crates"), "overlap".into()).is_err()
+        );
+        assert!(
+            PrivateTestRoot::create_named(repository.parent().unwrap(), "ancestor-overlap".into())
+                .is_err()
+        );
+
+        let name = "owned-root".to_owned();
+        let mut scratch = PrivateTestRoot::create_named(&fixture, name.clone()).unwrap();
+        fs::write(scratch.path().join("owned"), b"owned").unwrap();
+        let displaced = fixture.join("displaced");
+        fs::rename(scratch.path(), &displaced).unwrap();
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(fixture.join(&name))
+            .unwrap();
+        fs::write(fixture.join(&name).join("replacement"), b"replacement").unwrap();
+        assert!(scratch.cleanup().is_err());
+        assert_eq!(
+            fs::read(fixture.join(&name).join("replacement")).unwrap(),
+            b"replacement"
+        );
+        assert!(fs::read_dir(&displaced).unwrap().next().is_none());
+        fs::remove_dir_all(fixture).unwrap();
     }
 }
 #[cfg(test)]
