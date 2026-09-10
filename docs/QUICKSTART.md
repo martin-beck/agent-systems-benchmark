@@ -7,6 +7,7 @@ from the repository root:
 ```sh
 cargo build --locked --workspace
 cargo run --locked -p asb-cli -- doctor
+cargo run --locked -p asb-cli -- capabilities --format json
 cargo test --locked -p asb-cli --test guide_examples -- --nocapture
 ```
 
@@ -69,6 +70,12 @@ selectable. Ollama remains advertised but unavailable until local-daemon
 evidence has been verified; there is no silent fallback. Bash completion is
 available with `source <(asb completion bash)`.
 
+An independently installed frontend must first run the exact side-effect-free
+probe `asb capabilities --format json`. The closed v1 response advertises only
+operations backed by the authoritative control API. Unknown fields, versions,
+types, formats, or arguments are rejected; the response contains no local paths,
+identity, environment, or provider configuration.
+
 ## Recording once and replaying later
 
 Recording is opt-in and requires a bounded `RecordingCapture` JSON envelope
@@ -96,6 +103,7 @@ This table is checked against live `doctor` output and
 | Command | Status |
 | --- | --- |
 | `doctor` | supported |
+| `capabilities` | supported |
 | `provider-catalog` | supported |
 | `provider-plan` | supported |
 | `plan` | supported |

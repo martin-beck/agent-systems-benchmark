@@ -4,7 +4,7 @@ ASB is a Linux terminal framework for measuring how AI coding agents scale:
 how many concurrent sessions a system can sustain while task quality, latency
 and resource consumption remain within declared bounds.
 
-**Status: active development.** The CLI implements `doctor`, `plan`, `run`,
+**Status: active development.** The CLI implements `doctor`, `capabilities`, `plan`, `run`,
 `sweep`, `compare`, `report` and the local `serve` control endpoint. `run` and
 `sweep` execute the original in-tree workloads through a digest-pinned
 `batch-stdio-v1` executable, then persist bounded run evidence for reporting and
@@ -49,12 +49,14 @@ cargo build --locked --workspace
 cargo test --locked --workspace
 cargo run --locked -p asb-cli -- --help
 cargo run --locked -p asb-cli -- doctor
+cargo run --locked -p asb-cli -- capabilities --format json
 ```
 
 The implemented command forms are:
 
 ```text
 asb doctor
+asb capabilities --format json
 asb plan EXPERIMENT.toml
 asb run EXPERIMENT.toml
 asb sweep EXPERIMENT.toml
@@ -70,6 +72,13 @@ and errors are JSON on stdout, progress is on stderr, and invalid usage returns 
 nonzero status. See `asb --help` for the authoritative command list. There is no
 `asb record` or `asb replay` command in the current CLI. No paid API call or
 workload download is required by repository tests.
+
+`asb capabilities --format json` is a bounded, deterministic, side-effect-free
+description of the closed protocol implemented for independent frontends. Its
+checked schema is
+[`crates/asb-cli/schema/v1/capabilities.schema.json`](crates/asb-cli/schema/v1/capabilities.schema.json).
+The response contains only the protocol and ASB versions plus operation booleans;
+it does not inspect or expose host, user, provider, credential, or socket data.
 
 ## OpenDesk adapter boundary
 
