@@ -2100,82 +2100,67 @@ EOF
 
     #[test]
     fn cancellation_leaves_no_runnable_owned_descendant() {
-        const ISOLATED_HELPER: &str = "ASB_MINI_SWE_CANCELLATION_HELPER";
-        const HELPER_MODE: &str = "ASB_MINI_SWE_CANCELLATION_MODE";
-        const PID_PATH: &str = "ASB_MINI_SWE_CANCELLATION_PID_PATH";
-        const TEST_NAME: &str = "mini_swe::tests::cancellation_leaves_no_runnable_owned_descendant";
-        match std::env::var(HELPER_MODE).as_deref() {
-            Ok("sleeper") => {
-                std::thread::sleep(Duration::from_secs(30));
-                return;
-            }
-            Ok("leader") => {
-                let executable = std::env::current_exe().unwrap();
-                let mut first = Command::new(&executable)
-                    .args(["--exact", TEST_NAME, "--nocapture"])
-                    .env(HELPER_MODE, "sleeper")
-                    .spawn()
-                    .unwrap();
-                let mut second = Command::new(&executable)
-                    .args(["--exact", TEST_NAME, "--nocapture"])
-                    .env(HELPER_MODE, "sleeper")
-                    .spawn()
-                    .unwrap();
-                fs::write(
-                    std::env::var_os(PID_PATH).unwrap(),
-                    format!("{}\n{}\n", first.id(), second.id()),
-                )
-                .unwrap();
-                let _ = first.wait();
-                let _ = second.wait();
-                return;
-            }
-            Ok(_) => panic!("invalid cancellation helper mode"),
-            Err(_) => {}
-        }
-        if cfg!(target_arch = "aarch64") && std::env::var_os(ISOLATED_HELPER).is_none() {
-            let mut helper = Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", TEST_NAME, "--nocapture"])
-                .env(ISOLATED_HELPER, "1")
-                .spawn()
-                .unwrap();
-            let deadline = Instant::now() + Duration::from_secs(60);
-            loop {
-                if let Some(status) = helper.try_wait().unwrap() {
-                    assert!(status.success(), "isolated cancellation helper failed");
-                    return;
-                }
-                if Instant::now() >= deadline {
-                    let _ = helper.kill();
-                    let _ = helper.wait();
-                    panic!("isolated cancellation helper timed out");
-                }
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        }
         let mut scratch = PrivateTestRoot::new("descendant").unwrap();
         let root = scratch.path().to_path_buf();
-        let pid_path = root.join("children.pids");
+        fs::create_dir_all(root.join("workspace")).unwrap();
+        fs::create_dir_all(root.join("state")).unwrap();
+        let python = root.join("venv/bin/python");
+        let wheel = root.join("package.whl");
+        fs::create_dir_all(python.parent().unwrap()).unwrap();
+        fs::write(&wheel, b"fixture").unwrap();
+        fs::write(
+            &python,
+            r#"#!/bin/sh
+(while [ ! -p "$5/block" ]; do :; done; read ignored < "$5/block") &
+first=$!
+(while [ ! -p "$5/block" ]; do :; done; read ignored < "$5/block") &
+second=$!
+printf '%s\n%s\n' "$first" "$second" > "$5/children.pids"
+wait
+"#,
+        )
+        .unwrap();
+        let mut mode = fs::metadata(&python).unwrap().permissions();
+        mode.set_mode(0o700);
+        fs::set_permissions(&python, mode).unwrap();
+        let mut config = MiniSweConfig::new(
+            &python,
+            &wheel,
+            root.join("workspace"),
+            root.join("state"),
+            Url::parse("http://127.0.0.1:1/v1/").unwrap(),
+            "fixture",
+            MiniSweArtifact::LinuxX86_64V2_4_6,
+        )
+        .unwrap();
+        config.wheel_digest_override = Some(digest_file(&wheel).unwrap());
+        config.python_digest_override = Some(digest_file(&python).unwrap());
+        boundary_tests::install_test_environment(&mut config);
         let limits = ProcessLimits::new(
             1024,
             1024,
-            Duration::from_secs(60),
+            Duration::from_secs(30),
             Duration::from_millis(20),
             Duration::from_millis(5),
         )
         .unwrap();
-        let mut command = Command::new(std::env::current_exe().unwrap());
-        command
-            .args(["--exact", TEST_NAME, "--nocapture"])
-            .env(HELPER_MODE, "leader")
-            .env(PID_PATH, &pid_path);
-        let mut running = RunningMiniSwe {
-            process: RunningProcess::spawn(command, limits).unwrap(),
-            session_id: Id("s".into()),
-            attempt_id: Id("a".into()),
-            trajectory_path: root.join("unused-trajectory"),
-            run_root: None,
-        };
+        let mut running = config
+            .start(Id("s".into()), Id("a".into()), "prompt", limits)
+            .unwrap();
+        let fifo_path = root.join("workspace/block");
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            &fifo_path,
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        let fifo_guard = rustix::fs::open(
+            &fifo_path,
+            rustix::fs::OFlags::RDWR | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )
+        .unwrap();
+        let pid_path = root.join("workspace/children.pids");
         let readiness_deadline = Instant::now() + Duration::from_secs(15);
         let (children, original_group) = loop {
             if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
@@ -2230,6 +2215,7 @@ EOF
             );
             std::thread::sleep(Duration::from_millis(5));
         }
+        drop(fifo_guard);
         scratch.cleanup().unwrap();
     }
 
