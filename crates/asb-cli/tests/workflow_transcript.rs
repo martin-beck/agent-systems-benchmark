@@ -16,6 +16,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const SOURCE_REVISION: &str = "32df706413a6f165f086941426a5c793bd5e01e8";
 const TRANSCRIPT: &str = include_str!("../../../docs/examples/asb-cli-workflow-v1.json");
 const PROVENANCE: &str = include_str!("../../../docs/examples/asb-cli-workflow-v1.provenance.json");
+const MERGE_ATTESTATION: &str =
+    include_str!("../../../docs/examples/asb-cli-workflow-v1.merge-attestation.json");
 static NONCE: AtomicU64 = AtomicU64::new(0);
 
 struct Scratch(PathBuf);
@@ -323,4 +325,27 @@ fn provenance_binds_the_exact_cli_and_public_fixture_sources() {
             "provenance drift: {path}"
         );
     }
+}
+
+#[test]
+fn merge_attestation_preserves_the_unsigned_publication_boundary() {
+    let attestation: Value = serde_json::from_str(MERGE_ATTESTATION).unwrap();
+    assert_eq!(attestation["schema_version"], 1);
+    assert_eq!(attestation["pull_request"], 129);
+    assert_eq!(
+        attestation["reviewed_commit"],
+        "3db6e6be7f0fe457ee0cb8d44d7434868e157a1a"
+    );
+    assert_eq!(
+        attestation["reviewed_tree"],
+        "d90537bb476d45a15c95f04d86a9728eb3bb23e5"
+    );
+    assert_eq!(attestation["published_tree"], attestation["reviewed_tree"]);
+    assert_eq!(attestation["exact_head_checks"]["expected"], 12);
+    assert_eq!(attestation["exact_head_checks"]["successful"], 12);
+    assert_eq!(attestation["published_commit_signature"], "unsigned");
+    assert_eq!(attestation["publication_method"], "rebase");
+    let policy = include_str!("../../../docs/DEVELOPMENT.md");
+    assert!(policy.contains("gh pr merge --merge"));
+    assert!(policy.contains("Rebase\nand squash publication are prohibited"));
 }
