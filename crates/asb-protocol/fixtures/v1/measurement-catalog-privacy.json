@@ -1,0 +1,57 @@
+{
+  "catalog_sha256": "dd196af95a66cc083a3d3d136adfe8522f7ac0abc653ccb0eceeda263bdeb2f0",
+  "groups": [
+    {
+      "description": "CPU, memory, faults, and physical IO attributed to a process or cgroup.",
+      "id": "system_resources",
+      "label": "System resources"
+    }
+  ],
+  "measurements": [
+    {
+      "aggregation": "counter",
+      "description": "https://example.invalid/private",
+      "evidence_limits": [
+        "missing_is_unavailable",
+        "requires_comparable_experiment",
+        "collector_overhead_recorded"
+      ],
+      "group": "system_resources",
+      "id": "cgroup.cpu.periods",
+      "live": {
+        "status": "supported"
+      },
+      "name": "Cgroup CPU periods",
+      "overhead": {
+        "class": "low",
+        "minimum_interval_ns": 1000000,
+        "requires_privilege": false
+      },
+      "platforms": [
+        {
+          "architectures": [
+            "x86_64",
+            "aarch64"
+          ],
+          "operating_system": "linux",
+          "required_features": [
+            "cgroup_v2"
+          ]
+        }
+      ],
+      "provenance": {
+        "qualification": "implemented",
+        "source": "asb_metrics_cgroup_v2"
+      },
+      "quantity": "count",
+      "replay": {
+        "status": "supported"
+      },
+      "resolution_ns": 0,
+      "scope": "cgroup",
+      "source_identity": "cgroup_v2_cpu_stat",
+      "unit": "{event}"
+    }
+  ],
+  "schema_version": 1
+}

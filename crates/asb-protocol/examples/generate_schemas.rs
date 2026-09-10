@@ -6,8 +6,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use asb_protocol::{
-    ExperimentManifestV1, ExtensionManifest, ExtensionResult, ProviderProfileCapabilities,
-    ProviderProfileV1, RpcNotification, RpcRequest, TraceSpan, WorkloadManifest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, MeasurementCatalogV1,
+    ProviderProfileCapabilities, ProviderProfileV1, RpcNotification, RpcRequest, TraceSpan,
+    WorkloadManifest,
 };
 use schemars::schema_for;
 
@@ -49,6 +50,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &schema_for!(RpcNotification),
     )?;
     write(&output, "result.schema.json", &schema_for!(ExtensionResult))?;
+    write(
+        &output,
+        "measurement-catalog.schema.json",
+        &schema_for!(MeasurementCatalogV1),
+    )?;
     write(&output, "trace-span.schema.json", &schema_for!(TraceSpan))?;
     Ok(())
 }

@@ -786,6 +786,8 @@ fn push(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_protocol::{MeasurementScope, MeasurementSource, baseline_measurement_catalog};
+    use std::collections::BTreeSet;
 
     #[test]
     fn parses_proc_stat_name_and_exact_units() {
@@ -898,6 +900,59 @@ mod tests {
                 .iter()
                 .all(|sample| sample.offset_ns == 55)
         );
+    }
+
+    #[test]
+    fn baseline_catalog_exactly_covers_every_emitted_portable_metric() {
+        let collector =
+            LinuxCollector::with_roots("/definitely-absent-asb-proc", "/definitely-absent-cgroup");
+        let process = collector.collect_process(7, 0);
+        let cgroup = collector.collect_cgroup("job", 0).unwrap();
+        let emitted: BTreeSet<_> = process
+            .samples()
+            .iter()
+            .chain(cgroup.samples())
+            .map(|sample| sample.descriptor.metric_id.0.as_str())
+            .collect();
+        let catalog = baseline_measurement_catalog();
+        let catalogued: BTreeSet<_> = catalog
+            .measurements
+            .iter()
+            .filter(|measurement| {
+                matches!(
+                    measurement.provenance.source,
+                    MeasurementSource::AsbMetricsProcfs | MeasurementSource::AsbMetricsCgroupV2
+                )
+            })
+            .map(|measurement| measurement.id.as_str())
+            .collect();
+        assert_eq!(emitted.len(), 25);
+        assert_eq!(emitted, catalogued);
+        for sample in process.samples().iter().chain(cgroup.samples()) {
+            let definition = catalog
+                .measurements
+                .iter()
+                .find(|measurement| measurement.id == sample.descriptor.metric_id.0)
+                .unwrap();
+            assert_eq!(definition.unit, sample.descriptor.unit);
+            assert_eq!(definition.aggregation, sample.descriptor.aggregation);
+            assert_eq!(
+                definition.source_identity.runtime_descriptor(),
+                sample.descriptor.source
+            );
+            assert_eq!(definition.resolution_ns, sample.descriptor.resolution_ns);
+            match definition.provenance.source {
+                MeasurementSource::AsbMetricsProcfs => {
+                    assert_eq!(definition.scope, MeasurementScope::Process);
+                    assert_eq!(sample.descriptor.scope, "process");
+                }
+                MeasurementSource::AsbMetricsCgroupV2 => {
+                    assert_eq!(definition.scope, MeasurementScope::Cgroup);
+                    assert_eq!(sample.descriptor.scope, "cgroup");
+                }
+                source => panic!("unexpected baseline source {source:?}"),
+            }
+        }
     }
 
     #[test]

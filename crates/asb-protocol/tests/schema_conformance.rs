@@ -3,9 +3,10 @@
 //! Generated-schema and fixture conformance checks.
 
 use asb_protocol::{
-    ExperimentManifestV1, ExtensionManifest, ExtensionResult, ProviderProfileCapabilities,
-    ProviderProfileError, ProviderProfileV1, ProviderSettingField, RpcNotification, RpcRequest,
-    TraceSpan, WorkloadManifest,
+    ExperimentManifestV1, ExtensionManifest, ExtensionResult, MeasurementCatalogError,
+    MeasurementCatalogV1, ProviderProfileCapabilities, ProviderProfileError, ProviderProfileV1,
+    ProviderSettingField, RpcNotification, RpcRequest, TraceSpan, WorkloadManifest,
+    baseline_measurement_catalog,
 };
 use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
@@ -47,6 +48,10 @@ const SCHEMAS: &[(&str, &str)] = &[
         "trace-span.schema.json",
         include_str!("../schema/v1/trace-span.schema.json"),
     ),
+    (
+        "measurement-catalog.schema.json",
+        include_str!("../schema/v1/measurement-catalog.schema.json"),
+    ),
 ];
 
 #[test]
@@ -60,6 +65,7 @@ fn checked_in_schemas_equal_rust_types() {
     assert_schema::<RpcNotification>(SCHEMAS[6].1);
     assert_schema::<ExtensionResult>(SCHEMAS[7].1);
     assert_schema::<TraceSpan>(SCHEMAS[8].1);
+    assert_schema::<MeasurementCatalogV1>(SCHEMAS[9].1);
 }
 
 #[test]
@@ -98,6 +104,19 @@ fn positive_fixtures_validate() {
     );
     validate_fixture(SCHEMAS[7].1, include_str!("../fixtures/v1/result.json"));
     validate_fixture(SCHEMAS[8].1, include_str!("../fixtures/v1/trace-span.json"));
+    for fixture in [
+        include_str!("../fixtures/v1/measurement-catalog.json"),
+        include_str!("../fixtures/v1/measurement-catalog-empty.json"),
+        include_str!("../fixtures/v1/measurement-catalog-maximal.json"),
+    ] {
+        validate_fixture(SCHEMAS[9].1, fixture);
+        MeasurementCatalogV1::from_slice_bounded(fixture.as_bytes()).unwrap();
+    }
+    let baseline = MeasurementCatalogV1::from_slice_bounded(include_bytes!(
+        "../fixtures/v1/measurement-catalog.json"
+    ))
+    .unwrap();
+    assert_eq!(baseline, baseline_measurement_catalog());
 
     let manifest: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();
@@ -107,6 +126,93 @@ fn positive_fixtures_validate() {
     ))
     .unwrap();
     confounded.validate().unwrap();
+}
+
+#[test]
+fn measurement_catalog_negative_fixtures_fail_closed() {
+    let schema: Value = serde_json::from_str(SCHEMAS[9].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+
+    for malformed in [
+        include_str!("../fixtures/v1/measurement-catalog-unknown-field.json"),
+        include_str!("../fixtures/v1/measurement-catalog-wrong-version.json"),
+    ] {
+        let value: Value = serde_json::from_str(malformed).unwrap();
+        assert!(!validator.is_valid(&value));
+    }
+
+    for (fixture, expected) in [
+        (
+            include_str!("../fixtures/v1/measurement-catalog-duplicate.json"),
+            MeasurementCatalogError::DuplicateMeasurement,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-unit-mismatch.json"),
+            MeasurementCatalogError::IncompatibleUnit,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-privacy.json"),
+            MeasurementCatalogError::UnsafePublicText,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-unsupported-csb.json"),
+            MeasurementCatalogError::UnqualifiedExternalSupported,
+        ),
+        (
+            include_str!("../fixtures/v1/measurement-catalog-digest-mismatch.json"),
+            MeasurementCatalogError::DigestMismatch,
+        ),
+    ] {
+        let value: Value = serde_json::from_str(fixture).unwrap();
+        assert!(validator.is_valid(&value));
+        assert_eq!(
+            MeasurementCatalogV1::from_slice_bounded(fixture.as_bytes()),
+            Err(expected)
+        );
+    }
+
+    let unknown = include_str!("../fixtures/v1/measurement-catalog-unknown-field.json");
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(unknown.as_bytes()),
+        Err(MeasurementCatalogError::InvalidWire)
+    );
+}
+
+#[test]
+fn measurement_catalog_schema_and_bounded_wire_reject_size_adversaries() {
+    let schema: Value = serde_json::from_str(SCHEMAS[9].1).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let baseline: Value =
+        serde_json::from_str(include_str!("../fixtures/v1/measurement-catalog.json")).unwrap();
+
+    let mut too_many = baseline.clone();
+    let representative = too_many["measurements"][0].clone();
+    *too_many["measurements"].as_array_mut().unwrap() =
+        vec![representative; asb_protocol::MAX_MEASUREMENTS + 1];
+    assert!(!validator.is_valid(&too_many));
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(&serde_json::to_vec(&too_many).unwrap()),
+        Err(MeasurementCatalogError::TooManyMeasurements)
+    );
+
+    let mut nested = baseline.clone();
+    let platform = nested["measurements"][0]["platforms"][0].clone();
+    *nested["measurements"][0]["platforms"]
+        .as_array_mut()
+        .unwrap() = vec![platform; 9];
+    assert!(!validator.is_valid(&nested));
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(&serde_json::to_vec(&nested).unwrap()),
+        Err(MeasurementCatalogError::InvalidPlatform)
+    );
+
+    let mut long_text = baseline;
+    long_text["measurements"][0]["name"] = Value::String("x".repeat(257));
+    assert!(!validator.is_valid(&long_text));
+    assert_eq!(
+        MeasurementCatalogV1::from_slice_bounded(&serde_json::to_vec(&long_text).unwrap()),
+        Err(MeasurementCatalogError::UnsafePublicText)
+    );
 }
 
 #[test]
