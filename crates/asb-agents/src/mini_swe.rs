@@ -1463,20 +1463,18 @@ mod tests {
     }
 
     fn open_bound_directory(path: &Path, expected: &Path) -> io::Result<fs::File> {
-        let descriptor = rustix::fs::open(
-            path,
-            rustix::fs::OFlags::RDONLY
-                | rustix::fs::OFlags::DIRECTORY
-                | rustix::fs::OFlags::NOFOLLOW
-                | rustix::fs::OFlags::CLOEXEC,
-            rustix::fs::Mode::empty(),
-        )?;
-        let directory = fs::File::from(descriptor);
-        let fd_target = fs::canonicalize(format!("/proc/self/fd/{}", directory.as_raw_fd()))?;
-        if fd_target != expected {
+        let flags = rustix::fs::OFlags::RDONLY
+            | rustix::fs::OFlags::DIRECTORY
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::CLOEXEC;
+        let descriptor = rustix::fs::open(path, flags, rustix::fs::Mode::empty())?;
+        let expected_descriptor = rustix::fs::open(expected, flags, rustix::fs::Mode::empty())?;
+        let opened = rustix::fs::fstat(&descriptor)?;
+        let expected_opened = rustix::fs::fstat(&expected_descriptor)?;
+        if opened.st_dev != expected_opened.st_dev || opened.st_ino != expected_opened.st_ino {
             return Err(io::Error::other("test-root directory binding changed"));
         }
-        Ok(directory)
+        Ok(fs::File::from(descriptor))
     }
 
     fn open_bound_entry(base: &fs::File, name: &str) -> io::Result<fs::File> {
