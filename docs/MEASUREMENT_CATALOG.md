@@ -47,3 +47,8 @@ nested count bounds and public text byte bounds before sorting, canonical serial
 
 The checked baseline and empty fixtures live in `crates/asb-protocol/fixtures/v1`; the generated
 schema lives in `crates/asb-protocol/schema/v1/measurement-catalog.schema.json`.
+
+The immutable publication boundary for the baseline catalog is recorded in the
+[PR #131 merge attestation](attestations/measurement-catalog-pr131-merge.json).
+That attestation accurately preserves the original merge commit's missing-DCO
+classification; it does not rewrite history or claim that commit was compliant.

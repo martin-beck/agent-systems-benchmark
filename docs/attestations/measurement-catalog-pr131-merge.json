@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "pull_request": 131,
+  "reviewed_base_commit": "58d0da27736d6c22ca7c43f76ade497165b29919",
+  "reviewed_head_commit": "78c63febc0ce6c4724bf4d14121e9ae178e2a020",
+  "reviewed_head_tree": "9303272ac7070a742249722c0f9e13568c3ed660",
+  "reviewed_head_signature": "valid_allowed_ssh",
+  "reviewed_head_dco": true,
+  "exact_head_checks": {
+    "expected": 12,
+    "successful": 12,
+    "checks": [
+      {"name": "AWQ v0.1.0 shadow evidence", "workflow": "Agent Workflow Quality shadow", "conclusion": "success"},
+      {"name": "Bounded fuzz regressions", "workflow": "Fault assurance", "conclusion": "success"},
+      {"name": "Emulated aarch64 (x86_64 host)", "workflow": "Emulated aarch64 portability", "conclusion": "success"},
+      {"name": "Exact Huawei 2026 and SPDX MIT headers", "workflow": "Huawei MIT source headers", "conclusion": "success"},
+      {"name": "Kani bounded proofs", "workflow": "Formal assurance", "conclusion": "success"},
+      {"name": "Loom and state models (ubuntu-24.04)", "workflow": "Formal assurance", "conclusion": "success"},
+      {"name": "Matcher and SLO mutation sentinels", "workflow": "Fault assurance", "conclusion": "success"},
+      {"name": "Platform evidence (ubuntu-24.04)", "workflow": "Hosted portability and native qualification", "conclusion": "success"},
+      {"name": "Policy, coverage, and supply chain", "workflow": "Repository quality", "conclusion": "success"},
+      {"name": "Retained faults (ubuntu-24.04)", "workflow": "Fault assurance", "conclusion": "success"},
+      {"name": "Rust checks (ubuntu-24.04)", "workflow": "Rust verification", "conclusion": "success"},
+      {"name": "TLC and Alloy recovery models", "workflow": "Formal assurance", "conclusion": "success"}
+    ]
+  },
+  "merge_commit": "0c65159d70ee728e21c7936663a90bea49ab0366",
+  "merge_parents": [
+    "58d0da27736d6c22ca7c43f76ade497165b29919",
+    "78c63febc0ce6c4724bf4d14121e9ae178e2a020"
+  ],
+  "merge_tree": "9303272ac7070a742249722c0f9e13568c3ed660",
+  "merge_signature": {
+    "verified": true,
+    "reason": "valid",
+    "signer": "github_web_flow",
+    "verified_at": "2026-09-10T23:05:45Z"
+  },
+  "merge_commit_dco": false,
+  "publication_method": "merge",
+  "classification": "github_verified_tree_equivalent_merge_missing_matching_dco_trailer",
+  "catalog_fixture": {
+    "path": "crates/asb-protocol/fixtures/v1/measurement-catalog.json",
+    "file_sha256": "772c1543d72c1bf951c3bcd137f9d4b215de0968c03f05edb42a71bfff770d2b",
+    "catalog_sha256": "0ffbbae180ef178fdc905acd0c4307b5df661d6823a9ed34303cc6010216785f"
+  },
+  "remediation": "preserve protected history and publish this bounded attestation through a separately reviewed GitHub merge commit whose actual multiline message ends with the matching Signed-off-by trailer"
+}
