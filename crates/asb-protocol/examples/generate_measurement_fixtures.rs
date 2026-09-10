@@ -32,7 +32,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &MeasurementCatalogV1::new(vec![baseline.groups[0].clone()], definitions)?,
     )?;
 
-    let baseline_json = serde_json::to_value(&baseline)?;
+    let representative = baseline.measurements[0].clone();
+    let representative_group = baseline
+        .groups
+        .iter()
+        .find(|group| group.id == representative.group)
+        .cloned()
+        .ok_or("baseline measurement group missing")?;
+    let minimal = MeasurementCatalogV1::new(vec![representative_group], vec![representative])?;
+    let baseline_json = serde_json::to_value(&minimal)?;
     let mut negatives = Vec::new();
     let mut value = baseline_json.clone();
     value["unexpected"] = Value::Bool(true);
