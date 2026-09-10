@@ -2104,13 +2104,14 @@ EOF
         let root = scratch.path().to_path_buf();
         let fifo_path = root.join("block");
         rustix::fs::mkfifoat(
-            rustix::fs::CWD,
-            &fifo_path,
+            &scratch.root,
+            "block",
             rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
         )
         .unwrap();
-        let fifo_guard = rustix::fs::open(
-            &fifo_path,
+        let fifo_guard = rustix::fs::openat(
+            &scratch.root,
+            "block",
             rustix::fs::OFlags::RDWR | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC,
             rustix::fs::Mode::empty(),
         )
