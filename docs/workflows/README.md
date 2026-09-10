@@ -29,6 +29,16 @@ The test creates a disposable, digest-pinned agent and proves `plan`, `run`,
 `sweep`, `report`, and `compare` without credentials or provider traffic. For
 a real plan, start with `asb plan`; it has no launch effect.
 
+The checked [CLI workflow transcript](../examples/asb-cli-workflow-v1.json) is
+generated from the public `asb` executable. It records the linear
+doctor/configuration check, plan validation, run, report/status history,
+comparison, recording export, and strict replay journey. Its
+[provenance](../examples/asb-cli-workflow-v1.provenance.json) pins the ASB
+revision and synthetic source fixtures. The transcript normalizes volatile
+paths, platform probes, timings, metric counts, and content digests; CI reruns
+every command and fails on a nonzero exit, drift, skipped step, private path,
+secret marker, captured prompt/response, or terminal escape byte.
+
 ## Important boundaries
 
 - `asb-tui` is a negotiated frontend library plus a startup shell. The current

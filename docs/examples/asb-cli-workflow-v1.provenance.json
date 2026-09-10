@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "asb_revision": "32df706413a6f165f086941426a5c793bd5e01e8",
+  "cli_source_sha256": "53df5564f7eb8b6e2fdc3564540972a6cfbb4761acf0d36531823ec0c1b4f5d9",
+  "replay_fixture_sha256": "529d11312261c2daef88c9c4a25ae4d14cf520f6931b2a09fff2466ffaa37167",
+  "guide_contract_sha256": "f2ede43a89d84ae46b16e28c8d4d01b4a7fbfae6feef695e3849ddd9152ae937",
+  "transcript_sha256": "e8a7ac4628ecabac537bc6d2378db2ab62be5ef112373cc6ff489a745fc0876c",
+  "generator": "cargo test --locked -p asb-cli --test workflow_transcript",
+  "scope": "normalized text emitted by the public asb executable; no screenshots or TUI rendering"
+}
