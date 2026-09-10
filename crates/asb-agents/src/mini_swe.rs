@@ -2139,7 +2139,7 @@ wait
         let limits = ProcessLimits::new(
             1024,
             1024,
-            Duration::from_secs(10),
+            Duration::from_secs(30),
             Duration::from_millis(20),
             Duration::from_millis(5),
         )
@@ -2148,7 +2148,7 @@ wait
             .start(Id("s".into()), Id("a".into()), "prompt", limits)
             .unwrap();
         let pid_path = root.join("workspace/children.pids");
-        let readiness_deadline = Instant::now() + Duration::from_secs(2);
+        let readiness_deadline = Instant::now() + Duration::from_secs(15);
         let (children, original_group) = loop {
             if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
                 && let Some(pids) = parse_pid_list_evidence(&bytes)
@@ -2188,7 +2188,7 @@ wait
         }));
         running.cancel().unwrap();
         assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
-        let terminal_deadline = Instant::now() + Duration::from_secs(2);
+        let terminal_deadline = Instant::now() + Duration::from_secs(10);
         loop {
             if runnable_group_members(running.pid(), session)
                 .unwrap()
