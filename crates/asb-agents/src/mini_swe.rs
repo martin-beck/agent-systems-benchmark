@@ -1448,7 +1448,6 @@ mod tests {
     const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;
     const MAX_PROC_ENTRIES: usize = 65_536;
     const MAX_PROCESS_GROUP_MEMBERS: usize = 1_024;
-    const TEST_DIRECTORY_FLAGS: i32 = 0x000b_0000;
 
     fn canonical_repository_root() -> io::Result<PathBuf> {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1464,10 +1463,15 @@ mod tests {
     }
 
     fn open_bound_directory(path: &Path, expected: &Path) -> io::Result<fs::File> {
-        let directory = OpenOptions::new()
-            .read(true)
-            .custom_flags(TEST_DIRECTORY_FLAGS)
-            .open(path)?;
+        let descriptor = rustix::fs::open(
+            path,
+            rustix::fs::OFlags::RDONLY
+                | rustix::fs::OFlags::DIRECTORY
+                | rustix::fs::OFlags::NOFOLLOW
+                | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )?;
+        let directory = fs::File::from(descriptor);
         let fd_target = fs::canonicalize(format!("/proc/self/fd/{}", directory.as_raw_fd()))?;
         if fd_target != expected {
             return Err(io::Error::other("test-root directory binding changed"));
