@@ -2100,6 +2100,31 @@ EOF
 
     #[test]
     fn cancellation_leaves_no_runnable_owned_descendant() {
+        const ISOLATED_HELPER: &str = "ASB_MINI_SWE_CANCELLATION_HELPER";
+        if cfg!(target_arch = "aarch64") && std::env::var_os(ISOLATED_HELPER).is_none() {
+            let mut helper = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "mini_swe::tests::cancellation_leaves_no_runnable_owned_descendant",
+                    "--nocapture",
+                ])
+                .env(ISOLATED_HELPER, "1")
+                .spawn()
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(60);
+            loop {
+                if let Some(status) = helper.try_wait().unwrap() {
+                    assert!(status.success(), "isolated cancellation helper failed");
+                    return;
+                }
+                if Instant::now() >= deadline {
+                    let _ = helper.kill();
+                    let _ = helper.wait();
+                    panic!("isolated cancellation helper timed out");
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
         let mut scratch = PrivateTestRoot::new("descendant").unwrap();
         let root = scratch.path().to_path_buf();
         fs::create_dir_all(root.join("workspace")).unwrap();
