@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "pull_request": 129,
+  "reviewed_commit": "3db6e6be7f0fe457ee0cb8d44d7434868e157a1a",
+  "reviewed_commit_signature": "valid_allowed_ssh",
+  "reviewed_commit_dco": true,
+  "reviewed_tree": "d90537bb476d45a15c95f04d86a9728eb3bb23e5",
+  "exact_head_checks": {
+    "expected": 12,
+    "successful": 12
+  },
+  "published_commit": "b2763fb548e1057e4ea36912515706406098eb63",
+  "published_tree": "d90537bb476d45a15c95f04d86a9728eb3bb23e5",
+  "published_commit_dco": true,
+  "published_commit_signature": "unsigned",
+  "publication_method": "rebase",
+  "classification": "GitHub recreated the reviewed commit without its SSH signature",
+  "remediation": "retain history, publish this signed attestation through a GitHub merge commit, and prohibit rebase or squash publication"
+}
