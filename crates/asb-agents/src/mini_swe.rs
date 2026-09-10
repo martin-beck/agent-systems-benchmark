@@ -2102,52 +2102,7 @@ EOF
     fn cancellation_leaves_no_runnable_owned_descendant() {
         let mut scratch = PrivateTestRoot::new("descendant").unwrap();
         let root = scratch.path().to_path_buf();
-        fs::create_dir_all(root.join("workspace")).unwrap();
-        fs::create_dir_all(root.join("state")).unwrap();
-        let python = root.join("venv/bin/python");
-        let wheel = root.join("package.whl");
-        fs::create_dir_all(python.parent().unwrap()).unwrap();
-        fs::write(&wheel, b"fixture").unwrap();
-        fs::write(
-            &python,
-            r#"#!/bin/sh
-(while [ ! -p "$5/block" ]; do :; done; read ignored < "$5/block") &
-first=$!
-(while [ ! -p "$5/block" ]; do :; done; read ignored < "$5/block") &
-second=$!
-printf '%s\n%s\n' "$first" "$second" > "$5/children.pids"
-wait
-"#,
-        )
-        .unwrap();
-        let mut mode = fs::metadata(&python).unwrap().permissions();
-        mode.set_mode(0o700);
-        fs::set_permissions(&python, mode).unwrap();
-        let mut config = MiniSweConfig::new(
-            &python,
-            &wheel,
-            root.join("workspace"),
-            root.join("state"),
-            Url::parse("http://127.0.0.1:1/v1/").unwrap(),
-            "fixture",
-            MiniSweArtifact::LinuxX86_64V2_4_6,
-        )
-        .unwrap();
-        config.wheel_digest_override = Some(digest_file(&wheel).unwrap());
-        config.python_digest_override = Some(digest_file(&python).unwrap());
-        boundary_tests::install_test_environment(&mut config);
-        let limits = ProcessLimits::new(
-            1024,
-            1024,
-            Duration::from_secs(30),
-            Duration::from_millis(20),
-            Duration::from_millis(5),
-        )
-        .unwrap();
-        let mut running = config
-            .start(Id("s".into()), Id("a".into()), "prompt", limits)
-            .unwrap();
-        let fifo_path = root.join("workspace/block");
+        let fifo_path = root.join("block");
         rustix::fs::mkfifoat(
             rustix::fs::CWD,
             &fifo_path,
@@ -2160,7 +2115,35 @@ wait
             rustix::fs::Mode::empty(),
         )
         .unwrap();
-        let pid_path = root.join("workspace/children.pids");
+        let pid_path = root.join("children.pids");
+        let mut command = Command::new("/bin/sh");
+        command.args([
+            "-c",
+            r#"(read ignored < "$1") &
+first=$!
+(read ignored < "$1") &
+second=$!
+printf "%s\n%s\n" "$first" "$second" > "$2"
+wait
+"#,
+            "asb-cancellation-helper",
+        ]);
+        command.arg(&fifo_path).arg(&pid_path);
+        let limits = ProcessLimits::new(
+            1024,
+            1024,
+            Duration::from_secs(30),
+            Duration::from_millis(20),
+            Duration::from_millis(5),
+        )
+        .unwrap();
+        let mut running = RunningMiniSwe {
+            process: RunningProcess::spawn(command, limits).unwrap(),
+            session_id: Id("s".into()),
+            attempt_id: Id("a".into()),
+            trajectory_path: root.join("unused-trajectory"),
+            run_root: None,
+        };
         let readiness_deadline = Instant::now() + Duration::from_secs(15);
         let (children, original_group) = loop {
             if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
