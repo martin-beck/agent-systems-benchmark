@@ -6,10 +6,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 if __package__:
@@ -53,6 +56,31 @@ PRIVATE_OUTPUT_PATTERNS = (
     re.compile(r"(?:RUNNER_NAME|HOSTNAME|runner\.name|runner\.temp|/etc/hostname)"),
     re.compile(r"^\s*set\s+-(?:[^\n]*x|[^\n]*o\s+xtrace)\s*$", re.MULTILINE),
 )
+GITHUB_WEB_FLOW_KEY = ROOT / "config/github_web_flow.gpg"
+GITHUB_WEB_FLOW_KEY_SHA256 = (
+    "6e8af687f60cf3f403151c8fb1b26e95e6f9e424ca60cc8f3787bd4466a3ef84"
+)
+GITHUB_WEB_FLOW_FINGERPRINT = "968479A1AFF927E37D1A566BB5690EEEBB952194"
+GITHUB_COMMITTER = "GitHub <noreply@github.com>"
+PROTECTED_EVENT = "push"
+PROTECTED_REF = "refs/heads/main"
+QUALITY_SIGNATURE_STEP = """      - name: Enforce repository and commit policy
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          RANGE_BASE: ${{ steps.range.outputs.base }}
+          RANGE_HEAD: ${{ steps.range.outputs.head }}
+        run: |
+          mode=ssh-only
+          if [[ "$EVENT_NAME" == push && "$EVENT_REF" == refs/heads/main ]]; then
+            mode=protected-main
+          fi
+          args=(--head "$RANGE_HEAD" --mode "$mode" --event "$EVENT_NAME" --ref "$EVENT_REF")
+          if [[ -n "$RANGE_BASE" ]]; then
+            args+=(--base "$RANGE_BASE")
+          fi
+          python3 tools/quality/repository_policy.py "${args[@]}"
+"""
 
 
 def fail(message: str) -> None:
@@ -165,6 +193,21 @@ def validate_workflows(manifest: dict[str, object]) -> None:
         ):
             fail(f"{relative} weakens a required check")
         if is_quality:
+            signature_step = text.split(
+                "      - name: Enforce repository and commit policy\n", 1
+            )
+            if len(signature_step) != 2:
+                fail(
+                    f"{relative} lacks the exact protected-main signature-policy binding"
+                )
+            actual_signature_step = (
+                "      - name: Enforce repository and commit policy\n"
+                + signature_step[1].split("      - name:", 1)[0]
+            )
+            if actual_signature_step != QUALITY_SIGNATURE_STEP:
+                fail(
+                    f"{relative} lacks the exact protected-main signature-policy binding"
+                )
             required_optional = (
                 "      - name: Publish optional quality evidence\n"
                 "        id: optional_evidence_upload\n"
@@ -280,37 +323,171 @@ def validate_markdown(files: list[Path]) -> None:
                 fail(f"{path.relative_to(ROOT)} has missing local link {target}")
 
 
-def validate_commits(base: str | None, head: str) -> None:
-    allowed = ROOT / "config/allowed_signers"
-    revisions = commit_range(ROOT, base, head)
-    if not revisions:
-        fail("commit policy received an empty revision range")
-    validate_dco(ROOT, revisions)
-    for revision in revisions:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(ROOT),
-                "-c",
-                "gpg.format=ssh",
-                "-c",
-                f"gpg.ssh.allowedSignersFile={allowed}",
-                "verify-commit",
-                revision,
-            ],
+def commit_parents(root: Path, revision: str) -> list[str]:
+    output = subprocess.check_output(
+        ["git", "-C", str(root), "show", "-s", "--format=%P", revision],
+        text=True,
+    )
+    return output.split()
+
+
+def verify_ssh(root: Path, allowed: Path, revision: str) -> None:
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "-c",
+            "gpg.format=ssh",
+            "-c",
+            f"gpg.ssh.allowedSignersFile={allowed}",
+            "verify-commit",
+            revision,
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        fail(f"{revision} lacks an allowed SSH signature: {result.stderr.strip()}")
+
+
+def verify_github_web_flow(
+    root: Path,
+    key: Path,
+    expected_key_sha256: str,
+    expected_fingerprint: str,
+    revision: str,
+) -> None:
+    key_bytes = key.read_bytes()
+    if hashlib.sha256(key_bytes).hexdigest() != expected_key_sha256:
+        fail("pinned GitHub Web Flow key digest differs")
+    with tempfile.TemporaryDirectory(prefix="asb-web-flow-gpg-") as raw_home:
+        home = Path(raw_home)
+        home.chmod(0o700)
+        environment = os.environ.copy()
+        environment["GNUPGHOME"] = str(home)
+        imported = subprocess.run(
+            ["gpg", "--batch", "--quiet", "--import", str(key)],
+            env=environment,
             text=True,
             capture_output=True,
             check=False,
         )
-        if result.returncode:
-            fail(f"{revision} lacks an allowed SSH signature: {result.stderr.strip()}")
+        if imported.returncode:
+            fail("pinned GitHub Web Flow key cannot be imported")
+        verified = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "-c",
+                "gpg.format=openpgp",
+                "-c",
+                "gpg.program=gpg",
+                "-c",
+                "gpg.openpgp.program=gpg",
+                "verify-commit",
+                "--raw",
+                revision,
+            ],
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    status = verified.stdout + verified.stderr
+    fingerprints = {
+        fields[2]
+        for line in status.splitlines()
+        if line.startswith("[GNUPG:] VALIDSIG ") and len(fields := line.split()) >= 3
+    }
+    if verified.returncode or fingerprints != {expected_fingerprint}:
+        fail(f"{revision} lacks the pinned GitHub Web Flow signature")
+
+
+def exact_commit(root: Path, revision: str) -> str:
+    if not FULL_SHA.fullmatch(revision):
+        fail("protected-main commit identities must be full lowercase SHA-1 values")
+    resolved = subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", "--verify", f"{revision}^{{commit}}"],
+        text=True,
+    ).strip()
+    if resolved != revision:
+        fail("protected-main commit identity did not resolve exactly")
+    return resolved
+
+
+def validate_commits(
+    base: str | None,
+    head: str,
+    *,
+    mode: str = "ssh-only",
+    event: str | None = None,
+    ref: str | None = None,
+    root: Path = ROOT,
+    allowed: Path | None = None,
+    web_flow_key: Path | None = None,
+    web_flow_key_sha256: str = GITHUB_WEB_FLOW_KEY_SHA256,
+    web_flow_fingerprint: str = GITHUB_WEB_FLOW_FINGERPRINT,
+) -> None:
+    allowed = allowed or root / "config/allowed_signers"
+    if mode not in {"ssh-only", "protected-main"}:
+        fail("unknown commit signature policy mode")
+    if mode == "protected-main":
+        if event != PROTECTED_EVENT or ref != PROTECTED_REF:
+            fail("protected-main mode requires the canonical push event and main ref")
+        if base is None:
+            fail("protected-main mode requires an immutable range base")
+        exact_commit(root, base)
+        exact_commit(root, head)
+    revisions = commit_range(root, base, head)
+    if not revisions:
+        fail("commit policy received an empty revision range")
+    validate_dco(root, revisions)
+    if mode == "ssh-only":
+        for revision in revisions:
+            verify_ssh(root, allowed, revision)
+        return
+    if revisions[-1] != head:
+        fail("protected-main range head is not the final introduced commit")
+    merge_revisions = [
+        revision for revision in revisions if len(commit_parents(root, revision)) != 1
+    ]
+    if merge_revisions != [head]:
+        fail("protected-main range must contain one final two-parent merge")
+    parents = commit_parents(root, head)
+    if len(parents) != 2 or parents[0] != base:
+        fail("protected-main merge topology or first parent differs")
+    topic_revisions = commit_range(root, base, parents[1])
+    if revisions != topic_revisions + [head]:
+        fail("protected-main range contains commits outside the merged topic")
+    committer = subprocess.check_output(
+        ["git", "-C", str(root), "show", "-s", "--format=%cn <%ce>", head],
+        text=True,
+    ).strip()
+    if committer != GITHUB_COMMITTER:
+        fail("protected-main merge committer is not exact GitHub Web Flow")
+    for revision in topic_revisions:
+        verify_ssh(root, allowed, revision)
+    verify_github_web_flow(
+        root,
+        web_flow_key or root / GITHUB_WEB_FLOW_KEY.relative_to(ROOT),
+        web_flow_key_sha256,
+        web_flow_fingerprint,
+        head,
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base")
     parser.add_argument("--head", default="HEAD")
+    parser.add_argument(
+        "--mode", choices=("ssh-only", "protected-main"), default="ssh-only"
+    )
+    parser.add_argument("--event")
+    parser.add_argument("--ref")
     parser.add_argument("--skip-commits", action="store_true")
     parser.add_argument("--source-headers-only", action="store_true")
     args = parser.parse_args()
@@ -324,7 +501,13 @@ def main() -> int:
         validate_workflows(manifest)
         validate_markdown(files)
         if not args.skip_commits:
-            validate_commits(args.base, args.head)
+            validate_commits(
+                args.base,
+                args.head,
+                mode=args.mode,
+                event=args.event,
+                ref=args.ref,
+            )
     except (
         OSError,
         subprocess.CalledProcessError,

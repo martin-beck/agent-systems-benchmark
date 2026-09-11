@@ -564,6 +564,30 @@ def main() -> int:
             cwd=weakened_required,
         )
 
+        weakened_signature_binding = temp / "weakened-signature-policy-binding"
+        shutil.copytree(
+            ROOT, weakened_signature_binding, ignore=shutil.ignore_patterns(".git", "target")
+        )
+        workflow = weakened_signature_binding / ".github/workflows/quality.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                'if [[ "$EVENT_NAME" == push && "$EVENT_REF" == refs/heads/main ]]; then',
+                'if [[ "$EVENT_NAME" == pull_request && "$EVENT_REF" != "" ]]; then',
+            ),
+            encoding="utf-8",
+        )
+        init_git(weakened_signature_binding)
+        git(weakened_signature_binding, "add", ".")
+        must_fail(
+            "protected-main workflow event and ref binding",
+            [
+                "python3",
+                str(weakened_signature_binding / "tools/quality/repository_policy.py"),
+                "--skip-commits",
+            ],
+            cwd=weakened_signature_binding,
+        )
+
         broken_docs = temp / "broken-docs"
         shutil.copytree(ROOT, broken_docs, ignore=shutil.ignore_patterns(".git", "target"))
         (broken_docs / "BROKEN.md").write_text("[missing](does-not-exist.md)\n", encoding="utf-8")
