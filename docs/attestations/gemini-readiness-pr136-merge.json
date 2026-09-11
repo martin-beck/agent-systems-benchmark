@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "pull_request": 136,
+  "pull_request_url": "https://github.com/martin-beck/agent-systems-benchmark/pull/136",
+  "reviewed_base_commit": "44eb1b48cb79b789252eff1cc798980d868c908c",
+  "reviewed_head_commit": "55648d5a29f4c29e9525eb7f2a890ac5232d7b5a",
+  "reviewed_head_tree": "e7eb2b713de8abaf4af5d75f8882622740c7c3d8",
+  "reviewed_head_signature": "valid_allowed_ssh",
+  "reviewed_head_dco": true,
+  "reviewed_head_raw_message": "fix: publish Gemini hook readiness atomically\n\nSigned-off-by: Martin Beck <martin.beck2@gmx.de>",
+  "exact_head_checks": {
+    "expected": 12,
+    "successful": 12,
+    "checks": [
+      {"name": "AWQ v0.1.0 shadow evidence", "workflow": "Agent Workflow Quality shadow", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056870"},
+      {"name": "Bounded fuzz regressions", "workflow": "Fault assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056784"},
+      {"name": "Emulated aarch64 (x86_64 host)", "workflow": "Emulated aarch64 portability", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056779"},
+      {"name": "Exact Huawei 2026 and SPDX MIT headers", "workflow": "Huawei MIT source headers", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056810"},
+      {"name": "Kani bounded proofs", "workflow": "Formal assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056658"},
+      {"name": "Loom and state models (ubuntu-24.04)", "workflow": "Formal assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056658"},
+      {"name": "Matcher and SLO mutation sentinels", "workflow": "Fault assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056784"},
+      {"name": "Platform evidence (ubuntu-24.04)", "workflow": "Hosted portability and native qualification", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056599"},
+      {"name": "Policy, coverage, and supply chain", "workflow": "Repository quality", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056667"},
+      {"name": "Retained faults (ubuntu-24.04)", "workflow": "Fault assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056784"},
+      {"name": "Rust checks (ubuntu-24.04)", "workflow": "Rust verification", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056630"},
+      {"name": "TLC and Alloy recovery models", "workflow": "Formal assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550056658"}
+    ]
+  },
+  "merge_commit": "2ecb876b82a91a8103926b298c42ad49ce8dd143",
+  "merge_parents": ["44eb1b48cb79b789252eff1cc798980d868c908c", "55648d5a29f4c29e9525eb7f2a890ac5232d7b5a"],
+  "merge_tree": "e7eb2b713de8abaf4af5d75f8882622740c7c3d8",
+  "merge_signature": {"verified": true, "reason": "valid", "signer": "github_web_flow", "verified_at": "2026-09-11T01:23:40Z"},
+  "merge_author_name": "martin-beck",
+  "merge_author_email": "martin.beck2@gmx.de",
+  "merge_raw_message": "Merge pull request #136 from martin-beck/fix/gemini-hook-readiness-race\n\nfix: publish Gemini hook readiness atomically",
+  "raw_signed_off_by": null,
+  "merge_commit_dco": false,
+  "publication_method": "merge",
+  "classification": "github_verified_tree_equivalent_merge_missing_matching_dco_trailer",
+  "gemini_source": {"path": "crates/asb-agents/src/gemini.rs", "file_sha256": "fdffabc78b6b76da0dd3e22729cab756925bc7c0edb68178845b11df04e03b17"},
+  "post_merge_repository_quality": {
+    "run": 34550483000,
+    "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34550483000",
+    "conclusion": "failure",
+    "error": "2ecb876b82a91a8103926b298c42ad49ce8dd143 lacks a matching Signed-off-by trailer"
+  },
+  "remediation": "preserve protected history and publish this bounded attestation through a separately reviewed GitHub merge commit with exact reviewed-tree equality and a matching lowercase GitHub-author trailer",
+  "corrective_merge_recipe": {
+    "command": "gh pr merge <pr> --merge --subject <subject> --body \"$merge_body\"",
+    "body_encoding": "actual_multiline_text",
+    "required_final_trailer": "Signed-off-by: martin-beck <martin.beck2@gmx.de>",
+    "forbidden_publication": ["default_merge_message", "rebase", "squash", "escaped_literal_newlines", "title_cased_trailer"]
+  }
+}

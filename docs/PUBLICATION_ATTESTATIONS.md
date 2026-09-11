@@ -21,6 +21,14 @@ rejected the topic's synchronization topology. AR-1043 preserves that immutable
 failure while adding only the bounded first-parent-spine form documented in the
 quality gates.
 
+The [PR #136 Gemini readiness attestation](attestations/gemini-readiness-pr136-merge.json)
+records a validly signed, tree-equivalent merge whose GitHub author was
+`martin-beck <martin.beck2@gmx.de>` but whose raw message contained no
+`Signed-off-by` trailer. It binds the reviewed Gemini source bytes, all twelve
+successful exact-head checks, and the precise protected-main policy failure.
+The historical merge remains non-DCO and visible; the attestation supplies no
+retroactive compliance claim.
+
 For a GitHub-created merge with that author identity, the real multiline merge
 message must end with the exact, case-sensitive trailer:
 
@@ -31,6 +39,12 @@ Signed-off-by: martin-beck <martin.beck2@gmx.de>
 This merge recipe does not change local implementation identity: locally
 authored implementation commits remain signed by and carry the matching trailer
 for `Martin Beck <martin.beck2@gmx.de>`.
+
+Publication uses `gh pr merge <pr> --merge --subject <subject> --body
+"$merge_body"`, where `merge_body` contains actual newline bytes and ends with
+the exact lowercase trailer above. Default merge messages, rebase, squash,
+escaped-literal newlines, and a title-cased `Martin Beck` trailer do not satisfy
+the protected publication boundary.
 
 The attestation is bounded and validated by the `asb-protocol` integration
 suite. Validation binds it to the checked-in catalog fixture and rejects
