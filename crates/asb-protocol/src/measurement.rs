@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-use crate::Aggregation;
+use crate::{Aggregation, ReplayMode};
 
 /// Current measurement catalog schema generation.
 pub const MEASUREMENT_CATALOG_SCHEMA_V1: u16 = 1;
@@ -22,8 +22,16 @@ pub const MAX_MEASUREMENTS: usize = 128;
 pub const MAX_MEASUREMENT_TEXT_BYTES: usize = 256;
 /// Maximum encoded bytes accepted from an untrusted catalog transport.
 pub const MAX_MEASUREMENT_CATALOG_WIRE_BYTES: usize = 256 * 1024;
+/// Maximum encoded bytes accepted from an untrusted measurement selection.
+pub const MAX_MEASUREMENT_SELECTION_WIRE_BYTES: usize = 64 * 1024;
+/// Largest supported optional-measurement sampling interval.
+pub const MAX_MEASUREMENT_INTERVAL_NS: u64 = 60 * 60 * 1_000_000_000;
 
 const CATALOG_DIGEST_DOMAIN: &[u8] = b"asb-measurement-catalog-v1\0";
+const SELECTION_DIGEST_DOMAIN: &[u8] = b"asb-measurement-selection-v1\0";
+
+/// Current measurement-selection schema generation.
+pub const MEASUREMENT_SELECTION_SCHEMA_V1: u16 = 1;
 
 /// Stable semantic group identifiers. Their serialized names are public API.
 #[derive(
@@ -530,6 +538,381 @@ impl MeasurementCatalogV1 {
         .map_err(|_| MeasurementCatalogError::Serialization)?;
         let mut digest = Sha256::new();
         digest.update(CATALOG_DIGEST_DOMAIN);
+        digest.update(encoded);
+        Ok(format!("{:x}", digest.finalize()))
+    }
+}
+
+/// Read-only execution capabilities used to validate a selection without ambient inference.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MeasurementExecutionCapabilities {
+    /// Operating system of the execution target.
+    pub operating_system: MeasurementOperatingSystem,
+    /// Architecture of the execution target.
+    pub architecture: MeasurementArchitecture,
+    /// Qualified platform facilities available to the collector.
+    pub features: BTreeSet<MeasurementPlatformFeature>,
+    /// Whether the collector has elevated privilege.
+    pub privileged: bool,
+    /// Whether a verified process target will be available.
+    pub process_target: bool,
+    /// Whether a verified delegated per-attempt cgroup target will be available.
+    pub cgroup_target: bool,
+}
+
+/// Stable machine-readable reason that a measurement selection is invalid.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasurementSelectionReason {
+    /// Selection schema generation is unknown.
+    UnsupportedSchemaVersion,
+    /// Catalog schema generation does not match the exact catalog.
+    CatalogGenerationMismatch,
+    /// Catalog content address is malformed or stale.
+    CatalogDigestMismatch,
+    /// Selection content address is malformed or stale.
+    SelectionDigestMismatch,
+    /// Too many identities were supplied.
+    TooManyMeasurements,
+    /// Stable identities are not in strictly ascending canonical order.
+    NonCanonicalOrder,
+    /// A stable identity occurs more than once.
+    DuplicateId,
+    /// A stable identity does not exist in the bound catalog.
+    UnknownId,
+    /// A definition has not been qualified by an authoritative collector.
+    SourceUnqualified,
+    /// The selected execution mode is unsupported.
+    ModeUnsupported,
+    /// The target platform cannot provide the definition.
+    PlatformUnsupported,
+    /// Required privilege is absent.
+    PermissionRequired,
+    /// The runner has no authoritative target for this scope.
+    TargetScopeUnavailable,
+    /// Empty and non-empty selections disagree with cadence presence.
+    InvalidCadence,
+    /// Sampling cadence is faster than a selected definition permits.
+    CadenceTooFast,
+    /// Sampling cadence exceeds the fixed public bound.
+    CadenceCapacityExceeded,
+    /// Untrusted encoded input exceeded the fixed transport ceiling.
+    WireTooLarge,
+    /// Untrusted encoded input is not a valid closed selection shape.
+    InvalidWire,
+    /// Canonical serialization unexpectedly failed.
+    Serialization,
+}
+
+/// One privacy-safe selection validation issue.
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[error("measurement selection is invalid: {reason:?}")]
+pub struct MeasurementSelectionError {
+    /// Catalog identity involved in the failure, when applicable.
+    pub id: Option<String>,
+    /// Stable failure classification.
+    pub reason: MeasurementSelectionReason,
+}
+
+impl MeasurementSelectionError {
+    fn global(reason: MeasurementSelectionReason) -> Self {
+        Self { id: None, reason }
+    }
+
+    fn for_id(id: &str, reason: MeasurementSelectionReason) -> Self {
+        Self {
+            id: Some(id.to_owned()),
+            reason,
+        }
+    }
+}
+
+/// Closed, content-addressed optional-measurement choice carried by an immutable run plan.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MeasurementSelectionV1 {
+    /// Closed selection generation; exactly 1.
+    pub schema_version: u16,
+    /// Exact catalog generation used to make the choice.
+    pub catalog_schema_version: u16,
+    /// Exact catalog content address used to make the choice.
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
+    pub catalog_sha256: String,
+    /// Content address of all other fields in this object.
+    #[schemars(regex(pattern = r"^[0-9a-f]{64}$"), length(equal = 64))]
+    pub selection_sha256: String,
+    /// Stable measurement IDs in strictly ascending order.
+    #[schemars(length(max = 128))]
+    pub selected_ids: Vec<String>,
+    /// Execution mode against which support was validated.
+    pub mode: ReplayMode,
+    /// Optional-measurement sampling interval; absent exactly when the selection is empty.
+    pub sample_interval_ns: Option<u64>,
+}
+
+#[derive(Serialize)]
+struct SelectionAddress<'a> {
+    schema_version: u16,
+    catalog_schema_version: u16,
+    catalog_sha256: &'a str,
+    selected_ids: &'a [String],
+    mode: ReplayMode,
+    sample_interval_ns: Option<u64>,
+}
+
+impl MeasurementSelectionV1 {
+    /// Canonicalize and content-address a new selection.
+    pub fn new(
+        catalog: &MeasurementCatalogV1,
+        mut selected_ids: Vec<String>,
+        mode: ReplayMode,
+        sample_interval_ns: Option<u64>,
+    ) -> Result<Self, MeasurementSelectionError> {
+        catalog.validate().map_err(|_| {
+            MeasurementSelectionError::global(MeasurementSelectionReason::CatalogDigestMismatch)
+        })?;
+        if selected_ids.len() > MAX_MEASUREMENTS {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::TooManyMeasurements,
+            ));
+        }
+        if selected_ids.iter().any(|id| {
+            validate_identifier(id).is_err()
+                || catalog
+                    .measurements
+                    .binary_search_by(|candidate| candidate.id.cmp(id))
+                    .is_err()
+        }) {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::UnknownId,
+            ));
+        }
+        let unique = selected_ids.iter().collect::<BTreeSet<_>>();
+        if unique.len() != selected_ids.len() {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::DuplicateId,
+            ));
+        }
+        if !matches!(
+            (selected_ids.is_empty(), sample_interval_ns),
+            (true, None) | (false, Some(1..=MAX_MEASUREMENT_INTERVAL_NS))
+        ) {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::InvalidCadence,
+            ));
+        }
+        if let Some(id) = sample_interval_ns.and_then(|interval| {
+            selected_ids.iter().find(|id| {
+                let index = catalog
+                    .measurements
+                    .binary_search_by(|candidate| candidate.id.cmp(id))
+                    .expect("selection identities were checked against this catalog");
+                interval < catalog.measurements[index].overhead.minimum_interval_ns
+            })
+        }) {
+            return Err(MeasurementSelectionError::for_id(
+                id,
+                MeasurementSelectionReason::CadenceTooFast,
+            ));
+        }
+        selected_ids.sort();
+        let mut selection = Self {
+            schema_version: MEASUREMENT_SELECTION_SCHEMA_V1,
+            catalog_schema_version: catalog.schema_version,
+            catalog_sha256: catalog.catalog_sha256.clone(),
+            selection_sha256: String::new(),
+            selected_ids,
+            mode,
+            sample_interval_ns,
+        };
+        selection.selection_sha256 = selection.computed_digest()?;
+        Ok(selection)
+    }
+
+    /// Decode an untrusted selection under a hard wire-size ceiling.
+    pub fn from_slice_bounded(bytes: &[u8]) -> Result<Self, MeasurementSelectionError> {
+        if bytes.len() > MAX_MEASUREMENT_SELECTION_WIRE_BYTES {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::WireTooLarge,
+            ));
+        }
+        serde_json::from_slice(bytes)
+            .map_err(|_| MeasurementSelectionError::global(MeasurementSelectionReason::InvalidWire))
+    }
+
+    /// Read and decode an untrusted selection without an unbounded read or allocation.
+    pub fn from_reader_bounded(reader: impl Read) -> Result<Self, MeasurementSelectionError> {
+        let limit = u64::try_from(MAX_MEASUREMENT_SELECTION_WIRE_BYTES).map_err(|_| {
+            MeasurementSelectionError::global(MeasurementSelectionReason::WireTooLarge)
+        })?;
+        let mut bytes = Vec::with_capacity(MAX_MEASUREMENT_SELECTION_WIRE_BYTES.min(8192));
+        reader
+            .take(limit.saturating_add(1))
+            .read_to_end(&mut bytes)
+            .map_err(|_| {
+                MeasurementSelectionError::global(MeasurementSelectionReason::InvalidWire)
+            })?;
+        Self::from_slice_bounded(&bytes)
+    }
+
+    /// Validate identity, support, platform, privilege, scope, and cadence before execution.
+    pub fn validate(
+        &self,
+        catalog: &MeasurementCatalogV1,
+        capabilities: &MeasurementExecutionCapabilities,
+    ) -> Result<(), MeasurementSelectionError> {
+        if serde_json::to_vec(self)
+            .map_err(|_| {
+                MeasurementSelectionError::global(MeasurementSelectionReason::Serialization)
+            })?
+            .len()
+            > MAX_MEASUREMENT_SELECTION_WIRE_BYTES
+        {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::WireTooLarge,
+            ));
+        }
+        catalog.validate().map_err(|_| {
+            MeasurementSelectionError::global(MeasurementSelectionReason::CatalogDigestMismatch)
+        })?;
+        if self.schema_version != MEASUREMENT_SELECTION_SCHEMA_V1 {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::UnsupportedSchemaVersion,
+            ));
+        }
+        if self.catalog_schema_version != catalog.schema_version {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::CatalogGenerationMismatch,
+            ));
+        }
+        if self.catalog_sha256 != catalog.catalog_sha256 {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::CatalogDigestMismatch,
+            ));
+        }
+        if self.selected_ids.len() > MAX_MEASUREMENTS {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::TooManyMeasurements,
+            ));
+        }
+        for pair in self.selected_ids.windows(2) {
+            if pair[0] == pair[1] {
+                return Err(MeasurementSelectionError::global(
+                    MeasurementSelectionReason::DuplicateId,
+                ));
+            }
+            if pair[0] > pair[1] {
+                return Err(MeasurementSelectionError::global(
+                    MeasurementSelectionReason::NonCanonicalOrder,
+                ));
+            }
+        }
+        if self.selection_sha256 != self.computed_digest()? {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::SelectionDigestMismatch,
+            ));
+        }
+        match (self.selected_ids.is_empty(), self.sample_interval_ns) {
+            (true, None) | (false, Some(_)) => {}
+            _ => {
+                return Err(MeasurementSelectionError::global(
+                    MeasurementSelectionReason::InvalidCadence,
+                ));
+            }
+        }
+        if self
+            .sample_interval_ns
+            .is_some_and(|interval| interval > MAX_MEASUREMENT_INTERVAL_NS)
+        {
+            return Err(MeasurementSelectionError::global(
+                MeasurementSelectionReason::CadenceCapacityExceeded,
+            ));
+        }
+
+        for id in &self.selected_ids {
+            let definition = catalog
+                .measurements
+                .binary_search_by(|candidate| candidate.id.cmp(id))
+                .ok()
+                .map(|index| &catalog.measurements[index])
+                .ok_or_else(|| {
+                    MeasurementSelectionError::global(MeasurementSelectionReason::UnknownId)
+                })?;
+            if definition.provenance.qualification != MeasurementQualification::Implemented {
+                return Err(MeasurementSelectionError::for_id(
+                    id,
+                    MeasurementSelectionReason::SourceUnqualified,
+                ));
+            }
+            let support = match self.mode {
+                ReplayMode::Live => definition.live,
+                ReplayMode::Replay => definition.replay,
+            };
+            if !matches!(support, MeasurementModeSupport::Supported) {
+                return Err(MeasurementSelectionError::for_id(
+                    id,
+                    MeasurementSelectionReason::ModeUnsupported,
+                ));
+            }
+            let platform_supported = definition.platforms.iter().any(|platform| {
+                platform.operating_system == capabilities.operating_system
+                    && platform.architectures.contains(&capabilities.architecture)
+                    && platform
+                        .required_features
+                        .iter()
+                        .all(|feature| capabilities.features.contains(feature))
+            });
+            if !platform_supported {
+                return Err(MeasurementSelectionError::for_id(
+                    id,
+                    MeasurementSelectionReason::PlatformUnsupported,
+                ));
+            }
+            if definition.overhead.requires_privilege && !capabilities.privileged {
+                return Err(MeasurementSelectionError::for_id(
+                    id,
+                    MeasurementSelectionReason::PermissionRequired,
+                ));
+            }
+            let target_available = match definition.scope {
+                MeasurementScope::Process => capabilities.process_target,
+                MeasurementScope::Cgroup => capabilities.cgroup_target,
+                MeasurementScope::Attempt | MeasurementScope::Run => true,
+            };
+            if !target_available {
+                return Err(MeasurementSelectionError::for_id(
+                    id,
+                    MeasurementSelectionReason::TargetScopeUnavailable,
+                ));
+            }
+            if self
+                .sample_interval_ns
+                .is_some_and(|interval| interval < definition.overhead.minimum_interval_ns)
+            {
+                return Err(MeasurementSelectionError::for_id(
+                    id,
+                    MeasurementSelectionReason::CadenceTooFast,
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Return the canonical content address of the selection fields.
+    pub fn computed_digest(&self) -> Result<String, MeasurementSelectionError> {
+        let encoded = serde_json::to_vec(&SelectionAddress {
+            schema_version: self.schema_version,
+            catalog_schema_version: self.catalog_schema_version,
+            catalog_sha256: &self.catalog_sha256,
+            selected_ids: &self.selected_ids,
+            mode: self.mode,
+            sample_interval_ns: self.sample_interval_ns,
+        })
+        .map_err(|_| {
+            MeasurementSelectionError::global(MeasurementSelectionReason::Serialization)
+        })?;
+        let mut digest = Sha256::new();
+        digest.update(SELECTION_DIGEST_DOMAIN);
         digest.update(encoded);
         Ok(format!("{:x}", digest.finalize()))
     }
@@ -1172,6 +1555,296 @@ fn runtime_descriptor_semantics(id: &str) -> (MeasurementSourceIdentity, u64) {
 mod tests {
     use super::*;
     use std::io;
+
+    fn process_capabilities() -> MeasurementExecutionCapabilities {
+        MeasurementExecutionCapabilities {
+            operating_system: MeasurementOperatingSystem::Linux,
+            architecture: MeasurementArchitecture::X86_64,
+            features: BTreeSet::from([MeasurementPlatformFeature::Procfs]),
+            privileged: false,
+            process_target: true,
+            cgroup_target: false,
+        }
+    }
+
+    #[test]
+    fn measurement_selection_is_canonical_content_addressed_and_closed() {
+        let catalog = baseline_measurement_catalog();
+        let selection = MeasurementSelectionV1::new(
+            &catalog,
+            vec!["process.io.write".into(), "process.cpu.user_time".into()],
+            ReplayMode::Live,
+            Some(1_000_000),
+        )
+        .unwrap();
+        assert_eq!(
+            selection.selected_ids,
+            ["process.cpu.user_time", "process.io.write"]
+        );
+        assert_eq!(
+            selection.selection_sha256,
+            selection.computed_digest().unwrap()
+        );
+        selection
+            .validate(&catalog, &process_capabilities())
+            .unwrap();
+        assert_eq!(
+            MeasurementSelectionV1::from_slice_bounded(&vec![
+                b' ';
+                MAX_MEASUREMENT_SELECTION_WIRE_BYTES
+                    + 1
+            ])
+            .unwrap_err()
+            .reason,
+            MeasurementSelectionReason::WireTooLarge
+        );
+
+        let mut stale = selection.clone();
+        stale.catalog_sha256 = "0".repeat(64);
+        assert_eq!(
+            stale
+                .validate(&catalog, &process_capabilities())
+                .unwrap_err()
+                .reason,
+            MeasurementSelectionReason::CatalogDigestMismatch
+        );
+        let mut unknown = selection;
+        unknown.selected_ids[1] = "process.zzz.metric".into();
+        unknown.selection_sha256 = unknown.computed_digest().unwrap();
+        let error = unknown
+            .validate(&catalog, &process_capabilities())
+            .unwrap_err();
+        assert_eq!(error.reason, MeasurementSelectionReason::UnknownId);
+        assert_eq!(error.id, None);
+    }
+
+    #[test]
+    fn measurement_selection_cadence_and_target_scope_fail_closed() {
+        let catalog = baseline_measurement_catalog();
+        let empty =
+            MeasurementSelectionV1::new(&catalog, Vec::new(), ReplayMode::Live, None).unwrap();
+        empty.validate(&catalog, &process_capabilities()).unwrap();
+
+        let mut too_fast = MeasurementSelectionV1::new(
+            &catalog,
+            vec!["process.io.read".into()],
+            ReplayMode::Live,
+            Some(1_000_000),
+        )
+        .unwrap();
+        too_fast.sample_interval_ns = Some(999_999);
+        too_fast.selection_sha256 = too_fast.computed_digest().unwrap();
+        assert_eq!(
+            too_fast
+                .validate(&catalog, &process_capabilities())
+                .unwrap_err()
+                .reason,
+            MeasurementSelectionReason::CadenceTooFast
+        );
+
+        let cgroup = MeasurementSelectionV1::new(
+            &catalog,
+            vec!["cgroup.cpu.usage".into()],
+            ReplayMode::Live,
+            Some(1_000_000),
+        )
+        .unwrap();
+        let mut capabilities = process_capabilities();
+        capabilities
+            .features
+            .insert(MeasurementPlatformFeature::CgroupV2);
+        let error = cgroup.validate(&catalog, &capabilities).unwrap_err();
+        assert_eq!(
+            error.reason,
+            MeasurementSelectionReason::TargetScopeUnavailable
+        );
+        assert_eq!(error.id.as_deref(), Some("cgroup.cpu.usage"));
+    }
+
+    #[test]
+    fn measurement_selection_exercises_every_reachable_validation_boundary() {
+        let catalog = baseline_measurement_catalog();
+        let id = "process.cpu.user_time";
+        let valid = MeasurementSelectionV1::new(
+            &catalog,
+            vec![id.into()],
+            ReplayMode::Live,
+            Some(1_000_000),
+        )
+        .unwrap();
+        let reason = |selection: &MeasurementSelectionV1,
+                      checked_catalog: &MeasurementCatalogV1,
+                      capabilities: &MeasurementExecutionCapabilities| {
+            selection
+                .validate(checked_catalog, capabilities)
+                .unwrap_err()
+                .reason
+        };
+        let capabilities = process_capabilities();
+
+        let mut invalid_catalog = catalog.clone();
+        invalid_catalog.catalog_sha256 = "0".repeat(64);
+        assert_eq!(
+            MeasurementSelectionV1::new(&invalid_catalog, Vec::new(), ReplayMode::Live, None)
+                .unwrap_err()
+                .reason,
+            MeasurementSelectionReason::CatalogDigestMismatch
+        );
+        assert_eq!(
+            MeasurementSelectionV1::new(
+                &catalog,
+                vec![id.into(); MAX_MEASUREMENTS + 1],
+                ReplayMode::Live,
+                Some(1_000_000)
+            )
+            .unwrap_err()
+            .reason,
+            MeasurementSelectionReason::TooManyMeasurements
+        );
+        for (ids, interval, expected) in [
+            (
+                vec!["not.in.catalog".into()],
+                Some(1_000_000),
+                MeasurementSelectionReason::UnknownId,
+            ),
+            (
+                vec![id.into(), id.into()],
+                Some(1_000_000),
+                MeasurementSelectionReason::DuplicateId,
+            ),
+            (
+                Vec::new(),
+                Some(1),
+                MeasurementSelectionReason::InvalidCadence,
+            ),
+            (
+                vec![id.into()],
+                None,
+                MeasurementSelectionReason::InvalidCadence,
+            ),
+            (
+                vec![id.into()],
+                Some(1),
+                MeasurementSelectionReason::CadenceTooFast,
+            ),
+        ] {
+            assert_eq!(
+                MeasurementSelectionV1::new(&catalog, ids, ReplayMode::Live, interval)
+                    .unwrap_err()
+                    .reason,
+                expected
+            );
+        }
+
+        assert_eq!(
+            reason(&valid, &invalid_catalog, &capabilities),
+            MeasurementSelectionReason::CatalogDigestMismatch
+        );
+        let mut cases = Vec::new();
+        let mut changed = valid.clone();
+        changed.schema_version += 1;
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((
+            changed,
+            MeasurementSelectionReason::UnsupportedSchemaVersion,
+        ));
+        let mut changed = valid.clone();
+        changed.catalog_schema_version += 1;
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((
+            changed,
+            MeasurementSelectionReason::CatalogGenerationMismatch,
+        ));
+        let mut changed = valid.clone();
+        changed.selected_ids = vec![id.into(); MAX_MEASUREMENTS + 1];
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((changed, MeasurementSelectionReason::TooManyMeasurements));
+        let mut changed = valid.clone();
+        changed.selected_ids.push(id.into());
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((changed, MeasurementSelectionReason::DuplicateId));
+        let mut changed = valid.clone();
+        changed.selected_ids = vec!["process.io.read".into(), id.into()];
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((changed, MeasurementSelectionReason::NonCanonicalOrder));
+        let mut changed = valid.clone();
+        changed.selection_sha256 = "0".repeat(64);
+        cases.push((changed, MeasurementSelectionReason::SelectionDigestMismatch));
+        let mut changed = valid.clone();
+        changed.sample_interval_ns = None;
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((changed, MeasurementSelectionReason::InvalidCadence));
+        let mut changed = valid.clone();
+        changed.sample_interval_ns = Some(MAX_MEASUREMENT_INTERVAL_NS + 1);
+        changed.selection_sha256 = changed.computed_digest().unwrap();
+        cases.push((changed, MeasurementSelectionReason::CadenceCapacityExceeded));
+        for (selection, expected) in cases {
+            assert_eq!(reason(&selection, &catalog, &capabilities), expected);
+        }
+
+        let mut definitions = catalog.measurements.clone();
+        let selected_index = definitions
+            .binary_search_by(|candidate| candidate.id.as_str().cmp(id))
+            .unwrap();
+        definitions[selected_index].replay = MeasurementModeSupport::Unsupported {
+            reason: MeasurementUnavailableReason::NotApplicable,
+        };
+        let replay_catalog =
+            MeasurementCatalogV1::new(catalog.groups.clone(), definitions).unwrap();
+        let replay = MeasurementSelectionV1::new(
+            &replay_catalog,
+            vec![id.into()],
+            ReplayMode::Replay,
+            Some(1_000_000),
+        )
+        .unwrap();
+        assert_eq!(
+            reason(&replay, &replay_catalog, &capabilities),
+            MeasurementSelectionReason::ModeUnsupported
+        );
+
+        let mut missing_platform = capabilities.clone();
+        missing_platform.features.clear();
+        assert_eq!(
+            reason(&valid, &catalog, &missing_platform),
+            MeasurementSelectionReason::PlatformUnsupported
+        );
+        let mut definitions = catalog.measurements.clone();
+        definitions[selected_index].overhead.requires_privilege = true;
+        let privileged_catalog =
+            MeasurementCatalogV1::new(catalog.groups.clone(), definitions).unwrap();
+        let privileged = MeasurementSelectionV1::new(
+            &privileged_catalog,
+            vec![id.into()],
+            ReplayMode::Live,
+            Some(1_000_000),
+        )
+        .unwrap();
+        assert_eq!(
+            reason(&privileged, &privileged_catalog, &capabilities),
+            MeasurementSelectionReason::PermissionRequired
+        );
+
+        let descriptors = [
+            MeasurementSourceIdentity::ProcfsProcessStat,
+            MeasurementSourceIdentity::ProcfsProcessIo,
+            MeasurementSourceIdentity::CgroupV2CpuStat,
+            MeasurementSourceIdentity::CgroupV2MemoryCurrent,
+            MeasurementSourceIdentity::CgroupV2MemoryPeak,
+            MeasurementSourceIdentity::CgroupV2MemoryStat,
+            MeasurementSourceIdentity::CgroupV2IoStat,
+            MeasurementSourceIdentity::CgroupV2CpuPressure,
+            MeasurementSourceIdentity::CgroupV2MemoryPressure,
+            MeasurementSourceIdentity::CgroupV2IoPressure,
+        ]
+        .map(MeasurementSourceIdentity::runtime_descriptor);
+        assert_eq!(descriptors.into_iter().collect::<BTreeSet<_>>().len(), 10);
+        assert_eq!(validate_unit(MeasurementQuantity::Ratio, "%"), Ok(()));
+        assert_eq!(
+            validate_unit(MeasurementQuantity::Currency, "{currency}"),
+            Ok(())
+        );
+    }
 
     #[test]
     fn baseline_is_complete_stable_and_excludes_optional_csb() {

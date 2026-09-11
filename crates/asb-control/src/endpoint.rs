@@ -79,6 +79,15 @@ pub trait ControlBackend {
         call: &ControlCall,
         deadline: RequestDeadline,
     ) -> Result<BoundControlResult, BackendFailure>;
+    /// Execute with the negotiated wire version available for additive result projection.
+    fn execute_versioned(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+        _version: ControlVersion,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        self.execute(call, deadline)
+    }
 }
 
 /// One local endpoint. It owns no run lifetime and may be recreated safely.
@@ -217,7 +226,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
             };
             let id = admission.id;
             let deadline = admission.deadline();
-            let outcome = backend.execute(&request.call, deadline);
+            let outcome = backend.execute_versioned(&request.call, deadline, version);
             let response = match outcome {
                 Ok(result) => {
                     deadline.check()?;
@@ -548,7 +557,7 @@ mod tests {
                 client,
                 ControlLimits::default(),
                 rustix::process::geteuid().as_raw(),
-                [crate::ControlVersion { major: 1, minor: 3 }]
+                [crate::ControlVersion { major: 1, minor: 4 }]
                     .into_iter()
                     .collect(),
             ),
@@ -575,7 +584,7 @@ mod tests {
 
         for versions in [
             Vec::new(),
-            vec![crate::ControlVersion { major: 1, minor: 3 }],
+            vec![crate::ControlVersion { major: 1, minor: 4 }],
         ] {
             assert!(matches!(
                 ControlClient::connect_with_versions(&path, ControlLimits::default(), versions,),

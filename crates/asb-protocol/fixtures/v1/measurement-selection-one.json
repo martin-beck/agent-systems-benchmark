@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "catalog_schema_version": 1,
+  "catalog_sha256": "0ffbbae180ef178fdc905acd0c4307b5df661d6823a9ed34303cc6010216785f",
+  "selection_sha256": "487cdeac40b8c2415cf0a9b738e406323fe46071dec7b53f307f20b79a624d83",
+  "selected_ids": [
+    "process.cpu.user_time"
+  ],
+  "mode": "live",
+  "sample_interval_ns": 1000000
+}

@@ -5,8 +5,9 @@
 use super::*;
 use asb_control::{
     AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, BackendFailure, BoundControlResult,
-    Capabilities, ControlBackend, ControlCall, ControlEvent, ControlEventKind, ControlLimits,
-    ControlResult, ControlServer, MeasurementCatalogPublication, MutationAcknowledgement, Page,
+    CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend, ControlCall, ControlEvent,
+    ControlEventKind, ControlLimits, ControlResult, ControlServer, ControlVersion,
+    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
     PlanReference, PublicRunState, RequestDeadline, Revision, RunId, RunSummary, SettingsIssue,
     SettingsValidation,
 };
@@ -1198,18 +1199,43 @@ impl ControlBackend for RunnerBackend {
                 )),
             ),
             ControlCall::ValidateSettings { settings } => {
-                let valid = serde_json::from_value::<PlanFile>(settings.clone())
-                    .ok()
-                    .is_some_and(|plan| validate_plan(&plan).is_ok());
+                let (issue, measurement_issue) =
+                    match serde_json::from_value::<PlanFile>(settings.clone()) {
+                        Ok(plan) => {
+                            let issue =
+                                validate_plan(&plan).err().map(|error| error.settings_issue);
+                            let detail = effective_measurement_selection(&plan)
+                                .ok()
+                                .and_then(|selection| {
+                                    measurement_capabilities().ok().and_then(|capabilities| {
+                                        selection
+                                            .validate(
+                                                &baseline_measurement_catalog(),
+                                                &capabilities,
+                                            )
+                                            .err()
+                                    })
+                                })
+                                .map(|error| MeasurementSettingsIssue {
+                                    reason: error.reason,
+                                    id: error.id,
+                                })
+                                .filter(|detail| {
+                                    issue
+                                        == Some(SettingsIssue::from_measurement_reason(
+                                            detail.reason,
+                                        ))
+                                });
+                            (issue, detail)
+                        }
+                        Err(_) => (Some(SettingsIssue::InvalidFormat), None),
+                    };
                 self.bind(
                     call,
                     ControlResult::SettingsValidation(SettingsValidation {
-                        valid,
-                        issues: if valid {
-                            Vec::new()
-                        } else {
-                            vec![SettingsIssue::InvalidFormat]
-                        },
+                        valid: issue.is_none(),
+                        issues: issue.into_iter().collect(),
+                        measurement_issue,
                     }),
                 )
             }
@@ -1568,6 +1594,26 @@ impl ControlBackend for RunnerBackend {
             ControlCall::Negotiate(_) => Err(BackendFailure::Rejected),
         }
     }
+
+    fn execute_versioned(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+        version: ControlVersion,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let mut result = self.execute(call, deadline)?;
+        if version < CONTROL_MEASUREMENT_SELECTION_V1
+            && let ControlResult::SettingsValidation(validation) = &mut result.result
+        {
+            validation.issues = validation
+                .issues
+                .iter()
+                .map(|issue| issue.legacy_projection())
+                .collect();
+            validation.measurement_issue = None;
+        }
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
@@ -1631,6 +1677,9 @@ mod tests {
         experiment.workload.scorer_revision = workload.scoring_version;
         experiment.platform.architecture = std::env::consts::ARCH.to_owned();
         experiment.refresh_content_address().unwrap();
+        let measurement_selection =
+            super::process_measurement_selection(experiment.controls.replay.mode, 5_000_000)
+                .unwrap();
         PlanFile {
             schema_version: PLAN_SCHEMA_VERSION,
             run_id: "control-real-run".into(),
@@ -1655,6 +1704,7 @@ mod tests {
                 sweep_max_concurrency: None,
             },
             experiment,
+            measurement_selection: Some(measurement_selection),
         }
     }
 
@@ -1703,6 +1753,105 @@ mod tests {
         assert_eq!(publication.catalog.0, baseline_measurement_catalog());
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn control_plan_identity_binds_the_exact_measurement_selection() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let selected = fixture_plan(&scratch.0);
+        let mut empty = selected.clone();
+        empty.measurement_selection = Some(
+            asb_protocol::MeasurementSelectionV1::new(
+                &baseline_measurement_catalog(),
+                Vec::new(),
+                empty.experiment.controls.replay.mode,
+                None,
+            )
+            .unwrap(),
+        );
+
+        for plan in [&selected, &empty] {
+            let validation = backend
+                .execute(
+                    &ControlCall::ValidateSettings {
+                        settings: serde_json::to_value(plan).unwrap(),
+                    },
+                    deadline(),
+                )
+                .unwrap();
+            let ControlResult::SettingsValidation(validation) = validation.result else {
+                panic!("settings validation result");
+            };
+            assert!(validation.valid);
+            assert!(validation.issues.is_empty());
+        }
+
+        let mut stale_catalog = selected.clone();
+        stale_catalog
+            .measurement_selection
+            .as_mut()
+            .unwrap()
+            .catalog_sha256 = "0".repeat(64);
+        let validation = backend
+            .execute(
+                &ControlCall::ValidateSettings {
+                    settings: serde_json::to_value(&stale_catalog).unwrap(),
+                },
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::SettingsValidation(validation) = validation.result else {
+            panic!("settings validation result");
+        };
+        assert!(!validation.valid);
+        assert_eq!(
+            validation.issues,
+            vec![SettingsIssue::MeasurementCatalogDigestMismatch]
+        );
+        assert_eq!(
+            validation.measurement_issue,
+            Some(MeasurementSettingsIssue {
+                reason: asb_protocol::MeasurementSelectionReason::CatalogDigestMismatch,
+                id: None,
+            })
+        );
+        let legacy_validation = backend
+            .execute_versioned(
+                &ControlCall::ValidateSettings {
+                    settings: serde_json::to_value(&stale_catalog).unwrap(),
+                },
+                deadline(),
+                asb_control::CONTROL_MEASUREMENT_CATALOG_V1,
+            )
+            .unwrap();
+        let ControlResult::SettingsValidation(legacy_validation) = legacy_validation.result else {
+            panic!("settings validation result");
+        };
+        assert_eq!(legacy_validation.issues, vec![SettingsIssue::InvalidFormat]);
+        assert_eq!(legacy_validation.measurement_issue, None);
+
+        let create = |key: &str, plan: &PlanFile| {
+            let result = backend
+                .execute(
+                    &ControlCall::CreatePlan(asb_control::MutationParams {
+                        idempotency_key: key.into(),
+                        definition: serde_json::to_value(plan).unwrap(),
+                    }),
+                    deadline(),
+                )
+                .unwrap();
+            let ControlResult::Plan(reference) = result.result else {
+                panic!("plan result");
+            };
+            reference
+        };
+        let selected_reference = create("measurement-selected", &selected);
+        let empty_reference = create("measurement-empty", &empty);
+        assert_ne!(selected_reference.plan_id, empty_reference.plan_id);
+        assert_ne!(selected_reference.plan_sha256, empty_reference.plan_sha256);
     }
 
     #[test]

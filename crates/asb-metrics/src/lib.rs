@@ -30,6 +30,45 @@ pub enum TargetError {
     UnifiedCgroupUnavailable,
 }
 
+/// Why a selected collector request was rejected before any source read.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SelectionError {
+    /// An identity is not implemented by the requested collector scope.
+    UnknownOrWrongScope,
+    /// Identities are duplicated or not in strictly ascending order.
+    NonCanonicalIds,
+    /// The cgroup target was absolute rather than relative to the configured mount.
+    AbsoluteCgroupPath,
+    /// The cgroup target contained an unsafe component.
+    UnsafeCgroupPath,
+    /// No unambiguous unified cgroup-v2 membership was exposed.
+    UnifiedCgroupUnavailable,
+}
+
+impl fmt::Display for SelectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::UnknownOrWrongScope => "measurement is unknown or belongs to another scope",
+            Self::NonCanonicalIds => "measurement identities are not canonical",
+            Self::AbsoluteCgroupPath => "cgroup path must be relative",
+            Self::UnsafeCgroupPath => "cgroup path has an unsafe component",
+            Self::UnifiedCgroupUnavailable => "unified cgroup v2 path is unavailable",
+        })
+    }
+}
+
+impl std::error::Error for SelectionError {}
+
+impl From<TargetError> for SelectionError {
+    fn from(error: TargetError) -> Self {
+        match error {
+            TargetError::AbsoluteCgroupPath => Self::AbsoluteCgroupPath,
+            TargetError::UnsafeCgroupPath => Self::UnsafeCgroupPath,
+            TargetError::UnifiedCgroupUnavailable => Self::UnifiedCgroupUnavailable,
+        }
+    }
+}
+
 impl fmt::Display for TargetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
@@ -307,12 +346,77 @@ impl LinuxCollector {
     /// Collect CPU, resident memory, faults, and physical I/O for one process.
     #[must_use]
     pub fn collect_process(&self, pid: u32, offset_ns: u64) -> Collection {
+        self.collect_process_inner(pid, offset_ns, None)
+    }
+
+    /// Collect exactly the canonical selected process measurements.
+    ///
+    /// The request is validated before any procfs source is opened. An empty selection performs
+    /// no source reads, and selecting only one source family does not read the other family.
+    pub fn collect_process_selected(
+        &self,
+        pid: u32,
+        offset_ns: u64,
+        selected: &[Id],
+    ) -> Result<Collection, SelectionError> {
+        const PROCESS_IDS: &[&str] = &[
+            "process.cpu.system_time",
+            "process.cpu.user_time",
+            "process.faults.major",
+            "process.faults.minor",
+            "process.io.read",
+            "process.io.write",
+            "process.memory.resident",
+        ];
+        if selected.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+            return Err(SelectionError::NonCanonicalIds);
+        }
+        if selected
+            .iter()
+            .any(|id| PROCESS_IDS.binary_search(&id.0.as_str()).is_err())
+        {
+            return Err(SelectionError::UnknownOrWrongScope);
+        }
+        let selected = selected
+            .iter()
+            .map(|id| id.0.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        Ok(self.collect_process_inner(pid, offset_ns, Some(&selected)))
+    }
+
+    fn collect_process_inner(
+        &self,
+        pid: u32,
+        offset_ns: u64,
+        selected: Option<&std::collections::BTreeSet<&str>>,
+    ) -> Collection {
         let started = Instant::now();
-        let stat = read_text(self.proc_root.join(pid.to_string()).join("stat")).and_then(|text| {
-            parse_process_stat(&text, self.page_size_bytes, self.clock_ticks_per_second)
-        });
-        let process_io = read_text(self.proc_root.join(pid.to_string()).join("io"))
-            .and_then(|text| parse_process_io(&text));
+        let wants = |id: &str| selected.is_none_or(|ids| ids.contains(id));
+        let wants_stat = [
+            "process.cpu.user_time",
+            "process.cpu.system_time",
+            "process.memory.resident",
+            "process.faults.minor",
+            "process.faults.major",
+        ]
+        .into_iter()
+        .any(wants);
+        let wants_io = ["process.io.read", "process.io.write"]
+            .into_iter()
+            .any(wants);
+        let stat = if wants_stat {
+            read_text(self.proc_root.join(pid.to_string()).join("stat")).and_then(|text| {
+                parse_process_stat(&text, self.page_size_bytes, self.clock_ticks_per_second)
+            })
+        } else {
+            Err("proc stat source was not selected".to_owned())
+        };
+        let process_io = if wants_io {
+            read_text(self.proc_root.join(pid.to_string()).join("io"))
+                .and_then(|text| parse_process_io(&text))
+        } else {
+            Err("proc IO source was not selected".to_owned())
+        };
         let mut samples = Vec::with_capacity(7);
         let stat_metrics = [
             (
@@ -342,6 +446,9 @@ impl LinuxCollector {
             ),
         ];
         for (id, unit, value) in stat_metrics {
+            if !wants(id) {
+                continue;
+            }
             let source = "procfs:/proc/[pid]/stat";
             let resolution = if id.starts_with("process.cpu") {
                 cpu_resolution(self.clock_ticks_per_second)
@@ -359,6 +466,9 @@ impl LinuxCollector {
             ("process.io.read", "read_bytes"),
             ("process.io.write", "write_bytes"),
         ] {
+            if !wants(id) {
+                continue;
+            }
             let value = process_io
                 .as_ref()
                 .map_err(Clone::clone)
@@ -379,20 +489,115 @@ impl LinuxCollector {
         relative_path: impl AsRef<Path>,
         offset_ns: u64,
     ) -> Result<Collection, TargetError> {
-        let path = validated_relative(relative_path.as_ref())?;
+        self.collect_cgroup_inner(relative_path.as_ref(), offset_ns, None)
+    }
+
+    /// Collect exactly the canonical selected cgroup-v2 measurements.
+    ///
+    /// Identity and scope validation precede target validation and all source reads. Each cgroup
+    /// file is opened only when at least one selected metric is sourced from that file.
+    pub fn collect_cgroup_selected(
+        &self,
+        relative_path: impl AsRef<Path>,
+        offset_ns: u64,
+        selected: &[Id],
+    ) -> Result<Collection, SelectionError> {
+        const CGROUP_IDS: &[&str] = &[
+            "cgroup.cpu.periods",
+            "cgroup.cpu.system",
+            "cgroup.cpu.throttled_periods",
+            "cgroup.cpu.throttled_time",
+            "cgroup.cpu.usage",
+            "cgroup.cpu.user",
+            "cgroup.faults.major",
+            "cgroup.faults.minor",
+            "cgroup.io.read",
+            "cgroup.io.write",
+            "cgroup.memory.current",
+            "cgroup.memory.peak",
+            "cgroup.pressure.cpu.full",
+            "cgroup.pressure.cpu.some",
+            "cgroup.pressure.io.full",
+            "cgroup.pressure.io.some",
+            "cgroup.pressure.memory.full",
+            "cgroup.pressure.memory.some",
+        ];
+        if selected.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+            return Err(SelectionError::NonCanonicalIds);
+        }
+        if selected
+            .iter()
+            .any(|id| CGROUP_IDS.binary_search(&id.0.as_str()).is_err())
+        {
+            return Err(SelectionError::UnknownOrWrongScope);
+        }
+        let selected = selected
+            .iter()
+            .map(|id| id.0.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        self.collect_cgroup_inner(relative_path.as_ref(), offset_ns, Some(&selected))
+            .map_err(SelectionError::from)
+    }
+
+    fn collect_cgroup_inner(
+        &self,
+        relative_path: &Path,
+        offset_ns: u64,
+        selected: Option<&std::collections::BTreeSet<&str>>,
+    ) -> Result<Collection, TargetError> {
+        let path = validated_relative(relative_path)?;
         let started = Instant::now();
         let root = self.cgroup_root.join(path);
-        let cpu = read_map(root.join("cpu.stat"));
-        let memory_current = read_number(root.join("memory.current"));
-        let memory_peak = read_number(root.join("memory.peak"));
-        let memory = read_map(root.join("memory.stat"));
-        let io = read_text(root.join("io.stat")).and_then(|text| parse_io_stat(&text));
-        let cpu_pressure =
-            read_text(root.join("cpu.pressure")).and_then(|text| parse_pressure(&text));
+        let wants = |id: &str| selected.is_none_or(|ids| ids.contains(id));
+        let any = |ids: &[&str]| ids.iter().copied().any(wants);
+        let cpu = if any(&[
+            "cgroup.cpu.usage",
+            "cgroup.cpu.user",
+            "cgroup.cpu.system",
+            "cgroup.cpu.throttled_time",
+            "cgroup.cpu.periods",
+            "cgroup.cpu.throttled_periods",
+        ]) {
+            read_map(root.join("cpu.stat"))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
+        let memory_current = if wants("cgroup.memory.current") {
+            read_number(root.join("memory.current"))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
+        let memory_peak = if wants("cgroup.memory.peak") {
+            read_number(root.join("memory.peak"))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
+        let memory = if any(&["cgroup.faults.minor", "cgroup.faults.major"]) {
+            read_map(root.join("memory.stat"))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
+        let io = if any(&["cgroup.io.read", "cgroup.io.write"]) {
+            read_text(root.join("io.stat")).and_then(|text| parse_io_stat(&text))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
+        let cpu_pressure = if any(&["cgroup.pressure.cpu.some", "cgroup.pressure.cpu.full"]) {
+            read_text(root.join("cpu.pressure")).and_then(|text| parse_pressure(&text))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
         let memory_pressure =
-            read_text(root.join("memory.pressure")).and_then(|text| parse_pressure(&text));
-        let io_pressure =
-            read_text(root.join("io.pressure")).and_then(|text| parse_pressure(&text));
+            if any(&["cgroup.pressure.memory.some", "cgroup.pressure.memory.full"]) {
+                read_text(root.join("memory.pressure")).and_then(|text| parse_pressure(&text))
+            } else {
+                Err("cgroup source was not selected".to_owned())
+            };
+        let io_pressure = if any(&["cgroup.pressure.io.some", "cgroup.pressure.io.full"]) {
+            read_text(root.join("io.pressure")).and_then(|text| parse_pressure(&text))
+        } else {
+            Err("cgroup source was not selected".to_owned())
+        };
         let mut samples = Vec::with_capacity(18);
         for (id, key) in [
             ("cgroup.cpu.usage", "usage_usec"),
@@ -400,6 +605,9 @@ impl LinuxCollector {
             ("cgroup.cpu.system", "system_usec"),
             ("cgroup.cpu.throttled_time", "throttled_usec"),
         ] {
+            if !wants(id) {
+                continue;
+            }
             let value = cpu
                 .as_ref()
                 .map_err(Clone::clone)
@@ -416,6 +624,9 @@ impl LinuxCollector {
             ("cgroup.cpu.periods", "nr_periods"),
             ("cgroup.cpu.throttled_periods", "nr_throttled"),
         ] {
+            if !wants(id) {
+                continue;
+            }
             let value = cpu
                 .as_ref()
                 .map_err(Clone::clone)
@@ -427,34 +638,41 @@ impl LinuxCollector {
                 value,
             );
         }
-        push(
-            &mut samples,
-            descriptor(
-                "cgroup.memory.current",
-                "By",
-                "cgroup",
-                "cgroup2:memory.current",
-                0,
-            ),
-            offset_ns,
-            memory_current,
-        );
-        push(
-            &mut samples,
-            descriptor(
-                "cgroup.memory.peak",
-                "By",
-                "cgroup",
-                "cgroup2:memory.peak",
-                0,
-            ),
-            offset_ns,
-            memory_peak,
-        );
+        if wants("cgroup.memory.current") {
+            push(
+                &mut samples,
+                descriptor(
+                    "cgroup.memory.current",
+                    "By",
+                    "cgroup",
+                    "cgroup2:memory.current",
+                    0,
+                ),
+                offset_ns,
+                memory_current,
+            );
+        }
+        if wants("cgroup.memory.peak") {
+            push(
+                &mut samples,
+                descriptor(
+                    "cgroup.memory.peak",
+                    "By",
+                    "cgroup",
+                    "cgroup2:memory.peak",
+                    0,
+                ),
+                offset_ns,
+                memory_peak,
+            );
+        }
         for (id, key) in [
             ("cgroup.faults.minor", "pgfault"),
             ("cgroup.faults.major", "pgmajfault"),
         ] {
+            if !wants(id) {
+                continue;
+            }
             let value = memory
                 .as_ref()
                 .map_err(Clone::clone)
@@ -467,6 +685,9 @@ impl LinuxCollector {
             );
         }
         for (id, key) in [("cgroup.io.read", "rbytes"), ("cgroup.io.write", "wbytes")] {
+            if !wants(id) {
+                continue;
+            }
             let value = io
                 .as_ref()
                 .map_err(Clone::clone)
@@ -484,6 +705,10 @@ impl LinuxCollector {
             ("io", &io_pressure),
         ] {
             for kind in ["some", "full"] {
+                let id = format!("cgroup.pressure.{resource}.{kind}");
+                if !wants(&id) {
+                    continue;
+                }
                 let value = pressure
                     .as_ref()
                     .map_err(Clone::clone)
@@ -492,7 +717,7 @@ impl LinuxCollector {
                 push(
                     &mut samples,
                     descriptor(
-                        &format!("cgroup.pressure.{resource}.{kind}"),
+                        &id,
                         "ns",
                         "cgroup",
                         &format!("cgroup2:{resource}.pressure"),
@@ -788,6 +1013,9 @@ mod tests {
     use super::*;
     use asb_protocol::{MeasurementScope, MeasurementSource, baseline_measurement_catalog};
     use std::collections::BTreeSet;
+    use std::fs;
+    use std::sync::mpsc;
+    use std::time::Duration;
 
     #[test]
     fn parses_proc_stat_name_and_exact_units() {
@@ -900,6 +1128,115 @@ mod tests {
                 .iter()
                 .all(|sample| sample.offset_ns == 55)
         );
+    }
+
+    #[test]
+    fn selected_process_collection_is_exact_and_rejects_before_reads() {
+        let collector = LinuxCollector::with_roots("/definitely-absent-asb-proc", "/unused");
+        let empty = collector.collect_process_selected(7, 5, &[]).unwrap();
+        assert!(empty.samples().is_empty());
+        assert_eq!(empty.evidence().attempted_values(), 0);
+
+        let selected = collector
+            .collect_process_selected(
+                7,
+                9,
+                &[Id("process.io.read".into()), Id("process.io.write".into())],
+            )
+            .unwrap();
+        assert_eq!(selected.samples().len(), 2);
+        assert!(selected.samples().iter().all(|sample| {
+            sample.descriptor.source == "procfs:/proc/[pid]/io" && sample.offset_ns == 9
+        }));
+
+        assert_eq!(
+            collector.collect_process_selected(
+                7,
+                0,
+                &[Id("process.io.write".into()), Id("process.io.read".into())]
+            ),
+            Err(SelectionError::NonCanonicalIds)
+        );
+        assert_eq!(
+            collector.collect_process_selected(7, 0, &[Id("cgroup.cpu.usage".into())]),
+            Err(SelectionError::UnknownOrWrongScope)
+        );
+
+        let cgroup_empty = collector.collect_cgroup_selected("job", 11, &[]).unwrap();
+        assert!(cgroup_empty.samples().is_empty());
+        let cgroup_io = collector
+            .collect_cgroup_selected(
+                "job",
+                13,
+                &[Id("cgroup.io.read".into()), Id("cgroup.io.write".into())],
+            )
+            .unwrap();
+        assert_eq!(cgroup_io.samples().len(), 2);
+        assert!(cgroup_io.samples().iter().all(|sample| {
+            sample.descriptor.source == "cgroup2:io.stat" && sample.offset_ns == 13
+        }));
+        assert_eq!(
+            collector.collect_cgroup_selected("../escape", 0, &[]),
+            Err(SelectionError::UnsafeCgroupPath)
+        );
+    }
+
+    #[test]
+    fn deselected_blocking_proc_source_is_never_opened() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-metrics-source-sentinel-{}",
+            std::process::id()
+        ));
+        let process_root = root.join("proc/7");
+        fs::create_dir_all(&process_root).unwrap();
+        fs::write(process_root.join("io"), "read_bytes: 3\nwrite_bytes: 5\n").unwrap();
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            process_root.join("stat"),
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        let collector = LinuxCollector::with_roots(root.join("proc"), root.join("cgroup"));
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = collector.collect_process_selected(
+                7,
+                0,
+                &[Id("process.io.read".into()), Id("process.io.write".into())],
+            );
+            let _ = sender.send(result);
+        });
+        let collection = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("IO-only selection must not block on the stat FIFO")
+            .unwrap();
+        assert_eq!(collection.evidence().available_values(), 2);
+
+        let cgroup_root = root.join("cgroup/job");
+        fs::create_dir_all(&cgroup_root).unwrap();
+        fs::write(cgroup_root.join("io.stat"), "8:0 rbytes=7 wbytes=11\n").unwrap();
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            cgroup_root.join("cpu.stat"),
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        let collector = LinuxCollector::with_roots(root.join("proc"), root.join("cgroup"));
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = collector.collect_cgroup_selected(
+                "job",
+                0,
+                &[Id("cgroup.io.read".into()), Id("cgroup.io.write".into())],
+            );
+            let _ = sender.send(result);
+        });
+        let collection = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("IO-only selection must not block on the cpu.stat FIFO")
+            .unwrap();
+        assert_eq!(collection.evidence().available_values(), 2);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

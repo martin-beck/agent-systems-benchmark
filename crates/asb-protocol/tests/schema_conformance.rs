@@ -4,9 +4,9 @@
 
 use asb_protocol::{
     ExperimentManifestV1, ExtensionManifest, ExtensionResult, MeasurementCatalogError,
-    MeasurementCatalogV1, ProviderProfileCapabilities, ProviderProfileError, ProviderProfileV1,
-    ProviderSettingField, RpcNotification, RpcRequest, TraceSpan, WorkloadManifest,
-    baseline_measurement_catalog,
+    MeasurementCatalogV1, MeasurementSelectionV1, ProviderProfileCapabilities,
+    ProviderProfileError, ProviderProfileV1, ProviderSettingField, RpcNotification, RpcRequest,
+    TraceSpan, WorkloadManifest, baseline_measurement_catalog,
 };
 use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
@@ -52,6 +52,10 @@ const SCHEMAS: &[(&str, &str)] = &[
         "measurement-catalog.schema.json",
         include_str!("../schema/v1/measurement-catalog.schema.json"),
     ),
+    (
+        "measurement-selection.schema.json",
+        include_str!("../schema/v1/measurement-selection.schema.json"),
+    ),
 ];
 
 #[test]
@@ -66,6 +70,7 @@ fn checked_in_schemas_equal_rust_types() {
     assert_schema::<ExtensionResult>(SCHEMAS[7].1);
     assert_schema::<TraceSpan>(SCHEMAS[8].1);
     assert_schema::<MeasurementCatalogV1>(SCHEMAS[9].1);
+    assert_schema::<MeasurementSelectionV1>(SCHEMAS[10].1);
 }
 
 #[test]
@@ -117,6 +122,15 @@ fn positive_fixtures_validate() {
     ))
     .unwrap();
     assert_eq!(baseline, baseline_measurement_catalog());
+
+    for fixture in [
+        include_str!("../fixtures/v1/measurement-selection-empty.json"),
+        include_str!("../fixtures/v1/measurement-selection-one.json"),
+        include_str!("../fixtures/v1/measurement-selection-maximal.json"),
+    ] {
+        validate_fixture(SCHEMAS[10].1, fixture);
+        MeasurementSelectionV1::from_slice_bounded(fixture.as_bytes()).unwrap();
+    }
 
     let manifest: ExperimentManifestV1 =
         serde_json::from_str(include_str!("../fixtures/v1/experiment-manifest.json")).unwrap();

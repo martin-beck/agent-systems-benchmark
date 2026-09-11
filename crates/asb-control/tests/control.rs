@@ -150,11 +150,98 @@ fn measurement_catalog_extension_is_versioned_bounded_and_content_addressed() {
         bound.validate_for_call_and_version(&call, ControlLimits::default(), CONTROL_V1),
         Err(ProtocolError::InvalidResponse)
     );
+    let validation_call = ControlCall::ValidateSettings {
+        settings: json!({}),
+    };
+    let measurement_issue = BoundControlResult::new(
+        &validation_call,
+        ControlResult::SettingsValidation(SettingsValidation {
+            valid: false,
+            issues: vec![SettingsIssue::MeasurementCatalogDigestMismatch],
+            measurement_issue: Some(MeasurementSettingsIssue {
+                reason: asb_protocol::MeasurementSelectionReason::CatalogDigestMismatch,
+                id: None,
+            }),
+        }),
+    )
+    .unwrap();
+    measurement_issue
+        .validate_for_call_and_version(
+            &validation_call,
+            ControlLimits::default(),
+            CONTROL_MEASUREMENT_SELECTION_V1,
+        )
+        .unwrap();
+    let invalid_measurement_issue = |reason, id: Option<&str>| {
+        BoundControlResult::new(
+            &validation_call,
+            ControlResult::SettingsValidation(SettingsValidation {
+                valid: false,
+                issues: vec![SettingsIssue::from_measurement_reason(reason)],
+                measurement_issue: Some(MeasurementSettingsIssue {
+                    reason,
+                    id: id.map(str::to_owned),
+                }),
+            }),
+        )
+        .unwrap()
+        .validate_for_call_and_version(
+            &validation_call,
+            ControlLimits::default(),
+            CONTROL_MEASUREMENT_SELECTION_V1,
+        )
+    };
+    assert_eq!(
+        invalid_measurement_issue(
+            asb_protocol::MeasurementSelectionReason::CatalogDigestMismatch,
+            Some("cycles"),
+        ),
+        Err(ProtocolError::InvalidResponse),
+        "global reasons must never carry an identity"
+    );
+    assert_eq!(
+        invalid_measurement_issue(
+            asb_protocol::MeasurementSelectionReason::UnknownId,
+            Some("requester-controlled"),
+        ),
+        Err(ProtocolError::InvalidResponse),
+        "an unknown requester value must never be reflected"
+    );
+    assert_eq!(
+        invalid_measurement_issue(
+            asb_protocol::MeasurementSelectionReason::CadenceTooFast,
+            None,
+        ),
+        Err(ProtocolError::InvalidResponse),
+        "ID-specific reasons require their catalog identity"
+    );
+    assert_eq!(
+        invalid_measurement_issue(
+            asb_protocol::MeasurementSelectionReason::CadenceTooFast,
+            Some("requester-controlled"),
+        ),
+        Err(ProtocolError::UnsafePublicValue),
+        "a syntactically valid identity must still belong to the authoritative catalog"
+    );
+    let known_id = baseline_measurement_catalog().measurements[0].id.clone();
+    invalid_measurement_issue(
+        asb_protocol::MeasurementSelectionReason::CadenceTooFast,
+        Some(&known_id),
+    )
+    .unwrap();
+    assert_eq!(
+        measurement_issue.validate_for_call_and_version(
+            &validation_call,
+            ControlLimits::default(),
+            CONTROL_MEASUREMENT_CATALOG_V1,
+        ),
+        Err(ProtocolError::InvalidResponse)
+    );
     assert_eq!(
         bound.validate_for_call_and_version(
             &call,
             ControlLimits::default(),
-            ControlVersion { major: 1, minor: 3 },
+            ControlVersion { major: 1, minor: 4 },
         ),
         Err(ProtocolError::InvalidResponse)
     );
@@ -202,6 +289,43 @@ fn measurement_catalog_extension_is_versioned_bounded_and_content_addressed() {
     MeasurementCatalogPublication::built_in(mixed_platform)
         .validate()
         .unwrap();
+}
+
+#[test]
+fn measurement_validation_diagnostics_preserve_pre_v1_3_legacy_bytes() {
+    let measurement_issues = [
+        SettingsIssue::MeasurementUnsupportedSchemaVersion,
+        SettingsIssue::MeasurementCatalogGenerationMismatch,
+        SettingsIssue::MeasurementCatalogDigestMismatch,
+        SettingsIssue::MeasurementSelectionDigestMismatch,
+        SettingsIssue::MeasurementTooMany,
+        SettingsIssue::MeasurementNonCanonicalOrder,
+        SettingsIssue::MeasurementDuplicateId,
+        SettingsIssue::MeasurementUnknownId,
+        SettingsIssue::MeasurementSourceUnqualified,
+        SettingsIssue::MeasurementModeUnsupported,
+        SettingsIssue::MeasurementPlatformUnsupported,
+        SettingsIssue::MeasurementPermissionRequired,
+        SettingsIssue::MeasurementTargetScopeUnavailable,
+        SettingsIssue::MeasurementInvalidCadence,
+        SettingsIssue::MeasurementCadenceTooFast,
+        SettingsIssue::MeasurementCadenceCapacityExceeded,
+    ];
+    for issue in measurement_issues {
+        assert_eq!(
+            serde_json::to_vec(&issue.legacy_projection()).unwrap(),
+            br#""invalid_format""#,
+            "v1.0 and v1.2 must retain the predecessor's exact diagnostic bytes"
+        );
+    }
+    for legacy in [
+        SettingsIssue::InvalidFormat,
+        SettingsIssue::UnsupportedCapability,
+        SettingsIssue::UnverifiedComponent,
+        SettingsIssue::InvalidResourceBound,
+    ] {
+        assert_eq!(legacy.legacy_projection(), legacy);
+    }
 }
 
 #[test]

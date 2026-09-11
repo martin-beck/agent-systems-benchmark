@@ -135,7 +135,8 @@ fn settings_validation_invariant(schema: &mut Schema) {
                     "properties": {
                         "valid": {"const": true},
                         "issues": {"maxItems": 0}
-                    }
+                    },
+                    "not": {"required": ["measurement_issue"]}
                 },
                 {
                     "properties": {
@@ -147,6 +148,38 @@ fn settings_validation_invariant(schema: &mut Schema) {
         }]),
     );
     *schema = serde_json::from_value(value).expect("response schema remains valid");
+}
+
+fn restrict_settings_issues_to_legacy(schema: &mut Schema) {
+    let mut value = serde_json::to_value(&*schema).expect("settings schema serializes");
+    if let Some(properties) = value
+        .pointer_mut("/$defs/SettingsValidation/properties")
+        .and_then(Value::as_object_mut)
+    {
+        properties.remove("measurement_issue");
+    }
+    if let Some(valid_branch) = value
+        .pointer_mut("/$defs/SettingsValidation/allOf/0/oneOf/0")
+        .and_then(Value::as_object_mut)
+    {
+        valid_branch.remove("not");
+    }
+    let variants = value
+        .pointer_mut("/$defs/SettingsIssue/oneOf")
+        .and_then(Value::as_array_mut)
+        .expect("settings issue variants");
+    variants.retain(|variant| {
+        matches!(
+            variant.get("const").and_then(Value::as_str),
+            Some(
+                "invalid_format"
+                    | "unsupported_capability"
+                    | "unverified_component"
+                    | "invalid_resource_bound"
+            )
+        )
+    });
+    *schema = serde_json::from_value(value).expect("legacy settings schema remains valid");
 }
 
 fn event_association(schema: &mut Schema) {
@@ -262,6 +295,7 @@ pub fn control_request_schema_v1_2() -> Schema {
 pub fn control_response_schema() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
+    restrict_settings_issues_to_legacy(&mut schema);
     let mut value = serde_json::to_value(schema).expect("schema serializes");
     remove_tagged_variant(
         &mut value,
@@ -276,6 +310,21 @@ pub fn control_response_schema() -> Schema {
 pub fn control_response_schema_v1_2() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
+    restrict_settings_issues_to_legacy(&mut schema);
+    let mut value = serde_json::to_value(schema).expect("v1.2 response schema serializes");
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.2 response schema remains valid")
+}
+
+/// Canonical request schema for control v1.3.
+pub fn control_request_schema_v1_3() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for control v1.3.
+pub fn control_response_schema_v1_3() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
     schema
 }
 
@@ -288,7 +337,9 @@ pub fn control_event_schema() -> Schema {
 
 /// Canonical schema for the additive history evidence extension.
 pub fn history_evidence_schema() -> Schema {
-    canonical::<HistoryEvidence>()
+    let mut schema = canonical::<HistoryEvidence>();
+    restrict_settings_issues_to_legacy(&mut schema);
+    schema
 }
 
 /// Canonical schema for the additive analysis evidence extension.

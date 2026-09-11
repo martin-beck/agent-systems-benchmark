@@ -1,0 +1,22 @@
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "result": {
+    "kind": "operation",
+    "value": {
+      "request_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "kind": "settings_validation",
+        "value": {
+          "valid": false,
+          "issues": [
+            "measurement_catalog_digest_mismatch"
+          ],
+          "measurement_issue": {
+            "reason": "catalog_digest_mismatch"
+          }
+        }
+      }
+    }
+  }
+}
