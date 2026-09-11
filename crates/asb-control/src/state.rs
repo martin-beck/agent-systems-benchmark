@@ -9,8 +9,8 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    CONTROL_V1, ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlVersion,
-    NegotiateParams, Page, ProtocolError, RequestId, Revision, validate_request,
+    ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlVersion, NegotiateParams,
+    Page, ProtocolError, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS, validate_request,
 };
 
 /// Per-connection protocol state. Dropping it never changes runner-owned runs.
@@ -18,6 +18,7 @@ use crate::{
 pub struct ControlSession {
     server_limits: ControlLimits,
     effective_limits: Option<ControlLimits>,
+    selected_version: Option<ControlVersion>,
     in_flight: BTreeSet<RequestId>,
 }
 
@@ -27,11 +28,12 @@ impl ControlSession {
         Ok(Self {
             server_limits: server_limits.validate()?,
             effective_limits: None,
+            selected_version: None,
             in_flight: BTreeSet::new(),
         })
     }
 
-    /// Select v1 and intersect client/server limits exactly once.
+    /// Select the highest exact mutually implemented version and intersect limits once.
     pub fn negotiate(
         &mut self,
         offer: &NegotiateParams,
@@ -39,12 +41,15 @@ impl ControlSession {
         if self.effective_limits.is_some() {
             return Err(SessionError::AlreadyNegotiated);
         }
-        if !offer.versions.contains(&CONTROL_V1) {
-            return Err(SessionError::IncompatibleVersion);
-        }
-        let selected = CONTROL_V1;
+        let selected = SUPPORTED_CONTROL_VERSIONS
+            .iter()
+            .rev()
+            .copied()
+            .find(|version| offer.versions.contains(version))
+            .ok_or(SessionError::IncompatibleVersion)?;
         let limits = self.server_limits.intersect(offer.limits)?;
         self.effective_limits = Some(limits);
+        self.selected_version = Some(selected);
         Ok((selected, limits))
     }
 
@@ -79,6 +84,13 @@ impl ControlSession {
             .effective_limits
             .ok_or(SessionError::NegotiationRequired)?;
         validate_request(request, limits)?;
+        if self
+            .selected_version
+            .ok_or(SessionError::NegotiationRequired)?
+            < request.call.minimum_version()
+        {
+            return Err(SessionError::CapabilityUnavailable);
+        }
         if self.in_flight.contains(&request.id) {
             return Err(SessionError::DuplicateRequest);
         }
@@ -106,6 +118,12 @@ impl ControlSession {
     #[must_use]
     pub fn limits(&self) -> Option<ControlLimits> {
         self.effective_limits
+    }
+
+    /// Exact wire version selected for this connection.
+    #[must_use]
+    pub fn version(&self) -> Option<ControlVersion> {
+        self.selected_version
     }
 
     /// Number of requests admitted without terminal responses.
@@ -200,6 +218,9 @@ pub enum SessionError {
     /// No offered version has a compatible major.
     #[error("no compatible control protocol version")]
     IncompatibleVersion,
+    /// The operation is not defined by the selected wire version.
+    #[error("requested capability is unavailable in the negotiated version")]
+    CapabilityUnavailable,
     /// Renegotiation on an active connection is forbidden.
     #[error("control protocol is already negotiated")]
     AlreadyNegotiated,

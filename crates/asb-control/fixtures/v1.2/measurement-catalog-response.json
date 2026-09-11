@@ -1,0 +1,1147 @@
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "kind": "operation",
+    "value": {
+      "request_sha256": "d551b072657229db7022e3aa0cc08683c640116d1aab23e6453e9dd136def58f",
+      "result": {
+        "kind": "measurement_catalog",
+        "value": {
+          "version": {
+            "major": 1,
+            "minor": 2
+          },
+          "freshness": "content_addressed",
+          "source": "built_in_collectors",
+          "catalog": {
+            "schema_version": 1,
+            "catalog_sha256": "0ffbbae180ef178fdc905acd0c4307b5df661d6823a9ed34303cc6010216785f",
+            "groups": [
+              {
+                "id": "system_resources",
+                "label": "System resources",
+                "description": "CPU, memory, faults, and physical IO attributed to a process or cgroup."
+              },
+              {
+                "id": "scheduling_contention",
+                "label": "Scheduling and contention",
+                "description": "Pressure and throttling signals that do not by themselves establish causation."
+              }
+            ],
+            "measurements": [
+              {
+                "id": "cgroup.cpu.periods",
+                "name": "Cgroup CPU periods",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "count",
+                "unit": "{event}",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.cpu.system",
+                "name": "Cgroup system CPU time",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_stat",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.cpu.throttled_periods",
+                "name": "Cgroup throttled CPU periods",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "count",
+                "unit": "{event}",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.cpu.throttled_time",
+                "name": "Cgroup throttled CPU time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_stat",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.cpu.usage",
+                "name": "Cgroup CPU time",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_stat",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.cpu.user",
+                "name": "Cgroup user CPU time",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_stat",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.faults.major",
+                "name": "Cgroup major faults",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "count",
+                "unit": "{fault}",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_memory_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.faults.minor",
+                "name": "Cgroup minor faults",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "count",
+                "unit": "{fault}",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_memory_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.io.read",
+                "name": "Cgroup physical read bytes",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_io_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.io.write",
+                "name": "Cgroup physical write bytes",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_io_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.memory.current",
+                "name": "Cgroup current memory",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "gauge",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_memory_current",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.memory.peak",
+                "name": "Cgroup peak memory",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "gauge",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_memory_peak",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.pressure.cpu.full",
+                "name": "Cgroup CPU full pressure time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_pressure",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.pressure.cpu.some",
+                "name": "Cgroup CPU some pressure time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_cpu_pressure",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.pressure.io.full",
+                "name": "Cgroup IO full pressure time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_io_pressure",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.pressure.io.some",
+                "name": "Cgroup IO some pressure time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_io_pressure",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.pressure.memory.full",
+                "name": "Cgroup memory full pressure time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_memory_pressure",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "cgroup.pressure.memory.some",
+                "name": "Cgroup memory some pressure time",
+                "description": "A cumulative kernel signal that must not be interpreted as causal contention alone.",
+                "group": "scheduling_contention",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "cgroup",
+                "provenance": {
+                  "source": "asb_metrics_cgroup_v2",
+                  "qualification": "implemented"
+                },
+                "source_identity": "cgroup_v2_memory_pressure",
+                "resolution_ns": 1000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "cgroup_v2"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "not_causal",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.cpu.system_time",
+                "name": "Process system CPU time",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_stat",
+                "resolution_ns": 10000000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.cpu.user_time",
+                "name": "Process user CPU time",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "time",
+                "unit": "ns",
+                "aggregation": "counter",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_stat",
+                "resolution_ns": 10000000,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.faults.major",
+                "name": "Process major faults",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "count",
+                "unit": "{fault}",
+                "aggregation": "counter",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.faults.minor",
+                "name": "Process minor faults",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "count",
+                "unit": "{fault}",
+                "aggregation": "counter",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.io.read",
+                "name": "Process physical read bytes",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "counter",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_io",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.io.write",
+                "name": "Process physical write bytes",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "counter",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_io",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              },
+              {
+                "id": "process.memory.resident",
+                "name": "Process resident memory",
+                "description": "A direct bounded Linux kernel counter collected by ASB.",
+                "group": "system_resources",
+                "quantity": "bytes",
+                "unit": "By",
+                "aggregation": "gauge",
+                "scope": "process",
+                "provenance": {
+                  "source": "asb_metrics_procfs",
+                  "qualification": "implemented"
+                },
+                "source_identity": "procfs_process_stat",
+                "resolution_ns": 0,
+                "overhead": {
+                  "class": "low",
+                  "minimum_interval_ns": 1000000,
+                  "requires_privilege": false
+                },
+                "live": {
+                  "status": "supported"
+                },
+                "replay": {
+                  "status": "supported"
+                },
+                "platforms": [
+                  {
+                    "operating_system": "linux",
+                    "architectures": [
+                      "x86_64",
+                      "aarch64"
+                    ],
+                    "required_features": [
+                      "procfs"
+                    ]
+                  }
+                ],
+                "evidence_limits": [
+                  "missing_is_unavailable",
+                  "requires_comparable_experiment",
+                  "collector_overhead_recorded"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

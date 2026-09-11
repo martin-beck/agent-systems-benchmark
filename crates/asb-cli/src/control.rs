@@ -6,9 +6,11 @@ use super::*;
 use asb_control::{
     AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, BackendFailure, BoundControlResult,
     Capabilities, ControlBackend, ControlCall, ControlEvent, ControlEventKind, ControlLimits,
-    ControlResult, ControlServer, MutationAcknowledgement, Page, PlanReference, PublicRunState,
-    RequestDeadline, Revision, RunId, RunSummary, SettingsIssue, SettingsValidation,
+    ControlResult, ControlServer, MeasurementCatalogPublication, MutationAcknowledgement, Page,
+    PlanReference, PublicRunState, RequestDeadline, Revision, RunId, RunSummary, SettingsIssue,
+    SettingsValidation,
 };
+use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -1189,6 +1191,12 @@ impl ControlBackend for RunnerBackend {
                     events: true,
                 }),
             ),
+            ControlCall::MeasurementCatalog => self.bind(
+                call,
+                ControlResult::MeasurementCatalog(MeasurementCatalogPublication::built_in(
+                    baseline_measurement_catalog(),
+                )),
+            ),
             ControlCall::ValidateSettings { settings } => {
                 let valid = serde_json::from_value::<PlanFile>(settings.clone())
                     .ok()
@@ -1652,6 +1660,49 @@ mod tests {
 
     fn deadline() -> RequestDeadline {
         RequestDeadline::start(10_000).unwrap()
+    }
+
+    #[test]
+    fn backend_returns_the_exact_builtin_measurement_catalog_over_v1_2() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+
+        let publication = backend
+            .execute(&ControlCall::MeasurementCatalog, deadline())
+            .unwrap();
+        publication
+            .validate_for_call(&ControlCall::MeasurementCatalog, ControlLimits::default())
+            .unwrap();
+        let ControlResult::MeasurementCatalog(publication) = publication.result else {
+            panic!("measurement catalog result");
+        };
+        assert_eq!(publication.catalog.0, baseline_measurement_catalog());
+
+        let socket = scratch.0.join("measurement-catalog.sock");
+        let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
+        let service = thread::spawn(move || server.serve_one());
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            &socket,
+            ControlLimits::default(),
+            [asb_control::CONTROL_MEASUREMENT_CATALOG_V1],
+        )
+        .expect("connect catalog client");
+        let response = client
+            .call(ControlCall::MeasurementCatalog, 5_000)
+            .expect("catalog response")
+            .into_result()
+            .expect("successful result");
+        let ControlSuccess::Operation(response) = response else {
+            panic!("operation result");
+        };
+        let ControlResult::MeasurementCatalog(publication) = response.result else {
+            panic!("measurement catalog result");
+        };
+        assert_eq!(publication.catalog.0, baseline_measurement_catalog());
+        drop(client);
+        service.join().unwrap().unwrap();
     }
 
     #[test]

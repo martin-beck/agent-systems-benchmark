@@ -12,11 +12,16 @@ Authentication error text is fixed and does not disclose host user IDs.
 
 The first complete JSON-RPC envelope negotiates an exactly offered supported
 version and intersects frame, deadline, page, and in-flight limits. Calls cover
-capabilities, settings
+capabilities, the content-addressed measurement catalog, settings
 validation, durable plan creation, launch, status, causal cancellation, recent
 history, exact repeat, analysis, resumable public events, and privacy-safe
 artifact metadata. There is no implicit TCP listener. Remote transports are a
 separate explicitly enabled boundary.
+
+The endpoint implements exact serialized versions `1.0` and `1.2`. Existing
+clients continue to negotiate immutable `1.0`; independent frontends offer
+`1.2` to obtain `measurement_catalog`. The additive `1.1` evidence types do not
+define a separately selectable wire version.
 
 Runner journals remain authoritative. Mutating calls carry idempotency keys;
 the runner must journal the canonical request and terminal public result before
@@ -41,3 +46,8 @@ messages are bounded. Responses contain public summaries and content digests,
 never host paths or artifact contents. Sensitive artifact content requires a
 separately authorized interface. The checked-in schemas and public fixtures are
 conformance material, not authorization policy.
+
+Decode `ControlResponse` directly from borrowed raw JSON with `read_frame`,
+`serde_json::from_slice`, or `serde_json::from_str`. Conversion through
+`serde_json::Value` is intentionally unsupported because normalization erases
+the exact catalog bytes needed for duplicate-key and wire-size enforcement.

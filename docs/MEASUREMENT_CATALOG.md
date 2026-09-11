@@ -48,6 +48,12 @@ nested count bounds and public text byte bounds before sorting, canonical serial
 The checked baseline and empty fixtures live in `crates/asb-protocol/fixtures/v1`; the generated
 schema lives in `crates/asb-protocol/schema/v1/measurement-catalog.schema.json`.
 
+Independent frontends obtain the compiled baseline through the read-only control-v1
+`measurement_catalog` operation. Its `1.2` publication wrapper adds only closed provenance and
+content-addressed freshness; the nested catalog remains this exact contract. The runner advertises
+the operation by selecting exact control version `1.2` and never requires a frontend to read an ASB installation path. See the
+[frontend control API](FRONTEND_CONTROL_API.md#measurement-catalog-extension).
+
 The immutable publication boundaries for the baseline catalog are recorded in
 the [merge attestation](attestations/measurement-catalog-pr131-merge.json).
 It binds both PR #131 and the first corrective PR #133 to their reviewed heads,

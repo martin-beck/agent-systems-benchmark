@@ -4,6 +4,7 @@
 
 use schemars::{JsonSchema, Schema, schema_for};
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 
 use crate::{AnalysisEvidence, ControlEvent, ControlRequest, ControlResponse, HistoryEvidence};
 
@@ -179,13 +180,100 @@ fn event_association(schema: &mut Schema) {
     *schema = serde_json::from_value(value).expect("event schema remains valid");
 }
 
+fn remove_tagged_variant(value: &mut Value, pointer: &str, tag: &str) {
+    let variants = value
+        .pointer_mut(pointer)
+        .and_then(Value::as_array_mut)
+        .expect("tagged enum variants");
+    variants.retain(|variant| {
+        variant
+            .pointer("/properties/method/const")
+            .and_then(Value::as_str)
+            != Some(tag)
+            && variant
+                .pointer("/properties/kind/const")
+                .and_then(Value::as_str)
+                != Some(tag)
+    });
+}
+
+fn collect_definition_refs(value: &Value, refs: &mut BTreeSet<String>) {
+    match value {
+        Value::Object(object) => {
+            if let Some(name) = object
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(|reference| reference.strip_prefix("#/$defs/"))
+            {
+                refs.insert(name.to_owned());
+            }
+            for (key, child) in object {
+                if key != "$defs" {
+                    collect_definition_refs(child, refs);
+                }
+            }
+        }
+        Value::Array(items) => items
+            .iter()
+            .for_each(|item| collect_definition_refs(item, refs)),
+        _ => {}
+    }
+}
+
+fn prune_unused_definitions(value: &mut Value) {
+    let mut reachable = BTreeSet::new();
+    collect_definition_refs(value, &mut reachable);
+    loop {
+        let before = reachable.len();
+        let definitions = value
+            .get("$defs")
+            .and_then(Value::as_object)
+            .expect("schema definitions");
+        for name in reachable.clone() {
+            if let Some(definition) = definitions.get(&name) {
+                collect_definition_refs(definition, &mut reachable);
+            }
+        }
+        if reachable.len() == before {
+            break;
+        }
+    }
+    value
+        .get_mut("$defs")
+        .and_then(Value::as_object_mut)
+        .expect("schema definitions")
+        .retain(|name, _| reachable.contains(name));
+}
+
 /// Canonical request schema.
 pub fn control_request_schema() -> Schema {
+    let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
+    remove_tagged_variant(&mut value, "/oneOf", "measurement_catalog");
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1 request schema remains valid")
+}
+
+/// Canonical request schema for control v1.2.
+pub fn control_request_schema_v1_2() -> Schema {
     canonical::<ControlRequest>()
 }
 
 /// Canonical response schema.
 pub fn control_response_schema() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    let mut value = serde_json::to_value(schema).expect("schema serializes");
+    remove_tagged_variant(
+        &mut value,
+        "/$defs/ControlResult/oneOf",
+        "measurement_catalog",
+    );
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1 response schema remains valid")
+}
+
+/// Canonical response schema for control v1.2.
+pub fn control_response_schema_v1_2() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema
