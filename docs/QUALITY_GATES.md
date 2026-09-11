@@ -54,6 +54,13 @@ The [PR #132 attestation](attestations/capability-coverage-pr132-merge.json) rec
 the historical failure that established this bounded recovery; it does not turn
 that failed workflow run green retroactively.
 
+The [PR #136 Gemini readiness attestation](attestations/gemini-readiness-pr136-merge.json)
+separately records a tree-equivalent, GitHub-verified merge whose raw message
+omitted a matching DCO trailer. It binds the reviewed source and exact-head checks
+without changing the historical commit. Corrective publication must use `--merge`
+with a real multiline body ending in the exact lowercase GitHub-author trailer;
+default, rebase, squash, escaped-newline, and title-cased variants fail closed.
+
 The negative suite invokes the production gate commands against controlled
 defects. It proves rejection of mutable Actions, missing DCO/signatures,
 malformed and unsafe workflows, a synthetic credential, a denied dependency, a
