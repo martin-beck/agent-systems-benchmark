@@ -1477,6 +1477,13 @@ enum HookMarkerState {
 }
 
 fn hook_marker_state(run_root: &Path) -> HookMarkerState {
+    hook_marker_state_after_absent_open(run_root, || {})
+}
+
+fn hook_marker_state_after_absent_open(
+    run_root: &Path,
+    absent_open_observed: impl FnOnce(),
+) -> HookMarkerState {
     let root_metadata = match fs::symlink_metadata(run_root) {
         Ok(metadata) if metadata.file_type().is_dir() && metadata.mode() & 0o777 == 0o700 => {
             metadata
@@ -1490,13 +1497,14 @@ fn hook_marker_state(run_root: &Path) -> HookMarkerState {
         .open(&marker)
     {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => match fs::symlink_metadata(marker)
-        {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return HookMarkerState::Pending;
-            }
-            Ok(_) | Err(_) => return HookMarkerState::Invalid,
-        },
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            absent_open_observed();
+            return match fs::symlink_metadata(marker) {
+                Err(error) if error.kind() == io::ErrorKind::NotFound => HookMarkerState::Pending,
+                Ok(metadata) if metadata.file_type().is_file() => HookMarkerState::Pending,
+                Ok(_) | Err(_) => HookMarkerState::Invalid,
+            };
+        }
         Err(_) => return HookMarkerState::Invalid,
     };
     let metadata = match file.metadata() {
@@ -2234,6 +2242,49 @@ printf '%s\n' \
         assert_eq!(observed_receiver.recv().unwrap(), HookMarkerState::Ready);
         advance_sender.send(()).unwrap();
         assert!(waiter.join().unwrap());
+    }
+
+    #[test]
+    fn marker_appearance_after_absent_open_is_retried_without_trusting_lstat() {
+        let scratch = Scratch::new("hook-ready-appearance-race");
+        fs::set_permissions(&scratch.0, fs::Permissions::from_mode(0o700)).unwrap();
+        let temporary = scratch.0.join("action-count.ready.tmp");
+        fs::write(&temporary, b"ready\n").unwrap();
+        fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let run_root = scratch.0.clone();
+        let (observed_sender, observed_receiver) = mpsc::sync_channel(0);
+        let (published_sender, published_receiver) = mpsc::sync_channel(0);
+        let reader = thread::spawn(move || {
+            hook_marker_state_after_absent_open(&run_root, || {
+                observed_sender.send(()).unwrap();
+                published_receiver.recv().unwrap();
+            })
+        });
+        observed_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap();
+        fs::rename(&temporary, scratch.0.join("action-count.ready")).unwrap();
+        published_sender.send(()).unwrap();
+        assert_eq!(reader.join().unwrap(), HookMarkerState::Pending);
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Ready);
+
+        fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        let run_root = scratch.0.clone();
+        let (observed_sender, observed_receiver) = mpsc::sync_channel(0);
+        let (published_sender, published_receiver) = mpsc::sync_channel(0);
+        let reader = thread::spawn(move || {
+            hook_marker_state_after_absent_open(&run_root, || {
+                observed_sender.send(()).unwrap();
+                published_receiver.recv().unwrap();
+            })
+        });
+        observed_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap();
+        symlink("missing", scratch.0.join("action-count.ready")).unwrap();
+        published_sender.send(()).unwrap();
+        assert_eq!(reader.join().unwrap(), HookMarkerState::Invalid);
     }
 
     #[test]
