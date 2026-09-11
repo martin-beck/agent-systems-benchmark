@@ -331,6 +331,47 @@ def commit_parents(root: Path, revision: str) -> list[str]:
     return output.split()
 
 
+def commit_tree(root: Path, revision: str) -> str:
+    return subprocess.check_output(
+        ["git", "-C", str(root), "show", "-s", "--format=%T", revision],
+        text=True,
+    ).strip()
+
+
+def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    return (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                descendant,
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
+
+
+def topic_first_parent_spine(root: Path, base: str, tip: str) -> list[str]:
+    reverse_spine: list[str] = []
+    current = tip
+    while not is_ancestor(root, current, base):
+        reverse_spine.append(current)
+        parents = commit_parents(root, current)
+        if not parents:
+            fail(
+                "protected-main topic first-parent spine does not reach range base ancestry"
+            )
+        current = parents[0]
+    return list(reversed(reverse_spine))
+
+
 def verify_ssh(root: Path, allowed: Path, revision: str) -> None:
     result = subprocess.run(
         [
@@ -451,17 +492,45 @@ def validate_commits(
         return
     if revisions[-1] != head:
         fail("protected-main range head is not the final introduced commit")
-    merge_revisions = [
-        revision for revision in revisions if len(commit_parents(root, revision)) != 1
-    ]
-    if merge_revisions != [head]:
-        fail("protected-main range must contain one final two-parent merge")
     parents = commit_parents(root, head)
     if len(parents) != 2 or parents[0] != base:
         fail("protected-main merge topology or first parent differs")
     topic_revisions = commit_range(root, base, parents[1])
     if revisions != topic_revisions + [head]:
         fail("protected-main range contains commits outside the merged topic")
+    if not topic_revisions or topic_revisions[-1] != parents[1]:
+        fail("protected-main topic tip is not the final topic revision")
+    topic_spine = topic_first_parent_spine(root, base, parents[1])
+    if topic_revisions != topic_spine:
+        fail("protected-main topic contains revisions outside its first-parent spine")
+    topic_merges = [
+        revision for revision in topic_spine if len(commit_parents(root, revision)) != 1
+    ]
+    if topic_merges:
+        if topic_merges[-1] != parents[1]:
+            fail("protected-main topic synchronization merge must be at the tip")
+        if len(topic_merges) > 2:
+            fail(
+                "protected-main topic contains more than one historical sync checkpoint"
+            )
+        sync_parents = commit_parents(root, parents[1])
+        if len(sync_parents) != 2 or sync_parents[1] != base:
+            fail("protected-main topic-tip sync must merge the exact range base")
+        if is_ancestor(root, base, sync_parents[0]):
+            fail("protected-main topic-tip sync redundantly merges an existing base")
+        historical = topic_merges[:-1]
+        if historical:
+            historical_parents = commit_parents(root, historical[0])
+            if len(historical_parents) != 2:
+                fail("protected-main historical sync checkpoint must have two parents")
+            if historical_parents[1] == base or not is_ancestor(
+                root, historical_parents[1], base
+            ):
+                fail("protected-main historical sync checkpoint is not base ancestry")
+            if is_ancestor(root, historical_parents[1], historical_parents[0]):
+                fail("protected-main historical sync checkpoint is redundant")
+    if commit_tree(root, parents[1]) != commit_tree(root, head):
+        fail("protected-main merge tree differs from the reviewed topic tree")
     committer = subprocess.check_output(
         ["git", "-C", str(root), "show", "-s", "--format=%cn <%ce>", head],
         text=True,

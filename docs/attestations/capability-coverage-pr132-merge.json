@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "pull_request": 132,
+  "reviewed_base_commit": "6155d63bec04a5c76c4323843c26649b0c084f6e",
+  "reviewed_head_commit": "297895dbdee6acfc2a7425c5a9ab254c6d2cce96",
+  "reviewed_head_tree": "1cde5c478dd35aaa7b68e56e4b54254d4f3a401d",
+  "reviewed_head_signature": "valid_allowed_ssh",
+  "reviewed_head_dco": true,
+  "exact_head_checks": {
+    "expected": 12,
+    "successful": 12
+  },
+  "merge_commit": "44eb1b48cb79b789252eff1cc798980d868c908c",
+  "merge_parents": [
+    "6155d63bec04a5c76c4323843c26649b0c084f6e",
+    "297895dbdee6acfc2a7425c5a9ab254c6d2cce96"
+  ],
+  "merge_tree": "1cde5c478dd35aaa7b68e56e4b54254d4f3a401d",
+  "merge_signature": {
+    "verified": true,
+    "reason": "valid",
+    "signer": "github_web_flow",
+    "verified_at": "2026-09-11T00:54:41Z"
+  },
+  "merge_author": "martin-beck <martin.beck2@gmx.de>",
+  "raw_signed_off_by": "Signed-off-by: martin-beck <martin.beck2@gmx.de>",
+  "merge_commit_dco": true,
+  "publication_method": "merge",
+  "post_merge_repository_quality": {
+    "run": 34548482976,
+    "conclusion": "failure",
+    "error": "protected-main range must contain one final two-parent merge"
+  },
+  "classification": "valid_publication_rejected_by_pre_recovery_topic_topology_policy",
+  "recovery_task": "AR-1043"
+}
