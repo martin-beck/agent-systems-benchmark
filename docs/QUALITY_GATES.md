@@ -42,6 +42,18 @@ network request. GitHub's branch `required_signatures` result remains supporting
 evidence rather than the offline source of truth. Contributors add their public
 SSH signing identity through review; private keys are never stored here.
 
+The topic normally contains only single-parent commits. A topic synchronized to
+the protected range base may instead end in one two-parent synchronization merge
+whose second parent is that exact base. Its first-parent spine may contain at
+most one older two-parent synchronization checkpoint, and that checkpoint's
+second parent must already be an ancestor of the current protected base. No
+off-spine revision, octopus merge, second historical checkpoint, or second exact-base
+sync is accepted. Every introduced spine commit remains SSH-signed and DCO-valid,
+and the final GitHub merge tree must exactly equal the reviewed topic-tip tree.
+The [PR #132 attestation](attestations/capability-coverage-pr132-merge.json) records
+the historical failure that established this bounded recovery; it does not turn
+that failed workflow run green retroactively.
+
 The negative suite invokes the production gate commands against controlled
 defects. It proves rejection of mutable Actions, missing DCO/signatures,
 malformed and unsafe workflows, a synthetic credential, a denied dependency, a

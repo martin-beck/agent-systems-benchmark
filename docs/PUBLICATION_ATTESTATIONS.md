@@ -14,6 +14,13 @@ Its GitHub merge is validly signed, but its author is
 It therefore remains non-DCO; the second attestation does not rewrite or repair
 either historical commit.
 
+The [PR #132 capability coverage attestation](attestations/capability-coverage-pr132-merge.json)
+records a separate validly signed, DCO-valid and tree-equivalent publication.
+Its exact-head checks all passed, but the first post-merge Repository quality run
+rejected the topic's synchronization topology. AR-1043 preserves that immutable
+failure while adding only the bounded first-parent-spine form documented in the
+quality gates.
+
 For a GitHub-created merge with that author identity, the real multiline merge
 message must end with the exact, case-sensitive trailer:
 
