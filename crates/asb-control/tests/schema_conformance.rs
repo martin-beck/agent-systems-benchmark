@@ -5,12 +5,15 @@
 use asb_control::{
     AnalysisEvidence, ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlResponse,
     HistoryEvidence, ProtocolError, analysis_evidence_schema, control_event_schema,
-    control_request_schema, control_response_schema, history_evidence_schema, validate_request,
+    control_request_schema, control_request_schema_v1_2, control_response_schema,
+    control_response_schema_v1_2, history_evidence_schema, validate_request,
 };
 use serde_json::{Value, json};
 
 const REQUEST_SCHEMA: &str = include_str!("../schema/v1/request.schema.json");
 const RESPONSE_SCHEMA: &str = include_str!("../schema/v1/response.schema.json");
+const REQUEST_SCHEMA_V1_2: &str = include_str!("../schema/v1.2/request.schema.json");
+const RESPONSE_SCHEMA_V1_2: &str = include_str!("../schema/v1.2/response.schema.json");
 const EVENT_SCHEMA: &str = include_str!("../schema/v1/event.schema.json");
 const NEGOTIATE: &str = include_str!("../fixtures/v1/negotiate-request.json");
 const LAUNCH: &str = include_str!("../fixtures/v1/launch-request.json");
@@ -20,6 +23,10 @@ const HISTORY_EVIDENCE: &str = include_str!("../fixtures/v1/history-evidence.jso
 const ANALYSIS_EVIDENCE: &str = include_str!("../fixtures/v1/analysis-evidence.json");
 const HISTORY_SCHEMA: &str = include_str!("../schema/v1/history-evidence.schema.json");
 const ANALYSIS_SCHEMA: &str = include_str!("../schema/v1/analysis-evidence.schema.json");
+const MEASUREMENT_CATALOG_REQUEST: &str =
+    include_str!("../fixtures/v1.2/measurement-catalog-request.json");
+const MEASUREMENT_CATALOG_RESPONSE: &str =
+    include_str!("../fixtures/v1.2/measurement-catalog-response.json");
 
 fn validate(schema: &str, document: &str) {
     let schema: Value = serde_json::from_str(schema).unwrap();
@@ -35,6 +42,18 @@ fn public_fixtures_match_schemas_and_rust_types() {
     validate(REQUEST_SCHEMA, NEGOTIATE);
     validate(REQUEST_SCHEMA, LAUNCH);
     validate(RESPONSE_SCHEMA, RESPONSE);
+    validate(REQUEST_SCHEMA_V1_2, MEASUREMENT_CATALOG_REQUEST);
+    validate(RESPONSE_SCHEMA_V1_2, MEASUREMENT_CATALOG_RESPONSE);
+    assert!(
+        !jsonschema::validator_for(&serde_json::from_str::<Value>(REQUEST_SCHEMA).unwrap())
+            .unwrap()
+            .is_valid(&serde_json::from_str::<Value>(MEASUREMENT_CATALOG_REQUEST).unwrap())
+    );
+    assert!(
+        !jsonschema::validator_for(&serde_json::from_str::<Value>(RESPONSE_SCHEMA).unwrap())
+            .unwrap()
+            .is_valid(&serde_json::from_str::<Value>(MEASUREMENT_CATALOG_RESPONSE).unwrap())
+    );
     validate(EVENT_SCHEMA, EVENT);
 
     let negotiate: ControlRequest = serde_json::from_str(NEGOTIATE).unwrap();
@@ -42,6 +61,16 @@ fn public_fixtures_match_schemas_and_rust_types() {
     let launch: ControlRequest = serde_json::from_str(LAUNCH).unwrap();
     validate_request(&launch, ControlLimits::default()).unwrap();
     serde_json::from_str::<ControlResponse>(RESPONSE)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let catalog_request: ControlRequest =
+        serde_json::from_str(MEASUREMENT_CATALOG_REQUEST).unwrap();
+    assert!(matches!(
+        catalog_request.call,
+        ControlCall::MeasurementCatalog
+    ));
+    serde_json::from_str::<ControlResponse>(MEASUREMENT_CATALOG_RESPONSE)
         .unwrap()
         .validate()
         .unwrap();
@@ -75,7 +104,7 @@ fn schema_and_rust_reject_unknown_or_ambiguous_envelopes() {
         Err(ProtocolError::InvalidJsonRpc)
     );
 
-    let response_schema: Value = serde_json::from_str(RESPONSE_SCHEMA).unwrap();
+    let response_schema: Value = serde_json::from_str(RESPONSE_SCHEMA_V1_2).unwrap();
     let response_validator = jsonschema::validator_for(&response_schema).unwrap();
     let mut leaked: Value = serde_json::from_str(RESPONSE).unwrap();
     leaked["artifact_path"] = json!("/private/result");
@@ -92,6 +121,21 @@ fn schema_and_rust_reject_unknown_or_ambiguous_envelopes() {
     malformed_creation_cursor["result"]["value"]["result"]["value"]["created_revision"] =
         json!("not-a-revision");
     assert!(!response_validator.is_valid(&malformed_creation_cursor));
+
+    let mut wrong_catalog_version: Value =
+        serde_json::from_str(MEASUREMENT_CATALOG_RESPONSE).unwrap();
+    wrong_catalog_version["result"]["value"]["result"]["value"]["version"]["minor"] = json!(1);
+    assert!(!response_validator.is_valid(&wrong_catalog_version));
+    let decoded: ControlResponse =
+        serde_json::from_str(&wrong_catalog_version.to_string()).unwrap();
+    assert_eq!(decoded.validate(), Err(ProtocolError::InvalidResponse));
+
+    let mut unknown_catalog_field: Value =
+        serde_json::from_str(MEASUREMENT_CATALOG_RESPONSE).unwrap();
+    unknown_catalog_field["result"]["value"]["result"]["value"]["catalog"]["host_path"] =
+        json!("/private/catalog");
+    assert!(!response_validator.is_valid(&unknown_catalog_field));
+    assert!(serde_json::from_str::<ControlResponse>(&unknown_catalog_field.to_string()).is_err());
 }
 
 #[test]
@@ -172,6 +216,8 @@ fn generated_schemas_reject_runtime_boundary_negatives() {
 fn checked_in_schemas_equal_fresh_generation() {
     let generated_request = serde_json::to_value(control_request_schema()).unwrap();
     let generated_response = serde_json::to_value(control_response_schema()).unwrap();
+    let generated_request_v1_2 = serde_json::to_value(control_request_schema_v1_2()).unwrap();
+    let generated_response_v1_2 = serde_json::to_value(control_response_schema_v1_2()).unwrap();
     let generated_event = serde_json::to_value(control_event_schema()).unwrap();
     let generated_history = serde_json::to_value(history_evidence_schema()).unwrap();
     let generated_analysis = serde_json::to_value(analysis_evidence_schema()).unwrap();
@@ -182,6 +228,14 @@ fn checked_in_schemas_equal_fresh_generation() {
     assert_eq!(
         serde_json::from_str::<Value>(RESPONSE_SCHEMA).unwrap(),
         generated_response
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(REQUEST_SCHEMA_V1_2).unwrap(),
+        generated_request_v1_2
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_2).unwrap(),
+        generated_response_v1_2
     );
     assert_eq!(
         serde_json::from_str::<Value>(EVENT_SCHEMA).unwrap(),

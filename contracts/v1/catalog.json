@@ -14,6 +14,8 @@
     {"id":"protocol.trace-span","schema":"crates/asb-protocol/schema/v1/trace-span.schema.json","fixtures":["crates/asb-protocol/fixtures/v1/trace-span.json"],"rust_test":"asb-protocol/schema_conformance"},
     {"id":"control.request","schema":"crates/asb-control/schema/v1/request.schema.json","fixtures":["crates/asb-control/fixtures/v1/negotiate-request.json","crates/asb-control/fixtures/v1/launch-request.json"],"rust_test":"asb-control/schema_conformance"},
     {"id":"control.response","schema":"crates/asb-control/schema/v1/response.schema.json","fixtures":["crates/asb-control/fixtures/v1/success-response.json"],"rust_test":"asb-control/schema_conformance"},
+    {"id":"control.request-1.2","schema":"crates/asb-control/schema/v1.2/request.schema.json","fixtures":["crates/asb-control/fixtures/v1.2/measurement-catalog-request.json"],"rust_test":"asb-control/schema_conformance"},
+    {"id":"control.response-1.2","schema":"crates/asb-control/schema/v1.2/response.schema.json","fixtures":["crates/asb-control/fixtures/v1.2/measurement-catalog-response.json"],"rust_test":"asb-control/schema_conformance"},
     {"id":"control.event","schema":"crates/asb-control/schema/v1/event.schema.json","fixtures":["crates/asb-control/fixtures/v1/run-event.json"],"rust_test":"asb-control/schema_conformance"},
     {"id":"control.history-evidence","schema":"crates/asb-control/schema/v1/history-evidence.schema.json","fixtures":["crates/asb-control/fixtures/v1/history-evidence.json"],"rust_test":"asb-control/schema_conformance"},
     {"id":"control.analysis-evidence","schema":"crates/asb-control/schema/v1/analysis-evidence.schema.json","fixtures":["crates/asb-control/fixtures/v1/analysis-evidence.json"],"rust_test":"asb-control/schema_conformance"},

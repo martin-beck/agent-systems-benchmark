@@ -7,10 +7,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
 rustix = { version = "=1.1.4", features = ["net", "process"] }
 schemars = "=1.0.4"
 serde = { version = "=1.0.219", features = ["derive"] }
-serde_json = "=1.0.143"
+serde_json = { version = "=1.0.143", features = ["raw_value"] }
 sha2 = "=0.10.9"
 thiserror = "=2.0.16"
 
@@ -23,3 +24,7 @@ workspace = true
 [[example]]
 name = "generate-control-schema"
 path = "examples/generate_schema.rs"
+
+[[example]]
+name = "generate-measurement-catalog-control-fixtures"
+path = "examples/generate_measurement_catalog_fixtures.rs"

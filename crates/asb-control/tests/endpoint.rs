@@ -56,6 +56,7 @@ impl Drop for Scratch {
 #[derive(Default)]
 struct DurableState {
     launches: usize,
+    catalog_reads: usize,
     by_key: BTreeMap<String, (String, String)>,
     run_states: BTreeMap<String, String>,
 }
@@ -68,6 +69,10 @@ struct DurableBackend {
 impl DurableBackend {
     fn launches(&self) -> usize {
         self.state.lock().expect("state lock").launches
+    }
+
+    fn catalog_reads(&self) -> usize {
+        self.state.lock().expect("state lock").catalog_reads
     }
 }
 
@@ -104,6 +109,16 @@ impl ControlBackend for DurableBackend {
                 }),
             )
             .expect("bind result")),
+            ControlCall::MeasurementCatalog => {
+                self.state.lock().expect("state lock").catalog_reads += 1;
+                Ok(BoundControlResult::new(
+                    call,
+                    ControlResult::MeasurementCatalog(MeasurementCatalogPublication::built_in(
+                        asb_protocol::baseline_measurement_catalog(),
+                    )),
+                )
+                .expect("bind result"))
+            }
             ControlCall::Launch(params) => {
                 let mut state = self.state.lock().expect("state lock");
                 if let Some((plan_id, run_id)) = state.by_key.get(&params.idempotency_key) {
@@ -412,4 +427,115 @@ fn malformed_initial_envelope_fails_before_backend_work() {
         )))
     ));
     assert_eq!(backend.launches(), 0);
+}
+
+#[test]
+fn catalog_is_isolated_from_v1_0_and_available_only_after_exact_v1_2_negotiation() {
+    let root = Scratch::new("catalog-versions");
+    let catalog_limits = ControlLimits {
+        max_frame_bytes: 64 * 1024,
+        ..limits(500)
+    };
+
+    let v1_socket = root.0.join("v1.sock");
+    let v1_backend = DurableBackend::default();
+    let mut v1_server =
+        ControlServer::bind(&v1_socket, catalog_limits, v1_backend.clone()).expect("bind v1");
+    let v1_thread = thread::spawn(move || v1_server.serve_one());
+    let mut v1_peer = UnixStream::connect(&v1_socket).expect("connect raw v1 peer");
+    let negotiate_request = ControlRequest {
+        jsonrpc: JSONRPC_VERSION.into(),
+        id: RequestId(1),
+        timeout_ms: 200,
+        call: ControlCall::Negotiate(NegotiateParams {
+            versions: [CONTROL_V1].into_iter().collect(),
+            limits: catalog_limits,
+        }),
+    };
+    write_frame(&mut v1_peer, &negotiate_request, catalog_limits).expect("write negotiation");
+    let negotiated: ControlResponse =
+        read_frame(&mut v1_peer, catalog_limits).expect("read negotiation");
+    assert!(matches!(
+        negotiated.result(),
+        Some(ControlSuccess::Negotiated(Negotiated {
+            version: CONTROL_V1,
+            ..
+        }))
+    ));
+    let catalog_request = ControlRequest {
+        jsonrpc: JSONRPC_VERSION.into(),
+        id: RequestId(2),
+        timeout_ms: 200,
+        call: ControlCall::MeasurementCatalog,
+    };
+    write_frame(&mut v1_peer, &catalog_request, catalog_limits).expect("write v1 catalog call");
+    let rejected: ControlResponse =
+        read_frame(&mut v1_peer, catalog_limits).expect("read v1 catalog rejection");
+    assert_eq!(
+        rejected.error().expect("capability error").code,
+        error_code::CAPABILITY_UNAVAILABLE
+    );
+    assert!(rejected.result().is_none());
+    assert_eq!(v1_backend.catalog_reads(), 0);
+    drop(v1_peer);
+    v1_thread.join().expect("join v1").expect("serve v1");
+
+    let v1_2_socket = root.0.join("v1-2.sock");
+    let v1_2_backend = DurableBackend::default();
+    let mut v1_2_server =
+        ControlServer::bind(&v1_2_socket, catalog_limits, v1_2_backend.clone()).expect("bind v1.2");
+    let v1_2_thread = thread::spawn(move || v1_2_server.serve_one());
+    let mut v1_2_client = ControlClient::connect_with_versions(
+        &v1_2_socket,
+        catalog_limits,
+        [CONTROL_V1, CONTROL_MEASUREMENT_CATALOG_V1],
+    )
+    .expect("connect v1.2");
+    assert_eq!(
+        v1_2_client.negotiated().version,
+        CONTROL_MEASUREMENT_CATALOG_V1
+    );
+    let response = v1_2_client
+        .call(ControlCall::MeasurementCatalog, 200)
+        .expect("catalog call");
+    assert!(matches!(
+        response.result(),
+        Some(ControlSuccess::Operation(BoundControlResult {
+            result: ControlResult::MeasurementCatalog(_),
+            ..
+        }))
+    ));
+    assert_eq!(v1_2_backend.catalog_reads(), 1);
+    drop(v1_2_client);
+    v1_2_thread.join().expect("join v1.2").expect("serve v1.2");
+}
+
+#[test]
+fn endpoint_rejects_a_types_only_v1_1_offer() {
+    let root = Scratch::new("v1-1-only");
+    let socket = root.0.join("control.sock");
+    let backend = DurableBackend::default();
+    let mut server = ControlServer::bind(&socket, limits(500), backend.clone()).expect("bind");
+    let server_thread = thread::spawn(move || server.serve_one());
+    let mut peer = UnixStream::connect(&socket).expect("connect raw v1.1 peer");
+    write_frame(
+        &mut peer,
+        &ControlRequest {
+            jsonrpc: JSONRPC_VERSION.into(),
+            id: RequestId(1),
+            timeout_ms: 200,
+            call: ControlCall::Negotiate(NegotiateParams {
+                versions: [CONTROL_HISTORY_ANALYSIS_V1].into_iter().collect(),
+                limits: limits(500),
+            }),
+        },
+        limits(500),
+    )
+    .expect("write v1.1 offer");
+    drop(peer);
+    assert!(matches!(
+        server_thread.join().expect("join"),
+        Err(EndpointError::Session(SessionError::IncompatibleVersion))
+    ));
+    assert_eq!(backend.catalog_reads(), 0);
 }

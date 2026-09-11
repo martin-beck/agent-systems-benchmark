@@ -12,6 +12,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 
 use asb_control::*;
+use asb_protocol::{
+    MAX_MEASUREMENT_CATALOG_WIRE_BYTES, MeasurementArchitecture, MeasurementCatalogV1,
+    MeasurementModeSupport, MeasurementUnavailableReason, baseline_measurement_catalog,
+};
 use schemars::schema_for;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -97,6 +101,191 @@ fn history_analysis_extension_has_closed_generated_schemas() {
     assert!(!validator.is_valid(&hostile));
 }
 
+#[test]
+fn measurement_catalog_extension_is_versioned_bounded_and_content_addressed() {
+    assert_eq!(
+        CONTROL_MEASUREMENT_CATALOG_V1,
+        ControlVersion { major: 1, minor: 2 }
+    );
+    let publication = MeasurementCatalogPublication::built_in(baseline_measurement_catalog());
+    let raw_catalog = include_str!("../../asb-protocol/fixtures/v1/measurement-catalog.json");
+    serde_json::from_str::<ControlMeasurementCatalog>(raw_catalog).unwrap();
+    assert!(
+        serde_json::from_value::<ControlMeasurementCatalog>(
+            serde_json::from_str(raw_catalog).unwrap()
+        )
+        .is_err()
+    );
+    publication.validate().unwrap();
+    assert_eq!(
+        publication.freshness,
+        MeasurementCatalogFreshness::ContentAddressed
+    );
+    assert_eq!(
+        publication.source,
+        MeasurementCatalogPublicationSource::BuiltInCollectors
+    );
+    assert!(
+        serde_json::to_vec(&publication).unwrap().len()
+            <= MAX_MEASUREMENT_CATALOG_PUBLICATION_BYTES
+    );
+
+    let call = ControlCall::MeasurementCatalog;
+    let bound = BoundControlResult::new(
+        &call,
+        ControlResult::MeasurementCatalog(publication.clone()),
+    )
+    .unwrap();
+    bound
+        .validate_for_call(&call, ControlLimits::default())
+        .unwrap();
+    bound
+        .validate_for_call_and_version(
+            &call,
+            ControlLimits::default(),
+            CONTROL_MEASUREMENT_CATALOG_V1,
+        )
+        .unwrap();
+    assert_eq!(
+        bound.validate_for_call_and_version(&call, ControlLimits::default(), CONTROL_V1),
+        Err(ProtocolError::InvalidResponse)
+    );
+    assert_eq!(
+        bound.validate_for_call_and_version(
+            &call,
+            ControlLimits::default(),
+            ControlVersion { major: 1, minor: 3 },
+        ),
+        Err(ProtocolError::InvalidResponse)
+    );
+    let encoded = serde_json::to_vec(&ControlResponse::success(
+        RequestId(91),
+        ControlSuccess::Operation(bound),
+    ))
+    .unwrap();
+    assert!(encoded.len() < ControlLimits::default().max_frame_bytes as usize);
+    let decoded: ControlResponse = serde_json::from_slice(&encoded).unwrap();
+    decoded.validate().unwrap();
+    assert!(
+        serde_json::from_value::<ControlResponse>(serde_json::to_value(&decoded).unwrap()).is_err()
+    );
+
+    let mut wrong_version = publication.clone();
+    wrong_version.version.minor = 1;
+    assert_eq!(
+        wrong_version.validate(),
+        Err(ProtocolError::InvalidResponse)
+    );
+
+    let maximal = MeasurementCatalogV1::from_slice_bounded(include_bytes!(
+        "../../asb-protocol/fixtures/v1/measurement-catalog-maximal.json"
+    ))
+    .unwrap();
+    MeasurementCatalogPublication::built_in(maximal)
+        .validate()
+        .unwrap();
+    let empty = MeasurementCatalogV1::from_slice_bounded(include_bytes!(
+        "../../asb-protocol/fixtures/v1/measurement-catalog-empty.json"
+    ))
+    .unwrap();
+    MeasurementCatalogPublication::built_in(empty)
+        .validate()
+        .unwrap();
+
+    let baseline = baseline_measurement_catalog();
+    let mut definitions = baseline.measurements.clone();
+    definitions[0].replay = MeasurementModeSupport::Unsupported {
+        reason: MeasurementUnavailableReason::NotApplicable,
+    };
+    definitions[0].platforms[0].architectures = vec![MeasurementArchitecture::X86_64];
+    let mixed_platform = MeasurementCatalogV1::new(baseline.groups.clone(), definitions).unwrap();
+    MeasurementCatalogPublication::built_in(mixed_platform)
+        .validate()
+        .unwrap();
+}
+
+#[test]
+fn measurement_catalog_response_rejects_unknown_fields_and_semantic_drift() {
+    let result = BoundControlResult::new(
+        &ControlCall::MeasurementCatalog,
+        ControlResult::MeasurementCatalog(MeasurementCatalogPublication::built_in(
+            baseline_measurement_catalog(),
+        )),
+    )
+    .unwrap();
+    let response = ControlResponse::success(RequestId(92), ControlSuccess::Operation(result));
+    let encoded = serde_json::to_string(&response).unwrap();
+    let catalog_start = "\"catalog\":{\"schema_version\":1,";
+    assert!(encoded.contains(catalog_start));
+    let oversized_whitespace = encoded.replacen(
+        catalog_start,
+        &format!(
+            "\"catalog\":{{{}\"schema_version\":1,",
+            " ".repeat(MAX_MEASUREMENT_CATALOG_WIRE_BYTES)
+        ),
+        1,
+    );
+    assert!(serde_json::from_str::<ControlResponse>(&oversized_whitespace).is_err());
+    let publication_start = "\"result\":{\"kind\":\"measurement_catalog\",\"value\":{\"version\":";
+    assert!(encoded.contains(publication_start));
+    let oversized_publication_wrapper = encoded.replacen(
+        publication_start,
+        &format!(
+            "\"result\":{{\"kind\":\"measurement_catalog\",\"value\":{{{}\"version\":",
+            " ".repeat(MAX_MEASUREMENT_CATALOG_PUBLICATION_BYTES)
+        ),
+        1,
+    );
+    assert!(serde_json::from_str::<ControlResponse>(&oversized_publication_wrapper).is_err());
+    let duplicate_key = encoded.replacen(
+        catalog_start,
+        "\"catalog\":{\"schema_version\":1,\"schema_version\":1,",
+        1,
+    );
+    assert!(serde_json::from_str::<ControlResponse>(&duplicate_key).is_err());
+    let success_with_null_error = format!(
+        "{},\"error\":null}}",
+        encoded.strip_suffix('}').expect("response is an object")
+    );
+    assert!(serde_json::from_str::<ControlResponse>(&success_with_null_error).is_err());
+
+    let failure = serde_json::to_string(&ControlResponse::failure(
+        RequestId(93),
+        error_code::STALE_CURSOR,
+        "reconnect cursor is stale",
+    ))
+    .unwrap();
+    let failure_with_null_result = format!(
+        "{},\"result\":null}}",
+        failure.strip_suffix('}').expect("response is an object")
+    );
+    assert!(serde_json::from_str::<ControlResponse>(&failure_with_null_result).is_err());
+
+    let mut unknown = serde_json::to_value(&response).unwrap();
+    unknown["result"]["value"]["result"]["value"]["catalog"]["private_path"] =
+        json!("/private/catalog");
+    assert!(serde_json::from_str::<ControlResponse>(&unknown.to_string()).is_err());
+
+    let mut digest_drift = serde_json::to_value(&response).unwrap();
+    digest_drift["result"]["value"]["result"]["value"]["catalog"]["catalog_sha256"] =
+        json!("0".repeat(64));
+    assert!(serde_json::from_str::<ControlResponse>(&digest_drift.to_string()).is_err());
+
+    for fixture in [
+        include_str!("../../asb-protocol/fixtures/v1/measurement-catalog-duplicate.json"),
+        include_str!("../../asb-protocol/fixtures/v1/measurement-catalog-unit-mismatch.json"),
+        include_str!("../../asb-protocol/fixtures/v1/measurement-catalog-privacy.json"),
+        include_str!("../../asb-protocol/fixtures/v1/measurement-catalog-unsupported-csb.json"),
+        include_str!("../../asb-protocol/fixtures/v1/measurement-catalog-wrong-version.json"),
+        include_str!("../../asb-protocol/fixtures/v1/measurement-catalog-unknown-field.json"),
+    ] {
+        let mut hostile = serde_json::to_value(&response).unwrap();
+        hostile["result"]["value"]["result"]["value"]["catalog"] =
+            serde_json::from_str(fixture).unwrap();
+        assert!(serde_json::from_str::<ControlResponse>(&hostile.to_string()).is_err());
+    }
+}
+
 fn negotiate(limits: ControlLimits) -> NegotiateParams {
     NegotiateParams {
         versions: BTreeSet::from([CONTROL_V1]),
@@ -173,6 +362,7 @@ fn limits_intersect_and_reject_every_invalid_dimension() {
 fn requests_enforce_envelope_deadline_page_and_mutation_keys() {
     for call in [
         ControlCall::Capabilities,
+        ControlCall::MeasurementCatalog,
         ControlCall::ValidateSettings {
             settings: json!({}),
         },
@@ -373,7 +563,7 @@ fn responses_have_exactly_one_outcome() {
             "error":{"code":-33006,"message":"reconnect cursor is stale"}
         }),
     ] {
-        assert!(serde_json::from_value::<ControlResponse>(invalid).is_err());
+        assert!(serde_json::from_str::<ControlResponse>(&invalid.to_string()).is_err());
     }
     let valid = ControlResponse::success(
         RequestId(5),
@@ -391,7 +581,7 @@ fn responses_have_exactly_one_outcome() {
     );
     let mut wrong_json = serde_json::to_value(valid).unwrap();
     wrong_json["jsonrpc"] = Value::String("2.1".into());
-    let wrong_version: ControlResponse = serde_json::from_value(wrong_json).unwrap();
+    let wrong_version: ControlResponse = serde_json::from_str(&wrong_json.to_string()).unwrap();
     assert_eq!(wrong_version.validate(), Err(ProtocolError::InvalidJsonRpc));
 }
 
@@ -567,6 +757,12 @@ fn sessions_require_negotiation_and_bound_outstanding_requests() {
         (CONTROL_V1, offered)
     );
     assert_eq!(session.limits(), Some(offered));
+    assert_eq!(session.version(), Some(CONTROL_V1));
+    assert_eq!(
+        session.admit(&request(8, ControlCall::MeasurementCatalog)),
+        Err(SessionError::CapabilityUnavailable)
+    );
+    assert_eq!(session.in_flight(), 0);
     assert_eq!(
         session.negotiate(&negotiate(offered)),
         Err(SessionError::AlreadyNegotiated)
@@ -640,6 +836,35 @@ fn negotiation_requires_an_exact_supported_version_and_valid_envelope() {
     let (version, effective) = session.negotiate_request(&envelope).unwrap();
     assert_eq!(version, CONTROL_V1);
     assert_eq!(effective.max_frame_bytes, 2000);
+}
+
+#[test]
+fn negotiation_rejects_types_only_v1_1_and_selects_highest_exact_wire_version() {
+    let mut unsupported = ControlSession::new(limits()).unwrap();
+    assert_eq!(
+        unsupported.negotiate(&NegotiateParams {
+            versions: BTreeSet::from([CONTROL_HISTORY_ANALYSIS_V1]),
+            limits: limits(),
+        }),
+        Err(SessionError::IncompatibleVersion)
+    );
+
+    let mut mixed = ControlSession::new(limits()).unwrap();
+    let (selected, _) = mixed
+        .negotiate(&NegotiateParams {
+            versions: BTreeSet::from([
+                CONTROL_V1,
+                CONTROL_HISTORY_ANALYSIS_V1,
+                CONTROL_MEASUREMENT_CATALOG_V1,
+            ]),
+            limits: limits(),
+        })
+        .unwrap();
+    assert_eq!(selected, CONTROL_MEASUREMENT_CATALOG_V1);
+    assert_eq!(mixed.version(), Some(CONTROL_MEASUREMENT_CATALOG_V1));
+    mixed
+        .admit(&request(1, ControlCall::MeasurementCatalog))
+        .unwrap();
 }
 
 #[test]

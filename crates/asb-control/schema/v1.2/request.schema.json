@@ -1,0 +1,531 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ControlRequest",
+  "description": "JSON-RPC request accepted from a frontend.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Unique outstanding request identity on this connection.",
+      "$ref": "#/$defs/RequestId"
+    },
+    "jsonrpc": {
+      "description": "Must equal `2.0`.",
+      "type": "string",
+      "const": "2.0"
+    },
+    "timeout_ms": {
+      "description": "Deadline relative to server receipt.",
+      "type": "integer",
+      "format": "uint64",
+      "maximum": 300000,
+      "minimum": 1
+    }
+  },
+  "oneOf": [
+    {
+      "description": "Negotiate protocol version and resource bounds.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "negotiate"
+        },
+        "params": {
+          "$ref": "#/$defs/NegotiateParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Obtain runner and transport capabilities.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "capabilities"
+        }
+      },
+      "required": [
+        "method"
+      ]
+    },
+    {
+      "description": "Obtain the immutable catalog of selectable measurements.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "measurement_catalog"
+        }
+      },
+      "required": [
+        "method"
+      ]
+    },
+    {
+      "description": "Validate settings without creating durable run state.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "validate_settings"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "settings": {
+              "description": "Candidate settings document."
+            }
+          },
+          "required": [
+            "settings"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Validate and durably create a content-pinned plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "create_plan"
+        },
+        "params": {
+          "$ref": "#/$defs/MutationParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Launch one previously created plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "launch"
+        },
+        "params": {
+          "$ref": "#/$defs/LaunchParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read authoritative current run state.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "status"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "description": "Durable run to inspect.",
+              "$ref": "#/$defs/RunId"
+            }
+          },
+          "required": [
+            "run_id"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Request cancellation of an exact attempt.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "params": {
+          "$ref": "#/$defs/CancelParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Page through recent durable runs.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "history"
+        },
+        "params": {
+          "$ref": "#/$defs/PageParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Create a new plan from a completed run.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "repeat"
+        },
+        "params": {
+          "$ref": "#/$defs/RepeatParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Analyze a bounded set of durable runs.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "analyze"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_ids": {
+              "description": "Bounded set of durable runs to compare.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RunId"
+              }
+            }
+          },
+          "required": [
+            "run_ids"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Resume public runner events after a durable revision.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "events"
+        },
+        "params": {
+          "$ref": "#/$defs/PageParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Obtain metadata for one sensitive artifact; content needs separate authorization.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "artifact_metadata"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "digest": {
+              "description": "Exact content digest from the runner journal.",
+              "type": "string"
+            },
+            "run_id": {
+              "description": "Durable run owning the artifact reference.",
+              "$ref": "#/$defs/RunId"
+            }
+          },
+          "required": [
+            "run_id",
+            "digest"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    }
+  ],
+  "required": [
+    "jsonrpc",
+    "id",
+    "timeout_ms"
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "AttemptId": {
+      "description": "Opaque stable execution-attempt identity.",
+      "type": "string"
+    },
+    "CancelParams": {
+      "description": "Causally fenced cancellation input.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "description": "Exact attempt expected by the frontend.",
+          "$ref": "#/$defs/AttemptId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "idempotency_key": {
+          "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "run_id": {
+          "description": "Run to cancel.",
+          "$ref": "#/$defs/RunId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "attempt_id",
+        "idempotency_key"
+      ]
+    },
+    "ControlLimits": {
+      "description": "Negotiated per-connection bounds.",
+      "type": "object",
+      "properties": {
+        "max_frame_bytes": {
+          "description": "Largest four-byte-length-prefixed JSON body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 1048576,
+          "minimum": 1
+        },
+        "max_in_flight": {
+          "description": "Largest number of admitted requests awaiting terminal responses.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 64,
+          "minimum": 1
+        },
+        "max_page_items": {
+          "description": "Largest page a client may request.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 256,
+          "minimum": 1
+        },
+        "max_timeout_ms": {
+          "description": "Longest request processing deadline measured from receipt.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 300000,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_frame_bytes",
+        "max_timeout_ms",
+        "max_page_items",
+        "max_in_flight"
+      ]
+    },
+    "ControlVersion": {
+      "description": "A major/minor protocol version.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking protocol generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible feature generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "LaunchParams": {
+      "description": "Idempotent launch input.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "plan_id": {
+          "description": "Previously created durable plan identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "plan_id"
+      ]
+    },
+    "MutationParams": {
+      "description": "Generic idempotent mutation input.",
+      "type": "object",
+      "properties": {
+        "definition": {
+          "description": "Content-pinned validated definition."
+        },
+        "idempotency_key": {
+          "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "definition"
+      ]
+    },
+    "NegotiateParams": {
+      "description": "Initial negotiation offer.",
+      "type": "object",
+      "properties": {
+        "limits": {
+          "description": "Client-side bounds.",
+          "$ref": "#/$defs/ControlLimits"
+        },
+        "versions": {
+          "description": "Versions supported by the client.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlVersion"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "versions",
+        "limits"
+      ]
+    },
+    "PageParams": {
+      "description": "Bounded cursor page request.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "description": "Last revision already durably observed, or none for the retained beginning.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "description": "Maximum requested records.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 256,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "limit"
+      ]
+    },
+    "RepeatParams": {
+      "description": "Repetition input bound to an immutable source run.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "run_id": {
+          "description": "Immutable source run.",
+          "$ref": "#/$defs/RunId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "idempotency_key"
+      ]
+    },
+    "RequestId": {
+      "description": "Numeric JSON-RPC request identity.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "Revision": {
+      "description": "Opaque durable revision used to resume event streams.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "RunId": {
+      "description": "Opaque stable run identity.",
+      "type": "string"
+    }
+  }
+}

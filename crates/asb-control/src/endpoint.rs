@@ -13,9 +13,9 @@ use thiserror::Error;
 
 use crate::{
     BoundControlResult, CONTROL_V1, ControlCall, ControlLimits, ControlRequest, ControlResponse,
-    ControlSession, ControlSuccess, FrameError, Negotiated, OwnerSocket, ProtocolError,
-    RequestDeadline, RequestId, Revision, SessionError, authenticate_owner, error_code,
-    read_frame_until, validate_identity, write_frame_until,
+    ControlSession, ControlSuccess, ControlVersion, FrameError, Negotiated, OwnerSocket,
+    ProtocolError, RequestDeadline, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS, SessionError,
+    authenticate_owner, error_code, read_frame_until, validate_identity, write_frame_until,
 };
 
 const MAX_REQUESTS_PER_CONNECTION: usize = 1024;
@@ -183,10 +183,10 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         let mut session = ControlSession::new(limits)?;
         let ingress = RequestDeadline::start(limits.max_timeout_ms)?;
         let first: ControlRequest = read_frame_until(stream, limits, ingress)?;
-        let (_, effective) = session.negotiate_request(&first)?;
+        let (version, effective) = session.negotiate_request(&first)?;
         let deadline = ingress.tighten(first.timeout_ms)?;
         let negotiated = Negotiated {
-            version: CONTROL_V1,
+            version,
             limits: effective,
             runner_instance_id: backend.runner_instance_id().to_owned(),
             oldest_revision: backend.oldest_revision(),
@@ -205,14 +205,23 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
                 Err(FrameError::Closed) => return Ok(()),
                 Err(error) => return Err(error.into()),
             };
-            let admission = session.admit_with_deadline(&request, ingress)?;
+            let admission = match session.admit_with_deadline(&request, ingress) {
+                Ok(admission) => admission,
+                Err(SessionError::CapabilityUnavailable) => {
+                    let response = BackendFailure::CapabilityUnavailable.response(request.id);
+                    let deadline = ingress.tighten(request.timeout_ms)?;
+                    write_public_response(stream, &response, effective, deadline)?;
+                    continue;
+                }
+                Err(error) => return Err(error.into()),
+            };
             let id = admission.id;
             let deadline = admission.deadline();
             let outcome = backend.execute(&request.call, deadline);
             let response = match outcome {
                 Ok(result) => {
                     deadline.check()?;
-                    result.validate_for_call(&request.call, effective)?;
+                    result.validate_for_call_and_version(&request.call, effective, version)?;
                     ControlResponse::success(id, ControlSuccess::Operation(result))
                 }
                 Err(failure) => failure.response(id),
@@ -258,12 +267,58 @@ impl ControlClient {
         Self::from_stream(stream, limits, rustix::process::geteuid().as_raw())
     }
 
+    /// Connect while explicitly offering exact protocol versions.
+    pub fn connect_with_versions(
+        path: impl AsRef<Path>,
+        limits: ControlLimits,
+        versions: impl IntoIterator<Item = ControlVersion>,
+    ) -> Result<Self, EndpointError> {
+        let versions = versions
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        if versions.is_empty()
+            || versions
+                .iter()
+                .any(|version| !SUPPORTED_CONTROL_VERSIONS.contains(version))
+        {
+            return Err(EndpointError::UnexpectedResponse);
+        }
+        let stream = UnixStream::connect(path)?;
+        Self::from_stream_with_versions(
+            stream,
+            limits,
+            rustix::process::geteuid().as_raw(),
+            versions,
+        )
+    }
+
     fn from_stream(
-        mut stream: UnixStream,
+        stream: UnixStream,
         limits: ControlLimits,
         expected_uid: u32,
     ) -> Result<Self, EndpointError> {
+        Self::from_stream_with_versions(
+            stream,
+            limits,
+            expected_uid,
+            [CONTROL_V1].into_iter().collect(),
+        )
+    }
+
+    fn from_stream_with_versions(
+        mut stream: UnixStream,
+        limits: ControlLimits,
+        expected_uid: u32,
+        versions: std::collections::BTreeSet<ControlVersion>,
+    ) -> Result<Self, EndpointError> {
         let limits = limits.validate()?;
+        if versions.is_empty()
+            || versions
+                .iter()
+                .any(|version| !SUPPORTED_CONTROL_VERSIONS.contains(version))
+        {
+            return Err(EndpointError::UnexpectedResponse);
+        }
         // A private server socket authenticates clients, but the independently
         // started frontend must also reject a socket owned by another user.
         // Perform this check before sending any request content.
@@ -273,7 +328,7 @@ impl ControlClient {
             id: RequestId(1),
             timeout_ms: limits.max_timeout_ms,
             call: ControlCall::Negotiate(crate::NegotiateParams {
-                versions: [CONTROL_V1].into_iter().collect(),
+                versions: versions.clone(),
                 limits,
             }),
         };
@@ -287,7 +342,8 @@ impl ControlClient {
         let Some(ControlSuccess::Negotiated(negotiated)) = response.into_result() else {
             return Err(EndpointError::UnexpectedResponse);
         };
-        if negotiated.version != CONTROL_V1
+        if !versions.contains(&negotiated.version)
+            || !SUPPORTED_CONTROL_VERSIONS.contains(&negotiated.version)
             || negotiated.limits.validate().is_err()
             || !limits_include(limits, negotiated.limits)
             || negotiated.oldest_revision > negotiated.latest_revision
@@ -318,6 +374,9 @@ impl ControlClient {
         if matches!(call, ControlCall::Negotiate(_)) {
             return Err(EndpointError::UnexpectedResponse);
         }
+        if self.negotiated.version < call.minimum_version() {
+            return Err(EndpointError::UnexpectedResponse);
+        }
         let id = RequestId(self.next_id);
         self.next_id = self
             .next_id
@@ -339,7 +398,11 @@ impl ControlClient {
         }
         match response.result() {
             Some(ControlSuccess::Operation(result)) => {
-                result.validate_for_call(&call, self.limits)?;
+                result.validate_for_call_and_version(
+                    &call,
+                    self.limits,
+                    self.negotiated.version,
+                )?;
             }
             None if response.error().is_some() => {}
             _ => return Err(EndpointError::UnexpectedResponse),
@@ -399,6 +462,10 @@ pub enum EndpointError {
 mod tests {
     use super::*;
     use std::io::Read;
+    use std::os::unix::net::UnixListener;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SOCKET_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     #[test]
     fn every_backend_failure_has_a_fixed_public_response() {
@@ -471,5 +538,56 @@ mod tests {
             .expect("read timeout");
         let mut byte = [0_u8; 1];
         assert_eq!(peer.read(&mut byte).expect("peer closed without data"), 0);
+    }
+
+    #[test]
+    fn client_rejects_unimplemented_offers_before_sending_negotiation() {
+        let (client, mut peer) = UnixStream::pair().expect("socket pair");
+        assert!(matches!(
+            ControlClient::from_stream_with_versions(
+                client,
+                ControlLimits::default(),
+                rustix::process::geteuid().as_raw(),
+                [crate::ControlVersion { major: 1, minor: 3 }]
+                    .into_iter()
+                    .collect(),
+            ),
+            Err(EndpointError::UnexpectedResponse)
+        ));
+        peer.set_read_timeout(Some(Duration::from_millis(20)))
+            .expect("read timeout");
+        let mut byte = [0_u8; 1];
+        assert_eq!(peer.read(&mut byte).expect("peer closed without data"), 0);
+    }
+
+    #[test]
+    fn public_client_rejects_invalid_offers_before_connecting() {
+        let path = std::env::temp_dir().join(format!(
+            "asb-control-invalid-offer-{}-{}.sock",
+            std::process::id(),
+            SOCKET_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_file(&path);
+        let listener = UnixListener::bind(&path).expect("bind test listener");
+        listener
+            .set_nonblocking(true)
+            .expect("nonblocking listener");
+
+        for versions in [
+            Vec::new(),
+            vec![crate::ControlVersion { major: 1, minor: 3 }],
+        ] {
+            assert!(matches!(
+                ControlClient::connect_with_versions(&path, ControlLimits::default(), versions,),
+                Err(EndpointError::UnexpectedResponse)
+            ));
+            assert!(matches!(
+                listener.accept(),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock
+            ));
+        }
+
+        drop(listener);
+        std::fs::remove_file(path).expect("remove test socket");
     }
 }

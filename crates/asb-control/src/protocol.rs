@@ -4,9 +4,10 @@
 
 use std::collections::BTreeSet;
 
+use asb_protocol::{MAX_MEASUREMENT_CATALOG_WIRE_BYTES, MeasurementCatalogV1};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::{Deserialize, Deserializer, Serialize, de};
+use serde_json::{Value, value::RawValue};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -16,6 +17,11 @@ pub const JSONRPC_VERSION: &str = "2.0";
 pub const CONTROL_V1: ControlVersion = ControlVersion { major: 1, minor: 0 };
 /// Version of the additive history and analysis evidence extension.
 pub const CONTROL_HISTORY_ANALYSIS_V1: ControlVersion = ControlVersion { major: 1, minor: 1 };
+/// Version of the additive measurement-catalog operation.
+pub const CONTROL_MEASUREMENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 2 };
+/// Exact wire versions implemented by the endpoint, in negotiation order.
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 2] =
+    [CONTROL_V1, CONTROL_MEASUREMENT_CATALOG_V1];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
 /// Absolute maximum request deadline.
@@ -36,6 +42,10 @@ pub const MAX_PUBLIC_STRING_BYTES: usize = 4096;
 pub const MAX_PUBLIC_JSON_NODES: usize = 4096;
 /// Maximum recursive JSON nesting exposed in one public result.
 pub const MAX_PUBLIC_JSON_DEPTH: usize = 16;
+/// Maximum encoded measurement-catalog publication returned through control v1.
+///
+/// This leaves at least 64 KiB for the JSON-RPC envelope under the default frame limit.
+pub const MAX_MEASUREMENT_CATALOG_PUBLICATION_BYTES: usize = 192 * 1024;
 
 /// Stable control-protocol application errors.
 pub mod error_code {
@@ -174,6 +184,8 @@ pub enum ControlCall {
     Negotiate(NegotiateParams),
     /// Obtain runner and transport capabilities.
     Capabilities,
+    /// Obtain the immutable catalog of selectable measurements.
+    MeasurementCatalog,
     /// Validate settings without creating durable run state.
     ValidateSettings {
         /// Candidate settings document.
@@ -208,6 +220,17 @@ pub enum ControlCall {
         /// Exact content digest from the runner journal.
         digest: String,
     },
+}
+
+impl ControlCall {
+    /// Earliest exact wire version that defines this operation.
+    #[must_use]
+    pub const fn minimum_version(&self) -> ControlVersion {
+        match self {
+            Self::MeasurementCatalog => CONTROL_MEASUREMENT_CATALOG_V1,
+            _ => CONTROL_V1,
+        }
+    }
 }
 
 /// Initial negotiation offer.
@@ -273,13 +296,119 @@ pub struct PageParams {
 }
 
 /// JSON-RPC terminal response.
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum ControlResponse {
     /// Successful typed response.
     Success(ControlSuccessResponse),
     /// Fixed privacy-safe failure response.
     Failure(ControlFailureResponse),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawResponseEnvelope {
+    jsonrpc: String,
+    id: RequestId,
+    #[serde(default)]
+    result: RawField,
+    #[serde(default)]
+    error: RawField,
+}
+
+#[derive(Default)]
+enum RawField {
+    #[default]
+    Missing,
+    Present(Box<RawValue>),
+}
+
+impl<'de> Deserialize<'de> for RawField {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Box::<RawValue>::deserialize(deserializer).map(Self::Present)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawTaggedValue {
+    kind: String,
+    value: Box<RawValue>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawBoundResult {
+    request_sha256: String,
+    result: Box<RawValue>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawCatalogPublication {
+    version: ControlVersion,
+    freshness: MeasurementCatalogFreshness,
+    source: MeasurementCatalogPublicationSource,
+    catalog: Box<RawValue>,
+}
+
+fn decode_raw_response(raw: &str) -> Result<ControlResponse, serde_json::Error> {
+    let envelope: RawResponseEnvelope = serde_json::from_str(raw)?;
+    let result = match (envelope.result, envelope.error) {
+        (RawField::Present(result), RawField::Missing) => result,
+        (RawField::Missing, RawField::Present(_)) => {
+            return serde_json::from_str::<ControlFailureResponse>(raw)
+                .map(ControlResponse::Failure);
+        }
+        _ => {
+            return Err(<serde_json::Error as de::Error>::custom(
+                "response must contain exactly one terminal outcome",
+            ));
+        }
+    };
+    let success: RawTaggedValue = serde_json::from_str(result.get())?;
+    if success.kind != "operation" {
+        return serde_json::from_str::<ControlSuccessResponse>(raw).map(ControlResponse::Success);
+    }
+    let bound: RawBoundResult = serde_json::from_str(success.value.get())?;
+    let result: RawTaggedValue = serde_json::from_str(bound.result.get())?;
+    if result.kind != "measurement_catalog" {
+        return serde_json::from_str::<ControlSuccessResponse>(raw).map(ControlResponse::Success);
+    }
+    if result.value.get().len() > MAX_MEASUREMENT_CATALOG_PUBLICATION_BYTES {
+        return Err(<serde_json::Error as de::Error>::custom(
+            "measurement catalog publication exceeds encoded size bound",
+        ));
+    }
+    let publication: RawCatalogPublication = serde_json::from_str(result.value.get())?;
+    let catalog = MeasurementCatalogV1::from_slice_bounded(publication.catalog.get().as_bytes())
+        .map_err(|error| <serde_json::Error as de::Error>::custom(error.to_string()))?;
+    Ok(ControlResponse::Success(ControlSuccessResponse {
+        jsonrpc: envelope.jsonrpc,
+        id: envelope.id,
+        result: ControlSuccess::Operation(BoundControlResult {
+            request_sha256: bound.request_sha256,
+            result: ControlResult::MeasurementCatalog(MeasurementCatalogPublication {
+                version: publication.version,
+                freshness: publication.freshness,
+                source: publication.source,
+                catalog: ControlMeasurementCatalog(catalog),
+            }),
+        }),
+    }))
+}
+
+impl<'de> Deserialize<'de> for ControlResponse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = <&'de RawValue>::deserialize(deserializer)?;
+        decode_raw_response(raw.get()).map_err(de::Error::custom)
+    }
 }
 
 /// Closed successful response envelope.
@@ -784,6 +913,105 @@ pub struct Capabilities {
     pub events: bool,
 }
 
+/// Explicit freshness semantics for a published measurement catalog.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasurementCatalogFreshness {
+    /// The publication is immutable and freshness is established by its content digest.
+    ContentAddressed,
+}
+
+/// Closed provenance for the catalog exposed by the runner.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasurementCatalogPublicationSource {
+    /// The catalog is compiled from ASB's qualified built-in collector inventory.
+    BuiltInCollectors,
+}
+
+/// A catalog decoded only through the bounded AR-1013 constructor.
+#[derive(Clone, Debug, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct ControlMeasurementCatalog(pub MeasurementCatalogV1);
+
+impl<'de> Deserialize<'de> for ControlMeasurementCatalog {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = <&'de RawValue>::deserialize(deserializer)?;
+        let bytes = raw.get().as_bytes();
+        if bytes.len() > MAX_MEASUREMENT_CATALOG_WIRE_BYTES {
+            return Err(de::Error::custom(
+                "measurement catalog exceeds its wire bound",
+            ));
+        }
+        MeasurementCatalogV1::from_slice_bounded(bytes)
+            .map(Self)
+            .map_err(de::Error::custom)
+    }
+}
+
+/// Versioned, bounded publication returned by `measurement_catalog`.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[schemars(transform = measurement_catalog_publication_schema)]
+#[serde(deny_unknown_fields)]
+pub struct MeasurementCatalogPublication {
+    /// Additive control extension version defining this result.
+    pub version: ControlVersion,
+    /// How consumers determine whether this immutable catalog changed.
+    pub freshness: MeasurementCatalogFreshness,
+    /// Closed authority that produced the catalog.
+    pub source: MeasurementCatalogPublicationSource,
+    /// Canonical AR-1013 catalog and its content digest.
+    pub catalog: ControlMeasurementCatalog,
+}
+
+fn measurement_catalog_publication_schema(schema: &mut schemars::Schema) {
+    schema.ensure_object().insert(
+        "allOf".into(),
+        serde_json::json!([{
+            "properties": {
+                "version": {
+                    "properties": {
+                        "major": {"const": 1},
+                        "minor": {"const": 2}
+                    }
+                }
+            }
+        }]),
+    );
+}
+
+impl MeasurementCatalogPublication {
+    /// Construct the authoritative built-in publication.
+    #[must_use]
+    pub fn built_in(catalog: MeasurementCatalogV1) -> Self {
+        Self {
+            version: CONTROL_MEASUREMENT_CATALOG_V1,
+            freshness: MeasurementCatalogFreshness::ContentAddressed,
+            source: MeasurementCatalogPublicationSource::BuiltInCollectors,
+            catalog: ControlMeasurementCatalog(catalog),
+        }
+    }
+
+    /// Validate version, catalog semantics, digest, privacy, and result size.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        if self.version != CONTROL_MEASUREMENT_CATALOG_V1 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        self.catalog
+            .0
+            .validate()
+            .map_err(|_| ProtocolError::InvalidResponse)?;
+        let bytes = serde_json::to_vec(self).map_err(|_| ProtocolError::InvalidResponse)?;
+        if bytes.len() > MAX_MEASUREMENT_CATALOG_PUBLICATION_BYTES {
+            return Err(ProtocolError::UnsafePublicValue);
+        }
+        Ok(())
+    }
+}
+
 /// Stable, non-sensitive settings diagnostic.
 #[derive(
     Clone, Copy, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize,
@@ -849,6 +1077,8 @@ pub struct AnalysisSummary {
 pub enum ControlResult {
     /// Runner feature availability.
     Capabilities(Capabilities),
+    /// Immutable selectable-measurement catalog.
+    MeasurementCatalog(MeasurementCatalogPublication),
     /// Settings validation outcome.
     SettingsValidation(SettingsValidation),
     /// Created or repeated immutable plan.
@@ -900,6 +1130,26 @@ impl BoundControlResult {
         }
         self.result.validate_for_call(call, limits)
     }
+
+    /// Validate a result and reject shapes not defined by the negotiated version.
+    pub fn validate_for_call_and_version(
+        &self,
+        call: &ControlCall,
+        limits: ControlLimits,
+        version: ControlVersion,
+    ) -> Result<(), ProtocolError> {
+        if !SUPPORTED_CONTROL_VERSIONS.contains(&version) || version < call.minimum_version() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        self.validate_for_call(call, limits)?;
+        match &self.result {
+            ControlResult::MeasurementCatalog(_) if version < CONTROL_MEASUREMENT_CATALOG_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 impl ControlResult {
@@ -912,6 +1162,7 @@ impl ControlResult {
         }
         match self {
             Self::Capabilities(_) => Ok(()),
+            Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
                 if value.accepted {
                     Ok(())
@@ -1011,6 +1262,7 @@ impl ControlResult {
         matches!(
             (call, self),
             (ControlCall::Capabilities, Self::Capabilities(_))
+                | (ControlCall::MeasurementCatalog, Self::MeasurementCatalog(_))
                 | (
                     ControlCall::ValidateSettings { .. },
                     Self::SettingsValidation(_)

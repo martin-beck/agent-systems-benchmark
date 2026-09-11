@@ -46,6 +46,7 @@ The v1 methods are:
 | --- | --- | --- |
 | `negotiate` | Select version and limits | no |
 | `capabilities` | Describe runner and transport support | no |
+| `measurement_catalog` | Read the immutable selectable-measurement catalog | no |
 | `validate_settings` | Validate without creating a run | no |
 | `create_plan` | Persist a validated content-pinned plan | yes |
 | `launch` | Launch one durable plan | yes |
@@ -123,3 +124,23 @@ cannot label a set comparable unless integrity and uncertainty evidence are
 present and no confounder exists. Unknown JSON fields are rejected. These types
 are intentionally additive: existing v1 (`1.0`) envelopes remain compatible;
 serialized CLI/backend integration is a subsequent step.
+
+## Measurement catalog extension
+
+`CONTROL_MEASUREMENT_CATALOG_V1` (`1.2`) adds the read-only `measurement_catalog` operation. The
+runner advertises support only by selecting exact version `1.2` during negotiation and returns the
+exact AR-1013 catalog compiled from qualified built-in collectors. The publication identifies its source as
+`built_in_collectors` and its freshness as `content_addressed`; consumers detect change only through
+the validated `catalog_sha256`, never a wall-clock timestamp or host-local file.
+
+The publication is capped at 192 KiB, leaving bounded JSON-RPC envelope space under the default
+256 KiB control frame. The nested catalog retains its stricter group, measurement, text, platform,
+evidence and 256 KiB decode ceilings. Unknown fields, unsupported versions, stale digests,
+duplicate IDs, invalid units, unqualified external sources and privacy-sensitive public text fail
+before a response is accepted. Search, grouping, selection state and all presentation remain the
+standalone frontend's responsibility.
+
+Servers implement serialized wire versions `1.0` and `1.2`; `1.1` names additive evidence types but
+is not independently selectable. A legacy client continues to offer only `1.0`, whose schemas and
+capability response are unchanged. A standalone frontend explicitly offers `1.2`; a catalog call on
+`1.0` is rejected before backend work, and a catalog-shaped result received under `1.0` is invalid.
