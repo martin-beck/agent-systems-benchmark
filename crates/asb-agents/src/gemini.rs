@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::Component;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -49,6 +49,7 @@ pub const TESTED_NODE_LINUX_X86_64_SHA256: &str =
 const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 const TESTED_BUNDLE_FILE_COUNT: usize = 446;
 const O_NOFOLLOW_CLOEXEC: i32 = 0x000a_0000;
+const O_NOFOLLOW_CLOEXEC_NONBLOCK: i32 = O_NOFOLLOW_CLOEXEC | 0x0000_0800;
 /// Largest accepted prompt, in UTF-8 bytes.
 pub const MAX_PROMPT_BYTES: usize = 4 * 1024 * 1024;
 /// Largest individual Gemini stream-JSON line.
@@ -69,10 +70,39 @@ static RUN_NONCE: AtomicU64 = AtomicU64::new(0);
 
 const ACTION_HOOK: &str = r#"'use strict';
 const fs = require('fs');
+const path = require('path');
 const max = Number(process.env.ASB_MAX_ACTIONS);
 const counter = process.env.ASB_ACTION_COUNTER;
 const lock = counter + '.lock';
 const sleep = new Int32Array(new SharedArrayBuffer(4));
+
+function publishReady() {
+  const ready = counter + '.ready';
+  const temporary = ready + '.tmp-' + process.pid;
+  let file;
+  let directory;
+  try {
+    file = fs.openSync(temporary,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL |
+      fs.constants.O_NOFOLLOW, 0o600);
+    fs.writeFileSync(file, 'ready\n', { encoding: 'utf8' });
+    fs.fsyncSync(file);
+    fs.closeSync(file);
+    file = undefined;
+    fs.renameSync(temporary, ready);
+    directory = fs.openSync(path.dirname(ready),
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
+    fs.fsyncSync(directory);
+    fs.closeSync(directory);
+    directory = undefined;
+    return true;
+  } catch (_) {
+    if (file !== undefined) try { fs.closeSync(file); } catch (_) {}
+    if (directory !== undefined) try { fs.closeSync(directory); } catch (_) {}
+    try { fs.unlinkSync(temporary); } catch (_) {}
+    return false;
+  }
+}
 
 function stop() {
   process.stdout.write(JSON.stringify({
@@ -156,7 +186,10 @@ process.stdin.on('end', () => {
   try {
     const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     if (input.hook_event_name === 'SessionStart') {
-      fs.writeFileSync(counter + '.ready', 'ready\n', { encoding: 'utf8', mode: 0o600 });
+      if (!publishReady()) {
+        stop();
+        return;
+      }
       process.stdout.write('{}');
     } else if (input.hook_event_name === 'BeforeTool') {
       claim();
@@ -1415,15 +1448,83 @@ fn wait_for_hook_ready(run_root: &Path, attempt_timeout: Duration) -> bool {
 }
 
 fn wait_for_hook_ready_until(run_root: &Path, deadline: Instant) -> bool {
-    let marker = run_root.join("action-count.ready");
+    wait_for_hook_ready_until_observed(run_root, deadline, |_| {})
+}
+
+fn wait_for_hook_ready_until_observed(
+    run_root: &Path,
+    deadline: Instant,
+    mut observed: impl FnMut(HookMarkerState),
+) -> bool {
     loop {
-        match fs::read(&marker) {
-            Ok(contents) => return contents == b"ready\n",
-            Err(error) if error.kind() == io::ErrorKind::NotFound && Instant::now() < deadline => {
+        let state = hook_marker_state(run_root);
+        observed(state);
+        match state {
+            HookMarkerState::Ready => return true,
+            HookMarkerState::Pending if Instant::now() < deadline => {
                 thread::sleep(Duration::from_millis(5));
             }
-            Err(_) => return false,
+            HookMarkerState::Pending | HookMarkerState::Invalid => return false,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HookMarkerState {
+    Pending,
+    Ready,
+    Invalid,
+}
+
+fn hook_marker_state(run_root: &Path) -> HookMarkerState {
+    let root_metadata = match fs::symlink_metadata(run_root) {
+        Ok(metadata) if metadata.file_type().is_dir() && metadata.mode() & 0o777 == 0o700 => {
+            metadata
+        }
+        Ok(_) | Err(_) => return HookMarkerState::Invalid,
+    };
+    let marker = run_root.join("action-count.ready");
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(O_NOFOLLOW_CLOEXEC_NONBLOCK)
+        .open(&marker)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => match fs::symlink_metadata(marker)
+        {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return HookMarkerState::Pending;
+            }
+            Ok(_) | Err(_) => return HookMarkerState::Invalid,
+        },
+        Err(_) => return HookMarkerState::Invalid,
+    };
+    let metadata = match file.metadata() {
+        Ok(metadata)
+            if metadata.file_type().is_file()
+                && metadata.uid() == root_metadata.uid()
+                && metadata.mode() & 0o777 == 0o600
+                && metadata.nlink() == 1
+                && metadata.len() <= b"ready\n".len() as u64 =>
+        {
+            metadata
+        }
+        Ok(_) | Err(_) => return HookMarkerState::Invalid,
+    };
+    let mut contents = Vec::with_capacity(b"ready\n".len() + 1);
+    if file
+        .take((b"ready\n".len() + 1) as u64)
+        .read_to_end(&mut contents)
+        .is_err()
+    {
+        return HookMarkerState::Invalid;
+    }
+    if contents == b"ready\n" && metadata.len() == b"ready\n".len() as u64 {
+        HookMarkerState::Ready
+    } else if b"ready\n".starts_with(&contents) {
+        HookMarkerState::Pending
+    } else {
+        HookMarkerState::Invalid
     }
 }
 
@@ -1535,6 +1636,7 @@ impl<'de> Visitor<'de> for UniqueJsonVisitor {
 mod tests {
     use super::*;
     use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::sync::mpsc;
     use std::time::Duration;
 
     struct Scratch(PathBuf);
@@ -1912,7 +2014,7 @@ mod tests {
         fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
         fs::write(
             &node,
-            "#!/bin/sh\n[ \"$1\" = --use-env-proxy ] || exit 97\nshift\nprintf 'ready\\n' > \"$ASB_ACTION_COUNTER.ready\"\nexec /bin/sh \"$@\"\n",
+            "#!/bin/sh\n[ \"$1\" = --use-env-proxy ] || exit 97\nshift\nready_tmp=\"$ASB_ACTION_COUNTER.ready.tmp-$$\"\n(umask 077 && printf 'ready\\n' > \"$ready_tmp\") || exit 103\nmv \"$ready_tmp\" \"$ASB_ACTION_COUNTER.ready\" || exit 104\nexec /bin/sh \"$@\"\n",
         )
         .unwrap();
         fs::set_permissions(&node, fs::Permissions::from_mode(0o700)).unwrap();
@@ -1956,7 +2058,6 @@ case "$GEMINI_CLI_SYSTEM_SETTINGS_PATH" in "$XDG_CONFIG_HOME"/*) ;; *) exit 99;;
 case "$GEMINI_CLI_SYSTEM_DEFAULTS_PATH" in "$XDG_CONFIG_HOME"/*) ;; *) exit 100;; esac
 [ "$(cat "$GEMINI_CLI_SYSTEM_SETTINGS_PATH")" = '{}' ] || exit 101
 [ "$(cat "$GEMINI_CLI_SYSTEM_DEFAULTS_PATH")" = '{}' ] || exit 102
-printf 'ready\n' > "$ASB_ACTION_COUNTER.ready"
 [ "$ASB_MAX_ACTIONS" = 4 ] || exit 94
 [ "$(cat "$ASB_ACTION_COUNTER")" = 0 ] || exit 95
 grep -q asb-action-budget "$HOME/.gemini/settings.json" || exit 96
@@ -2012,6 +2113,7 @@ printf '%s\n' \
     #[test]
     fn hook_readiness_is_exact_and_bounded() {
         let scratch = Scratch::new("hook-ready");
+        fs::set_permissions(&scratch.0, fs::Permissions::from_mode(0o700)).unwrap();
         assert_eq!(
             hook_ready_timeout(Duration::from_millis(250)),
             Duration::from_millis(250)
@@ -2021,11 +2123,144 @@ printf '%s\n' \
             HOOK_READY_TIMEOUT
         );
         assert!(!wait_for_hook_ready_until(&scratch.0, Instant::now()));
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Pending);
+        let temporary = scratch.0.join("action-count.ready.tmp");
+        fs::write(&temporary, b"rea").unwrap();
+        fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Pending);
+        fs::write(&temporary, b"ready\n").unwrap();
+        fs::rename(&temporary, scratch.0.join("action-count.ready")).unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Ready);
+
+        fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        for partial in [b"".as_slice(), b"r", b"read", b"ready"] {
+            fs::write(scratch.0.join("action-count.ready"), partial).unwrap();
+            fs::set_permissions(
+                scratch.0.join("action-count.ready"),
+                fs::Permissions::from_mode(0o600),
+            )
+            .unwrap();
+            assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Pending);
+            fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        }
+
         fs::write(scratch.0.join("action-count.ready"), b"not-ready\n").unwrap();
+        fs::set_permissions(
+            scratch.0.join("action-count.ready"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
         assert!(!wait_for_hook_ready_until(
             &scratch.0,
             Instant::now() + Duration::from_secs(1)
         ));
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+
+        fs::write(scratch.0.join("action-count.ready"), b"ready\n").unwrap();
+        fs::set_permissions(
+            scratch.0.join("action-count.ready"),
+            fs::Permissions::from_mode(0o644),
+        )
+        .unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+        fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        symlink("missing", scratch.0.join("action-count.ready")).unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+        fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        fs::create_dir(scratch.0.join("action-count.ready")).unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+        fs::remove_dir(scratch.0.join("action-count.ready")).unwrap();
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            scratch.0.join("action-count.ready"),
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+        fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        fs::write(scratch.0.join("action-count.ready"), b"ready\nextra").unwrap();
+        fs::set_permissions(
+            scratch.0.join("action-count.ready"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+        fs::remove_file(scratch.0.join("action-count.ready")).unwrap();
+        fs::write(scratch.0.join("action-count.ready"), b"readxx").unwrap();
+        fs::set_permissions(
+            scratch.0.join("action-count.ready"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+        fs::write(scratch.0.join("action-count.ready"), b"ready\n").unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Ready);
+        fs::hard_link(
+            scratch.0.join("action-count.ready"),
+            scratch.0.join("action-count.ready.alias"),
+        )
+        .unwrap();
+        assert_eq!(hook_marker_state(&scratch.0), HookMarkerState::Invalid);
+    }
+
+    #[test]
+    fn readiness_waiter_observes_atomic_publication_barriers() {
+        let scratch = Scratch::new("hook-ready-barriers");
+        fs::set_permissions(&scratch.0, fs::Permissions::from_mode(0o700)).unwrap();
+        let run_root = scratch.0.clone();
+        let (observed_sender, observed_receiver) = mpsc::sync_channel(0);
+        let (advance_sender, advance_receiver) = mpsc::sync_channel(0);
+        let waiter = thread::spawn(move || {
+            wait_for_hook_ready_until_observed(
+                &run_root,
+                Instant::now() + Duration::from_secs(2),
+                |state| {
+                    observed_sender.send(state).unwrap();
+                    advance_receiver.recv().unwrap();
+                },
+            )
+        });
+
+        assert_eq!(observed_receiver.recv().unwrap(), HookMarkerState::Pending);
+        let temporary = scratch.0.join("action-count.ready.tmp");
+        fs::write(&temporary, b"rea").unwrap();
+        fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(!scratch.0.join("action-count.ready").exists());
+        advance_sender.send(()).unwrap();
+        assert_eq!(observed_receiver.recv().unwrap(), HookMarkerState::Pending);
+        fs::write(&temporary, b"ready\n").unwrap();
+        fs::rename(&temporary, scratch.0.join("action-count.ready")).unwrap();
+        advance_sender.send(()).unwrap();
+        assert_eq!(observed_receiver.recv().unwrap(), HookMarkerState::Ready);
+        advance_sender.send(()).unwrap();
+        assert!(waiter.join().unwrap());
+    }
+
+    #[test]
+    fn malformed_ready_marker_fails_fast_and_cleans_run_root() {
+        let (scratch, mut adapter) =
+            executable_adapter("#!/bin/sh\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n");
+        fs::write(
+            &adapter.node_binary,
+            "#!/bin/sh\numask 077\nprintf 'broken\\n' > \"$ASB_ACTION_COUNTER.ready\"\nwhile :; do sleep 1; done\n",
+        )
+        .unwrap();
+        fs::set_permissions(&adapter.node_binary, fs::Permissions::from_mode(0o700)).unwrap();
+        adapter.runtime_digest_override = Some(digest_file(&adapter.node_binary).unwrap());
+        adapter.bundle_digest_override = Some(digest_bundle_tree(&scratch.0, 2).unwrap());
+
+        let started = Instant::now();
+        assert!(matches!(
+            adapter.start(Id("s".into()), Id("malformed".into()), "x", limits()),
+            Err(AdapterError::HookUnavailable)
+        ));
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(
+            fs::read_dir(scratch.0.join("state"))
+                .unwrap()
+                .next()
+                .is_none()
+        );
     }
 
     #[test]
