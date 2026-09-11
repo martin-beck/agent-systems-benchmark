@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,12 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load emulated-aarch64 validator")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+
+AGENT_LIBRARY_INVOCATION = """          cargo +1.93.0 test --offline --locked \\
+            --target aarch64-unknown-linux-gnu -p asb-agents --lib -- \\
+            --test-threads=1 \\
+            --skip mini_swe::tests::trajectory_file_and_spawn_failures_are_bounded_and_cleaned
+"""
 
 
 class EmulatedAarch64Tests(unittest.TestCase):
@@ -117,6 +124,69 @@ class EmulatedAarch64Tests(unittest.TestCase):
         self.assertIn("QEMU_LD_PREFIX:", workflow)
         self.assertIn(self.config["guest_image"]["reference"], workflow)
         self.assertNotIn("native-tested", workflow)
+
+    def test_agent_library_inventory_runs_once_and_serially(self) -> None:
+        workflow = (ROOT / ".github/workflows/emulated-aarch64.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assert_agent_library_invocation(workflow)
+
+    def assert_agent_library_invocation(self, workflow: str) -> None:
+        marker = "      - name: Materialize immutable aarch64 guest userspace\n"
+        following = "      - name: Clean source tree\n"
+        self.assertEqual(workflow.count(marker), 1)
+        self.assertEqual(workflow.count(following), 1)
+        materialization = workflow.split(marker, 1)[1].split(following, 1)[0]
+        self.assertEqual(materialization.count(AGENT_LIBRARY_INVOCATION), 1)
+        self.assertEqual(materialization.count("-p asb-agents"), 1)
+        self.assertEqual(materialization.count("--test-threads=1"), 1)
+        self.assertEqual(
+            materialization.count(
+                "--skip "
+                "mini_swe::tests::trajectory_file_and_spawn_failures_are_bounded_and_cleaned"
+            ),
+            1,
+        )
+        self.assertIsNone(
+            re.search(r"(?m)^\s*(?:for|while|until|select|retry)\b", materialization)
+        )
+
+    def test_agent_library_serialization_contract_rejects_widening(self) -> None:
+        workflow = (ROOT / ".github/workflows/emulated-aarch64.yml").read_text(
+            encoding="utf-8"
+        )
+        mutations = {
+            "serialization removed": workflow.replace(
+                "            --test-threads=1 \\\n", ""
+            ),
+            "duplicate invocation": workflow.replace(
+                AGENT_LIBRARY_INVOCATION, AGENT_LIBRARY_INVOCATION * 2
+            ),
+            "differently spelled split invocation": workflow.replace(
+                AGENT_LIBRARY_INVOCATION,
+                AGENT_LIBRARY_INVOCATION
+                + "          cargo +1.93.0 test --offline --locked \\\n"
+                + "            --target aarch64-unknown-linux-gnu \\\n"
+                + "            --lib -p asb-agents\n",
+            ),
+            "test filter added": workflow.replace(
+                "-p asb-agents --lib -- \\\n",
+                "-p asb-agents --lib -- gemini::tests:: \\\n",
+            ),
+            "retry wrapper added": workflow.replace(
+                AGENT_LIBRARY_INVOCATION,
+                AGENT_LIBRARY_INVOCATION.replace("cargo", "retry 2 cargo", 1),
+            ),
+            "unchanged invocation looped": workflow.replace(
+                AGENT_LIBRARY_INVOCATION,
+                "          for attempt in 1 2; do\n"
+                + AGENT_LIBRARY_INVOCATION
+                + "          done\n",
+            ),
+        }
+        for name, mutation in mutations.items():
+            with self.subTest(name=name), self.assertRaises(AssertionError):
+                self.assert_agent_library_invocation(mutation)
 
     def test_guest_pin_matches_canonical_platform_manifest(self) -> None:
         platforms = MODULE.load(ROOT / "platforms/v1/platforms.json")["platforms"]

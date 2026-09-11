@@ -87,6 +87,7 @@ jobs:
             -p asb-protocol -p asb-replay -p asb-bundle
           cargo +1.93.0 test --offline --locked \
             --target aarch64-unknown-linux-gnu -p asb-agents --lib -- \
+            --test-threads=1 \
             --skip mini_swe::tests::trajectory_file_and_spawn_failures_are_bounded_and_cleaned
           cargo +1.93.0 build --offline --locked \
             --target aarch64-unknown-linux-gnu -p asb-cli --release
