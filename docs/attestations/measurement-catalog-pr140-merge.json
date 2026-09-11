@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "pull_request": 140,
+  "pull_request_url": "https://github.com/martin-beck/agent-systems-benchmark/pull/140",
+  "reviewed_base_commit": "23530dfc808650a8f3019c87a1c69fe3d0d654b5",
+  "reviewed_head_commit": "8e8d37e8c7ca7a4f673e8ae84d7395d512d45197",
+  "reviewed_head_tree": "733ecc72586e1d395b45962083fa60ff6a5c258b",
+  "reviewed_head_signature": "valid_allowed_ssh",
+  "reviewed_head_dco": true,
+  "reviewed_head_raw_message": "feat(control): publish measurement catalog v1.2\n\nSigned-off-by: Martin Beck <martin.beck2@gmx.de>",
+  "exact_head_checks": {
+    "expected": 12,
+    "successful": 12,
+    "checks": [
+      {"name": "AWQ v0.1.0 shadow evidence", "workflow": "Agent Workflow Quality shadow", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818762"},
+      {"name": "Bounded fuzz regressions", "workflow": "Fault assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818753"},
+      {"name": "Emulated aarch64 (x86_64 host)", "workflow": "Emulated aarch64 portability", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818744"},
+      {"name": "Exact Huawei 2026 and SPDX MIT headers", "workflow": "Huawei MIT source headers", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818849"},
+      {"name": "Kani bounded proofs", "workflow": "Formal assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818741"},
+      {"name": "Loom and state models (ubuntu-24.04)", "workflow": "Formal assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818741"},
+      {"name": "Matcher and SLO mutation sentinels", "workflow": "Fault assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818753"},
+      {"name": "Platform evidence (ubuntu-24.04)", "workflow": "Hosted portability and native qualification", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818749"},
+      {"name": "Policy, coverage, and supply chain", "workflow": "Repository quality", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818774"},
+      {"name": "Retained faults (ubuntu-24.04)", "workflow": "Fault assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818753"},
+      {"name": "Rust checks (ubuntu-24.04)", "workflow": "Rust verification", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818733"},
+      {"name": "TLC and Alloy recovery models", "workflow": "Formal assurance", "conclusion": "success", "run_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34556818741"}
+    ]
+  },
+  "merge_commit": "252f746e903555c2dc626fadfa1a75bb76913144",
+  "merge_parents": ["23530dfc808650a8f3019c87a1c69fe3d0d654b5", "8e8d37e8c7ca7a4f673e8ae84d7395d512d45197"],
+  "merge_tree": "733ecc72586e1d395b45962083fa60ff6a5c258b",
+  "merge_signature": {"verified": true, "reason": "valid", "signer": "github_web_flow", "verified_at": "2026-09-11T03:05:51Z"},
+  "merge_author_name": "martin-beck",
+  "merge_author_email": "martin.beck2@gmx.de",
+  "merge_raw_message": "feat(control): publish measurement catalog v1.2 (#140)\n\nPublish the bounded exact-version measurement catalog control contract while preserving immutable v1.0 behavior and keeping all frontend implementation outside ASB.\n\nSigned-off-by: Martin Beck <martin.beck2@gmx.de>",
+  "raw_signed_off_by": "Signed-off-by: Martin Beck <martin.beck2@gmx.de>",
+  "merge_commit_dco": false,
+  "publication_method": "merge",
+  "classification": "github_verified_tree_equivalent_merge_nonmatching_dco_author_name",
+  "catalog_source": {"path": "contracts/v1/catalog.json", "file_sha256": "83cbf015f92b9f6d0d0d2c79c27dacfd18fd2f280afd4e79961d0d8e795cb33d"},
+  "post_merge_workflows": [
+    {"workflow": "Emulated aarch64 portability", "run": 34557143665, "conclusion": "success", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143665"},
+    {"workflow": "Fault assurance", "run": 34557143652, "conclusion": "success", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143652"},
+    {"workflow": "Formal assurance", "run": 34557143678, "conclusion": "success", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143678"},
+    {"workflow": "Hosted portability and native qualification", "run": 34557143668, "conclusion": "success", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143668"},
+    {"workflow": "Huawei MIT source headers", "run": 34557143650, "conclusion": "success", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143650"},
+    {"workflow": "Repository quality", "run": 34557143666, "conclusion": "failure", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143666"},
+    {"workflow": "Rust verification", "run": 34557143667, "conclusion": "failure", "url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143667"}
+  ],
+  "repository_quality_failure": "repository policy: 252f746e903555c2dc626fadfa1a75bb76913144 lacks a matching Signed-off-by trailer",
+  "formal_lockfile_qualification": {"workflow": "Formal assurance", "run": 34557143678, "job": "Kani bounded proofs", "job_url": "https://github.com/martin-beck/agent-systems-benchmark/actions/runs/34557143678/job/103132091596", "step": "Require the committed dependency graph", "conclusion": "success"},
+  "remediation": "preserve protected history and publish this bounded attestation through a separately reviewed GitHub merge commit whose actual multiline message ends with the exact matching lowercase GitHub-author trailer",
+  "corrective_merge_recipe": {
+    "command": "gh pr merge <pr> --merge --subject <subject> --body \"$merge_body\"",
+    "body_encoding": "actual_multiline_text",
+    "required_final_trailer": "Signed-off-by: martin-beck <martin.beck2@gmx.de>",
+    "forbidden_publication": ["default_merge_message", "rebase", "squash", "escaped_literal_newlines", "title_cased_trailer", "missing_trailer", "duplicate_trailers"]
+  }
+}
