@@ -29,6 +29,17 @@ successful exact-head checks, and the precise protected-main policy failure.
 The historical merge remains non-DCO and visible; the attestation supplies no
 retroactive compliance claim.
 
+The [PR #140 measurement catalog attestation](attestations/measurement-catalog-pr140-merge.json)
+records the independently reviewed v1.2 catalog publication. The reviewed head
+had twelve successful exact-head checks, and the GitHub-verified merge preserved
+its exact tree. All seven protected-main workflow outcomes are retained,
+including successful formal lockfile qualification and the Repository quality
+and Rust verification failures. The merge author is
+`martin-beck <martin.beck2@gmx.de>`, but its raw trailer names `Martin Beck`, so
+the author-sensitive DCO boundary correctly rejected it. This attestation does
+not alter the catalog, rewrite the merge, or make that historical commit
+compliant.
+
 For a GitHub-created merge with that author identity, the real multiline merge
 message must end with the exact, case-sensitive trailer:
 

@@ -61,6 +61,15 @@ without changing the historical commit. Corrective publication must use `--merge
 with a real multiline body ending in the exact lowercase GitHub-author trailer;
 default, rebase, squash, escaped-newline, and title-cased variants fail closed.
 
+The [PR #140 measurement catalog attestation](attestations/measurement-catalog-pr140-merge.json)
+binds the reviewed catalog source, two-parent merge topology, tree equality,
+twelve exact-head checks, and all seven protected-main workflow outcomes. Its
+bounded validator records the successful formal dependency-lock qualification
+while preserving the exact DCO failures caused by the title-cased trailer. It
+rejects missing, duplicate, default, squash, rebase, escaped-newline, and
+title-cased publication recipes; a future GitHub merge must end in the exact
+lowercase author-matching trailer documented above.
+
 The negative suite invokes the production gate commands against controlled
 defects. It proves rejection of mutable Actions, missing DCO/signatures,
 malformed and unsafe workflows, a synthetic credential, a denied dependency, a
