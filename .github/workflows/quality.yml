@@ -55,10 +55,16 @@ jobs:
           printf 'head=%s\n' "$head" >> "$GITHUB_OUTPUT"
       - name: Enforce repository and commit policy
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
           RANGE_BASE: ${{ steps.range.outputs.base }}
           RANGE_HEAD: ${{ steps.range.outputs.head }}
         run: |
-          args=(--head "$RANGE_HEAD")
+          mode=ssh-only
+          if [[ "$EVENT_NAME" == push && "$EVENT_REF" == refs/heads/main ]]; then
+            mode=protected-main
+          fi
+          args=(--head "$RANGE_HEAD" --mode "$mode" --event "$EVENT_NAME" --ref "$EVENT_REF")
           if [[ -n "$RANGE_BASE" ]]; then
             args+=(--base "$RANGE_BASE")
           fi
@@ -96,6 +102,7 @@ jobs:
       - name: Prove gates reject controlled defects
         run: |
           python3 tools/quality/test_failure_paths.py --bin-dir "$ASB_QUALITY_BIN"
+          python3 -m unittest tools.quality.test_signature_policy
           python3 tests/quality/test_artifact_outcome.py
       - name: Validate platform manifests and failure fixtures
         run: |

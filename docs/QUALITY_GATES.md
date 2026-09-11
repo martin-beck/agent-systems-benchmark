@@ -24,13 +24,23 @@ access.
 
 The commit gate checks every introduced commit. Each requires a
 `Signed-off-by: Name <address>` entry exactly matching its author in the final
-Git trailer block, plus an SSH
-signature accepted by [allowed_signers](../config/allowed_signers). GitHub's
-branch `required_signatures` rule is not the source of truth because GitHub
-rejected a locally valid SSH-signed GMX-identity commit. The CI gate uses Git's
-allowed-signers verification directly. Contributors add their public signing
-identity through review before their commits can pass; private keys are never
-stored in this repository.
+Git trailer block. Default, pull-request, workflow-dispatch and ordinary topic
+commits require an SSH signature accepted by
+[allowed_signers](../config/allowed_signers).
+
+Canonical `push` validation on `refs/heads/main` has one additional offline
+publication rule. A final two-parent merge may use GitHub Web Flow's PGP
+signature only when its first parent is the immutable range base, its committer
+is exactly `GitHub <noreply@github.com>`, its author matches the DCO trailer, and
+every topic commit still has an allowed SSH signature. The armored key is pinned
+byte-for-byte in [github_web_flow.gpg](../config/github_web_flow.gpg) with
+SHA-256 `6e8af687f60cf3f403151c8fb1b26e95e6f9e424ca60cc8f3787bd4466a3ef84`;
+only full fingerprint `968479A1AFF927E37D1A566BB5690EEEBB952194` is accepted.
+GitHub documents `https://github.com/web-flow.gpg` as the public key for local
+verification of web-interface commits. Verification performs no key lookup or
+network request. GitHub's branch `required_signatures` result remains supporting
+evidence rather than the offline source of truth. Contributors add their public
+SSH signing identity through review; private keys are never stored here.
 
 The negative suite invokes the production gate commands against controlled
 defects. It proves rejection of mutable Actions, missing DCO/signatures,
@@ -67,6 +77,7 @@ bin_dir="$(tools/quality/install-external-tools.sh)"
 "$bin_dir/gitleaks" git --redact --no-banner .
 python3 tools/quality/repository_policy.py --base origin/main --head HEAD
 python3 tools/quality/test_failure_paths.py --bin-dir "$bin_dir"
+python3 -m unittest tools.quality.test_signature_policy
 ```
 
 Online advisory refreshes and external downloads make cargo-audit and tool
