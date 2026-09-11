@@ -18,9 +18,10 @@ history, exact repeat, analysis, resumable public events, and privacy-safe
 artifact metadata. There is no implicit TCP listener. Remote transports are a
 separate explicitly enabled boundary.
 
-The endpoint implements exact serialized versions `1.0` and `1.2`. Existing
+The endpoint implements exact serialized versions `1.0`, `1.2`, and `1.3`. Existing
 clients continue to negotiate immutable `1.0`; independent frontends offer
-`1.2` to obtain `measurement_catalog`. The additive `1.1` evidence types do not
+`1.2` to obtain `measurement_catalog`, or `1.3` for structured measurement-selection validation
+diagnostics. The additive `1.1` evidence types do not
 define a separately selectable wire version.
 
 Runner journals remain authoritative. Mutating calls carry idempotency keys;

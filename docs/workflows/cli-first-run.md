@@ -18,6 +18,17 @@ Expected state: `doctor` reports the supported command/workload inventory and
 `plan` returns structured JSON with command `plan`. No result or work directory
 is created by `plan` when validation fails.
 
+New plans use `schema_version = 2` and include a closed `measurement_selection`
+table generated from the exact content-addressed measurement catalog. The table
+contains `schema_version = 1`, `catalog_schema_version = 1`, the catalog and
+selection SHA-256 values, canonical `selected_ids`, the experiment's `mode`, and
+`sample_interval_ns` (omit the interval only for an empty selection). Use the
+checked JSON selection fixtures under `crates/asb-protocol/fixtures/v1` as the
+machine-readable examples; do not hand-sort or silently substitute IDs. ASB
+revalidates the selection before creating either run root. Plan v1 is read-only
+compatibility input and migrates explicitly to its historical seven process
+measurements at `point.poll_ms`; new tools should not author it.
+
 For a live provider, first bind a catalog and a logical credential reference;
 the reference digest is not a credential value:
 

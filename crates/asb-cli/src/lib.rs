@@ -17,7 +17,11 @@ use asb_agents::provider_launch::{
 };
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
-use asb_protocol::{ExperimentManifestV1, Id};
+use asb_protocol::{
+    ExperimentManifestV1, Id, MeasurementArchitecture, MeasurementExecutionCapabilities,
+    MeasurementOperatingSystem, MeasurementPlatformFeature, MeasurementSelectionError,
+    MeasurementSelectionReason, MeasurementSelectionV1, baseline_measurement_catalog,
+};
 use asb_replay::{
     CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
     SourceChoice, seal_recording,
@@ -36,7 +40,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use signal_hook::consts::{SIGINT, SIGTERM};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
@@ -50,7 +54,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const OUTPUT_SCHEMA_VERSION: u16 = 1;
-const PLAN_SCHEMA_VERSION: u16 = 1;
+const LEGACY_PLAN_SCHEMA_VERSION: u16 = 1;
+const PLAN_SCHEMA_VERSION: u16 = 2;
 const MAX_PLAN_BYTES: u64 = 1024 * 1024;
 const MAX_PROVIDER_SELECTION_BYTES: u64 = 64 * 1024;
 const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
@@ -59,6 +64,7 @@ const MAX_CAPTURE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
 const MAX_BUSY_SPAWN_RETRIES: u8 = 3;
 const MAX_POINT_ATTEMPTS: u32 = 4_096;
+const MAX_OPTIONAL_METRIC_VALUES_PER_ATTEMPT: u64 = 1_000_000;
 const PROVIDER_CATALOG_VERSION: u16 = 1;
 const MAX_SELECTED_AGENTS: usize = 9;
 
@@ -624,6 +630,8 @@ struct PlanFile {
     agent: BatchAgent,
     point: PointInput,
     experiment: ExperimentManifestV1,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurement_selection: Option<MeasurementSelectionV1>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -715,6 +723,18 @@ struct PlanOutput<'a> {
     concurrency: u32,
     sweep_max_concurrency: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_catalog_schema_version: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_catalog_sha256: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_selection_sha256: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_mode: Option<asb_protocol::ReplayMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_sample_interval_ns: Option<Option<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_selected_ids: Option<&'a [String]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     provider_selection_sha256: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_profile_sha256: Option<&'a str>,
@@ -746,6 +766,7 @@ fn render_plan(
     output: &mut dyn Write,
 ) -> Result<(), CliError> {
     let (plan, selection) = load_plan_and_selection(path, selection_path)?;
+    let measurement_selection = effective_measurement_selection(&plan)?;
     write_json(
         output,
         &PlanOutput {
@@ -762,6 +783,18 @@ fn render_plan(
             warmups: plan.point.warmups,
             concurrency: plan.point.concurrency,
             sweep_max_concurrency: plan.point.sweep_max_concurrency,
+            measurement_catalog_schema_version: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.catalog_schema_version),
+            measurement_catalog_sha256: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.catalog_sha256.as_str()),
+            measurement_selection_sha256: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.selection_sha256.as_str()),
+            measurement_mode: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.mode),
+            measurement_sample_interval_ns: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.sample_interval_ns),
+            measurement_selected_ids: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.selected_ids.as_slice()),
             provider_selection_sha256: selection
                 .as_ref()
                 .map(|value| value.selection_sha256.as_str()),
@@ -989,8 +1022,242 @@ fn load_and_validate(path: &Path) -> Result<PlanFile, CliError> {
     Ok(plan)
 }
 
+fn process_measurement_selection(
+    mode: asb_protocol::ReplayMode,
+    interval_ns: u64,
+) -> Result<MeasurementSelectionV1, CliError> {
+    MeasurementSelectionV1::new(
+        &baseline_measurement_catalog(),
+        [
+            "process.cpu.system_time",
+            "process.cpu.user_time",
+            "process.faults.major",
+            "process.faults.minor",
+            "process.io.read",
+            "process.io.write",
+            "process.memory.resident",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect(),
+        mode,
+        Some(interval_ns),
+    )
+    .map_err(|_| CliError::validation("legacy measurement selection cannot be migrated"))
+}
+
+fn legacy_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelectionV1, CliError> {
+    let interval = plan
+        .point
+        .poll_ms
+        .checked_mul(1_000_000)
+        .ok_or_else(|| CliError::validation("legacy measurement cadence overflows"))?;
+    process_measurement_selection(plan.experiment.controls.replay.mode, interval)
+}
+
+fn effective_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelectionV1, CliError> {
+    match (plan.schema_version, &plan.measurement_selection) {
+        (LEGACY_PLAN_SCHEMA_VERSION, None) => legacy_measurement_selection(plan),
+        (PLAN_SCHEMA_VERSION, Some(selection)) => Ok(selection.clone()),
+        (LEGACY_PLAN_SCHEMA_VERSION, Some(_)) => Err(CliError::validation(
+            "legacy experiment plans cannot declare measurement_selection",
+        )),
+        (PLAN_SCHEMA_VERSION, None) => Err(CliError::validation(
+            "experiment plan v2 requires measurement_selection",
+        )),
+        _ => Err(CliError::validation("unsupported experiment plan version")),
+    }
+}
+
+fn measurement_capabilities() -> Result<MeasurementExecutionCapabilities, CliError> {
+    let architecture = match std::env::consts::ARCH {
+        "x86_64" => MeasurementArchitecture::X86_64,
+        "aarch64" => MeasurementArchitecture::Aarch64,
+        _ => {
+            return Err(CliError::validation_issue(
+                "unsupported measurement architecture",
+                asb_control::SettingsIssue::MeasurementPlatformUnsupported,
+            ));
+        }
+    };
+    let mut features = BTreeSet::new();
+    if Path::new("/proc").is_dir() {
+        features.insert(MeasurementPlatformFeature::Procfs);
+    }
+    if Path::new("/sys/fs/cgroup/cgroup.controllers").is_file() {
+        features.insert(MeasurementPlatformFeature::CgroupV2);
+    }
+    Ok(MeasurementExecutionCapabilities {
+        operating_system: MeasurementOperatingSystem::Linux,
+        architecture,
+        features,
+        privileged: false,
+        process_target: true,
+        // The current runner owns only a PID. ASB's own cgroup is not an attempt target.
+        cgroup_target: false,
+    })
+}
+
+fn validate_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelectionV1, CliError> {
+    let selection = effective_measurement_selection(plan)?;
+    if selection.mode != plan.experiment.controls.replay.mode {
+        return Err(CliError::validation_issue(
+            "measurement selection mode does not match experiment",
+            asb_control::SettingsIssue::MeasurementModeUnsupported,
+        ));
+    }
+    selection
+        .validate(
+            &baseline_measurement_catalog(),
+            &measurement_capabilities()?,
+        )
+        .map_err(measurement_selection_cli_error)?;
+    if let Some(interval_ns) = selection.sample_interval_ns {
+        let duration_ns = plan
+            .point
+            .timeout_ms
+            .checked_mul(1_000_000)
+            .ok_or_else(|| {
+                CliError::validation_issue(
+                    "measurement schedule overflows",
+                    asb_control::SettingsIssue::MeasurementCadenceCapacityExceeded,
+                )
+            })?;
+        let slots = duration_ns
+            .checked_div(interval_ns)
+            .and_then(|value| value.checked_add(2))
+            .ok_or_else(|| {
+                CliError::validation_issue(
+                    "measurement schedule is invalid",
+                    asb_control::SettingsIssue::MeasurementInvalidCadence,
+                )
+            })?;
+        let values = slots
+            .checked_mul(u64::try_from(selection.selected_ids.len()).unwrap_or(u64::MAX))
+            .ok_or_else(|| {
+                CliError::validation_issue(
+                    "measurement schedule exceeds its bound",
+                    asb_control::SettingsIssue::MeasurementCadenceCapacityExceeded,
+                )
+            })?;
+        if values > MAX_OPTIONAL_METRIC_VALUES_PER_ATTEMPT {
+            return Err(CliError::validation_issue(
+                "measurement schedule exceeds its evidence bound",
+                asb_control::SettingsIssue::MeasurementCadenceCapacityExceeded,
+            ));
+        }
+    }
+    let identity_bytes = selection.selected_ids.iter().try_fold(0_u64, |total, id| {
+        total.checked_add(
+            u64::try_from(id.len())
+                .unwrap_or(u64::MAX)
+                .saturating_add(3),
+        )
+    });
+    let attempts = plan
+        .point
+        .measured
+        .checked_add(plan.point.warmups)
+        .map(u64::from);
+    let estimated_point_bytes = identity_bytes
+        .and_then(|bytes| bytes.checked_mul(4))
+        .and_then(|bytes| bytes.checked_add(2_048))
+        .zip(attempts)
+        .and_then(|(per_attempt, attempts)| per_attempt.checked_mul(attempts));
+    if estimated_point_bytes.is_none_or(|bytes| {
+        bytes
+            > StoreLimits::default()
+                .max_event_bytes
+                .saturating_sub(64 * 1024)
+    }) {
+        return Err(CliError::validation(
+            "measurement selection exceeds the terminal evidence bound",
+        ));
+    }
+    Ok(selection)
+}
+
+fn measurement_selection_cli_error(error: MeasurementSelectionError) -> CliError {
+    use MeasurementSelectionReason as Reason;
+    use asb_control::SettingsIssue;
+    let (message, settings_issue) = match error.reason {
+        Reason::UnsupportedSchemaVersion => (
+            "measurement selection schema version is unsupported",
+            SettingsIssue::MeasurementUnsupportedSchemaVersion,
+        ),
+        Reason::CatalogGenerationMismatch => (
+            "measurement catalog generation does not match",
+            SettingsIssue::MeasurementCatalogGenerationMismatch,
+        ),
+        Reason::CatalogDigestMismatch => (
+            "measurement catalog digest does not match",
+            SettingsIssue::MeasurementCatalogDigestMismatch,
+        ),
+        Reason::SelectionDigestMismatch => (
+            "measurement selection digest does not match",
+            SettingsIssue::MeasurementSelectionDigestMismatch,
+        ),
+        Reason::TooManyMeasurements => (
+            "measurement selection contains too many identities",
+            SettingsIssue::MeasurementTooMany,
+        ),
+        Reason::NonCanonicalOrder => (
+            "measurement identities are not in canonical order",
+            SettingsIssue::MeasurementNonCanonicalOrder,
+        ),
+        Reason::DuplicateId => (
+            "measurement selection contains a duplicate identity",
+            SettingsIssue::MeasurementDuplicateId,
+        ),
+        Reason::UnknownId => (
+            "measurement selection contains an unknown identity",
+            SettingsIssue::MeasurementUnknownId,
+        ),
+        Reason::SourceUnqualified => (
+            "measurement source is not qualified",
+            SettingsIssue::MeasurementSourceUnqualified,
+        ),
+        Reason::ModeUnsupported => (
+            "measurement execution mode is unsupported",
+            SettingsIssue::MeasurementModeUnsupported,
+        ),
+        Reason::PlatformUnsupported => (
+            "measurement platform is unsupported",
+            SettingsIssue::MeasurementPlatformUnsupported,
+        ),
+        Reason::PermissionRequired => (
+            "measurement permission is unavailable",
+            SettingsIssue::MeasurementPermissionRequired,
+        ),
+        Reason::TargetScopeUnavailable => (
+            "measurement target scope is unavailable",
+            SettingsIssue::MeasurementTargetScopeUnavailable,
+        ),
+        Reason::InvalidCadence => (
+            "measurement cadence is invalid",
+            SettingsIssue::MeasurementInvalidCadence,
+        ),
+        Reason::CadenceTooFast => (
+            "measurement cadence is too fast",
+            SettingsIssue::MeasurementCadenceTooFast,
+        ),
+        Reason::CadenceCapacityExceeded => (
+            "measurement cadence exceeds its capacity",
+            SettingsIssue::MeasurementCadenceCapacityExceeded,
+        ),
+        Reason::WireTooLarge | Reason::InvalidWire | Reason::Serialization => (
+            "measurement selection encoding is invalid",
+            SettingsIssue::InvalidFormat,
+        ),
+    };
+    CliError::validation_issue(message, settings_issue)
+}
+
 fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
-    if plan.schema_version != PLAN_SCHEMA_VERSION {
+    if !matches!(
+        plan.schema_version,
+        LEGACY_PLAN_SCHEMA_VERSION | PLAN_SCHEMA_VERSION
+    ) {
         return Err(CliError::validation("unsupported experiment plan version"));
     }
     validate_id(&plan.run_id)?;
@@ -1023,6 +1290,7 @@ fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
             "experiment architecture does not match this host",
         ));
     }
+    validate_measurement_selection(plan)?;
     let workload = OriginalWorkloads::describe(&plan.workload)
         .map_err(|_| CliError::validation("unknown or invalid workload"))?;
     if workload.workload_id.0 != plan.experiment.workload.workload
@@ -1161,6 +1429,24 @@ struct AttemptSummary {
     metric_sample_count: usize,
     metric_available_count: u64,
     metric_unavailable_count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_scheduled_collections: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_completed_collections: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_lost_collections: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_collection_time_ns: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_max_collection_time_ns: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_requested_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_collected_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_unavailable_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metric_omitted_ids: Option<Vec<String>>,
     stdout_bytes: u64,
     stderr_bytes: u64,
     output_truncated: bool,
@@ -1249,6 +1535,10 @@ struct ExecutionDefinition {
     requested_point: PointInput,
     executed_concurrency: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurement_catalog_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurement_selection_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     provider_selection_sha256: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     provider_launch_sha256: Option<String>,
@@ -1258,6 +1548,8 @@ struct ExecutionDefinition {
 #[serde(deny_unknown_fields)]
 struct StoredRunDefinition {
     experiment: ExperimentManifestV1,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurement_selection: Option<MeasurementSelectionV1>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     provider_selection: Option<ProviderPlanOutput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1279,6 +1571,14 @@ fn execution_definition(
         batch_protocol: "batch-stdio-v1".to_owned(),
         requested_point: plan.point,
         executed_concurrency: concurrency,
+        measurement_catalog_sha256: plan
+            .measurement_selection
+            .as_ref()
+            .map(|value| value.catalog_sha256.clone()),
+        measurement_selection_sha256: plan
+            .measurement_selection
+            .as_ref()
+            .map(|value| value.selection_sha256.clone()),
         provider_selection_sha256: selection.map(|value| value.selection_sha256.clone()),
         provider_launch_sha256: launch.map(|value| value.launch_sha256.clone()),
     }
@@ -1310,6 +1610,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             },
             point: definition.execution.requested_point,
             experiment: definition.experiment.clone(),
+            measurement_selection: definition.measurement_selection.clone(),
         };
         validate_selection_binding(&synthetic_plan, selection)?;
     }
@@ -1341,8 +1642,83 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
     }
     let workload = OriginalWorkloads::describe(&definition.execution.workload)
         .map_err(|_| CliError::validation("stored run workload is invalid"))?;
-    if definition.execution.plan_schema_version != PLAN_SCHEMA_VERSION
-        || definition.execution.batch_protocol != "batch-stdio-v1"
+    let measurement_selection = match definition.execution.plan_schema_version {
+        LEGACY_PLAN_SCHEMA_VERSION => {
+            let expected = legacy_measurement_selection(&PlanFile {
+                schema_version: LEGACY_PLAN_SCHEMA_VERSION,
+                run_id: "stored-validation".to_owned(),
+                result_root: PathBuf::from("/stored-validation-results"),
+                work_root: PathBuf::from("/stored-validation-work"),
+                workload: definition.execution.workload.clone(),
+                agent: BatchAgent {
+                    executable: PathBuf::from("/stored-validation-agent"),
+                    executable_sha256: definition.execution.agent_executable_sha256.clone(),
+                    arguments: Vec::new(),
+                },
+                point: definition.execution.requested_point,
+                experiment: definition.experiment.clone(),
+                measurement_selection: None,
+            })?;
+            if definition
+                .measurement_selection
+                .as_ref()
+                .is_some_and(|selection| selection != &expected)
+            {
+                return Err(CliError::validation(
+                    "stored legacy measurement migration is invalid",
+                ));
+            }
+            expected
+        }
+        PLAN_SCHEMA_VERSION => definition
+            .measurement_selection
+            .clone()
+            .ok_or_else(|| CliError::validation("stored measurement selection is absent"))?,
+        _ => return Err(CliError::validation("run execution definition is invalid")),
+    };
+    let stored_architecture = match definition.experiment.platform.architecture.as_str() {
+        "x86_64" => MeasurementArchitecture::X86_64,
+        "aarch64" => MeasurementArchitecture::Aarch64,
+        _ => {
+            return Err(CliError::validation(
+                "stored measurement architecture is invalid",
+            ));
+        }
+    };
+    let stored_capabilities = MeasurementExecutionCapabilities {
+        operating_system: MeasurementOperatingSystem::Linux,
+        architecture: stored_architecture,
+        features: BTreeSet::from([
+            MeasurementPlatformFeature::Procfs,
+            MeasurementPlatformFeature::CgroupV2,
+        ]),
+        privileged: false,
+        process_target: true,
+        cgroup_target: false,
+    };
+    if measurement_selection.mode != definition.experiment.controls.replay.mode
+        || measurement_selection
+            .validate(&baseline_measurement_catalog(), &stored_capabilities)
+            .is_err()
+    {
+        return Err(CliError::validation(
+            "stored measurement selection is invalid",
+        ));
+    }
+    if definition.execution.plan_schema_version == PLAN_SCHEMA_VERSION
+        && (definition.execution.measurement_catalog_sha256.as_deref()
+            != Some(measurement_selection.catalog_sha256.as_str())
+            || definition.execution.measurement_selection_sha256.as_deref()
+                != Some(measurement_selection.selection_sha256.as_str()))
+    {
+        return Err(CliError::validation(
+            "stored measurement selection is not bound to its execution",
+        ));
+    }
+    if !matches!(
+        definition.execution.plan_schema_version,
+        LEGACY_PLAN_SCHEMA_VERSION | PLAN_SCHEMA_VERSION
+    ) || definition.execution.batch_protocol != "batch-stdio-v1"
         || !valid_sha256(&definition.execution.agent_executable_sha256)
         || definition.execution.agent_executable_sha256 != definition.experiment.agent.binary_sha256
         || workload.workload_id.0 != definition.experiment.workload.workload
@@ -1381,6 +1757,10 @@ struct ExecuteOutput {
     highest_confirmed_capacity: Option<u32>,
     cancelled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_catalog_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_selection_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     provider_selection_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_profile_sha256: Option<String>,
@@ -1415,6 +1795,7 @@ fn execute_inner(
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
     let (plan, selection) = load_plan_and_selection(path, selection_path)?;
+    let measurement_selection = effective_measurement_selection(&plan)?;
     if sweep && plan.point.sweep_max_concurrency.is_none() {
         return Err(CliError::validation("sweep requires sweep_max_concurrency"));
     }
@@ -1493,6 +1874,10 @@ fn execute_inner(
             points,
             highest_confirmed_capacity: highest_confirmed_capacity(&capacity),
             cancelled: cancelled.load(Ordering::SeqCst),
+            measurement_catalog_sha256: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.catalog_sha256),
+            measurement_selection_sha256: (plan.schema_version == PLAN_SCHEMA_VERSION)
+                .then_some(measurement_selection.selection_sha256),
             provider_selection_sha256: selection
                 .as_ref()
                 .map(|value| value.selection_sha256.clone()),
@@ -1545,6 +1930,7 @@ fn run_point_with_selection(
     let launch = selection
         .map(|value| build_provider_launch(plan, value, &run_id, &attempt_id))
         .transpose()?;
+    let measurement_selection = validate_measurement_selection(plan)?;
     let execution = execution_definition(plan, concurrency, selection, launch.as_ref());
     let execution_sha256 = execution_digest(&execution)?;
     let manifest = RunManifest {
@@ -1553,6 +1939,7 @@ fn run_point_with_selection(
         attempt_id: Id(attempt_id.clone()),
         definition: serde_json::to_value(&StoredRunDefinition {
             experiment: plan.experiment.clone(),
+            measurement_selection: Some(measurement_selection.clone()),
             provider_selection: selection.cloned(),
             provider_launch: launch.clone(),
             execution,
@@ -1594,6 +1981,7 @@ fn run_point_with_selection(
     let attempt_failures = Arc::new(Mutex::new(Vec::<AttemptFailureEvidence>::new()));
     let plan_owned = plan.clone();
     let launch_owned = launch.clone();
+    let measurement_selection_owned = measurement_selection.clone();
     let work_root = plan.work_root.clone();
     let run_for_attempt = run_id.clone();
     let summaries_for_attempt = Arc::clone(&summaries);
@@ -1612,6 +2000,7 @@ fn run_point_with_selection(
                 context.input_id(),
                 context.is_warmup(),
                 launch_owned.as_ref(),
+                &measurement_selection_owned,
                 Arc::clone(&cancelled_for_attempt),
             );
             let outcome = match summary.as_ref() {
@@ -1770,6 +2159,7 @@ fn run_point_with_selection(
     Ok(point)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_attempt(
     plan: &PlanFile,
     work_root: &Path,
@@ -1777,6 +2167,7 @@ fn run_attempt(
     input_id: u32,
     warmup: bool,
     launch: Option<&ProviderLaunchRecord>,
+    measurement_selection: &MeasurementSelectionV1,
     cancelled: Arc<AtomicBool>,
 ) -> Result<Option<AttemptSummary>, CliError> {
     if cancelled.load(Ordering::SeqCst) {
@@ -1834,7 +2225,38 @@ fn run_attempt(
         launch,
     )?;
     let collector = LinuxCollector::host();
-    let mut metric = collector.collect_process(process.pid(), 0);
+    let selected_ids = measurement_selection
+        .selected_ids
+        .iter()
+        .cloned()
+        .map(Id)
+        .collect::<Vec<_>>();
+    let mut metric = collector
+        .collect_process_selected(process.pid(), 0, &selected_ids)
+        .map_err(|_| CliError::validation("validated process measurement selection drifted"))?;
+    let measurement_interval_ns = measurement_selection.sample_interval_ns;
+    let mut next_measurement_slot = 1_u64;
+    let mut metric_scheduled_collections = u64::from(measurement_interval_ns.is_some());
+    let mut metric_completed_collections = metric_scheduled_collections;
+    let mut metric_lost_collections = 0_u64;
+    let mut metric_collection_time_ns = if measurement_interval_ns.is_some() {
+        metric.evidence().collection_time_ns()
+    } else {
+        0
+    };
+    let mut metric_max_collection_time_ns = metric_collection_time_ns;
+    let mut collected_metric_ids = BTreeSet::new();
+    let mut unavailable_metric_ids = BTreeSet::new();
+    for sample in metric.samples() {
+        match sample.value {
+            asb_protocol::MetricValue::Available { .. } => {
+                collected_metric_ids.insert(sample.descriptor.metric_id.0.clone());
+            }
+            asb_protocol::MetricValue::Unavailable { .. } => {
+                unavailable_metric_ids.insert(sample.descriptor.metric_id.0.clone());
+            }
+        }
+    }
     let process_started = Instant::now();
     while !process
         .leader_has_exited()
@@ -1854,10 +2276,42 @@ fn run_attempt(
             .leader_has_exited()
             .map_err(|_| CliError::operation("agent process cannot be observed"))?
         {
-            metric = collector.collect_process(
-                process.pid(),
-                u64::try_from(process_started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            );
+            let elapsed = process_started.elapsed();
+            let elapsed_ns = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+            if measurement_interval_ns.is_some_and(|interval| {
+                elapsed_ns >= interval.saturating_mul(next_measurement_slot)
+            }) {
+                let interval = measurement_interval_ns.expect("validated non-empty cadence");
+                let due_slot = elapsed_ns / interval;
+                let due_collections = due_slot
+                    .saturating_sub(next_measurement_slot)
+                    .saturating_add(1);
+                metric_scheduled_collections =
+                    metric_scheduled_collections.saturating_add(due_collections);
+                metric_lost_collections =
+                    metric_lost_collections.saturating_add(due_collections.saturating_sub(1));
+                metric = collector
+                    .collect_process_selected(process.pid(), elapsed_ns, &selected_ids)
+                    .map_err(|_| {
+                        CliError::validation("validated process measurement selection drifted")
+                    })?;
+                metric_completed_collections = metric_completed_collections.saturating_add(1);
+                metric_collection_time_ns = metric_collection_time_ns
+                    .saturating_add(metric.evidence().collection_time_ns());
+                metric_max_collection_time_ns =
+                    metric_max_collection_time_ns.max(metric.evidence().collection_time_ns());
+                for sample in metric.samples() {
+                    match sample.value {
+                        asb_protocol::MetricValue::Available { .. } => {
+                            collected_metric_ids.insert(sample.descriptor.metric_id.0.clone());
+                        }
+                        asb_protocol::MetricValue::Unavailable { .. } => {
+                            unavailable_metric_ids.insert(sample.descriptor.metric_id.0.clone());
+                        }
+                    }
+                }
+                next_measurement_slot = due_slot.saturating_add(1);
+            }
         }
     }
     let evidence = process
@@ -1873,6 +2327,17 @@ fn run_attempt(
         Termination::Exited if evidence.exit_code == Some(0) && grade.passed() => "completed",
         Termination::Exited => "failed",
     };
+    let observed_ids = collected_metric_ids
+        .iter()
+        .chain(&unavailable_metric_ids)
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let metric_omitted_ids = measurement_selection
+        .selected_ids
+        .iter()
+        .filter(|id| !observed_ids.contains(id.as_str()))
+        .cloned()
+        .collect();
     let summary = AttemptSummary {
         input_id,
         phase,
@@ -1887,6 +2352,24 @@ fn run_attempt(
         metric_sample_count: metric.samples().len(),
         metric_available_count: metric.evidence().available_values(),
         metric_unavailable_count: metric.evidence().unavailable_values(),
+        metric_scheduled_collections: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(metric_scheduled_collections),
+        metric_completed_collections: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(metric_completed_collections),
+        metric_lost_collections: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(metric_lost_collections),
+        metric_collection_time_ns: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(metric_collection_time_ns),
+        metric_max_collection_time_ns: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(metric_max_collection_time_ns),
+        metric_requested_ids: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(measurement_selection.selected_ids.clone()),
+        metric_collected_ids: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(collected_metric_ids.into_iter().collect()),
+        metric_unavailable_ids: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(unavailable_metric_ids.into_iter().collect()),
+        metric_omitted_ids: (plan.schema_version == PLAN_SCHEMA_VERSION)
+            .then_some(metric_omitted_ids),
         stdout_bytes: evidence.stdout.total_bytes,
         stderr_bytes: evidence.stderr.total_bytes,
         output_truncated: evidence.stdout.truncated || evidence.stderr.truncated,
@@ -2136,6 +2619,14 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
                 differences.push(name);
             }
         }
+        if baseline.execution.measurement_selection_sha256
+            != candidate.execution.measurement_selection_sha256
+            && !differences
+                .iter()
+                .any(|name| name == "measurement_selection")
+        {
+            differences.push("measurement_selection".to_owned());
+        }
         if baseline.execution != candidate.execution
             && !differences.iter().any(|name| name == "execution")
         {
@@ -2231,6 +2722,16 @@ struct ReportRun {
     terminal_state: Option<&'static str>,
     execution_sha256: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_catalog_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_selection_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_mode: Option<asb_protocol::ReplayMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_sample_interval_ns: Option<Option<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurement_selected_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     provider_selection_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_profile_sha256: Option<String>,
@@ -2255,12 +2756,28 @@ fn report(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             .map_err(|_| CliError::validation("run definition has an invalid shape"))?;
         validate_stored_definition(&definition)?;
         let point = validate_terminal_point(journal.last(), &definition)?;
+        let exposes_measurement_selection =
+            definition.execution.plan_schema_version == PLAN_SCHEMA_VERSION;
+        let public_measurement_selection = if exposes_measurement_selection {
+            definition.measurement_selection.as_ref()
+        } else {
+            None
+        };
         reports.push(ReportRun {
             run_id: manifest.run_id.0,
             attempt_id: manifest.attempt_id.0,
             event_count: journal.len(),
             terminal_state: journal.last().map(|event| state_name(event.state)),
             execution_sha256: definition.execution_sha256,
+            measurement_catalog_sha256: public_measurement_selection
+                .map(|value| value.catalog_sha256.clone()),
+            measurement_selection_sha256: public_measurement_selection
+                .map(|value| value.selection_sha256.clone()),
+            measurement_mode: public_measurement_selection.map(|value| value.mode),
+            measurement_sample_interval_ns: public_measurement_selection
+                .map(|value| value.sample_interval_ns),
+            measurement_selected_ids: public_measurement_selection
+                .map(|value| value.selected_ids.clone()),
             provider_selection_sha256: definition
                 .provider_selection
                 .as_ref()
@@ -2367,6 +2884,12 @@ fn validate_terminal_point(
         "cancelled",
         "infrastructure_failures",
     ];
+    let expected_measurement_selection =
+        if definition.execution.plan_schema_version == PLAN_SCHEMA_VERSION {
+            definition.measurement_selection.as_ref()
+        } else {
+            None
+        };
     if concurrency != Some(definition.execution.executed_concurrency)
         || !valid_terminal
         || !matches!(
@@ -2386,7 +2909,15 @@ fn validate_terminal_point(
         || attempts.is_none_or(|items| items.len() > total)
         || scheduler.is_none_or(|items| items.len() != total)
         || failures.is_none_or(|items| items.len() > total)
-        || attempts.is_some_and(|items| items.iter().any(|item| !valid_attempt_evidence(item)))
+        || attempts.is_some_and(|items| {
+            items.iter().any(|item| {
+                !valid_attempt_evidence(
+                    item,
+                    expected_measurement_selection,
+                    definition.execution.requested_point.timeout_ms,
+                )
+            })
+        })
         || scheduler.is_some_and(|items| items.iter().any(|item| !valid_scheduler_evidence(item)))
         || failures.is_some_and(|items| items.iter().any(|item| !valid_failure_evidence(item)))
         || attempts
@@ -2605,8 +3136,114 @@ fn optional_i64(value: Option<&Value>) -> bool {
     value.is_some_and(|value| value.is_null() || value.as_i64().is_some())
 }
 
-fn valid_attempt_evidence(value: &Value) -> bool {
-    const KEYS: &[&str] = &[
+fn valid_measurement_evidence_relationships(
+    object: &Map<String, Value>,
+    selection: &MeasurementSelectionV1,
+    timeout_ms: u64,
+) -> bool {
+    let ids = |key| {
+        object
+            .get(key)
+            .and_then(Value::as_array)
+            .and_then(|values| {
+                let ids = values
+                    .iter()
+                    .map(Value::as_str)
+                    .collect::<Option<Vec<_>>>()?;
+                (ids.len() <= asb_protocol::MAX_MEASUREMENTS
+                    && ids.windows(2).all(|pair| pair[0] < pair[1]))
+                .then_some(ids)
+            })
+    };
+    let Some(requested) = ids("metric_requested_ids") else {
+        return false;
+    };
+    let Some(collected) = ids("metric_collected_ids") else {
+        return false;
+    };
+    let Some(unavailable) = ids("metric_unavailable_ids") else {
+        return false;
+    };
+    let Some(omitted) = ids("metric_omitted_ids") else {
+        return false;
+    };
+    if requested
+        != selection
+            .selected_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    {
+        return false;
+    }
+    let requested = requested.into_iter().collect::<BTreeSet<_>>();
+    let collected = collected.into_iter().collect::<BTreeSet<_>>();
+    let unavailable = unavailable.into_iter().collect::<BTreeSet<_>>();
+    let omitted = omitted.into_iter().collect::<BTreeSet<_>>();
+    let expected_omitted = requested
+        .difference(&collected.union(&unavailable).copied().collect())
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let Some(scheduled) = object["metric_scheduled_collections"].as_u64() else {
+        return false;
+    };
+    let Some(completed) = object["metric_completed_collections"].as_u64() else {
+        return false;
+    };
+    let Some(lost) = object["metric_lost_collections"].as_u64() else {
+        return false;
+    };
+    let Some(expected_total) = completed.checked_add(lost) else {
+        return false;
+    };
+    let Some(total_collection_time_ns) = object["metric_collection_time_ns"].as_u64() else {
+        return false;
+    };
+    let Some(max_collection_time_ns) = object["metric_max_collection_time_ns"].as_u64() else {
+        return false;
+    };
+    let Some(maximum_scheduled) = selection.sample_interval_ns.map_or(Some(0), |interval_ns| {
+        timeout_ms
+            .checked_mul(1_000_000)
+            .and_then(|duration_ns| duration_ns.checked_div(interval_ns))
+            .and_then(|slots| slots.checked_add(2))
+    }) else {
+        return false;
+    };
+    let within_value_bound = scheduled
+        .checked_mul(u64::try_from(requested.len()).unwrap_or(u64::MAX))
+        .is_some_and(|values| values <= MAX_OPTIONAL_METRIC_VALUES_PER_ATTEMPT);
+    let sample_counts_match = object["metric_available_count"]
+        .as_u64()
+        .zip(object["metric_unavailable_count"].as_u64())
+        .and_then(|(available, unavailable)| available.checked_add(unavailable))
+        .zip(object["metric_sample_count"].as_u64())
+        .is_some_and(|(classified, samples)| {
+            classified == samples && samples <= requested.len() as u64
+        });
+    collected.is_subset(&requested)
+        && unavailable.is_subset(&requested)
+        && omitted == expected_omitted
+        && scheduled == expected_total
+        && scheduled <= maximum_scheduled
+        && within_value_bound
+        && sample_counts_match
+        && max_collection_time_ns <= total_collection_time_ns
+        && (completed > 0 || (total_collection_time_ns == 0 && max_collection_time_ns == 0))
+        && (requested.is_empty()
+            == (scheduled == 0
+                && completed == 0
+                && lost == 0
+                && total_collection_time_ns == 0
+                && max_collection_time_ns == 0))
+}
+
+fn valid_attempt_evidence(
+    value: &Value,
+    measurement_selection: Option<&MeasurementSelectionV1>,
+    timeout_ms: u64,
+) -> bool {
+    const LEGACY_KEYS: &[&str] = &[
         "input_id",
         "phase",
         "outcome",
@@ -2624,7 +3261,42 @@ fn valid_attempt_evidence(value: &Value) -> bool {
         "stderr_bytes",
         "output_truncated",
     ];
-    let Some(object) = value.as_object().filter(|object| exact_keys(object, KEYS)) else {
+    const SELECTION_KEYS: &[&str] = &[
+        "input_id",
+        "phase",
+        "outcome",
+        "grade_passed",
+        "failed_check_count",
+        "termination",
+        "exit_code",
+        "signal",
+        "elapsed_ns",
+        "spawn_retry_count",
+        "metric_sample_count",
+        "metric_available_count",
+        "metric_unavailable_count",
+        "metric_scheduled_collections",
+        "metric_completed_collections",
+        "metric_lost_collections",
+        "metric_collection_time_ns",
+        "metric_max_collection_time_ns",
+        "metric_requested_ids",
+        "metric_collected_ids",
+        "metric_unavailable_ids",
+        "metric_omitted_ids",
+        "stdout_bytes",
+        "stderr_bytes",
+        "output_truncated",
+    ];
+    let expected_keys = if measurement_selection.is_some() {
+        SELECTION_KEYS
+    } else {
+        LEGACY_KEYS
+    };
+    let Some(object) = value
+        .as_object()
+        .filter(|object| exact_keys(object, expected_keys))
+    else {
         return false;
     };
     object
@@ -2668,6 +3340,9 @@ fn valid_attempt_evidence(value: &Value) -> bool {
             .get("output_truncated")
             .and_then(Value::as_bool)
             .is_some()
+        && measurement_selection.is_none_or(|selection| {
+            valid_measurement_evidence_relationships(object, selection, timeout_ms)
+        })
 }
 
 fn valid_scheduler_evidence(value: &Value) -> bool {
@@ -2782,6 +3457,8 @@ struct CliError {
     code: &'static str,
     message: &'static str,
     exit_code: u8,
+    #[serde(skip)]
+    settings_issue: asb_control::SettingsIssue,
 }
 
 impl CliError {
@@ -2790,6 +3467,7 @@ impl CliError {
             code: "usage",
             message,
             exit_code: 2,
+            settings_issue: asb_control::SettingsIssue::InvalidFormat,
         }
     }
 
@@ -2798,6 +3476,19 @@ impl CliError {
             code: "validation",
             message,
             exit_code: 3,
+            settings_issue: asb_control::SettingsIssue::InvalidFormat,
+        }
+    }
+
+    const fn validation_issue(
+        message: &'static str,
+        settings_issue: asb_control::SettingsIssue,
+    ) -> Self {
+        Self {
+            code: "validation",
+            message,
+            exit_code: 3,
+            settings_issue,
         }
     }
 
@@ -2806,6 +3497,7 @@ impl CliError {
             code: "operation",
             message,
             exit_code: 4,
+            settings_issue: asb_control::SettingsIssue::InvalidFormat,
         }
     }
 }
@@ -2883,6 +3575,9 @@ mod tests {
 
     fn plan_fixture(root: &Path, run_id: &str) -> (PathBuf, PlanFile) {
         let (executable, executable_sha256) = executable(root);
+        let experiment = experiment(&executable_sha256);
+        let measurement_selection =
+            process_measurement_selection(experiment.controls.replay.mode, 2_000_000).unwrap();
         let plan = PlanFile {
             schema_version: PLAN_SCHEMA_VERSION,
             run_id: run_id.to_owned(),
@@ -2906,7 +3601,8 @@ mod tests {
                 open_loop_interval_ms: None,
                 sweep_max_concurrency: Some(2),
             },
-            experiment: experiment(&executable_sha256),
+            experiment,
+            measurement_selection: Some(measurement_selection),
         };
         let path = root.join(format!("{run_id}.toml"));
         fs::write(&path, toml::to_string(&plan).unwrap()).unwrap();
@@ -3396,6 +4092,29 @@ mod tests {
         assert_eq!(result["points"][0]["attempts"][2]["phase"], "measured");
         assert_eq!(result["points"][0]["attempts"][3]["phase"], "measured");
         assert_eq!(
+            result["measurement_selection_sha256"],
+            first
+                .measurement_selection
+                .as_ref()
+                .unwrap()
+                .selection_sha256
+        );
+        let first_attempt = &result["points"][0]["attempts"][0];
+        assert_eq!(
+            first_attempt["metric_requested_ids"]
+                .as_array()
+                .unwrap()
+                .len(),
+            7
+        );
+        assert_eq!(
+            first_attempt["metric_scheduled_collections"].as_u64(),
+            first_attempt["metric_completed_collections"]
+                .as_u64()
+                .zip(first_attempt["metric_lost_collections"].as_u64())
+                .map(|(completed, lost)| completed + lost)
+        );
+        assert_eq!(
             result["points"][0]["scheduler_attempts"]
                 .as_array()
                 .unwrap()
@@ -3421,6 +4140,14 @@ mod tests {
         assert_eq!(report["runs"][0]["point"]["concurrency"], 2);
         assert_eq!(report["runs"][0]["point"]["decision"], "pass");
         assert_eq!(
+            report["runs"][0]["measurement_selection_sha256"],
+            first
+                .measurement_selection
+                .as_ref()
+                .unwrap()
+                .selection_sha256
+        );
+        assert_eq!(
             report["runs"][0]["execution_sha256"]
                 .as_str()
                 .unwrap()
@@ -3434,7 +4161,17 @@ mod tests {
             .create(&second_root)
             .unwrap();
         let second_root = fs::canonicalize(second_root).unwrap();
-        let (second_path, second) = plan_fixture(&second_root, "run-two");
+        let (second_path, mut second) = plan_fixture(&second_root, "run-two");
+        second.measurement_selection = Some(
+            MeasurementSelectionV1::new(
+                &baseline_measurement_catalog(),
+                Vec::new(),
+                second.experiment.controls.replay.mode,
+                None,
+            )
+            .unwrap(),
+        );
+        fs::write(&second_path, toml::to_string(&second).unwrap()).unwrap();
         output.clear();
         assert_eq!(
             run(
@@ -3463,7 +4200,7 @@ mod tests {
         );
         assert_eq!(
             serde_json::from_slice::<Value>(&output).unwrap()["differences"],
-            json!(["execution"])
+            json!(["measurement_selection", "execution"])
         );
     }
 
@@ -3504,6 +4241,7 @@ mod tests {
             0,
             false,
             None,
+            plan.measurement_selection.as_ref().unwrap(),
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap()
@@ -3532,6 +4270,7 @@ mod tests {
             0,
             false,
             None,
+            plan.measurement_selection.as_ref().unwrap(),
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap_err();
@@ -3548,6 +4287,21 @@ mod tests {
         plan.point.warmups = 0;
         plan.point.concurrency = 1;
         plan.point.sweep_max_concurrency = None;
+        let selected_ids = plan
+            .measurement_selection
+            .as_ref()
+            .unwrap()
+            .selected_ids
+            .clone();
+        let selected_count = selected_ids.len();
+        let maximum_scheduled = plan.point.timeout_ms * 1_000_000
+            / plan
+                .measurement_selection
+                .as_ref()
+                .unwrap()
+                .sample_interval_ns
+                .unwrap()
+            + 2;
         let attempts = (0..MAX_POINT_ATTEMPTS)
             .map(|input_id| AttemptSummary {
                 input_id,
@@ -3560,9 +4314,18 @@ mod tests {
                 signal: None,
                 elapsed_ns: u64::MAX,
                 spawn_retry_count: MAX_BUSY_SPAWN_RETRIES,
-                metric_sample_count: usize::MAX,
-                metric_available_count: u64::MAX,
-                metric_unavailable_count: u64::MAX,
+                metric_sample_count: selected_count,
+                metric_available_count: selected_count as u64,
+                metric_unavailable_count: 0,
+                metric_scheduled_collections: Some(maximum_scheduled),
+                metric_completed_collections: Some(maximum_scheduled),
+                metric_lost_collections: Some(0),
+                metric_collection_time_ns: Some(u64::MAX),
+                metric_max_collection_time_ns: Some(u64::MAX),
+                metric_requested_ids: Some(selected_ids.clone()),
+                metric_collected_ids: Some(selected_ids.clone()),
+                metric_unavailable_ids: Some(Vec::new()),
+                metric_omitted_ids: Some(Vec::new()),
                 stdout_bytes: u64::MAX,
                 stderr_bytes: u64::MAX,
                 output_truncated: true,
@@ -3621,6 +4384,7 @@ mod tests {
                 attempt_id: Id("maximum-evidence-attempt".into()),
                 definition: serde_json::to_value(StoredRunDefinition {
                     experiment: plan.experiment.clone(),
+                    measurement_selection: plan.measurement_selection.clone(),
                     provider_selection: None,
                     provider_launch: None,
                     execution,
@@ -3765,6 +4529,34 @@ mod tests {
         half_timestamp.state = ExecutionState::Failed;
         assert!(validate_terminal_point(Some(&half_timestamp), &definition).is_err());
 
+        let mut substituted_selection = event.clone();
+        for key in ["metric_requested_ids", "metric_collected_ids"] {
+            substituted_selection.evidence["point"]["attempts"][0][key]
+                .as_array_mut()
+                .unwrap()
+                .pop();
+        }
+        assert!(validate_terminal_point(Some(&substituted_selection), &definition).is_err());
+
+        let mut overflowing_counts = event.clone();
+        let attempt = &mut overflowing_counts.evidence["point"]["attempts"][0];
+        attempt["metric_scheduled_collections"] = json!(u64::MAX);
+        attempt["metric_completed_collections"] = json!(u64::MAX);
+        attempt["metric_lost_collections"] = json!(u64::MAX);
+        assert!(validate_terminal_point(Some(&overflowing_counts), &definition).is_err());
+
+        let mut excessive_schedule = event.clone();
+        let attempt = &mut excessive_schedule.evidence["point"]["attempts"][0];
+        attempt["metric_scheduled_collections"] = json!(maximum_scheduled + 1);
+        attempt["metric_completed_collections"] = json!(maximum_scheduled + 1);
+        attempt["metric_lost_collections"] = json!(0);
+        assert!(validate_terminal_point(Some(&excessive_schedule), &definition).is_err());
+
+        let mut missing_collection_time = event.clone();
+        missing_collection_time.evidence["point"]["attempts"][0]["metric_collection_time_ns"] =
+            Value::Null;
+        assert!(validate_terminal_point(Some(&missing_collection_time), &definition).is_err());
+
         let mut wrong_execution = event;
         wrong_execution.evidence["execution_sha256"] = Value::String("0".repeat(64));
         assert!(validate_terminal_point(Some(&wrong_execution), &definition).is_err());
@@ -3901,9 +4693,9 @@ mod tests {
     fn topology_version_identity_and_output_failures_are_bounded() {
         let scratch = Scratch::new("validation");
         let (_, mut plan) = plan_fixture(&scratch.0, "validation");
-        plan.schema_version = 2;
+        plan.schema_version = PLAN_SCHEMA_VERSION + 1;
         assert!(validate_plan(&plan).is_err());
-        plan.schema_version = 1;
+        plan.schema_version = PLAN_SCHEMA_VERSION;
         plan.run_id = "x".repeat(MAX_ID_BYTES);
         assert!(validate_plan(&plan).is_err());
         plan.run_id = "validation".into();
@@ -3933,6 +4725,85 @@ mod tests {
                 .unwrap()
                 .contains("could not write")
         );
+    }
+
+    #[test]
+    fn measurement_selection_migrates_v1_and_binds_v2_execution() {
+        let scratch = Scratch::new("measurement-selection");
+        let (_, mut plan) = plan_fixture(&scratch.0, "measurement-selection");
+        let original = plan.measurement_selection.clone().unwrap();
+        validate_plan(&plan).unwrap();
+        let execution = execution_definition(&plan, 1, None, None);
+        assert_eq!(
+            execution.measurement_selection_sha256.as_deref(),
+            Some(original.selection_sha256.as_str())
+        );
+
+        let empty = MeasurementSelectionV1::new(
+            &baseline_measurement_catalog(),
+            Vec::new(),
+            plan.experiment.controls.replay.mode,
+            None,
+        )
+        .unwrap();
+        plan.measurement_selection = Some(empty);
+        validate_plan(&plan).unwrap();
+        let empty_execution = execution_definition(&plan, 1, None, None);
+        assert_ne!(
+            execution_digest(&execution).unwrap(),
+            execution_digest(&empty_execution).unwrap()
+        );
+
+        plan.schema_version = LEGACY_PLAN_SCHEMA_VERSION;
+        plan.measurement_selection = None;
+        validate_plan(&plan).unwrap();
+        let migrated = effective_measurement_selection(&plan).unwrap();
+        assert_eq!(migrated.selected_ids.len(), 7);
+        assert_eq!(migrated.sample_interval_ns, Some(2_000_000));
+        assert!(
+            !toml::to_string(&plan)
+                .unwrap()
+                .contains("measurement_selection")
+        );
+
+        plan.measurement_selection = Some(original);
+        assert!(validate_plan(&plan).is_err());
+    }
+
+    #[test]
+    fn measurement_selection_rejects_stale_scope_mode_and_unbounded_schedule() {
+        let scratch = Scratch::new("measurement-selection-negative");
+        let (_, mut plan) = plan_fixture(&scratch.0, "measurement-selection-negative");
+
+        let mut stale = plan.measurement_selection.clone().unwrap();
+        stale.catalog_sha256 = "0".repeat(64);
+        plan.measurement_selection = Some(stale);
+        assert!(validate_plan(&plan).is_err());
+
+        plan.measurement_selection = Some(
+            MeasurementSelectionV1::new(
+                &baseline_measurement_catalog(),
+                vec!["cgroup.cpu.usage".into()],
+                plan.experiment.controls.replay.mode,
+                Some(1_000_000),
+            )
+            .unwrap(),
+        );
+        assert!(validate_plan(&plan).is_err());
+
+        let mismatched_mode = match plan.experiment.controls.replay.mode {
+            asb_protocol::ReplayMode::Live => asb_protocol::ReplayMode::Replay,
+            asb_protocol::ReplayMode::Replay => asb_protocol::ReplayMode::Live,
+        };
+        plan.measurement_selection =
+            Some(process_measurement_selection(mismatched_mode, 2_000_000).unwrap());
+        assert!(validate_plan(&plan).is_err());
+
+        plan.measurement_selection = Some(
+            process_measurement_selection(plan.experiment.controls.replay.mode, 1_000_000).unwrap(),
+        );
+        plan.point.timeout_ms = MAX_TIMEOUT_MS;
+        assert!(validate_plan(&plan).is_err());
     }
 
     #[test]

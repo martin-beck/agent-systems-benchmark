@@ -48,6 +48,32 @@ nested count bounds and public text byte bounds before sorting, canonical serial
 The checked baseline and empty fixtures live in `crates/asb-protocol/fixtures/v1`; the generated
 schema lives in `crates/asb-protocol/schema/v1/measurement-catalog.schema.json`.
 
+## Selection contract and run-plan binding
+
+`MeasurementSelectionV1` is the renderer-neutral choice object. It binds the exact catalog schema
+and digest, a strictly ascending unique list of at most 128 stable IDs, live/replay mode, and a
+bounded sampling interval. Its own domain-separated SHA-256 covers every field except the declared
+selection digest. Empty selection is explicit and has no interval; a non-empty selection requires
+an interval no faster than every selected definition permits and no longer than one hour. The
+checked empty, one-measurement, and complete-catalog fixtures and
+`measurement-selection.schema.json` are in the protocol v1 fixture and schema directories.
+
+ASB plan schema v2 requires this object. Validation happens before result/work roots, durable
+catalog mutation, workload preparation, or process launch. Catalog generation/digest, selection
+digest, order, IDs, mode, qualification, platform features, privilege, authoritative target scope,
+cadence, and a hard per-attempt evidence ceiling all fail closed. Plan schema v1 remains readable
+through an explicit migration to its historical behavior: all seven process measurements at the
+plan's process-poll interval. A v1 plan may not carry a v2 selection, and a v2 plan may not omit it.
+
+The current runner owns an exact agent PID, so it accepts process-scoped definitions. It does not
+yet own a verified delegated per-attempt cgroup; cgroup selections therefore fail with
+`target_scope_unavailable`. The runner never substitutes its own cgroup. Selected procfs collection
+gates the stat and IO source families independently before reads. Selection and catalog digests are
+bound into v2 execution identity and exposed by plan/run evidence; terminal attempt evidence keeps
+mandatory outcome/scoring fields while separately recording requested, collected, unavailable,
+and omitted optional IDs. Search, group tri-state state, widgets, and every visible interaction
+remain exclusively in the standalone `asb-tui` repository.
+
 Independent frontends obtain the compiled baseline through the read-only control-v1
 `measurement_catalog` operation. Its `1.2` publication wrapper adds only closed provenance and
 content-addressed freshness; the nested catalog remains this exact contract. The runner advertises

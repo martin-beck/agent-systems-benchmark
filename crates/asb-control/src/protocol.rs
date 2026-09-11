@@ -4,7 +4,10 @@
 
 use std::collections::BTreeSet;
 
-use asb_protocol::{MAX_MEASUREMENT_CATALOG_WIRE_BYTES, MeasurementCatalogV1};
+use asb_protocol::{
+    MAX_MEASUREMENT_CATALOG_WIRE_BYTES, MeasurementCatalogV1, MeasurementSelectionReason,
+    baseline_measurement_catalog,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::{Value, value::RawValue};
@@ -19,9 +22,14 @@ pub const CONTROL_V1: ControlVersion = ControlVersion { major: 1, minor: 0 };
 pub const CONTROL_HISTORY_ANALYSIS_V1: ControlVersion = ControlVersion { major: 1, minor: 1 };
 /// Version of the additive measurement-catalog operation.
 pub const CONTROL_MEASUREMENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 2 };
+/// Version of additive structured measurement-selection validation diagnostics.
+pub const CONTROL_MEASUREMENT_SELECTION_V1: ControlVersion = ControlVersion { major: 1, minor: 3 };
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 2] =
-    [CONTROL_V1, CONTROL_MEASUREMENT_CATALOG_V1];
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 3] = [
+    CONTROL_V1,
+    CONTROL_MEASUREMENT_CATALOG_V1,
+    CONTROL_MEASUREMENT_SELECTION_V1,
+];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
 /// Absolute maximum request deadline.
@@ -1026,6 +1034,153 @@ pub enum SettingsIssue {
     UnverifiedComponent,
     /// A configured resource bound is invalid.
     InvalidResourceBound,
+    /// The measurement selection schema generation is unsupported.
+    MeasurementUnsupportedSchemaVersion,
+    /// The measurement catalog generation does not match.
+    MeasurementCatalogGenerationMismatch,
+    /// The measurement catalog content address is stale or malformed.
+    MeasurementCatalogDigestMismatch,
+    /// The measurement selection content address is stale or malformed.
+    MeasurementSelectionDigestMismatch,
+    /// The measurement selection exceeds its identity bound.
+    MeasurementTooMany,
+    /// Measurement identities are not in canonical order.
+    MeasurementNonCanonicalOrder,
+    /// A measurement identity occurs more than once.
+    MeasurementDuplicateId,
+    /// A measurement identity is unknown.
+    MeasurementUnknownId,
+    /// A selected measurement source is not qualified.
+    MeasurementSourceUnqualified,
+    /// A selected measurement does not support the execution mode.
+    MeasurementModeUnsupported,
+    /// A selected measurement is not supported on the target platform.
+    MeasurementPlatformUnsupported,
+    /// A selected measurement requires unavailable permission.
+    MeasurementPermissionRequired,
+    /// The runner has no authoritative target for a selected measurement.
+    MeasurementTargetScopeUnavailable,
+    /// Measurement cadence presence is inconsistent with the selected set.
+    MeasurementInvalidCadence,
+    /// A selected measurement does not support the requested cadence.
+    MeasurementCadenceTooFast,
+    /// The requested measurement schedule exceeds its fixed capacity.
+    MeasurementCadenceCapacityExceeded,
+}
+
+impl SettingsIssue {
+    /// Exact stable settings category for a measurement-selection validation reason.
+    #[must_use]
+    pub const fn from_measurement_reason(reason: MeasurementSelectionReason) -> Self {
+        match reason {
+            MeasurementSelectionReason::UnsupportedSchemaVersion => {
+                Self::MeasurementUnsupportedSchemaVersion
+            }
+            MeasurementSelectionReason::CatalogGenerationMismatch => {
+                Self::MeasurementCatalogGenerationMismatch
+            }
+            MeasurementSelectionReason::CatalogDigestMismatch => {
+                Self::MeasurementCatalogDigestMismatch
+            }
+            MeasurementSelectionReason::SelectionDigestMismatch => {
+                Self::MeasurementSelectionDigestMismatch
+            }
+            MeasurementSelectionReason::TooManyMeasurements => Self::MeasurementTooMany,
+            MeasurementSelectionReason::NonCanonicalOrder => Self::MeasurementNonCanonicalOrder,
+            MeasurementSelectionReason::DuplicateId => Self::MeasurementDuplicateId,
+            MeasurementSelectionReason::UnknownId => Self::MeasurementUnknownId,
+            MeasurementSelectionReason::SourceUnqualified => Self::MeasurementSourceUnqualified,
+            MeasurementSelectionReason::ModeUnsupported => Self::MeasurementModeUnsupported,
+            MeasurementSelectionReason::PlatformUnsupported => Self::MeasurementPlatformUnsupported,
+            MeasurementSelectionReason::PermissionRequired => Self::MeasurementPermissionRequired,
+            MeasurementSelectionReason::TargetScopeUnavailable => {
+                Self::MeasurementTargetScopeUnavailable
+            }
+            MeasurementSelectionReason::InvalidCadence => Self::MeasurementInvalidCadence,
+            MeasurementSelectionReason::CadenceTooFast => Self::MeasurementCadenceTooFast,
+            MeasurementSelectionReason::CadenceCapacityExceeded => {
+                Self::MeasurementCadenceCapacityExceeded
+            }
+            MeasurementSelectionReason::WireTooLarge
+            | MeasurementSelectionReason::InvalidWire
+            | MeasurementSelectionReason::Serialization => Self::InvalidFormat,
+        }
+    }
+
+    /// Backward-compatible category used when projecting a v1.3 issue to v1.0 or v1.2.
+    #[must_use]
+    pub const fn legacy_projection(self) -> Self {
+        match self {
+            Self::MeasurementUnsupportedSchemaVersion
+            | Self::MeasurementCatalogGenerationMismatch
+            | Self::MeasurementCatalogDigestMismatch
+            | Self::MeasurementSelectionDigestMismatch
+            | Self::MeasurementTooMany
+            | Self::MeasurementNonCanonicalOrder
+            | Self::MeasurementDuplicateId
+            | Self::MeasurementUnknownId
+            | Self::MeasurementSourceUnqualified
+            | Self::MeasurementModeUnsupported
+            | Self::MeasurementPlatformUnsupported
+            | Self::MeasurementPermissionRequired
+            | Self::MeasurementTargetScopeUnavailable
+            | Self::MeasurementInvalidCadence
+            | Self::MeasurementCadenceTooFast
+            | Self::MeasurementCadenceCapacityExceeded => Self::InvalidFormat,
+            legacy => legacy,
+        }
+    }
+
+    const fn requires_measurement_catalog_v1(self) -> bool {
+        !matches!(
+            self,
+            Self::InvalidFormat
+                | Self::UnsupportedCapability
+                | Self::UnverifiedComponent
+                | Self::InvalidResourceBound
+        )
+    }
+}
+
+/// Exact privacy-safe measurement selection diagnostic returned only by control v1.3.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MeasurementSettingsIssue {
+    /// Stable semantic failure reason.
+    pub reason: MeasurementSelectionReason,
+    /// Catalog-owned identity for an ID-specific failure; never copied for an unknown ID.
+    #[schemars(length(max = 256))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
+impl MeasurementSettingsIssue {
+    fn validate(&self) -> Result<(), ProtocolError> {
+        let requires_catalog_id = matches!(
+            self.reason,
+            MeasurementSelectionReason::SourceUnqualified
+                | MeasurementSelectionReason::ModeUnsupported
+                | MeasurementSelectionReason::PlatformUnsupported
+                | MeasurementSelectionReason::PermissionRequired
+                | MeasurementSelectionReason::TargetScopeUnavailable
+                | MeasurementSelectionReason::CadenceTooFast
+        );
+        if requires_catalog_id != self.id.is_some() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        let Some(id) = self.id.as_deref() else {
+            return Ok(());
+        };
+        validate_identity(id)?;
+        if baseline_measurement_catalog()
+            .measurements
+            .binary_search_by(|candidate| candidate.id.as_str().cmp(id))
+            .is_err()
+        {
+            return Err(ProtocolError::UnsafePublicValue);
+        }
+        Ok(())
+    }
 }
 
 /// Privacy-safe settings validation outcome.
@@ -1036,6 +1191,9 @@ pub struct SettingsValidation {
     pub valid: bool,
     /// Bounded stable issue vocabulary, without copied input values.
     pub issues: Vec<SettingsIssue>,
+    /// Exact first measurement failure when validation reached the bound selection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub measurement_issue: Option<MeasurementSettingsIssue>,
 }
 
 /// Durable immutable plan identity.
@@ -1146,6 +1304,16 @@ impl BoundControlResult {
             ControlResult::MeasurementCatalog(_) if version < CONTROL_MEASUREMENT_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::SettingsValidation(value)
+                if version < CONTROL_MEASUREMENT_SELECTION_V1
+                    && (value
+                        .issues
+                        .iter()
+                        .any(|issue| issue.requires_measurement_catalog_v1())
+                        || value.measurement_issue.is_some()) =>
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
             _ => {}
         }
         Ok(())
@@ -1177,6 +1345,14 @@ impl ControlResult {
                     || value.issues.iter().collect::<BTreeSet<_>>().len() != value.issues.len()
                 {
                     Err(ProtocolError::InvalidResponse)
+                } else if let Some(detail) = &value.measurement_issue {
+                    if value.valid
+                        || value.issues != [SettingsIssue::from_measurement_reason(detail.reason)]
+                    {
+                        Err(ProtocolError::InvalidResponse)
+                    } else {
+                        detail.validate()
+                    }
                 } else {
                     Ok(())
                 }

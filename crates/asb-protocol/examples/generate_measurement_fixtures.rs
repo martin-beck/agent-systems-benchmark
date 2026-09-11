@@ -4,7 +4,10 @@
 
 use std::{fs, path::PathBuf};
 
-use asb_protocol::{MAX_MEASUREMENTS, MeasurementCatalogV1, baseline_measurement_catalog};
+use asb_protocol::{
+    MAX_MEASUREMENTS, MeasurementCatalogV1, MeasurementSelectionV1, ReplayMode,
+    baseline_measurement_catalog,
+};
 use serde_json::Value;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,6 +21,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     write(
         output.join("measurement-catalog-empty.json"),
         &MeasurementCatalogV1::new(Vec::new(), Vec::new())?,
+    )?;
+    write_selection(
+        output.join("measurement-selection-empty.json"),
+        &MeasurementSelectionV1::new(&baseline, Vec::new(), ReplayMode::Live, None)?,
+    )?;
+    write_selection(
+        output.join("measurement-selection-one.json"),
+        &MeasurementSelectionV1::new(
+            &baseline,
+            vec!["process.cpu.user_time".into()],
+            ReplayMode::Live,
+            Some(1_000_000),
+        )?,
+    )?;
+    write_selection(
+        output.join("measurement-selection-maximal.json"),
+        &MeasurementSelectionV1::new(
+            &baseline,
+            baseline
+                .measurements
+                .iter()
+                .map(|measurement| measurement.id.clone())
+                .collect(),
+            ReplayMode::Live,
+            Some(1_000_000),
+        )?,
     )?;
 
     let mut definitions = Vec::new();
@@ -84,6 +113,16 @@ fn write(path: PathBuf, catalog: &MeasurementCatalogV1) -> Result<(), Box<dyn st
 
 fn write_json(path: PathBuf, value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     let mut encoded = serde_json::to_string_pretty(value)?;
+    encoded.push('\n');
+    fs::write(path, encoded)?;
+    Ok(())
+}
+
+fn write_selection(
+    path: PathBuf,
+    selection: &MeasurementSelectionV1,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut encoded = serde_json::to_string_pretty(selection)?;
     encoded.push('\n');
     fs::write(path, encoded)?;
     Ok(())

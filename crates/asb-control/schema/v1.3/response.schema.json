@@ -1,0 +1,1861 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ControlResponse",
+  "description": "JSON-RPC terminal response.",
+  "oneOf": [
+    {
+      "description": "Successful typed response.",
+      "$ref": "#/$defs/ControlSuccessResponse"
+    },
+    {
+      "description": "Fixed privacy-safe failure response.",
+      "$ref": "#/$defs/ControlFailureResponse"
+    }
+  ],
+  "$defs": {
+    "Aggregation": {
+      "description": "Metric aggregation semantics.",
+      "oneOf": [
+        {
+          "description": "Point-in-time gauge.",
+          "type": "string",
+          "const": "gauge"
+        },
+        {
+          "description": "Monotonic cumulative counter.",
+          "type": "string",
+          "const": "counter"
+        },
+        {
+          "description": "Sample distribution.",
+          "type": "string",
+          "const": "distribution"
+        }
+      ]
+    },
+    "AnalysisSummary": {
+      "description": "Privacy-safe aggregate analysis projection.",
+      "type": "object",
+      "properties": {
+        "analysis_sha256": {
+          "description": "Digest of the canonical analysis result stored as a sensitive artifact.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "run_count": {
+          "description": "Number of runs included.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 256,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "run_count",
+        "analysis_sha256"
+      ]
+    },
+    "ArtifactMetadata": {
+      "description": "Privacy-safe artifact metadata.",
+      "type": "object",
+      "properties": {
+        "sensitivity": {
+          "description": "Explicit sensitivity class.",
+          "$ref": "#/$defs/ArtifactSensitivity"
+        },
+        "sha256": {
+          "description": "Content digest, never a host path.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "description": "Byte length.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "size_bytes",
+        "sensitivity"
+      ]
+    },
+    "ArtifactSensitivity": {
+      "description": "Artifact sensitivity is explicit and content is never embedded in summaries.",
+      "oneOf": [
+        {
+          "description": "Safe to expose through the ordinary control API.",
+          "type": "string",
+          "const": "public"
+        },
+        {
+          "description": "Requires a separate least-privilege content authorization.",
+          "type": "string",
+          "const": "sensitive"
+        }
+      ]
+    },
+    "AttemptId": {
+      "description": "Opaque stable execution-attempt identity.",
+      "type": "string"
+    },
+    "BoundControlResult": {
+      "description": "Successful result bound to the complete canonical request.",
+      "type": "object",
+      "properties": {
+        "request_sha256": {
+          "description": "SHA-256 of the canonical typed call.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "result": {
+          "description": "Closed result body.",
+          "$ref": "#/$defs/ControlResult"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request_sha256",
+        "result"
+      ]
+    },
+    "Capabilities": {
+      "description": "Runner features exposed without embedding configuration or host details.",
+      "type": "object",
+      "properties": {
+        "analysis": {
+          "description": "Multiple runs can be analysed.",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "Public event cursors are retained.",
+          "type": "boolean"
+        },
+        "repeat": {
+          "description": "Completed runs can be repeated.",
+          "type": "boolean"
+        },
+        "run_control": {
+          "description": "Plans can be created and launched.",
+          "type": "boolean"
+        },
+        "validate_settings": {
+          "description": "Settings can be validated without creating a plan.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "validate_settings",
+        "run_control",
+        "repeat",
+        "analysis",
+        "events"
+      ]
+    },
+    "ControlEvent": {
+      "description": "Privacy-reviewed public runner event.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "description": "Related exact attempt when applicable.",
+          "maxLength": 128,
+          "minLength": 1,
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AttemptId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "kind": {
+          "description": "Event kind from the stable public vocabulary.",
+          "$ref": "#/$defs/ControlEventKind"
+        },
+        "revision": {
+          "description": "Durable contiguous revision.",
+          "$ref": "#/$defs/Revision"
+        },
+        "run_id": {
+          "description": "Related run when applicable.",
+          "maxLength": 128,
+          "minLength": 1,
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "kind"
+      ]
+    },
+    "ControlEventKind": {
+      "description": "Stable privacy-safe runner event vocabulary.",
+      "oneOf": [
+        {
+          "description": "Runner instance is ready after startup or recovery.",
+          "type": "string",
+          "const": "runner_ready"
+        },
+        {
+          "description": "A validated plan became durable.",
+          "type": "string",
+          "const": "plan_created"
+        },
+        {
+          "description": "An exact execution attempt started.",
+          "type": "string",
+          "const": "run_started"
+        },
+        {
+          "description": "Durable public run state advanced.",
+          "type": "string",
+          "const": "run_updated"
+        },
+        {
+          "description": "Required run evidence became durable.",
+          "type": "string",
+          "const": "run_completed"
+        },
+        {
+          "description": "The run reached a durable failure.",
+          "type": "string",
+          "const": "run_failed"
+        },
+        {
+          "description": "Cancellation reached a durable terminal state.",
+          "type": "string",
+          "const": "run_cancelled"
+        },
+        {
+          "description": "The runner requires reconciliation before another effect.",
+          "type": "string",
+          "const": "reconciliation_required"
+        }
+      ]
+    },
+    "ControlFailureResponse": {
+      "description": "Closed failed response envelope.",
+      "type": "object",
+      "properties": {
+        "error": {
+          "description": "Fixed privacy-safe error.",
+          "$ref": "#/$defs/ControlRpcError"
+        },
+        "id": {
+          "description": "Matching request identity.",
+          "$ref": "#/$defs/RequestId"
+        },
+        "jsonrpc": {
+          "description": "Must equal `2.0`.",
+          "type": "string",
+          "const": "2.0"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "error"
+      ]
+    },
+    "ControlLimits": {
+      "description": "Negotiated per-connection bounds.",
+      "type": "object",
+      "properties": {
+        "max_frame_bytes": {
+          "description": "Largest four-byte-length-prefixed JSON body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 1048576,
+          "minimum": 1
+        },
+        "max_in_flight": {
+          "description": "Largest number of admitted requests awaiting terminal responses.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 64,
+          "minimum": 1
+        },
+        "max_page_items": {
+          "description": "Largest page a client may request.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 256,
+          "minimum": 1
+        },
+        "max_timeout_ms": {
+          "description": "Longest request processing deadline measured from receipt.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 300000,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_frame_bytes",
+        "max_timeout_ms",
+        "max_page_items",
+        "max_in_flight"
+      ]
+    },
+    "ControlMeasurementCatalog": {
+      "description": "A catalog decoded only through the bounded AR-1013 constructor.",
+      "$ref": "#/$defs/MeasurementCatalogV1"
+    },
+    "ControlResult": {
+      "description": "Closed allowlist of successful results returned by runner backends.",
+      "oneOf": [
+        {
+          "description": "Runner feature availability.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "capabilities"
+            },
+            "value": {
+              "$ref": "#/$defs/Capabilities"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Immutable selectable-measurement catalog.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "measurement_catalog"
+            },
+            "value": {
+              "$ref": "#/$defs/MeasurementCatalogPublication"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Settings validation outcome.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "settings_validation"
+            },
+            "value": {
+              "$ref": "#/$defs/SettingsValidation"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Created or repeated immutable plan.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "plan"
+            },
+            "value": {
+              "$ref": "#/$defs/PlanReference"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Launch returned its durable run identity.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "launch"
+            },
+            "value": {
+              "$ref": "#/$defs/RunSummary"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Current durable run state.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "status"
+            },
+            "value": {
+              "$ref": "#/$defs/RunSummary"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Cancellation or another mutation was durably accepted.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "acknowledged"
+            },
+            "value": {
+              "$ref": "#/$defs/MutationAcknowledgement"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Recent run page.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "history"
+            },
+            "value": {
+              "$ref": "#/$defs/Page"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Public event page.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "events"
+            },
+            "value": {
+              "$ref": "#/$defs/Page2"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Aggregate analysis metadata.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analysis"
+            },
+            "value": {
+              "$ref": "#/$defs/AnalysisSummary"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Artifact metadata without content or host paths.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "artifact_metadata"
+            },
+            "value": {
+              "$ref": "#/$defs/ArtifactMetadata"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        }
+      ]
+    },
+    "ControlRpcError": {
+      "description": "Privacy-safe JSON-RPC error.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "Stable machine-readable code.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "description": "Bounded public diagnostic.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "ControlSuccess": {
+      "description": "Closed wire-visible success envelope.",
+      "oneOf": [
+        {
+          "description": "Initial protocol negotiation.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "negotiated"
+            },
+            "value": {
+              "$ref": "#/$defs/Negotiated"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Result of one post-negotiation operation.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "operation"
+            },
+            "value": {
+              "$ref": "#/$defs/BoundControlResult"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        }
+      ]
+    },
+    "ControlSuccessResponse": {
+      "description": "Closed successful response envelope.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Matching request identity.",
+          "$ref": "#/$defs/RequestId"
+        },
+        "jsonrpc": {
+          "description": "Must equal `2.0`.",
+          "type": "string",
+          "const": "2.0"
+        },
+        "result": {
+          "description": "Closed successful result.",
+          "$ref": "#/$defs/ControlSuccess"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    "ControlVersion": {
+      "description": "A major/minor protocol version.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking protocol generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible feature generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "MeasurementArchitecture": {
+      "description": "Supported machine architecture.",
+      "oneOf": [
+        {
+          "description": "64-bit x86.",
+          "type": "string",
+          "const": "x86_64"
+        },
+        {
+          "description": "64-bit Arm.",
+          "type": "string",
+          "const": "aarch64"
+        }
+      ]
+    },
+    "MeasurementCatalogFreshness": {
+      "description": "Explicit freshness semantics for a published measurement catalog.",
+      "oneOf": [
+        {
+          "description": "The publication is immutable and freshness is established by its content digest.",
+          "type": "string",
+          "const": "content_addressed"
+        }
+      ]
+    },
+    "MeasurementCatalogPublication": {
+      "description": "Versioned, bounded publication returned by `measurement_catalog`.",
+      "type": "object",
+      "properties": {
+        "catalog": {
+          "description": "Canonical AR-1013 catalog and its content digest.",
+          "$ref": "#/$defs/ControlMeasurementCatalog"
+        },
+        "freshness": {
+          "description": "How consumers determine whether this immutable catalog changed.",
+          "$ref": "#/$defs/MeasurementCatalogFreshness"
+        },
+        "source": {
+          "description": "Closed authority that produced the catalog.",
+          "$ref": "#/$defs/MeasurementCatalogPublicationSource"
+        },
+        "version": {
+          "description": "Additive control extension version defining this result.",
+          "$ref": "#/$defs/ControlVersion"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "properties": {
+            "version": {
+              "properties": {
+                "major": {
+                  "const": 1
+                },
+                "minor": {
+                  "const": 2
+                }
+              }
+            }
+          }
+        }
+      ],
+      "required": [
+        "version",
+        "freshness",
+        "source",
+        "catalog"
+      ]
+    },
+    "MeasurementCatalogPublicationSource": {
+      "description": "Closed provenance for the catalog exposed by the runner.",
+      "oneOf": [
+        {
+          "description": "The catalog is compiled from ASB's qualified built-in collector inventory.",
+          "type": "string",
+          "const": "built_in_collectors"
+        }
+      ]
+    },
+    "MeasurementCatalogV1": {
+      "description": "Authoritative v1 catalog with a deterministic content address.\n\nDirect generic deserialization is intentionally unavailable; untrusted bytes must use the\nbounded constructors.\n\n```compile_fail\nuse asb_protocol::MeasurementCatalogV1;\nlet _: MeasurementCatalogV1 = serde_json::from_str(\"{}\").unwrap();\n```",
+      "type": "object",
+      "properties": {
+        "catalog_sha256": {
+          "description": "SHA-256 of the canonical catalog contents excluding this field.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "groups": {
+          "description": "Stable groups in enum order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementGroup"
+          },
+          "maxItems": 7
+        },
+        "measurements": {
+          "description": "Stable definitions in ascending ID order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementDefinition"
+          },
+          "maxItems": 128
+        },
+        "schema_version": {
+          "description": "Closed schema generation; exactly 1.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 1,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "catalog_sha256",
+        "groups",
+        "measurements"
+      ]
+    },
+    "MeasurementDefinition": {
+      "description": "One selectable, renderer-independent measurement definition.",
+      "type": "object",
+      "properties": {
+        "aggregation": {
+          "description": "Aggregation semantics.",
+          "$ref": "#/$defs/Aggregation"
+        },
+        "description": {
+          "description": "Public evidence meaning, containing no runtime or host material.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
+        },
+        "evidence_limits": {
+          "description": "Explicit interpretation limits.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementEvidenceLimit"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        },
+        "group": {
+          "description": "Semantic group identity.",
+          "$ref": "#/$defs/MeasurementGroupId"
+        },
+        "id": {
+          "description": "Stable dotted identifier.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 3,
+          "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$"
+        },
+        "live": {
+          "description": "Live-provider execution support.",
+          "$ref": "#/$defs/MeasurementModeSupport"
+        },
+        "name": {
+          "description": "Short public name, unique under ASCII case folding.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
+        },
+        "overhead": {
+          "description": "Collection overhead contract.",
+          "$ref": "#/$defs/MeasurementOverhead"
+        },
+        "platforms": {
+          "description": "Explicit platform constraints.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementPlatform"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        },
+        "provenance": {
+          "description": "Source and qualification.",
+          "$ref": "#/$defs/MeasurementProvenance"
+        },
+        "quantity": {
+          "description": "Quantity used to validate the unit.",
+          "$ref": "#/$defs/MeasurementQuantity"
+        },
+        "replay": {
+          "description": "Recorded-response replay execution support.",
+          "$ref": "#/$defs/MeasurementModeSupport"
+        },
+        "resolution_ns": {
+          "description": "Nominal runtime descriptor resolution in nanoseconds; zero means unspecified.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "scope": {
+          "description": "Ownership scope.",
+          "$ref": "#/$defs/MeasurementScope"
+        },
+        "source_identity": {
+          "description": "Closed identity mapping exactly to the runtime descriptor source string.",
+          "$ref": "#/$defs/MeasurementSourceIdentity"
+        },
+        "unit": {
+          "description": "Exact UCUM-style unit.",
+          "type": "string",
+          "maxLength": 32,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "group",
+        "quantity",
+        "unit",
+        "aggregation",
+        "scope",
+        "provenance",
+        "source_identity",
+        "resolution_ns",
+        "overhead",
+        "live",
+        "replay",
+        "platforms",
+        "evidence_limits"
+      ]
+    },
+    "MeasurementEvidenceLimit": {
+      "description": "Closed limits on valid interpretation.",
+      "oneOf": [
+        {
+          "description": "Missing evidence remains unavailable and is never zero-filled.",
+          "type": "string",
+          "const": "missing_is_unavailable"
+        },
+        {
+          "description": "A counter does not by itself establish causation.",
+          "type": "string",
+          "const": "not_causal"
+        },
+        {
+          "description": "Values are comparable only under compatible experiment provenance.",
+          "type": "string",
+          "const": "requires_comparable_experiment"
+        },
+        {
+          "description": "Collection elapsed time must accompany the samples.",
+          "type": "string",
+          "const": "collector_overhead_recorded"
+        }
+      ]
+    },
+    "MeasurementGroup": {
+      "description": "One stable semantic group and its bounded public explanation.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Public semantic boundary for the group.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
+        },
+        "id": {
+          "description": "Stable machine identity.",
+          "$ref": "#/$defs/MeasurementGroupId"
+        },
+        "label": {
+          "description": "Short public display-independent label.",
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[ -?A-~]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "description"
+      ]
+    },
+    "MeasurementGroupId": {
+      "description": "Stable semantic group identifiers. Their serialized names are public API.",
+      "oneOf": [
+        {
+          "description": "CPU, memory, storage, and network resource consumption.",
+          "type": "string",
+          "const": "system_resources"
+        },
+        {
+          "description": "Scheduling pressure, throttling, and explicitly non-causal contention evidence.",
+          "type": "string",
+          "const": "scheduling_contention"
+        },
+        {
+          "description": "Queue, readiness, first-response, and completion latency.",
+          "type": "string",
+          "const": "latency"
+        },
+        {
+          "description": "Independent correctness and reliability outcomes.",
+          "type": "string",
+          "const": "quality_reliability"
+        },
+        {
+          "description": "Per-agent and mixed-workload fairness evidence.",
+          "type": "string",
+          "const": "fairness"
+        },
+        {
+          "description": "Provider-reported or explicitly unavailable cost evidence.",
+          "type": "string",
+          "const": "cost"
+        },
+        {
+          "description": "Harness, collector, replay, and experiment provenance evidence.",
+          "type": "string",
+          "const": "provenance"
+        }
+      ]
+    },
+    "MeasurementModeSupport": {
+      "description": "Explicit support state for live or replay execution.",
+      "oneOf": [
+        {
+          "description": "The authoritative implementation can attempt this measurement.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "supported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "No value may be inferred; the reason is closed and explicit.",
+          "type": "object",
+          "properties": {
+            "reason": {
+              "description": "Why the value is unavailable.",
+              "$ref": "#/$defs/MeasurementUnavailableReason"
+            },
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status",
+            "reason"
+          ]
+        }
+      ]
+    },
+    "MeasurementOperatingSystem": {
+      "description": "Supported operating-system family.",
+      "oneOf": [
+        {
+          "description": "Linux userspace and kernel interfaces.",
+          "type": "string",
+          "const": "linux"
+        }
+      ]
+    },
+    "MeasurementOverhead": {
+      "description": "Static collection-overhead boundary.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Reviewed qualitative class.",
+          "$ref": "#/$defs/MeasurementOverheadClass"
+        },
+        "minimum_interval_ns": {
+          "description": "Smallest supported interval between samples.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 1
+        },
+        "requires_privilege": {
+          "description": "Whether collection requires elevated privilege.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "minimum_interval_ns",
+        "requires_privilege"
+      ]
+    },
+    "MeasurementOverheadClass": {
+      "description": "Qualitative collection overhead class with an explicit interval floor.",
+      "oneOf": [
+        {
+          "description": "Direct bounded counter reads; actual elapsed overhead remains recorded per collection.",
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "description": "Additional sampling or processing with a material perturbation risk.",
+          "type": "string",
+          "const": "material"
+        }
+      ]
+    },
+    "MeasurementPlatform": {
+      "description": "Closed platform constraint for a measurement definition.",
+      "type": "object",
+      "properties": {
+        "architectures": {
+          "description": "Architectures with implemented portable parsing.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementArchitecture"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        },
+        "operating_system": {
+          "description": "Required operating-system family.",
+          "$ref": "#/$defs/MeasurementOperatingSystem"
+        },
+        "required_features": {
+          "description": "Required kernel/userspace interfaces.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasurementPlatformFeature"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operating_system",
+        "architectures",
+        "required_features"
+      ]
+    },
+    "MeasurementPlatformFeature": {
+      "description": "Required platform facility.",
+      "oneOf": [
+        {
+          "description": "A mounted, readable Linux procfs.",
+          "type": "string",
+          "const": "procfs"
+        },
+        {
+          "description": "A delegated, readable unified cgroup-v2 hierarchy.",
+          "type": "string",
+          "const": "cgroup_v2"
+        }
+      ]
+    },
+    "MeasurementProvenance": {
+      "description": "Closed provenance for one definition.",
+      "type": "object",
+      "properties": {
+        "qualification": {
+          "description": "Current evidence qualification.",
+          "$ref": "#/$defs/MeasurementQualification"
+        },
+        "source": {
+          "description": "Authoritative component/source class.",
+          "$ref": "#/$defs/MeasurementSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "qualification"
+      ]
+    },
+    "MeasurementQualification": {
+      "description": "Evidence qualification attached to a measurement source.",
+      "oneOf": [
+        {
+          "description": "Directly implemented and contract-tested by ASB.",
+          "type": "string",
+          "const": "implemented"
+        },
+        {
+          "description": "Defined but not yet supported by an authoritative implementation.",
+          "type": "string",
+          "const": "unqualified"
+        }
+      ]
+    },
+    "MeasurementQuantity": {
+      "description": "Physical or logical quantity represented by a measurement.",
+      "oneOf": [
+        {
+          "description": "Duration or cumulative CPU/pressure time.",
+          "type": "string",
+          "const": "time"
+        },
+        {
+          "description": "Byte count or instantaneous byte quantity.",
+          "type": "string",
+          "const": "bytes"
+        },
+        {
+          "description": "Discrete event count.",
+          "type": "string",
+          "const": "count"
+        },
+        {
+          "description": "Dimensionless ratio.",
+          "type": "string",
+          "const": "ratio"
+        },
+        {
+          "description": "Independently defined normalized score.",
+          "type": "string",
+          "const": "score"
+        },
+        {
+          "description": "Monetary value with separately bound currency provenance.",
+          "type": "string",
+          "const": "currency"
+        }
+      ]
+    },
+    "MeasurementScope": {
+      "description": "Measurement ownership scope.",
+      "oneOf": [
+        {
+          "description": "One operating-system process.",
+          "type": "string",
+          "const": "process"
+        },
+        {
+          "description": "One delegated cgroup-v2 subtree.",
+          "type": "string",
+          "const": "cgroup"
+        },
+        {
+          "description": "One complete benchmark attempt.",
+          "type": "string",
+          "const": "attempt"
+        },
+        {
+          "description": "One complete run or comparison set.",
+          "type": "string",
+          "const": "run"
+        }
+      ]
+    },
+    "MeasurementSelectionReason": {
+      "description": "Stable machine-readable reason that a measurement selection is invalid.",
+      "oneOf": [
+        {
+          "description": "Selection schema generation is unknown.",
+          "type": "string",
+          "const": "unsupported_schema_version"
+        },
+        {
+          "description": "Catalog schema generation does not match the exact catalog.",
+          "type": "string",
+          "const": "catalog_generation_mismatch"
+        },
+        {
+          "description": "Catalog content address is malformed or stale.",
+          "type": "string",
+          "const": "catalog_digest_mismatch"
+        },
+        {
+          "description": "Selection content address is malformed or stale.",
+          "type": "string",
+          "const": "selection_digest_mismatch"
+        },
+        {
+          "description": "Too many identities were supplied.",
+          "type": "string",
+          "const": "too_many_measurements"
+        },
+        {
+          "description": "Stable identities are not in strictly ascending canonical order.",
+          "type": "string",
+          "const": "non_canonical_order"
+        },
+        {
+          "description": "A stable identity occurs more than once.",
+          "type": "string",
+          "const": "duplicate_id"
+        },
+        {
+          "description": "A stable identity does not exist in the bound catalog.",
+          "type": "string",
+          "const": "unknown_id"
+        },
+        {
+          "description": "A definition has not been qualified by an authoritative collector.",
+          "type": "string",
+          "const": "source_unqualified"
+        },
+        {
+          "description": "The selected execution mode is unsupported.",
+          "type": "string",
+          "const": "mode_unsupported"
+        },
+        {
+          "description": "The target platform cannot provide the definition.",
+          "type": "string",
+          "const": "platform_unsupported"
+        },
+        {
+          "description": "Required privilege is absent.",
+          "type": "string",
+          "const": "permission_required"
+        },
+        {
+          "description": "The runner has no authoritative target for this scope.",
+          "type": "string",
+          "const": "target_scope_unavailable"
+        },
+        {
+          "description": "Empty and non-empty selections disagree with cadence presence.",
+          "type": "string",
+          "const": "invalid_cadence"
+        },
+        {
+          "description": "Sampling cadence is faster than a selected definition permits.",
+          "type": "string",
+          "const": "cadence_too_fast"
+        },
+        {
+          "description": "Sampling cadence exceeds the fixed public bound.",
+          "type": "string",
+          "const": "cadence_capacity_exceeded"
+        },
+        {
+          "description": "Untrusted encoded input exceeded the fixed transport ceiling.",
+          "type": "string",
+          "const": "wire_too_large"
+        },
+        {
+          "description": "Untrusted encoded input is not a valid closed selection shape.",
+          "type": "string",
+          "const": "invalid_wire"
+        },
+        {
+          "description": "Canonical serialization unexpectedly failed.",
+          "type": "string",
+          "const": "serialization"
+        }
+      ]
+    },
+    "MeasurementSettingsIssue": {
+      "description": "Exact privacy-safe measurement selection diagnostic returned only by control v1.3.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Catalog-owned identity for an ID-specific failure; never copied for an unknown ID.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "reason": {
+          "description": "Stable semantic failure reason.",
+          "$ref": "#/$defs/MeasurementSelectionReason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reason"
+      ]
+    },
+    "MeasurementSource": {
+      "description": "Closed source vocabulary; no host path or caller string enters the catalog.",
+      "oneOf": [
+        {
+          "description": "Linux procfs counters read by `asb-metrics`.",
+          "type": "string",
+          "const": "asb_metrics_procfs"
+        },
+        {
+          "description": "Linux cgroup-v2 counters read by `asb-metrics`.",
+          "type": "string",
+          "const": "asb_metrics_cgroup_v2"
+        },
+        {
+          "description": "Durable ASB runner journal evidence.",
+          "type": "string",
+          "const": "asb_runner_journal"
+        },
+        {
+          "description": "Independently versioned grader output.",
+          "type": "string",
+          "const": "independent_grader"
+        },
+        {
+          "description": "Provider-reported usage with explicit absence semantics.",
+          "type": "string",
+          "const": "provider_usage"
+        },
+        {
+          "description": "Optional CSB-derived evidence that is not baseline-qualified.",
+          "type": "string",
+          "const": "optional_csb"
+        }
+      ]
+    },
+    "MeasurementSourceIdentity": {
+      "description": "Closed, path-free identity for an exact runtime descriptor source.",
+      "oneOf": [
+        {
+          "description": "Process counters from procfs stat.",
+          "type": "string",
+          "const": "procfs_process_stat"
+        },
+        {
+          "description": "Process counters from procfs IO.",
+          "type": "string",
+          "const": "procfs_process_io"
+        },
+        {
+          "description": "Cgroup-v2 CPU statistics.",
+          "type": "string",
+          "const": "cgroup_v2_cpu_stat"
+        },
+        {
+          "description": "Cgroup-v2 current memory.",
+          "type": "string",
+          "const": "cgroup_v2_memory_current"
+        },
+        {
+          "description": "Cgroup-v2 peak memory.",
+          "type": "string",
+          "const": "cgroup_v2_memory_peak"
+        },
+        {
+          "description": "Cgroup-v2 memory statistics.",
+          "type": "string",
+          "const": "cgroup_v2_memory_stat"
+        },
+        {
+          "description": "Cgroup-v2 IO statistics.",
+          "type": "string",
+          "const": "cgroup_v2_io_stat"
+        },
+        {
+          "description": "Cgroup-v2 CPU pressure.",
+          "type": "string",
+          "const": "cgroup_v2_cpu_pressure"
+        },
+        {
+          "description": "Cgroup-v2 memory pressure.",
+          "type": "string",
+          "const": "cgroup_v2_memory_pressure"
+        },
+        {
+          "description": "Cgroup-v2 IO pressure.",
+          "type": "string",
+          "const": "cgroup_v2_io_pressure"
+        }
+      ]
+    },
+    "MeasurementUnavailableReason": {
+      "description": "Why one execution mode cannot provide a measurement.",
+      "oneOf": [
+        {
+          "description": "No qualified collector implements this definition.",
+          "type": "string",
+          "const": "not_qualified"
+        },
+        {
+          "description": "The execution platform cannot expose the required evidence.",
+          "type": "string",
+          "const": "platform_unsupported"
+        },
+        {
+          "description": "Required permissions were not granted.",
+          "type": "string",
+          "const": "permission_required"
+        },
+        {
+          "description": "The measurement does not have meaning in this mode.",
+          "type": "string",
+          "const": "not_applicable"
+        }
+      ]
+    },
+    "MutationAcknowledgement": {
+      "description": "Stable acknowledgement for an accepted durable mutation.",
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "description": "The mutation is durably accepted.",
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "accepted"
+      ]
+    },
+    "Negotiated": {
+      "description": "Negotiated connection result.",
+      "type": "object",
+      "properties": {
+        "latest_revision": {
+          "description": "Latest retained public event revision.",
+          "$ref": "#/$defs/Revision"
+        },
+        "limits": {
+          "description": "Effective bounds.",
+          "$ref": "#/$defs/ControlLimits"
+        },
+        "oldest_revision": {
+          "description": "Oldest retained public event revision.",
+          "$ref": "#/$defs/Revision"
+        },
+        "runner_instance_id": {
+          "description": "Stable runner instance identity.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Selected protocol version.",
+          "$ref": "#/$defs/ControlVersion"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "limits",
+        "runner_instance_id",
+        "oldest_revision",
+        "latest_revision"
+      ]
+    },
+    "Page": {
+      "description": "Bounded event or history page.",
+      "type": "object",
+      "properties": {
+        "has_more": {
+          "description": "Whether a later retained record exists.",
+          "type": "boolean"
+        },
+        "items": {
+          "description": "Ordered page records.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunSummary"
+          },
+          "maxItems": 256
+        },
+        "next": {
+          "description": "Cursor representing the final returned record.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "has_more"
+      ]
+    },
+    "Page2": {
+      "description": "Bounded event or history page.",
+      "type": "object",
+      "properties": {
+        "has_more": {
+          "description": "Whether a later retained record exists.",
+          "type": "boolean"
+        },
+        "items": {
+          "description": "Ordered page records.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlEvent"
+          },
+          "maxItems": 256
+        },
+        "next": {
+          "description": "Cursor representing the final returned record.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "has_more"
+      ]
+    },
+    "PlanReference": {
+      "description": "Durable immutable plan identity.",
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "description": "Opaque stable plan identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "plan_sha256": {
+          "description": "SHA-256 of the canonical plan.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "plan_id",
+        "plan_sha256"
+      ]
+    },
+    "PublicRunState": {
+      "description": "Public run lifecycle; absence is never encoded as a successful state.",
+      "oneOf": [
+        {
+          "description": "Definition is durable but execution has not started.",
+          "type": "string",
+          "const": "planned"
+        },
+        {
+          "description": "Inputs are prepared.",
+          "type": "string",
+          "const": "prepared"
+        },
+        {
+          "description": "Execution is active.",
+          "type": "string",
+          "const": "running"
+        },
+        {
+          "description": "Evidence collection is active.",
+          "type": "string",
+          "const": "collecting"
+        },
+        {
+          "description": "All required evidence is durable.",
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "description": "Execution or collection failed.",
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "description": "Cancellation reached a durable terminal state.",
+          "type": "string",
+          "const": "cancelled"
+        },
+        {
+          "description": "External effects require runner-side reconciliation.",
+          "type": "string",
+          "const": "needs_reconciliation"
+        }
+      ]
+    },
+    "RequestId": {
+      "description": "Numeric JSON-RPC request identity.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "Revision": {
+      "description": "Opaque durable revision used to resume event streams.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "RunId": {
+      "description": "Opaque stable run identity.",
+      "type": "string"
+    },
+    "RunSummary": {
+      "description": "Privacy-reviewed run summary.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "description": "Exact attempt identity.",
+          "$ref": "#/$defs/AttemptId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "created_revision": {
+          "description": "Immutable revision at which this run first entered the journal.",
+          "$ref": "#/$defs/Revision"
+        },
+        "plan_sha256": {
+          "description": "Content digest of the immutable plan.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "revision": {
+          "description": "Durable revision from which this summary was derived.",
+          "$ref": "#/$defs/Revision"
+        },
+        "run_id": {
+          "description": "Stable run identity.",
+          "$ref": "#/$defs/RunId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "state": {
+          "description": "State derived from the authoritative journal.",
+          "$ref": "#/$defs/PublicRunState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "attempt_id",
+        "state",
+        "created_revision",
+        "revision",
+        "plan_sha256"
+      ]
+    },
+    "SettingsIssue": {
+      "description": "Stable, non-sensitive settings diagnostic.",
+      "oneOf": [
+        {
+          "description": "The settings shape or syntax is invalid.",
+          "type": "string",
+          "const": "invalid_format"
+        },
+        {
+          "description": "A requested capability is unavailable.",
+          "type": "string",
+          "const": "unsupported_capability"
+        },
+        {
+          "description": "A referenced immutable component cannot be verified.",
+          "type": "string",
+          "const": "unverified_component"
+        },
+        {
+          "description": "A configured resource bound is invalid.",
+          "type": "string",
+          "const": "invalid_resource_bound"
+        },
+        {
+          "description": "The measurement selection schema generation is unsupported.",
+          "type": "string",
+          "const": "measurement_unsupported_schema_version"
+        },
+        {
+          "description": "The measurement catalog generation does not match.",
+          "type": "string",
+          "const": "measurement_catalog_generation_mismatch"
+        },
+        {
+          "description": "The measurement catalog content address is stale or malformed.",
+          "type": "string",
+          "const": "measurement_catalog_digest_mismatch"
+        },
+        {
+          "description": "The measurement selection content address is stale or malformed.",
+          "type": "string",
+          "const": "measurement_selection_digest_mismatch"
+        },
+        {
+          "description": "The measurement selection exceeds its identity bound.",
+          "type": "string",
+          "const": "measurement_too_many"
+        },
+        {
+          "description": "Measurement identities are not in canonical order.",
+          "type": "string",
+          "const": "measurement_non_canonical_order"
+        },
+        {
+          "description": "A measurement identity occurs more than once.",
+          "type": "string",
+          "const": "measurement_duplicate_id"
+        },
+        {
+          "description": "A measurement identity is unknown.",
+          "type": "string",
+          "const": "measurement_unknown_id"
+        },
+        {
+          "description": "A selected measurement source is not qualified.",
+          "type": "string",
+          "const": "measurement_source_unqualified"
+        },
+        {
+          "description": "A selected measurement does not support the execution mode.",
+          "type": "string",
+          "const": "measurement_mode_unsupported"
+        },
+        {
+          "description": "A selected measurement is not supported on the target platform.",
+          "type": "string",
+          "const": "measurement_platform_unsupported"
+        },
+        {
+          "description": "A selected measurement requires unavailable permission.",
+          "type": "string",
+          "const": "measurement_permission_required"
+        },
+        {
+          "description": "The runner has no authoritative target for a selected measurement.",
+          "type": "string",
+          "const": "measurement_target_scope_unavailable"
+        },
+        {
+          "description": "Measurement cadence presence is inconsistent with the selected set.",
+          "type": "string",
+          "const": "measurement_invalid_cadence"
+        },
+        {
+          "description": "A selected measurement does not support the requested cadence.",
+          "type": "string",
+          "const": "measurement_cadence_too_fast"
+        },
+        {
+          "description": "The requested measurement schedule exceeds its fixed capacity.",
+          "type": "string",
+          "const": "measurement_cadence_capacity_exceeded"
+        }
+      ]
+    },
+    "SettingsValidation": {
+      "description": "Privacy-safe settings validation outcome.",
+      "type": "object",
+      "properties": {
+        "issues": {
+          "description": "Bounded stable issue vocabulary, without copied input values.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettingsIssue"
+          },
+          "maxItems": 256,
+          "uniqueItems": true
+        },
+        "measurement_issue": {
+          "description": "Exact first measurement failure when validation reached the bound selection.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/MeasurementSettingsIssue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valid": {
+          "description": "Whether plan creation may proceed.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "issues": {
+                  "maxItems": 0
+                },
+                "valid": {
+                  "const": true
+                }
+              },
+              "not": {
+                "required": [
+                  "measurement_issue"
+                ]
+              }
+            },
+            {
+              "properties": {
+                "issues": {
+                  "minItems": 1
+                },
+                "valid": {
+                  "const": false
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "required": [
+        "valid",
+        "issues"
+      ]
+    }
+  }
+}

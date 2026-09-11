@@ -140,7 +140,21 @@ duplicate IDs, invalid units, unqualified external sources and privacy-sensitive
 before a response is accepted. Search, grouping, selection state and all presentation remain the
 standalone frontend's responsibility.
 
-Servers implement serialized wire versions `1.0` and `1.2`; `1.1` names additive evidence types but
-is not independently selectable. A legacy client continues to offer only `1.0`, whose schemas and
-capability response are unchanged. A standalone frontend explicitly offers `1.2`; a catalog call on
-`1.0` is rejected before backend work, and a catalog-shaped result received under `1.0` is invalid.
+The standalone frontend submits only the resulting closed `MeasurementSelectionV1` inside an ASB
+plan-v2 `create_plan` request. ASB revalidates the exact catalog and selection digests plus every
+ID, execution mode, platform/permission/scope constraint and cadence before committing the plan.
+Canonical selection bytes participate in plan idempotency and execution identity. Under control
+v1.3, `validate_settings` returns an exact measurement-specific `SettingsIssue` plus a
+`measurement_issue` containing the stable `MeasurementSelectionReason`. The optional ID is emitted
+only when it came from the trusted catalog; unknown attacker-controlled IDs are never copied into a
+response. Control v1.0 and v1.2 receive the corresponding legacy bounded issue category without
+the additive detail. The frontend must display ASB's stable
+validation reason and must not silently add, remove, reorder, or substitute a measurement. Plan-v1
+input is migrated by ASB to the historical seven process metrics; new frontends should always
+author plan v2 explicitly.
+
+Servers implement serialized wire versions `1.0`, `1.2`, and `1.3`; `1.1` names additive evidence
+types but is not independently selectable. A legacy client continues to offer only `1.0`, whose
+schemas and capability response are unchanged. A catalog-only frontend may offer `1.2`; a current
+standalone frontend offers `1.3` to receive precise selection diagnostics. A catalog call on `1.0`
+is rejected before backend work, and a catalog-shaped result received under `1.0` is invalid.

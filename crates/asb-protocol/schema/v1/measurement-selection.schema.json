@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MeasurementSelectionV1",
+  "description": "Closed, content-addressed optional-measurement choice carried by an immutable run plan.",
+  "type": "object",
+  "properties": {
+    "catalog_schema_version": {
+      "description": "Exact catalog generation used to make the choice.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "catalog_sha256": {
+      "description": "Exact catalog content address used to make the choice.",
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "mode": {
+      "description": "Execution mode against which support was validated.",
+      "$ref": "#/$defs/ReplayMode"
+    },
+    "sample_interval_ns": {
+      "description": "Optional-measurement sampling interval; absent exactly when the selection is empty.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "schema_version": {
+      "description": "Closed selection generation; exactly 1.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "selected_ids": {
+      "description": "Stable measurement IDs in strictly ascending order.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 128
+    },
+    "selection_sha256": {
+      "description": "Content address of all other fields in this object.",
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "catalog_schema_version",
+    "catalog_sha256",
+    "selection_sha256",
+    "selected_ids",
+    "mode"
+  ],
+  "$defs": {
+    "ReplayMode": {
+      "description": "Live or recorded execution mode.",
+      "oneOf": [
+        {
+          "description": "Requests reached the configured live provider.",
+          "type": "string",
+          "const": "live"
+        },
+        {
+          "description": "Responses came from a pinned replay cassette.",
+          "type": "string",
+          "const": "replay"
+        }
+      ]
+    }
+  }
+}
