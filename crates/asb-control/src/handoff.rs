@@ -24,7 +24,8 @@ use rustix::net::sockopt::{
 use rustix::net::{
     AddressFamily, RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags, ReturnFlags,
     SendAncillaryBuffer, SendAncillaryMessage, SendFlags, SocketAddrUnix, SocketFlags, SocketType,
-    accept_with, bind, connect, listen, recv, recvmsg, sendmsg, socket_with, socketpair,
+    accept_with, bind, connect, getpeername, listen, recv, recvmsg, sendmsg, socket_with,
+    socketpair,
 };
 use rustix::process::geteuid;
 use rustix::rand::{GetRandomFlags, getrandom};
@@ -991,10 +992,37 @@ enum BrokerPhase {
     Terminal,
 }
 
+/// Opaque success generation prepared without advancing broker state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PendingBrokerSuccess {
+    operation: BrokerOperation,
+    generation: BrokerGeneration,
+    expected_runner_identity: [u8; 32],
+}
+
+impl PendingBrokerSuccess {
+    /// Generation that the ASB producer must bind to its authenticated stream.
+    #[must_use]
+    pub const fn generation(self) -> BrokerGeneration {
+        self.generation
+    }
+
+    const fn packet(self) -> BrokerPacket {
+        BrokerPacket {
+            operation: self.operation,
+            status: HandoffStatus::Success,
+            epoch: self.generation.epoch,
+            sequence: self.generation.sequence,
+            expected_runner_identity: self.expected_runner_identity,
+        }
+    }
+}
+
 /// Fail-closed producer state for one private router/frontend broker.
 pub struct BrokerState {
     epoch: [u8; 16],
     phase: BrokerPhase,
+    committed_generation: Option<BrokerGeneration>,
     replacement_attempts: u8,
     last_replacement: Option<Duration>,
 }
@@ -1008,6 +1036,7 @@ impl BrokerState {
         Ok(Self {
             epoch,
             phase: BrokerPhase::New,
+            committed_generation: None,
             replacement_attempts: 0,
             last_replacement: None,
         })
@@ -1064,14 +1093,41 @@ impl BrokerState {
         }
     }
 
-    /// Commit a successful descriptor send and advance the generation exactly once.
-    pub fn complete_success(
-        &mut self,
+    /// Prepare the exact pending success without advancing broker state.
+    pub fn pending_success(
+        &self,
         expected_runner_identity: [u8; 32],
-    ) -> Result<BrokerPacket, HandoffError> {
+    ) -> Result<PendingBrokerSuccess, HandoffError> {
         if expected_runner_identity == [0; 32] {
-            return self.terminate(HandoffError::InvalidRunnerIdentity);
+            return Err(HandoffError::InvalidRunnerIdentity);
         }
+        let BrokerPhase::Pending {
+            operation,
+            response_sequence,
+        } = self.phase
+        else {
+            return Err(HandoffError::UnexpectedState);
+        };
+        Ok(PendingBrokerSuccess {
+            operation,
+            generation: BrokerGeneration {
+                epoch: self.epoch,
+                sequence: response_sequence,
+            },
+            expected_runner_identity,
+        })
+    }
+
+    /// Atomically transfer the prepared packet and stream, then advance state.
+    ///
+    /// Any validation or send failure consumes the generation, terminates this
+    /// broker lifetime and leaves `committed_generation` unchanged.
+    pub fn commit_success(
+        &mut self,
+        pending: PendingBrokerSuccess,
+        broker: &OwnedFd,
+        authenticated: AuthenticatedGeneration,
+    ) -> Result<BrokerPacket, HandoffError> {
         let BrokerPhase::Pending {
             operation,
             response_sequence,
@@ -1079,18 +1135,27 @@ impl BrokerState {
         else {
             return self.terminate(HandoffError::UnexpectedState);
         };
-        let generation = BrokerGeneration {
-            epoch: self.epoch,
-            sequence: response_sequence,
-        };
-        self.phase = BrokerPhase::Established(generation);
-        Ok(BrokerPacket {
-            operation,
-            status: HandoffStatus::Success,
-            epoch: generation.epoch,
-            sequence: generation.sequence,
-            expected_runner_identity,
-        })
+        if pending.operation != operation
+            || pending.generation.epoch != self.epoch
+            || pending.generation.sequence != response_sequence
+            || authenticated.broker_generation != pending.generation
+            || authenticated.expected_runner_identity != pending.expected_runner_identity
+        {
+            return self.terminate(HandoffError::GenerationMismatch);
+        }
+        let packet = pending.packet();
+        if send_broker_generation(broker, packet, &authenticated.stream).is_err() {
+            return self.terminate(HandoffError::TransferFailed);
+        }
+        self.phase = BrokerPhase::Established(pending.generation);
+        self.committed_generation = Some(pending.generation);
+        Ok(packet)
+    }
+
+    /// Last generation whose complete packet and descriptor transfer succeeded.
+    #[must_use]
+    pub const fn committed_generation(&self) -> Option<BrokerGeneration> {
+        self.committed_generation
     }
 
     /// Complete a descriptor-free closed failure without advancing a generation.
@@ -1146,6 +1211,45 @@ impl BrokerState {
         self.phase = BrokerPhase::Terminal;
         Err(error)
     }
+}
+
+fn send_broker_generation(
+    broker: &OwnedFd,
+    packet: BrokerPacket,
+    stream: &UnixStream,
+) -> Result<(), HandoffError> {
+    if packet.status != HandoffStatus::Success
+        || packet.validate_shape().is_err()
+        || socket_domain(broker).ok() != Some(AddressFamily::UNIX)
+        || socket_type(broker).ok() != Some(SocketType::SEQPACKET)
+        || socket_acceptconn(broker).unwrap_or(true)
+        || !matches!(socket_error(broker), Ok(Ok(())))
+        || socket_passcred(broker).unwrap_or(true)
+        || getpeername(broker).ok().flatten().is_none()
+        || !rustix::io::fcntl_getfd(broker)
+            .is_ok_and(|flags| flags.contains(rustix::io::FdFlags::CLOEXEC))
+    {
+        return Err(HandoffError::TransferFailed);
+    }
+    let peer = PeerIdentity::from_fd(broker)
+        .and_then(|identity| identity.require_owner(geteuid().as_raw()))
+        .map_err(|_| HandoffError::TransferFailed)?;
+    if peer.pid() <= 0 {
+        return Err(HandoffError::TransferFailed);
+    }
+    let payload = packet.encode();
+    let iov = [IoSlice::new(&payload)];
+    let descriptors = [stream.as_fd()];
+    let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
+    let mut ancillary = SendAncillaryBuffer::new(&mut space);
+    if !ancillary.push(SendAncillaryMessage::ScmRights(&descriptors)) {
+        return Err(HandoffError::TransferFailed);
+    }
+    let sent = sendmsg(broker, &iov, &mut ancillary, SendFlags::NOSIGNAL)
+        .map_err(|_| HandoffError::TransferFailed)?;
+    (sent == BROKER_PACKET_BYTES)
+        .then_some(())
+        .ok_or(HandoffError::TransferFailed)
 }
 
 /// Authenticated anonymous control stream produced by ASB.
@@ -1230,6 +1334,9 @@ pub enum HandoffError {
     /// Generation sequence cannot advance without wrapping.
     #[error("handoff sequence exhausted")]
     SequenceExhausted,
+    /// The packet and descriptor were not completely transferred.
+    #[error("control handoff transfer failed")]
+    TransferFailed,
 }
 
 #[cfg(test)]
@@ -1323,6 +1430,14 @@ mod tests {
         bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
+    fn fixture_bytes<const N: usize>(fixture: &str) -> [u8; N] {
+        let fixture = fixture.trim();
+        assert_eq!(fixture.len(), N * 2);
+        std::array::from_fn(|index| {
+            u8::from_str_radix(&fixture[index * 2..index * 2 + 2], 16).unwrap()
+        })
+    }
+
     fn initial_request() -> BrokerPacket {
         BrokerPacket {
             operation: BrokerOperation::Initial,
@@ -1385,9 +1500,79 @@ mod tests {
         (ProvisioningPacket::decode(&payload).unwrap(), descriptor)
     }
 
+    fn receive_broker_generation(connection: &OwnedFd) -> (BrokerPacket, OwnedFd) {
+        let mut payload = [0_u8; BROKER_PACKET_BYTES];
+        let mut iov = [IoSliceMut::new(&mut payload)];
+        let mut space =
+            [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(2), ScmCredentials(1))];
+        let mut ancillary = RecvAncillaryBuffer::new(&mut space);
+        let received = recvmsg(
+            connection,
+            &mut iov,
+            &mut ancillary,
+            RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
+        )
+        .unwrap();
+        assert_eq!(received.bytes, BROKER_PACKET_BYTES);
+        assert!(
+            !received
+                .flags
+                .intersects(ReturnFlags::TRUNC | ReturnFlags::CTRUNC)
+        );
+        let mut descriptors = Vec::new();
+        for message in ancillary.drain() {
+            match message {
+                RecvAncillaryMessage::ScmRights(rights) => descriptors.extend(rights),
+                _ => panic!("unexpected ancillary message"),
+            }
+        }
+        assert_eq!(descriptors.len(), 1);
+        let descriptor = descriptors.pop().unwrap();
+        assert!(fcntl_getfd(&descriptor).unwrap().contains(FdFlags::CLOEXEC));
+        (BrokerPacket::decode(&payload).unwrap(), descriptor)
+    }
+
+    fn authenticated_generation(
+        generation: BrokerGeneration,
+        identity: [u8; 32],
+    ) -> (AuthenticatedGeneration, UnixStream) {
+        let (stream, service) = UnixStream::pair().unwrap();
+        let peer = PeerIdentity::from_fd(&stream).unwrap();
+        (
+            AuthenticatedGeneration::new(stream, generation, peer, identity).unwrap(),
+            service,
+        )
+    }
+
+    fn commit_broker_success(broker: &mut BrokerState, identity: [u8; 32]) -> BrokerPacket {
+        let pending = broker.pending_success(identity).unwrap();
+        let (authenticated, service) = authenticated_generation(pending.generation(), identity);
+        let (router, frontend) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .unwrap();
+        let packet = broker
+            .commit_success(pending, &router, authenticated)
+            .unwrap();
+        let (received, descriptor) = receive_broker_generation(&frontend);
+        assert_eq!(received, packet);
+        assert_eq!(
+            PeerIdentity::from_fd(&descriptor).unwrap(),
+            PeerIdentity::from_fd(&service).unwrap()
+        );
+        packet
+    }
+
     #[test]
     fn frozen_packets_match_canonical_hashes() {
         let initial = initial_request().encode();
+        assert_eq!(
+            initial,
+            fixture_bytes(include_str!("../fixtures/handoff-v1/broker-initial.hex"))
+        );
         assert_eq!(
             digest_hex(&initial),
             "e1dc9317afbc4bce748f0ce65424ad185c8a29e5ab40eb3e724d8930e77f216a"
@@ -1404,6 +1589,10 @@ mod tests {
             }),
         };
         assert_eq!(
+            success.encode(),
+            fixture_bytes(include_str!("../fixtures/handoff-v1/broker-success.hex"))
+        );
+        assert_eq!(
             digest_hex(&success.encode()),
             "0936d182cde09230bcb3fd3f40c9f0aaa886e23fdb42ac68cfb1e098b8cf98f5"
         );
@@ -1414,6 +1603,10 @@ mod tests {
             runner_identity: [0; 32],
         };
         assert_eq!(
+            request.encode(),
+            fixture_bytes(include_str!("../fixtures/handoff-v1/provision-request.hex"))
+        );
+        assert_eq!(
             digest_hex(&request.encode()),
             "b3d2dc48c3c4afffbf2be9081974d72be4ed4ec3f737c51ad07af4aeab68ef4d"
         );
@@ -1422,6 +1615,10 @@ mod tests {
             nonce: request.nonce,
             runner_identity: std::array::from_fn(|index| 0xa0 + u8::try_from(index).unwrap()),
         };
+        assert_eq!(
+            response.encode(),
+            fixture_bytes(include_str!("../fixtures/handoff-v1/provision-success.hex"))
+        );
         assert_eq!(
             digest_hex(&response.encode()),
             "72c2bd598a591bf033db321e9e2acccea451a69ccabfc27498a9d8cdb2c032e5"
@@ -1445,15 +1642,19 @@ mod tests {
     }
 
     #[test]
-    fn broker_advances_only_after_success_and_preserves_failed_generation() {
+    fn broker_advances_only_after_descriptor_transfer_and_preserves_failed_generation() {
         let epoch = [7; 16];
         let identity = [9; 32];
         let mut broker = BrokerState::new(epoch).unwrap();
         broker
             .begin_request(initial_request(), Duration::ZERO)
             .unwrap();
-        let first = broker.complete_success(identity).unwrap();
+        let pending = broker.pending_success(identity).unwrap();
+        assert_eq!(pending.generation().sequence(), 1);
+        assert_eq!(broker.committed_generation(), None);
+        let first = commit_broker_success(&mut broker, identity);
         assert_eq!((first.epoch, first.sequence), (epoch, 1));
+        assert_eq!(broker.committed_generation(), first.generation().ok());
 
         let replacement = BrokerPacket {
             operation: BrokerOperation::Replacement,
@@ -1470,8 +1671,50 @@ mod tests {
         broker
             .begin_request(replacement, MIN_REPLACEMENT_INTERVAL * 2)
             .unwrap();
-        let second = broker.complete_success(identity).unwrap();
+        let second = commit_broker_success(&mut broker, identity);
         assert_eq!((second.epoch, second.sequence), (epoch, 2));
+        assert_eq!(broker.committed_generation(), second.generation().ok());
+    }
+
+    #[test]
+    fn failed_descriptor_transfer_never_commits_pending_generation() {
+        let identity = [9; 32];
+        let mut broker = BrokerState::new([7; 16]).unwrap();
+        broker
+            .begin_request(initial_request(), Duration::ZERO)
+            .unwrap();
+        let first = commit_broker_success(&mut broker, identity);
+        let committed = first.generation().unwrap();
+        let replacement = BrokerPacket {
+            operation: BrokerOperation::Replacement,
+            status: HandoffStatus::Request,
+            epoch: committed.epoch(),
+            sequence: committed.sequence(),
+            expected_runner_identity: [0; 32],
+        };
+        broker
+            .begin_request(replacement, MIN_REPLACEMENT_INTERVAL)
+            .unwrap();
+        let pending = broker.pending_success(identity).unwrap();
+        assert_eq!(pending.generation().sequence(), 2);
+        let (authenticated, _service) = authenticated_generation(pending.generation(), identity);
+        let (router, frontend) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .unwrap();
+        drop(frontend);
+        assert_eq!(
+            broker.commit_success(pending, &router, authenticated),
+            Err(HandoffError::TransferFailed)
+        );
+        assert_eq!(broker.committed_generation(), Some(committed));
+        assert_eq!(
+            broker.begin_request(replacement, MIN_REPLACEMENT_INTERVAL * 2),
+            Err(HandoffError::UnexpectedState)
+        );
     }
 
     #[test]
