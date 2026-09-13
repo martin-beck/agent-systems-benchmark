@@ -2,13 +2,32 @@
 // SPDX-License-Identifier: MIT
 //! Closed binary framing and generation state for authenticated control handoff.
 
+use std::fs::{self, Permissions};
+use std::io::{self, IoSlice, IoSliceMut};
+use std::mem::MaybeUninit;
+use std::os::fd::{AsFd, OwnedFd};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
+use rustix::net::sockopt::{Timeout, set_socket_timeout, socket_passcred};
+use rustix::net::{
+    AddressFamily, RecvAncillaryBuffer, RecvFlags, ReturnFlags, SendAncillaryBuffer,
+    SendAncillaryMessage, SendFlags, SocketAddrUnix, SocketFlags, SocketType, accept_with, bind,
+    listen, recvmsg, sendmsg, socket_with, socketpair,
+};
+use rustix::process::geteuid;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-use crate::{MAX_CONTROL_ID_BYTES, PeerIdentity, validate_identity};
+use crate::endpoint::{AdmissionGuard, join_workers, reap_workers};
+use crate::{
+    ControlBackend, ControlLimits, ControlServer, EndpointError, MAX_CONTROL_ID_BYTES,
+    PeerIdentity, validate_identity,
+};
 
 /// Exact byte length of one router/frontend broker packet.
 pub const BROKER_PACKET_BYTES: usize = 72;
@@ -23,6 +42,346 @@ const BROKER_MAGIC: [u8; 8] = *b"ASBHND01";
 const PROVISIONING_MAGIC: [u8; 8] = *b"ASBPRV01";
 const WIRE_VERSION: u16 = 1;
 const RUNNER_IDENTITY_DOMAIN: &[u8] = b"asb-control-runner-instance-v1";
+const PROVISIONING_BACKLOG: i32 = 16;
+
+/// One ASB service exposing distinct ordinary-control and private provisioning endpoints.
+pub struct ProvisionedControlServer<B> {
+    control: ControlServer<B>,
+    provisioning: ProvisioningSocket,
+    runner_identity: [u8; 32],
+    request_timeout: Duration,
+}
+
+impl<B: ControlBackend + Send + Sync + 'static> ProvisionedControlServer<B> {
+    /// Bind distinct owner-private endpoints under separate private directories.
+    pub fn bind(
+        control_path: impl AsRef<Path>,
+        provisioning_path: impl AsRef<Path>,
+        limits: ControlLimits,
+        backend: B,
+    ) -> Result<Self, ProvisioningError> {
+        let control_path = control_path.as_ref();
+        let provisioning_path = provisioning_path.as_ref();
+        validate_endpoint_topology(control_path, provisioning_path)?;
+        let runner_identity = runner_identity_digest(backend.runner_instance_id())?;
+        let backend = Arc::new(backend);
+        let admission = AdmissionGuard::new();
+        let control =
+            ControlServer::bind_shared(control_path, limits, Arc::clone(&backend), admission)?;
+        let provisioning = ProvisioningSocket::bind(provisioning_path)?;
+        Ok(Self {
+            control,
+            provisioning,
+            runner_identity,
+            request_timeout: Duration::from_millis(2_000),
+        })
+    }
+
+    /// Ordinary control endpoint path; callers must keep it private.
+    #[must_use]
+    pub fn control_path(&self) -> &Path {
+        self.control.path()
+    }
+
+    /// Provisioning endpoint path; only the trusted lifecycle router resolves it.
+    #[must_use]
+    pub fn provisioning_path(&self) -> &Path {
+        self.provisioning.path()
+    }
+
+    /// Serve both endpoints until the process is stopped.
+    pub fn serve(&self) -> Result<(), ProvisioningError> {
+        self.serve_connections(usize::MAX, usize::MAX)
+    }
+
+    /// Serve bounded endpoint counts for supervision and hostile integration tests.
+    pub fn serve_connections(
+        &self,
+        maximum_control: usize,
+        maximum_provisioning: usize,
+    ) -> Result<(), ProvisioningError> {
+        if maximum_control == 0 && maximum_provisioning == 0 {
+            return Ok(());
+        }
+        self.control.set_nonblocking(true)?;
+        let mut workers = Vec::new();
+        let mut controls = 0_usize;
+        let mut provisions = 0_usize;
+        while controls < maximum_control || provisions < maximum_provisioning {
+            reap_workers(&mut workers);
+            let mut progressed = false;
+            if controls < maximum_control && self.control.try_accept_and_spawn(&mut workers)? {
+                controls += 1;
+                progressed = true;
+            }
+            if provisions < maximum_provisioning
+                && let Some(connection) = self.provisioning.try_accept(self.request_timeout)?
+            {
+                provisions += 1;
+                progressed = true;
+                // A malformed same-user request is isolated to its one-shot connection.
+                let _ = self.provision_one(connection, &mut workers);
+            }
+            if !progressed {
+                thread::sleep(Duration::from_millis(1));
+            }
+        }
+        join_workers(workers);
+        Ok(())
+    }
+
+    fn provision_one(
+        &self,
+        connection: OwnedFd,
+        workers: &mut Vec<thread::JoinHandle<()>>,
+    ) -> Result<(), ProvisioningError> {
+        let peer = PeerIdentity::from_fd(&connection)
+            .and_then(|identity| identity.require_owner(geteuid().as_raw()))
+            .map_err(|_| ProvisioningError::Rejected)?;
+        if peer.pid() <= 0 || socket_passcred(&connection).map_err(io::Error::from)? {
+            return Err(ProvisioningError::Rejected);
+        }
+        let request = recv_provisioning_request(&connection)?;
+        let (service_fd, frontend_fd) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::STREAM,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .map_err(io::Error::from)?;
+        let service_stream = UnixStream::from(service_fd);
+        let Some(worker) = self.control.try_spawn_anonymous(service_stream)? else {
+            let response = ProvisioningPacket {
+                status: HandoffStatus::Unavailable,
+                nonce: request.nonce,
+                runner_identity: [0; 32],
+            };
+            send_provisioning_response(&connection, response, None)?;
+            return Ok(());
+        };
+        let response = ProvisioningPacket {
+            status: HandoffStatus::Success,
+            nonce: request.nonce,
+            runner_identity: self.runner_identity,
+        };
+        if let Err(error) = send_provisioning_response(&connection, response, Some(&frontend_fd)) {
+            drop(frontend_fd);
+            let _ = worker.join();
+            return Err(error);
+        }
+        drop(frontend_fd);
+        workers.push(worker);
+        Ok(())
+    }
+}
+
+fn validate_endpoint_topology(
+    control: &Path,
+    provisioning: &Path,
+) -> Result<(), ProvisioningError> {
+    let control_parent = control.parent().ok_or(ProvisioningError::UnsafeTopology)?;
+    let provisioning_parent = provisioning
+        .parent()
+        .ok_or(ProvisioningError::UnsafeTopology)?;
+    if !control.is_absolute()
+        || !provisioning.is_absolute()
+        || control == provisioning
+        || control.starts_with(provisioning)
+        || provisioning.starts_with(control)
+        || control_parent == provisioning_parent
+        || control_parent.starts_with(provisioning_parent)
+        || provisioning_parent.starts_with(control_parent)
+    {
+        return Err(ProvisioningError::UnsafeTopology);
+    }
+    Ok(())
+}
+
+struct ProvisioningSocket {
+    listener: OwnedFd,
+    path: PathBuf,
+    device: u64,
+    inode: u64,
+}
+
+impl ProvisioningSocket {
+    fn bind(path: &Path) -> Result<Self, ProvisioningError> {
+        let parent = path.parent().ok_or(ProvisioningError::UnsafeTopology)?;
+        validate_private_directory(parent)?;
+        match fs::symlink_metadata(path) {
+            Ok(_) => return Err(ProvisioningError::SocketPathExists),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let address = SocketAddrUnix::new(path).map_err(io::Error::from)?;
+        let listener = socket_with(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC | SocketFlags::NONBLOCK,
+            None,
+        )
+        .map_err(io::Error::from)?;
+        bind(&listener, &address).map_err(io::Error::from)?;
+        let initial = fs::symlink_metadata(path)?;
+        let identity = (initial.dev(), initial.ino());
+        if !initial.file_type().is_socket() || initial.uid() != geteuid().as_raw() {
+            remove_if_same_socket(path, identity.0, identity.1);
+            return Err(ProvisioningError::UnsafeSocket);
+        }
+        let setup = (|| {
+            fs::set_permissions(path, Permissions::from_mode(0o600))?;
+            let metadata = fs::symlink_metadata(path)?;
+            if !metadata.file_type().is_socket()
+                || metadata.uid() != geteuid().as_raw()
+                || (metadata.dev(), metadata.ino()) != identity
+                || metadata.mode() & 0o177 != 0
+            {
+                return Err(ProvisioningError::UnsafeSocket);
+            }
+            listen(&listener, PROVISIONING_BACKLOG).map_err(io::Error::from)?;
+            if socket_passcred(&listener).map_err(io::Error::from)? {
+                return Err(ProvisioningError::UnsafeSocket);
+            }
+            Ok((metadata.dev(), metadata.ino()))
+        })();
+        let (device, inode) = match setup {
+            Ok(identity) => identity,
+            Err(error) => {
+                remove_if_same_socket(path, identity.0, identity.1);
+                return Err(error);
+            }
+        };
+        Ok(Self {
+            listener,
+            path: path.to_path_buf(),
+            device,
+            inode,
+        })
+    }
+
+    fn try_accept(&self, timeout: Duration) -> Result<Option<OwnedFd>, ProvisioningError> {
+        let connection = match accept_with(&self.listener, SocketFlags::CLOEXEC) {
+            Ok(connection) => connection,
+            Err(error) if error == rustix::io::Errno::AGAIN => return Ok(None),
+            Err(error) => return Err(io::Error::from(error).into()),
+        };
+        set_socket_timeout(&connection, Timeout::Recv, Some(timeout)).map_err(io::Error::from)?;
+        set_socket_timeout(&connection, Timeout::Send, Some(timeout)).map_err(io::Error::from)?;
+        Ok(Some(connection))
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for ProvisioningSocket {
+    fn drop(&mut self) {
+        remove_if_same_socket(&self.path, self.device, self.inode);
+    }
+}
+
+fn validate_private_directory(path: &Path) -> Result<(), ProvisioningError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_dir()
+        || metadata.uid() != geteuid().as_raw()
+        || metadata.mode() & 0o077 != 0
+    {
+        return Err(ProvisioningError::UnsafeDirectory);
+    }
+    Ok(())
+}
+
+fn remove_if_same_socket(path: &Path, device: u64, inode: u64) {
+    if fs::symlink_metadata(path).is_ok_and(|metadata| {
+        metadata.file_type().is_socket() && metadata.dev() == device && metadata.ino() == inode
+    }) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+fn recv_provisioning_request(
+    connection: &OwnedFd,
+) -> Result<ProvisioningPacket, ProvisioningError> {
+    let mut payload = [0_u8; PROVISIONING_PACKET_BYTES];
+    let mut iov = [IoSliceMut::new(&mut payload)];
+    let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(2), ScmCredentials(1))];
+    let mut ancillary = RecvAncillaryBuffer::new(&mut space);
+    let received = recvmsg(
+        connection,
+        &mut iov,
+        &mut ancillary,
+        RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
+    )
+    .map_err(io::Error::from)?;
+    let has_ancillary = ancillary.drain().next().is_some();
+    if received.bytes != PROVISIONING_PACKET_BYTES
+        || received
+            .flags
+            .intersects(ReturnFlags::TRUNC | ReturnFlags::CTRUNC)
+        || has_ancillary
+    {
+        return Err(ProvisioningError::Rejected);
+    }
+    let packet = ProvisioningPacket::decode(&payload)?;
+    if packet.status != HandoffStatus::Request {
+        return Err(ProvisioningError::Rejected);
+    }
+    Ok(packet)
+}
+
+fn send_provisioning_response(
+    connection: &OwnedFd,
+    response: ProvisioningPacket,
+    frontend: Option<&OwnedFd>,
+) -> Result<(), ProvisioningError> {
+    let payload = response.encode();
+    let iov = [IoSlice::new(&payload)];
+    let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
+    let mut ancillary = SendAncillaryBuffer::new(&mut space);
+    let descriptors = frontend.map(|descriptor| [descriptor.as_fd()]);
+    if let Some(descriptors) = descriptors.as_ref()
+        && !ancillary.push(SendAncillaryMessage::ScmRights(descriptors))
+    {
+        return Err(ProvisioningError::Rejected);
+    }
+    let sent =
+        sendmsg(connection, &iov, &mut ancillary, SendFlags::NOSIGNAL).map_err(io::Error::from)?;
+    if sent != PROVISIONING_PACKET_BYTES {
+        return Err(ProvisioningError::Rejected);
+    }
+    Ok(())
+}
+
+/// Closed provisioning failure without endpoint or credential disclosure.
+#[derive(Debug, Error)]
+pub enum ProvisioningError {
+    /// Ordinary control endpoint setup or service failed.
+    #[error("control service unavailable")]
+    Control(#[from] EndpointError),
+    /// Handoff framing or identity derivation failed.
+    #[error("control handoff rejected")]
+    Handoff(#[from] HandoffError),
+    /// Local transport operation failed.
+    #[error("control provisioning unavailable")]
+    Io(#[from] io::Error),
+    /// Endpoint topology could expose or alias private authority.
+    #[error("control endpoint topology is unsafe")]
+    UnsafeTopology,
+    /// Provisioning runtime directory is not a private same-user directory.
+    #[error("control provisioning directory is unsafe")]
+    UnsafeDirectory,
+    /// Provisioning path already exists and is never replaced.
+    #[error("control provisioning endpoint already exists")]
+    SocketPathExists,
+    /// Bound provisioning node or socket options are unsafe.
+    #[error("control provisioning endpoint is unsafe")]
+    UnsafeSocket,
+    /// Peer, packet, ancillary data, or descriptor transition was rejected.
+    #[error("control provisioning request rejected")]
+    Rejected,
+}
 
 /// Operation encoded by a broker packet.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -538,6 +897,71 @@ pub enum HandoffError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use rustix::io::{FdFlags, fcntl_getfd};
+    use rustix::net::{RecvAncillaryMessage, connect, send};
+
+    static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    struct TestRoot(PathBuf);
+
+    impl TestRoot {
+        fn new() -> Self {
+            let path = std::env::var_os("ASB_TEST_ROOT")
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir)
+                .join(format!(
+                    "asb-handoff-{}-{}",
+                    std::process::id(),
+                    TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+                ));
+            fs::create_dir_all(&path).unwrap();
+            fs::set_permissions(&path, Permissions::from_mode(0o700)).unwrap();
+            Self(path)
+        }
+
+        fn endpoint_dirs(&self) -> (PathBuf, PathBuf) {
+            let control = self.0.join("control");
+            let provisioning = self.0.join("provisioning");
+            fs::create_dir(&control).unwrap();
+            fs::create_dir(&provisioning).unwrap();
+            fs::set_permissions(&control, Permissions::from_mode(0o700)).unwrap();
+            fs::set_permissions(&provisioning, Permissions::from_mode(0o700)).unwrap();
+            (control, provisioning)
+        }
+    }
+
+    impl Drop for TestRoot {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    struct HandoffBackend;
+
+    impl ControlBackend for HandoffBackend {
+        fn runner_instance_id(&self) -> &str {
+            "runner-handoff-test"
+        }
+
+        fn oldest_revision(&self) -> crate::Revision {
+            crate::Revision(0)
+        }
+
+        fn latest_revision(&self) -> crate::Revision {
+            crate::Revision(0)
+        }
+
+        fn execute(
+            &self,
+            _call: &crate::ControlCall,
+            _deadline: crate::RequestDeadline,
+        ) -> Result<crate::BoundControlResult, crate::BackendFailure> {
+            Err(crate::BackendFailure::Rejected)
+        }
+    }
 
     fn digest_hex(bytes: &[u8]) -> String {
         format!("{:x}", Sha256::digest(bytes))
@@ -555,6 +979,58 @@ mod tests {
             sequence: 0,
             expected_runner_identity: [0; 32],
         }
+    }
+
+    fn provisioning_request() -> ProvisioningPacket {
+        ProvisioningPacket {
+            status: HandoffStatus::Request,
+            nonce: std::array::from_fn(|index| u8::try_from(index + 1).unwrap()),
+            runner_identity: [0; 32],
+        }
+    }
+
+    fn connect_seqpacket(path: &Path) -> OwnedFd {
+        let socket = socket_with(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .unwrap();
+        connect(&socket, &SocketAddrUnix::new(path).unwrap()).unwrap();
+        socket
+    }
+
+    fn receive_generation(connection: &OwnedFd) -> (ProvisioningPacket, OwnedFd) {
+        let mut payload = [0_u8; PROVISIONING_PACKET_BYTES];
+        let mut iov = [IoSliceMut::new(&mut payload)];
+        let mut space =
+            [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(2), ScmCredentials(1))];
+        let mut ancillary = RecvAncillaryBuffer::new(&mut space);
+        let received = recvmsg(
+            connection,
+            &mut iov,
+            &mut ancillary,
+            RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
+        )
+        .unwrap();
+        assert_eq!(received.bytes, PROVISIONING_PACKET_BYTES);
+        assert!(
+            !received
+                .flags
+                .intersects(ReturnFlags::TRUNC | ReturnFlags::CTRUNC)
+        );
+        let mut descriptors = Vec::new();
+        for message in ancillary.drain() {
+            match message {
+                RecvAncillaryMessage::ScmRights(rights) => descriptors.extend(rights),
+                _ => panic!("unexpected ancillary message"),
+            }
+        }
+        assert_eq!(descriptors.len(), 1);
+        let descriptor = descriptors.pop().unwrap();
+        assert!(fcntl_getfd(&descriptor).unwrap().contains(FdFlags::CLOEXEC));
+        (ProvisioningPacket::decode(&payload).unwrap(), descriptor)
     }
 
     #[test]
@@ -672,5 +1148,121 @@ mod tests {
             broker.begin_request(initial_request(), Duration::ZERO),
             Err(HandoffError::UnexpectedState)
         );
+    }
+
+    #[test]
+    fn private_provisioning_transfers_one_cloexec_anonymous_control_stream() {
+        let root = TestRoot::new();
+        let (control_dir, provisioning_dir) = root.endpoint_dirs();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            HandoffBackend,
+        )
+        .unwrap();
+        assert_eq!(server.control_path(), control_path);
+        assert_eq!(server.provisioning_path(), provisioning_path);
+        let service = thread::spawn(move || server.serve_connections(0, 1));
+
+        let connection = connect_seqpacket(&provisioning_path);
+        let request = provisioning_request();
+        assert_eq!(
+            send(&connection, &request.encode(), SendFlags::NOSIGNAL).unwrap(),
+            PROVISIONING_PACKET_BYTES
+        );
+        let (response, descriptor) = receive_generation(&connection);
+        assert_eq!(response.status, HandoffStatus::Success);
+        assert_eq!(response.nonce, request.nonce);
+        assert_eq!(
+            response.runner_identity,
+            runner_identity_digest("runner-handoff-test").unwrap()
+        );
+
+        let mut stream = UnixStream::from(descriptor);
+        let negotiation = crate::ControlRequest {
+            jsonrpc: crate::JSONRPC_VERSION.into(),
+            id: crate::RequestId(1),
+            timeout_ms: 1_000,
+            call: crate::ControlCall::Negotiate(crate::NegotiateParams {
+                versions: BTreeSet::from(crate::SUPPORTED_CONTROL_VERSIONS),
+                limits: ControlLimits::default(),
+            }),
+        };
+        crate::write_frame(&mut stream, &negotiation, ControlLimits::default()).unwrap();
+        let response: crate::ControlResponse =
+            crate::read_frame(&mut stream, ControlLimits::default()).unwrap();
+        let Some(crate::ControlSuccess::Negotiated(negotiated)) = response.result() else {
+            panic!("expected negotiated response");
+        };
+        assert_eq!(negotiated.version, crate::CONTROL_MEASUREMENT_SELECTION_V1);
+        assert_eq!(negotiated.runner_instance_id, "runner-handoff-test");
+        drop(stream);
+        drop(connection);
+        service.join().unwrap().unwrap();
+        assert!(!control_path.exists());
+        assert!(!provisioning_path.exists());
+    }
+
+    #[test]
+    fn provisioning_rejects_ancillary_input_before_packet_decode() {
+        let (receiver, sender) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .unwrap();
+        let (injected, _peer) = UnixStream::pair().unwrap();
+        let payload = provisioning_request().encode();
+        let iov = [IoSlice::new(&payload)];
+        let descriptors = [injected.as_fd()];
+        let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
+        let mut ancillary = SendAncillaryBuffer::new(&mut space);
+        assert!(ancillary.push(SendAncillaryMessage::ScmRights(&descriptors)));
+        assert_eq!(
+            sendmsg(&sender, &iov, &mut ancillary, SendFlags::NOSIGNAL).unwrap(),
+            PROVISIONING_PACKET_BYTES
+        );
+        assert!(matches!(
+            recv_provisioning_request(&receiver),
+            Err(ProvisioningError::Rejected)
+        ));
+    }
+
+    #[test]
+    fn endpoint_topology_and_packet_excess_fail_before_binding_or_decode() {
+        let root = TestRoot::new();
+        let shared = root.0.join("shared");
+        fs::create_dir(&shared).unwrap();
+        fs::set_permissions(&shared, Permissions::from_mode(0o700)).unwrap();
+        assert!(matches!(
+            ProvisionedControlServer::bind(
+                shared.join("control.sock"),
+                shared.join("provision.sock"),
+                ControlLimits::default(),
+                HandoffBackend,
+            ),
+            Err(ProvisioningError::UnsafeTopology)
+        ));
+
+        let (receiver, sender) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .unwrap();
+        let oversized = [0_u8; PROVISIONING_PACKET_BYTES + 1];
+        assert_eq!(
+            send(&sender, &oversized, SendFlags::NOSIGNAL).unwrap(),
+            oversized.len()
+        );
+        assert!(matches!(
+            recv_provisioning_request(&receiver),
+            Err(ProvisioningError::Rejected)
+        ));
     }
 }

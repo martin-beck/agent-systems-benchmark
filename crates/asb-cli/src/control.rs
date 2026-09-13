@@ -6,10 +6,10 @@ use super::*;
 use asb_control::{
     AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, BackendFailure, BoundControlResult,
     CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend, ControlCall, ControlEvent,
-    ControlEventKind, ControlLimits, ControlResult, ControlServer, ControlVersion,
-    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
-    PlanReference, PublicRunState, RequestDeadline, Revision, RunId, RunSummary, SettingsIssue,
-    SettingsValidation,
+    ControlEventKind, ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
+    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference,
+    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
+    SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
@@ -75,6 +75,7 @@ fn digest_open_file(mut file: fs::File) -> Result<String, BackendFailure> {
 struct ServiceConfig {
     schema_version: u16,
     socket_path: PathBuf,
+    provisioning_socket_path: PathBuf,
     state_root: PathBuf,
     #[serde(default)]
     limits: Option<ControlLimits>,
@@ -172,20 +173,12 @@ pub(crate) fn serve(path: &Path) -> Result<(), CliError> {
     prepare_root(&config.state_root)?;
     let state_root = fs::canonicalize(&config.state_root)
         .map_err(|_| CliError::operation("control state root cannot be resolved"))?;
-    let socket_parent = config
-        .socket_path
-        .parent()
-        .ok_or_else(|| CliError::validation("control socket path is unsafe"))?;
-    if !config.socket_path.is_absolute()
-        || fs::canonicalize(socket_parent).ok().as_deref() != Some(socket_parent)
-        || config.socket_path.starts_with(&state_root)
-        || state_root.starts_with(socket_parent)
-    {
-        return Err(CliError::validation("control socket path is unsafe"));
-    }
+    validate_service_endpoint(&config.socket_path, &state_root)?;
+    validate_service_endpoint(&config.provisioning_socket_path, &state_root)?;
     let backend = open_backend(state_root)?;
-    let mut server = ControlServer::bind(
+    let server = ProvisionedControlServer::bind(
         &config.socket_path,
+        &config.provisioning_socket_path,
         config.limits.unwrap_or_default(),
         backend,
     )
@@ -196,6 +189,20 @@ pub(crate) fn serve(path: &Path) -> Result<(), CliError> {
     server
         .serve()
         .map_err(|_| CliError::operation("control service stopped"))
+}
+
+fn validate_service_endpoint(path: &Path, state_root: &Path) -> Result<(), CliError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| CliError::validation("control socket path is unsafe"))?;
+    if !path.is_absolute()
+        || fs::canonicalize(parent).ok().as_deref() != Some(parent)
+        || path.starts_with(state_root)
+        || state_root.starts_with(parent)
+    {
+        return Err(CliError::validation("control socket path is unsafe"));
+    }
+    Ok(())
 }
 
 fn open_backend(state_root: PathBuf) -> Result<RunnerBackend, CliError> {
@@ -1619,7 +1626,7 @@ impl ControlBackend for RunnerBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use asb_control::ControlSuccess;
+    use asb_control::{ControlServer, ControlSuccess};
     use std::os::unix::fs::PermissionsExt;
     use std::sync::atomic::AtomicU64;
 
@@ -1872,6 +1879,37 @@ mod tests {
         assert!(load_config(&config).is_err());
         assert!(!socket.exists());
         assert!(!state.exists());
+    }
+
+    #[test]
+    fn control_configuration_requires_a_distinct_provisioning_endpoint() {
+        let scratch = Scratch::new();
+        let config = scratch.0.join("control.toml");
+        let socket = scratch.0.join("control.sock");
+        let state = scratch.0.join("state");
+        fs::write(
+            &config,
+            format!(
+                "schema_version = 1\nsocket_path = {:?}\nstate_root = {:?}\n",
+                socket, state
+            ),
+        )
+        .unwrap();
+        assert!(load_config(&config).is_err());
+
+        let provisioning = scratch.0.join("provision.sock");
+        fs::write(
+            &config,
+            format!(
+                "schema_version = 1\nsocket_path = {:?}\nprovisioning_socket_path = {:?}\nstate_root = {:?}\n",
+                socket, provisioning, state
+            ),
+        )
+        .unwrap();
+        let parsed = load_config(&config).unwrap();
+        assert_eq!(parsed.socket_path, socket);
+        assert_eq!(parsed.provisioning_socket_path, provisioning);
+        assert_eq!(parsed.state_root, state);
     }
 
     #[test]

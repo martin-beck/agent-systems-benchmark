@@ -4,6 +4,7 @@
 
 use std::fs::{self, Permissions};
 use std::io;
+use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -42,7 +43,11 @@ pub struct PeerIdentity {
 
 impl PeerIdentity {
     fn from_stream(stream: &UnixStream) -> Result<Self, TransportError> {
-        let credentials = socket_peercred(stream).map_err(io::Error::from)?;
+        Self::from_fd(stream)
+    }
+
+    pub(crate) fn from_fd(fd: impl AsFd) -> Result<Self, TransportError> {
+        let credentials = socket_peercred(fd).map_err(io::Error::from)?;
         Ok(Self {
             uid: credentials.uid.as_raw(),
             gid: credentials.gid.as_raw(),
