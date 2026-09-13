@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "wire_version": 1,
+  "encoding": "lowercase_hex",
+  "fixtures": [
+    {
+      "name": "broker-initial.hex",
+      "bytes": 72,
+      "sha256": "e1dc9317afbc4bce748f0ce65424ad185c8a29e5ab40eb3e724d8930e77f216a"
+    },
+    {
+      "name": "broker-success.hex",
+      "bytes": 72,
+      "sha256": "0936d182cde09230bcb3fd3f40c9f0aaa886e23fdb42ac68cfb1e098b8cf98f5"
+    },
+    {
+      "name": "provision-request.hex",
+      "bytes": 64,
+      "sha256": "b3d2dc48c3c4afffbf2be9081974d72be4ed4ec3f737c51ad07af4aeab68ef4d"
+    },
+    {
+      "name": "provision-success.hex",
+      "bytes": 64,
+      "sha256": "72c2bd598a591bf033db321e9e2acccea451a69ccabfc27498a9d8cdb2c032e5"
+    }
+  ],
+  "runner_identity": {
+    "domain": "asb-control-runner-instance-v1",
+    "input": "runner-handoff-test",
+    "sha256": "9035cbae7ce01f88036f2b24b524268b91e2e2d3833e1607b29ce37a9e0cc872"
+  }
+}

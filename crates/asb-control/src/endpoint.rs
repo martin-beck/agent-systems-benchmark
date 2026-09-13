@@ -5,8 +5,9 @@
 use std::io;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+#[cfg(test)]
 use std::time::Duration;
 
 use thiserror::Error;
@@ -14,8 +15,9 @@ use thiserror::Error;
 use crate::{
     BoundControlResult, CONTROL_V1, ControlCall, ControlLimits, ControlRequest, ControlResponse,
     ControlSession, ControlSuccess, ControlVersion, FrameError, Negotiated, OwnerSocket,
-    ProtocolError, RequestDeadline, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS, SessionError,
-    authenticate_owner, error_code, read_frame_until, validate_identity, write_frame_until,
+    PeerIdentity, ProtocolError, RequestDeadline, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS,
+    SessionError, authenticate_owner, error_code, read_frame_until, validate_identity,
+    write_frame_until,
 };
 
 const MAX_REQUESTS_PER_CONNECTION: usize = 1024;
@@ -95,6 +97,87 @@ pub struct ControlServer<B> {
     socket: OwnerSocket,
     backend: Arc<B>,
     limits: ControlLimits,
+    admission: AdmissionGuard,
+}
+
+#[derive(Clone)]
+pub(crate) struct AdmissionGuard {
+    state: Arc<AdmissionState>,
+}
+
+struct AdmissionState {
+    active: Mutex<usize>,
+    available: Condvar,
+}
+
+pub(crate) struct AdmissionPermit {
+    state: Arc<AdmissionState>,
+}
+
+impl AdmissionGuard {
+    pub(crate) fn new() -> Self {
+        Self {
+            state: Arc::new(AdmissionState {
+                active: Mutex::new(0),
+                available: Condvar::new(),
+            }),
+        }
+    }
+
+    fn acquire(&self) -> AdmissionPermit {
+        let mut active = self
+            .state
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        while *active >= MAX_CONNECTION_WORKERS {
+            active = self
+                .state
+                .available
+                .wait(active)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+        *active += 1;
+        AdmissionPermit {
+            state: Arc::clone(&self.state),
+        }
+    }
+
+    fn try_acquire(&self) -> Option<AdmissionPermit> {
+        let mut active = self
+            .state
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *active >= MAX_CONNECTION_WORKERS {
+            return None;
+        }
+        *active += 1;
+        Some(AdmissionPermit {
+            state: Arc::clone(&self.state),
+        })
+    }
+
+    #[cfg(test)]
+    fn active(&self) -> usize {
+        *self
+            .state
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+impl Drop for AdmissionPermit {
+    fn drop(&mut self) {
+        let mut active = self
+            .state
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *active = active.saturating_sub(1);
+        self.state.available.notify_one();
+    }
 }
 
 impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
@@ -109,10 +192,23 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         // connection. Multiplexing is reserved for a future negotiated version.
         limits.max_in_flight = 1;
         validate_identity(backend.runner_instance_id())?;
+        Self::bind_shared(path, limits, Arc::new(backend), AdmissionGuard::new())
+    }
+
+    pub(crate) fn bind_shared(
+        path: impl AsRef<Path>,
+        mut limits: ControlLimits,
+        backend: Arc<B>,
+        admission: AdmissionGuard,
+    ) -> Result<Self, EndpointError> {
+        limits = limits.validate()?;
+        limits.max_in_flight = 1;
+        validate_identity(backend.runner_instance_id())?;
         Ok(Self {
             socket: OwnerSocket::bind(path, limits)?,
-            backend: Arc::new(backend),
+            backend,
             limits,
+            admission,
         })
     }
 
@@ -125,6 +221,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
     /// Accept and serve one frontend connection. Disconnect has no backend effect.
     pub fn serve_one(&mut self) -> Result<(), EndpointError> {
         let (mut stream, _) = self.socket.accept()?;
+        let _permit = self.admission.acquire();
         self.serve_stream(&mut stream)
     }
 
@@ -144,15 +241,10 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         if maximum == 0 {
             return Ok(());
         }
-        let worker_limit = MAX_CONNECTION_WORKERS;
         let mut workers: Vec<thread::JoinHandle<()>> = Vec::new();
         let mut accepted = 0_usize;
         while accepted < maximum {
             reap_workers(&mut workers);
-            while workers.len() >= worker_limit {
-                thread::sleep(Duration::from_millis(1));
-                reap_workers(&mut workers);
-            }
             let (mut stream, _) = match self.socket.accept() {
                 Ok(connection) => connection,
                 Err(error) => {
@@ -161,18 +253,12 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
                 }
             };
             accepted += 1;
-            let backend = Arc::clone(&self.backend);
-            let limits = self.limits;
-            let worker = thread::Builder::new()
-                .name("asb-control-connection".into())
-                .spawn(move || {
-                    let _ = Self::serve_stream_with(&backend, limits, &mut stream);
-                });
-            match worker {
+            let permit = self.admission.acquire();
+            match self.spawn_stream_with_permit(&mut stream, permit) {
                 Ok(worker) => workers.push(worker),
                 Err(error) => {
                     join_workers(workers);
-                    return Err(EndpointError::Io(error));
+                    return Err(error);
                 }
             }
         }
@@ -182,6 +268,56 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
 
     fn serve_stream(&self, stream: &mut UnixStream) -> Result<(), EndpointError> {
         Self::serve_stream_with(&self.backend, self.limits, stream)
+    }
+
+    pub(crate) fn set_nonblocking(&self, nonblocking: bool) -> Result<(), EndpointError> {
+        self.socket.listener().set_nonblocking(nonblocking)?;
+        Ok(())
+    }
+
+    pub(crate) fn try_accept_and_spawn(
+        &self,
+        workers: &mut Vec<thread::JoinHandle<()>>,
+    ) -> Result<bool, EndpointError> {
+        let (mut stream, _) = match self.socket.accept() {
+            Ok(connection) => connection,
+            Err(crate::TransportError::Io(error)) if error.kind() == io::ErrorKind::WouldBlock => {
+                return Ok(false);
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let Some(permit) = self.admission.try_acquire() else {
+            return Ok(true);
+        };
+        workers.push(self.spawn_stream_with_permit(&mut stream, permit)?);
+        Ok(true)
+    }
+
+    pub(crate) fn try_spawn_anonymous(
+        &self,
+        mut stream: UnixStream,
+    ) -> Result<Option<thread::JoinHandle<()>>, EndpointError> {
+        let Some(permit) = self.admission.try_acquire() else {
+            return Ok(None);
+        };
+        self.spawn_stream_with_permit(&mut stream, permit).map(Some)
+    }
+
+    fn spawn_stream_with_permit(
+        &self,
+        stream: &mut UnixStream,
+        permit: AdmissionPermit,
+    ) -> Result<thread::JoinHandle<()>, EndpointError> {
+        let backend = Arc::clone(&self.backend);
+        let limits = self.limits;
+        let mut stream = stream.try_clone()?;
+        thread::Builder::new()
+            .name("asb-control-connection".into())
+            .spawn(move || {
+                let _permit = permit;
+                let _ = Self::serve_stream_with(&backend, limits, &mut stream);
+            })
+            .map_err(EndpointError::Io)
     }
 
     fn serve_stream_with(
@@ -243,7 +379,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
     }
 }
 
-fn reap_workers(workers: &mut Vec<thread::JoinHandle<()>>) {
+pub(crate) fn reap_workers(workers: &mut Vec<thread::JoinHandle<()>>) {
     let mut index = 0;
     while index < workers.len() {
         if workers[index].is_finished() {
@@ -255,7 +391,7 @@ fn reap_workers(workers: &mut Vec<thread::JoinHandle<()>>) {
     }
 }
 
-fn join_workers(workers: Vec<thread::JoinHandle<()>>) {
+pub(crate) fn join_workers(workers: Vec<thread::JoinHandle<()>>) {
     for worker in workers {
         let _ = worker.join();
     }
@@ -314,11 +450,22 @@ impl ControlClient {
         )
     }
 
-    fn from_stream_with_versions(
+    pub(crate) fn from_stream_with_versions(
+        stream: UnixStream,
+        limits: ControlLimits,
+        expected_uid: u32,
+        versions: std::collections::BTreeSet<ControlVersion>,
+    ) -> Result<Self, EndpointError> {
+        let deadline = RequestDeadline::start(limits.max_timeout_ms)?;
+        Self::from_stream_with_versions_until(stream, limits, expected_uid, versions, deadline)
+    }
+
+    pub(crate) fn from_stream_with_versions_until(
         mut stream: UnixStream,
         limits: ControlLimits,
         expected_uid: u32,
         versions: std::collections::BTreeSet<ControlVersion>,
+        deadline: RequestDeadline,
     ) -> Result<Self, EndpointError> {
         let limits = limits.validate()?;
         if versions.is_empty()
@@ -341,7 +488,6 @@ impl ControlClient {
                 limits,
             }),
         };
-        let deadline = RequestDeadline::start(request.timeout_ms)?;
         write_frame_until(&mut stream, &request, limits, deadline)?;
         let response: ControlResponse = read_frame_until(&mut stream, limits, deadline)?;
         response.validate()?;
@@ -380,6 +526,15 @@ impl ControlClient {
         call: ControlCall,
         timeout_ms: u64,
     ) -> Result<ControlResponse, EndpointError> {
+        let deadline = RequestDeadline::start(timeout_ms)?;
+        self.call_until(call, deadline)
+    }
+
+    pub(crate) fn call_until(
+        &mut self,
+        call: ControlCall,
+        deadline: RequestDeadline,
+    ) -> Result<ControlResponse, EndpointError> {
         if matches!(call, ControlCall::Negotiate(_)) {
             return Err(EndpointError::UnexpectedResponse);
         }
@@ -394,11 +549,12 @@ impl ControlClient {
         let request = ControlRequest {
             jsonrpc: crate::JSONRPC_VERSION.into(),
             id,
-            timeout_ms,
+            timeout_ms: u64::try_from(deadline.remaining()?.as_millis())
+                .map_err(|_| EndpointError::UnexpectedResponse)?
+                .max(1),
             call: call.clone(),
         };
         crate::validate_request(&request, self.limits)?;
-        let deadline = RequestDeadline::start(timeout_ms)?;
         write_frame_until(&mut self.stream, &request, self.limits, deadline)?;
         let response: ControlResponse = read_frame_until(&mut self.stream, self.limits, deadline)?;
         response.validate()?;
@@ -417,6 +573,10 @@ impl ControlClient {
             _ => return Err(EndpointError::UnexpectedResponse),
         }
         Ok(response)
+    }
+
+    pub(crate) fn peer_identity(&self, expected_uid: u32) -> Result<PeerIdentity, EndpointError> {
+        Ok(authenticate_owner(&self.stream, expected_uid)?)
     }
 }
 
@@ -475,6 +635,19 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static SOCKET_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn shared_admission_has_one_exact_sixteen_session_ceiling() {
+        let admission = AdmissionGuard::new();
+        let permits: Vec<_> = (0..MAX_CONNECTION_WORKERS)
+            .map(|_| admission.try_acquire().expect("slot below ceiling"))
+            .collect();
+        assert_eq!(admission.active(), MAX_CONNECTION_WORKERS);
+        assert!(admission.try_acquire().is_none());
+        drop(permits);
+        assert_eq!(admission.active(), 0);
+        assert!(admission.try_acquire().is_some());
+    }
 
     #[test]
     fn every_backend_failure_has_a_fixed_public_response() {
