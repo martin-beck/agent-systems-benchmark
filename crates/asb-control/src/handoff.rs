@@ -632,16 +632,12 @@ impl AuthenticatedGenerationProducer {
     pub fn acquire(
         &self,
         pending: &PendingBrokerSuccess,
-        request: &BrokerRequest,
     ) -> Result<AuthenticatedGeneration, ProvisioningError> {
         let broker_generation = pending.generation;
         if broker_generation.epoch == [0; 16] || broker_generation.sequence == 0 {
             return Err(ProvisioningError::Rejected);
         }
-        if pending.operation != request.packet.operation {
-            return Err(ProvisioningError::Rejected);
-        }
-        let deadline = request.deadline;
+        let deadline = pending.deadline;
         deadline.check().map_err(EndpointError::from)?;
         let expected_uid = geteuid().as_raw();
 
@@ -1009,26 +1005,28 @@ enum BrokerPhase {
     Pending {
         operation: BrokerOperation,
         response_sequence: u64,
+        deadline: RequestDeadline,
     },
     Established(BrokerGeneration),
     Terminal,
 }
 
 /// Opaque success generation prepared without advancing broker state.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct PendingBrokerSuccess {
     operation: BrokerOperation,
     generation: BrokerGeneration,
+    deadline: RequestDeadline,
 }
 
 impl PendingBrokerSuccess {
     /// Generation that the ASB producer must bind to its authenticated stream.
     #[must_use]
-    pub const fn generation(self) -> BrokerGeneration {
+    pub const fn generation(&self) -> BrokerGeneration {
         self.generation
     }
 
-    const fn packet(self, expected_runner_identity: [u8; 32]) -> BrokerPacket {
+    const fn packet(&self, expected_runner_identity: [u8; 32]) -> BrokerPacket {
         BrokerPacket {
             operation: self.operation,
             status: HandoffStatus::Success,
@@ -1079,11 +1077,36 @@ impl BrokerConnection {
 
     /// Receive exactly one descriptor-free, shape-valid request and start its sole budget.
     pub fn receive_request(&self) -> Result<BrokerRequest, HandoffError> {
-        let timeout_ms = u64::try_from(BROKER_ACQUISITION_TIMEOUT.as_millis())
-            .map_err(|_| HandoffError::TransferFailed)?;
+        self.receive_request_with_budget(BROKER_ACQUISITION_TIMEOUT)
+    }
+
+    fn receive_request_with_budget(&self, budget: Duration) -> Result<BrokerRequest, HandoffError> {
+        self.wait_for_request()?;
+        let timeout_ms =
+            u64::try_from(budget.as_millis()).map_err(|_| HandoffError::TransferFailed)?;
         let deadline =
             RequestDeadline::start(timeout_ms).map_err(|_| HandoffError::TransferFailed)?;
         self.receive_request_until(deadline)
+    }
+
+    fn wait_for_request(&self) -> Result<(), HandoffError> {
+        loop {
+            let mut descriptors = [PollFd::new(&self.socket, PollFlags::IN)];
+            match poll(&mut descriptors, None) {
+                Ok(1) => {
+                    let events = descriptors[0].revents();
+                    if events.intersects(PollFlags::ERR | PollFlags::HUP | PollFlags::NVAL)
+                        || !events.contains(PollFlags::IN)
+                    {
+                        return Err(HandoffError::TransferFailed);
+                    }
+                    return Ok(());
+                }
+                Ok(_) => continue,
+                Err(error) if error == rustix::io::Errno::INTR => continue,
+                Err(_) => return Err(HandoffError::TransferFailed),
+            }
+        }
     }
 
     fn receive_request_until(
@@ -1231,16 +1254,21 @@ impl BrokerState {
     /// Admit exactly one ordered request and reserve its response generation.
     pub fn begin_request(
         &mut self,
-        request: &BrokerRequest,
+        request: BrokerRequest,
         now: Duration,
-    ) -> Result<(), HandoffError> {
+    ) -> Result<PendingBrokerSuccess, HandoffError> {
         if request.deadline.check().is_err() {
             return self.terminate(HandoffError::TransferFailed);
         }
-        self.begin_packet(request.packet, now)
+        self.begin_packet(request.packet, request.deadline, now)
     }
 
-    fn begin_packet(&mut self, packet: BrokerPacket, now: Duration) -> Result<(), HandoffError> {
+    fn begin_packet(
+        &mut self,
+        packet: BrokerPacket,
+        deadline: RequestDeadline,
+        now: Duration,
+    ) -> Result<PendingBrokerSuccess, HandoffError> {
         if packet.status != HandoffStatus::Request {
             return self.terminate(HandoffError::UnexpectedState);
         }
@@ -1252,8 +1280,8 @@ impl BrokerState {
                 self.phase = BrokerPhase::Pending {
                     operation: BrokerOperation::Initial,
                     response_sequence: 1,
+                    deadline,
                 };
-                Ok(())
             }
             (BrokerPhase::Established(current), BrokerOperation::Replacement) => {
                 if packet.validate_shape().is_err() {
@@ -1279,21 +1307,18 @@ impl BrokerState {
                 self.phase = BrokerPhase::Pending {
                     operation: BrokerOperation::Replacement,
                     response_sequence,
+                    deadline,
                 };
-                Ok(())
             }
-            _ => self.terminate(HandoffError::UnexpectedState),
+            _ => return self.terminate(HandoffError::UnexpectedState),
         }
-    }
-
-    /// Prepare the exact pending success without advancing broker state.
-    pub fn pending_success(&self) -> Result<PendingBrokerSuccess, HandoffError> {
         let BrokerPhase::Pending {
             operation,
             response_sequence,
+            deadline,
         } = self.phase
         else {
-            return Err(HandoffError::UnexpectedState);
+            unreachable!();
         };
         Ok(PendingBrokerSuccess {
             operation,
@@ -1301,6 +1326,7 @@ impl BrokerState {
                 epoch: self.epoch,
                 sequence: response_sequence,
             },
+            deadline,
         })
     }
 
@@ -1311,13 +1337,13 @@ impl BrokerState {
     pub fn commit_success(
         &mut self,
         pending: PendingBrokerSuccess,
-        request: &BrokerRequest,
         broker: &BrokerConnection,
         authenticated: AuthenticatedGeneration,
     ) -> Result<BrokerPacket, HandoffError> {
         let BrokerPhase::Pending {
             operation,
             response_sequence,
+            deadline,
         } = self.phase
         else {
             return self.terminate(HandoffError::UnexpectedState);
@@ -1326,13 +1352,13 @@ impl BrokerState {
             || pending.generation.epoch != self.epoch
             || pending.generation.sequence != response_sequence
             || authenticated.broker_generation != pending.generation
-            || request.packet.operation != operation
+            || pending.deadline != deadline
         {
             return self.terminate(HandoffError::GenerationMismatch);
         }
         let packet = pending.packet(authenticated.expected_runner_identity);
         if broker
-            .send_success(packet, &authenticated.stream, request.deadline)
+            .send_success(packet, &authenticated.stream, pending.deadline)
             .is_err()
         {
             return self.terminate(HandoffError::TransferFailed);
@@ -1351,17 +1377,26 @@ impl BrokerState {
     /// Complete a descriptor-free closed failure without advancing a generation.
     pub fn commit_failure(
         &mut self,
+        pending: PendingBrokerSuccess,
         status: HandoffStatus,
-        request: &BrokerRequest,
         broker: &BrokerConnection,
     ) -> Result<BrokerPacket, HandoffError> {
         if !status.is_closed_failure() {
             return self.terminate(HandoffError::UnexpectedState);
         }
-        let BrokerPhase::Pending { operation, .. } = self.phase else {
+        let BrokerPhase::Pending {
+            operation,
+            response_sequence,
+            deadline,
+        } = self.phase
+        else {
             return self.terminate(HandoffError::UnexpectedState);
         };
-        if request.packet.operation != operation {
+        if pending.operation != operation
+            || pending.generation.epoch != self.epoch
+            || pending.generation.sequence != response_sequence
+            || pending.deadline != deadline
+        {
             return self.terminate(HandoffError::GenerationMismatch);
         }
         let generation = match operation {
@@ -1381,7 +1416,7 @@ impl BrokerState {
             sequence: generation.sequence,
             expected_runner_identity: [0; 32],
         };
-        if broker.send_failure(packet, request.deadline).is_err() {
+        if broker.send_failure(packet, pending.deadline).is_err() {
             return self.terminate(HandoffError::TransferFailed);
         }
         self.phase = match operation {
@@ -1738,14 +1773,13 @@ mod tests {
 
     fn commit_broker_success(
         broker: &mut BrokerState,
-        request: &BrokerRequest,
+        pending: PendingBrokerSuccess,
         identity: [u8; 32],
     ) -> BrokerPacket {
-        let pending = broker.pending_success().unwrap();
         let (authenticated, service) = authenticated_generation(pending.generation(), identity);
         let (connection, frontend) = BrokerConnection::pair().unwrap();
         let packet = broker
-            .commit_success(pending, request, &connection, authenticated)
+            .commit_success(pending, &connection, authenticated)
             .unwrap();
         let (received, descriptor) = receive_broker_generation(&frontend);
         assert_eq!(received, packet);
@@ -1880,11 +1914,10 @@ mod tests {
         let identity = [9; 32];
         let mut broker = BrokerState::new(epoch).unwrap();
         let initial = test_broker_request(initial_request());
-        broker.begin_request(&initial, Duration::ZERO).unwrap();
-        let pending = broker.pending_success().unwrap();
+        let pending = broker.begin_request(initial, Duration::ZERO).unwrap();
         assert_eq!(pending.generation().sequence(), 1);
         assert_eq!(broker.committed_generation(), None);
-        let first = commit_broker_success(&mut broker, &initial, identity);
+        let first = commit_broker_success(&mut broker, pending, identity);
         assert_eq!((first.epoch, first.sequence), (epoch, 1));
         assert_eq!(broker.committed_generation(), first.generation().ok());
 
@@ -1895,20 +1928,22 @@ mod tests {
             sequence: 1,
             expected_runner_identity: [0; 32],
         };
-        let replacement = test_broker_request(replacement);
-        broker
-            .begin_request(&replacement, MIN_REPLACEMENT_INTERVAL)
+        let pending = broker
+            .begin_request(test_broker_request(replacement), MIN_REPLACEMENT_INTERVAL)
             .unwrap();
         let (connection, frontend) = BrokerConnection::pair().unwrap();
         let failed = broker
-            .commit_failure(HandoffStatus::Unavailable, &replacement, &connection)
+            .commit_failure(pending, HandoffStatus::Unavailable, &connection)
             .unwrap();
         assert_eq!(receive_broker_failure(&frontend), failed);
         assert_eq!((failed.epoch, failed.sequence), (epoch, 1));
-        broker
-            .begin_request(&replacement, MIN_REPLACEMENT_INTERVAL * 2)
+        let pending = broker
+            .begin_request(
+                test_broker_request(replacement),
+                MIN_REPLACEMENT_INTERVAL * 2,
+            )
             .unwrap();
-        let second = commit_broker_success(&mut broker, &replacement, identity);
+        let second = commit_broker_success(&mut broker, pending, identity);
         assert_eq!((second.epoch, second.sequence), (epoch, 2));
         assert_eq!(broker.committed_generation(), second.generation().ok());
     }
@@ -1918,8 +1953,8 @@ mod tests {
         let identity = [9; 32];
         let mut broker = BrokerState::new([7; 16]).unwrap();
         let initial = test_broker_request(initial_request());
-        broker.begin_request(&initial, Duration::ZERO).unwrap();
-        let first = commit_broker_success(&mut broker, &initial, identity);
+        let pending = broker.begin_request(initial, Duration::ZERO).unwrap();
+        let first = commit_broker_success(&mut broker, pending, identity);
         let committed = first.generation().unwrap();
         let replacement = BrokerPacket {
             operation: BrokerOperation::Replacement,
@@ -1928,11 +1963,9 @@ mod tests {
             sequence: committed.sequence(),
             expected_runner_identity: [0; 32],
         };
-        let replacement = test_broker_request(replacement);
-        broker
-            .begin_request(&replacement, MIN_REPLACEMENT_INTERVAL)
+        let pending = broker
+            .begin_request(test_broker_request(replacement), MIN_REPLACEMENT_INTERVAL)
             .unwrap();
-        let pending = broker.pending_success().unwrap();
         assert_eq!(pending.generation().sequence(), 2);
         let (authenticated, _service) = authenticated_generation(pending.generation(), identity);
         let (router, frontend) = socketpair(
@@ -1945,20 +1978,21 @@ mod tests {
         let connection = BrokerConnection::new(router).unwrap();
         drop(frontend);
         assert_eq!(
-            broker.commit_success(pending, &replacement, &connection, authenticated),
+            broker.commit_success(pending, &connection, authenticated),
             Err(HandoffError::TransferFailed)
         );
         assert_eq!(broker.committed_generation(), Some(committed));
         assert_eq!(
-            broker.begin_request(&replacement, MIN_REPLACEMENT_INTERVAL * 2),
+            broker.begin_request(
+                test_broker_request(replacement),
+                MIN_REPLACEMENT_INTERVAL * 2
+            ),
             Err(HandoffError::UnexpectedState)
         );
     }
 
     #[test]
     fn typed_broker_connection_receives_only_exact_descriptor_free_requests() {
-        let deadline = || RequestDeadline::start(2_000).unwrap();
-
         let (stream, _peer) = UnixStream::pair().unwrap();
         assert!(matches!(
             BrokerConnection::new(stream.into()),
@@ -1971,10 +2005,7 @@ mod tests {
             BROKER_PACKET_BYTES
         );
         assert_eq!(
-            connection
-                .receive_request_until(deadline())
-                .unwrap()
-                .packet(),
+            connection.receive_request().unwrap().packet(),
             initial_request()
         );
 
@@ -1991,9 +2022,7 @@ mod tests {
             BROKER_PACKET_BYTES
         );
         assert_eq!(
-            connection
-                .receive_request_until(deadline())
-                .map(|request| request.packet()),
+            connection.receive_request().map(|request| request.packet()),
             Err(HandoffError::InvalidPacket)
         );
 
@@ -2004,11 +2033,26 @@ mod tests {
             oversized.len()
         );
         assert_eq!(
-            connection
-                .receive_request_until(deadline())
-                .map(|request| request.packet()),
+            connection.receive_request().map(|request| request.packet()),
             Err(HandoffError::InvalidPacket)
         );
+    }
+
+    #[test]
+    fn idle_wait_does_not_spend_the_acquisition_budget() {
+        let (connection, frontend) = BrokerConnection::pair().unwrap();
+        let receiver = thread::spawn(move || {
+            connection.receive_request_with_budget(Duration::from_millis(25))
+        });
+
+        thread::sleep(Duration::from_millis(40));
+        assert_eq!(
+            send(&frontend, &initial_request().encode(), SendFlags::NOSIGNAL).unwrap(),
+            BROKER_PACKET_BYTES
+        );
+        let request = receiver.join().unwrap().unwrap();
+        assert_eq!(request.packet(), initial_request());
+        assert!(request.deadline.remaining().is_ok());
     }
 
     #[test]
@@ -2016,8 +2060,8 @@ mod tests {
         let identity = [9; 32];
         let mut broker = BrokerState::new([7; 16]).unwrap();
         let initial = test_broker_request(initial_request());
-        broker.begin_request(&initial, Duration::ZERO).unwrap();
-        let committed = commit_broker_success(&mut broker, &initial, identity)
+        let pending = broker.begin_request(initial, Duration::ZERO).unwrap();
+        let committed = commit_broker_success(&mut broker, pending, identity)
             .generation()
             .unwrap();
         let replacement = BrokerPacket {
@@ -2027,19 +2071,21 @@ mod tests {
             sequence: committed.sequence(),
             expected_runner_identity: [0; 32],
         };
-        let replacement = test_broker_request(replacement);
-        broker
-            .begin_request(&replacement, MIN_REPLACEMENT_INTERVAL)
+        let pending = broker
+            .begin_request(test_broker_request(replacement), MIN_REPLACEMENT_INTERVAL)
             .unwrap();
         let (connection, frontend) = BrokerConnection::pair().unwrap();
         drop(frontend);
         assert_eq!(
-            broker.commit_failure(HandoffStatus::Unavailable, &replacement, &connection),
+            broker.commit_failure(pending, HandoffStatus::Unavailable, &connection),
             Err(HandoffError::TransferFailed)
         );
         assert_eq!(broker.committed_generation(), Some(committed));
         assert_eq!(
-            broker.begin_request(&replacement, MIN_REPLACEMENT_INTERVAL * 2),
+            broker.begin_request(
+                test_broker_request(replacement),
+                MIN_REPLACEMENT_INTERVAL * 2
+            ),
             Err(HandoffError::UnexpectedState)
         );
     }
@@ -2048,8 +2094,10 @@ mod tests {
     fn fresh_broker_state_reserves_a_nonzero_initial_generation() {
         let mut broker = BrokerState::fresh().unwrap();
         let initial = test_broker_request(initial_request());
-        broker.begin_request(&initial, Duration::ZERO).unwrap();
-        let generation = broker.pending_success().unwrap().generation();
+        let generation = broker
+            .begin_request(initial, Duration::ZERO)
+            .unwrap()
+            .generation();
         assert_ne!(generation.epoch(), [0; 16]);
         assert_eq!(generation.sequence(), 1);
         assert_eq!(broker.committed_generation(), None);
@@ -2075,12 +2123,12 @@ mod tests {
         };
         let stale = test_broker_request(stale);
         assert_eq!(
-            broker.begin_request(&stale, Duration::ZERO),
+            broker.begin_request(stale, Duration::ZERO),
             Err(HandoffError::UnexpectedState)
         );
         let initial = test_broker_request(initial_request());
         assert_eq!(
-            broker.begin_request(&initial, Duration::ZERO),
+            broker.begin_request(initial, Duration::ZERO),
             Err(HandoffError::UnexpectedState)
         );
     }
@@ -2224,10 +2272,9 @@ mod tests {
         .unwrap();
         let mut broker = BrokerState::new([7; 16]).unwrap();
         let request = test_broker_request(initial_request());
-        broker.begin_request(&request, Duration::ZERO).unwrap();
-        let pending = broker.pending_success().unwrap();
+        let pending = broker.begin_request(request, Duration::ZERO).unwrap();
         let generation = pending.generation();
-        let authenticated = producer.acquire(&pending, &request).unwrap();
+        let authenticated = producer.acquire(&pending).unwrap();
         assert_eq!(authenticated.broker_generation(), generation);
         assert_eq!(authenticated.kernel_peer().uid(), geteuid().as_raw());
         assert_eq!(
@@ -2253,15 +2300,37 @@ mod tests {
             deadline: RequestDeadline::start(25).unwrap(),
         };
         let mut broker = BrokerState::new([7; 16]).unwrap();
-        broker.begin_request(&request, Duration::ZERO).unwrap();
-        let pending = broker.pending_success().unwrap();
+        let pending = broker.begin_request(request, Duration::ZERO).unwrap();
         thread::sleep(Duration::from_millis(40));
         assert!(matches!(
-            producer.acquire(&pending, &request),
+            producer.acquire(&pending),
             Err(ProvisioningError::Control(EndpointError::Session(
                 SessionError::DeadlineExceeded
             )))
         ));
+        assert_eq!(broker.committed_generation(), None);
+    }
+
+    #[test]
+    fn same_operation_deadline_substitution_is_rejected() {
+        let mut broker = BrokerState::new([7; 16]).unwrap();
+        let pending = broker
+            .begin_request(test_broker_request(initial_request()), Duration::ZERO)
+            .unwrap();
+        let generation = pending.generation();
+        thread::sleep(Duration::from_millis(1));
+        let substituted = PendingBrokerSuccess {
+            operation: BrokerOperation::Initial,
+            generation,
+            deadline: RequestDeadline::start(2_000).unwrap(),
+        };
+        assert_ne!(substituted.deadline, pending.deadline);
+        let (authenticated, _service) = authenticated_generation(generation, [9; 32]);
+        let (connection, _frontend) = BrokerConnection::pair().unwrap();
+        assert_eq!(
+            broker.commit_success(substituted, &connection, authenticated),
+            Err(HandoffError::GenerationMismatch)
+        );
         assert_eq!(broker.committed_generation(), None);
     }
 
@@ -2272,13 +2341,12 @@ mod tests {
             deadline: RequestDeadline::start(25).unwrap(),
         };
         let mut broker = BrokerState::new([7; 16]).unwrap();
-        broker.begin_request(&request, Duration::ZERO).unwrap();
-        let pending = broker.pending_success().unwrap();
+        let pending = broker.begin_request(request, Duration::ZERO).unwrap();
         let (authenticated, _service) = authenticated_generation(pending.generation(), [9; 32]);
         let (connection, frontend) = BrokerConnection::pair().unwrap();
         thread::sleep(Duration::from_millis(40));
         assert_eq!(
-            broker.commit_success(pending, &request, &connection, authenticated),
+            broker.commit_success(pending, &connection, authenticated),
             Err(HandoffError::TransferFailed)
         );
         assert_eq!(broker.committed_generation(), None);
@@ -2288,9 +2356,48 @@ mod tests {
             Err(rustix::io::Errno::AGAIN)
         );
         assert_eq!(
-            broker.begin_packet(initial_request(), Duration::from_millis(50)),
+            broker.begin_request(
+                test_broker_request(initial_request()),
+                Duration::from_millis(50)
+            ),
             Err(HandoffError::UnexpectedState)
         );
+    }
+
+    #[test]
+    fn backpressured_commit_expires_without_advancing_generation() {
+        let request = BrokerRequest {
+            packet: initial_request(),
+            deadline: RequestDeadline::start(250).unwrap(),
+        };
+        let mut broker = BrokerState::new([7; 16]).unwrap();
+        let pending = broker.begin_request(request, Duration::ZERO).unwrap();
+        let generation = pending.generation();
+        let (authenticated, _service) = authenticated_generation(generation, [9; 32]);
+        let (connection, _frontend) = BrokerConnection::pair().unwrap();
+        let filler = [0_u8; BROKER_PACKET_BYTES];
+        let mut packets = 0_usize;
+        loop {
+            match send(
+                &connection.socket,
+                &filler,
+                SendFlags::NOSIGNAL | SendFlags::DONTWAIT,
+            ) {
+                Ok(BROKER_PACKET_BYTES) => {
+                    packets += 1;
+                    assert!(packets < 100_000, "socket never became backpressured");
+                }
+                Err(error) if error == rustix::io::Errno::AGAIN => break,
+                result => panic!("unexpected backpressure fill result: {result:?}"),
+            }
+        }
+        assert!(packets > 0);
+        assert_eq!(
+            broker.commit_success(pending, &connection, authenticated),
+            Err(HandoffError::TransferFailed)
+        );
+        assert_eq!(broker.committed_generation(), None);
+        assert_eq!(broker.phase, BrokerPhase::Terminal);
     }
 
     #[test]
