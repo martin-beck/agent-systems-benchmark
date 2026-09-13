@@ -7,6 +7,7 @@
 
 mod endpoint;
 mod frame;
+mod handoff;
 mod protocol;
 mod schema;
 mod state;
@@ -14,6 +15,7 @@ mod transport;
 
 pub use endpoint::*;
 pub use frame::*;
+pub use handoff::*;
 pub use protocol::*;
 pub use schema::{
     analysis_evidence_schema, control_event_schema, control_request_schema,
