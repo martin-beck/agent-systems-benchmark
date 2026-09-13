@@ -15,8 +15,9 @@ use thiserror::Error;
 use crate::{
     BoundControlResult, CONTROL_V1, ControlCall, ControlLimits, ControlRequest, ControlResponse,
     ControlSession, ControlSuccess, ControlVersion, FrameError, Negotiated, OwnerSocket,
-    ProtocolError, RequestDeadline, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS, SessionError,
-    authenticate_owner, error_code, read_frame_until, validate_identity, write_frame_until,
+    PeerIdentity, ProtocolError, RequestDeadline, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS,
+    SessionError, authenticate_owner, error_code, read_frame_until, validate_identity,
+    write_frame_until,
 };
 
 const MAX_REQUESTS_PER_CONNECTION: usize = 1024;
@@ -449,11 +450,22 @@ impl ControlClient {
         )
     }
 
-    fn from_stream_with_versions(
+    pub(crate) fn from_stream_with_versions(
+        stream: UnixStream,
+        limits: ControlLimits,
+        expected_uid: u32,
+        versions: std::collections::BTreeSet<ControlVersion>,
+    ) -> Result<Self, EndpointError> {
+        let deadline = RequestDeadline::start(limits.max_timeout_ms)?;
+        Self::from_stream_with_versions_until(stream, limits, expected_uid, versions, deadline)
+    }
+
+    pub(crate) fn from_stream_with_versions_until(
         mut stream: UnixStream,
         limits: ControlLimits,
         expected_uid: u32,
         versions: std::collections::BTreeSet<ControlVersion>,
+        deadline: RequestDeadline,
     ) -> Result<Self, EndpointError> {
         let limits = limits.validate()?;
         if versions.is_empty()
@@ -476,7 +488,6 @@ impl ControlClient {
                 limits,
             }),
         };
-        let deadline = RequestDeadline::start(request.timeout_ms)?;
         write_frame_until(&mut stream, &request, limits, deadline)?;
         let response: ControlResponse = read_frame_until(&mut stream, limits, deadline)?;
         response.validate()?;
@@ -515,6 +526,15 @@ impl ControlClient {
         call: ControlCall,
         timeout_ms: u64,
     ) -> Result<ControlResponse, EndpointError> {
+        let deadline = RequestDeadline::start(timeout_ms)?;
+        self.call_until(call, deadline)
+    }
+
+    pub(crate) fn call_until(
+        &mut self,
+        call: ControlCall,
+        deadline: RequestDeadline,
+    ) -> Result<ControlResponse, EndpointError> {
         if matches!(call, ControlCall::Negotiate(_)) {
             return Err(EndpointError::UnexpectedResponse);
         }
@@ -529,11 +549,12 @@ impl ControlClient {
         let request = ControlRequest {
             jsonrpc: crate::JSONRPC_VERSION.into(),
             id,
-            timeout_ms,
+            timeout_ms: u64::try_from(deadline.remaining()?.as_millis())
+                .map_err(|_| EndpointError::UnexpectedResponse)?
+                .max(1),
             call: call.clone(),
         };
         crate::validate_request(&request, self.limits)?;
-        let deadline = RequestDeadline::start(timeout_ms)?;
         write_frame_until(&mut self.stream, &request, self.limits, deadline)?;
         let response: ControlResponse = read_frame_until(&mut self.stream, self.limits, deadline)?;
         response.validate()?;
@@ -552,6 +573,10 @@ impl ControlClient {
             _ => return Err(EndpointError::UnexpectedResponse),
         }
         Ok(response)
+    }
+
+    pub(crate) fn peer_identity(&self, expected_uid: u32) -> Result<PeerIdentity, EndpointError> {
+        Ok(authenticate_owner(&self.stream, expected_uid)?)
     }
 }
 

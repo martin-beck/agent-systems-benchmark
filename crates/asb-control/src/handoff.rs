@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: MIT
 //! Closed binary framing and generation state for authenticated control handoff.
 
+use std::collections::BTreeSet;
 use std::fs::{self, Permissions};
-use std::io::{self, IoSlice, IoSliceMut};
+use std::io::{self, IoSlice, IoSliceMut, Read};
 use std::mem::MaybeUninit;
 use std::os::fd::{AsFd, OwnedFd};
+use std::os::linux::net::SocketAddrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -13,20 +15,27 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use rustix::net::sockopt::{Timeout, set_socket_timeout, socket_passcred};
+use rustix::event::{PollFd, PollFlags, Timespec, poll};
+use rustix::fs::{OFlags, fcntl_getfl, fcntl_setfl};
+use rustix::net::sockopt::{
+    Timeout, set_socket_timeout, socket_acceptconn, socket_domain, socket_error, socket_passcred,
+    socket_type,
+};
 use rustix::net::{
-    AddressFamily, RecvAncillaryBuffer, RecvFlags, ReturnFlags, SendAncillaryBuffer,
-    SendAncillaryMessage, SendFlags, SocketAddrUnix, SocketFlags, SocketType, accept_with, bind,
-    listen, recvmsg, sendmsg, socket_with, socketpair,
+    AddressFamily, RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags, ReturnFlags,
+    SendAncillaryBuffer, SendAncillaryMessage, SendFlags, SocketAddrUnix, SocketFlags, SocketType,
+    accept_with, bind, connect, listen, recv, recvmsg, sendmsg, socket_with, socketpair,
 };
 use rustix::process::geteuid;
+use rustix::rand::{GetRandomFlags, getrandom};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::endpoint::{AdmissionGuard, join_workers, reap_workers};
 use crate::{
-    ControlBackend, ControlLimits, ControlServer, EndpointError, MAX_CONTROL_ID_BYTES,
-    PeerIdentity, validate_identity,
+    CONTROL_MEASUREMENT_SELECTION_V1, ControlBackend, ControlCall, ControlClient, ControlLimits,
+    ControlServer, EndpointError, MAX_CONTROL_ID_BYTES, PeerIdentity, RequestDeadline,
+    SUPPORTED_CONTROL_VERSIONS, validate_identity,
 };
 
 /// Exact byte length of one router/frontend broker packet.
@@ -43,6 +52,9 @@ const PROVISIONING_MAGIC: [u8; 8] = *b"ASBPRV01";
 const WIRE_VERSION: u16 = 1;
 const RUNNER_IDENTITY_DOMAIN: &[u8] = b"asb-control-runner-instance-v1";
 const PROVISIONING_BACKLOG: i32 = 16;
+const ACQUISITION_TIMEOUT_MS: u64 = 2_000;
+const PROC_STAT_MAX_BYTES: u64 = 4_096;
+const ENTROPY_ATTEMPTS: usize = 4;
 
 /// One ASB service exposing distinct ordinary-control and private provisioning endpoints.
 pub struct ProvisionedControlServer<B> {
@@ -498,6 +510,18 @@ pub struct BrokerPacket {
 }
 
 impl BrokerPacket {
+    /// Return the nonzero generation carried by a successful broker reply.
+    pub fn generation(self) -> Result<BrokerGeneration, HandoffError> {
+        self.validate_shape()?;
+        if self.status != HandoffStatus::Success {
+            return Err(HandoffError::UnexpectedState);
+        }
+        Ok(BrokerGeneration {
+            epoch: self.epoch,
+            sequence: self.sequence,
+        })
+    }
+
     /// Encode the frozen v1 representation.
     #[must_use]
     pub fn encode(self) -> [u8; BROKER_PACKET_BYTES] {
@@ -563,6 +587,320 @@ impl BrokerPacket {
             Err(HandoffError::InvalidPacket)
         }
     }
+}
+
+/// ASB-side producer for one authenticated anonymous control generation.
+///
+/// The endpoint paths remain private inputs to the trusted router. The returned
+/// object contains only the anonymous stream and bounded continuity evidence.
+pub struct AuthenticatedGenerationProducer {
+    control_path: PathBuf,
+    provisioning_path: PathBuf,
+    limits: ControlLimits,
+}
+
+impl AuthenticatedGenerationProducer {
+    /// Configure the private endpoints used for a single acquisition.
+    pub fn new(
+        control_path: impl AsRef<Path>,
+        provisioning_path: impl AsRef<Path>,
+        limits: ControlLimits,
+    ) -> Result<Self, ProvisioningError> {
+        let control_path = control_path.as_ref();
+        let provisioning_path = provisioning_path.as_ref();
+        validate_endpoint_topology(control_path, provisioning_path)?;
+        validate_private_directory(
+            control_path
+                .parent()
+                .ok_or(ProvisioningError::UnsafeTopology)?,
+        )?;
+        validate_private_directory(
+            provisioning_path
+                .parent()
+                .ok_or(ProvisioningError::UnsafeTopology)?,
+        )?;
+        Ok(Self {
+            control_path: control_path.to_path_buf(),
+            provisioning_path: provisioning_path.to_path_buf(),
+            limits: limits.validate().map_err(EndpointError::from)?,
+        })
+    }
+
+    /// Acquire one generation under one diminishing two-second deadline.
+    pub fn acquire(
+        &self,
+        broker_generation: BrokerGeneration,
+    ) -> Result<AuthenticatedGeneration, ProvisioningError> {
+        if broker_generation.epoch == [0; 16] || broker_generation.sequence == 0 {
+            return Err(ProvisioningError::Rejected);
+        }
+        let deadline =
+            RequestDeadline::start(ACQUISITION_TIMEOUT_MS).map_err(EndpointError::from)?;
+        let expected_uid = geteuid().as_raw();
+
+        let probe_stream =
+            connect_private_socket(&self.control_path, SocketType::STREAM, deadline)?;
+        let probe_stream = UnixStream::from(probe_stream);
+        let mut probe = ControlClient::from_stream_with_versions_until(
+            probe_stream,
+            self.limits,
+            expected_uid,
+            BTreeSet::from(SUPPORTED_CONTROL_VERSIONS),
+            deadline,
+        )?;
+        if probe.negotiated().version != CONTROL_MEASUREMENT_SELECTION_V1 {
+            return Err(ProvisioningError::Rejected);
+        }
+        let probe_evidence = process_evidence(probe.peer_identity(expected_uid)?)?;
+        let expected_runner_identity =
+            runner_identity_digest(&probe.negotiated().runner_instance_id)?;
+
+        let provisioning =
+            connect_private_socket(&self.provisioning_path, SocketType::SEQPACKET, deadline)?;
+        if socket_passcred(&provisioning).map_err(io::Error::from)? {
+            return Err(ProvisioningError::Rejected);
+        }
+        let provisioning_evidence = process_evidence(
+            PeerIdentity::from_fd(&provisioning)
+                .and_then(|identity| identity.require_owner(expected_uid))
+                .map_err(|_| ProvisioningError::Rejected)?,
+        )?;
+        if provisioning_evidence != probe_evidence {
+            return Err(ProvisioningError::Rejected);
+        }
+
+        let nonce = fresh_nonce()?;
+        let request = ProvisioningPacket {
+            status: HandoffStatus::Request,
+            nonce,
+            runner_identity: [0; 32],
+        };
+        set_deadline_timeouts(&provisioning, deadline)?;
+        let payload = request.encode();
+        let sent = rustix::net::send(&provisioning, &payload, SendFlags::NOSIGNAL)
+            .map_err(io::Error::from)?;
+        if sent != PROVISIONING_PACKET_BYTES {
+            return Err(ProvisioningError::Rejected);
+        }
+        set_deadline_timeouts(&provisioning, deadline)?;
+        let (response, descriptor) = recv_provisioning_response(&provisioning)?;
+        if response.status != HandoffStatus::Success
+            || response.nonce != nonce
+            || response.runner_identity != expected_runner_identity
+        {
+            return Err(ProvisioningError::Rejected);
+        }
+        let kernel_peer = validate_anonymous_stream(&descriptor, probe_evidence, expected_uid)?;
+        let stream = UnixStream::from(descriptor);
+
+        let terminal = probe.call_until(ControlCall::Capabilities, deadline)?;
+        if terminal.error().is_some()
+            || probe.negotiated().runner_instance_id.is_empty()
+            || process_evidence(probe.peer_identity(expected_uid)?)? != probe_evidence
+            || runner_identity_digest(&probe.negotiated().runner_instance_id)?
+                != expected_runner_identity
+        {
+            return Err(ProvisioningError::Rejected);
+        }
+        deadline.check().map_err(EndpointError::from)?;
+        drop(probe);
+        AuthenticatedGeneration::new(
+            stream,
+            broker_generation,
+            kernel_peer,
+            expected_runner_identity,
+        )
+        .map_err(ProvisioningError::from)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ProcessEvidence {
+    peer: PeerIdentity,
+    start_time: u64,
+}
+
+fn process_evidence(peer: PeerIdentity) -> Result<ProcessEvidence, ProvisioningError> {
+    if peer.pid() <= 0 {
+        return Err(ProvisioningError::Rejected);
+    }
+    Ok(ProcessEvidence {
+        peer,
+        start_time: read_process_start_time(peer.pid())?,
+    })
+}
+
+fn read_process_start_time(pid: i32) -> Result<u64, ProvisioningError> {
+    let file = fs::File::open(format!("/proc/{pid}/stat"))?;
+    let mut bytes = Vec::new();
+    file.take(PROC_STAT_MAX_BYTES + 1).read_to_end(&mut bytes)?;
+    if bytes.is_empty() || bytes.len() as u64 > PROC_STAT_MAX_BYTES {
+        return Err(ProvisioningError::Rejected);
+    }
+    parse_process_start_time(pid, &bytes).ok_or(ProvisioningError::Rejected)
+}
+
+fn parse_process_start_time(pid: i32, bytes: &[u8]) -> Option<u64> {
+    let record = std::str::from_utf8(bytes).ok()?.trim_end_matches('\n');
+    let prefix = format!("{pid} (");
+    let fields = record.strip_prefix(&prefix)?;
+    let delimiter = fields.rfind(") ")?;
+    let suffix = &fields[delimiter + 2..];
+    let fields = suffix.split_ascii_whitespace().collect::<Vec<_>>();
+    if fields.len() < 20
+        || fields[0].len() != 1
+        || !fields[0].as_bytes()[0].is_ascii_alphabetic()
+        || fields[1..19]
+            .iter()
+            .any(|field| field.parse::<i128>().is_err())
+    {
+        return None;
+    }
+    // Field 22 is the twentieth token after the command delimiter (field 3).
+    let start_time = fields[19].parse::<u64>().ok()?;
+    (start_time != 0).then_some(start_time)
+}
+
+fn fresh_nonce() -> Result<[u8; 16], ProvisioningError> {
+    for _ in 0..ENTROPY_ATTEMPTS {
+        let mut nonce = [0_u8; 16];
+        let filled = getrandom(&mut nonce, GetRandomFlags::empty()).map_err(io::Error::from)?;
+        if filled == nonce.len() && nonce != [0; 16] {
+            return Ok(nonce);
+        }
+    }
+    Err(ProvisioningError::Rejected)
+}
+
+fn connect_private_socket(
+    path: &Path,
+    socket_kind: SocketType,
+    deadline: RequestDeadline,
+) -> Result<OwnedFd, ProvisioningError> {
+    let descriptor = socket_with(
+        AddressFamily::UNIX,
+        socket_kind,
+        SocketFlags::CLOEXEC | SocketFlags::NONBLOCK,
+        None,
+    )
+    .map_err(io::Error::from)?;
+    let address = SocketAddrUnix::new(path).map_err(io::Error::from)?;
+    match connect(&descriptor, &address) {
+        Ok(()) => {}
+        Err(error) if error == rustix::io::Errno::INPROGRESS => {
+            let timeout = Timespec::try_from(deadline.remaining().map_err(EndpointError::from)?)
+                .map_err(|_| ProvisioningError::Rejected)?;
+            let mut fds = [PollFd::new(&descriptor, PollFlags::OUT)];
+            if poll(&mut fds, Some(&timeout)).map_err(io::Error::from)? != 1
+                || fds[0]
+                    .revents()
+                    .intersects(PollFlags::ERR | PollFlags::HUP | PollFlags::NVAL)
+                || !fds[0].revents().contains(PollFlags::OUT)
+            {
+                return Err(ProvisioningError::Rejected);
+            }
+        }
+        Err(error) => return Err(io::Error::from(error).into()),
+    }
+    if socket_error(&descriptor).map_err(io::Error::from)?.is_err() {
+        return Err(ProvisioningError::Rejected);
+    }
+    let flags = fcntl_getfl(&descriptor).map_err(io::Error::from)?;
+    fcntl_setfl(&descriptor, flags - OFlags::NONBLOCK).map_err(io::Error::from)?;
+    set_deadline_timeouts(&descriptor, deadline)?;
+    Ok(descriptor)
+}
+
+fn set_deadline_timeouts(
+    descriptor: &OwnedFd,
+    deadline: RequestDeadline,
+) -> Result<(), ProvisioningError> {
+    let remaining = deadline.remaining().map_err(EndpointError::from)?;
+    set_socket_timeout(descriptor, Timeout::Recv, Some(remaining)).map_err(io::Error::from)?;
+    set_socket_timeout(descriptor, Timeout::Send, Some(remaining)).map_err(io::Error::from)?;
+    Ok(())
+}
+
+fn recv_provisioning_response(
+    connection: &OwnedFd,
+) -> Result<(ProvisioningPacket, OwnedFd), ProvisioningError> {
+    let mut payload = [0_u8; PROVISIONING_PACKET_BYTES];
+    let mut iov = [IoSliceMut::new(&mut payload)];
+    let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(2), ScmCredentials(1))];
+    let mut ancillary = RecvAncillaryBuffer::new(&mut space);
+    let received = recvmsg(
+        connection,
+        &mut iov,
+        &mut ancillary,
+        RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
+    )
+    .map_err(io::Error::from)?;
+    let mut rights_messages = 0_usize;
+    let mut descriptors = Vec::new();
+    let mut other_message = false;
+    for message in ancillary.drain() {
+        match message {
+            RecvAncillaryMessage::ScmRights(rights) => {
+                rights_messages += 1;
+                descriptors.extend(rights);
+            }
+            _ => other_message = true,
+        }
+    }
+    let packet = ProvisioningPacket::decode(&payload)?;
+    if received.bytes != PROVISIONING_PACKET_BYTES
+        || received
+            .flags
+            .intersects(ReturnFlags::TRUNC | ReturnFlags::CTRUNC)
+        || rights_messages != 1
+        || descriptors.len() != 1
+        || other_message
+        || packet.status != HandoffStatus::Success
+    {
+        return Err(ProvisioningError::Rejected);
+    }
+    Ok((packet, descriptors.pop().expect("one descriptor checked")))
+}
+
+fn validate_anonymous_stream(
+    descriptor: &OwnedFd,
+    expected: ProcessEvidence,
+    expected_uid: u32,
+) -> Result<PeerIdentity, ProvisioningError> {
+    if socket_domain(descriptor).map_err(io::Error::from)? != AddressFamily::UNIX
+        || socket_type(descriptor).map_err(io::Error::from)? != SocketType::STREAM
+        || socket_acceptconn(descriptor).map_err(io::Error::from)?
+        || socket_error(descriptor).map_err(io::Error::from)?.is_err()
+        || !rustix::io::fcntl_getfd(descriptor)
+            .map_err(io::Error::from)?
+            .contains(rustix::io::FdFlags::CLOEXEC)
+    {
+        return Err(ProvisioningError::Rejected);
+    }
+    let address_probe = UnixStream::from(descriptor.as_fd().try_clone_to_owned()?);
+    let local = address_probe.local_addr()?;
+    let peer_address = address_probe.peer_addr()?;
+    if !local.is_unnamed()
+        || local.as_pathname().is_some()
+        || local.as_abstract_name().is_some()
+        || !peer_address.is_unnamed()
+        || peer_address.as_pathname().is_some()
+        || peer_address.as_abstract_name().is_some()
+    {
+        return Err(ProvisioningError::Rejected);
+    }
+    let peer = PeerIdentity::from_fd(descriptor)
+        .and_then(|identity| identity.require_owner(expected_uid))
+        .map_err(|_| ProvisioningError::Rejected)?;
+    if peer != expected.peer {
+        return Err(ProvisioningError::Rejected);
+    }
+    let mut byte = [0_u8; 1];
+    match recv(descriptor, &mut byte, RecvFlags::PEEK | RecvFlags::DONTWAIT) {
+        Err(error) if error == rustix::io::Errno::AGAIN => {}
+        _ => return Err(ProvisioningError::Rejected),
+    }
+    Ok(peer)
 }
 
 /// Exact 64-byte request or response on the private provisioning endpoint.
@@ -898,6 +1236,7 @@ pub enum HandoffError {
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+    use std::io::Write;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use rustix::io::{FdFlags, fcntl_getfd};
@@ -956,10 +1295,23 @@ mod tests {
 
         fn execute(
             &self,
-            _call: &crate::ControlCall,
+            call: &crate::ControlCall,
             _deadline: crate::RequestDeadline,
         ) -> Result<crate::BoundControlResult, crate::BackendFailure> {
-            Err(crate::BackendFailure::Rejected)
+            match call {
+                crate::ControlCall::Capabilities => Ok(crate::BoundControlResult::new(
+                    call,
+                    crate::ControlResult::Capabilities(crate::Capabilities {
+                        validate_settings: true,
+                        run_control: true,
+                        repeat: true,
+                        analysis: true,
+                        events: true,
+                    }),
+                )
+                .unwrap()),
+                _ => Err(crate::BackendFailure::Rejected),
+            }
         }
     }
 
@@ -1262,6 +1614,94 @@ mod tests {
         );
         assert!(matches!(
             recv_provisioning_request(&receiver),
+            Err(ProvisioningError::Rejected)
+        ));
+    }
+
+    #[test]
+    fn producer_returns_only_authenticated_anonymous_generation() {
+        let root = TestRoot::new();
+        let (control_dir, provisioning_dir) = root.endpoint_dirs();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            HandoffBackend,
+        )
+        .unwrap();
+        let service = thread::spawn(move || server.serve_connections(1, 1));
+
+        let producer = AuthenticatedGenerationProducer::new(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+        )
+        .unwrap();
+        let generation = BrokerGeneration {
+            epoch: [7; 16],
+            sequence: 1,
+        };
+        let authenticated = producer.acquire(generation).unwrap();
+        assert_eq!(authenticated.broker_generation(), generation);
+        assert_eq!(authenticated.kernel_peer().uid(), geteuid().as_raw());
+        assert_eq!(
+            authenticated.expected_runner_identity(),
+            runner_identity_digest("runner-handoff-test").unwrap()
+        );
+        drop(authenticated);
+        service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn proc_stat_parser_uses_final_command_delimiter() {
+        let mut record = b"42 (hostile ) name) R".to_vec();
+        for value in 1..=18 {
+            record.extend_from_slice(format!(" {value}").as_bytes());
+        }
+        record.extend_from_slice(b" 987654\n");
+        assert_eq!(parse_process_start_time(42, &record), Some(987654));
+        assert_eq!(parse_process_start_time(41, &record), None);
+    }
+
+    #[test]
+    fn router_rejects_multiple_descriptors_and_preloaded_streams() {
+        let (receiver, sender) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )
+        .unwrap();
+        let (first, mut first_peer) = UnixStream::pair().unwrap();
+        let (second, _second_peer) = UnixStream::pair().unwrap();
+        let packet = ProvisioningPacket {
+            status: HandoffStatus::Success,
+            nonce: [3; 16],
+            runner_identity: [4; 32],
+        };
+        let payload = packet.encode();
+        let iov = [IoSlice::new(&payload)];
+        let descriptors = [first.as_fd(), second.as_fd()];
+        let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(2))];
+        let mut ancillary = SendAncillaryBuffer::new(&mut space);
+        assert!(ancillary.push(SendAncillaryMessage::ScmRights(&descriptors)));
+        assert_eq!(
+            sendmsg(&sender, &iov, &mut ancillary, SendFlags::NOSIGNAL).unwrap(),
+            PROVISIONING_PACKET_BYTES
+        );
+        assert!(matches!(
+            recv_provisioning_response(&receiver),
+            Err(ProvisioningError::Rejected)
+        ));
+
+        let peer = PeerIdentity::from_fd(&first).unwrap();
+        let evidence = process_evidence(peer).unwrap();
+        first_peer.write_all(b"x").unwrap();
+        let descriptor: OwnedFd = first.into();
+        assert!(matches!(
+            validate_anonymous_stream(&descriptor, evidence, geteuid().as_raw()),
             Err(ProvisioningError::Rejected)
         ));
     }
