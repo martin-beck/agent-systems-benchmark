@@ -291,6 +291,11 @@ impl Configuration {
         validate_names(self.profiles.keys())?;
         validate_names(self.agent_overrides.keys())?;
         validate_list(&self.defaults.agents, "defaults.agents")?;
+        for name in &self.defaults.agents {
+            if !self.agents.contains_key(name) {
+                return Err(ConfigError::UnknownReference(name.clone()));
+            }
+        }
         validate_list(&self.defaults.measures, "defaults.measures")?;
         if self.defaults.repetitions == 0 {
             return Err(ConfigError::InvalidValue("defaults.repetitions".into()));
@@ -368,6 +373,12 @@ impl Configuration {
                 value: built_in_defaults().agents,
                 origin: ValueOrigin::BuiltIn,
             };
+        } else {
+            // `Agent.enabled` controls membership in the implicit default
+            // selection; explicit run-level selections remain authoritative.
+            agents
+                .value
+                .retain(|name| self.agents.get(name).is_some_and(|agent| agent.enabled));
         }
         if self.defaults.measures.is_empty() {
             measures = Effective {
@@ -785,6 +796,30 @@ mod tests {
         );
         config.defaults.repetitions = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn disabled_default_agents_are_not_selected() {
+        let mut config = sample();
+        config.agents.get_mut("codex").unwrap().enabled = false;
+        assert!(
+            config
+                .resolve_defaults(None, None)
+                .unwrap()
+                .agents
+                .value
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn defaults_must_reference_declared_agents() {
+        let mut config = sample();
+        config.defaults.agents = vec!["missing".into()];
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::UnknownReference(name)) if name == "missing"
+        ));
     }
 
     #[test]
