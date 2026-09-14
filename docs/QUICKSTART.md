@@ -76,6 +76,12 @@ operations backed by the authoritative control API. Unknown fields, versions,
 types, formats, or arguments are rejected; the response contains no local paths,
 identity, environment, or provider configuration.
 
+Install the optional standalone application with `asb tui install`, then launch
+it with `asb tui`. ASB only authenticates, installs, and delegates lifecycle
+operations; all terminal UI code lives in the asb-tui repository. See the
+[optional TUI lifecycle](ASB_TUI_LIFECYCLE.md) for trust, offline, XDG, status,
+and removal semantics.
+
 ## Recording once and replaying later
 
 Recording is opt-in and requires a bounded `RecordingCapture` JSON envelope

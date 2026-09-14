@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "repository": "martin-beck/asb-tui",
+  "lifecycle_contract_commit": "d58eda9b74431752675f784978dd5851f4eb9f18",
+  "interactive_launch_qualification_commit": null,
+  "interactive_launch_qualification_tree": null,
+  "interactive_launch_qualification_status": "awaiting_repaired_independently_reviewed_successor",
+  "lifecycle_request_schema_sha256": "233a8bae0349cd4e12742005fdefc1c5da876a7826bb742418f0417e6c597730",
+  "lifecycle_response_schema_sha256": "52f7d909dd085afdf0f74623e2a2c9e8ca7de1764c04e44ebc7d4929e7bae97a",
+  "bundle_manifest_schema_sha256": "c259ff4fd77f0653d2a34d4aab2cd3e454cceb3e98d4db1ee78403dd59fbf02b"
+}
