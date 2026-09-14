@@ -6,6 +6,7 @@ pub mod capabilities;
 mod control;
 mod provider_launch;
 mod tui;
+pub mod tui_handoff;
 
 use asb_agents::all_agents_provider::{
     ALL_AGENTS_PROVIDER_SELECTION_V1, AllAgentsProviderKind, AllAgentsProviderSelection,

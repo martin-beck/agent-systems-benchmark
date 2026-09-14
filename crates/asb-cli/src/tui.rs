@@ -4,8 +4,8 @@
 
 use crate::{CliError, output_error, write_json};
 use rustix::fs::{
-    AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fsync, memfd_create, mkdirat,
-    openat, renameat, unlinkat,
+    AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
+    memfd_create, mkdirat, openat, renameat, unlinkat,
 };
 use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, kill_process_group, waitid};
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,6 @@ use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -1292,24 +1291,19 @@ fn run_candidate(
         .ok_or_else(|| RouterError::operation("candidate_request_failed"))?
         .write_all(&encoded)
         .map_err(|_| RouterError::operation("candidate_request_failed"))?;
-    let output = child
+    let mut output = child
         .stdout
         .take()
         .ok_or_else(|| RouterError::operation("candidate_response_invalid"))?;
-    let (sender, receiver) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let result = output
-            .take(RESPONSE_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map(|_| bytes);
-        let _ = sender.send(result);
-    });
-    let status = wait_child(&mut child, pid, bounded)?;
-    let bytes = receiver
-        .recv_timeout(DELEGATE_TIMEOUT)
-        .map_err(|_| RouterError::operation("candidate_response_invalid"))?
+    // A candidate may accidentally leave a descendant holding stdout open.
+    // Make the pipe nonblocking and drain it after the leader exits, so the
+    // router never waits for an unowned descendant or reader thread.
+    let flags =
+        fcntl_getfl(&output).map_err(|_| RouterError::operation("candidate_response_invalid"))?;
+    fcntl_setfl(&output, flags | OFlags::NONBLOCK)
         .map_err(|_| RouterError::operation("candidate_response_invalid"))?;
+    let status = wait_child(&mut child, pid, bounded)?;
+    let bytes = drain_candidate_output(&mut output, status.success())?;
     if bytes.len() as u64 > RESPONSE_BYTES || !matches!(status.code(), Some(0 | 3)) {
         return Err(RouterError::policy("candidate_response_invalid"));
     }
@@ -1319,6 +1313,37 @@ fn run_candidate(
         return Err(RouterError::policy("candidate_response_invalid"));
     }
     Ok(response)
+}
+
+fn drain_candidate_output(
+    output: &mut impl Read,
+    leader_succeeded: bool,
+) -> Result<Vec<u8>, RouterError> {
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    loop {
+        match output.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(count) => {
+                bytes.extend_from_slice(&buffer[..count]);
+                if bytes.len() as u64 > RESPONSE_BYTES {
+                    return Err(RouterError::policy("candidate_response_invalid"));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(_) => return Err(RouterError::operation("candidate_response_invalid")),
+        }
+    }
+    if bytes.is_empty() && leader_succeeded {
+        return Err(RouterError::policy("candidate_response_invalid"));
+    }
+    Ok(bytes)
 }
 
 fn add_candidate_environment(command: &mut Command) -> Result<(), RouterError> {
