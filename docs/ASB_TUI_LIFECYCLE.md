@@ -41,6 +41,8 @@ DCO identity matching follows the canonical Git author string used by hosted pol
 
 Each promotion records the exact source commit and tree before artifact publication.
 
+Hosted qualification is a prerequisite for changing the public channel classification.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
