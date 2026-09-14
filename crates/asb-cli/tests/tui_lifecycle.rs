@@ -3,12 +3,18 @@
 //! Process-boundary lifecycle-router checks. The ASB binary never renders a TUI.
 
 use serde_json::Value;
+#[cfg(target_arch = "x86_64")]
 use sha2::{Digest, Sha256};
 use std::fs;
+#[cfg(target_arch = "x86_64")]
 use std::io::Write;
-use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+use std::os::unix::fs::DirBuilderExt;
+#[cfg(target_arch = "x86_64")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+#[cfg(target_arch = "x86_64")]
+use std::process::Stdio;
+use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NONCE: AtomicU64 = AtomicU64::new(0);
@@ -54,6 +60,7 @@ fn response(output: &Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap()
 }
 
+#[cfg(target_arch = "x86_64")]
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
