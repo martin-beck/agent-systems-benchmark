@@ -43,6 +43,8 @@ Each promotion records the exact source commit and tree before artifact publicat
 
 Hosted qualification is a prerequisite for changing the public channel classification.
 
+The channel remains fail-closed until every required artifact and evidence identity is immutable.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
