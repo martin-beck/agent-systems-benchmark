@@ -296,6 +296,15 @@ impl Drop for ProvisioningSocket {
 }
 
 fn validate_private_directory(path: &Path) -> Result<(), ProvisioningError> {
+    // `symlink_metadata` protects the final directory entry only.  A trusted
+    // endpoint authority also requires every ancestor to remain the exact
+    // path supplied by the caller: otherwise a replaceable symlink in an
+    // ancestor could redirect the endpoint between validation and bind.
+    // Callers provide existing runtime directories, so canonicalization is a
+    // bounded, read-only check and rejecting aliases is fail-closed.
+    if fs::canonicalize(path).ok().as_deref() != Some(path) {
+        return Err(ProvisioningError::UnsafeDirectory);
+    }
     let metadata = fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink()
         || !metadata.is_dir()
@@ -2247,6 +2256,32 @@ mod tests {
             recv_provisioning_request(&receiver),
             Err(ProvisioningError::Rejected)
         ));
+    }
+
+    #[test]
+    fn endpoint_ancestor_symlink_is_rejected_before_bind() {
+        let root = TestRoot::new();
+        let real = root.0.join("real");
+        let alias = root.0.join("alias");
+        fs::create_dir(&real).unwrap();
+        fs::set_permissions(&real, Permissions::from_mode(0o700)).unwrap();
+        let control_dir = real.join("control");
+        let provisioning_dir = real.join("provisioning");
+        fs::create_dir(&control_dir).unwrap();
+        fs::create_dir(&provisioning_dir).unwrap();
+        fs::set_permissions(&control_dir, Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&provisioning_dir, Permissions::from_mode(0o700)).unwrap();
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let result = ProvisionedControlServer::bind(
+            alias.join("control/control.sock"),
+            alias.join("provisioning/provision.sock"),
+            ControlLimits::default(),
+            HandoffBackend,
+        );
+        assert!(matches!(result, Err(ProvisioningError::UnsafeDirectory)));
+        assert!(!control_dir.join("control.sock").exists());
+        assert!(!provisioning_dir.join("provision.sock").exists());
     }
 
     #[test]
