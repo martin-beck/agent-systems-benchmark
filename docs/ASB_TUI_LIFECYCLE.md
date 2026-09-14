@@ -45,6 +45,8 @@ Hosted qualification is a prerequisite for changing the public channel classific
 
 The channel remains fail-closed until every required artifact and evidence identity is immutable.
 
+CI evidence is retained by exact commit identity, never by a mutable branch name.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
