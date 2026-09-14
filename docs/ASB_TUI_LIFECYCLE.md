@@ -37,6 +37,18 @@ Both sides can validate this seam independently before a release is promoted.
 
 GitHub merge metadata is retained separately from the signed topic history for auditability.
 
+DCO identity matching follows the canonical Git author string used by hosted policy.
+
+Each promotion records the exact source commit and tree before artifact publication.
+
+Hosted qualification is a prerequisite for changing the public channel classification.
+
+The channel remains fail-closed until every required artifact and evidence identity is immutable.
+
+CI evidence is retained by exact commit identity, never by a mutable branch name.
+
+Promotion records are auditable independently of transient CI runner availability.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
