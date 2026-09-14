@@ -82,6 +82,7 @@ dependencies = [
  "asb-workloads",
  "jsonschema",
  "libc",
+ "rustix",
  "schemars",
  "serde",
  "serde_json",
