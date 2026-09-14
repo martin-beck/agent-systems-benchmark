@@ -27,6 +27,9 @@ An ASB checkout remains usable without terminal UI dependencies; installing
 `asb-tui` is an explicit opt-in operation, and UI implementation changes belong
 in the standalone repository.
 
+The lifecycle contract is versioned independently from the TUI presentation
+layer, allowing each repository to release and validate on its own cadence.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
