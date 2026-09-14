@@ -39,6 +39,8 @@ GitHub merge metadata is retained separately from the signed topic history for a
 
 DCO identity matching follows the canonical Git author string used by hosted policy.
 
+Each promotion records the exact source commit and tree before artifact publication.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
