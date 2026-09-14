@@ -30,6 +30,9 @@ in the standalone repository.
 The lifecycle contract is versioned independently from the TUI presentation
 layer, allowing each repository to release and validate on its own cadence.
 
+The authenticated handoff remains the sole integration seam between the
+benchmark runner and the separately shipped UI.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
