@@ -11,3 +11,5 @@ protected-main merge boundary.
 The replacement preserves the reviewed product tree and does not alter policy,
 verification, or application behavior. The final protected integration merge is
 required to be GitHub Web Flow signed and DCO-bearing.
+
+The protected merge identity is `martin-beck <martin.beck2@gmx.de>`.
