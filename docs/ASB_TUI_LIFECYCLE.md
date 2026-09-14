@@ -35,6 +35,8 @@ benchmark runner and the separately shipped UI.
 
 Both sides can validate this seam independently before a release is promoted.
 
+GitHub merge metadata is retained separately from the signed topic history for auditability.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
