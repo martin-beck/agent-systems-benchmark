@@ -19,6 +19,10 @@ The install and upgrade commands accept `--offline`, `--dry-run`, and
 authenticates and validates every input but neither executes nor activates the
 candidate. `--version` reports the router version.
 
+The router remains intentionally renderer-neutral: terminal drawing, keymaps,
+screens, and report presentation are delegated to the separately installed
+`asb-tui` executable through the authenticated handoff contract.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
