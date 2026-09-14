@@ -23,6 +23,10 @@ The router remains intentionally renderer-neutral: terminal drawing, keymaps,
 screens, and report presentation are delegated to the separately installed
 `asb-tui` executable through the authenticated handoff contract.
 
+An ASB checkout remains usable without terminal UI dependencies; installing
+`asb-tui` is an explicit opt-in operation, and UI implementation changes belong
+in the standalone repository.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
