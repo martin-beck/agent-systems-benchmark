@@ -1,3 +1,5 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
 """Keep the ASB/asb-tui application boundary mechanically enforced."""
 
 from pathlib import Path
