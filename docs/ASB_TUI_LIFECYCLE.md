@@ -47,6 +47,8 @@ The channel remains fail-closed until every required artifact and evidence ident
 
 CI evidence is retained by exact commit identity, never by a mutable branch name.
 
+Promotion records are auditable independently of transient CI runner availability.
+
 ## Trust and transaction boundary
 
 Online acquisition uses fixed HTTPS channel URLs, a fixed embedded SSH signer,
