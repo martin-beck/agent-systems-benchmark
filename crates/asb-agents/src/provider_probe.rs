@@ -114,6 +114,11 @@ where
             }
         })
     };
+    let remaining_budget = |budget: &Option<(&dyn Cancellation, Instant, Duration)>| {
+        budget
+            .as_ref()
+            .map(|(_, started, limit)| limit.saturating_sub(started.elapsed()))
+    };
     request
         .validate()
         .map_err(ProbeTransportError::InvalidRequest)?;
@@ -144,11 +149,13 @@ where
     if let Some(error) = budget_error(&budget) {
         return Err(ProbeTransportError::Authentication(error));
     }
-    let mut stream = TcpStream::connect_timeout(&address, timeout)
+    let connect_timeout = remaining_budget(&budget).unwrap_or(timeout);
+    let mut stream = TcpStream::connect_timeout(&address, connect_timeout)
         .map_err(|_| ProbeTransportError::Unavailable)?;
+    let socket_timeout = remaining_budget(&budget).unwrap_or(timeout);
     stream
-        .set_read_timeout(Some(timeout))
-        .and_then(|_| stream.set_write_timeout(Some(timeout)))
+        .set_read_timeout(Some(socket_timeout))
+        .and_then(|_| stream.set_write_timeout(Some(socket_timeout)))
         .map_err(|_| ProbeTransportError::Unavailable)?;
     let path = if url.path().is_empty() {
         "/"
@@ -187,9 +194,17 @@ where
         if let Some(error) = budget_error(&budget) {
             return Err(ProbeTransportError::Authentication(error));
         }
-        let read = stream
-            .read(&mut chunk)
-            .map_err(|_| ProbeTransportError::Unavailable)?;
+        if let Some(remaining) = remaining_budget(&budget) {
+            stream
+                .set_read_timeout(Some(remaining))
+                .map_err(|_| ProbeTransportError::Unavailable)?;
+        }
+        let read = stream.read(&mut chunk).map_err(|_| {
+            budget_error(&budget).map_or(
+                ProbeTransportError::Unavailable,
+                ProbeTransportError::Authentication,
+            )
+        })?;
         if read == 0 {
             break;
         }
