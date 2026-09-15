@@ -3674,6 +3674,46 @@ mod tests {
         assert_eq!(error["error"]["code"], "usage");
     }
 
+    #[test]
+    fn auth_dispatch_emits_bounded_typed_request_without_secret_material() {
+        let args: Vec<OsString> = [
+            "auth",
+            "enroll",
+            "--provider",
+            "gemini",
+            "--endpoint-digest",
+            "a".repeat(64).as_str(),
+            "--credential-digest",
+            "b".repeat(64).as_str(),
+            "--idempotency-key",
+            "enroll-1",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let request: asb_control::ControlRequest = serde_json::from_slice(&output).unwrap();
+        assert!(matches!(
+            request.call,
+            asb_control::ControlCall::AuthEnroll(_)
+        ));
+        assert!(!output.windows(7).any(|window| window == b"secret!"));
+    }
+
+    #[test]
+    fn auth_dispatch_rejects_missing_options_without_output() {
+        let args: Vec<OsString> = ["auth", "rotate", "--provider", "ollama"]
+            .into_iter()
+            .map(OsString::from)
+            .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        let error: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(error["ok"], false);
+        assert!(error.to_string().len() < 1024);
+    }
+
     fn provider_args(catalog: &str, agents: &[&str]) -> Vec<OsString> {
         let mut args = vec![
             "provider-plan".into(),
