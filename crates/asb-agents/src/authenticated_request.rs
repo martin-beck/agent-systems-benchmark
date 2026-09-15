@@ -221,6 +221,14 @@ pub fn validate_json_instance(value: &serde_json::Value) -> Result<(), AuthReque
         .get("provider")
         .and_then(serde_json::Value::as_str)
         .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    let endpoint = object
+        .get("endpoint_identity_sha256")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    let generation = object
+        .get("generation")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
     let policy = object
         .get("policy")
         .and_then(serde_json::Value::as_str)
@@ -233,6 +241,22 @@ pub fn validate_json_instance(value: &serde_json::Value) -> Result<(), AuthReque
         .get("deadline_ms")
         .and_then(serde_json::Value::as_u64)
         .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    let response = object
+        .get("max_response_bytes")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    if endpoint.len() != 64
+        || !endpoint
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        || generation == 0
+        || timeout == 0
+        || timeout > MAX_AUTH_REQUEST_TIMEOUT_MS
+        || response == 0
+        || response > MAX_AUTH_RESPONSE_BYTES as u64
+    {
+        return Err(AuthRequestError::InvalidSchemaInstance);
+    }
     if !matches!(
         (provider, policy),
         ("open_ai", "bearer") | ("gemini", "api_key") | ("ollama", "bearer" | "none")
@@ -450,6 +474,15 @@ mod tests {
         invalid["deadline_ms"] = serde_json::json!(0);
         assert!(validate_json_instance(&invalid).is_err());
         invalid["deadline_ms"] = serde_json::json!(MAX_AUTH_DEADLINE_MS.saturating_add(1));
+        assert!(validate_json_instance(&invalid).is_err());
+        invalid["deadline_ms"] = serde_json::json!(2000);
+        invalid["endpoint_identity_sha256"] = serde_json::json!("not-a-digest");
+        assert!(validate_json_instance(&invalid).is_err());
+        invalid["endpoint_identity_sha256"] = serde_json::json!("a".repeat(64));
+        invalid["generation"] = serde_json::json!(0);
+        assert!(validate_json_instance(&invalid).is_err());
+        invalid["generation"] = serde_json::json!(1);
+        invalid["max_response_bytes"] = serde_json::json!(MAX_AUTH_RESPONSE_BYTES + 1);
         assert!(validate_json_instance(&invalid).is_err());
     }
 }
