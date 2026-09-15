@@ -299,4 +299,32 @@ mod tests {
         request.timeout_ms = 0;
         assert_eq!(request.validate(), Err(AuthRequestError::InvalidTimeout));
     }
+
+    #[test]
+    fn schema_shape_rejects_unknown_fields() {
+        let value: serde_json::Value = serde_json::json!({
+            "provider": "open_ai",
+            "endpoint_identity_sha256": "a".repeat(64),
+            "generation": 1,
+            "timeout_ms": 1000,
+            "max_response_bytes": 1024,
+            "policy": "bearer",
+            "secret": "must-not-be-present"
+        });
+        let allowed = [
+            "provider",
+            "endpoint_identity_sha256",
+            "generation",
+            "timeout_ms",
+            "max_response_bytes",
+            "policy",
+        ];
+        assert!(
+            !value
+                .as_object()
+                .unwrap()
+                .keys()
+                .all(|key| allowed.contains(&key.as_str()))
+        );
+    }
 }
