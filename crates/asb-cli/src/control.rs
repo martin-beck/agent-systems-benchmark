@@ -1961,6 +1961,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn parallel_scratch_creation_never_reuses_a_private_root() {
+        let base = validate_test_base(&std::env::temp_dir()).unwrap();
+        let roots = std::thread::scope(|scope| {
+            let workers = (0..32)
+                .map(|_| {
+                    let base = base.clone();
+                    scope.spawn(move || {
+                        let scratch = create_test_scratch(&base, "parallel").unwrap();
+                        let metadata = fs::symlink_metadata(&scratch.0).unwrap();
+                        assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
+                        (scratch, metadata.dev(), metadata.ino())
+                    })
+                })
+                .collect::<Vec<_>>();
+            workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+
+        let mut paths = std::collections::HashSet::new();
+        let mut identities = std::collections::HashSet::new();
+        for (scratch, device, inode) in roots {
+            assert!(paths.insert(scratch.0.clone()));
+            assert!(identities.insert((device, inode)));
+        }
+        assert_eq!(paths.len(), 32);
+        assert_eq!(identities.len(), 32);
+    }
+
     fn fixture_plan(root: &Path) -> PlanFile {
         fixture_plan_with_script(
             root,
