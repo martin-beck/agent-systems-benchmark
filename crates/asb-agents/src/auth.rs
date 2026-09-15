@@ -3,7 +3,8 @@
 //! Metadata-only provider authentication enrollment.
 //!
 //! This module deliberately owns references and lifecycle state, never secret
-//! bytes. Secret resolution remains at the execution boundary in [`credential`].
+//! bytes. Secret resolution remains at the execution boundary in the
+//! [`crate::credential`] module.
 
 use asb_protocol::CredentialSource;
 use serde::{Deserialize, Serialize};
