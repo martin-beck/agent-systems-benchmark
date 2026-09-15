@@ -156,9 +156,35 @@ where
     if let Some(error) = budget_error(&budget) {
         return Err(ProbeTransportError::Authentication(error));
     }
-    let connect_timeout = remaining_budget(&budget).unwrap_or(timeout);
-    let mut stream = TcpStream::connect_timeout(&address, connect_timeout)
-        .map_err(|_| ProbeTransportError::Unavailable)?;
+    let mut stream = if budget.is_some() {
+        let quantum = Duration::from_millis(50);
+        loop {
+            if let Some(error) = budget_error(&budget) {
+                return Err(ProbeTransportError::Authentication(error));
+            }
+            let remaining = remaining_budget(&budget).unwrap_or_default();
+            if remaining.is_zero() {
+                return Err(ProbeTransportError::Authentication(
+                    AuthRequestError::DeadlineExceeded,
+                ));
+            }
+            match TcpStream::connect_timeout(&address, remaining.min(quantum)) {
+                Ok(stream) => break stream,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                    ) =>
+                {
+                    continue;
+                }
+                Err(_) => return Err(ProbeTransportError::Unavailable),
+            }
+        }
+    } else {
+        TcpStream::connect_timeout(&address, timeout)
+            .map_err(|_| ProbeTransportError::Unavailable)?
+    };
     let socket_timeout = remaining_budget(&budget).unwrap_or(timeout);
     stream
         .set_read_timeout(Some(socket_timeout))
@@ -180,20 +206,14 @@ where
     if let Some(error) = budget_error(&budget) {
         return Err(ProbeTransportError::Authentication(error));
     }
-    write!(
-        stream,
-        "GET {target} HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n"
-    )
-    .map_err(|_| ProbeTransportError::Unavailable)?;
+    let request_line =
+        format!("GET {target} HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n");
+    write_probe_bytes(&mut stream, request_line.as_bytes(), &budget)?;
     if let Some(header) = auth_header {
-        stream
-            .write_all(header)
-            .and_then(|_| stream.write_all(b"\r\n\r\n"))
-            .map_err(|_| ProbeTransportError::Unavailable)?;
+        write_probe_bytes(&mut stream, header, &budget)?;
+        write_probe_bytes(&mut stream, b"\r\n\r\n", &budget)?;
     } else {
-        stream
-            .write_all(b"\r\n")
-            .map_err(|_| ProbeTransportError::Unavailable)?;
+        write_probe_bytes(&mut stream, b"\r\n", &budget)?;
     }
     let mut response = Vec::with_capacity(request.max_response_bytes.min(4096));
     let mut chunk = [0_u8; 1024];
@@ -269,6 +289,50 @@ where
         body_len,
         content_type_json,
     ))
+}
+
+fn write_probe_bytes(
+    stream: &mut TcpStream,
+    bytes: &[u8],
+    budget: &Option<(&dyn Cancellation, Instant, Duration)>,
+) -> Result<(), ProbeTransportError> {
+    if budget.is_none() {
+        return stream
+            .write_all(bytes)
+            .map_err(|_| ProbeTransportError::Unavailable);
+    }
+    let (cancelled, started, limit) = budget.as_ref().expect("checked above");
+    let mut offset = 0;
+    while offset < bytes.len() {
+        if cancelled.is_cancelled() {
+            return Err(ProbeTransportError::Authentication(
+                AuthRequestError::CancelledOrStale,
+            ));
+        }
+        let remaining = limit.saturating_sub(started.elapsed());
+        if remaining.is_zero() {
+            return Err(ProbeTransportError::Authentication(
+                AuthRequestError::DeadlineExceeded,
+            ));
+        }
+        stream
+            .set_write_timeout(Some(remaining.min(Duration::from_millis(50))))
+            .map_err(|_| ProbeTransportError::Unavailable)?;
+        match stream.write(&bytes[offset..]) {
+            Ok(0) => return Err(ProbeTransportError::Unavailable),
+            Ok(written) => offset += written,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                ) =>
+            {
+                continue;
+            }
+            Err(_) => return Err(ProbeTransportError::Unavailable),
+        }
+    }
+    Ok(())
 }
 
 /// Failures from the qualified bounded probe transport.
