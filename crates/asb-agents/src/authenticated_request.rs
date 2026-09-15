@@ -9,6 +9,8 @@ use sha2::{Digest, Sha256};
 pub const MAX_AUTH_REQUEST_TIMEOUT_MS: u64 = 30_000;
 /// Maximum response body accepted by an authenticated request.
 pub const MAX_AUTH_RESPONSE_BYTES: usize = 16 * 1024;
+/// Maximum representable monotonic deadline accepted by the public schema.
+pub const MAX_AUTH_DEADLINE_MS: u64 = i64::MAX as u64;
 
 /// Provider authentication policy, selected explicitly by the validated profile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -68,7 +70,10 @@ impl AuthenticatedRequest {
         if self.timeout_ms == 0 || self.timeout_ms > MAX_AUTH_REQUEST_TIMEOUT_MS {
             return Err(AuthRequestError::InvalidTimeout);
         }
-        if self.deadline_ms == 0 || self.deadline_ms < self.timeout_ms {
+        if self.deadline_ms == 0
+            || self.deadline_ms > MAX_AUTH_DEADLINE_MS
+            || self.deadline_ms < self.timeout_ms
+        {
             return Err(AuthRequestError::InvalidDeadline);
         }
         if self.max_response_bytes == 0 || self.max_response_bytes > MAX_AUTH_RESPONSE_BYTES {
@@ -331,6 +336,8 @@ mod tests {
         assert_eq!(request.validate(), Err(AuthRequestError::InvalidTimeout));
         request.timeout_ms = 1_000;
         request.deadline_ms = 0;
+        assert_eq!(request.validate(), Err(AuthRequestError::InvalidDeadline));
+        request.deadline_ms = MAX_AUTH_DEADLINE_MS + 1;
         assert_eq!(request.validate(), Err(AuthRequestError::InvalidDeadline));
     }
 
