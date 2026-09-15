@@ -361,14 +361,20 @@ pub fn control_response_schema_v1_3() -> Schema {
 
 /// Canonical request schema for control v1.4.
 pub fn control_request_schema_v1_4() -> Schema {
-    canonical::<ControlRequest>()
+    let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
+    remove_lifecycle_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.4 request schema remains valid")
 }
 
 /// Canonical response schema for control v1.4.
 pub fn control_response_schema_v1_4() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
-    schema
+    let mut value = serde_json::to_value(schema).expect("v1.4 response schema serializes");
+    remove_lifecycle_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.4 response schema remains valid")
 }
 
 /// Canonical request schema for control v1.5.
