@@ -2104,7 +2104,7 @@ sleep 30 &
 first=$!
 sleep 30 &
 second=$!
-printf '%s\n%s\n' "$first" "$second" > "$5/children.pids"
+printf '%s\n%s\n' "$first" "$second" > children.pids
 wait
 "#,
         )
