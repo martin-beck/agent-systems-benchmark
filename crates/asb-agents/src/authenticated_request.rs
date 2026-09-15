@@ -107,14 +107,14 @@ impl AuthenticatedRequest {
     pub fn inject(
         self,
         endpoint: &str,
-        current_generation: u64,
+        current_generation: impl Fn() -> u64,
         now_ms: u64,
         credential: ResolvedCredential,
         sink: &mut impl HeaderSink,
         cancelled: impl Cancellation,
     ) -> Result<(), AuthRequestError> {
         self.validate_endpoint(endpoint)?;
-        if current_generation != self.generation || cancelled.is_cancelled() {
+        if current_generation() != self.generation || cancelled.is_cancelled() {
             return Err(AuthRequestError::CancelledOrStale);
         }
         if now_ms >= self.deadline_ms || self.deadline_ms.saturating_sub(now_ms) > self.timeout_ms {
@@ -131,7 +131,7 @@ impl AuthenticatedRequest {
             AuthPolicy::None => Ok(()),
         };
         bytes.fill(0);
-        if cancelled.is_cancelled() {
+        if current_generation() != self.generation || cancelled.is_cancelled() {
             return Err(AuthRequestError::CancelledOrStale);
         }
         match result {
@@ -287,7 +287,7 @@ mod tests {
     use super::*;
     use std::sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     };
 
     struct Sink {
@@ -299,6 +299,13 @@ mod tests {
     impl HeaderSink for CancellingSink {
         fn write_header(&mut self, _: &[u8], _: &[u8], _: &[u8]) -> Result<(), HeaderWriteError> {
             self.0.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+    struct GenerationSink(Arc<AtomicU64>);
+    impl HeaderSink for GenerationSink {
+        fn write_header(&mut self, _: &[u8], _: &[u8], _: &[u8]) -> Result<(), HeaderWriteError> {
+            self.0.store(5, Ordering::SeqCst);
             Ok(())
         }
     }
@@ -370,7 +377,7 @@ mod tests {
             .clone()
             .inject(
                 "http://127.0.0.1:9/v1/models",
-                1,
+                || 1,
                 1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
@@ -385,7 +392,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                1,
+                || 1,
                 1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut failing,
@@ -396,7 +403,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                1,
+                || 1,
                 1_500,
                 crate::credential::ResolvedCredential::from_test(b""),
                 &mut sink,
@@ -407,7 +414,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/chat",
-                1,
+                || 1,
                 1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
@@ -418,7 +425,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                2,
+                || 2,
                 1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
@@ -429,7 +436,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                1,
+                || 1,
                 2_000,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
@@ -576,7 +583,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                4,
+                || 4,
                 1000,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
@@ -589,7 +596,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                4,
+                || 4,
                 1000,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut cancelling,
@@ -600,7 +607,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                5,
+                || 5,
                 1000,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
@@ -616,7 +623,7 @@ mod tests {
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
-                4,
+                || 4,
                 1000,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut partial,
@@ -627,5 +634,18 @@ mod tests {
         assert!(partial.failed);
         assert!(partial.rolled_back);
         assert_eq!(partial.bytes_written, 0);
+        let generation = Arc::new(AtomicU64::new(4));
+        let mut generation_sink = GenerationSink(generation.clone());
+        assert_eq!(
+            request.inject(
+                "http://127.0.0.1:9/v1/models",
+                || generation.load(Ordering::SeqCst),
+                1000,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut generation_sink,
+                || false
+            ),
+            Err(AuthRequestError::CancelledOrStale)
+        );
     }
 }
