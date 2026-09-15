@@ -17,6 +17,8 @@ pub enum AuthPolicy {
     Bearer,
     /// `X-API-Key: <credential>`.
     ApiKey,
+    /// No credential header for an explicitly unauthenticated Ollama deployment.
+    None,
 }
 
 /// Provider family for authentication policy validation.
@@ -69,7 +71,9 @@ impl AuthenticatedRequest {
         }
         if matches!(
             (self.provider, self.policy),
-            (AuthProvider::Gemini, AuthPolicy::Bearer)
+            (AuthProvider::Gemini, AuthPolicy::Bearer | AuthPolicy::None)
+                | (AuthProvider::OpenAi, AuthPolicy::ApiKey | AuthPolicy::None)
+                | (AuthProvider::Ollama, AuthPolicy::ApiKey)
         ) {
             return Err(AuthRequestError::UnsupportedPolicy);
         }
@@ -88,19 +92,30 @@ impl AuthenticatedRequest {
     /// Bind and consume a resolved credential at the final header-writing boundary.
     pub fn inject(
         self,
+        endpoint: &str,
+        current_generation: u64,
         credential: ResolvedCredential,
         sink: &mut impl HeaderSink,
+        cancelled: impl Fn() -> bool,
     ) -> Result<(), AuthRequestError> {
-        self.validate()?;
+        self.validate_endpoint(endpoint)?;
+        if current_generation != self.generation || cancelled() {
+            return Err(AuthRequestError::CancelledOrStale);
+        }
         let mut bytes = credential.into_transport_bytes();
-        if bytes.is_empty() {
+        if bytes.is_empty() && !matches!(self.policy, AuthPolicy::None) {
+            bytes.fill(0);
             return Err(AuthRequestError::InvalidCredential);
         }
         let result = match self.policy {
             AuthPolicy::Bearer => sink.write_header(b"authorization", b"Bearer ", &bytes),
             AuthPolicy::ApiKey => sink.write_header(b"x-api-key", b"", &bytes),
+            AuthPolicy::None => Ok(()),
         };
         bytes.fill(0);
+        if cancelled() {
+            return Err(AuthRequestError::CancelledOrStale);
+        }
         result.map_err(|_| AuthRequestError::TransportRejected)
     }
 }
@@ -139,6 +154,8 @@ pub enum AuthRequestError {
     InvalidCredential,
     /// The concrete endpoint did not match its enrolled identity.
     EndpointIdentityMismatch,
+    /// The request was cancelled or its enrollment generation became stale.
+    CancelledOrStale,
 }
 
 /// Compute the endpoint identity used by [`AuthenticatedRequest`].
@@ -198,8 +215,11 @@ mod tests {
         request
             .clone()
             .inject(
+                "http://127.0.0.1:9/v1/models",
+                1,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
+                || false,
             )
             .unwrap();
         assert_eq!(sink.output, b"authorization: Bearer secret");
@@ -209,17 +229,43 @@ mod tests {
         };
         assert_eq!(
             request.clone().inject(
+                "http://127.0.0.1:9/v1/models",
+                1,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
-                &mut failing
+                &mut failing,
+                || false,
             ),
             Err(AuthRequestError::TransportRejected)
         );
         assert_eq!(
-            request.inject(
+            request.clone().inject(
+                "http://127.0.0.1:9/v1/models",
+                1,
                 crate::credential::ResolvedCredential::from_test(b""),
-                &mut sink
+                &mut sink,
+                || false,
             ),
             Err(AuthRequestError::InvalidCredential)
+        );
+        assert_eq!(
+            request.clone().inject(
+                "http://127.0.0.1:9/v1/chat",
+                1,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut sink,
+                || false,
+            ),
+            Err(AuthRequestError::EndpointIdentityMismatch)
+        );
+        assert_eq!(
+            request.inject(
+                "http://127.0.0.1:9/v1/models",
+                2,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut sink,
+                || false,
+            ),
+            Err(AuthRequestError::CancelledOrStale)
         );
     }
 
