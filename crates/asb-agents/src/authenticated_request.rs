@@ -183,6 +183,8 @@ pub enum AuthRequestError {
     InvalidCredential,
     /// The concrete endpoint did not match its enrolled identity.
     EndpointIdentityMismatch,
+    /// JSON instance violates the versioned request shape.
+    InvalidSchemaInstance,
     /// The request was cancelled or its enrollment generation became stale.
     CancelledOrStale,
     /// The absolute deadline has elapsed or is inconsistent with the timeout.
@@ -194,6 +196,53 @@ pub enum AuthRequestError {
 /// Compute the endpoint identity used by [`AuthenticatedRequest`].
 pub fn endpoint_identity_sha256(endpoint: &str) -> String {
     format!("{:x}", Sha256::digest(endpoint.as_bytes()))
+}
+
+/// Validate a JSON request instance against the shared public contract.
+pub fn validate_json_instance(value: &serde_json::Value) -> Result<(), AuthRequestError> {
+    let object = value
+        .as_object()
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    if object.keys().any(|key| {
+        !matches!(
+            key.as_str(),
+            "provider"
+                | "endpoint_identity_sha256"
+                | "generation"
+                | "timeout_ms"
+                | "deadline_ms"
+                | "max_response_bytes"
+                | "policy"
+        )
+    }) {
+        return Err(AuthRequestError::InvalidSchemaInstance);
+    }
+    let provider = object
+        .get("provider")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    let policy = object
+        .get("policy")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    let timeout = object
+        .get("timeout_ms")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    let deadline = object
+        .get("deadline_ms")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(AuthRequestError::InvalidSchemaInstance)?;
+    if !matches!(
+        (provider, policy),
+        ("open_ai", "bearer") | ("gemini", "api_key") | ("ollama", "bearer" | "none")
+    ) {
+        return Err(AuthRequestError::InvalidSchemaInstance);
+    }
+    if deadline == 0 || deadline > MAX_AUTH_DEADLINE_MS || deadline < timeout {
+        return Err(AuthRequestError::InvalidDeadline);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -337,7 +386,7 @@ mod tests {
         request.timeout_ms = 1_000;
         request.deadline_ms = 0;
         assert_eq!(request.validate(), Err(AuthRequestError::InvalidDeadline));
-        request.deadline_ms = MAX_AUTH_DEADLINE_MS + 1;
+        request.deadline_ms = MAX_AUTH_DEADLINE_MS.saturating_add(1);
         assert_eq!(request.validate(), Err(AuthRequestError::InvalidDeadline));
     }
 
@@ -379,22 +428,6 @@ mod tests {
 
     #[test]
     fn schema_instances_match_provider_policy_and_deadline_rules() {
-        fn valid(instance: &serde_json::Value) -> bool {
-            let object = instance.as_object().unwrap();
-            let provider = object["provider"].as_str().unwrap();
-            let policy = object["policy"].as_str().unwrap();
-            let deadline = object["deadline_ms"].as_u64().unwrap_or(0);
-            let timeout = object["timeout_ms"].as_u64().unwrap_or(0);
-            deadline > 0
-                && deadline <= MAX_AUTH_DEADLINE_MS
-                && deadline >= timeout
-                && match provider {
-                    "open_ai" => policy == "bearer",
-                    "gemini" => policy == "api_key",
-                    "ollama" => policy == "bearer" || policy == "none",
-                    _ => false,
-                }
-        }
         let base = serde_json::json!({
             "endpoint_identity_sha256": "a".repeat(64), "generation": 1,
             "timeout_ms": 1000, "deadline_ms": 2000, "max_response_bytes": 1024
@@ -407,16 +440,16 @@ mod tests {
             let mut instance = base.clone();
             instance["provider"] = serde_json::json!(provider);
             instance["policy"] = serde_json::json!(policy);
-            assert!(valid(&instance));
+            assert!(validate_json_instance(&instance).is_ok());
         }
         let mut invalid = base.clone();
         invalid["provider"] = serde_json::json!("gemini");
         invalid["policy"] = serde_json::json!("bearer");
-        assert!(!valid(&invalid));
+        assert!(validate_json_instance(&invalid).is_err());
         invalid["policy"] = serde_json::json!("api_key");
         invalid["deadline_ms"] = serde_json::json!(0);
-        assert!(!valid(&invalid));
-        invalid["deadline_ms"] = serde_json::json!(MAX_AUTH_DEADLINE_MS + 1);
-        assert!(!valid(&invalid));
+        assert!(validate_json_instance(&invalid).is_err());
+        invalid["deadline_ms"] = serde_json::json!(MAX_AUTH_DEADLINE_MS.saturating_add(1));
+        assert!(validate_json_instance(&invalid).is_err());
     }
 }
