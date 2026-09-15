@@ -439,6 +439,13 @@ impl ProviderRegistryV1 {
             for model in models {
                 validate_text(&model.id, "model id")?;
                 validate_sha256(&model.qualification_sha256, "qualification")?;
+                if model.qualification_sha256
+                    != format!("{:x}", sha2::Sha256::digest(model.id.as_bytes()))
+                {
+                    return Err(ConfigError::InvalidValue(
+                        "qualification does not bind model".into(),
+                    ));
+                }
                 if model.discovered_at_generation == 0 {
                     return Err(ConfigError::InvalidValue("model generation".into()));
                 }
@@ -1224,6 +1231,8 @@ mod tests {
                 .parse_openai_model_catalog("primary", 4, &too_many)
                 .is_err()
         );
+        registry.models["primary"][0].qualification_sha256 = "c".repeat(64);
+        assert!(registry.validate().is_err());
     }
 
     #[test]
