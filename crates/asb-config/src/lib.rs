@@ -290,6 +290,104 @@ impl ProviderRegistryV1 {
             .collect();
         self.replace_models(connection, generation, models)
     }
+
+    /// Parse an OpenAI-compatible catalog (`data[].id`).
+    pub fn parse_openai_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            data: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            id: String,
+        }
+        let catalog: Catalog = bounded_json(bytes, "OpenAI model catalog")?;
+        self.replace_discovered_ids(
+            connection,
+            generation,
+            catalog.data.into_iter().map(|model| model.id),
+        )
+    }
+
+    /// Parse a Gemini catalog (`models[].name`), stripping its `models/` prefix.
+    pub fn parse_gemini_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            models: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            name: String,
+        }
+        let catalog: Catalog = bounded_json(bytes, "Gemini model catalog")?;
+        self.replace_discovered_ids(
+            connection,
+            generation,
+            catalog.models.into_iter().map(|model| {
+                model
+                    .name
+                    .strip_prefix("models/")
+                    .unwrap_or(&model.name)
+                    .to_owned()
+            }),
+        )
+    }
+
+    /// Parse an Ollama catalog (`models[].name`).
+    pub fn parse_ollama_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            models: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            name: String,
+        }
+        let catalog: Catalog = bounded_json(bytes, "Ollama model catalog")?;
+        self.replace_discovered_ids(
+            connection,
+            generation,
+            catalog.models.into_iter().map(|model| model.name),
+        )
+    }
+
+    fn replace_discovered_ids(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        ids: impl IntoIterator<Item = String>,
+    ) -> Result<(), ConfigError> {
+        let models = ids
+            .into_iter()
+            .map(|id| RegistryModelV1 {
+                qualification_sha256: format!("{:x}", sha2::Sha256::digest(id.as_bytes())),
+                id,
+                discovered_at_generation: generation,
+            })
+            .collect::<Vec<_>>();
+        self.replace_models(connection, generation, models)
+    }
     /// Add a managed connection, rejecting replacement of an existing identity.
     pub fn add_connection(
         &mut self,
@@ -392,6 +490,13 @@ impl ProviderRegistryV1 {
             .get(connection)
             .map_or_else(Vec::new, |models| models.iter().collect())
     }
+}
+
+fn bounded_json<T: for<'de> Deserialize<'de>>(bytes: &[u8], label: &str) -> Result<T, ConfigError> {
+    if bytes.is_empty() || bytes.len() > 64 * 1024 {
+        return Err(ConfigError::InvalidValue(format!("{label} size")));
+    }
+    serde_json::from_slice(bytes).map_err(|_| ConfigError::InvalidValue(format!("{label} format")))
 }
 
 /// Built-in values used when no persisted value exists.
@@ -1056,6 +1161,54 @@ mod tests {
     fn credential_bytes_are_not_deserializable() {
         let raw = r#"{"kind":"environment","locator_sha256":"sk-secret"}"#;
         assert!(serde_json::from_str::<CredentialReference>(raw).is_err());
+    }
+
+    #[test]
+    fn provider_specific_catalogs_are_bounded_and_fail_closed() {
+        let connection = RegistryConnectionV1 {
+            provider: "openai".into(),
+            protocol: "openai_chat".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: None,
+        };
+        let mut registry = ProviderRegistryV1 {
+            schema_version: 1,
+            connections: BTreeMap::from([("primary".into(), connection)]),
+            models: BTreeMap::new(),
+        };
+        registry
+            .parse_openai_model_catalog("primary", 1, br#"{"data":[{"id":"gpt-test"}]}"#)
+            .unwrap();
+        assert_eq!(registry.models["primary"][0].id, "gpt-test");
+        assert!(
+            registry
+                .parse_gemini_model_catalog(
+                    "primary",
+                    2,
+                    br#"{"models":[{"name":"models/gemini-test"}]}"#,
+                )
+                .is_ok()
+        );
+        assert_eq!(registry.models["primary"][0].id, "gemini-test");
+        assert!(
+            registry
+                .parse_ollama_model_catalog("primary", 3, br#"{"models":[{"name":"llama-test"}]}"#,)
+                .is_ok()
+        );
+        assert!(
+            registry
+                .parse_openai_model_catalog("primary", 4, br#"{"data":[{"id":"x"}],"extra":true}"#)
+                .is_err()
+        );
+        assert!(
+            registry
+                .parse_ollama_model_catalog(
+                    "primary",
+                    4,
+                    br#"{"models":[{"name":"x"},{"name":"x"}]}"#
+                )
+                .is_err()
+        );
     }
 
     #[test]
