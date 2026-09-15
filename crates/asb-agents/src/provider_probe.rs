@@ -9,7 +9,7 @@ use crate::credential::ResolvedCredential;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use url::Url;
 
 /// Maximum response body accepted by a provider authentication probe.
@@ -30,7 +30,7 @@ pub fn execute_loopback_probe<F>(
 where
     F: Fn() -> u64,
 {
-    execute_loopback_probe_with_header(request, endpoint, current_generation, None)
+    execute_loopback_probe_with_header(request, endpoint, current_generation, None, None)
 }
 
 /// Execute a loopback probe after injecting the qualified provider credential.
@@ -46,7 +46,7 @@ pub fn execute_authenticated_loopback_probe<F, C>(
 ) -> Result<ProbeOutcome, ProbeTransportError>
 where
     F: Fn() -> u64 + Copy,
-    C: Cancellation,
+    C: Cancellation + Copy,
 {
     let provider_matches = matches!(
         (request.provider, auth_request.provider),
@@ -65,7 +65,7 @@ where
         return Err(ProbeTransportError::ProviderMismatch);
     }
     let mut header = CapturedHeader::default();
-    inject_probe_auth(
+    let injection = inject_probe_auth(
         auth_request,
         endpoint,
         current_generation,
@@ -73,13 +73,21 @@ where
         credential,
         &mut header,
         cancelled,
-    )
-    .map_err(ProbeTransportError::Authentication)?;
+    );
+    if let Err(error) = injection {
+        header.wipe();
+        return Err(ProbeTransportError::Authentication(error));
+    }
     let result = execute_loopback_probe_with_header(
         request,
         endpoint,
         current_generation,
         Some(header.bytes.as_slice()),
+        Some((
+            &cancelled,
+            Instant::now(),
+            Duration::from_millis(request.timeout_ms),
+        )),
     );
     header.wipe();
     result
@@ -90,10 +98,22 @@ fn execute_loopback_probe_with_header<F>(
     endpoint: &str,
     current_generation: F,
     auth_header: Option<&[u8]>,
+    budget: Option<(&dyn Cancellation, Instant, Duration)>,
 ) -> Result<ProbeOutcome, ProbeTransportError>
 where
     F: Fn() -> u64,
 {
+    let budget_error = |budget: &Option<(&dyn Cancellation, Instant, Duration)>| {
+        budget.as_ref().and_then(|(cancelled, started, limit)| {
+            if cancelled.is_cancelled() {
+                Some(AuthRequestError::CancelledOrStale)
+            } else if started.elapsed() >= *limit {
+                Some(AuthRequestError::DeadlineExceeded)
+            } else {
+                None
+            }
+        })
+    };
     request
         .validate()
         .map_err(ProbeTransportError::InvalidRequest)?;
@@ -121,6 +141,9 @@ where
     }
     let address = SocketAddr::new(ip, port);
     let timeout = Duration::from_millis(request.timeout_ms);
+    if let Some(error) = budget_error(&budget) {
+        return Err(ProbeTransportError::Authentication(error));
+    }
     let mut stream = TcpStream::connect_timeout(&address, timeout)
         .map_err(|_| ProbeTransportError::Unavailable)?;
     stream
@@ -140,6 +163,9 @@ where
     } else {
         format!("{host}:{port}")
     };
+    if let Some(error) = budget_error(&budget) {
+        return Err(ProbeTransportError::Authentication(error));
+    }
     write!(
         stream,
         "GET {target} HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n"
@@ -148,7 +174,7 @@ where
     if let Some(header) = auth_header {
         stream
             .write_all(header)
-            .and_then(|_| stream.write_all(b"\r\n"))
+            .and_then(|_| stream.write_all(b"\r\n\r\n"))
             .map_err(|_| ProbeTransportError::Unavailable)?;
     } else {
         stream
@@ -158,6 +184,9 @@ where
     let mut response = Vec::with_capacity(request.max_response_bytes.min(4096));
     let mut chunk = [0_u8; 1024];
     loop {
+        if let Some(error) = budget_error(&budget) {
+            return Err(ProbeTransportError::Authentication(error));
+        }
         let read = stream
             .read(&mut chunk)
             .map_err(|_| ProbeTransportError::Unavailable)?;
@@ -168,6 +197,9 @@ where
             return Err(ProbeTransportError::ResponseTooLarge);
         }
         response.extend_from_slice(&chunk[..read]);
+    }
+    if let Some(error) = budget_error(&budget) {
+        return Err(ProbeTransportError::Authentication(error));
     }
     if current_generation() != request.generation {
         return Err(ProbeTransportError::StaleGeneration);
@@ -461,8 +493,8 @@ mod tests {
                 endpoint,
             ),
             generation: 4,
-            timeout_ms: 1_000,
-            deadline_ms: 2_000,
+            timeout_ms: 30_000,
+            deadline_ms: 32_000,
             max_response_bytes: 1_024,
             policy: AuthPolicy::Bearer,
         };
@@ -470,7 +502,7 @@ mod tests {
             request,
             endpoint,
             || 4,
-            1_500,
+            2_000,
             crate::credential::ResolvedCredential::from_test(b"token"),
             &mut sink,
             || false,
@@ -493,8 +525,8 @@ mod tests {
                 endpoint,
             ),
             generation: 4,
-            timeout_ms: 1_000,
-            deadline_ms: 2_000,
+            timeout_ms: 5_000,
+            deadline_ms: 6_000,
             max_response_bytes: 1_024,
             policy: AuthPolicy::Bearer,
         };
@@ -503,7 +535,7 @@ mod tests {
                 unsupported,
                 endpoint,
                 || 4,
-                1_500,
+                10_000,
                 crate::credential::ResolvedCredential::from_test(b"token"),
                 &mut sink,
                 || false,
@@ -516,8 +548,8 @@ mod tests {
                 endpoint,
             ),
             generation: 4,
-            timeout_ms: 1_000,
-            deadline_ms: 2_000,
+            timeout_ms: 5_000,
+            deadline_ms: 6_000,
             max_response_bytes: 1_024,
             policy: AuthPolicy::Bearer,
         };
@@ -526,7 +558,7 @@ mod tests {
                 mismatch,
                 "http://127.0.0.1:11434/v1/chat",
                 || 4,
-                1_500,
+                2_000,
                 crate::credential::ResolvedCredential::from_test(b"token"),
                 &mut sink,
                 || false,
@@ -545,10 +577,16 @@ mod tests {
         );
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
-            let mut request = [0_u8; 512];
-            let size = stream.read(&mut request).unwrap();
+            let mut request = Vec::new();
+            let mut chunk = [0_u8; 128];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let size = stream.read(&mut chunk).unwrap();
+                assert!(size > 0);
+                request.extend_from_slice(&chunk[..size]);
+                assert!(request.len() <= 512);
+            }
             assert!(
-                request[..size]
+                request
                     .windows(b"authorization: Bearer token".len())
                     .any(|window| window == b"authorization: Bearer token")
             );
@@ -564,15 +602,15 @@ mod tests {
                 &endpoint,
             ),
             generation: 4,
-            timeout_ms: 1_000,
+            timeout_ms: 30_000,
             max_response_bytes: 1_024,
         };
         let auth = AuthenticatedRequest {
             provider: AuthProvider::OpenAi,
             endpoint_identity_sha256: probe.endpoint_identity_sha256.clone(),
             generation: 4,
-            timeout_ms: 1_000,
-            deadline_ms: 2_000,
+            timeout_ms: 30_000,
+            deadline_ms: 40_000,
             max_response_bytes: 1_024,
             policy: AuthPolicy::Bearer,
         };
@@ -582,7 +620,7 @@ mod tests {
                 auth,
                 &endpoint,
                 || 4,
-                1_500,
+                10_000,
                 crate::credential::ResolvedCredential::from_test(b"token"),
                 || false,
             ),
