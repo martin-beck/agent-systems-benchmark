@@ -94,7 +94,7 @@ pub fn classify_probe(
     body_len: usize,
     content_type_json: bool,
 ) -> ProbeOutcome {
-    if body_len > MAX_PROBE_BODY_BYTES || !content_type_json {
+    if body_len == 0 || body_len > MAX_PROBE_BODY_BYTES || !content_type_json {
         return ProbeOutcome::Unavailable;
     }
     match provider {
@@ -142,6 +142,10 @@ mod tests {
         );
         assert_eq!(
             classify_probe(ProbeProvider::Gemini, 200, 0, false),
+            ProbeOutcome::Unavailable
+        );
+        assert_eq!(
+            classify_probe(ProbeProvider::OpenAi, 200, 0, true),
             ProbeOutcome::Unavailable
         );
         assert_eq!(
