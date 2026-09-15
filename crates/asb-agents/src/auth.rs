@@ -183,18 +183,18 @@ impl AuthEnrollmentV1 {
         }
         let old = self.credential.clone();
         backend.enroll(&credential, secret)?;
-        if old != credential {
-            if let Err(error) = backend.revoke(&old) {
-                // The old enrollment remains authoritative until both backend
-                // effects have completed. Roll back the staged replacement.
-                return match backend.revoke(&credential) {
-                    Ok(()) => Err(error),
-                    Err(_) => {
-                        self.status = EnrollmentStatus::Unavailable;
-                        Err(AuthError::RollbackFailed)
-                    }
-                };
-            }
+        if old != credential
+            && let Err(error) = backend.revoke(&old)
+        {
+            // The old enrollment remains authoritative until both backend
+            // effects have completed. Roll back the staged replacement.
+            return match backend.revoke(&credential) {
+                Ok(()) => Err(error),
+                Err(_) => {
+                    self.status = EnrollmentStatus::Unavailable;
+                    Err(AuthError::RollbackFailed)
+                }
+            };
         }
         self.generation = next_generation;
         self.credential = credential;
