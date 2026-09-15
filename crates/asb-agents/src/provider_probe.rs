@@ -584,6 +584,102 @@ mod tests {
     }
 
     #[test]
+    fn auth_wrapper_uses_gemini_key_and_ollama_no_auth_policies() {
+        let endpoint = "http://127.0.0.1:11434/v1/models";
+        let metadata = |provider, policy| AuthenticatedRequest {
+            provider,
+            endpoint_identity_sha256: crate::authenticated_request::endpoint_identity_sha256(
+                endpoint,
+            ),
+            generation: 4,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes: 1_024,
+            policy,
+        };
+        let mut sink = AuthSink {
+            name: Vec::new(),
+            value: Vec::new(),
+        };
+        inject_probe_auth(
+            metadata(AuthProvider::Gemini, AuthPolicy::ApiKey),
+            endpoint,
+            || 4,
+            1_500,
+            crate::credential::ResolvedCredential::from_test(b"key"),
+            &mut sink,
+            || false,
+        )
+        .unwrap();
+        assert_eq!(sink.name, b"x-api-key");
+        assert_eq!(sink.value, b"key");
+        sink.name.clear();
+        sink.value.clear();
+        inject_probe_auth(
+            metadata(AuthProvider::Ollama, AuthPolicy::None),
+            endpoint,
+            || 4,
+            1_500,
+            crate::credential::ResolvedCredential::from_test(b""),
+            &mut sink,
+            || false,
+        )
+        .unwrap();
+        assert!(sink.name.is_empty() && sink.value.is_empty());
+    }
+
+    #[test]
+    fn authenticated_probe_fails_closed_on_cancel_and_expired_deadline() {
+        let endpoint = "http://127.0.0.1:11434/v1/models";
+        let probe = ProbeRequest {
+            provider: ProbeProvider::OpenAi,
+            endpoint_identity_sha256: crate::authenticated_request::endpoint_identity_sha256(
+                endpoint,
+            ),
+            generation: 4,
+            timeout_ms: 1_000,
+            max_response_bytes: 1_024,
+        };
+        let request = || AuthenticatedRequest {
+            provider: AuthProvider::OpenAi,
+            endpoint_identity_sha256: probe.endpoint_identity_sha256.clone(),
+            generation: 4,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes: 1_024,
+            policy: AuthPolicy::Bearer,
+        };
+        assert_eq!(
+            execute_authenticated_loopback_probe(
+                &probe,
+                request(),
+                endpoint,
+                || 4,
+                1_500,
+                crate::credential::ResolvedCredential::from_test(b"token"),
+                || true,
+            ),
+            Err(ProbeTransportError::Authentication(
+                AuthRequestError::CancelledOrStale
+            ))
+        );
+        assert_eq!(
+            execute_authenticated_loopback_probe(
+                &probe,
+                request(),
+                endpoint,
+                || 4,
+                2_000,
+                crate::credential::ResolvedCredential::from_test(b"token"),
+                || false,
+            ),
+            Err(ProbeTransportError::Authentication(
+                AuthRequestError::DeadlineExceeded
+            ))
+        );
+    }
+
+    #[test]
     fn authenticated_probe_writes_provider_header_to_pinned_transport() {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
         let endpoint = format!(
