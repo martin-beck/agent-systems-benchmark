@@ -158,3 +158,21 @@ types but is not independently selectable. A legacy client continues to offer on
 schemas and capability response are unchanged. A catalog-only frontend may offer `1.2`; a current
 standalone frontend offers `1.3` to receive precise selection diagnostics. A catalog call on `1.0`
 is rejected before backend work, and a catalog-shaped result received under `1.0` is invalid.
+
+## Authenticated agent catalog extension
+
+`CONTROL_AGENT_CATALOG_V1` (`1.4`) adds the renderer-neutral `agent_catalog` operation. The
+request selects `status` (read-only) or `refresh` and includes the `runner_instance_id` received
+during negotiation. The local Unix transport authenticates the peer from kernel credentials before
+any request content is sent; negotiation selects the exact wire version before this operation is
+admitted. A response is accepted only when its runner identity matches the request and its
+`refreshed` flag matches the requested action, preventing data from another runner generation from
+being displayed.
+
+Every entry is target-bound and carries a stable agent ID, exact package version and digest,
+detached-signature digest, source revision, signed runtime-manifest digest, and sorted capability
+IDs. All supported entries remain visible, including unavailable entries with one closed reason
+such as `incompatible_target`, `incomplete_provenance`, `unverified_artifact`, or `policy_denied`.
+Malformed, duplicate, stale-generation, unsigned, target-mismatched, and incomplete projections
+fail closed in the protocol validator. The operation does not install or launch agents; lifecycle
+and presentation remain separate frontend/backend work.
