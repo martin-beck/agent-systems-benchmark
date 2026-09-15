@@ -2683,7 +2683,16 @@ mod tests {
         assert!(matches!(enrolled.result, ControlResult::Acknowledged(_)));
         drop(backend);
 
-        let recovered = open_backend(state).unwrap();
+        let cutoff = Instant::now() + Duration::from_secs(2);
+        let recovered = loop {
+            match open_backend(state.clone()) {
+                Ok(backend) => break backend,
+                Err(error) if Instant::now() < cutoff => {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("auth backend did not release restart lock: {error:?}"),
+            }
+        };
         let status = recovered
             .execute(
                 &ControlCall::AuthStatus(asb_control::AuthStatusParams {
