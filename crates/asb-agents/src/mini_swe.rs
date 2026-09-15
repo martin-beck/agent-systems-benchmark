@@ -2104,9 +2104,7 @@ sleep 30 &
 first=$!
 sleep 30 &
 second=$!
-workspace="$1"
-case "$workspace" in /*) ;; *) workspace="$5" ;; esac
-printf '%s\n%s\n' "$first" "$second" > "$workspace/children.pids"
+printf '%s\n%s\n' "$first" "$second" > "$5/children.pids"
 wait
 "#,
         )
