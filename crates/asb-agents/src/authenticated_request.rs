@@ -293,7 +293,10 @@ mod tests {
             Ok(())
         }
     }
-    struct PartialSink(Vec<u8>);
+    struct PartialSink {
+        bytes_written: usize,
+        failed: bool,
+    }
     impl HeaderSink for PartialSink {
         fn write_header(
             &mut self,
@@ -301,9 +304,8 @@ mod tests {
             prefix: &[u8],
             value: &[u8],
         ) -> Result<(), HeaderWriteError> {
-            self.0.extend_from_slice(name);
-            self.0.extend_from_slice(prefix);
-            self.0.extend_from_slice(&value[..value.len().min(2)]);
+            self.bytes_written = name.len() + prefix.len() + value.len().min(2);
+            self.failed = true;
             Err(HeaderWriteError)
         }
     }
@@ -591,7 +593,10 @@ mod tests {
             ),
             Err(AuthRequestError::CancelledOrStale)
         );
-        let mut partial = PartialSink(Vec::new());
+        let mut partial = PartialSink {
+            bytes_written: 0,
+            failed: false,
+        };
         assert_eq!(
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
@@ -603,6 +608,7 @@ mod tests {
             ),
             Err(AuthRequestError::TransportRejected)
         );
-        assert!(!partial.0.is_empty());
+        assert!(partial.bytes_written > 0);
+        assert!(partial.failed);
     }
 }
