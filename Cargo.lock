@@ -34,6 +34,7 @@ dependencies = [
  "asb-replay",
  "asb-runtime",
  "asb-workloads",
+ "jsonschema",
  "rustix",
  "serde",
  "serde_json",

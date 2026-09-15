@@ -485,4 +485,20 @@ mod tests {
         invalid["max_response_bytes"] = serde_json::json!(MAX_AUTH_RESPONSE_BYTES + 1);
         assert!(validate_json_instance(&invalid).is_err());
     }
+
+    #[test]
+    fn committed_schema_validates_instances() {
+        let schema: serde_json::Value = serde_json::from_str(include_str!(
+            "../schema/authenticated-request-v1.schema.json"
+        ))
+        .unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let instance = serde_json::json!({"provider":"open_ai","endpoint_identity_sha256":"a".repeat(64),"generation":1,"timeout_ms":1000,"deadline_ms":2000,"max_response_bytes":1024,"policy":"bearer"});
+        assert!(validator.is_valid(&instance));
+        let mut invalid = instance;
+        invalid["policy"] = serde_json::json!("api_key");
+        assert!(!validator.is_valid(&invalid));
+        invalid["secret"] = serde_json::json!("forbidden");
+        assert!(!validator.is_valid(&invalid));
+    }
 }
