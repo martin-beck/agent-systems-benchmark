@@ -519,6 +519,26 @@ mod tests {
             .unwrap()
         }
 
+        fn rejected_tool(&self) -> PinnedTool {
+            let path = self.0.join("rejected-tool");
+            let bytes = b"#!/bin/sh\nif [ \"$1\" = \"--list\" ]; then\n  printf '%s\\n' fixture-v1\nelse\n  printf '%s\\n' synthetic-rejection >&2\n  exit 1\nfi\n";
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o500)
+                .open(&path)
+                .unwrap()
+                .write_all(bytes)
+                .unwrap();
+            PinnedTool::new(
+                path,
+                format!("{:x}", Sha256::digest(bytes)),
+                "--list".into(),
+                "fixture-v1".into(),
+            )
+            .unwrap()
+        }
+
         fn staged_for_cleanup(&self) -> StagedTool {
             let directory = unique_directory(&self.0);
             fs::create_dir(&directory).unwrap();
@@ -638,19 +658,12 @@ mod tests {
         );
         root.assert_clean();
 
+        let rejected = root.rejected_tool();
         assert_eq!(
-            diagnostics.run(
-                &tool,
-                &[
-                    "--ignored".into(),
-                    "--exact".into(),
-                    "kernel::tests::fixture_process_rejected".into(),
-                    "--nocapture".into(),
-                ],
-                parse_ebpf_features,
-            ),
+            diagnostics.run(&rejected, &["--probe".into(),], parse_ebpf_features,),
             ProbeResult::unavailable_reason(UnavailableReason::ProbeRejected)
         );
+        fs::remove_file(root.0.join("rejected-tool")).unwrap();
         root.assert_clean();
 
         assert_eq!(
