@@ -2104,7 +2104,7 @@ sleep 30 &
 first=$!
 sleep 30 &
 second=$!
-printf '%s\n%s\n' "$first" "$second" > children.pids
+printf '%s\n%s\n' "$first" "$second" > "$5/children.pids"
 wait
 "#,
         )
@@ -2137,7 +2137,10 @@ wait
             .start(Id("s".into()), Id("a".into()), "prompt", limits)
             .unwrap();
         let pid_path = root.join("workspace/children.pids");
-        let readiness_deadline = Instant::now() + Duration::from_secs(2);
+        // Emulated guests can spend several seconds starting the pinned Python
+        // fixture.  Keep the readiness bound finite and below the process limit;
+        // a missing publication still fails closed at the deadline.
+        let readiness_deadline = Instant::now() + Duration::from_secs(10);
         let (children, original_group) = loop {
             if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
                 && let Some(pids) = parse_pid_list_evidence(&bytes)
