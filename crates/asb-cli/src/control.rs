@@ -4,12 +4,12 @@
 
 use super::*;
 use asb_control::{
-    AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, BackendFailure, BoundControlResult,
-    CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend, ControlCall, ControlEvent,
-    ControlEventKind, ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
-    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference,
-    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
-    SettingsIssue, SettingsValidation,
+    AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, AuthStatusResponse, BackendFailure,
+    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend,
+    ControlCall, ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
+    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
+    PlanReference, ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId,
+    RunSummary, SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
@@ -108,6 +108,9 @@ enum MutationTarget {
     Repeat { run_id: String },
     Launch { run_id: String, attempt_id: String },
     Cancel { run_id: String, attempt_id: String },
+    AuthEnroll { provider: String },
+    AuthRotate { provider: String },
+    AuthRevoke { provider: String },
 }
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
@@ -128,6 +131,18 @@ struct Catalog {
     runs: BTreeMap<String, RunRecord>,
     mutations: BTreeMap<String, MutationRecord>,
     events: Vec<ControlEvent>,
+    #[serde(default)]
+    auth: BTreeMap<String, AuthRecord>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AuthRecord {
+    provider: String,
+    endpoint_identity_sha256: String,
+    credential_locator_sha256: String,
+    generation: u64,
+    status: String,
 }
 
 struct ActiveRun {
@@ -320,6 +335,7 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         runs: BTreeMap::new(),
         mutations: BTreeMap::new(),
         events: Vec::new(),
+        auth: BTreeMap::new(),
     })
 }
 
@@ -421,6 +437,12 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .and_then(|()| asb_control::validate_identity(attempt_id))
                     .map_err(|_| CliError::operation("control mutation target is invalid"))?;
             }
+            MutationTarget::AuthEnroll { provider }
+            | MutationTarget::AuthRotate { provider }
+            | MutationTarget::AuthRevoke { provider } => {
+                asb_control::validate_identity(provider)
+                    .map_err(|_| CliError::operation("control auth mutation target is invalid"))?;
+            }
         }
         match (mutation.state, mutation.result.as_ref()) {
             (MutationState::Committed, Some(result))
@@ -482,6 +504,15 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                                 || run.state == PublicRunState::Cancelled)
                     })
                 }
+                (
+                    MutationTarget::AuthEnroll { provider }
+                    | MutationTarget::AuthRotate { provider }
+                    | MutationTarget::AuthRevoke { provider },
+                    ControlResult::Acknowledged(_),
+                ) => catalog
+                    .auth
+                    .get(provider)
+                    .is_some_and(|record| record.provider == *provider),
                 _ => false,
             };
             if !target_matches {
@@ -699,6 +730,9 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
                     _ => {}
                 }
             }
+            MutationTarget::AuthEnroll { .. }
+            | MutationTarget::AuthRotate { .. }
+            | MutationTarget::AuthRevoke { .. } => {}
             MutationTarget::CreatePlan | MutationTarget::Repeat { .. } => {}
         }
     }
@@ -1603,6 +1637,101 @@ impl ControlBackend for RunnerBackend {
                     }),
                 )
             }
+            ControlCall::AuthEnroll(params) => self.mutation(
+                call,
+                &params.idempotency_key,
+                MutationTarget::AuthEnroll {
+                    provider: params.provider.clone(),
+                },
+                deadline,
+                |catalog| {
+                    if let Some(existing) = catalog.auth.get(&params.provider) {
+                        if existing.endpoint_identity_sha256 != params.endpoint_identity_sha256
+                            || existing.credential_locator_sha256
+                                != params.credential_locator_sha256
+                        {
+                            return Err(BackendFailure::Rejected);
+                        }
+                        return Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                            accepted: true,
+                        }));
+                    }
+                    catalog.auth.insert(
+                        params.provider.clone(),
+                        AuthRecord {
+                            provider: params.provider.clone(),
+                            endpoint_identity_sha256: params.endpoint_identity_sha256.clone(),
+                            credential_locator_sha256: params.credential_locator_sha256.clone(),
+                            generation: 1,
+                            status: "active".to_owned(),
+                        },
+                    );
+                    Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                        accepted: true,
+                    }))
+                },
+            ),
+            ControlCall::AuthStatus(params) => {
+                let catalog = self
+                    .catalog
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+                let record = catalog
+                    .auth
+                    .get(&params.provider)
+                    .ok_or(BackendFailure::Rejected)?;
+                self.bind(
+                    call,
+                    ControlResult::AuthStatus(AuthStatusResponse {
+                        provider: record.provider.clone(),
+                        endpoint_identity_sha256: record.endpoint_identity_sha256.clone(),
+                        credential_locator_sha256: record.credential_locator_sha256.clone(),
+                        generation: record.generation,
+                        status: record.status.clone(),
+                    }),
+                )
+            }
+            ControlCall::AuthRotate(params) => self.mutation(
+                call,
+                &params.idempotency_key,
+                MutationTarget::AuthRotate {
+                    provider: params.provider.clone(),
+                },
+                deadline,
+                |catalog| {
+                    let record = catalog
+                        .auth
+                        .get_mut(&params.provider)
+                        .ok_or(BackendFailure::Rejected)?;
+                    record.credential_locator_sha256 = params.credential_locator_sha256.clone();
+                    record.generation = record
+                        .generation
+                        .checked_add(1)
+                        .ok_or(BackendFailure::Rejected)?;
+                    record.status = "active".to_owned();
+                    Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                        accepted: true,
+                    }))
+                },
+            ),
+            ControlCall::AuthRevoke(params) => self.mutation(
+                call,
+                &params.idempotency_key,
+                MutationTarget::AuthRevoke {
+                    provider: params.provider.clone(),
+                },
+                deadline,
+                |catalog| {
+                    let record = catalog
+                        .auth
+                        .get_mut(&params.provider)
+                        .ok_or(BackendFailure::Rejected)?;
+                    record.status = "revoked".to_owned();
+                    Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                        accepted: true,
+                    }))
+                },
+            ),
             // Lifecycle storage and bundle verification are not wired into the
             // runner yet. Reject every operation explicitly so no caller can
             // observe a fabricated or partially active installation.
@@ -2536,6 +2665,62 @@ mod tests {
             ),
             Err(BackendFailure::Rejected)
         );
+    }
+
+    #[test]
+    fn auth_lifecycle_survives_restart_and_revoke_is_idempotent() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let enroll = ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+            provider: "gemini".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: "b".repeat(64),
+            idempotency_key: "enroll-restart".into(),
+        });
+        let enrolled = backend.execute(&enroll, deadline()).unwrap();
+        assert!(matches!(enrolled.result, ControlResult::Acknowledged(_)));
+        drop(backend);
+
+        let cutoff = Instant::now() + Duration::from_secs(2);
+        let recovered = loop {
+            match open_backend(state.clone()) {
+                Ok(backend) => break backend,
+                Err(error) if Instant::now() < cutoff => {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("auth backend did not release restart lock: {error:?}"),
+            }
+        };
+        let status = recovered
+            .execute(
+                &ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                    provider: "gemini".into(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        assert!(matches!(status.result, ControlResult::AuthStatus(_)));
+        let revoke = ControlCall::AuthRevoke(asb_control::AuthRevokeParams {
+            provider: "gemini".into(),
+            idempotency_key: "revoke-restart".into(),
+        });
+        let first = recovered.execute(&revoke, deadline()).unwrap();
+        let second = recovered.execute(&revoke, deadline()).unwrap();
+        assert_eq!(first, second);
+        let status = recovered
+            .execute(
+                &ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                    provider: "gemini".into(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        assert!(matches!(
+            status.result,
+            ControlResult::AuthStatus(ref value) if value.status == "revoked"
+        ));
     }
 
     #[test]

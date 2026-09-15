@@ -119,6 +119,7 @@ fn dispatch(
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
         }
@@ -164,12 +165,71 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
         .collect()
 }
 
+/// Emit a bounded, credential-free authenticated control request.
+fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
+    let usage =
+        || CliError::usage("auth requires enroll|status|rotate|revoke and named digest options");
+    let operation = args.first().ok_or_else(usage)?;
+    let value = |name: &str| -> Result<String, CliError> {
+        args.windows(2)
+            .find(|pair| pair[0] == name)
+            .map(|pair| pair[1].clone())
+            .ok_or_else(|| CliError::usage("auth missing required option"))
+    };
+    let provider = value("--provider")?;
+    let call = match operation.as_str() {
+        "enroll" => asb_control::ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+            provider,
+            endpoint_identity_sha256: value("--endpoint-digest")?,
+            credential_locator_sha256: value("--credential-digest")?,
+            idempotency_key: value("--idempotency-key")?,
+        }),
+        "status" => {
+            asb_control::ControlCall::AuthStatus(asb_control::AuthStatusParams { provider })
+        }
+        "rotate" => asb_control::ControlCall::AuthRotate(asb_control::AuthRotateParams {
+            provider,
+            credential_locator_sha256: value("--credential-digest")?,
+            idempotency_key: value("--idempotency-key")?,
+        }),
+        "revoke" => asb_control::ControlCall::AuthRevoke(asb_control::AuthRevokeParams {
+            provider,
+            idempotency_key: value("--idempotency-key")?,
+        }),
+        _ => return Err(usage()),
+    };
+    let request = asb_control::ControlRequest {
+        jsonrpc: "2.0".to_owned(),
+        id: asb_control::RequestId(0),
+        timeout_ms: 300_000,
+        call,
+    };
+    if let Some(socket) = args
+        .windows(2)
+        .find(|pair| pair[0] == "--socket")
+        .map(|pair| pair[1].as_str())
+    {
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            Path::new(socket),
+            asb_control::ControlLimits::default(),
+            asb_control::SUPPORTED_CONTROL_VERSIONS,
+        )
+        .map_err(|_| CliError::operation("auth control service connection failed"))?;
+        let response = client
+            .call(request.call, 300_000)
+            .map_err(|_| CliError::operation("auth control service request failed"))?;
+        return write_json(stdout, &response).map(|()| 0);
+    }
+    write_json(stdout, &request).map(|()| 0)
+}
+
 fn command_name(args: &[OsString]) -> &'static str {
     match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
         Some("provider-catalog") => "provider-catalog",
+        Some("auth") => "auth",
         Some("provider-plan") => "provider-plan",
         Some("completion") => "completion",
         Some("plan") => "plan",
@@ -3629,6 +3689,46 @@ mod tests {
         assert_eq!(run(&["unknown".into()], &mut output, &mut diagnostic), 2);
         let error: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(error["error"]["code"], "usage");
+    }
+
+    #[test]
+    fn auth_dispatch_emits_bounded_typed_request_without_secret_material() {
+        let args: Vec<OsString> = [
+            "auth",
+            "enroll",
+            "--provider",
+            "gemini",
+            "--endpoint-digest",
+            "a".repeat(64).as_str(),
+            "--credential-digest",
+            "b".repeat(64).as_str(),
+            "--idempotency-key",
+            "enroll-1",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let request: asb_control::ControlRequest = serde_json::from_slice(&output).unwrap();
+        assert!(matches!(
+            request.call,
+            asb_control::ControlCall::AuthEnroll(_)
+        ));
+        assert!(!output.windows(7).any(|window| window == b"secret!"));
+    }
+
+    #[test]
+    fn auth_dispatch_rejects_missing_options_without_output() {
+        let args: Vec<OsString> = ["auth", "rotate", "--provider", "ollama"]
+            .into_iter()
+            .map(OsString::from)
+            .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        let error: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(error["ok"], false);
+        assert!(error.to_string().len() < 1024);
     }
 
     fn provider_args(catalog: &str, agents: &[&str]) -> Vec<OsString> {
