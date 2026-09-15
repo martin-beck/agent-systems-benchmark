@@ -276,10 +276,22 @@ pub fn validate_json_instance(value: &serde_json::Value) -> Result<(), AuthReque
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
 
     struct Sink {
         output: Vec<u8>,
         fail: bool,
+    }
+
+    struct CancellingSink(Arc<AtomicBool>);
+    impl HeaderSink for CancellingSink {
+        fn write_header(&mut self, _: &[u8], _: &[u8], _: &[u8]) -> Result<(), HeaderWriteError> {
+            self.0.store(true, Ordering::SeqCst);
+            Ok(())
+        }
     }
     impl HeaderSink for Sink {
         fn write_header(
@@ -513,5 +525,57 @@ mod tests {
         assert!(!validator.is_valid(&invalid));
         invalid["secret"] = serde_json::json!("forbidden");
         assert!(!validator.is_valid(&invalid));
+    }
+
+    #[test]
+    fn cancellation_is_checked_before_and_after_sink_and_race_is_stale() {
+        let request = AuthenticatedRequest {
+            provider: AuthProvider::OpenAi,
+            endpoint_identity_sha256: endpoint_identity_sha256("http://127.0.0.1:9/v1/models"),
+            generation: 4,
+            timeout_ms: 1000,
+            deadline_ms: 2000,
+            max_response_bytes: 1024,
+            policy: AuthPolicy::Bearer,
+        };
+        let mut sink = Sink {
+            output: Vec::new(),
+            fail: false,
+        };
+        assert_eq!(
+            request.clone().inject(
+                "http://127.0.0.1:9/v1/models",
+                4,
+                1000,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut sink,
+                || true
+            ),
+            Err(AuthRequestError::CancelledOrStale)
+        );
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let mut cancelling = CancellingSink(cancelled.clone());
+        assert_eq!(
+            request.clone().inject(
+                "http://127.0.0.1:9/v1/models",
+                4,
+                1000,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut cancelling,
+                || cancelled.load(Ordering::SeqCst)
+            ),
+            Err(AuthRequestError::CancelledOrStale)
+        );
+        assert_eq!(
+            request.inject(
+                "http://127.0.0.1:9/v1/models",
+                5,
+                1000,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut sink,
+                || false
+            ),
+            Err(AuthRequestError::CancelledOrStale)
+        );
     }
 }
