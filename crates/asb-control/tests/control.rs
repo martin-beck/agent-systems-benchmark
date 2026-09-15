@@ -243,6 +243,17 @@ fn measurement_catalog_extension_is_versioned_bounded_and_content_addressed() {
             ControlLimits::default(),
             ControlVersion { major: 1, minor: 4 },
         ),
+        Ok(())
+    );
+    assert_eq!(
+        bound.validate_for_call_and_version(
+            &call,
+            ControlLimits::default(),
+            ControlVersion {
+                major: 1,
+                minor: 99
+            },
+        ),
         Err(ProtocolError::InvalidResponse)
     );
     let encoded = serde_json::to_vec(&ControlResponse::success(

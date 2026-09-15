@@ -730,9 +730,12 @@ mod tests {
                 client,
                 ControlLimits::default(),
                 rustix::process::geteuid().as_raw(),
-                [crate::ControlVersion { major: 1, minor: 4 }]
-                    .into_iter()
-                    .collect(),
+                [crate::ControlVersion {
+                    major: 1,
+                    minor: 99
+                }]
+                .into_iter()
+                .collect(),
             ),
             Err(EndpointError::UnexpectedResponse)
         ));
@@ -757,7 +760,10 @@ mod tests {
 
         for versions in [
             Vec::new(),
-            vec![crate::ControlVersion { major: 1, minor: 4 }],
+            vec![crate::ControlVersion {
+                major: 1,
+                minor: 99,
+            }],
         ] {
             assert!(matches!(
                 ControlClient::connect_with_versions(&path, ControlLimits::default(), versions,),

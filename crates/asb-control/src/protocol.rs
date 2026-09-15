@@ -24,11 +24,14 @@ pub const CONTROL_HISTORY_ANALYSIS_V1: ControlVersion = ControlVersion { major: 
 pub const CONTROL_MEASUREMENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 2 };
 /// Version of additive structured measurement-selection validation diagnostics.
 pub const CONTROL_MEASUREMENT_SELECTION_V1: ControlVersion = ControlVersion { major: 1, minor: 3 };
+/// Version of the authenticated local-agent catalog operation.
+pub const CONTROL_AGENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 4 };
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 3] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 4] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
+    CONTROL_AGENT_CATALOG_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -192,6 +195,8 @@ pub enum ControlCall {
     Negotiate(NegotiateParams),
     /// Obtain runner and transport capabilities.
     Capabilities,
+    /// Read or refresh the authenticated local-agent catalog.
+    AgentCatalog(crate::AgentCatalogRequest),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -236,6 +241,7 @@ impl ControlCall {
     pub const fn minimum_version(&self) -> ControlVersion {
         match self {
             Self::MeasurementCatalog => CONTROL_MEASUREMENT_CATALOG_V1,
+            Self::AgentCatalog(_) => CONTROL_AGENT_CATALOG_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1235,6 +1241,8 @@ pub struct AnalysisSummary {
 pub enum ControlResult {
     /// Runner feature availability.
     Capabilities(Capabilities),
+    /// Authenticated, target-bound local-agent catalog snapshot.
+    AgentCatalog(crate::AgentCatalog),
     /// Immutable selectable-measurement catalog.
     MeasurementCatalog(MeasurementCatalogPublication),
     /// Settings validation outcome.
@@ -1304,6 +1312,9 @@ impl BoundControlResult {
             ControlResult::MeasurementCatalog(_) if version < CONTROL_MEASUREMENT_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::AgentCatalog(_) if version < CONTROL_AGENT_CATALOG_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1330,6 +1341,7 @@ impl ControlResult {
         }
         match self {
             Self::Capabilities(_) => Ok(()),
+            Self::AgentCatalog(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
                 if value.accepted {
@@ -1438,6 +1450,7 @@ impl ControlResult {
         matches!(
             (call, self),
             (ControlCall::Capabilities, Self::Capabilities(_))
+                | (ControlCall::AgentCatalog(_), Self::AgentCatalog(_))
                 | (ControlCall::MeasurementCatalog, Self::MeasurementCatalog(_))
                 | (
                     ControlCall::ValidateSettings { .. },
@@ -1485,6 +1498,11 @@ impl ControlResult {
                         }))
             };
         let causally_matches = match (call, self) {
+            (ControlCall::AgentCatalog(request), Self::AgentCatalog(catalog)) => {
+                catalog.runner_instance_id == request.runner_instance_id
+                    && catalog.refreshed
+                        == matches!(request.action, crate::AgentCatalogAction::Refresh)
+            }
             (ControlCall::Status { run_id }, Self::Status(summary)) => summary.run_id == *run_id,
             (ControlCall::ArtifactMetadata { digest, .. }, Self::ArtifactMetadata(metadata)) => {
                 metadata.sha256 == *digest
@@ -1674,6 +1692,7 @@ pub fn validate_request(
         return Err(ProtocolError::InvalidTimeout);
     }
     match &request.call {
+        ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::History(page) | ControlCall::Events(page) => validate_page(*page, limits)?,
         ControlCall::CreatePlan(params) => validate_idempotency_key(&params.idempotency_key)?,
         ControlCall::Launch(params) => {
