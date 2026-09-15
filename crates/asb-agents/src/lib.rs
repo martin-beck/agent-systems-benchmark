@@ -8,7 +8,7 @@
 pub mod accounting;
 pub mod aider;
 pub mod all_agents_provider;
-pub mod authenticated_request;
+pub mod auth_backend;
 pub mod codex;
 pub mod credential;
 pub mod gemini;
