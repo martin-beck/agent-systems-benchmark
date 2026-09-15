@@ -36,7 +36,7 @@ use crate::endpoint::{AdmissionGuard, join_workers, reap_workers};
 use crate::{
     CONTROL_AGENT_LIFECYCLE_V1, ControlBackend, ControlCall, ControlClient, ControlLimits,
     ControlServer, EndpointError, MAX_CONTROL_ID_BYTES, PeerIdentity, RequestDeadline,
-    SUPPORTED_CONTROL_VERSIONS, validate_identity,
+    validate_identity,
 };
 
 /// Exact byte length of one router/frontend broker packet.
@@ -657,7 +657,7 @@ impl AuthenticatedGenerationProducer {
             probe_stream,
             self.limits,
             expected_uid,
-            BTreeSet::from(SUPPORTED_CONTROL_VERSIONS),
+            BTreeSet::from([CONTROL_AGENT_LIFECYCLE_V1]),
             deadline,
         )?;
         if probe.negotiated().version != CONTROL_AGENT_LIFECYCLE_V1 {
@@ -2179,7 +2179,7 @@ mod tests {
             id: crate::RequestId(1),
             timeout_ms: 1_000,
             call: crate::ControlCall::Negotiate(crate::NegotiateParams {
-                versions: BTreeSet::from(crate::SUPPORTED_CONTROL_VERSIONS),
+                versions: BTreeSet::from([crate::CONTROL_AGENT_LIFECYCLE_V1]),
                 limits: ControlLimits::default(),
             }),
         };
