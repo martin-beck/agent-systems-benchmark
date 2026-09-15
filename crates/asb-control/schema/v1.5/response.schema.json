@@ -489,42 +489,6 @@
       "description": "Opaque stable execution-attempt identity.",
       "type": "string"
     },
-    "AuthStatusResponse": {
-      "description": "Credential-free public enrollment status returned by the control service.",
-      "type": "object",
-      "properties": {
-        "credential_locator_sha256": {
-          "description": "Credential resolver reference digest.",
-          "type": "string"
-        },
-        "endpoint_identity_sha256": {
-          "description": "Endpoint identity digest, never the endpoint value.",
-          "type": "string"
-        },
-        "generation": {
-          "description": "Monotonic enrollment generation.",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "provider": {
-          "description": "Provider identifier.",
-          "type": "string"
-        },
-        "status": {
-          "description": "Public lifecycle status.",
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "provider",
-        "endpoint_identity_sha256",
-        "credential_locator_sha256",
-        "generation",
-        "status"
-      ]
-    },
     "BoundControlResult": {
       "description": "Successful result bound to the complete canonical request.",
       "type": "object",
@@ -900,24 +864,6 @@
             },
             "value": {
               "$ref": "#/$defs/MutationAcknowledgement"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "value"
-          ]
-        },
-        {
-          "description": "Public credential enrollment status.",
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "auth_status"
-            },
-            "value": {
-              "$ref": "#/$defs/AuthStatusResponse"
             }
           },
           "additionalProperties": false,
