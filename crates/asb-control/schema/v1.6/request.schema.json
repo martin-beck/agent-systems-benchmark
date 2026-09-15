@@ -214,7 +214,7 @@
           "const": "auth_revoke"
         },
         "params": {
-          "$ref": "#/$defs/AuthStatusParams"
+          "$ref": "#/$defs/AuthRevokeParams"
         }
       },
       "required": [
@@ -682,6 +682,28 @@
         "provider",
         "endpoint_identity_sha256",
         "credential_locator_sha256",
+        "idempotency_key"
+      ]
+    },
+    "AuthRevokeParams": {
+      "description": "Idempotent credential enrollment revocation request.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "Retry-safe mutation key.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "provider": {
+          "description": "Provider identifier.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider",
         "idempotency_key"
       ]
     },
