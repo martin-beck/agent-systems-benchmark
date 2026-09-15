@@ -293,6 +293,20 @@ mod tests {
             Ok(())
         }
     }
+    struct PartialSink(Vec<u8>);
+    impl HeaderSink for PartialSink {
+        fn write_header(
+            &mut self,
+            name: &[u8],
+            prefix: &[u8],
+            value: &[u8],
+        ) -> Result<(), HeaderWriteError> {
+            self.0.extend_from_slice(name);
+            self.0.extend_from_slice(prefix);
+            self.0.extend_from_slice(&value[..value.len().min(2)]);
+            Err(HeaderWriteError)
+        }
+    }
     impl HeaderSink for Sink {
         fn write_header(
             &mut self,
@@ -567,7 +581,7 @@ mod tests {
             Err(AuthRequestError::CancelledOrStale)
         );
         assert_eq!(
-            request.inject(
+            request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
                 5,
                 1000,
@@ -577,5 +591,18 @@ mod tests {
             ),
             Err(AuthRequestError::CancelledOrStale)
         );
+        let mut partial = PartialSink(Vec::new());
+        assert_eq!(
+            request.clone().inject(
+                "http://127.0.0.1:9/v1/models",
+                4,
+                1000,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut partial,
+                || false
+            ),
+            Err(AuthRequestError::TransportRejected)
+        );
+        assert!(!partial.0.is_empty());
     }
 }
