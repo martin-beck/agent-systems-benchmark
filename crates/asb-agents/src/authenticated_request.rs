@@ -134,7 +134,13 @@ impl AuthenticatedRequest {
         if cancelled.is_cancelled() {
             return Err(AuthRequestError::CancelledOrStale);
         }
-        result.map_err(|_| AuthRequestError::TransportRejected)
+        match result {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                sink.rollback();
+                Err(AuthRequestError::TransportRejected)
+            }
+        }
     }
 }
 
@@ -147,6 +153,9 @@ pub trait HeaderSink {
         prefix: &[u8],
         value: &[u8],
     ) -> Result<(), HeaderWriteError>;
+
+    /// Roll back any partial header state after failed injection.
+    fn rollback(&mut self) {}
 }
 
 /// Typed cancellation source checked before and after secret injection.
@@ -296,6 +305,7 @@ mod tests {
     struct PartialSink {
         bytes_written: usize,
         failed: bool,
+        rolled_back: bool,
     }
     impl HeaderSink for PartialSink {
         fn write_header(
@@ -307,6 +317,11 @@ mod tests {
             self.bytes_written = name.len() + prefix.len() + value.len().min(2);
             self.failed = true;
             Err(HeaderWriteError)
+        }
+
+        fn rollback(&mut self) {
+            self.rolled_back = true;
+            self.bytes_written = 0;
         }
     }
     impl HeaderSink for Sink {
@@ -596,6 +611,7 @@ mod tests {
         let mut partial = PartialSink {
             bytes_written: 0,
             failed: false,
+            rolled_back: false,
         };
         assert_eq!(
             request.clone().inject(
@@ -608,7 +624,8 @@ mod tests {
             ),
             Err(AuthRequestError::TransportRejected)
         );
-        assert!(partial.bytes_written > 0);
         assert!(partial.failed);
+        assert!(partial.rolled_back);
+        assert_eq!(partial.bytes_written, 0);
     }
 }
