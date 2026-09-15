@@ -1209,6 +1209,21 @@ mod tests {
                 )
                 .is_err()
         );
+        let oversized = vec![b'x'; 64 * 1024 + 1];
+        assert!(
+            registry
+                .parse_openai_model_catalog("primary", 4, &oversized)
+                .is_err()
+        );
+        let too_many = (0..257)
+            .map(|index| serde_json::json!({"id": format!("model-{index}")}))
+            .collect::<Vec<_>>();
+        let too_many = serde_json::to_vec(&serde_json::json!({"data": too_many})).unwrap();
+        assert!(
+            registry
+                .parse_openai_model_catalog("primary", 4, &too_many)
+                .is_err()
+        );
     }
 
     #[test]
