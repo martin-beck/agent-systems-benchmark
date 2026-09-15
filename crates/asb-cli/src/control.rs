@@ -1603,6 +1603,12 @@ impl ControlBackend for RunnerBackend {
                     }),
                 )
             }
+            // Auth requests are admitted and validated at the control protocol boundary;
+            // durable registry execution is intentionally unavailable until its backend is wired.
+            ControlCall::AuthEnroll(_)
+            | ControlCall::AuthStatus(_)
+            | ControlCall::AuthRotate(_)
+            | ControlCall::AuthRevoke(_) => Err(BackendFailure::CapabilityUnavailable),
             // Lifecycle storage and bundle verification are not wired into the
             // runner yet. Reject every operation explicitly so no caller can
             // observe a fabricated or partially active installation.

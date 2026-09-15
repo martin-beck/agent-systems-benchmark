@@ -290,6 +290,22 @@ pub struct AuthRotateParams {
     pub idempotency_key: String,
 }
 
+/// Credential-free public enrollment status returned by the control service.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthStatusResponse {
+    /// Provider identifier.
+    pub provider: String,
+    /// Endpoint identity digest, never the endpoint value.
+    pub endpoint_identity_sha256: String,
+    /// Credential resolver reference digest.
+    pub credential_locator_sha256: String,
+    /// Monotonic enrollment generation.
+    pub generation: u64,
+    /// Public lifecycle status.
+    pub status: String,
+}
+
 impl ControlCall {
     /// Earliest exact wire version that defines this operation.
     #[must_use]
@@ -1321,6 +1337,8 @@ pub enum ControlResult {
     Status(RunSummary),
     /// Cancellation or another mutation was durably accepted.
     Acknowledged(MutationAcknowledgement),
+    /// Public credential enrollment status.
+    AuthStatus(AuthStatusResponse),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1419,6 +1437,17 @@ impl ControlResult {
                 } else {
                     Err(ProtocolError::InvalidResponse)
                 }
+            }
+            Self::AuthStatus(value) => {
+                validate_identity(&value.provider)?;
+                validate_digest(&value.endpoint_identity_sha256)?;
+                validate_digest(&value.credential_locator_sha256)?;
+                if value.generation == 0
+                    || !matches!(value.status.as_str(), "active" | "revoked" | "pending")
+                {
+                    return Err(ProtocolError::InvalidResponse);
+                }
+                Ok(())
             }
             Self::SettingsValidation(value) => {
                 if value.issues.len() > usize::from(limits.validate()?.max_page_items) {
@@ -1535,6 +1564,10 @@ impl ControlResult {
                 | (ControlCall::Launch(_), Self::Launch(_))
                 | (ControlCall::Status { .. }, Self::Status(_))
                 | (ControlCall::Cancel(_), Self::Acknowledged(_))
+                | (ControlCall::AuthEnroll(_), Self::Acknowledged(_))
+                | (ControlCall::AuthRotate(_), Self::Acknowledged(_))
+                | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
+                | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -1786,6 +1819,20 @@ pub fn validate_request(
         return Err(ProtocolError::InvalidTimeout);
     }
     match &request.call {
+        ControlCall::AuthEnroll(params) => {
+            validate_identity(&params.provider)?;
+            validate_digest(&params.endpoint_identity_sha256)?;
+            validate_digest(&params.credential_locator_sha256)?;
+            validate_idempotency_key(&params.idempotency_key)?;
+        }
+        ControlCall::AuthStatus(params) | ControlCall::AuthRevoke(params) => {
+            validate_identity(&params.provider)?;
+        }
+        ControlCall::AuthRotate(params) => {
+            validate_identity(&params.provider)?;
+            validate_digest(&params.credential_locator_sha256)?;
+            validate_idempotency_key(&params.idempotency_key)?;
+        }
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,
