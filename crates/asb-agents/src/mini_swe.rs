@@ -2128,7 +2128,7 @@ wait
         let limits = ProcessLimits::new(
             1024,
             1024,
-            Duration::from_secs(10),
+            Duration::from_secs(30),
             Duration::from_millis(20),
             Duration::from_millis(5),
         )
