@@ -320,6 +320,12 @@ impl ProviderRegistryV1 {
         {
             return Err(ConfigError::InvalidValue("stale model discovery".into()));
         }
+        let mut ids = BTreeSet::new();
+        if models.iter().any(|model| !ids.insert(&model.id)) {
+            return Err(ConfigError::InvalidValue(
+                "duplicate discovered model".into(),
+            ));
+        }
         self.models.insert(connection.to_owned(), models);
         self.validate()
     }
