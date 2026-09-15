@@ -284,6 +284,14 @@ impl ProviderRegistryV1 {
             validate_text(name, "connection name")?;
             validate_text(&connection.provider, "provider")?;
             validate_text(&connection.protocol, "protocol")?;
+            if !matches!(
+                connection.protocol.as_str(),
+                "openai_chat" | "gemini" | "ollama" | "openai_compatible"
+            ) {
+                return Err(ConfigError::InvalidValue(
+                    "unsupported provider protocol".into(),
+                ));
+            }
             validate_sha256(&connection.endpoint_identity_sha256, "endpoint identity")?;
             if let Some(digest) = &connection.credential_locator_sha256 {
                 validate_sha256(digest, "credential locator")?;
