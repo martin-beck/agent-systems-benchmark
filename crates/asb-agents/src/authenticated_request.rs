@@ -376,4 +376,47 @@ mod tests {
         assert_eq!(schema["additionalProperties"], false);
         assert_eq!(schema["allOf"].as_array().unwrap().len(), 3);
     }
+
+    #[test]
+    fn schema_instances_match_provider_policy_and_deadline_rules() {
+        fn valid(instance: &serde_json::Value) -> bool {
+            let object = instance.as_object().unwrap();
+            let provider = object["provider"].as_str().unwrap();
+            let policy = object["policy"].as_str().unwrap();
+            let deadline = object["deadline_ms"].as_u64().unwrap_or(0);
+            let timeout = object["timeout_ms"].as_u64().unwrap_or(0);
+            deadline > 0
+                && deadline <= MAX_AUTH_DEADLINE_MS
+                && deadline >= timeout
+                && match provider {
+                    "open_ai" => policy == "bearer",
+                    "gemini" => policy == "api_key",
+                    "ollama" => policy == "bearer" || policy == "none",
+                    _ => false,
+                }
+        }
+        let base = serde_json::json!({
+            "endpoint_identity_sha256": "a".repeat(64), "generation": 1,
+            "timeout_ms": 1000, "deadline_ms": 2000, "max_response_bytes": 1024
+        });
+        for (provider, policy) in [
+            ("open_ai", "bearer"),
+            ("gemini", "api_key"),
+            ("ollama", "none"),
+        ] {
+            let mut instance = base.clone();
+            instance["provider"] = serde_json::json!(provider);
+            instance["policy"] = serde_json::json!(policy);
+            assert!(valid(&instance));
+        }
+        let mut invalid = base.clone();
+        invalid["provider"] = serde_json::json!("gemini");
+        invalid["policy"] = serde_json::json!("bearer");
+        assert!(!valid(&invalid));
+        invalid["policy"] = serde_json::json!("api_key");
+        invalid["deadline_ms"] = serde_json::json!(0);
+        assert!(!valid(&invalid));
+        invalid["deadline_ms"] = serde_json::json!(MAX_AUTH_DEADLINE_MS + 1);
+        assert!(!valid(&invalid));
+    }
 }
