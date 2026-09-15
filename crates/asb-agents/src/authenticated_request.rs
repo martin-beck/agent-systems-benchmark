@@ -68,7 +68,7 @@ impl AuthenticatedRequest {
         if self.timeout_ms == 0 || self.timeout_ms > MAX_AUTH_REQUEST_TIMEOUT_MS {
             return Err(AuthRequestError::InvalidTimeout);
         }
-        if self.deadline_ms < self.timeout_ms {
+        if self.deadline_ms == 0 || self.deadline_ms < self.timeout_ms {
             return Err(AuthRequestError::InvalidDeadline);
         }
         if self.max_response_bytes == 0 || self.max_response_bytes > MAX_AUTH_RESPONSE_BYTES {
@@ -105,11 +105,11 @@ impl AuthenticatedRequest {
         cancelled: impl Cancellation,
     ) -> Result<(), AuthRequestError> {
         self.validate_endpoint(endpoint)?;
-        if current_generation != self.generation
-            || now_ms >= self.deadline_ms
-            || cancelled.is_cancelled()
-        {
+        if current_generation != self.generation || cancelled.is_cancelled() {
             return Err(AuthRequestError::CancelledOrStale);
+        }
+        if now_ms >= self.deadline_ms || self.deadline_ms.saturating_sub(now_ms) > self.timeout_ms {
+            return Err(AuthRequestError::DeadlineExceeded);
         }
         let mut bytes = credential.into_transport_bytes();
         if bytes.is_empty() && !matches!(self.policy, AuthPolicy::None) {
@@ -182,6 +182,8 @@ pub enum AuthRequestError {
     CancelledOrStale,
     /// The absolute deadline has elapsed or is inconsistent with the timeout.
     InvalidDeadline,
+    /// The absolute deadline has expired or exceeds the bounded timeout window.
+    DeadlineExceeded,
 }
 
 /// Compute the endpoint identity used by [`AuthenticatedRequest`].
@@ -289,7 +291,7 @@ mod tests {
             Err(AuthRequestError::EndpointIdentityMismatch)
         );
         assert_eq!(
-            request.inject(
+            request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
                 2,
                 1_500,
@@ -298,6 +300,17 @@ mod tests {
                 || false,
             ),
             Err(AuthRequestError::CancelledOrStale)
+        );
+        assert_eq!(
+            request.clone().inject(
+                "http://127.0.0.1:9/v1/models",
+                1,
+                2_000,
+                crate::credential::ResolvedCredential::from_test(b"secret"),
+                &mut sink,
+                || false,
+            ),
+            Err(AuthRequestError::DeadlineExceeded)
         );
     }
 
@@ -316,6 +329,9 @@ mod tests {
         request.policy = AuthPolicy::ApiKey;
         request.timeout_ms = 0;
         assert_eq!(request.validate(), Err(AuthRequestError::InvalidTimeout));
+        request.timeout_ms = 1_000;
+        request.deadline_ms = 0;
+        assert_eq!(request.validate(), Err(AuthRequestError::InvalidDeadline));
     }
 
     #[test]
