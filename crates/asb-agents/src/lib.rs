@@ -8,8 +8,7 @@
 pub mod accounting;
 pub mod aider;
 pub mod all_agents_provider;
-pub mod auth_backend;
-pub mod authenticated_request;
+pub mod auth;
 pub mod codex;
 pub mod credential;
 pub mod gemini;
@@ -23,5 +22,4 @@ pub mod openhands;
 pub mod openjiuwen;
 pub mod provider;
 pub mod provider_launch;
-pub mod provider_probe;
 pub mod qwen_code;
