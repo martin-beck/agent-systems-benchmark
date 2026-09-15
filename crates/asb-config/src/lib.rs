@@ -214,6 +214,75 @@ pub struct Configuration {
     pub agent_overrides: BTreeMap<String, AgentOverride>,
 }
 
+/// Bounded, credential-free provider/model discovery record.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderRegistryV1 {
+    /// Registry contract version.
+    pub schema_version: u16,
+    /// Managed named connections.
+    pub connections: BTreeMap<String, RegistryConnectionV1>,
+    /// Models qualified for each connection.
+    pub models: BTreeMap<String, Vec<RegistryModelV1>>,
+}
+
+/// Public connection identity; endpoint values are never persisted.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegistryConnectionV1 {
+    /// Provider family identifier.
+    pub provider: String,
+    /// Protocol identifier.
+    pub protocol: String,
+    /// Endpoint identity digest.
+    pub endpoint_identity_sha256: String,
+    /// Optional credential locator digest.
+    pub credential_locator_sha256: Option<String>,
+}
+
+/// Model discovered and qualified for one managed connection.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegistryModelV1 {
+    /// Provider model identifier.
+    pub id: String,
+    /// Qualification evidence digest.
+    pub qualification_sha256: String,
+    /// Connection generation used for discovery.
+    pub discovered_at_generation: u64,
+}
+
+impl ProviderRegistryV1 {
+    /// Validate bounded names, digests and generation fencing.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != 1 || self.connections.len() > 128 || self.models.len() > 128 {
+            return Err(ConfigError::InvalidValue("provider registry".into()));
+        }
+        for (name, connection) in &self.connections {
+            validate_text(name, "connection name")?;
+            validate_text(&connection.provider, "provider")?;
+            validate_text(&connection.protocol, "protocol")?;
+            validate_sha256(&connection.endpoint_identity_sha256, "endpoint identity")?;
+            if let Some(digest) = &connection.credential_locator_sha256 {
+                validate_sha256(digest, "credential locator")?;
+            }
+        }
+        for (name, models) in &self.models {
+            if !self.connections.contains_key(name) || models.len() > 256 {
+                return Err(ConfigError::InvalidValue("model registry".into()));
+            }
+            for model in models {
+                validate_text(&model.id, "model id")?;
+                validate_sha256(&model.qualification_sha256, "qualification")?;
+                if model.discovered_at_generation == 0 {
+                    return Err(ConfigError::InvalidValue("model generation".into()));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Built-in values used when no persisted value exists.
 pub fn built_in_defaults() -> Defaults {
     Defaults {
