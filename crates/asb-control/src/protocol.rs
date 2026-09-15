@@ -28,13 +28,16 @@ pub const CONTROL_MEASUREMENT_SELECTION_V1: ControlVersion = ControlVersion { ma
 pub const CONTROL_AGENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 4 };
 /// Version of the verified local-agent lifecycle operations.
 pub const CONTROL_AGENT_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 5 };
+/// Version of additive provider-authentication lifecycle operations.
+pub const CONTROL_AUTH_V1: ControlVersion = ControlVersion { major: 1, minor: 6 };
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 5] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 6] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
     CONTROL_AGENT_CATALOG_V1,
     CONTROL_AGENT_LIFECYCLE_V1,
+    CONTROL_AUTH_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -321,7 +324,7 @@ impl ControlCall {
             Self::AuthEnroll(_)
             | Self::AuthStatus(_)
             | Self::AuthRotate(_)
-            | Self::AuthRevoke(_) => CONTROL_V1,
+            | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
             _ => CONTROL_V1,
         }
     }
