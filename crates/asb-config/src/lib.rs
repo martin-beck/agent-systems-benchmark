@@ -1231,7 +1231,7 @@ mod tests {
                 .parse_openai_model_catalog("primary", 4, &too_many)
                 .is_err()
         );
-        registry.models["primary"][0].qualification_sha256 = "c".repeat(64);
+        registry.models.get_mut("primary").unwrap()[0].qualification_sha256 = "c".repeat(64);
         assert!(registry.validate().is_err());
     }
 
