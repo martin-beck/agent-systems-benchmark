@@ -53,6 +53,74 @@
       ]
     },
     {
+      "description": "Enroll a credential reference for a provider.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_enroll"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthEnrollParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read public enrollment status.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_status"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthStatusParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Rotate an enrolled credential reference.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_rotate"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthRotateParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Revoke an enrollment.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_revoke"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthStatusParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Validate settings without creating durable run state.",
       "type": "object",
       "properties": {
@@ -276,6 +344,79 @@
     "AttemptId": {
       "description": "Opaque stable execution-attempt identity.",
       "type": "string"
+    },
+    "AuthEnrollParams": {
+      "description": "Credential-free authenticated enrollment metadata.",
+      "type": "object",
+      "properties": {
+        "credential_locator_sha256": {
+          "description": "Credential resolver reference digest.",
+          "type": "string"
+        },
+        "endpoint_identity_sha256": {
+          "description": "Endpoint identity digest.",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Idempotency key.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "provider": {
+          "description": "Provider identifier.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "endpoint_identity_sha256",
+        "credential_locator_sha256",
+        "idempotency_key"
+      ]
+    },
+    "AuthRotateParams": {
+      "description": "Credential-free rotation request.",
+      "type": "object",
+      "properties": {
+        "credential_locator_sha256": {
+          "description": "New credential resolver reference digest.",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Idempotency key.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "provider": {
+          "description": "Provider identifier.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "credential_locator_sha256",
+        "idempotency_key"
+      ]
+    },
+    "AuthStatusParams": {
+      "description": "Public enrollment lookup key.",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "description": "Provider identifier.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider"
+      ]
     },
     "CancelParams": {
       "description": "Causally fenced cancellation input.",
