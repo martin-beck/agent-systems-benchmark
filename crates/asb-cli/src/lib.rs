@@ -192,9 +192,10 @@ fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
             credential_locator_sha256: value("--credential-digest")?,
             idempotency_key: value("--idempotency-key")?,
         }),
-        "revoke" => {
-            asb_control::ControlCall::AuthRevoke(asb_control::AuthStatusParams { provider })
-        }
+        "revoke" => asb_control::ControlCall::AuthRevoke(asb_control::AuthRevokeParams {
+            provider,
+            idempotency_key: value("--idempotency-key")?,
+        }),
         _ => return Err(usage()),
     };
     let request = asb_control::ControlRequest {

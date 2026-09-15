@@ -220,7 +220,7 @@ pub enum ControlCall {
     /// Rotate an enrolled credential reference.
     AuthRotate(AuthRotateParams),
     /// Revoke an enrollment.
-    AuthRevoke(AuthStatusParams),
+    AuthRevoke(AuthRevokeParams),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -279,6 +279,16 @@ pub struct AuthEnrollParams {
 pub struct AuthStatusParams {
     /// Provider identifier.
     pub provider: String,
+}
+
+/// Idempotent credential enrollment revocation request.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthRevokeParams {
+    /// Provider identifier.
+    pub provider: String,
+    /// Retry-safe mutation key.
+    pub idempotency_key: String,
 }
 
 /// Credential-free rotation request.
@@ -1828,8 +1838,12 @@ pub fn validate_request(
             validate_digest(&params.credential_locator_sha256)?;
             validate_idempotency_key(&params.idempotency_key)?;
         }
-        ControlCall::AuthStatus(params) | ControlCall::AuthRevoke(params) => {
+        ControlCall::AuthStatus(params) => {
             validate_identity(&params.provider)?;
+        }
+        ControlCall::AuthRevoke(params) => {
+            validate_identity(&params.provider)?;
+            validate_idempotency_key(&params.idempotency_key)?;
         }
         ControlCall::AuthRotate(params) => {
             validate_identity(&params.provider)?;

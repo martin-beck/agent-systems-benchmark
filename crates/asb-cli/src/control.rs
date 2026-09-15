@@ -1708,7 +1708,7 @@ impl ControlBackend for RunnerBackend {
             ),
             ControlCall::AuthRevoke(params) => self.mutation(
                 call,
-                &format!("revoke:{}", params.provider),
+                &params.idempotency_key,
                 MutationTarget::AuthRevoke {
                     provider: params.provider.clone(),
                 },
