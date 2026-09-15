@@ -45,8 +45,8 @@ pub fn execute_authenticated_loopback_probe<F, C>(
     cancelled: C,
 ) -> Result<ProbeOutcome, ProbeTransportError>
 where
-    F: Fn() -> u64 + Copy,
-    C: Cancellation + Copy,
+    F: Fn() -> u64 + Clone,
+    C: Cancellation + Clone,
 {
     let provider_matches = matches!(
         (request.provider, auth_request.provider),
@@ -70,15 +70,16 @@ where
             AuthRequestError::DeadlineExceeded,
         ));
     }
+    let started = Instant::now();
     let mut header = CapturedHeader::default();
     let injection = inject_probe_auth(
         auth_request,
         endpoint,
-        current_generation,
+        current_generation.clone(),
         now_ms,
         credential,
         &mut header,
-        cancelled,
+        cancelled.clone(),
     );
     if let Err(error) = injection {
         header.wipe();
@@ -91,7 +92,7 @@ where
         Some(header.bytes.as_slice()),
         Some((
             &cancelled,
-            Instant::now(),
+            started,
             Duration::from_millis(request.timeout_ms.min(auth_budget)),
         )),
     );
@@ -202,15 +203,27 @@ where
         }
         if let Some(remaining) = remaining_budget(&budget) {
             stream
-                .set_read_timeout(Some(remaining))
+                .set_read_timeout(Some(remaining.min(Duration::from_millis(50))))
                 .map_err(|_| ProbeTransportError::Unavailable)?;
         }
-        let read = stream.read(&mut chunk).map_err(|_| {
-            budget_error(&budget).map_or(
-                ProbeTransportError::Unavailable,
-                ProbeTransportError::Authentication,
-            )
-        })?;
+        let read = match stream.read(&mut chunk) {
+            Ok(read) => read,
+            Err(error)
+                if budget.is_some()
+                    && matches!(
+                        error.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                    ) =>
+            {
+                continue;
+            }
+            Err(_) => {
+                return Err(budget_error(&budget).map_or(
+                    ProbeTransportError::Unavailable,
+                    ProbeTransportError::Authentication,
+                ));
+            }
+        };
         if read == 0 {
             break;
         }
@@ -424,6 +437,7 @@ pub fn classify_probe(
         ProbeProvider::OpenAi | ProbeProvider::Gemini => match status {
             200..=299 => ProbeOutcome::Connected,
             401 | 403 => ProbeOutcome::Rejected,
+            410 => ProbeOutcome::Expired,
             300..=399 => ProbeOutcome::Unavailable,
             408 | 425 | 429 | 500..=599 => ProbeOutcome::Unavailable,
             _ => ProbeOutcome::Rejected,
@@ -431,6 +445,7 @@ pub fn classify_probe(
         ProbeProvider::Ollama => match status {
             200..=299 => ProbeOutcome::Connected,
             401 | 403 => ProbeOutcome::Rejected,
+            410 => ProbeOutcome::Expired,
             404 => ProbeOutcome::Unavailable,
             300..=399 => ProbeOutcome::Unavailable,
             408 | 425 | 429 | 500..=599 => ProbeOutcome::Unavailable,
@@ -474,6 +489,10 @@ mod tests {
         assert_eq!(
             classify_probe(ProbeProvider::Gemini, 401, 12, true),
             ProbeOutcome::Rejected
+        );
+        assert_eq!(
+            classify_probe(ProbeProvider::Gemini, 410, 12, true),
+            ProbeOutcome::Expired
         );
         assert_eq!(
             classify_probe(ProbeProvider::Ollama, 404, 12, true),
