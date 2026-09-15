@@ -930,8 +930,17 @@ mod tests {
         );
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
-            let mut request = [0_u8; 256];
-            let _ = stream.read(&mut request);
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+            let mut request = Vec::new();
+            let mut chunk = [0_u8; 128];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") && request.len() < 512 {
+                match stream.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(size) => request.extend_from_slice(&chunk[..size]),
+                    Err(_) => break,
+                }
+            }
+            drop(request);
             stream.write_all(&response).unwrap();
             stream.shutdown(std::net::Shutdown::Write).unwrap();
         });
