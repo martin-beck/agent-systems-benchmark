@@ -13,6 +13,9 @@ use std::fmt;
 /// Version of the authentication enrollment contract.
 pub const AUTH_ENROLLMENT_V1: u16 = 1;
 const MAX_ID_BYTES: usize = 128;
+/// Maximum API-key size accepted by the enrollment boundary.
+pub const MAX_SECRET_BYTES: usize = 16 * 1024;
+const MAX_METADATA_BYTES: usize = 16 * 1024;
 
 /// A credential-free reference to one provider secret.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -76,6 +79,26 @@ pub enum EnrollmentStatus {
     Revoked,
 }
 
+/// Result of a provider authentication probe.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProbeResult {
+    /// Enrollment generation used for the probe.
+    pub generation: u64,
+    /// Public outcome class; no provider response text is retained.
+    pub status: EnrollmentStatus,
+}
+
+/// Qualified secret-storage and probe boundary.
+pub trait SecretBackend {
+    /// Store or replace one secret under its logical reference.
+    fn enroll(&mut self, reference: &CredentialReferenceV1, secret: &[u8])
+    -> Result<(), AuthError>;
+    /// Remove a secret without exposing its value.
+    fn revoke(&mut self, reference: &CredentialReferenceV1) -> Result<(), AuthError>;
+    /// Perform a bounded authenticated probe and return only its outcome class.
+    fn probe(&mut self, reference: &CredentialReferenceV1) -> Result<EnrollmentStatus, AuthError>;
+}
+
 /// Public, persistable authentication enrollment metadata.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -109,6 +132,23 @@ impl AuthEnrollmentV1 {
         })
     }
 
+    /// Enroll one API key through a caller-supplied qualified backend.
+    /// The key is passed once and is never represented in returned metadata.
+    pub fn enroll_api_key<B: SecretBackend>(
+        connection_id: &str,
+        credential: CredentialReferenceV1,
+        secret: &[u8],
+        backend: &mut B,
+    ) -> Result<Self, AuthError> {
+        validate_secret(secret)?;
+        let enrollment = Self::enroll(connection_id, credential.clone())?;
+        if let Err(error) = backend.enroll(&credential, secret) {
+            let _ = backend.revoke(&credential);
+            return Err(error);
+        }
+        Ok(enrollment)
+    }
+
     /// Replace the reference, invalidating the old probe result.
     pub fn rotate(&mut self, credential: CredentialReferenceV1) -> Result<(), AuthError> {
         credential.validate()?;
@@ -121,6 +161,26 @@ impl AuthEnrollmentV1 {
             .ok_or(AuthError::GenerationOverflow)?;
         self.credential = credential;
         self.status = EnrollmentStatus::Untested;
+        Ok(())
+    }
+
+    /// Atomically stage a replacement secret before switching the metadata generation.
+    pub fn rotate_api_key<B: SecretBackend>(
+        &mut self,
+        credential: CredentialReferenceV1,
+        secret: &[u8],
+        backend: &mut B,
+    ) -> Result<(), AuthError> {
+        validate_secret(secret)?;
+        let old = self.credential.clone();
+        backend.enroll(&credential, secret)?;
+        if let Err(error) = self.rotate(credential.clone()) {
+            let _ = backend.revoke(&credential);
+            return Err(error);
+        }
+        if old != credential {
+            backend.revoke(&old)?;
+        }
         Ok(())
     }
 
@@ -143,9 +203,61 @@ impl AuthEnrollmentV1 {
         Ok(())
     }
 
+    /// Record a probe only when it belongs to this enrollment generation.
+    pub fn record_probe_result(&mut self, result: ProbeResult) -> Result<(), AuthError> {
+        if result.generation != self.generation {
+            return Err(AuthError::StaleProbe);
+        }
+        self.record_probe(result.status)
+    }
+
+    /// Probe through a qualified backend and fence the result to this generation.
+    pub fn probe<B: SecretBackend>(&mut self, backend: &mut B) -> Result<ProbeResult, AuthError> {
+        if self.status == EnrollmentStatus::Revoked {
+            return Err(AuthError::Revoked);
+        }
+        let result = ProbeResult {
+            generation: self.generation,
+            status: backend.probe(&self.credential)?,
+        };
+        self.record_probe_result(result)?;
+        Ok(result)
+    }
+
+    /// Serialize bounded metadata for an application-owned durable store.
+    pub fn to_json(&self) -> Result<Vec<u8>, AuthError> {
+        self.validate()?;
+        let bytes = serde_json::to_vec(self).map_err(|_| AuthError::MetadataEncoding)?;
+        if bytes.len() > MAX_METADATA_BYTES {
+            return Err(AuthError::MetadataTooLarge);
+        }
+        Ok(bytes)
+    }
+
+    /// Restore and validate metadata from a bounded durable store.
+    pub fn from_json(bytes: &[u8]) -> Result<Self, AuthError> {
+        if bytes.is_empty() || bytes.len() > MAX_METADATA_BYTES {
+            return Err(AuthError::MetadataTooLarge);
+        }
+        let enrollment: Self =
+            serde_json::from_slice(bytes).map_err(|_| AuthError::InvalidEnrollment)?;
+        enrollment.validate()?;
+        Ok(enrollment)
+    }
+
     /// Revoke the reference and make future probes impossible.
     pub fn revoke(&mut self) {
         self.status = EnrollmentStatus::Revoked;
+    }
+
+    /// Revoke backend material and then mark this enrollment revoked.
+    pub fn revoke_from_backend<B: SecretBackend>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<(), AuthError> {
+        backend.revoke(&self.credential)?;
+        self.revoke();
+        Ok(())
     }
 
     /// Validate persisted metadata before use.
@@ -171,6 +283,14 @@ pub enum AuthError {
     InvalidStatus,
     /// Generation cannot be increased safely.
     GenerationOverflow,
+    /// Probe belongs to a replaced enrollment generation.
+    StaleProbe,
+    /// Secret is empty, contains a NUL, or exceeds the bounded input limit.
+    InvalidSecret,
+    /// Metadata could not be encoded.
+    MetadataEncoding,
+    /// Metadata exceeds its size limit.
+    MetadataTooLarge,
 }
 
 impl fmt::Display for AuthError {
@@ -181,6 +301,10 @@ impl fmt::Display for AuthError {
             Self::Revoked => "authentication enrollment is revoked",
             Self::InvalidStatus => "authentication probe status is invalid",
             Self::GenerationOverflow => "authentication generation overflow",
+            Self::StaleProbe => "authentication probe belongs to a stale generation",
+            Self::InvalidSecret => "authentication secret is empty or too large",
+            Self::MetadataEncoding => "authentication metadata cannot be encoded",
+            Self::MetadataTooLarge => "authentication metadata exceeds its size limit",
         })
     }
 }
@@ -206,6 +330,13 @@ fn source_tag(source: CredentialSource) -> &'static str {
         CredentialSource::FileDescriptor => "file_descriptor",
         CredentialSource::Helper => "helper",
     }
+}
+
+fn validate_secret(secret: &[u8]) -> Result<(), AuthError> {
+    if secret.is_empty() || secret.len() > MAX_SECRET_BYTES || secret.contains(&0) {
+        return Err(AuthError::InvalidSecret);
+    }
+    Ok(())
 }
 
 fn format_digest(bytes: impl AsRef<[u8]>) -> String {
@@ -266,5 +397,86 @@ mod tests {
         assert!(!encoded.contains("provider.primary"));
         assert!(!encoded.contains("secret"));
         assert!(enrollment.validate().is_ok());
+    }
+
+    struct Backend {
+        stored: bool,
+    }
+
+    impl SecretBackend for Backend {
+        fn enroll(&mut self, _: &CredentialReferenceV1, secret: &[u8]) -> Result<(), AuthError> {
+            validate_secret(secret)?;
+            self.stored = true;
+            Ok(())
+        }
+
+        fn revoke(&mut self, _: &CredentialReferenceV1) -> Result<(), AuthError> {
+            self.stored = false;
+            Ok(())
+        }
+
+        fn probe(&mut self, _: &CredentialReferenceV1) -> Result<EnrollmentStatus, AuthError> {
+            Ok(if self.stored {
+                EnrollmentStatus::Connected
+            } else {
+                EnrollmentStatus::Unavailable
+            })
+        }
+    }
+
+    #[test]
+    fn backend_probe_is_generation_fenced_and_metadata_persistable() {
+        let mut backend = Backend { stored: false };
+        let mut enrollment = AuthEnrollmentV1::enroll_api_key(
+            "openai-primary",
+            reference(CredentialSource::Helper),
+            b"one-shot-secret",
+            &mut backend,
+        )
+        .unwrap();
+        let result = enrollment.probe(&mut backend).unwrap();
+        assert_eq!(result.generation, 1);
+        assert_eq!(result.status, EnrollmentStatus::Connected);
+        assert_eq!(
+            enrollment.record_probe_result(ProbeResult {
+                generation: 0,
+                status: EnrollmentStatus::Connected,
+            }),
+            Err(AuthError::StaleProbe)
+        );
+        let restored = AuthEnrollmentV1::from_json(&enrollment.to_json().unwrap()).unwrap();
+        assert_eq!(restored, enrollment);
+        assert!(
+            !enrollment
+                .to_json()
+                .unwrap()
+                .windows(16)
+                .any(|w| w == b"one-shot-secret")
+        );
+    }
+
+    #[test]
+    fn secret_and_unknown_metadata_fail_closed() {
+        let mut backend = Backend { stored: false };
+        assert_eq!(
+            AuthEnrollmentV1::enroll_api_key(
+                "openai-primary",
+                reference(CredentialSource::Helper),
+                &[1, 0, 2],
+                &mut backend,
+            ),
+            Err(AuthError::InvalidSecret)
+        );
+        let mut malformed =
+            AuthEnrollmentV1::enroll("openai-primary", reference(CredentialSource::Helper))
+                .unwrap()
+                .to_json()
+                .unwrap();
+        malformed.truncate(malformed.len() - 1);
+        malformed.extend_from_slice(b",\"unknown\":1}");
+        assert_eq!(
+            AuthEnrollmentV1::from_json(&malformed),
+            Err(AuthError::InvalidEnrollment)
+        );
     }
 }
