@@ -2,10 +2,151 @@
 // SPDX-License-Identifier: MIT
 //! Bounded provider authentication probe result classification.
 
+use sha2::{Digest, Sha256};
+use std::io::{Read, Write};
+use std::net::{IpAddr, SocketAddr, TcpStream};
+use std::time::Duration;
+use url::Url;
+
 /// Maximum response body accepted by a provider authentication probe.
 pub const MAX_PROBE_BODY_BYTES: usize = 16 * 1024;
 /// Maximum probe deadline in milliseconds.
 pub const MAX_PROBE_TIMEOUT_MS: u64 = 30_000;
+
+/// Execute a credential-free, loopback-only HTTP probe with bounded I/O.
+///
+/// The endpoint is bound to the request's SHA-256 identity and is never
+/// redirected. Callers provide the current enrollment generation so a stale
+/// response cannot be accepted after rotation.
+pub fn execute_loopback_probe<F>(
+    request: &ProbeRequest,
+    endpoint: &str,
+    current_generation: F,
+) -> Result<ProbeOutcome, ProbeTransportError>
+where
+    F: Fn() -> u64,
+{
+    request
+        .validate()
+        .map_err(ProbeTransportError::InvalidRequest)?;
+    if current_generation() != request.generation {
+        return Err(ProbeTransportError::StaleGeneration);
+    }
+    let url = Url::parse(endpoint).map_err(|_| ProbeTransportError::InvalidEndpoint)?;
+    if url.scheme() != "http" || url.username() != "" || url.password().is_some() {
+        return Err(ProbeTransportError::UnqualifiedTransport);
+    }
+    let host = url.host_str().ok_or(ProbeTransportError::InvalidEndpoint)?;
+    let ip = match host {
+        "localhost" => IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        _ => host
+            .parse::<IpAddr>()
+            .map_err(|_| ProbeTransportError::UnqualifiedTransport)?,
+    };
+    if !ip.is_loopback() {
+        return Err(ProbeTransportError::UnqualifiedTransport);
+    }
+    let port = url.port().ok_or(ProbeTransportError::InvalidEndpoint)?;
+    let expected = format!("{:x}", Sha256::digest(endpoint.as_bytes()));
+    if expected != request.endpoint_identity_sha256 {
+        return Err(ProbeTransportError::EndpointIdentityMismatch);
+    }
+    let address = SocketAddr::new(ip, port);
+    let timeout = Duration::from_millis(request.timeout_ms);
+    let mut stream = TcpStream::connect_timeout(&address, timeout)
+        .map_err(|_| ProbeTransportError::Unavailable)?;
+    stream
+        .set_read_timeout(Some(timeout))
+        .and_then(|_| stream.set_write_timeout(Some(timeout)))
+        .map_err(|_| ProbeTransportError::Unavailable)?;
+    let path = if url.path().is_empty() {
+        "/"
+    } else {
+        url.path()
+    };
+    let target = url
+        .query()
+        .map_or_else(|| path.to_owned(), |query| format!("{path}?{query}"));
+    let host_header = if url.port() == Some(80) {
+        host.to_owned()
+    } else {
+        format!("{host}:{port}")
+    };
+    write!(
+        stream,
+        "GET {target} HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
+    )
+    .map_err(|_| ProbeTransportError::Unavailable)?;
+    let mut response = Vec::with_capacity(request.max_response_bytes.min(4096));
+    let mut chunk = [0_u8; 1024];
+    loop {
+        let read = stream
+            .read(&mut chunk)
+            .map_err(|_| ProbeTransportError::Unavailable)?;
+        if read == 0 {
+            break;
+        }
+        if response.len() + read > request.max_response_bytes {
+            return Err(ProbeTransportError::ResponseTooLarge);
+        }
+        response.extend_from_slice(&chunk[..read]);
+    }
+    if current_generation() != request.generation {
+        return Err(ProbeTransportError::StaleGeneration);
+    }
+    let header_end = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or(ProbeTransportError::MalformedResponse)?;
+    let headers = &response[..header_end];
+    let body_len = response.len() - header_end - 4;
+    let mut lines = headers.split(|byte| *byte == b'\n');
+    let status = lines
+        .next()
+        .and_then(|line| line.strip_suffix(b"\r"))
+        .and_then(|line| line.split(|byte| *byte == b' ').nth(1))
+        .and_then(|code| std::str::from_utf8(code).ok())
+        .and_then(|code| code.parse::<u16>().ok())
+        .ok_or(ProbeTransportError::MalformedResponse)?;
+    let content_type_json = lines.any(|line| {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        line.len() >= 13
+            && line[..13].eq_ignore_ascii_case(b"content-type:")
+            && std::str::from_utf8(&line[13..]).is_ok_and(|value| {
+                value
+                    .trim()
+                    .to_ascii_lowercase()
+                    .starts_with("application/json")
+            })
+    });
+    Ok(classify_probe(
+        request.provider,
+        status,
+        body_len,
+        content_type_json,
+    ))
+}
+
+/// Failures from the qualified bounded probe transport.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProbeTransportError {
+    /// Request validation failed before opening a socket.
+    InvalidRequest(ProbeRequestError),
+    /// Endpoint syntax or required port is invalid.
+    InvalidEndpoint,
+    /// Endpoint is not an explicitly loopback HTTP transport.
+    UnqualifiedTransport,
+    /// Endpoint bytes do not match the enrolled identity.
+    EndpointIdentityMismatch,
+    /// The enrollment generation changed during the probe.
+    StaleGeneration,
+    /// The endpoint did not respond within the bounded transport.
+    Unavailable,
+    /// The response exceeded the enrolled body bound.
+    ResponseTooLarge,
+    /// The response did not contain a parseable status/header block.
+    MalformedResponse,
+}
 
 /// Bounded, endpoint-pinned probe request.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -101,6 +242,7 @@ pub fn classify_probe(
         ProbeProvider::OpenAi | ProbeProvider::Gemini => match status {
             200..=299 => ProbeOutcome::Connected,
             401 | 403 => ProbeOutcome::Rejected,
+            300..=399 => ProbeOutcome::Unavailable,
             408 | 425 | 429 | 500..=599 => ProbeOutcome::Unavailable,
             _ => ProbeOutcome::Rejected,
         },
@@ -108,6 +250,7 @@ pub fn classify_probe(
             200..=299 => ProbeOutcome::Connected,
             401 | 403 => ProbeOutcome::Rejected,
             404 => ProbeOutcome::Unavailable,
+            300..=399 => ProbeOutcome::Unavailable,
             408 | 425 | 429 | 500..=599 => ProbeOutcome::Unavailable,
             _ => ProbeOutcome::Rejected,
         },
@@ -117,6 +260,8 @@ pub fn classify_probe(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+    use std::thread;
 
     #[test]
     fn provider_specific_success_and_auth_failures_are_body_free() {
@@ -178,6 +323,66 @@ mod tests {
         assert_eq!(
             invalid.validate(),
             Err(ProbeRequestError::InvalidResponseLimit)
+        );
+    }
+
+    #[test]
+    fn loopback_transport_is_pinned_bounded_and_generation_checked() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let endpoint = format!(
+            "http://127.0.0.1:{}/health",
+            listener.local_addr().unwrap().port()
+        );
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 256];
+            let _ = std::io::Read::read(&mut stream, &mut request);
+            std::io::Write::write_all(
+                &mut stream,
+                b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
+            )
+            .unwrap();
+        });
+        let request = ProbeRequest {
+            provider: ProbeProvider::OpenAi,
+            endpoint_identity_sha256: format!("{:x}", Sha256::digest(endpoint.as_bytes())),
+            generation: 7,
+            timeout_ms: 1_000,
+            max_response_bytes: 1024,
+        };
+        assert_eq!(
+            execute_loopback_probe(&request, &endpoint, || 7),
+            Ok(ProbeOutcome::Connected)
+        );
+        server.join().unwrap();
+        assert_eq!(
+            execute_loopback_probe(&request, &endpoint, || 8),
+            Err(ProbeTransportError::StaleGeneration)
+        );
+    }
+
+    #[test]
+    fn loopback_transport_rejects_redirects_and_non_loopback_endpoints() {
+        let endpoint = "http://127.0.0.1:1/health";
+        let request = ProbeRequest {
+            provider: ProbeProvider::Gemini,
+            endpoint_identity_sha256: format!("{:x}", Sha256::digest(endpoint.as_bytes())),
+            generation: 1,
+            timeout_ms: 100,
+            max_response_bytes: 1024,
+        };
+        assert_eq!(
+            execute_loopback_probe(&request, endpoint, || 1),
+            Err(ProbeTransportError::Unavailable)
+        );
+        let external = "http://192.0.2.1:80/health";
+        let external_request = ProbeRequest {
+            endpoint_identity_sha256: format!("{:x}", Sha256::digest(external.as_bytes())),
+            ..request
+        };
+        assert_eq!(
+            execute_loopback_probe(&external_request, external, || 1),
+            Err(ProbeTransportError::UnqualifiedTransport)
         );
     }
 }
