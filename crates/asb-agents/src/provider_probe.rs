@@ -64,6 +64,12 @@ where
     if !provider_matches {
         return Err(ProbeTransportError::ProviderMismatch);
     }
+    let auth_budget = auth_request.deadline_ms.saturating_sub(now_ms);
+    if auth_budget == 0 {
+        return Err(ProbeTransportError::Authentication(
+            AuthRequestError::DeadlineExceeded,
+        ));
+    }
     let mut header = CapturedHeader::default();
     let injection = inject_probe_auth(
         auth_request,
@@ -86,7 +92,7 @@ where
         Some((
             &cancelled,
             Instant::now(),
-            Duration::from_millis(request.timeout_ms),
+            Duration::from_millis(request.timeout_ms.min(auth_budget)),
         )),
     );
     header.wipe();
