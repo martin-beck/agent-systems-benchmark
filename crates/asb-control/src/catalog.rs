@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: MIT
 //! Renderer-neutral, authenticated local-agent catalog types.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 use crate::{ProtocolError, Revision, validate_digest, validate_identity};
 
@@ -179,14 +180,67 @@ impl AgentCatalog {
                 return Err(ProtocolError::InvalidResponse);
             }
             let mut capabilities = BTreeSet::new();
+            let mut prior_capability = None;
             for capability in &entry.capabilities {
                 validate_identifier(capability)?;
-                if !capabilities.insert(capability.as_str()) {
+                if prior_capability.is_some_and(|value: &str| value >= capability.as_str())
+                    || !capabilities.insert(capability.as_str())
+                {
                     return Err(ProtocolError::InvalidResponse);
                 }
+                prior_capability = Some(capability.as_str());
             }
         }
+        if self.catalog_sha256 != self.computed_sha256()? {
+            return Err(ProtocolError::InvalidResponse);
+        }
         Ok(())
+    }
+
+    /// Compute the authenticated SHA-256 identity of this catalog snapshot.
+    ///
+    /// The `catalog_sha256` member is deliberately excluded from the hashed
+    /// representation, preventing a self-referential digest. Callers should
+    /// validate the rest of the catalog before accepting this identity.
+    pub fn computed_sha256(&self) -> Result<String, ProtocolError> {
+        let bytes = canonical_agent_catalog_bytes(self)?;
+        let digest = sha2::Sha256::digest(bytes);
+        Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    }
+}
+
+/// Serialize the v1.4 catalog identity in its canonical, renderer-neutral form.
+///
+/// Canonicalization hashes the typed snapshot object with `catalog_sha256`
+/// omitted. Object members are sorted by their UTF-8 byte keys recursively;
+/// arrays retain their protocol-defined order (agents by `agent_id`, and
+/// capabilities in their advertised order). JSON strings are UTF-8, numbers
+/// are the typed integer values, and no whitespace is emitted. This function
+/// does not normalize, sort, or otherwise repair malformed input: callers must
+/// run [`AgentCatalog::validate`] first.
+pub fn canonical_agent_catalog_bytes(catalog: &AgentCatalog) -> Result<Vec<u8>, ProtocolError> {
+    let mut value = serde_json::to_value(catalog).map_err(|_| ProtocolError::InvalidResponse)?;
+    let serde_json::Value::Object(object) = &mut value else {
+        return Err(ProtocolError::InvalidResponse);
+    };
+    object.remove("catalog_sha256");
+    let canonical = canonicalize_json(value);
+    serde_json::to_vec(&canonical).map_err(|_| ProtocolError::InvalidResponse)
+}
+
+fn canonicalize_json(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(object) => {
+            let sorted: BTreeMap<String, serde_json::Value> = object
+                .into_iter()
+                .map(|(key, value)| (key, canonicalize_json(value)))
+                .collect();
+            serde_json::Value::Object(sorted.into_iter().collect())
+        }
+        serde_json::Value::Array(values) => {
+            serde_json::Value::Array(values.into_iter().map(canonicalize_json).collect())
+        }
+        other => other,
     }
 }
 
@@ -270,14 +324,16 @@ mod tests {
     }
 
     fn catalog() -> AgentCatalog {
-        AgentCatalog {
+        let mut catalog = AgentCatalog {
             runner_instance_id: "runner-1".into(),
             generation: Revision(1),
             catalog_sha256: "e".repeat(64),
             target: entry("agent-a").target,
             agents: vec![entry("agent-a")],
             refreshed: false,
-        }
+        };
+        catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+        catalog
     }
 
     #[test]
@@ -311,5 +367,33 @@ mod tests {
         let mut unsigned = catalog();
         unsigned.agents[0].package.signature_sha256 = "0".into();
         assert!(unsigned.validate().is_err());
+
+        let mut unsorted_capabilities = catalog();
+        unsorted_capabilities.agents[0].capabilities = vec!["tools".into(), "chat".into()];
+        assert!(unsorted_capabilities.validate().is_err());
+    }
+
+    #[test]
+    fn canonical_digest_is_independent_of_object_member_order_and_excludes_itself() {
+        let catalog = catalog();
+        let bytes = canonical_agent_catalog_bytes(&catalog).unwrap();
+        assert_eq!(
+            catalog.computed_sha256().unwrap(),
+            "cba97a13d8123b0d24c381174cd26a35fcfb64d24d34cfaa8549bec8ea578520"
+        );
+        assert!(!String::from_utf8(bytes).unwrap().contains("catalog_sha256"));
+
+        let mut reordered: serde_json::Value = serde_json::to_value(&catalog).unwrap();
+        let digest = reordered["catalog_sha256"].take();
+        reordered["catalog_sha256"] = digest;
+        let decoded: AgentCatalog = serde_json::from_value(reordered).unwrap();
+        assert_eq!(catalog.computed_sha256(), decoded.computed_sha256());
+    }
+
+    #[test]
+    fn digest_mismatch_is_rejected_even_when_shape_is_valid() {
+        let mut catalog = catalog();
+        catalog.catalog_sha256 = "0".repeat(64);
+        assert_eq!(catalog.validate(), Err(ProtocolError::InvalidResponse));
     }
 }
