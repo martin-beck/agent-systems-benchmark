@@ -253,6 +253,28 @@ pub struct RegistryModelV1 {
 }
 
 impl ProviderRegistryV1 {
+    /// Add a managed connection, rejecting replacement of an existing identity.
+    pub fn add_connection(
+        &mut self,
+        name: String,
+        connection: RegistryConnectionV1,
+    ) -> Result<(), ConfigError> {
+        if name.is_empty() || self.connections.contains_key(&name) {
+            return Err(ConfigError::InvalidValue("duplicate connection".into()));
+        }
+        self.connections.insert(name, connection);
+        self.validate()
+    }
+
+    /// Remove a managed connection and its cached models atomically.
+    pub fn remove_connection(&mut self, name: &str) -> Result<(), ConfigError> {
+        if self.connections.remove(name).is_none() {
+            return Err(ConfigError::InvalidValue("unknown connection".into()));
+        }
+        self.models.remove(name);
+        self.validate()
+    }
+
     /// Validate bounded names, digests and generation fencing.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.schema_version != 1 || self.connections.len() > 128 || self.models.len() > 128 {
