@@ -389,6 +389,20 @@ pub fn control_response_schema_v1_5() -> Schema {
     schema
 }
 
+/// Canonical request schema for control v1.6 authentication operations.
+#[allow(dead_code)]
+pub fn control_request_schema_v1_6() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for control v1.6 authentication operations.
+#[allow(dead_code)]
+pub fn control_response_schema_v1_6() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    schema
+}
+
 /// Canonical event schema.
 pub fn control_event_schema() -> Schema {
     let mut schema = canonical::<ControlEvent>();
