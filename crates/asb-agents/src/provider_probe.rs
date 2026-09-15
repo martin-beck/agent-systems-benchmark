@@ -4,6 +4,60 @@
 
 /// Maximum response body accepted by a provider authentication probe.
 pub const MAX_PROBE_BODY_BYTES: usize = 16 * 1024;
+/// Maximum probe deadline in milliseconds.
+pub const MAX_PROBE_TIMEOUT_MS: u64 = 30_000;
+
+/// Bounded, endpoint-pinned probe request.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbeRequest {
+    /// Provider protocol family.
+    pub provider: ProbeProvider,
+    /// Credential-free endpoint identity digest.
+    pub endpoint_identity_sha256: String,
+    /// Enrollment generation being probed.
+    pub generation: u64,
+    /// End-to-end deadline.
+    pub timeout_ms: u64,
+    /// Maximum response body the transport may buffer.
+    pub max_response_bytes: usize,
+}
+
+impl ProbeRequest {
+    /// Validate bounds before a transport is opened.
+    pub fn validate(&self) -> Result<(), ProbeRequestError> {
+        if self.endpoint_identity_sha256.len() != 64
+            || !self
+                .endpoint_identity_sha256
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(ProbeRequestError::InvalidEndpointIdentity);
+        }
+        if self.generation == 0 {
+            return Err(ProbeRequestError::InvalidGeneration);
+        }
+        if self.timeout_ms == 0 || self.timeout_ms > MAX_PROBE_TIMEOUT_MS {
+            return Err(ProbeRequestError::InvalidTimeout);
+        }
+        if self.max_response_bytes == 0 || self.max_response_bytes > MAX_PROBE_BODY_BYTES {
+            return Err(ProbeRequestError::InvalidResponseLimit);
+        }
+        Ok(())
+    }
+}
+
+/// Probe request validation failure without endpoint or provider disclosure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProbeRequestError {
+    /// Endpoint identity is not a lowercase SHA-256 digest.
+    InvalidEndpointIdentity,
+    /// Generation zero is never a valid enrollment.
+    InvalidGeneration,
+    /// Deadline is outside the bounded range.
+    InvalidTimeout,
+    /// Response limit is outside the bounded range.
+    InvalidResponseLimit,
+}
 
 /// Provider protocol family whose authentication response is being classified.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -93,6 +147,33 @@ mod tests {
         assert_eq!(
             classify_probe(ProbeProvider::Ollama, 503, 10, true),
             ProbeOutcome::Unavailable
+        );
+    }
+
+    #[test]
+    fn probe_requests_validate_before_transport() {
+        let valid = ProbeRequest {
+            provider: ProbeProvider::OpenAi,
+            endpoint_identity_sha256: "a".repeat(64),
+            generation: 1,
+            timeout_ms: 1_000,
+            max_response_bytes: 1024,
+        };
+        assert_eq!(valid.validate(), Ok(()));
+        let mut invalid = valid.clone();
+        invalid.generation = 0;
+        assert_eq!(
+            invalid.validate(),
+            Err(ProbeRequestError::InvalidGeneration)
+        );
+        invalid = valid.clone();
+        invalid.timeout_ms = MAX_PROBE_TIMEOUT_MS + 1;
+        assert_eq!(invalid.validate(), Err(ProbeRequestError::InvalidTimeout));
+        invalid = valid.clone();
+        invalid.max_response_bytes = MAX_PROBE_BODY_BYTES + 1;
+        assert_eq!(
+            invalid.validate(),
+            Err(ProbeRequestError::InvalidResponseLimit)
         );
     }
 }
