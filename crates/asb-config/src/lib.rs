@@ -281,6 +281,26 @@ impl ProviderRegistryV1 {
         }
         Ok(())
     }
+
+    /// Replace a connection's bounded, already-qualified model cache.
+    pub fn replace_models(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        models: Vec<RegistryModelV1>,
+    ) -> Result<(), ConfigError> {
+        if generation == 0 || models.len() > 256 || !self.connections.contains_key(connection) {
+            return Err(ConfigError::InvalidValue("model discovery".into()));
+        }
+        if models
+            .iter()
+            .any(|model| model.discovered_at_generation != generation)
+        {
+            return Err(ConfigError::InvalidValue("stale model discovery".into()));
+        }
+        self.models.insert(connection.to_owned(), models);
+        self.validate()
+    }
 }
 
 /// Built-in values used when no persisted value exists.
