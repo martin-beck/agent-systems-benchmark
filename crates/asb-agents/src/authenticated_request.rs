@@ -96,10 +96,10 @@ impl AuthenticatedRequest {
         current_generation: u64,
         credential: ResolvedCredential,
         sink: &mut impl HeaderSink,
-        cancelled: impl Fn() -> bool,
+        cancelled: impl Cancellation,
     ) -> Result<(), AuthRequestError> {
         self.validate_endpoint(endpoint)?;
-        if current_generation != self.generation || cancelled() {
+        if current_generation != self.generation || cancelled.is_cancelled() {
             return Err(AuthRequestError::CancelledOrStale);
         }
         let mut bytes = credential.into_transport_bytes();
@@ -113,7 +113,7 @@ impl AuthenticatedRequest {
             AuthPolicy::None => Ok(()),
         };
         bytes.fill(0);
-        if cancelled() {
+        if cancelled.is_cancelled() {
             return Err(AuthRequestError::CancelledOrStale);
         }
         result.map_err(|_| AuthRequestError::TransportRejected)
@@ -129,6 +129,21 @@ pub trait HeaderSink {
         prefix: &[u8],
         value: &[u8],
     ) -> Result<(), HeaderWriteError>;
+}
+
+/// Typed cancellation source checked before and after secret injection.
+pub trait Cancellation {
+    /// Return true when the request must fail closed.
+    fn is_cancelled(&self) -> bool;
+}
+
+impl<F> Cancellation for F
+where
+    F: Fn() -> bool,
+{
+    fn is_cancelled(&self) -> bool {
+        self()
+    }
 }
 
 /// Failure reported by a final transport header sink.
