@@ -3,13 +3,12 @@
 //! Checked-in schemas and bounded public fixture conformance.
 
 use asb_control::{
-    AnalysisEvidence, BoundControlResult, ControlCall, ControlEvent, ControlLimits, ControlRequest,
-    ControlResponse, ControlSuccess, HistoryEvidence, ProtocolError, analysis_evidence_schema,
-    control_event_schema, control_request_schema, control_request_schema_v1_2,
-    control_request_schema_v1_3, control_request_schema_v1_4, control_request_schema_v1_5,
-    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
-    control_response_schema_v1_4, control_response_schema_v1_5, history_evidence_schema,
-    validate_request,
+    AnalysisEvidence, ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlResponse,
+    ControlSuccess, HistoryEvidence, ProtocolError, analysis_evidence_schema, control_event_schema,
+    control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
+    control_request_schema_v1_4, control_request_schema_v1_5, control_response_schema,
+    control_response_schema_v1_2, control_response_schema_v1_3, control_response_schema_v1_4,
+    control_response_schema_v1_5, history_evidence_schema, validate_request,
 };
 use serde_json::{Value, json};
 
@@ -124,8 +123,6 @@ fn public_fixtures_match_schemas_and_rust_types() {
     let ControlSuccess::Operation(operation) = lifecycle_response.result().unwrap() else {
         panic!("lifecycle response is not an operation")
     };
-    let operation =
-        BoundControlResult::new(&lifecycle_request.call, operation.result.clone()).unwrap();
     operation
         .validate_for_call_and_version(
             &lifecycle_request.call,
