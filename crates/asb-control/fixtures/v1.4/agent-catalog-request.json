@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "timeout_ms": 1000,
+  "method": "agent_catalog",
+  "params": {
+    "action": "status",
+    "runner_instance_id": "runner-1",
+    "known_generation": 3
+  }
+}
