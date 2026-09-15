@@ -383,10 +383,43 @@ mod tests {
         );
         assert!(!String::from_utf8(bytes).unwrap().contains("catalog_sha256"));
 
-        let mut reordered: serde_json::Value = serde_json::to_value(&catalog).unwrap();
-        let digest = reordered["catalog_sha256"].take();
-        reordered["catalog_sha256"] = digest;
-        let decoded: AgentCatalog = serde_json::from_value(reordered).unwrap();
+        // Decode a deliberately hand-ordered representation.  The member
+        // order differs at every object level from serde's representation;
+        // canonicalization must make this produce the same identity.
+        let reordered = r#"{
+            "refreshed": false,
+            "agents": [{
+                "availability": {"status": "available"},
+                "capabilities": ["chat", "tools"],
+                "provenance": {
+                    "manifest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "source_revision": "cccccccccccccccccccccccccccccccccccccccc"
+                },
+                "package": {
+                    "version": "1.2.3",
+                    "signature_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "package_id": "agent-package"
+                },
+                "target": {
+                    "libc_version": "2.35",
+                    "libc": "glibc",
+                    "architecture": "x86_64",
+                    "operating_system": "linux"
+                },
+                "agent_id": "agent-a"
+            }],
+            "target": {
+                "libc_version": "2.35",
+                "libc": "glibc",
+                "architecture": "x86_64",
+                "operating_system": "linux"
+            },
+            "catalog_sha256": "cba97a13d8123b0d24c381174cd26a35fcfb64d24d34cfaa8549bec8ea578520",
+            "generation": 1,
+            "runner_instance_id": "runner-1"
+        }"#;
+        let decoded: AgentCatalog = serde_json::from_str(reordered).unwrap();
         assert_eq!(catalog.computed_sha256(), decoded.computed_sha256());
     }
 

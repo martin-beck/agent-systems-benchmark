@@ -1,9 +1,11 @@
-# Authenticated agent-catalog digest (v1.4)
+# Agent-catalog content digest (v1.4)
 
 `AgentCatalog.catalog_sha256` is the content identity used by independent
-frontends, including `asb-tui`. It is a SHA-256 digest of the catalog snapshot;
-it is not a signature and does not replace verification of the package and
-detached-signature digests in each entry.
+frontends, including `asb-tui`. SHA-256 provides content integrity: it detects
+changes to the snapshot but does not authenticate its origin or authorize a
+package. It is not a signature and does not replace verification of the
+detached package-signature digests in each entry; those signatures provide the
+package authenticity check.
 
 ## Exact algorithm
 
