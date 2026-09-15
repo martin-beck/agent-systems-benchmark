@@ -830,6 +830,165 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_gemini_and_ollama_wire_policies_are_enforced() {
+        for (provider, auth_provider, policy, credential, expected) in [
+            (
+                ProbeProvider::Gemini,
+                AuthProvider::Gemini,
+                AuthPolicy::ApiKey,
+                b"gemini-key".as_slice(),
+                Some(b"x-api-key: gemini-key".as_slice()),
+            ),
+            (
+                ProbeProvider::Ollama,
+                AuthProvider::Ollama,
+                AuthPolicy::None,
+                b"".as_slice(),
+                None,
+            ),
+        ] {
+            let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+            let endpoint = format!(
+                "http://127.0.0.1:{}/health",
+                listener.local_addr().unwrap().port()
+            );
+            let server = thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = Vec::new();
+                let mut chunk = [0_u8; 128];
+                while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    let size = stream.read(&mut chunk).unwrap();
+                    assert!(size > 0);
+                    request.extend_from_slice(&chunk[..size]);
+                    assert!(request.len() <= 512);
+                }
+                if let Some(expected) = expected {
+                    assert!(
+                        request
+                            .windows(expected.len())
+                            .any(|window| window == expected)
+                    );
+                } else {
+                    assert!(
+                        !request
+                            .windows(b"authorization:".len())
+                            .any(|window| { window.eq_ignore_ascii_case(b"authorization:") })
+                    );
+                    assert!(
+                        !request
+                            .windows(b"x-api-key:".len())
+                            .any(|window| { window.eq_ignore_ascii_case(b"x-api-key:") })
+                    );
+                }
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
+                    )
+                    .unwrap();
+            });
+            let identity = crate::authenticated_request::endpoint_identity_sha256(&endpoint);
+            let probe = ProbeRequest {
+                provider,
+                endpoint_identity_sha256: identity.clone(),
+                generation: 1,
+                timeout_ms: 1_000,
+                max_response_bytes: 1_024,
+            };
+            let auth = AuthenticatedRequest {
+                provider: auth_provider,
+                endpoint_identity_sha256: identity,
+                generation: 1,
+                timeout_ms: 1_000,
+                deadline_ms: 2_000,
+                max_response_bytes: 1_024,
+                policy,
+            };
+            assert_eq!(
+                execute_authenticated_loopback_probe(
+                    &probe,
+                    auth,
+                    &endpoint,
+                    || 1,
+                    1_000,
+                    crate::credential::ResolvedCredential::from_test(credential),
+                    || false,
+                ),
+                Ok(ProbeOutcome::Connected)
+            );
+            server.join().unwrap();
+        }
+    }
+
+    fn authenticated_response_fixture(
+        response: Vec<u8>,
+        max_response_bytes: usize,
+    ) -> Result<ProbeOutcome, ProbeTransportError> {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let endpoint = format!(
+            "http://127.0.0.1:{}/health",
+            listener.local_addr().unwrap().port()
+        );
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 256];
+            let _ = stream.read(&mut request);
+            stream.write_all(&response).unwrap();
+            stream.shutdown(std::net::Shutdown::Write).unwrap();
+        });
+        let identity = crate::authenticated_request::endpoint_identity_sha256(&endpoint);
+        let probe = ProbeRequest {
+            provider: ProbeProvider::OpenAi,
+            endpoint_identity_sha256: identity.clone(),
+            generation: 1,
+            timeout_ms: 1_000,
+            max_response_bytes,
+        };
+        let auth = AuthenticatedRequest {
+            provider: AuthProvider::OpenAi,
+            endpoint_identity_sha256: identity,
+            generation: 1,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes,
+            policy: AuthPolicy::Bearer,
+        };
+        let result = execute_authenticated_loopback_probe(
+            &probe,
+            auth,
+            &endpoint,
+            || 1,
+            1_000,
+            crate::credential::ResolvedCredential::from_test(b"token"),
+            || false,
+        );
+        server.join().unwrap();
+        result
+    }
+
+    #[test]
+    fn authenticated_malformed_redirect_and_oversized_responses_fail_closed() {
+        assert_eq!(
+            authenticated_response_fixture(b"HTTP/1.1 nope\r\n\r\n{}".to_vec(), 1_024),
+            Err(ProbeTransportError::MalformedResponse)
+        );
+        assert_eq!(
+            authenticated_response_fixture(
+                b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}".to_vec(),
+                1_024,
+            ),
+            Ok(ProbeOutcome::Unavailable)
+        );
+        let mut oversized =
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n"
+                .to_vec();
+        oversized.extend(std::iter::repeat_n(b'x', 1_025));
+        assert_eq!(
+            authenticated_response_fixture(oversized, 1_024),
+            Err(ProbeTransportError::ResponseTooLarge)
+        );
+    }
+
+    #[test]
     fn probe_requests_validate_before_transport() {
         let valid = ProbeRequest {
             provider: ProbeProvider::OpenAi,
@@ -865,6 +1024,14 @@ mod tests {
         );
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            let mut chunk = [0_u8; 128];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let size = stream.read(&mut chunk).unwrap();
+                assert!(size > 0);
+                request.extend_from_slice(&chunk[..size]);
+                assert!(request.len() <= 512);
+            }
             std::io::Write::write_all(
                 &mut stream,
                 b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
