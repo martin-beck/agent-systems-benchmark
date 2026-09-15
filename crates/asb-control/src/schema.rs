@@ -237,7 +237,18 @@ fn remove_lifecycle_variants(value: &mut Value) {
         "agent_retry",
         "agent_remove",
         "agent_lifecycle",
+        "auth_enroll",
+        "auth_status",
+        "auth_rotate",
+        "auth_revoke",
     ] {
+        remove_tagged_variant(value, "/oneOf", tag);
+        remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
+    }
+}
+
+fn remove_auth_variants(value: &mut Value) {
+    for tag in ["auth_enroll", "auth_status", "auth_rotate", "auth_revoke"] {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
     }
@@ -297,6 +308,7 @@ pub fn control_request_schema() -> Schema {
     remove_tagged_variant(&mut value, "/oneOf", "measurement_catalog");
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
+    remove_auth_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 request schema remains valid")
 }
@@ -323,6 +335,7 @@ pub fn control_response_schema() -> Schema {
     );
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
+    remove_auth_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 response schema remains valid")
 }
@@ -379,14 +392,20 @@ pub fn control_response_schema_v1_4() -> Schema {
 
 /// Canonical request schema for control v1.5.
 pub fn control_request_schema_v1_5() -> Schema {
-    canonical::<ControlRequest>()
+    let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
+    remove_auth_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.5 request schema remains valid")
 }
 
 /// Canonical response schema for control v1.5.
 pub fn control_response_schema_v1_5() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
-    schema
+    let mut value = serde_json::to_value(schema).expect("v1.5 response schema serializes");
+    remove_auth_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.5 response schema remains valid")
 }
 
 /// Canonical request schema for control v1.6 authentication operations.
