@@ -119,6 +119,7 @@ fn dispatch(
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
         }
@@ -164,12 +165,54 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
         .collect()
 }
 
+/// Emit a bounded, credential-free authenticated control request.
+fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
+    let usage =
+        || CliError::usage("auth requires enroll|status|rotate|revoke and named digest options");
+    let operation = args.first().ok_or_else(usage)?;
+    let value = |name: &str| -> Result<String, CliError> {
+        args.windows(2)
+            .find(|pair| pair[0] == name)
+            .map(|pair| pair[1].clone())
+            .ok_or_else(|| CliError::usage("auth missing required option"))
+    };
+    let provider = value("--provider")?;
+    let call = match operation.as_str() {
+        "enroll" => asb_control::ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+            provider,
+            endpoint_identity_sha256: value("--endpoint-digest")?,
+            credential_locator_sha256: value("--credential-digest")?,
+            idempotency_key: value("--idempotency-key")?,
+        }),
+        "status" => {
+            asb_control::ControlCall::AuthStatus(asb_control::AuthStatusParams { provider })
+        }
+        "rotate" => asb_control::ControlCall::AuthRotate(asb_control::AuthRotateParams {
+            provider,
+            credential_locator_sha256: value("--credential-digest")?,
+            idempotency_key: value("--idempotency-key")?,
+        }),
+        "revoke" => {
+            asb_control::ControlCall::AuthRevoke(asb_control::AuthStatusParams { provider })
+        }
+        _ => return Err(usage()),
+    };
+    let request = asb_control::ControlRequest {
+        jsonrpc: "2.0".to_owned(),
+        id: asb_control::RequestId(0),
+        timeout_ms: 300_000,
+        call,
+    };
+    write_json(stdout, &request).map(|()| 0)
+}
+
 fn command_name(args: &[OsString]) -> &'static str {
     match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
         Some("provider-catalog") => "provider-catalog",
+        Some("auth") => "auth",
         Some("provider-plan") => "provider-plan",
         Some("completion") => "completion",
         Some("plan") => "plan",

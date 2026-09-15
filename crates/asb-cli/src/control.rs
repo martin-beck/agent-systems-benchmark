@@ -4,12 +4,12 @@
 
 use super::*;
 use asb_control::{
-    AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, BackendFailure, BoundControlResult,
-    CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend, ControlCall, ControlEvent,
-    ControlEventKind, ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
-    AuthStatusResponse, MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference,
-    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
-    SettingsIssue, SettingsValidation,
+    AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, AuthStatusResponse, BackendFailure,
+    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend,
+    ControlCall, ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
+    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
+    PlanReference, ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId,
+    RunSummary, SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1631,59 +1631,97 @@ impl ControlBackend for RunnerBackend {
             ControlCall::AuthEnroll(params) => self.mutation(
                 call,
                 &params.idempotency_key,
-                MutationTarget::AuthEnroll { provider: params.provider.clone() },
+                MutationTarget::AuthEnroll {
+                    provider: params.provider.clone(),
+                },
                 deadline,
                 |catalog| {
                     if let Some(existing) = catalog.auth.get(&params.provider) {
                         if existing.endpoint_identity_sha256 != params.endpoint_identity_sha256
-                            || existing.credential_locator_sha256 != params.credential_locator_sha256
-                        { return Err(BackendFailure::Rejected); }
-                        return Ok(ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }));
+                            || existing.credential_locator_sha256
+                                != params.credential_locator_sha256
+                        {
+                            return Err(BackendFailure::Rejected);
+                        }
+                        return Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                            accepted: true,
+                        }));
                     }
-                    catalog.auth.insert(params.provider.clone(), AuthRecord {
-                        provider: params.provider.clone(),
-                        endpoint_identity_sha256: params.endpoint_identity_sha256.clone(),
-                        credential_locator_sha256: params.credential_locator_sha256.clone(),
-                        generation: 1,
-                        status: "active".to_owned(),
-                    });
+                    catalog.auth.insert(
+                        params.provider.clone(),
+                        AuthRecord {
+                            provider: params.provider.clone(),
+                            endpoint_identity_sha256: params.endpoint_identity_sha256.clone(),
+                            credential_locator_sha256: params.credential_locator_sha256.clone(),
+                            generation: 1,
+                            status: "active".to_owned(),
+                        },
+                    );
                     Self::append_event(catalog, ControlEventKind::RunUpdated, None)?;
-                    Ok(ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }))
+                    Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                        accepted: true,
+                    }))
                 },
             ),
             ControlCall::AuthStatus(params) => {
-                let catalog = self.catalog.lock().map_err(|_| BackendFailure::NeedsReconciliation)?;
-                let record = catalog.auth.get(&params.provider).ok_or(BackendFailure::Rejected)?;
-                self.bind(call, ControlResult::AuthStatus(AuthStatusResponse {
-                    provider: record.provider.clone(),
-                    endpoint_identity_sha256: record.endpoint_identity_sha256.clone(),
-                    credential_locator_sha256: record.credential_locator_sha256.clone(),
-                    generation: record.generation,
-                    status: record.status.clone(),
-                }))
+                let catalog = self
+                    .catalog
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+                let record = catalog
+                    .auth
+                    .get(&params.provider)
+                    .ok_or(BackendFailure::Rejected)?;
+                self.bind(
+                    call,
+                    ControlResult::AuthStatus(AuthStatusResponse {
+                        provider: record.provider.clone(),
+                        endpoint_identity_sha256: record.endpoint_identity_sha256.clone(),
+                        credential_locator_sha256: record.credential_locator_sha256.clone(),
+                        generation: record.generation,
+                        status: record.status.clone(),
+                    }),
+                )
             }
             ControlCall::AuthRotate(params) => self.mutation(
                 call,
                 &params.idempotency_key,
-                MutationTarget::AuthRotate { provider: params.provider.clone() },
+                MutationTarget::AuthRotate {
+                    provider: params.provider.clone(),
+                },
                 deadline,
                 |catalog| {
-                    let record = catalog.auth.get_mut(&params.provider).ok_or(BackendFailure::Rejected)?;
+                    let record = catalog
+                        .auth
+                        .get_mut(&params.provider)
+                        .ok_or(BackendFailure::Rejected)?;
                     record.credential_locator_sha256 = params.credential_locator_sha256.clone();
-                    record.generation = record.generation.checked_add(1).ok_or(BackendFailure::Rejected)?;
+                    record.generation = record
+                        .generation
+                        .checked_add(1)
+                        .ok_or(BackendFailure::Rejected)?;
                     record.status = "active".to_owned();
-                    Ok(ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }))
+                    Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                        accepted: true,
+                    }))
                 },
             ),
             ControlCall::AuthRevoke(params) => self.mutation(
                 call,
                 &format!("revoke:{}", params.provider),
-                MutationTarget::AuthRevoke { provider: params.provider.clone() },
+                MutationTarget::AuthRevoke {
+                    provider: params.provider.clone(),
+                },
                 deadline,
                 |catalog| {
-                    let record = catalog.auth.get_mut(&params.provider).ok_or(BackendFailure::Rejected)?;
+                    let record = catalog
+                        .auth
+                        .get_mut(&params.provider)
+                        .ok_or(BackendFailure::Rejected)?;
                     record.status = "revoked".to_owned();
-                    Ok(ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }))
+                    Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                        accepted: true,
+                    }))
                 },
             ),
             // Lifecycle storage and bundle verification are not wired into the
