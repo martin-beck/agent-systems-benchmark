@@ -2128,7 +2128,7 @@ wait
         let limits = ProcessLimits::new(
             1024,
             1024,
-            Duration::from_secs(30),
+            Duration::from_secs(90),
             Duration::from_millis(20),
             Duration::from_millis(5),
         )
@@ -2140,7 +2140,7 @@ wait
         // Emulated guests can spend several seconds starting the pinned Python
         // fixture.  Keep the readiness bound finite and below the process limit;
         // a missing publication still fails closed at the deadline.
-        let readiness_deadline = Instant::now() + Duration::from_secs(25);
+        let readiness_deadline = Instant::now() + Duration::from_secs(60);
         let (children, original_group) = loop {
             if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
                 && let Some(pids) = parse_pid_list_evidence(&bytes)
