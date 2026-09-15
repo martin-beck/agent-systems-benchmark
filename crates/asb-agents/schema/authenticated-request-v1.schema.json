@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ASB authenticated provider request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "endpoint_identity_sha256", "generation", "timeout_ms", "deadline_ms", "max_response_bytes", "policy"],
+  "properties": {
+    "provider": {"enum": ["open_ai", "gemini", "ollama"]},
+    "endpoint_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "generation": {"type": "integer", "minimum": 1},
+    "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 30000},
+    "deadline_ms": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "max_response_bytes": {"type": "integer", "minimum": 1, "maximum": 16384},
+    "policy": {"enum": ["bearer", "api_key", "none"]}
+  },
+  "allOf": [
+    {"if": {"properties": {"provider": {"const": "gemini"}}}, "then": {"properties": {"policy": {"const": "api_key"}}}},
+    {"if": {"properties": {"provider": {"const": "open_ai"}}}, "then": {"properties": {"policy": {"const": "bearer"}}}},
+    {"if": {"properties": {"provider": {"const": "ollama"}}}, "then": {"properties": {"policy": {"enum": ["bearer", "none"]}}}}
+  ]
+}

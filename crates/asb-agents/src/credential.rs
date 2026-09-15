@@ -354,6 +354,18 @@ impl ResolvedCredential {
     fn erase(&mut self) {
         self.bytes.fill(0);
     }
+
+    /// Transfer the opaque value to a final transport boundary.
+    pub(crate) fn into_transport_bytes(mut self) -> Vec<u8> {
+        std::mem::take(&mut self.bytes)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test(value: &[u8]) -> Self {
+        Self {
+            bytes: value.to_vec(),
+        }
+    }
 }
 
 impl Drop for ResolvedCredential {

@@ -19,6 +19,7 @@ url = "=2.5.7"
 [dev-dependencies]
 asb-replay = { version = "=0.1.0", path = "../asb-replay" }
 asb-workloads = { version = "=0.1.0", path = "../asb-workloads" }
+jsonschema = { version = "=0.33.0", default-features = false }
 
 [lints]
 workspace = true
