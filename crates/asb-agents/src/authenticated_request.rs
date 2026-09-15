@@ -3,6 +3,7 @@
 //! Fail-closed authenticated provider-request boundary.
 
 use crate::credential::ResolvedCredential;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Maximum authenticated-request timeout.
@@ -13,7 +14,8 @@ pub const MAX_AUTH_RESPONSE_BYTES: usize = 16 * 1024;
 pub const MAX_AUTH_DEADLINE_MS: u64 = i64::MAX as u64;
 
 /// Provider authentication policy, selected explicitly by the validated profile.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthPolicy {
     /// `Authorization: Bearer <credential>`.
     Bearer,
@@ -24,7 +26,8 @@ pub enum AuthPolicy {
 }
 
 /// Provider family for authentication policy validation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthProvider {
     /// OpenAI-compatible bearer authentication.
     OpenAi,
@@ -35,7 +38,8 @@ pub enum AuthProvider {
 }
 
 /// Typed, credential-free authenticated request metadata.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthenticatedRequest {
     /// Provider family.
     pub provider: AuthProvider,
@@ -495,6 +499,15 @@ mod tests {
         let validator = jsonschema::validator_for(&schema).unwrap();
         let instance = serde_json::json!({"provider":"open_ai","endpoint_identity_sha256":"a".repeat(64),"generation":1,"timeout_ms":1000,"deadline_ms":2000,"max_response_bytes":1024,"policy":"bearer"});
         assert!(validator.is_valid(&instance));
+        let typed: AuthenticatedRequest = serde_json::from_value(instance.clone()).unwrap();
+        assert_eq!(typed.validate(), Ok(()));
+        assert!(validate_json_instance(&instance).is_ok());
+        let mut missing = instance.clone();
+        missing.as_object_mut().unwrap().remove("generation");
+        assert!(serde_json::from_value::<AuthenticatedRequest>(missing).is_err());
+        let mut wrong_type = instance.clone();
+        wrong_type["timeout_ms"] = serde_json::json!("1000");
+        assert!(serde_json::from_value::<AuthenticatedRequest>(wrong_type).is_err());
         let mut invalid = instance;
         invalid["policy"] = serde_json::json!("api_key");
         assert!(!validator.is_valid(&invalid));
