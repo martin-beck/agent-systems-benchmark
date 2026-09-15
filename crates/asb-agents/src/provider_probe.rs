@@ -30,6 +30,70 @@ pub fn execute_loopback_probe<F>(
 where
     F: Fn() -> u64,
 {
+    execute_loopback_probe_with_header(request, endpoint, current_generation, None)
+}
+
+/// Execute a loopback probe after injecting the qualified provider credential.
+/// The header is written only to the bounded transport request and wiped after use.
+pub fn execute_authenticated_loopback_probe<F, C>(
+    request: &ProbeRequest,
+    auth_request: AuthenticatedRequest,
+    endpoint: &str,
+    current_generation: F,
+    now_ms: u64,
+    credential: ResolvedCredential,
+    cancelled: C,
+) -> Result<ProbeOutcome, ProbeTransportError>
+where
+    F: Fn() -> u64 + Copy,
+    C: Cancellation,
+{
+    let provider_matches = matches!(
+        (request.provider, auth_request.provider),
+        (
+            ProbeProvider::OpenAi,
+            crate::authenticated_request::AuthProvider::OpenAi
+        ) | (
+            ProbeProvider::Gemini,
+            crate::authenticated_request::AuthProvider::Gemini
+        ) | (
+            ProbeProvider::Ollama,
+            crate::authenticated_request::AuthProvider::Ollama
+        )
+    );
+    if !provider_matches {
+        return Err(ProbeTransportError::ProviderMismatch);
+    }
+    let mut header = CapturedHeader::default();
+    inject_probe_auth(
+        auth_request,
+        endpoint,
+        current_generation,
+        now_ms,
+        credential,
+        &mut header,
+        cancelled,
+    )
+    .map_err(ProbeTransportError::Authentication)?;
+    let result = execute_loopback_probe_with_header(
+        request,
+        endpoint,
+        current_generation,
+        Some(header.bytes.as_slice()),
+    );
+    header.wipe();
+    result
+}
+
+fn execute_loopback_probe_with_header<F>(
+    request: &ProbeRequest,
+    endpoint: &str,
+    current_generation: F,
+    auth_header: Option<&[u8]>,
+) -> Result<ProbeOutcome, ProbeTransportError>
+where
+    F: Fn() -> u64,
+{
     request
         .validate()
         .map_err(ProbeTransportError::InvalidRequest)?;
@@ -78,9 +142,19 @@ where
     };
     write!(
         stream,
-        "GET {target} HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
+        "GET {target} HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n"
     )
     .map_err(|_| ProbeTransportError::Unavailable)?;
+    if let Some(header) = auth_header {
+        stream
+            .write_all(header)
+            .and_then(|_| stream.write_all(b"\r\n"))
+            .map_err(|_| ProbeTransportError::Unavailable)?;
+    } else {
+        stream
+            .write_all(b"\r\n")
+            .map_err(|_| ProbeTransportError::Unavailable)?;
+    }
     let mut response = Vec::with_capacity(request.max_response_bytes.min(4096));
     let mut chunk = [0_u8; 1024];
     loop {
@@ -150,6 +224,37 @@ pub enum ProbeTransportError {
     ResponseTooLarge,
     /// The response did not contain a parseable status/header block.
     MalformedResponse,
+    /// The authenticated request provider does not match the probe provider.
+    ProviderMismatch,
+    /// Credential injection failed before transport.
+    Authentication(AuthRequestError),
+}
+
+#[derive(Default)]
+struct CapturedHeader {
+    bytes: Vec<u8>,
+}
+
+impl HeaderSink for CapturedHeader {
+    fn write_header(
+        &mut self,
+        name: &[u8],
+        prefix: &[u8],
+        value: &[u8],
+    ) -> Result<(), crate::authenticated_request::HeaderWriteError> {
+        self.bytes.extend_from_slice(name);
+        self.bytes.extend_from_slice(b": ");
+        self.bytes.extend_from_slice(prefix);
+        self.bytes.extend_from_slice(value);
+        Ok(())
+    }
+}
+
+impl CapturedHeader {
+    fn wipe(&mut self) {
+        self.bytes.fill(0);
+        self.bytes.clear();
+    }
 }
 
 /// Bind an opaque credential to the already-qualified probe transport sink.
@@ -429,6 +534,61 @@ mod tests {
             Err(AuthRequestError::EndpointIdentityMismatch)
         );
         assert!(sink.name.is_empty() && sink.value.is_empty());
+    }
+
+    #[test]
+    fn authenticated_probe_writes_provider_header_to_pinned_transport() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let endpoint = format!(
+            "http://127.0.0.1:{}/v1/models",
+            listener.local_addr().unwrap().port()
+        );
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 512];
+            let size = stream.read(&mut request).unwrap();
+            assert!(
+                request[..size]
+                    .windows(b"authorization: Bearer token".len())
+                    .any(|window| window == b"authorization: Bearer token")
+            );
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
+                )
+                .unwrap();
+        });
+        let probe = ProbeRequest {
+            provider: ProbeProvider::OpenAi,
+            endpoint_identity_sha256: crate::authenticated_request::endpoint_identity_sha256(
+                &endpoint,
+            ),
+            generation: 4,
+            timeout_ms: 1_000,
+            max_response_bytes: 1_024,
+        };
+        let auth = AuthenticatedRequest {
+            provider: AuthProvider::OpenAi,
+            endpoint_identity_sha256: probe.endpoint_identity_sha256.clone(),
+            generation: 4,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes: 1_024,
+            policy: AuthPolicy::Bearer,
+        };
+        assert_eq!(
+            execute_authenticated_loopback_probe(
+                &probe,
+                auth,
+                &endpoint,
+                || 4,
+                1_500,
+                crate::credential::ResolvedCredential::from_test(b"token"),
+                || false,
+            ),
+            Ok(ProbeOutcome::Connected)
+        );
+        server.join().unwrap();
     }
 
     #[test]
