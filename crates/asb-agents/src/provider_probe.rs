@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! Bounded provider authentication probe result classification.
 
+use crate::authenticated_request::{
+    AuthRequestError, AuthenticatedRequest, Cancellation, HeaderSink,
+};
+use crate::credential::ResolvedCredential;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
@@ -148,6 +152,26 @@ pub enum ProbeTransportError {
     MalformedResponse,
 }
 
+/// Bind an opaque credential to the already-qualified probe transport sink.
+pub fn inject_probe_auth<C: Cancellation>(
+    request: AuthenticatedRequest,
+    endpoint: &str,
+    current_generation: impl Fn() -> u64,
+    now_ms: u64,
+    credential: ResolvedCredential,
+    sink: &mut impl HeaderSink,
+    cancelled: C,
+) -> Result<(), AuthRequestError> {
+    request.inject(
+        endpoint,
+        current_generation,
+        now_ms,
+        credential,
+        sink,
+        cancelled,
+    )
+}
+
 /// Bounded, endpoint-pinned probe request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProbeRequest {
@@ -260,8 +284,28 @@ pub fn classify_probe(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authenticated_request::{AuthPolicy, AuthProvider, HeaderWriteError};
     use std::net::TcpListener;
     use std::thread;
+
+    struct AuthSink {
+        name: Vec<u8>,
+        value: Vec<u8>,
+    }
+
+    impl HeaderSink for AuthSink {
+        fn write_header(
+            &mut self,
+            name: &[u8],
+            prefix: &[u8],
+            value: &[u8],
+        ) -> Result<(), HeaderWriteError> {
+            self.name.extend_from_slice(name);
+            self.value.extend_from_slice(prefix);
+            self.value.extend_from_slice(value);
+            Ok(())
+        }
+    }
 
     #[test]
     fn provider_specific_success_and_auth_failures_are_body_free() {
@@ -300,13 +344,101 @@ mod tests {
     }
 
     #[test]
+    fn auth_wrapper_applies_provider_policy_at_pinned_endpoint() {
+        let endpoint = "http://127.0.0.1:11434/v1/models";
+        let mut sink = AuthSink {
+            name: Vec::new(),
+            value: Vec::new(),
+        };
+        let request = AuthenticatedRequest {
+            provider: AuthProvider::OpenAi,
+            endpoint_identity_sha256: crate::authenticated_request::endpoint_identity_sha256(
+                endpoint,
+            ),
+            generation: 4,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes: 1_024,
+            policy: AuthPolicy::Bearer,
+        };
+        inject_probe_auth(
+            request,
+            endpoint,
+            || 4,
+            1_500,
+            crate::credential::ResolvedCredential::from_test(b"token"),
+            &mut sink,
+            || false,
+        )
+        .unwrap();
+        assert_eq!(sink.name, b"authorization");
+        assert_eq!(sink.value, b"Bearer token");
+    }
+
+    #[test]
+    fn auth_wrapper_rejects_policy_and_endpoint_mismatch_before_sink() {
+        let endpoint = "http://127.0.0.1:11434/v1/models";
+        let mut sink = AuthSink {
+            name: Vec::new(),
+            value: Vec::new(),
+        };
+        let unsupported = AuthenticatedRequest {
+            provider: AuthProvider::Gemini,
+            endpoint_identity_sha256: crate::authenticated_request::endpoint_identity_sha256(
+                endpoint,
+            ),
+            generation: 4,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes: 1_024,
+            policy: AuthPolicy::Bearer,
+        };
+        assert_eq!(
+            inject_probe_auth(
+                unsupported,
+                endpoint,
+                || 4,
+                1_500,
+                crate::credential::ResolvedCredential::from_test(b"token"),
+                &mut sink,
+                || false,
+            ),
+            Err(AuthRequestError::UnsupportedPolicy)
+        );
+        let mismatch = AuthenticatedRequest {
+            provider: AuthProvider::OpenAi,
+            endpoint_identity_sha256: crate::authenticated_request::endpoint_identity_sha256(
+                endpoint,
+            ),
+            generation: 4,
+            timeout_ms: 1_000,
+            deadline_ms: 2_000,
+            max_response_bytes: 1_024,
+            policy: AuthPolicy::Bearer,
+        };
+        assert_eq!(
+            inject_probe_auth(
+                mismatch,
+                "http://127.0.0.1:11434/v1/chat",
+                || 4,
+                1_500,
+                crate::credential::ResolvedCredential::from_test(b"token"),
+                &mut sink,
+                || false,
+            ),
+            Err(AuthRequestError::EndpointIdentityMismatch)
+        );
+        assert!(sink.name.is_empty() && sink.value.is_empty());
+    }
+
+    #[test]
     fn probe_requests_validate_before_transport() {
         let valid = ProbeRequest {
             provider: ProbeProvider::OpenAi,
             endpoint_identity_sha256: "a".repeat(64),
             generation: 1,
             timeout_ms: 1_000,
-            max_response_bytes: 1024,
+            max_response_bytes: 4096,
         };
         assert_eq!(valid.validate(), Ok(()));
         let mut invalid = valid.clone();
@@ -335,20 +467,19 @@ mod tests {
         );
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
-            let mut request = [0_u8; 256];
-            let _ = std::io::Read::read(&mut stream, &mut request);
             std::io::Write::write_all(
                 &mut stream,
                 b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
             )
             .unwrap();
+            stream.shutdown(std::net::Shutdown::Write).unwrap();
         });
         let request = ProbeRequest {
             provider: ProbeProvider::OpenAi,
             endpoint_identity_sha256: format!("{:x}", Sha256::digest(endpoint.as_bytes())),
             generation: 7,
             timeout_ms: 1_000,
-            max_response_bytes: 1024,
+            max_response_bytes: 4096,
         };
         assert_eq!(
             execute_loopback_probe(&request, &endpoint, || 7),
