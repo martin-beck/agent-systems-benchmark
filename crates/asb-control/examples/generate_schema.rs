@@ -8,8 +8,9 @@ use std::path::PathBuf;
 use asb_control::{
     analysis_evidence_schema, control_event_schema, control_request_schema,
     control_request_schema_v1_2, control_request_schema_v1_3, control_request_schema_v1_4,
-    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
-    control_response_schema_v1_4, history_evidence_schema,
+    control_request_schema_v1_5, control_response_schema, control_response_schema_v1_2,
+    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
+    history_evidence_schema,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,6 +64,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &output_v1_4,
             "response.schema.json",
             &control_response_schema_v1_4(),
+        )?;
+    }
+    if let Some(output_v1_5) = std::env::args_os().nth(5).map(PathBuf::from) {
+        fs::create_dir_all(&output_v1_5)?;
+        write(
+            &output_v1_5,
+            "request.schema.json",
+            &control_request_schema_v1_5(),
+        )?;
+        write(
+            &output_v1_5,
+            "response.schema.json",
+            &control_response_schema_v1_5(),
         )?;
     }
     write(

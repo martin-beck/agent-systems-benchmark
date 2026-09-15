@@ -1,0 +1,15 @@
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "timeout_ms": 1000,
+  "method": "agent_install",
+  "params": {
+    "binding": {
+      "agent_id": "codex",
+      "runner_instance_id": "runner-1",
+      "catalog_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "catalog_generation": 2,
+    "idempotency_key": "install-1"
+  }
+}

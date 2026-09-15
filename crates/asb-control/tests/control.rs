@@ -31,6 +31,65 @@ fn limits() -> ControlLimits {
     }
 }
 
+fn lifecycle_binding() -> AgentLifecycleBinding {
+    AgentLifecycleBinding {
+        agent_id: "codex".into(),
+        runner_instance_id: "runner-1".into(),
+        catalog_sha256: "a".repeat(64),
+    }
+}
+
+fn lifecycle_response(operation_id: &str, binding: AgentLifecycleBinding) -> ControlResult {
+    ControlResult::AgentLifecycle(AgentLifecycleResponse {
+        binding,
+        operation_id: operation_id.into(),
+        state: AgentLifecycleState::Active,
+        generation: Revision(1),
+        progress_percent: 100,
+        failure: None,
+    })
+}
+
+#[test]
+fn lifecycle_results_are_bound_to_request_identity_and_operation() {
+    let binding = lifecycle_binding();
+    let status = ControlCall::AgentStatus(AgentStatusRequest {
+        binding: binding.clone(),
+        operation_id: Some("op-1".into()),
+    });
+    let valid = lifecycle_response("op-1", binding.clone());
+    valid.validate_for_call(&status, limits()).unwrap();
+
+    for invalid in [
+        lifecycle_response("op-2", binding.clone()),
+        lifecycle_response(
+            "op-1",
+            AgentLifecycleBinding {
+                agent_id: "other".into(),
+                ..binding.clone()
+            },
+        ),
+    ] {
+        assert_eq!(
+            invalid.validate_for_call(&status, limits()),
+            Err(ProtocolError::InvalidResponse)
+        );
+    }
+
+    let cancel = ControlCall::AgentCancel(AgentCancelRequest {
+        binding: binding.clone(),
+        operation_id: "op-1".into(),
+        idempotency_key: "cancel-1".into(),
+    });
+    lifecycle_response("op-1", binding.clone())
+        .validate_for_call(&cancel, limits())
+        .unwrap();
+    assert_eq!(
+        lifecycle_response("op-2", binding).validate_for_call(&cancel, limits()),
+        Err(ProtocolError::InvalidResponse)
+    );
+}
+
 #[test]
 fn history_extension_requires_explicit_public_provenance_and_failure_reason() {
     let mut evidence = HistoryEvidence {
