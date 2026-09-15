@@ -504,6 +504,15 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                                 || run.state == PublicRunState::Cancelled)
                     })
                 }
+                (
+                    MutationTarget::AuthEnroll { provider }
+                    | MutationTarget::AuthRotate { provider }
+                    | MutationTarget::AuthRevoke { provider },
+                    ControlResult::Acknowledged(_),
+                ) => catalog
+                    .auth
+                    .get(provider)
+                    .is_some_and(|record| record.provider == *provider),
                 _ => false,
             };
             if !target_matches {
@@ -1657,7 +1666,6 @@ impl ControlBackend for RunnerBackend {
                             status: "active".to_owned(),
                         },
                     );
-                    Self::append_event(catalog, ControlEventKind::RunUpdated, None)?;
                     Ok(ControlResult::Acknowledged(MutationAcknowledgement {
                         accepted: true,
                     }))
@@ -2657,6 +2665,53 @@ mod tests {
             ),
             Err(BackendFailure::Rejected)
         );
+    }
+
+    #[test]
+    fn auth_lifecycle_survives_restart_and_revoke_is_idempotent() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let enroll = ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+            provider: "gemini".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: "b".repeat(64),
+            idempotency_key: "enroll-restart".into(),
+        });
+        let enrolled = backend.execute(&enroll, deadline()).unwrap();
+        assert!(matches!(enrolled.result, ControlResult::Acknowledged(_)));
+        drop(backend);
+
+        let recovered = open_backend(state).unwrap();
+        let status = recovered
+            .execute(
+                &ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                    provider: "gemini".into(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        assert!(matches!(status.result, ControlResult::AuthStatus(_)));
+        let revoke = ControlCall::AuthRevoke(asb_control::AuthRevokeParams {
+            provider: "gemini".into(),
+            idempotency_key: "revoke-restart".into(),
+        });
+        let first = recovered.execute(&revoke, deadline()).unwrap();
+        let second = recovered.execute(&revoke, deadline()).unwrap();
+        assert_eq!(first, second);
+        let status = recovered
+            .execute(
+                &ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                    provider: "gemini".into(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        assert!(matches!(
+            status.result,
+            ControlResult::AuthStatus(ref value) if value.status == "revoked"
+        ));
     }
 
     #[test]
