@@ -3,11 +3,12 @@
 //! Checked-in schemas and bounded public fixture conformance.
 
 use asb_control::{
-    AnalysisEvidence, ControlCall, ControlEvent, ControlLimits, ControlRequest, ControlResponse,
-    HistoryEvidence, ProtocolError, analysis_evidence_schema, control_event_schema,
-    control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
-    control_request_schema_v1_4, control_response_schema, control_response_schema_v1_2,
-    control_response_schema_v1_3, control_response_schema_v1_4, history_evidence_schema,
+    AnalysisEvidence, BoundControlResult, ControlCall, ControlEvent, ControlLimits, ControlRequest,
+    ControlResponse, ControlSuccess, HistoryEvidence, ProtocolError, analysis_evidence_schema,
+    control_event_schema, control_request_schema, control_request_schema_v1_2,
+    control_request_schema_v1_3, control_request_schema_v1_4, control_request_schema_v1_5,
+    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
+    control_response_schema_v1_4, control_response_schema_v1_5, history_evidence_schema,
     validate_request,
 };
 use serde_json::{Value, json};
@@ -20,6 +21,8 @@ const REQUEST_SCHEMA_V1_3: &str = include_str!("../schema/v1.3/request.schema.js
 const RESPONSE_SCHEMA_V1_3: &str = include_str!("../schema/v1.3/response.schema.json");
 const REQUEST_SCHEMA_V1_4: &str = include_str!("../schema/v1.4/request.schema.json");
 const RESPONSE_SCHEMA_V1_4: &str = include_str!("../schema/v1.4/response.schema.json");
+const REQUEST_SCHEMA_V1_5: &str = include_str!("../schema/v1.5/request.schema.json");
+const RESPONSE_SCHEMA_V1_5: &str = include_str!("../schema/v1.5/response.schema.json");
 const EVENT_SCHEMA: &str = include_str!("../schema/v1/event.schema.json");
 const NEGOTIATE: &str = include_str!("../fixtures/v1/negotiate-request.json");
 const LAUNCH: &str = include_str!("../fixtures/v1/launch-request.json");
@@ -37,6 +40,8 @@ const MEASUREMENT_VALIDATION_RESPONSE: &str =
     include_str!("../fixtures/v1.3/measurement-validation-response.json");
 const AGENT_CATALOG_REQUEST: &str = include_str!("../fixtures/v1.4/agent-catalog-request.json");
 const AGENT_CATALOG_RESPONSE: &str = include_str!("../fixtures/v1.4/agent-catalog-response.json");
+const AGENT_INSTALL_REQUEST: &str = include_str!("../fixtures/v1.5/agent-install-request.json");
+const AGENT_INSTALL_RESPONSE: &str = include_str!("../fixtures/v1.5/agent-install-response.json");
 
 fn validate(schema: &str, document: &str) {
     let schema: Value = serde_json::from_str(schema).unwrap();
@@ -58,6 +63,8 @@ fn public_fixtures_match_schemas_and_rust_types() {
     validate(RESPONSE_SCHEMA_V1_3, MEASUREMENT_VALIDATION_RESPONSE);
     validate(REQUEST_SCHEMA_V1_4, AGENT_CATALOG_REQUEST);
     validate(RESPONSE_SCHEMA_V1_4, AGENT_CATALOG_RESPONSE);
+    validate(REQUEST_SCHEMA_V1_5, AGENT_INSTALL_REQUEST);
+    validate(RESPONSE_SCHEMA_V1_5, AGENT_INSTALL_RESPONSE);
     assert!(
         !jsonschema::validator_for(&serde_json::from_str::<Value>(REQUEST_SCHEMA).unwrap())
             .unwrap()
@@ -105,6 +112,25 @@ fn public_fixtures_match_schemas_and_rust_types() {
             &catalog_request.call,
             ControlLimits::default(),
             asb_control::CONTROL_AGENT_CATALOG_V1,
+        )
+        .unwrap();
+    let lifecycle_request: ControlRequest = serde_json::from_str(AGENT_INSTALL_REQUEST).unwrap();
+    assert!(matches!(
+        lifecycle_request.call,
+        ControlCall::AgentInstall(_)
+    ));
+    validate_request(&lifecycle_request, ControlLimits::default()).unwrap();
+    let lifecycle_response: ControlResponse = serde_json::from_str(AGENT_INSTALL_RESPONSE).unwrap();
+    let ControlSuccess::Operation(operation) = lifecycle_response.result().unwrap() else {
+        panic!("lifecycle response is not an operation")
+    };
+    let operation =
+        BoundControlResult::new(&lifecycle_request.call, operation.result.clone()).unwrap();
+    operation
+        .validate_for_call_and_version(
+            &lifecycle_request.call,
+            ControlLimits::default(),
+            asb_control::CONTROL_AGENT_LIFECYCLE_V1,
         )
         .unwrap();
     serde_json::from_str::<ControlEvent>(EVENT).unwrap();
@@ -169,6 +195,23 @@ fn schema_and_rust_reject_unknown_or_ambiguous_envelopes() {
         json!("/private/catalog");
     assert!(!response_validator.is_valid(&unknown_catalog_field));
     assert!(serde_json::from_str::<ControlResponse>(&unknown_catalog_field.to_string()).is_err());
+
+    let lifecycle_request_schema: Value = serde_json::from_str(REQUEST_SCHEMA_V1_5).unwrap();
+    let lifecycle_request_validator = jsonschema::validator_for(&lifecycle_request_schema).unwrap();
+    let mut unknown_lifecycle_field: Value = serde_json::from_str(AGENT_INSTALL_REQUEST).unwrap();
+    unknown_lifecycle_field["params"]["unexpected"] = json!(true);
+    assert!(!lifecycle_request_validator.is_valid(&unknown_lifecycle_field));
+    assert!(serde_json::from_value::<ControlRequest>(unknown_lifecycle_field).is_err());
+
+    let lifecycle_response_schema: Value = serde_json::from_str(RESPONSE_SCHEMA_V1_5).unwrap();
+    let lifecycle_response_validator =
+        jsonschema::validator_for(&lifecycle_response_schema).unwrap();
+    let mut malformed_lifecycle: Value = serde_json::from_str(AGENT_INSTALL_RESPONSE).unwrap();
+    malformed_lifecycle["result"]["value"]["result"]["value"]["progress_percent"] = json!(101);
+    assert!(lifecycle_response_validator.is_valid(&malformed_lifecycle));
+    let malformed: ControlResponse =
+        serde_json::from_str(&malformed_lifecycle.to_string()).unwrap();
+    assert_eq!(malformed.validate(), Err(ProtocolError::InvalidResponse));
 }
 
 #[test]
@@ -255,6 +298,8 @@ fn checked_in_schemas_equal_fresh_generation() {
     let generated_response_v1_3 = serde_json::to_value(control_response_schema_v1_3()).unwrap();
     let generated_request_v1_4 = serde_json::to_value(control_request_schema_v1_4()).unwrap();
     let generated_response_v1_4 = serde_json::to_value(control_response_schema_v1_4()).unwrap();
+    let generated_request_v1_5 = serde_json::to_value(control_request_schema_v1_5()).unwrap();
+    let generated_response_v1_5 = serde_json::to_value(control_response_schema_v1_5()).unwrap();
     let generated_event = serde_json::to_value(control_event_schema()).unwrap();
     let generated_history = serde_json::to_value(history_evidence_schema()).unwrap();
     let generated_analysis = serde_json::to_value(analysis_evidence_schema()).unwrap();
@@ -289,6 +334,14 @@ fn checked_in_schemas_equal_fresh_generation() {
     assert_eq!(
         serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_4).unwrap(),
         generated_response_v1_4
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(REQUEST_SCHEMA_V1_5).unwrap(),
+        generated_request_v1_5
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_5).unwrap(),
+        generated_response_v1_5
     );
     assert_eq!(
         serde_json::from_str::<Value>(EVENT_SCHEMA).unwrap(),

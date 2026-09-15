@@ -1532,6 +1532,25 @@ impl ControlResult {
                     && catalog.refreshed
                         == matches!(request.action, crate::AgentCatalogAction::Refresh)
             }
+            (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
+                response.binding == request.binding
+            }
+            (ControlCall::AgentStatus(request), Self::AgentLifecycle(response)) => {
+                response.binding == request.binding
+                    && request
+                        .operation_id
+                        .as_ref()
+                        .is_none_or(|operation_id| operation_id == &response.operation_id)
+            }
+            (ControlCall::AgentCancel(request), Self::AgentLifecycle(response)) => {
+                response.binding == request.binding && response.operation_id == request.operation_id
+            }
+            (ControlCall::AgentRetry(request), Self::AgentLifecycle(response)) => {
+                response.binding == request.binding && response.operation_id == request.operation_id
+            }
+            (ControlCall::AgentRemove(request), Self::AgentLifecycle(response)) => {
+                response.binding == request.binding
+            }
             (ControlCall::Status { run_id }, Self::Status(summary)) => summary.run_id == *run_id,
             (ControlCall::ArtifactMetadata { digest, .. }, Self::ArtifactMetadata(metadata)) => {
                 metadata.sha256 == *digest

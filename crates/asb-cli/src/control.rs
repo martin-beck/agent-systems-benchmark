@@ -1793,6 +1793,54 @@ mod tests {
     }
 
     #[test]
+    fn every_agent_lifecycle_call_is_explicitly_unavailable_until_provider_is_wired() {
+        use asb_control::{
+            AgentCancelRequest, AgentInstallRequest, AgentLifecycleBinding, AgentRemoveRequest,
+            AgentRetryRequest, AgentStatusRequest,
+        };
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let binding = AgentLifecycleBinding {
+            agent_id: "codex".into(),
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            catalog_sha256: "a".repeat(64),
+        };
+        let calls = [
+            ControlCall::AgentInstall(AgentInstallRequest {
+                binding: binding.clone(),
+                catalog_generation: Revision(1),
+                idempotency_key: "install-1".into(),
+            }),
+            ControlCall::AgentStatus(AgentStatusRequest {
+                binding: binding.clone(),
+                operation_id: Some("operation-1".into()),
+            }),
+            ControlCall::AgentCancel(AgentCancelRequest {
+                binding: binding.clone(),
+                operation_id: "operation-1".into(),
+                idempotency_key: "cancel-1".into(),
+            }),
+            ControlCall::AgentRetry(AgentRetryRequest {
+                binding: binding.clone(),
+                operation_id: "operation-1".into(),
+                idempotency_key: "retry-1".into(),
+            }),
+            ControlCall::AgentRemove(AgentRemoveRequest {
+                binding,
+                idempotency_key: "remove-1".into(),
+            }),
+        ];
+        for call in calls {
+            assert_eq!(
+                backend.execute(&call, deadline()),
+                Err(BackendFailure::CapabilityUnavailable)
+            );
+        }
+    }
+
+    #[test]
     fn control_plan_identity_binds_the_exact_measurement_selection() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
