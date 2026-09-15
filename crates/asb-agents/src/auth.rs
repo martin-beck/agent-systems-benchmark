@@ -173,15 +173,32 @@ impl AuthEnrollmentV1 {
         backend: &mut B,
     ) -> Result<(), AuthError> {
         validate_secret(secret)?;
+        credential.validate()?;
+        let next_generation = self
+            .generation
+            .checked_add(1)
+            .ok_or(AuthError::GenerationOverflow)?;
+        if self.status == EnrollmentStatus::Revoked {
+            return Err(AuthError::Revoked);
+        }
         let old = self.credential.clone();
         backend.enroll(&credential, secret)?;
-        if let Err(error) = self.rotate(credential.clone()) {
-            let _ = backend.revoke(&credential);
-            return Err(error);
-        }
         if old != credential {
-            backend.revoke(&old)?;
+            if let Err(error) = backend.revoke(&old) {
+                // The old enrollment remains authoritative until both backend
+                // effects have completed. Roll back the staged replacement.
+                return match backend.revoke(&credential) {
+                    Ok(()) => Err(error),
+                    Err(_) => {
+                        self.status = EnrollmentStatus::Unavailable;
+                        Err(AuthError::RollbackFailed)
+                    }
+                };
+            }
         }
+        self.generation = next_generation;
+        self.credential = credential;
+        self.status = EnrollmentStatus::Untested;
         Ok(())
     }
 
@@ -292,6 +309,10 @@ pub enum AuthError {
     MetadataEncoding,
     /// Metadata exceeds its size limit.
     MetadataTooLarge,
+    /// Backend could not roll back a failed rotation; state is unavailable.
+    RollbackFailed,
+    /// A qualified backend rejected an operation.
+    BackendFailure,
 }
 
 impl fmt::Display for AuthError {
@@ -306,6 +327,8 @@ impl fmt::Display for AuthError {
             Self::InvalidSecret => "authentication secret is empty or too large",
             Self::MetadataEncoding => "authentication metadata cannot be encoded",
             Self::MetadataTooLarge => "authentication metadata exceeds its size limit",
+            Self::RollbackFailed => "authentication rotation rollback failed; state is unavailable",
+            Self::BackendFailure => "authentication backend operation failed",
         })
     }
 }
@@ -402,6 +425,8 @@ mod tests {
 
     struct Backend {
         stored: bool,
+        fail_first_revoke: bool,
+        revoke_calls: u8,
     }
 
     impl SecretBackend for Backend {
@@ -412,6 +437,10 @@ mod tests {
         }
 
         fn revoke(&mut self, _: &CredentialReferenceV1) -> Result<(), AuthError> {
+            self.revoke_calls = self.revoke_calls.saturating_add(1);
+            if self.fail_first_revoke && self.revoke_calls == 1 {
+                return Err(AuthError::BackendFailure);
+            }
             self.stored = false;
             Ok(())
         }
@@ -427,7 +456,11 @@ mod tests {
 
     #[test]
     fn backend_probe_is_generation_fenced_and_metadata_persistable() {
-        let mut backend = Backend { stored: false };
+        let mut backend = Backend {
+            stored: false,
+            fail_first_revoke: false,
+            revoke_calls: 0,
+        };
         let mut enrollment = AuthEnrollmentV1::enroll_api_key(
             "openai-primary",
             reference(CredentialSource::Helper),
@@ -458,7 +491,11 @@ mod tests {
 
     #[test]
     fn secret_and_unknown_metadata_fail_closed() {
-        let mut backend = Backend { stored: false };
+        let mut backend = Backend {
+            stored: false,
+            fail_first_revoke: false,
+            revoke_calls: 0,
+        };
         assert_eq!(
             AuthEnrollmentV1::enroll_api_key(
                 "openai-primary",
@@ -479,5 +516,25 @@ mod tests {
             AuthEnrollmentV1::from_json(&malformed),
             Err(AuthError::InvalidEnrollment)
         );
+    }
+
+    #[test]
+    fn failed_old_revoke_rolls_back_staged_replacement() {
+        let old = reference(CredentialSource::Helper);
+        let new = reference(CredentialSource::FileDescriptor);
+        let mut backend = Backend {
+            stored: true,
+            fail_first_revoke: true,
+            revoke_calls: 0,
+        };
+        let mut enrollment = AuthEnrollmentV1::enroll("openai-primary", old.clone()).unwrap();
+        let before = enrollment.clone();
+        assert_eq!(
+            enrollment.rotate_api_key(new, b"replacement", &mut backend),
+            Err(AuthError::BackendFailure)
+        );
+        assert_eq!(enrollment, before);
+        assert!(!backend.stored, "staged replacement must be rolled back");
+        assert_eq!(enrollment.credential, old);
     }
 }
