@@ -43,6 +43,8 @@ pub struct AuthenticatedRequest {
     pub generation: u64,
     /// One bounded end-to-end request timeout.
     pub timeout_ms: u64,
+    /// Absolute monotonic deadline in milliseconds supplied by the caller.
+    pub deadline_ms: u64,
     /// Maximum response body retained by the transport.
     pub max_response_bytes: usize,
     /// Explicit provider authentication placement.
@@ -65,6 +67,9 @@ impl AuthenticatedRequest {
         }
         if self.timeout_ms == 0 || self.timeout_ms > MAX_AUTH_REQUEST_TIMEOUT_MS {
             return Err(AuthRequestError::InvalidTimeout);
+        }
+        if self.deadline_ms < self.timeout_ms {
+            return Err(AuthRequestError::InvalidDeadline);
         }
         if self.max_response_bytes == 0 || self.max_response_bytes > MAX_AUTH_RESPONSE_BYTES {
             return Err(AuthRequestError::InvalidResponseLimit);
@@ -94,12 +99,16 @@ impl AuthenticatedRequest {
         self,
         endpoint: &str,
         current_generation: u64,
+        now_ms: u64,
         credential: ResolvedCredential,
         sink: &mut impl HeaderSink,
         cancelled: impl Cancellation,
     ) -> Result<(), AuthRequestError> {
         self.validate_endpoint(endpoint)?;
-        if current_generation != self.generation || cancelled.is_cancelled() {
+        if current_generation != self.generation
+            || now_ms >= self.deadline_ms
+            || cancelled.is_cancelled()
+        {
             return Err(AuthRequestError::CancelledOrStale);
         }
         let mut bytes = credential.into_transport_bytes();
@@ -171,6 +180,8 @@ pub enum AuthRequestError {
     EndpointIdentityMismatch,
     /// The request was cancelled or its enrollment generation became stale.
     CancelledOrStale,
+    /// The absolute deadline has elapsed or is inconsistent with the timeout.
+    InvalidDeadline,
 }
 
 /// Compute the endpoint identity used by [`AuthenticatedRequest`].
@@ -210,6 +221,7 @@ mod tests {
             endpoint_identity_sha256: endpoint_identity_sha256("http://127.0.0.1:9/v1/models"),
             generation: 1,
             timeout_ms: 1_000,
+            deadline_ms: 2_000,
             max_response_bytes: 1024,
             policy: AuthPolicy::Bearer,
         };
@@ -232,6 +244,7 @@ mod tests {
             .inject(
                 "http://127.0.0.1:9/v1/models",
                 1,
+                1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
                 || false,
@@ -246,6 +259,7 @@ mod tests {
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
                 1,
+                1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut failing,
                 || false,
@@ -256,6 +270,7 @@ mod tests {
             request.clone().inject(
                 "http://127.0.0.1:9/v1/models",
                 1,
+                1_500,
                 crate::credential::ResolvedCredential::from_test(b""),
                 &mut sink,
                 || false,
@@ -266,6 +281,7 @@ mod tests {
             request.clone().inject(
                 "http://127.0.0.1:9/v1/chat",
                 1,
+                1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
                 || false,
@@ -276,6 +292,7 @@ mod tests {
             request.inject(
                 "http://127.0.0.1:9/v1/models",
                 2,
+                1_500,
                 crate::credential::ResolvedCredential::from_test(b"secret"),
                 &mut sink,
                 || false,
@@ -291,6 +308,7 @@ mod tests {
             endpoint_identity_sha256: "a".repeat(64),
             generation: 1,
             timeout_ms: 1_000,
+            deadline_ms: 2_000,
             max_response_bytes: 1024,
             policy: AuthPolicy::Bearer,
         };
@@ -307,6 +325,7 @@ mod tests {
             "endpoint_identity_sha256": "a".repeat(64),
             "generation": 1,
             "timeout_ms": 1000,
+            "deadline_ms": 2000,
             "max_response_bytes": 1024,
             "policy": "bearer",
             "secret": "must-not-be-present"
@@ -316,6 +335,7 @@ mod tests {
             "endpoint_identity_sha256",
             "generation",
             "timeout_ms",
+            "deadline_ms",
             "max_response_bytes",
             "policy",
         ];
@@ -326,5 +346,11 @@ mod tests {
                 .keys()
                 .all(|key| allowed.contains(&key.as_str()))
         );
+        let schema: serde_json::Value = serde_json::from_str(include_str!(
+            "../schema/authenticated-request-v1.schema.json"
+        ))
+        .unwrap();
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(schema["allOf"].as_array().unwrap().len(), 3);
     }
 }
