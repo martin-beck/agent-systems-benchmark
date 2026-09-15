@@ -204,6 +204,22 @@ fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
         timeout_ms: 300_000,
         call,
     };
+    if let Some(socket) = args
+        .windows(2)
+        .find(|pair| pair[0] == "--socket")
+        .map(|pair| pair[1].as_str())
+    {
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            Path::new(socket),
+            asb_control::ControlLimits::default(),
+            asb_control::SUPPORTED_CONTROL_VERSIONS,
+        )
+        .map_err(|_| CliError::operation("auth control service connection failed"))?;
+        let response = client
+            .call(request.call, 300_000)
+            .map_err(|_| CliError::operation("auth control service request failed"))?;
+        return write_json(stdout, &response).map(|()| 0);
+    }
     write_json(stdout, &request).map(|()| 0)
 }
 
