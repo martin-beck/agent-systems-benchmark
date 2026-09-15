@@ -214,10 +214,9 @@ fn event_association(schema: &mut Schema) {
 }
 
 fn remove_tagged_variant(value: &mut Value, pointer: &str, tag: &str) {
-    let variants = value
-        .pointer_mut(pointer)
-        .and_then(Value::as_array_mut)
-        .expect("tagged enum variants");
+    let Some(variants) = value.pointer_mut(pointer).and_then(Value::as_array_mut) else {
+        return;
+    };
     variants.retain(|variant| {
         variant
             .pointer("/properties/method/const")
@@ -228,6 +227,20 @@ fn remove_tagged_variant(value: &mut Value, pointer: &str, tag: &str) {
                 .and_then(Value::as_str)
                 != Some(tag)
     });
+}
+
+fn remove_lifecycle_variants(value: &mut Value) {
+    for tag in [
+        "agent_install",
+        "agent_status",
+        "agent_cancel",
+        "agent_retry",
+        "agent_remove",
+        "agent_lifecycle",
+    ] {
+        remove_tagged_variant(value, "/oneOf", tag);
+        remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
+    }
 }
 
 fn collect_definition_refs(value: &Value, refs: &mut BTreeSet<String>) {
@@ -283,6 +296,7 @@ pub fn control_request_schema() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "measurement_catalog");
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
+    remove_lifecycle_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 request schema remains valid")
 }
@@ -291,6 +305,7 @@ pub fn control_request_schema() -> Schema {
 pub fn control_request_schema_v1_2() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
+    remove_lifecycle_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.2 request schema remains valid")
 }
@@ -307,6 +322,7 @@ pub fn control_response_schema() -> Schema {
         "measurement_catalog",
     );
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
+    remove_lifecycle_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 response schema remains valid")
 }
@@ -318,6 +334,7 @@ pub fn control_response_schema_v1_2() -> Schema {
     restrict_settings_issues_to_legacy(&mut schema);
     let mut value = serde_json::to_value(schema).expect("v1.2 response schema serializes");
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
+    remove_lifecycle_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.2 response schema remains valid")
 }
@@ -326,6 +343,7 @@ pub fn control_response_schema_v1_2() -> Schema {
 pub fn control_request_schema_v1_3() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
+    remove_lifecycle_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.3 request schema remains valid")
 }
@@ -336,6 +354,7 @@ pub fn control_response_schema_v1_3() -> Schema {
     settings_validation_invariant(&mut schema);
     let mut value = serde_json::to_value(schema).expect("v1.3 response schema serializes");
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
+    remove_lifecycle_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.3 response schema remains valid")
 }
@@ -347,6 +366,18 @@ pub fn control_request_schema_v1_4() -> Schema {
 
 /// Canonical response schema for control v1.4.
 pub fn control_response_schema_v1_4() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    schema
+}
+
+/// Canonical request schema for control v1.5.
+pub fn control_request_schema_v1_5() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for control v1.5.
+pub fn control_response_schema_v1_5() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema

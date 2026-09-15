@@ -26,12 +26,15 @@ pub const CONTROL_MEASUREMENT_CATALOG_V1: ControlVersion = ControlVersion { majo
 pub const CONTROL_MEASUREMENT_SELECTION_V1: ControlVersion = ControlVersion { major: 1, minor: 3 };
 /// Version of the authenticated local-agent catalog operation.
 pub const CONTROL_AGENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 4 };
+/// Version of the verified local-agent lifecycle operations.
+pub const CONTROL_AGENT_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 5 };
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 4] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 5] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
     CONTROL_AGENT_CATALOG_V1,
+    CONTROL_AGENT_LIFECYCLE_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -197,6 +200,16 @@ pub enum ControlCall {
     Capabilities,
     /// Read or refresh the authenticated local-agent catalog.
     AgentCatalog(crate::AgentCatalogRequest),
+    /// Stage, verify, activate, inspect, cancel, retry, or remove an agent.
+    AgentInstall(crate::AgentInstallRequest),
+    /// Read durable status for an agent lifecycle operation.
+    AgentStatus(crate::AgentStatusRequest),
+    /// Cancel an in-progress agent lifecycle operation.
+    AgentCancel(crate::AgentCancelRequest),
+    /// Retry a failed or reconciled agent lifecycle operation.
+    AgentRetry(crate::AgentRetryRequest),
+    /// Remove an active agent installation.
+    AgentRemove(crate::AgentRemoveRequest),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -242,6 +255,11 @@ impl ControlCall {
         match self {
             Self::MeasurementCatalog => CONTROL_MEASUREMENT_CATALOG_V1,
             Self::AgentCatalog(_) => CONTROL_AGENT_CATALOG_V1,
+            Self::AgentInstall(_)
+            | Self::AgentStatus(_)
+            | Self::AgentCancel(_)
+            | Self::AgentRetry(_)
+            | Self::AgentRemove(_) => CONTROL_AGENT_LIFECYCLE_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1241,6 +1259,8 @@ pub struct AnalysisSummary {
 pub enum ControlResult {
     /// Runner feature availability.
     Capabilities(Capabilities),
+    /// Durable verified-agent lifecycle projection.
+    AgentLifecycle(crate::AgentLifecycleResponse),
     /// Authenticated, target-bound local-agent catalog snapshot.
     AgentCatalog(crate::AgentCatalog),
     /// Immutable selectable-measurement catalog.
@@ -1315,6 +1335,9 @@ impl BoundControlResult {
             ControlResult::AgentCatalog(_) if version < CONTROL_AGENT_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::AgentLifecycle(_) if version < CONTROL_AGENT_LIFECYCLE_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1342,6 +1365,7 @@ impl ControlResult {
         match self {
             Self::Capabilities(_) => Ok(()),
             Self::AgentCatalog(value) => value.validate(),
+            Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
                 if value.accepted {
@@ -1451,6 +1475,11 @@ impl ControlResult {
             (call, self),
             (ControlCall::Capabilities, Self::Capabilities(_))
                 | (ControlCall::AgentCatalog(_), Self::AgentCatalog(_))
+                | (ControlCall::AgentInstall(_), Self::AgentLifecycle(_))
+                | (ControlCall::AgentStatus(_), Self::AgentLifecycle(_))
+                | (ControlCall::AgentCancel(_), Self::AgentLifecycle(_))
+                | (ControlCall::AgentRetry(_), Self::AgentLifecycle(_))
+                | (ControlCall::AgentRemove(_), Self::AgentLifecycle(_))
                 | (ControlCall::MeasurementCatalog, Self::MeasurementCatalog(_))
                 | (
                     ControlCall::ValidateSettings { .. },
@@ -1693,6 +1722,11 @@ pub fn validate_request(
     }
     match &request.call {
         ControlCall::AgentCatalog(params) => params.validate()?,
+        ControlCall::AgentInstall(params) => params.validate()?,
+        ControlCall::AgentStatus(params) => params.validate()?,
+        ControlCall::AgentCancel(params) => params.validate()?,
+        ControlCall::AgentRetry(params) => params.validate()?,
+        ControlCall::AgentRemove(params) => params.validate()?,
         ControlCall::History(page) | ControlCall::Events(page) => validate_page(*page, limits)?,
         ControlCall::CreatePlan(params) => validate_idempotency_key(&params.idempotency_key)?,
         ControlCall::Launch(params) => {

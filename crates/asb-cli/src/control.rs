@@ -1603,6 +1603,14 @@ impl ControlBackend for RunnerBackend {
                     }),
                 )
             }
+            // Lifecycle storage and bundle verification are not wired into the
+            // runner yet. Reject every operation explicitly so no caller can
+            // observe a fabricated or partially active installation.
+            ControlCall::AgentInstall(_)
+            | ControlCall::AgentStatus(_)
+            | ControlCall::AgentCancel(_)
+            | ControlCall::AgentRetry(_)
+            | ControlCall::AgentRemove(_) => Err(BackendFailure::CapabilityUnavailable),
             ControlCall::Negotiate(_) => Err(BackendFailure::Rejected),
         }
     }
