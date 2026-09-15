@@ -21,6 +21,36 @@ pub const MAX_CONFIG_BYTES: usize = 256 * 1024;
 const MAX_NAME_BYTES: usize = 128;
 const MAX_VALUE_BYTES: usize = 4096;
 
+/// Durable, credential-free provider enrollment metadata.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthEnrollment {
+    /// Registry schema version.
+    pub schema_version: u16,
+    /// Provider family identifier.
+    pub provider: String,
+    /// Credential resolver reference; never secret bytes.
+    pub credential: CredentialReference,
+    /// Exact endpoint identity digest.
+    pub endpoint_identity_sha256: String,
+    /// Monotonic enrollment generation.
+    pub generation: u64,
+    /// Public lifecycle status.
+    pub status: AuthEnrollmentStatus,
+}
+
+/// Public enrollment lifecycle status.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthEnrollmentStatus {
+    /// Enrollment is usable.
+    Active,
+    /// Enrollment has been revoked.
+    Revoked,
+    /// Enrollment awaits activation.
+    Pending,
+}
+
 /// A non-secret reference to credentials held by an external resolver.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CredentialReference {
@@ -855,5 +885,26 @@ mod tests {
         object.remove("schema_version");
         let migrated = decode(&serde_json::to_vec(&object).unwrap()).unwrap();
         assert_eq!(migrated, sample());
+    }
+
+    #[test]
+    fn auth_enrollment_is_versioned_and_rejects_unknown_fields() {
+        let enrollment = AuthEnrollment {
+            schema_version: 1,
+            provider: "openai".into(),
+            credential: CredentialReference {
+                kind: CredentialReferenceKind::Environment,
+                locator_sha256: "a".repeat(64),
+            },
+            endpoint_identity_sha256: "b".repeat(64),
+            generation: 1,
+            status: AuthEnrollmentStatus::Active,
+        };
+        let mut value = serde_json::to_value(enrollment).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("secret".into(), "nope".into());
+        assert!(serde_json::from_value::<AuthEnrollment>(value).is_err());
     }
 }
