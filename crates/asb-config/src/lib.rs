@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
+use sha2::Digest;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -253,6 +254,42 @@ pub struct RegistryModelV1 {
 }
 
 impl ProviderRegistryV1 {
+    /// Parse a bounded provider model response into qualified cache entries.
+    pub fn parse_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        if bytes.is_empty() || bytes.len() > 64 * 1024 {
+            return Err(ConfigError::InvalidValue("model catalog size".into()));
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            models: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            id: String,
+        }
+        let catalog: Catalog = serde_json::from_slice(bytes)
+            .map_err(|_| ConfigError::InvalidValue("model catalog format".into()))?;
+        if catalog.models.len() > 256 {
+            return Err(ConfigError::InvalidValue("model catalog count".into()));
+        }
+        let models = catalog
+            .models
+            .into_iter()
+            .map(|model| RegistryModelV1 {
+                qualification_sha256: format!("{:x}", sha2::Sha256::digest(model.id.as_bytes())),
+                id: model.id,
+                discovered_at_generation: generation,
+            })
+            .collect();
+        self.replace_models(connection, generation, models)
+    }
     /// Add a managed connection, rejecting replacement of an existing identity.
     pub fn add_connection(
         &mut self,
