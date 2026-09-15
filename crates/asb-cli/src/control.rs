@@ -1205,6 +1205,11 @@ impl ControlBackend for RunnerBackend {
                     baseline_measurement_catalog(),
                 )),
             ),
+            // Agent catalog population and package verification are deliberately
+            // not inferred from the runner's local state yet. Keep the new wire
+            // operation fail-closed until the authenticated catalog provider is
+            // integrated, rather than exposing an empty or unverifiable list.
+            ControlCall::AgentCatalog(_) => Err(BackendFailure::CapabilityUnavailable),
             ControlCall::ValidateSettings { settings } => {
                 let (issue, measurement_issue) =
                     match serde_json::from_value::<PlanFile>(settings.clone()) {
@@ -1760,6 +1765,23 @@ mod tests {
         assert_eq!(publication.catalog.0, baseline_measurement_catalog());
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn agent_catalog_is_explicitly_unavailable_until_verified_provider_is_wired() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::AgentCatalog(asb_control::AgentCatalogRequest {
+            action: asb_control::AgentCatalogAction::Status,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        assert_eq!(
+            backend.execute(&call, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
     }
 
     #[test]

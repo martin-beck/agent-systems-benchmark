@@ -34,7 +34,7 @@ use thiserror::Error;
 
 use crate::endpoint::{AdmissionGuard, join_workers, reap_workers};
 use crate::{
-    CONTROL_MEASUREMENT_SELECTION_V1, ControlBackend, ControlCall, ControlClient, ControlLimits,
+    CONTROL_AGENT_CATALOG_V1, ControlBackend, ControlCall, ControlClient, ControlLimits,
     ControlServer, EndpointError, MAX_CONTROL_ID_BYTES, PeerIdentity, RequestDeadline,
     SUPPORTED_CONTROL_VERSIONS, validate_identity,
 };
@@ -660,7 +660,7 @@ impl AuthenticatedGenerationProducer {
             BTreeSet::from(SUPPORTED_CONTROL_VERSIONS),
             deadline,
         )?;
-        if probe.negotiated().version != CONTROL_MEASUREMENT_SELECTION_V1 {
+        if probe.negotiated().version != CONTROL_AGENT_CATALOG_V1 {
             return Err(ProvisioningError::Rejected);
         }
         let probe_evidence = process_evidence(probe.peer_identity(expected_uid)?)?;
@@ -2189,7 +2189,7 @@ mod tests {
         let Some(crate::ControlSuccess::Negotiated(negotiated)) = response.result() else {
             panic!("expected negotiated response");
         };
-        assert_eq!(negotiated.version, crate::CONTROL_MEASUREMENT_SELECTION_V1);
+        assert_eq!(negotiated.version, crate::CONTROL_AGENT_CATALOG_V1);
         assert_eq!(negotiated.runner_instance_id, "runner-handoff-test");
         drop(stream);
         drop(connection);
