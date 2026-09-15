@@ -329,6 +329,24 @@ impl ProviderRegistryV1 {
         self.models.insert(connection.to_owned(), models);
         self.validate()
     }
+
+    /// Return only models qualified for the requested provider protocol.
+    pub fn compatible_models(
+        &self,
+        connection: &str,
+        provider: &str,
+        protocol: &str,
+    ) -> Vec<&RegistryModelV1> {
+        let Some(identity) = self.connections.get(connection) else {
+            return Vec::new();
+        };
+        if identity.provider != provider || identity.protocol != protocol {
+            return Vec::new();
+        }
+        self.models
+            .get(connection)
+            .map_or_else(Vec::new, |models| models.iter().collect())
+    }
 }
 
 /// Built-in values used when no persisted value exists.
