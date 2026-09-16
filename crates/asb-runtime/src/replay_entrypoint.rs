@@ -49,6 +49,7 @@ impl ReplayLaunchAuthority {
 
     /// Issue a complete runtime launch capability, including the denied
     /// sandbox context, resource lease, and verified supervisor commands.
+    #[allow(clippy::too_many_arguments)]
     pub fn issue_launch(
         sidecar: LoopbackSidecar,
         namespace_ready: bool,
