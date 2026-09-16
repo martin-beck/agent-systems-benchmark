@@ -12,6 +12,7 @@ class TransportFixtureTests(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertEqual(report["tool_result_order"], "verified")
         self.assertEqual(report["cancellation_cleanup"], "verified")
+        self.assertEqual(report["repeat_clean_state"], "verified")
         self.assertEqual(report["outbound"], "unavailable-outside-isolation")
     def test_non_executable_consumer_is_rejected(self) -> None:
         result = subprocess.run([sys.executable, str(ROOT / "transport_fixture.py"), "--executable", str(ROOT / "README.md")], check=False)
