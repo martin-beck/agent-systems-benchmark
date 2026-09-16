@@ -411,7 +411,12 @@ impl SandboxBackend {
             return Err(SandboxError::LeaseMismatch);
         }
         if spec.network_policy() == NetworkPolicy::LoopbackOnly {
-            return Err(SandboxError::NetworkPolicy);
+            let plan = spec
+                .supervisor
+                .as_ref()
+                .ok_or(SandboxError::NetworkPolicy)?;
+            plan.validate_loopback_listener()
+                .map_err(|_| SandboxError::NetworkPolicy)?;
         }
         self.probe()?;
         let mut command = pinned_command(&self.systemd_run);
@@ -443,6 +448,8 @@ impl SandboxBackend {
             .args(["--setenv", "TMPDIR", "/tmp"])
             .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
         const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
+        const SUPERVISOR_TARGET: &str = "/tmp/asb-loopback-supervisor";
+        const SIDECAR_TARGET: &str = "/tmp/asb-loopback-sidecar";
         if let Some(plan) = &spec.supervisor {
             if plan.supervisor().is_none() {
                 return Err(SandboxError::DelegationRejected);
@@ -457,14 +464,37 @@ impl SandboxBackend {
                 return Err(SandboxError::DelegationRejected);
             }
             command.arg("--bind").arg(plan.relay()).arg(RELAY_TARGET);
+            let sidecar = fs::metadata(plan.sidecar().executable())
+                .map_err(|_| SandboxError::DelegationRejected)?;
+            if !sidecar.is_file() || sidecar.permissions().mode() & 0o077 != 0 {
+                return Err(SandboxError::DelegationRejected);
+            }
+            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
+            let supervisor_metadata = fs::metadata(supervisor.executable())
+                .map_err(|_| SandboxError::DelegationRejected)?;
+            if !supervisor_metadata.is_file()
+                || supervisor_metadata.permissions().mode() & 0o077 != 0
+            {
+                return Err(SandboxError::DelegationRejected);
+            }
+            command
+                .arg("--ro-bind")
+                .arg(supervisor.executable())
+                .arg(SUPERVISOR_TARGET)
+                .arg("--ro-bind")
+                .arg(plan.sidecar().executable())
+                .arg(SIDECAR_TARGET);
         }
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
         if let Some(plan) = &spec.supervisor {
-            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
-            command.arg("--").arg(supervisor.executable());
-            command.args(plan.arguments_for_relay(Path::new(RELAY_TARGET)));
+            if plan.supervisor().is_none() {
+                return Err(SandboxError::DelegationRejected);
+            }
+            command.arg("--").arg(SUPERVISOR_TARGET);
+            command
+                .args(plan.arguments_for_paths(Path::new(RELAY_TARGET), Path::new(SIDECAR_TARGET)));
         } else {
             command.arg("--").arg(&spec.program).args(&spec.arguments);
         }

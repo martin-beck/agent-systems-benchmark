@@ -8,6 +8,7 @@
 //! sandbox boundary.
 
 use sha2::{Digest, Sha256};
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
@@ -201,6 +202,35 @@ impl SupervisorPlan {
         self.timeout
     }
 
+    /// Validate that the sidecar has an explicit loopback-only listener.
+    ///
+    /// The listener is created inside the Bubblewrap network namespace.  A
+    /// missing or non-loopback address would either make the cassette
+    /// unreachable or accidentally widen the boundary, so both are rejected
+    /// before any child is spawned.
+    pub fn validate_loopback_listener(&self) -> Result<SocketAddr, SupervisorError> {
+        if self.supervisor.is_none() {
+            return Err(SupervisorError::InvalidHandoff);
+        }
+        let mut listener = None;
+        let mut args = self.sidecar.arguments.iter();
+        while let Some(argument) = args.next() {
+            if argument == "--listen" {
+                let value = args.next().ok_or(SupervisorError::InvalidHandoff)?;
+                let address = value
+                    .parse::<SocketAddr>()
+                    .map_err(|_| SupervisorError::InvalidHandoff)?;
+                if address.ip() != IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+                    || address.port() == 0
+                    || listener.replace(address).is_some()
+                {
+                    return Err(SupervisorError::InvalidHandoff);
+                }
+            }
+        }
+        listener.ok_or(SupervisorError::InvalidHandoff)
+    }
+
     /// Arguments for the in-tree supervisor executable.
     ///
     /// The explicit `--unshare-net` marker is part of the contract; host
@@ -213,6 +243,11 @@ impl SupervisorPlan {
 
     /// Arguments with the relay path visible inside a sandbox.
     pub fn arguments_for_relay(&self, relay: &Path) -> Vec<String> {
+        self.arguments_for_paths(relay, &self.sidecar.executable)
+    }
+
+    /// Arguments with both relay and sidecar paths rewritten to namespace paths.
+    pub fn arguments_for_paths(&self, relay: &Path, sidecar: &Path) -> Vec<String> {
         let mut args = vec![
             "--unshare-net".into(),
             "--relay".into(),
@@ -224,7 +259,7 @@ impl SupervisorPlan {
             "--timeout-ms".into(),
             self.timeout.as_millis().to_string(),
             "--sidecar".into(),
-            self.sidecar.executable.display().to_string(),
+            sidecar.display().to_string(),
             "--sidecar-digest".into(),
             self.sidecar.digest.clone(),
             "--adapter".into(),
