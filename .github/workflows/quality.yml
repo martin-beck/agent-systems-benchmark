@@ -85,7 +85,9 @@ jobs:
           python3 tools/tutorials/validate.py tools/tutorials/example-v1.json
       - name: Validate GitHub workflows
         run: |
-          "$ASB_QUALITY_BIN/actionlint" -config-file .github/actionlint.yaml
+          test -x "$ASB_QUALITY_BIN/shellcheck"
+          "$ASB_QUALITY_BIN/shellcheck" --version | grep -F "version: 0.11.0"
+          "$ASB_QUALITY_BIN/actionlint" -config-file .github/actionlint.yaml -shellcheck "$ASB_QUALITY_BIN/shellcheck"
           "$ASB_QUALITY_BIN/zizmor" --pedantic .
       - name: Scan complete introduced history for secrets
         env:
