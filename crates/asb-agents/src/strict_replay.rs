@@ -5,6 +5,7 @@
 use asb_replay::{
     Cassette, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService,
 };
+use asb_runtime::sandbox::NetworkPolicy;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
@@ -25,6 +26,13 @@ pub enum EgressPolicy {
 pub enum ProcessIsolationCapability {
     /// The child process boundary denies provider egress.
     Verified,
+}
+
+impl ProcessIsolationCapability {
+    /// Convert the runtime network policy into an attested capability.
+    pub fn from_network_policy(policy: NetworkPolicy) -> Option<Self> {
+        (policy == NetworkPolicy::Deny).then_some(Self::Verified)
+    }
 }
 
 /// Bounded lifecycle state for one strict replay attempt.
@@ -107,6 +115,7 @@ pub enum StrictReplayError {
 pub struct StrictReplayExecutor {
     record: StrictReplayLaunchRecord,
     service: StrictReplayService,
+    lifecycle: std::sync::Mutex<ReplayLifecycle>,
 }
 
 impl StrictReplayExecutor {
@@ -138,7 +147,37 @@ impl StrictReplayExecutor {
         }
         let service = StrictReplayService::new(cassette, ReplayLimits::default())
             .map_err(|_| StrictReplayError::InvalidCassette)?;
-        Ok(Self { record, service })
+        Ok(Self {
+            record,
+            service,
+            lifecycle: std::sync::Mutex::new(ReplayLifecycle::Ready),
+        })
+    }
+
+    /// Cancel this attempt; subsequent requests fail closed.
+    pub fn cancel(&self) -> Result<(), StrictReplayError> {
+        let mut state = self
+            .lifecycle
+            .lock()
+            .map_err(|_| StrictReplayError::LifecycleClosed)?;
+        if *state != ReplayLifecycle::Ready {
+            return Err(StrictReplayError::LifecycleClosed);
+        }
+        *state = ReplayLifecycle::Cancelled;
+        Ok(())
+    }
+
+    /// Mark an interrupted attempt as requiring a fresh launch.
+    pub fn recover_after_restart(&self) -> Result<(), StrictReplayError> {
+        let mut state = self
+            .lifecycle
+            .lock()
+            .map_err(|_| StrictReplayError::LifecycleClosed)?;
+        if *state != ReplayLifecycle::Ready {
+            return Err(StrictReplayError::LifecycleClosed);
+        }
+        *state = ReplayLifecycle::NeedsRestart;
+        Ok(())
     }
 
     /// Serve one adapter request only from the authenticated local cassette route.
@@ -147,6 +186,14 @@ impl StrictReplayExecutor {
         route: &ReplayRoute,
         request: ReplayHttpRequest,
     ) -> Result<ReplayHttpResponse, StrictReplayError> {
+        if *self
+            .lifecycle
+            .lock()
+            .map_err(|_| StrictReplayError::LifecycleClosed)?
+            != ReplayLifecycle::Ready
+        {
+            return Err(StrictReplayError::LifecycleClosed);
+        }
         if route.attempt_id != self.record.input.attempt_id {
             return Err(StrictReplayError::AttemptMismatch);
         }
@@ -284,6 +331,18 @@ mod tests {
     fn endpoint_policy_rejects_provider_egress() {
         assert!(StrictReplayExecutor::validate_endpoint("https://api.openai.com/v1").is_err());
         assert!(StrictReplayExecutor::validate_endpoint("http://127.0.0.1:4317/replay").is_ok());
+    }
+
+    #[test]
+    fn isolation_capability_is_only_attested_by_deny_policy() {
+        assert_eq!(
+            ProcessIsolationCapability::from_network_policy(NetworkPolicy::Deny),
+            Some(ProcessIsolationCapability::Verified)
+        );
+        assert_eq!(
+            ProcessIsolationCapability::from_network_policy(NetworkPolicy::Host),
+            None
+        );
     }
 
     #[test]
