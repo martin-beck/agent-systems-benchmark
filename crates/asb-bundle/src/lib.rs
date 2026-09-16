@@ -65,6 +65,10 @@ pub struct RuntimeBundleManifest {
     /// Complete sorted inventory excluding manifest, signature, and SBOM files.
     #[schemars(length(min = 1, max = 100_000))]
     pub artifacts: Vec<BundleArtifact>,
+    /// Optional verified runtime helper payloads. Bundles that provide the
+    /// loopback sandbox must declare both entries and their artifact roles.
+    #[serde(default)]
+    pub runtime_components: Option<RuntimeComponents>,
     /// SHA-256 over the canonical ordered artifact tuple stream.
     #[schemars(regex(pattern = r"^[0-9a-f]{64}$"))]
     pub content_sha256: String,
@@ -207,6 +211,33 @@ pub struct BundleArtifact {
     /// Non-empty inventoried paths containing license evidence.
     #[schemars(length(min = 1, max = 100_000))]
     pub license_evidence: Vec<String>,
+    /// Semantic role of a runtime helper payload, when applicable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<BundleArtifactRole>,
+}
+
+/// Roles reserved for the authenticated loopback runtime helpers.
+#[derive(
+    Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, JsonSchema, Serialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum BundleArtifactRole {
+    /// The rootless Bubblewrap supervisor.
+    Supervisor,
+    /// The bounded loopback TCP-to-Unix sidecar.
+    Sidecar,
+}
+
+/// Paths of the signed helper payloads consumed by the sandbox launcher.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeComponents {
+    /// Relative path of the supervisor executable.
+    #[schemars(length(min = 1, max = 4096))]
+    pub supervisor: String,
+    /// Relative path of the sidecar executable.
+    #[schemars(length(min = 1, max = 4096))]
+    pub sidecar: String,
 }
 
 /// Signed identity of one SBOM document.
@@ -260,6 +291,23 @@ pub struct VerifiedBundle {
     pub content_sha256: String,
     /// Number of verified artifacts.
     pub artifact_count: usize,
+    /// Verified supervisor payload, if declared by this bundle.
+    pub supervisor: Option<VerifiedPayload>,
+    /// Verified sidecar payload, if declared by this bundle.
+    pub sidecar: Option<VerifiedPayload>,
+}
+
+/// Immutable identity and relocatable path of a verified payload.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerifiedPayload {
+    /// Absolute path under the verified bundle root.
+    pub path: PathBuf,
+    /// SHA-256 of the verified bytes.
+    pub sha256: String,
+    /// Exact verified file size.
+    pub size: u64,
+    /// Exact verified Unix permission mode.
+    pub mode: u32,
 }
 
 /// Fail-closed runtime-bundle verification error.
@@ -356,12 +404,17 @@ pub fn verify_bundle(
     validate_spdx(&spdx, &artifacts)?;
     validate_cyclonedx(&cyclonedx, &artifacts)?;
 
+    let supervisor =
+        verified_component(&root, &manifest, &artifacts, BundleArtifactRole::Supervisor);
+    let sidecar = verified_component(&root, &manifest, &artifacts, BundleArtifactRole::Sidecar);
     Ok(VerifiedBundle {
         manifest_sha256: sha256(&manifest_bytes),
         bundle_id: manifest.bundle_id,
         bundle_version: manifest.bundle_version,
         content_sha256: manifest.content_sha256,
         artifact_count: artifacts.len(),
+        supervisor,
+        sidecar,
     })
 }
 
@@ -469,7 +522,72 @@ fn validate_manifest(
     if entrypoint.mode & 0o111 == 0 {
         return Err(VerifyError::Metadata("entrypoint is not executable".into()));
     }
+    validate_runtime_components(manifest, &paths)?;
     Ok(())
+}
+
+fn validate_runtime_components(
+    manifest: &RuntimeBundleManifest,
+    paths: &BTreeSet<&str>,
+) -> Result<(), VerifyError> {
+    let Some(components) = &manifest.runtime_components else {
+        return Ok(());
+    };
+    validate_relative_path(&components.supervisor)?;
+    validate_relative_path(&components.sidecar)?;
+    if components.supervisor == components.sidecar {
+        return Err(VerifyError::Metadata(
+            "runtime component paths collide".into(),
+        ));
+    }
+    let mut roles = BTreeSet::new();
+    for (path, role) in [
+        (&components.supervisor, BundleArtifactRole::Supervisor),
+        (&components.sidecar, BundleArtifactRole::Sidecar),
+    ] {
+        if !paths.contains(path.as_str()) {
+            return Err(VerifyError::Metadata(
+                "runtime component is not inventoried".into(),
+            ));
+        }
+        let artifact = manifest
+            .artifacts
+            .iter()
+            .find(|item| item.path == *path)
+            .expect("checked inventory");
+        if artifact.role != Some(role) || artifact.mode & 0o111 == 0 {
+            return Err(VerifyError::Metadata(
+                "runtime component role or mode differs".into(),
+            ));
+        }
+        roles.insert(role);
+    }
+    if roles.len() != 2 {
+        return Err(VerifyError::Metadata(
+            "runtime component roles are incomplete".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn verified_component(
+    root: &Path,
+    manifest: &RuntimeBundleManifest,
+    artifacts: &BTreeMap<&str, &BundleArtifact>,
+    role: BundleArtifactRole,
+) -> Option<VerifiedPayload> {
+    let components = manifest.runtime_components.as_ref()?;
+    let path = match role {
+        BundleArtifactRole::Supervisor => &components.supervisor,
+        BundleArtifactRole::Sidecar => &components.sidecar,
+    };
+    let artifact = artifacts.get(path.as_str())?;
+    Some(VerifiedPayload {
+        path: root.join(path),
+        sha256: artifact.sha256.clone(),
+        size: artifact.size,
+        mode: artifact.mode,
+    })
 }
 
 fn validate_sbom(sbom: &SbomDocument) -> Result<(), VerifyError> {

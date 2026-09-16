@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 #[test]
 fn checked_schema_equals_rust_model() {
     let checked: Value =
-        serde_json::from_str(include_str!("../schema/v1/runtime-bundle.schema.json"))
+        serde_json::from_str(include_str!("../schema/v2/runtime-bundle.schema.json"))
             .expect("checked schema");
     let generated = serde_json::to_value(manifest_schema()).expect("generated schema");
     assert_eq!(checked, generated);

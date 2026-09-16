@@ -40,3 +40,26 @@ compatibility is exact string equality; broader libc ABI compatibility requires 
 qualification. Bundle creation and per-agent transitive package acquisition remain AR-0316 work.
 The configured ssh-keygen and allowed-signers paths are also trusted operator-owned inputs and
 must remain quiescent for the duration of verification.
+
+## Reproducible assembly
+
+The release operator builds the pinned supervisor and sidecar in the reviewed release workflow,
+then supplies those regular files explicitly to the offline builder. The builder never discovers
+or downloads executables and refuses symlinks, missing signing inputs, and an existing output
+archive:
+
+```sh
+python3 tools/bundle/build_runtime_bundle.py \
+  --bundle-version 1.0.0 --os linux --arch x86_64 --libc glibc --libc-version 2.39 \
+  --supervisor target/release/asb_loopback_supervisor \
+  --sidecar target/release/asb_loopback_sidecar \
+  --key RELEASE_KEY --allowed-signers ALLOWED_SIGNERS \
+  --principal asb-release --ssh-keygen-sha256 SSH_KEYGEN_SHA256 \
+  --output dist/asb-runtime-1.0.0-linux-x86_64.tar.gz
+```
+
+Payload inventory and both SBOMs are generated before the canonical manifest is signed. Archive
+metadata uses epoch timestamps, zero ownership, sorted entries, and atomic replacement, so the
+same staged inputs produce byte-identical output. `asb-bundle-verify` validates the staged tree
+before archiving; private keys are read only by the operator's `ssh-keygen` process and are never
+copied into the bundle or retained as evidence.
