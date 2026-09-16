@@ -37,7 +37,7 @@ def apply(repository: str) -> dict[str, object]:
         command.extend(["-F", f"{key}={str(value).lower()}"])
     result = bounded_command(Path.cwd(), *command)
     if result.returncode:
-        raise ValueError("GitHub settings update failed")
+        raise ValueError("GitHub settings update failed; verify repository-admin permission and retry")
     return json.loads(result.stdout)
 
 

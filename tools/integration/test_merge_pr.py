@@ -375,6 +375,13 @@ class MergeIntegrityTests(unittest.TestCase):
                 ).returncode,
                 0,
             )
+        for field in good:
+            missing = dict(good)
+            del missing[field]
+            self.assertNotEqual(
+                command(ROOT, "python3", str(SETTINGS), "--settings-json", json.dumps(missing), check=False).returncode,
+                0,
+            )
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ python3 tools/integration/repository_settings.py
 ```
 
 The second command is a fail-closed audit. The setting change is external and must be recorded with
-its exact response; it does not retroactively repair an old merge. Historical merge
+its exact response; failure means protected-main admission is not ready and must be escalated to a repository administrator. It does not retroactively repair an old merge. Historical merge
 `b6d04a8305ce6d49cc327e4e6d2d6fa42a88050b` remains unsigned/non-DCO. A signed descendant can
 restore a green current-main evidence range, but must not be described as changing that history.
 
