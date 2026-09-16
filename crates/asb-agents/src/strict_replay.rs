@@ -182,6 +182,7 @@ impl StrictReplayLaunchRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_replay::{CassetteLimits, decode_cassette};
     fn input() -> StrictReplayLaunchV1 {
         StrictReplayLaunchV1 {
             schema_version: 1,
@@ -219,5 +220,24 @@ mod tests {
             .validate(),
             Err(StrictReplayError::DigestMismatch)
         );
+    }
+
+    #[test]
+    fn executor_rejects_invalid_cassette_without_fallback() {
+        let cassette = decode_cassette(
+            include_bytes!("../../asb-replay/fixtures/v1/buffered.json"),
+            CassetteLimits::default(),
+        )
+        .unwrap();
+        let mut launch = input();
+        launch.cassette_sha256 = cassette.integrity.digest.clone();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        assert!(matches!(
+            StrictReplayExecutor::new(record, cassette),
+            Err(StrictReplayError::InvalidCassette)
+        ));
     }
 }
