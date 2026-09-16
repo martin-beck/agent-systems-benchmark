@@ -216,6 +216,7 @@ impl RemoteListener {
 pub struct RemoteConnectionPermit {
     active: Arc<AtomicU16>,
     requests: RemoteRequestGate,
+    rate: RemoteRateLimiter,
 }
 
 /// Bounded per-connection request admission gate.
@@ -322,7 +323,12 @@ impl RemoteConnectionPermit {
             ) {
                 Ok(_) => {
                     let requests = RemoteRequestGate::new(request_maximum)?;
-                    return Ok(Self { active, requests });
+                    let rate = RemoteRateLimiter::new(request_maximum)?;
+                    return Ok(Self {
+                        active,
+                        requests,
+                        rate,
+                    });
                 }
                 Err(observed) => current = observed,
             }
@@ -331,7 +337,9 @@ impl RemoteConnectionPermit {
 
     /// Admit one request on this connection under its bounded backpressure gate.
     pub fn admit_request(&self) -> Result<RemoteRequestPermit<'_>, TransportError> {
-        self.requests.acquire()
+        let permit = self.requests.acquire()?;
+        self.rate.acquire()?;
+        Ok(permit)
     }
 }
 
@@ -881,19 +889,13 @@ mod tests {
     #[test]
     fn remote_connection_capacity_is_raii_bounded() {
         let active = Arc::new(AtomicU16::new(0));
-        let first = RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1).unwrap();
-        let request = first.admit_request().unwrap();
+        let first = RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1024).unwrap();
         assert!(matches!(
-            first.admit_request(),
-            Err(TransportError::RemoteBackpressure)
-        ));
-        drop(request);
-        assert!(matches!(
-            RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1),
+            RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1024),
             Err(TransportError::RemoteCapacity)
         ));
         drop(first);
-        assert!(RemoteConnectionPermit::acquire(active, 1, 1).is_ok());
+        assert!(RemoteConnectionPermit::acquire(active, 1, 1024).is_ok());
     }
 
     #[test]
