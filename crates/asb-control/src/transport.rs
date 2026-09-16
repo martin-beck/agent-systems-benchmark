@@ -2,19 +2,530 @@
 // SPDX-License-Identifier: MIT
 //! Owner-only Linux Unix-domain transport.
 
+use std::collections::VecDeque;
 use std::fs::{self, Permissions};
 use std::io;
+use std::io::{Read, Write};
+use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use rustix::net::sockopt::socket_peercred;
 use rustix::process::geteuid;
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, ServerConfig, ServerConnection, StreamOwned};
 use thiserror::Error;
 
 use crate::ControlLimits;
+
+/// Stream boundary used by bounded frame transport implementations.
+pub trait RemoteIo: Read + Write {}
+
+impl<T: Read + Write> RemoteIo for T {}
+
+/// Deterministic byte-stream fault fixture for transport-level tests.
+#[derive(Debug, Default)]
+pub struct FaultInjectingIo {
+    incoming: VecDeque<u8>,
+    outgoing: Vec<u8>,
+    drop_writes_after: Option<usize>,
+    writes: usize,
+    reorder_reads: bool,
+}
+
+impl FaultInjectingIo {
+    /// Create a fixture with bytes that a peer would send.
+    pub fn new(incoming: impl IntoIterator<Item = u8>) -> Self {
+        Self {
+            incoming: incoming.into_iter().collect(),
+            ..Self::default()
+        }
+    }
+
+    /// Drop writes after `count` successful writes, modelling a partition.
+    pub fn drop_writes_after(mut self, count: usize) -> Self {
+        self.drop_writes_after = Some(count);
+        self
+    }
+
+    /// Reverse each available read chunk, modelling deterministic reordering.
+    pub fn reorder_reads(mut self) -> Self {
+        self.reorder_reads = true;
+        self
+    }
+
+    /// Bytes successfully written by the fixture.
+    #[must_use]
+    pub fn outgoing(&self) -> &[u8] {
+        &self.outgoing
+    }
+}
+
+impl Read for FaultInjectingIo {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        if self.incoming.is_empty() {
+            return Ok(0);
+        }
+        let count = output.len().min(self.incoming.len());
+        for slot in output.iter_mut().take(count) {
+            *slot = if self.reorder_reads {
+                self.incoming.pop_back().expect("count bounds")
+            } else {
+                self.incoming.pop_front().expect("count bounds")
+            };
+        }
+        Ok(count)
+    }
+}
+
+impl Write for FaultInjectingIo {
+    fn write(&mut self, input: &[u8]) -> io::Result<usize> {
+        if self
+            .drop_writes_after
+            .is_some_and(|limit| self.writes >= limit)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "fault fixture partition",
+            ));
+        }
+        self.writes += 1;
+        self.outgoing.extend_from_slice(input);
+        Ok(input.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Explicit admission policy for the optional remote control boundary.
+///
+/// This contract is intentionally separate from the owner-only Unix socket:
+/// remote transport is never enabled by frontend location or environment.
+/// A later TLS listener must consume this validated value rather than infer
+/// an address or security policy from process state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RemoteTransportConfig {
+    /// Explicitly opt in to the remote listener.
+    pub enabled: bool,
+    /// Address selected by the operator; no implicit default is permitted.
+    pub bind: SocketAddr,
+    /// Maximum simultaneously admitted remote connections.
+    pub max_connections: u16,
+    /// Maximum requests admitted on one connection.
+    pub max_requests_per_connection: u16,
+    /// Idle socket deadline after handshake.
+    pub idle_timeout_ms: u64,
+    /// Bounds negotiated frames and request deadlines.
+    pub limits: ControlLimits,
+}
+
+/// Authenticated TLS configuration for the explicitly enabled remote boundary.
+pub struct RemoteTlsConfig {
+    server: Arc<ServerConfig>,
+}
+
+impl Clone for RemoteTlsConfig {
+    fn clone(&self) -> Self {
+        Self {
+            server: Arc::clone(&self.server),
+        }
+    }
+}
+
+/// Explicitly bound remote listener with a bounded authenticated connection count.
+#[derive(Debug)]
+pub struct RemoteListener {
+    listener: TcpListener,
+    tls: RemoteTlsConfig,
+    config: RemoteTransportConfig,
+    active: Arc<AtomicU16>,
+    draining: Arc<AtomicU16>,
+    admission_lock: Mutex<()>,
+}
+
+impl RemoteListener {
+    /// Bind the configured address; no listener exists when remote transport is disabled.
+    pub fn bind(
+        tls: RemoteTlsConfig,
+        config: RemoteTransportConfig,
+    ) -> Result<Self, TransportError> {
+        let config = config.validate()?;
+        let listener = TcpListener::bind(config.bind)?;
+        Ok(Self {
+            listener,
+            tls,
+            config,
+            active: Arc::new(AtomicU16::new(0)),
+            draining: Arc::new(AtomicU16::new(0)),
+            admission_lock: Mutex::new(()),
+        })
+    }
+
+    /// Accept one mTLS connection while enforcing the configured capacity.
+    pub fn accept(
+        &self,
+    ) -> Result<
+        (
+            StreamOwned<ServerConnection, TcpStream>,
+            RemoteConnectionPermit,
+        ),
+        TransportError,
+    > {
+        if self.draining.load(Ordering::Acquire) != 0 {
+            return Err(TransportError::RemoteDraining);
+        }
+        let (stream, _) = self.listener.accept()?;
+        // Do not consume a lifecycle permit while waiting on the listener.
+        // Recheck drain after accept to close the race with begin_drain().
+        let _admission = self
+            .admission_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if self.draining.load(Ordering::Acquire) != 0 {
+            return Err(TransportError::RemoteDraining);
+        }
+        let permit = RemoteConnectionPermit::acquire(
+            Arc::clone(&self.active),
+            self.config.max_connections,
+            self.config.max_requests_per_connection,
+        )?;
+        match self.tls.accept(stream, self.config) {
+            Ok(stream) => Ok((stream, permit)),
+            Err(error) => {
+                drop(permit);
+                Err(error)
+            }
+        }
+    }
+
+    /// Begin graceful drain; existing permits remain valid.
+    pub fn begin_drain(&self) {
+        let _admission = self
+            .admission_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.draining.store(1, Ordering::Release);
+    }
+
+    /// Whether new connections are refused during graceful drain.
+    #[must_use]
+    pub fn is_draining(&self) -> bool {
+        self.draining.load(Ordering::Acquire) != 0
+    }
+
+    /// Wait for all accepted connections to release their permits.
+    pub fn drain_until(&self, deadline: Instant) -> Result<(), TransportError> {
+        self.begin_drain();
+        while self.active.load(Ordering::Acquire) != 0 {
+            if Instant::now() >= deadline {
+                return Err(TransportError::RemoteDrainTimeout);
+            }
+            std::thread::yield_now();
+        }
+        Ok(())
+    }
+
+    /// Address selected by the operator.
+    pub fn local_addr(&self) -> Result<SocketAddr, TransportError> {
+        self.listener.local_addr().map_err(TransportError::Io)
+    }
+}
+
+/// RAII permit for one authenticated remote connection.
+#[derive(Debug)]
+pub struct RemoteConnectionPermit {
+    active: Arc<AtomicU16>,
+    requests: RemoteRequestGate,
+    rate: RemoteRateLimiter,
+}
+
+/// Bounded per-connection request admission gate.
+#[derive(Debug)]
+pub struct RemoteRequestGate {
+    remaining: AtomicU16,
+}
+
+impl RemoteRequestGate {
+    /// Create a gate with a finite request ceiling.
+    pub fn new(maximum: u16) -> Result<Self, TransportError> {
+        if maximum == 0 || maximum > 1024 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        Ok(Self {
+            remaining: AtomicU16::new(maximum),
+        })
+    }
+
+    /// Reserve one request, failing closed when backpressure is reached.
+    pub fn acquire(&self) -> Result<RemoteRequestPermit<'_>, TransportError> {
+        let mut current = self.remaining.load(Ordering::Acquire);
+        loop {
+            if current == 0 {
+                return Err(TransportError::RemoteBackpressure);
+            }
+            match self.remaining.compare_exchange_weak(
+                current,
+                current - 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(RemoteRequestPermit { gate: self }),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+}
+
+/// RAII request reservation that returns capacity on completion.
+#[derive(Debug)]
+pub struct RemoteRequestPermit<'a> {
+    gate: &'a RemoteRequestGate,
+}
+
+/// Bounded one-second request rate limiter.
+#[derive(Debug)]
+pub struct RemoteRateLimiter {
+    state: Mutex<(Instant, u16)>,
+    maximum: u16,
+}
+
+impl RemoteRateLimiter {
+    /// Construct a finite rate limiter.
+    pub fn new(maximum: u16) -> Result<Self, TransportError> {
+        if maximum == 0 || maximum > 4096 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        Ok(Self {
+            state: Mutex::new((Instant::now(), 0)),
+            maximum,
+        })
+    }
+
+    /// Admit one request or reject it under the current one-second window.
+    pub fn acquire(&self) -> Result<(), TransportError> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if state.0.elapsed() >= Duration::from_secs(1) {
+            *state = (Instant::now(), 0);
+        }
+        if state.1 >= self.maximum {
+            return Err(TransportError::RemoteRateLimited);
+        }
+        state.1 += 1;
+        Ok(())
+    }
+}
+
+impl Drop for RemoteRequestPermit<'_> {
+    fn drop(&mut self) {
+        self.gate.remaining.fetch_add(1, Ordering::Release);
+    }
+}
+
+impl RemoteConnectionPermit {
+    fn acquire(
+        active: Arc<AtomicU16>,
+        maximum: u16,
+        request_maximum: u16,
+    ) -> Result<Self, TransportError> {
+        let mut current = active.load(Ordering::Acquire);
+        loop {
+            if current >= maximum {
+                return Err(TransportError::RemoteCapacity);
+            }
+            match active.compare_exchange_weak(
+                current,
+                current + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    let requests = RemoteRequestGate::new(request_maximum)?;
+                    let rate = RemoteRateLimiter::new(request_maximum)?;
+                    return Ok(Self {
+                        active,
+                        requests,
+                        rate,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    /// Admit one request on this connection under its bounded backpressure gate.
+    pub fn admit_request(&self) -> Result<RemoteRequestPermit<'_>, TransportError> {
+        let permit = self.requests.acquire()?;
+        self.rate.acquire()?;
+        Ok(permit)
+    }
+}
+
+impl Drop for RemoteConnectionPermit {
+    fn drop(&mut self) {
+        let _ = self
+            .active
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
+                count.checked_sub(1)
+            });
+    }
+}
+
+impl std::fmt::Debug for RemoteTlsConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RemoteTlsConfig")
+            .finish_non_exhaustive()
+    }
+}
+
+impl RemoteTlsConfig {
+    /// Build a server configuration and pin the ASB protocol ALPN identifier.
+    pub fn new(mut server: ServerConfig) -> Result<Self, TransportError> {
+        server.alpn_protocols = vec![b"asb-control/1".to_vec()];
+        Ok(Self {
+            server: Arc::new(server),
+        })
+    }
+
+    /// Complete one bounded TLS handshake before application framing.
+    pub fn accept(
+        &self,
+        stream: TcpStream,
+        config: RemoteTransportConfig,
+    ) -> Result<StreamOwned<ServerConnection, TcpStream>, TransportError> {
+        let config = config.validate()?;
+        let deadline = Duration::from_millis(config.limits.max_timeout_ms);
+        let expires = Instant::now() + deadline;
+        let connection = ServerConnection::new(Arc::clone(&self.server))
+            .map_err(|_| TransportError::RemoteTlsConfiguration)?;
+        let mut tls = StreamOwned::new(connection, stream);
+        while tls.conn.is_handshaking() {
+            let remaining = expires.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(TransportError::RemoteHandshakeTimeout);
+            }
+            tls.sock.set_read_timeout(Some(remaining))?;
+            tls.sock.set_write_timeout(Some(remaining))?;
+            tls.conn.complete_io(&mut tls.sock).map_err(|error| {
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) {
+                    TransportError::RemoteHandshakeTimeout
+                } else {
+                    TransportError::Io(error)
+                }
+            })?;
+        }
+        if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
+            return Err(TransportError::RemoteAlpnMismatch);
+        }
+        rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
+        tls.sock
+            .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        tls.sock
+            .set_write_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        Ok(tls)
+    }
+}
+
+/// Client side of the authenticated remote control TLS boundary.
+#[derive(Debug)]
+pub struct RemoteTlsClient {
+    config: Arc<ClientConfig>,
+}
+
+impl RemoteTlsClient {
+    /// Build a client configuration pinned to the ASB control ALPN.
+    pub fn new(mut config: ClientConfig) -> Self {
+        config.alpn_protocols = vec![b"asb-control/1".to_vec()];
+        Self {
+            config: Arc::new(config),
+        }
+    }
+
+    /// Connect and complete the TLS handshake under the supplied control bound.
+    pub fn connect(
+        &self,
+        stream: TcpStream,
+        server_name: &str,
+        config: RemoteTransportConfig,
+    ) -> Result<StreamOwned<ClientConnection, TcpStream>, TransportError> {
+        let config = config.validate()?;
+        let name = ServerName::try_from(server_name.to_owned())
+            .map_err(|_| TransportError::RemoteTlsConfiguration)?;
+        let expires = Instant::now() + Duration::from_millis(config.limits.max_timeout_ms);
+        let connection = ClientConnection::new(Arc::clone(&self.config), name)
+            .map_err(|_| TransportError::RemoteTlsConfiguration)?;
+        let mut tls = StreamOwned::new(connection, stream);
+        while tls.conn.is_handshaking() {
+            let remaining = expires.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(TransportError::RemoteHandshakeTimeout);
+            }
+            tls.sock.set_read_timeout(Some(remaining))?;
+            tls.sock.set_write_timeout(Some(remaining))?;
+            tls.conn.complete_io(&mut tls.sock).map_err(|error| {
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) {
+                    TransportError::RemoteHandshakeTimeout
+                } else {
+                    TransportError::Io(error)
+                }
+            })?;
+        }
+        if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
+            return Err(TransportError::RemoteAlpnMismatch);
+        }
+        rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
+        tls.sock
+            .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        tls.sock
+            .set_write_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        Ok(tls)
+    }
+}
+
+impl RemoteTransportConfig {
+    /// Validate the explicit remote admission boundary.
+    pub fn validate(self) -> Result<Self, TransportError> {
+        if !self.enabled {
+            return Err(TransportError::RemoteDisabled);
+        }
+        if self.bind.port() == 0 {
+            return Err(TransportError::RemoteInvalidBind);
+        }
+        if self.bind.ip().is_unspecified() {
+            return Err(TransportError::RemoteWildcardBind);
+        }
+        if matches!(self.bind.ip(), IpAddr::V4(ip) if ip.is_broadcast()) {
+            return Err(TransportError::RemoteInvalidBind);
+        }
+        if self.max_connections == 0 || self.max_connections > 256 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        if self.max_requests_per_connection == 0 || self.max_requests_per_connection > 1024 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        if self.idle_timeout_ms == 0 || self.idle_timeout_ms > self.limits.max_timeout_ms {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        self.limits.validate().map_err(TransportError::Protocol)?;
+        Ok(self)
+    }
+}
 
 /// Authenticated local peer identity obtained from the kernel, never client data.
 ///
@@ -256,6 +767,42 @@ pub enum TransportError {
     /// Bound node is not a private same-user socket.
     #[error("local control socket permissions or ownership are unsafe")]
     UnsafeSocket,
+    /// Remote control was not explicitly enabled.
+    #[error("remote control transport is disabled")]
+    RemoteDisabled,
+    /// Remote control bind address or port is invalid.
+    #[error("remote control bind address is invalid")]
+    RemoteInvalidBind,
+    /// Wildcard remote binds require a separately reviewed policy.
+    #[error("remote control wildcard bind is not permitted")]
+    RemoteWildcardBind,
+    /// Remote connection limit is outside the implementation bound.
+    #[error("remote control connection limit is invalid")]
+    RemoteInvalidLimit,
+    /// TLS server configuration could not be initialized.
+    #[error("remote TLS configuration is invalid")]
+    RemoteTlsConfiguration,
+    /// TLS negotiation exceeded the configured deadline.
+    #[error("remote TLS handshake deadline exceeded")]
+    RemoteHandshakeTimeout,
+    /// The peer did not negotiate the ASB control ALPN.
+    #[error("remote TLS ALPN negotiation failed")]
+    RemoteAlpnMismatch,
+    /// Remote listener connection capacity has been exhausted.
+    #[error("remote control connection capacity is exhausted")]
+    RemoteCapacity,
+    /// Per-connection request capacity has been exhausted.
+    #[error("remote control request backpressure limit reached")]
+    RemoteBackpressure,
+    /// Listener is draining and refuses new connections.
+    #[error("remote control listener is draining")]
+    RemoteDraining,
+    /// Request rate exceeded its bounded one-second window.
+    #[error("remote control request rate limit reached")]
+    RemoteRateLimited,
+    /// Existing remote connections did not drain before the deadline.
+    #[error("remote control listener drain deadline exceeded")]
+    RemoteDrainTimeout,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
@@ -269,6 +816,17 @@ pub enum TransportError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        AttemptId, CONTROL_V1, ControlEvent, ControlEventKind, ControlVersion, EventWindow,
+        FrameError, Revision, RunId, read_frame, write_frame,
+    };
+    use rcgen::generate_simple_self_signed;
+    use rustls::RootCertStore;
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+    use rustls::server::WebPkiClientVerifier;
+    use std::io::Write;
+    use std::net::{Shutdown, TcpListener};
+    use std::thread;
 
     #[test]
     fn guarded_cleanup_removes_only_matching_socket_nodes() {
@@ -314,5 +872,343 @@ mod tests {
             rejected.to_string(),
             "local control peer is not owned by the expected user"
         );
+    }
+
+    fn remote_config() -> RemoteTransportConfig {
+        RemoteTransportConfig {
+            enabled: true,
+            bind: "127.0.0.1:9443".parse().unwrap(),
+            max_connections: 8,
+            max_requests_per_connection: 32,
+            idle_timeout_ms: 5_000,
+            limits: ControlLimits::default(),
+        }
+    }
+
+    #[test]
+    fn remote_admission_requires_explicit_non_wildcard_bind() {
+        assert!(matches!(
+            RemoteTransportConfig {
+                enabled: false,
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteDisabled)
+        ));
+        assert!(matches!(
+            RemoteTransportConfig {
+                bind: "0.0.0.0:9443".parse().unwrap(),
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteWildcardBind)
+        ));
+        assert!(remote_config().validate().is_ok());
+    }
+
+    #[test]
+    fn remote_admission_rejects_unbounded_connection_limits() {
+        assert!(matches!(
+            RemoteTransportConfig {
+                max_connections: 0,
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
+        assert!(matches!(
+            RemoteTransportConfig {
+                max_connections: 257,
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
+    }
+
+    #[test]
+    fn remote_connection_capacity_is_raii_bounded() {
+        let active = Arc::new(AtomicU16::new(0));
+        let first = RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1024).unwrap();
+        assert!(matches!(
+            RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1024),
+            Err(TransportError::RemoteCapacity)
+        ));
+        drop(first);
+        assert!(RemoteConnectionPermit::acquire(active, 1, 1024).is_ok());
+    }
+
+    #[test]
+    fn remote_request_gate_applies_backpressure_and_recovers() {
+        let gate = RemoteRequestGate::new(1).unwrap();
+        let permit = gate.acquire().unwrap();
+        assert!(matches!(
+            gate.acquire(),
+            Err(TransportError::RemoteBackpressure)
+        ));
+        drop(permit);
+        assert!(gate.acquire().is_ok());
+        assert!(matches!(
+            RemoteRequestGate::new(0),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
+    }
+
+    #[test]
+    fn remote_rate_limiter_fails_closed_at_window_capacity() {
+        let limiter = RemoteRateLimiter::new(1).unwrap();
+        assert!(limiter.acquire().is_ok());
+        assert!(matches!(
+            limiter.acquire(),
+            Err(TransportError::RemoteRateLimited)
+        ));
+        assert!(matches!(
+            RemoteRateLimiter::new(0),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
+    }
+
+    #[test]
+    fn listener_drain_completes_and_rejects_new_sessions() {
+        let (tls, _, _) = test_tls_configs();
+        let listener = RemoteListener {
+            listener: TcpListener::bind("127.0.0.1:0").unwrap(),
+            tls,
+            config: remote_config(),
+            active: Arc::new(AtomicU16::new(0)),
+            draining: Arc::new(AtomicU16::new(0)),
+            admission_lock: Mutex::new(()),
+        };
+        listener
+            .drain_until(Instant::now() + Duration::from_secs(1))
+            .unwrap();
+        assert!(listener.is_draining());
+        assert!(matches!(
+            listener.accept(),
+            Err(TransportError::RemoteDraining)
+        ));
+    }
+
+    #[test]
+    fn listener_drain_times_out_only_for_an_active_session() {
+        let (tls, _, _) = test_tls_configs();
+        let listener = RemoteListener {
+            listener: TcpListener::bind("127.0.0.1:0").unwrap(),
+            tls,
+            config: remote_config(),
+            active: Arc::new(AtomicU16::new(0)),
+            draining: Arc::new(AtomicU16::new(0)),
+            admission_lock: Mutex::new(()),
+        };
+        let permit = RemoteConnectionPermit::acquire(Arc::clone(&listener.active), 1, 1).unwrap();
+        assert!(matches!(
+            listener.drain_until(Instant::now()),
+            Err(TransportError::RemoteDrainTimeout)
+        ));
+        drop(permit);
+    }
+
+    #[test]
+    fn fault_fixture_rejects_partition_and_reordered_frames() {
+        let mut encoded = Vec::new();
+        write_frame(&mut encoded, &CONTROL_V1, ControlLimits::default()).unwrap();
+        let mut partition = FaultInjectingIo::default().drop_writes_after(0);
+        assert!(write_frame(&mut partition, &CONTROL_V1, ControlLimits::default()).is_err());
+        let mut reordered = FaultInjectingIo::new(encoded).reorder_reads();
+        assert!(read_frame::<ControlVersion>(&mut reordered, ControlLimits::default()).is_err());
+    }
+
+    #[test]
+    fn remote_addresses_and_port_changes_remain_explicit() {
+        let ipv4 = RemoteTransportConfig {
+            bind: "127.0.0.1:9444".parse().unwrap(),
+            ..remote_config()
+        };
+        let ipv6 = RemoteTransportConfig {
+            bind: "[::1]:9445".parse().unwrap(),
+            ..remote_config()
+        };
+        assert!(ipv4.validate().is_ok());
+        assert!(ipv6.validate().is_ok());
+        assert!(matches!(
+            RemoteTransportConfig {
+                bind: "127.0.0.1:0".parse().unwrap(),
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteInvalidBind)
+        ));
+    }
+
+    #[test]
+    fn disconnect_preserves_durable_resume_cursor() {
+        let event = |revision| ControlEvent {
+            revision: Revision(revision),
+            kind: ControlEventKind::RunUpdated,
+            run_id: Some(RunId("run-1".into())),
+            attempt_id: Some(AttemptId("attempt-1".into())),
+        };
+        let mut window = EventWindow::restore(4, [event(1), event(2)]).unwrap();
+        let active = Arc::new(AtomicU16::new(0));
+        let permit = RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 4).unwrap();
+        drop(permit);
+        window.append(event(3)).unwrap();
+        let resumed = window.resume(Some(Revision(2)), 4).unwrap();
+        assert_eq!(resumed.items, vec![event(3)]);
+        assert_eq!(active.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn reconnect_storm_is_bounded_and_restarts_cleanly() {
+        for _ in 0..64 {
+            let mut encoded = Vec::new();
+            write_frame(&mut encoded, &CONTROL_V1, ControlLimits::default()).unwrap();
+            let mut peer = FaultInjectingIo::new(encoded);
+            let version: ControlVersion = read_frame(&mut peer, ControlLimits::default()).unwrap();
+            assert_eq!(version, CONTROL_V1);
+            assert!(peer.outgoing().is_empty());
+        }
+    }
+
+    fn test_tls_configs() -> (RemoteTlsConfig, RemoteTlsClient, RemoteTlsClient) {
+        let generated = generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let certificate = CertificateDer::from(generated.cert.der().to_vec());
+        let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
+            generated.signing_key.serialize_der(),
+        ));
+        let mut roots = RootCertStore::empty();
+        roots.add(certificate.clone()).unwrap();
+        let verifier = WebPkiClientVerifier::builder(Arc::new(roots.clone()))
+            .build()
+            .unwrap();
+        let server = ServerConfig::builder()
+            .with_client_cert_verifier(verifier)
+            .with_single_cert(vec![certificate.clone()], key.clone_key())
+            .unwrap();
+        let client = ClientConfig::builder().with_root_certificates(roots);
+        let authenticated = client
+            .clone()
+            .with_client_auth_cert(vec![certificate], key)
+            .unwrap();
+        let unauthenticated = client.with_no_client_auth();
+        (
+            RemoteTlsConfig::new(server).unwrap(),
+            RemoteTlsClient::new(authenticated),
+            RemoteTlsClient::new(unauthenticated),
+        )
+    }
+
+    #[test]
+    fn tls_frame_round_trip_uses_authenticated_mtls_and_alpn() {
+        let (server, client, _) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut tls = server
+                .accept(stream, remote_config())
+                .expect("mutual TLS handshake");
+            assert!(rustix::net::sockopt::socket_keepalive(&tls.sock).unwrap());
+            let version: ControlVersion = read_frame(&mut tls, remote_config().limits).unwrap();
+            assert_eq!(version, CONTROL_V1);
+            write_frame(&mut tls, &version, remote_config().limits).unwrap();
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let mut tls = client
+            .connect(stream, "localhost", remote_config())
+            .expect("mutual TLS client handshake");
+        assert!(rustix::net::sockopt::socket_keepalive(&tls.sock).unwrap());
+        write_frame(&mut tls, &CONTROL_V1, remote_config().limits).unwrap();
+        let response: ControlVersion = read_frame(&mut tls, remote_config().limits).unwrap();
+        assert_eq!(response, CONTROL_V1);
+        server_thread.join().unwrap();
+    }
+
+    #[test]
+    fn tls_frame_rejects_oversized_length_without_allocating() {
+        let (server, client, _) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut tls = server.accept(stream, remote_config()).unwrap();
+            matches!(
+                read_frame::<ControlVersion>(&mut tls, remote_config().limits),
+                Err(FrameError::InvalidLength { .. })
+            )
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let mut tls = client
+            .connect(stream, "localhost", remote_config())
+            .unwrap();
+        tls.write_all(&(u32::MAX.to_be_bytes())).unwrap();
+        assert!(server_thread.join().unwrap());
+    }
+
+    #[test]
+    fn tls_frame_rejects_malformed_and_truncated_payloads() {
+        for truncated in [false, true] {
+            let (server, client, _) = test_tls_configs();
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server_thread = thread::spawn(move || {
+                let (stream, _) = listener.accept().unwrap();
+                let mut tls = server.accept(stream, remote_config()).unwrap();
+                read_frame::<ControlVersion>(&mut tls, remote_config().limits).unwrap_err()
+            });
+            let stream = TcpStream::connect(address).unwrap();
+            let mut tls = client
+                .connect(stream, "localhost", remote_config())
+                .unwrap();
+            if truncated {
+                tls.write_all(&[0, 0, 0]).unwrap();
+                tls.sock.shutdown(Shutdown::Write).unwrap();
+            } else {
+                tls.write_all(&[0, 0, 0, 2, b'{', b'}']).unwrap();
+            }
+            let error = server_thread.join().unwrap();
+            assert!(matches!(
+                (truncated, error),
+                (true, FrameError::Truncated) | (false, FrameError::MalformedJson(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn tls_handshake_rejects_slow_peer_at_bounded_deadline() {
+        let (server, client, _) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let bounded = RemoteTransportConfig {
+            limits: ControlLimits {
+                max_timeout_ms: 100,
+                ..ControlLimits::default()
+            },
+            ..remote_config()
+        };
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            thread::sleep(Duration::from_millis(300));
+            server.accept(stream, bounded).is_err()
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let started = Instant::now();
+        let _ = client.connect(stream, "localhost", bounded);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(server_thread.join().unwrap());
+    }
+
+    #[test]
+    fn tls_server_rejects_client_without_certificate() {
+        let (server, _, unauthenticated_client) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            server.accept(stream, remote_config()).is_err()
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let _ = unauthenticated_client.connect(stream, "localhost", remote_config());
+        assert!(server_thread.join().unwrap());
     }
 }

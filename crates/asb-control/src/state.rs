@@ -447,6 +447,18 @@ impl EventWindow {
         })
     }
 
+    /// Resume a disconnected subscriber strictly after its last acknowledged revision.
+    ///
+    /// This named operation makes reconnect semantics explicit at the transport
+    /// boundary while retaining the same stale/future/gap checks as pagination.
+    pub fn resume(
+        &self,
+        last_acknowledged: Option<Revision>,
+        limit: u16,
+    ) -> Result<Page<ControlEvent>, CursorError> {
+        self.page(last_acknowledged, limit)
+    }
+
     /// Oldest retained revision, or zero for an empty runner.
     #[must_use]
     pub fn oldest_revision(&self) -> Revision {
