@@ -93,6 +93,80 @@ pub struct RecordedArtifact {
     pub metadata: RecordingMetadata,
 }
 
+/// Maximum recording tuples admitted by one campaign.
+pub const MAX_RECORDING_CAMPAIGN_TUPLES: usize = 256;
+
+/// One deterministic provider/workload recording tuple.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingTuple {
+    /// Provider profile identity.
+    pub provider_profile_sha256: String,
+    /// Agent adapter identity.
+    pub agent_id: String,
+    /// Workload identity and revision.
+    pub workload_id: String,
+    /// Scorer revision used for the tuple.
+    pub scorer_revision: String,
+}
+
+/// Explicit bounded matrix of recording work.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaign {
+    /// Campaign contract version.
+    pub schema_version: u16,
+    /// Provider profile identity shared by the campaign.
+    pub provider_profile_sha256: String,
+    /// Selected adapter identities.
+    pub agent_ids: Vec<String>,
+    /// Selected workload/scorer pairs.
+    pub workloads: Vec<(String, String)>,
+    /// Maximum tuples admitted for this campaign.
+    pub max_tuples: u16,
+}
+
+impl RecordingCampaign {
+    /// Expand the campaign deterministically, rejecting unsafe or oversized matrices.
+    pub fn expand(&self) -> Result<Vec<RecordingTuple>, RecordingWorkflowError> {
+        if self.schema_version != RECORDING_WORKFLOW_SCHEMA_VERSION
+            || self.max_tuples == 0
+            || usize::from(self.max_tuples) > MAX_RECORDING_CAMPAIGN_TUPLES
+            || self.agent_ids.is_empty()
+            || self.workloads.is_empty()
+            || !valid_digest(&self.provider_profile_sha256)
+        {
+            return Err(RecordingWorkflowError::CampaignInvalid);
+        }
+        let count = self
+            .agent_ids
+            .len()
+            .checked_mul(self.workloads.len())
+            .ok_or(RecordingWorkflowError::CampaignTooLarge)?;
+        if count > usize::from(self.max_tuples) || count > MAX_RECORDING_CAMPAIGN_TUPLES {
+            return Err(RecordingWorkflowError::CampaignTooLarge);
+        }
+        let mut tuples = Vec::with_capacity(count);
+        for agent_id in &self.agent_ids {
+            if !valid_identity(agent_id) {
+                return Err(RecordingWorkflowError::CampaignInvalid);
+            }
+            for (workload_id, scorer_revision) in &self.workloads {
+                if !valid_identity(workload_id) || !valid_identity(scorer_revision) {
+                    return Err(RecordingWorkflowError::CampaignInvalid);
+                }
+                tuples.push(RecordingTuple {
+                    provider_profile_sha256: self.provider_profile_sha256.clone(),
+                    agent_id: agent_id.clone(),
+                    workload_id: workload_id.clone(),
+                    scorer_revision: scorer_revision.clone(),
+                });
+            }
+        }
+        Ok(tuples)
+    }
+}
+
 /// Record, redact, authenticate, and catalog one complete capture.
 pub fn seal_recording(
     capture: RecordingCapture,
@@ -183,6 +257,27 @@ pub enum RecordingWorkflowError {
     /// Source choice was unavailable or ambiguous.
     #[error("recording source choice is unavailable")]
     Selection(#[source] SourceSelectionError),
+    /// The campaign matrix is malformed or lacks required bounds.
+    #[error("recording campaign is invalid")]
+    CampaignInvalid,
+    /// The campaign matrix exceeds its tuple bound.
+    #[error("recording campaign exceeds its tuple bound")]
+    CampaignTooLarge,
+}
+
+fn valid_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn valid_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_WORKFLOW_AGENT_BYTES
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'/'))
 }
 
 #[cfg(test)]
@@ -209,6 +304,42 @@ mod tests {
             },
             contents: cassette.contents,
         }
+    }
+
+    #[test]
+    fn campaign_expansion_is_deterministic_and_bounded() {
+        let campaign = RecordingCampaign {
+            schema_version: RECORDING_WORKFLOW_SCHEMA_VERSION,
+            provider_profile_sha256: "a".repeat(64),
+            agent_ids: vec!["codex".into(), "aider".into()],
+            workloads: vec![("bug-fix".into(), "scorer-v1".into())],
+            max_tuples: 2,
+        };
+        let tuples = campaign.expand().unwrap();
+        assert_eq!(tuples.len(), 2);
+        assert_eq!(tuples[0].agent_id, "codex");
+        assert_eq!(tuples[1].agent_id, "aider");
+    }
+
+    #[test]
+    fn campaign_rejects_oversized_and_invalid_matrices() {
+        let mut campaign = RecordingCampaign {
+            schema_version: RECORDING_WORKFLOW_SCHEMA_VERSION,
+            provider_profile_sha256: "a".repeat(64),
+            agent_ids: vec!["codex".into(), "aider".into()],
+            workloads: vec![("unsafe id".into(), "v1".into())],
+            max_tuples: 4,
+        };
+        assert!(matches!(
+            campaign.expand(),
+            Err(RecordingWorkflowError::CampaignInvalid)
+        ));
+        campaign.workloads = vec![("bug-fix".into(), "scorer-v1".into())];
+        campaign.max_tuples = 1;
+        assert!(matches!(
+            campaign.expand(),
+            Err(RecordingWorkflowError::CampaignTooLarge)
+        ));
     }
 
     #[test]
