@@ -3,8 +3,9 @@
 //! Real SSHSIG and filesystem-boundary tests for the offline verifier.
 
 use asb_bundle::{
-    BundleArtifact, ExpectedTarget, RuntimeBundleManifest, RuntimeTarget, SIGNATURE_NAMESPACE,
-    SbomDocument, VerifierConfig, VerifyError, content_digest, verify_bundle,
+    BundleArtifact, BundleArtifactRole, ExpectedTarget, RuntimeBundleManifest, RuntimeComponents,
+    RuntimeTarget, SIGNATURE_NAMESPACE, SbomDocument, VerifierConfig, VerifyError, content_digest,
+    verify_bundle,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -55,6 +56,7 @@ fn artifact(path: &str, bytes: &[u8], executable: bool) -> BundleArtifact {
         mode: if executable { 0o755 } else { 0o644 },
         license_expression: "MIT".into(),
         license_evidence: vec!["LICENSE".into()],
+        role: None,
     }
 }
 
@@ -172,13 +174,27 @@ fn create_fixture() -> Fixture {
     fs::write(root.join("bin/agent"), executable).expect("write executable");
     fs::set_permissions(root.join("bin/agent"), fs::Permissions::from_mode(0o755))
         .expect("chmod executable");
+    let supervisor = b"#!/bin/sh\nexit 0\n";
+    let sidecar = b"#!/bin/sh\nexit 0\n";
+    for (name, bytes) in [("supervisor", supervisor), ("sidecar", sidecar)] {
+        fs::write(root.join(format!("bin/{name}")), bytes).expect("write helper");
+        fs::set_permissions(
+            root.join(format!("bin/{name}")),
+            fs::Permissions::from_mode(0o755),
+        )
+        .expect("chmod helper");
+    }
     fs::write(root.join("LICENSE"), license).expect("write license");
     fs::set_permissions(root.join("LICENSE"), fs::Permissions::from_mode(0o644))
         .expect("chmod license");
-    let artifacts = vec![
+    let mut artifacts = vec![
         artifact("LICENSE", license, false),
         artifact("bin/agent", executable, true),
+        artifact("bin/sidecar", sidecar, true),
+        artifact("bin/supervisor", supervisor, true),
     ];
+    artifacts[2].role = Some(BundleArtifactRole::Sidecar);
+    artifacts[3].role = Some(BundleArtifactRole::Supervisor);
     let spdx_bytes = serde_json::to_vec_pretty(&spdx(&artifacts)).expect("SPDX");
     let cyclonedx_bytes = serde_json::to_vec_pretty(&cyclonedx(&artifacts)).expect("CycloneDX");
     fs::write(root.join("spdx.json"), &spdx_bytes).expect("write SPDX");
@@ -194,6 +210,10 @@ fn create_fixture() -> Fixture {
             libc_version: "2.39".into(),
         },
         entrypoint: "bin/agent".into(),
+        runtime_components: Some(RuntimeComponents {
+            supervisor: "bin/supervisor".into(),
+            sidecar: "bin/sidecar".into(),
+        }),
         content_sha256: content_digest(&artifacts),
         artifacts,
         spdx: SbomDocument {
@@ -245,7 +265,45 @@ fn verifies_signed_complete_offline_bundle() {
     let fixture = create_fixture();
     let verified = verify_bundle(&fixture.root, &config(&fixture), &target()).expect("verify");
     assert_eq!(verified.bundle_id, "fixture-agent");
-    assert_eq!(verified.artifact_count, 2);
+    assert_eq!(verified.artifact_count, 4);
+    assert_eq!(
+        verified.supervisor.as_ref().expect("supervisor").path,
+        fixture.root.join("bin/supervisor")
+    );
+    assert_eq!(
+        verified.sidecar.as_ref().expect("sidecar").path,
+        fixture.root.join("bin/sidecar")
+    );
+}
+
+#[test]
+fn rejects_incomplete_runtime_component_declarations() {
+    let fixture = create_fixture();
+    rewrite_manifest(&fixture, |manifest| {
+        manifest
+            .runtime_components
+            .as_mut()
+            .expect("components")
+            .sidecar = "bin/missing-sidecar".into();
+    });
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Metadata(_))
+    ));
+
+    let fixture = create_fixture();
+    rewrite_manifest(&fixture, |manifest| {
+        manifest
+            .artifacts
+            .iter_mut()
+            .find(|artifact| artifact.path == "bin/supervisor")
+            .expect("supervisor")
+            .role = Some(BundleArtifactRole::Sidecar);
+    });
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Metadata(_))
+    ));
 }
 
 #[test]
