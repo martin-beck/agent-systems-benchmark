@@ -154,6 +154,9 @@ fn dispatch(
         [command, cassette, profile, agent] if command == "replay" => {
             replay(Path::new(cassette), profile, agent, stdout).map(|()| 0)
         }
+        [command, plan, root] if command == "replay-plan" => {
+            replay_plan(Path::new(plan), Path::new(root), stdout).map(|()| 0)
+        }
         _ => Err(CliError::usage("unsupported arguments; use asb --help")),
     }
 }
@@ -437,6 +440,36 @@ fn replay(
             agent_id: agent_id.to_owned(),
             cassette_sha256: cassette.integrity.digest,
         },
+    )
+}
+
+fn replay_plan(
+    plan_path: &Path,
+    artifact_root: &Path,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    let bytes = read_bounded_json(
+        plan_path,
+        replay_contract::MAX_CASSETTE_BYTES as usize,
+        "strict replay plan",
+    )?;
+    let plan: replay_contract::StrictReplayPlanV1 = serde_json::from_slice(&bytes)
+        .map_err(|_| CliError::validation("strict replay plan syntax or shape is invalid"))?;
+    let bound = replay_contract::resolve_and_bind_runtime(&plan, artifact_root).map_err(|_| {
+        CliError::validation("strict replay plan failed runtime handoff validation")
+    })?;
+    write_json(
+        stdout,
+        &json!({
+            "schema_version": replay_contract::STRICT_REPLAY_PLAN_V1,
+            "ok": true,
+            "command": "replay-plan",
+            "network": "denied",
+            "cassette_sha256": bound.resolved.launch.input.cassette_sha256,
+            "route_sha256": bound.resolved.launch.input.route_sha256,
+            "endpoint": bound.bridge.endpoint(),
+            "non_fresh": true,
+        }),
     )
 }
 
@@ -5179,5 +5212,73 @@ mod tests {
         assert_eq!(replay["network"], "denied");
         assert_eq!(replay["cassette_sha256"], digest);
         assert_eq!(replay["source"]["replay"]["cassette_sha256"], digest);
+    }
+
+    #[test]
+    fn replay_plan_dispatch_resolves_and_binds_runtime_handoff() {
+        let scratch = Scratch::new("replay-plan-dispatch");
+        let cassette_path = scratch.0.join("cassette.json");
+        let bytes = include_bytes!("../../asb-replay/fixtures/v1/buffered.json");
+        let cassette = asb_replay::decode_cassette(bytes, CassetteLimits::default()).unwrap();
+        fs::write(&cassette_path, bytes).unwrap();
+        let plan = replay_contract::StrictReplayPlanV1 {
+            schema_version: replay_contract::STRICT_REPLAY_PLAN_V1,
+            cassette_path: "cassette.json".into(),
+            cassette_sha256: format!("{:x}", Sha256::digest(bytes)),
+            cassette_id: cassette.contents.cassette_id,
+            session_id: "session-fixture".into(),
+            route_sha256: "b9ac9f7f23c8f5fdab8431b59618abacd2b78b25586e10bd31beb71cb3183789".into(),
+            provider_dialect: "synthetic".into(),
+            adapter: "codex".into(),
+            run_id: "run-1".into(),
+            attempt_id: "attempt-fixture".into(),
+            workload_sha256: "c".repeat(64),
+            command_sha256: "d".repeat(64),
+            egress: asb_agents::strict_replay::EgressPolicy::LoopbackOnly,
+            timeout_ms: 5_000,
+        };
+        let plan_path = scratch.0.join("plan.json");
+        fs::write(&plan_path, serde_json::to_vec(&plan).unwrap()).unwrap();
+        let mut output = Vec::new();
+        let mut diagnostics = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "replay-plan".into(),
+                    plan_path.clone().into(),
+                    scratch.0.clone().into()
+                ],
+                &mut output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(result["network"], "denied");
+        assert_eq!(result["non_fresh"], true);
+        assert!(
+            result["endpoint"]
+                .as_str()
+                .unwrap()
+                .starts_with("http://127.0.0.1:")
+        );
+
+        let mut stale = plan;
+        stale.route_sha256 = "a".repeat(64);
+        fs::write(&plan_path, serde_json::to_vec(&stale).unwrap()).unwrap();
+        output.clear();
+        assert_eq!(
+            run(
+                &[
+                    "replay-plan".into(),
+                    plan_path.clone().into(),
+                    scratch.0.clone().into()
+                ],
+                &mut output,
+                &mut diagnostics,
+            ),
+            3
+        );
+        assert!(!String::from_utf8_lossy(&output).contains("endpoint"));
     }
 }
