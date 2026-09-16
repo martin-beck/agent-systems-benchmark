@@ -40,6 +40,18 @@
       "maxLength": 4096,
       "minLength": 1
     },
+    "runtime_components": {
+      "description": "Optional verified runtime helper payloads. Bundles that provide the\nloopback sandbox must declare both entries and their artifact roles.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RuntimeComponents"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "schema_version": {
       "description": "Manifest schema version; currently exactly one.",
       "type": "integer",
@@ -99,6 +111,17 @@
           "maxLength": 4096,
           "minLength": 1
         },
+        "role": {
+          "description": "Semantic role of a runtime helper payload, when applicable.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BundleArtifactRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "sha256": {
           "description": "Lowercase SHA-256 of the file bytes.",
           "type": "string",
@@ -119,6 +142,44 @@
         "mode",
         "license_expression",
         "license_evidence"
+      ]
+    },
+    "BundleArtifactRole": {
+      "description": "Roles reserved for the authenticated loopback runtime helpers.",
+      "oneOf": [
+        {
+          "description": "The rootless Bubblewrap supervisor.",
+          "type": "string",
+          "const": "supervisor"
+        },
+        {
+          "description": "The bounded loopback TCP-to-Unix sidecar.",
+          "type": "string",
+          "const": "sidecar"
+        }
+      ]
+    },
+    "RuntimeComponents": {
+      "description": "Paths of the signed helper payloads consumed by the sandbox launcher.",
+      "type": "object",
+      "properties": {
+        "sidecar": {
+          "description": "Relative path of the sidecar executable.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "supervisor": {
+          "description": "Relative path of the supervisor executable.",
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "supervisor",
+        "sidecar"
       ]
     },
     "RuntimeTarget": {
