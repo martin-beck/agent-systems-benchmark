@@ -1385,6 +1385,45 @@ mod tests {
     }
 
     #[test]
+    fn loopback_policy_is_rejected_before_backend_probe_or_spawn() {
+        let root = scratch("loopback-capability-unavailable");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("work")).unwrap();
+        fs::create_dir(root.join("leases")).unwrap();
+        let resources = test_resources();
+        let lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            resources.cpus.clone(),
+        )
+        .unwrap();
+        let spec = SandboxSpec::new(
+            &root,
+            PathBuf::from("work"),
+            "/bin/true".into(),
+            vec![],
+            BTreeMap::new(),
+            resources,
+            NetworkPolicy::LoopbackOnly,
+        )
+        .unwrap();
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin);
+
+        assert!(matches!(
+            backend.spawn_with_identity(
+                spec,
+                lease,
+                probe_limits(),
+                "asb-loopback-capability-test".into(),
+                "loopback-capability-test".into(),
+            ),
+            Err(SandboxError::NetworkPolicy)
+        ));
+        assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
+    }
+
+    #[test]
     fn tool_mismatch_and_lease_mismatch_are_explicit() {
         let wrong = ToolPin::new(PathBuf::from("/bin/true"), "not-the-version".into()).unwrap();
         assert!(matches!(
