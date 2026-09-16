@@ -117,18 +117,28 @@ fn input(
     program: &str,
     environment: BTreeMap<String, String>,
 ) -> (SandboxLaunchInput, ResourceLease) {
+    input_with_limits(root, program, Vec::new(), environment, limits())
+}
+
+fn input_with_limits(
+    root: &Path,
+    program: &str,
+    arguments: Vec<String>,
+    environment: BTreeMap<String, String>,
+    process_limits: ProcessLimits,
+) -> (SandboxLaunchInput, ResourceLease) {
     let resources = resources();
     let spec = SandboxSpec::new(
         root.parent().unwrap(),
         PathBuf::from(root.file_name().unwrap()).join("work"),
         program.into(),
-        Vec::new(),
+        arguments,
         environment,
         resources.clone(),
         NetworkPolicy::Deny,
     )
     .unwrap();
-    let input = SandboxLaunchInput::new(spec, limits()).unwrap();
+    let input = SandboxLaunchInput::new(spec, process_limits).unwrap();
     let lease = ResourceLease::acquire(
         &root.join("leases"),
         LeaseClass::Benchmark,
@@ -136,6 +146,17 @@ fn input(
     )
     .unwrap();
     (input, lease)
+}
+
+fn short_limits() -> ProcessLimits {
+    ProcessLimits::new(
+        1024 * 1024,
+        1024 * 1024,
+        Duration::from_millis(100),
+        Duration::from_millis(100),
+        Duration::from_millis(5),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -186,5 +207,35 @@ fn strict_launch_rejects_command_identity_before_native_spawn() {
     assert_eq!(
         error,
         asb_agents::strict_replay::StrictReplayError::CommandMismatch
+    );
+}
+
+#[test]
+fn strict_launch_enforces_authenticated_timeout_on_child() {
+    let Some(backend) = backend() else { return };
+    let Some(root) = root("timeout") else { return };
+    let (input, lease) = input_with_limits(
+        &root,
+        "/usr/bin/sleep",
+        vec!["30".into()],
+        BTreeMap::from([(
+            "ASB_REPLAY_ENDPOINT".into(),
+            "http://127.0.0.1:4317/replay".into(),
+        )]),
+        short_limits(),
+    );
+    let mut record = launch_record(digest_command(
+        input.spec().program(),
+        input.spec().arguments(),
+    ));
+    record.input.timeout_ms = 100;
+    record.launch_sha256 = record.input.digest().unwrap();
+    let mut process = StrictReplaySandboxLaunch::new(record)
+        .unwrap()
+        .spawn(&backend, input, lease)
+        .unwrap();
+    assert_eq!(
+        process.wait().unwrap().termination,
+        asb_runtime::Termination::TimedOut
     );
 }
