@@ -160,6 +160,7 @@ name = "asb-runtime"
 version = "0.1.0"
 dependencies = [
  "rustix",
+ "sha2",
 ]
 
 [[package]]
