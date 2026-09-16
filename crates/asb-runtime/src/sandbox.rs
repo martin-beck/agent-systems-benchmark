@@ -307,6 +307,16 @@ impl SandboxSpec {
         // `new` rejects every policy except Deny, so this is an attested value.
         NetworkPolicy::Deny
     }
+
+    /// Absolute pinned adapter executable path.
+    pub fn program(&self) -> &str {
+        &self.program
+    }
+
+    /// Adapter argument vector in launch order.
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
 }
 
 /// Validated input for one supervised adapter launch.

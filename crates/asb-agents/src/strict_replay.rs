@@ -5,7 +5,9 @@
 use asb_replay::{
     Cassette, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService,
 };
-use asb_runtime::sandbox::NetworkPolicy;
+use asb_runtime::sandbox::{
+    NetworkPolicy, ResourceLease, SandboxBackend, SandboxLaunchInput, SandboxProcess,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
@@ -107,8 +109,77 @@ pub enum StrictReplayError {
     ExternalEndpoint,
     /// The runtime did not attest process-level egress isolation.
     IsolationUnavailable,
+    /// The launch command differs from its pinned identity.
+    CommandMismatch,
+    /// The runtime sandbox rejected or could not supervise the launch.
+    SandboxUnavailable,
     /// The attempt lifecycle does not permit another operation.
     LifecycleClosed,
+}
+
+/// Cross-crate consumer seam for launching a strict replay adapter.
+pub struct StrictReplaySandboxLaunch {
+    record: StrictReplayLaunchRecord,
+    command_sha256: String,
+}
+
+impl StrictReplaySandboxLaunch {
+    /// Validate a launch record and bind it to a pinned adapter command digest.
+    pub fn new(
+        record: StrictReplayLaunchRecord,
+        command_sha256: String,
+    ) -> Result<Self, StrictReplayError> {
+        record.validate()?;
+        if !is_digest(&command_sha256) {
+            return Err(StrictReplayError::CommandMismatch);
+        }
+        Ok(Self {
+            record,
+            command_sha256,
+        })
+    }
+
+    /// Spawn only under the runtime-owned denied-network sandbox.
+    pub fn spawn(
+        self,
+        backend: &SandboxBackend,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+    ) -> Result<SandboxProcess, StrictReplayError> {
+        if input.spec().network_policy() != NetworkPolicy::Deny {
+            return Err(StrictReplayError::IsolationUnavailable);
+        }
+        if command_digest(input.spec().program(), input.spec().arguments()) != self.command_sha256 {
+            return Err(StrictReplayError::CommandMismatch);
+        }
+        backend
+            .spawn_launch(input, lease)
+            .map_err(|_| StrictReplayError::SandboxUnavailable)
+    }
+
+    /// Authenticated launch record consumed by this seam.
+    pub fn record(&self) -> &StrictReplayLaunchRecord {
+        &self.record
+    }
+}
+
+fn is_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn command_digest(program: &str, arguments: &[String]) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"asb-strict-replay-command-v1");
+    digest.update(program.as_bytes());
+    digest.update([0]);
+    for argument in arguments {
+        digest.update(argument.as_bytes());
+        digest.update([0]);
+    }
+    format!("{:x}", digest.finalize())
 }
 
 /// Bounded replay executor that has no live-provider fallback.
