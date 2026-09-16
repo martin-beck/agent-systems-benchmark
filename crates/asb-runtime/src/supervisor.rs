@@ -367,4 +367,46 @@ mod tests {
                 .any(|a| a == "--share-net" || a == "--network=host")
         );
     }
+
+    #[test]
+    fn loopback_listener_requires_one_ipv4_loopback_endpoint() {
+        let sidecar = PinnedCommand::new(
+            PathBuf::from("/usr/bin/sidecar"),
+            vec!["--listen".into(), "127.0.0.1:43123".into()],
+            "a".repeat(64),
+        )
+        .unwrap();
+        let plan = SupervisorPlan::new(
+            sidecar,
+            cmd("/usr/bin/adapter"),
+            PathBuf::from("/tmp/relay.sock"),
+            "generation-1".into(),
+            "b".repeat(64),
+            Duration::from_secs(5),
+        )
+        .unwrap()
+        .with_supervisor(cmd("/usr/bin/supervisor"));
+        assert_eq!(
+            plan.validate_loopback_listener().unwrap(),
+            "127.0.0.1:43123".parse().unwrap()
+        );
+
+        let non_loopback = PinnedCommand::new(
+            PathBuf::from("/usr/bin/sidecar"),
+            vec!["--listen".into(), "0.0.0.0:43123".into()],
+            "a".repeat(64),
+        )
+        .unwrap();
+        let rejected = SupervisorPlan::new(
+            non_loopback,
+            cmd("/usr/bin/adapter"),
+            PathBuf::from("/tmp/relay.sock"),
+            "generation-1".into(),
+            "b".repeat(64),
+            Duration::from_secs(5),
+        )
+        .unwrap()
+        .with_supervisor(cmd("/usr/bin/supervisor"));
+        assert!(rejected.validate_loopback_listener().is_err());
+    }
 }
