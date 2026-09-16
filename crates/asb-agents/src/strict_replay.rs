@@ -287,7 +287,7 @@ impl StrictReplayLaunchRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use asb_replay::{CassetteLimits, decode_cassette};
+    use asb_replay::{CassetteLimits, ProviderDialect, decode_cassette};
     fn input() -> StrictReplayLaunchV1 {
         StrictReplayLaunchV1 {
             schema_version: 1,
@@ -362,5 +362,48 @@ mod tests {
             StrictReplayExecutor::new(record, cassette, Some(ProcessIsolationCapability::Verified)),
             Err(StrictReplayError::InvalidCassette)
         ));
+    }
+
+    #[test]
+    fn serde_rejects_credentials_and_ambient_configuration() {
+        let value = serde_json::json!({
+            "schema_version": 1, "cassette_sha256": "a".repeat(64),
+            "route_sha256": "b".repeat(64), "provider_dialect": "openai-chat-v1",
+            "adapter": "codex", "run_id": "run", "attempt_id": "attempt",
+            "workload_sha256": "c".repeat(64), "egress": "loopback_only",
+            "timeout_ms": 5000, "credential": "secret", "environment": {"API_KEY": "secret"}
+        });
+        assert!(serde_json::from_value::<StrictReplayLaunchV1>(value).is_err());
+    }
+
+    #[test]
+    fn route_digest_binds_session_attempt_and_dialect() {
+        let route = ReplayRoute {
+            session_id: "session".into(),
+            attempt_id: "attempt".into(),
+            dialect: ProviderDialect::OpenaiChatCompletions,
+        };
+        let mut changed = route.clone();
+        changed.attempt_id = "other".into();
+        assert_ne!(route_digest(&route), route_digest(&changed));
+    }
+
+    #[test]
+    fn executor_accepts_qualified_cassette_service() {
+        let cassette = decode_cassette(
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+            CassetteLimits::default(),
+        )
+        .unwrap();
+        let mut launch = input();
+        launch.cassette_sha256 = cassette.integrity.digest.clone();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        assert!(
+            StrictReplayExecutor::new(record, cassette, Some(ProcessIsolationCapability::Verified))
+                .is_ok()
+        );
     }
 }
