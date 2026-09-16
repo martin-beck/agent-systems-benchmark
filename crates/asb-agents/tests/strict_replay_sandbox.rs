@@ -270,3 +270,30 @@ fn strict_launch_cancellation_is_terminal_and_reaped() {
     assert_eq!(process.lifecycle(), asb_runtime::ProcessLifecycle::Terminal);
     assert!(process.cancel().is_ok());
 }
+
+#[test]
+fn strict_launch_nonzero_child_exit_is_fail_closed() {
+    let Some(backend) = backend() else { return };
+    let Some(root) = root("crash") else { return };
+    let (input, lease) = input_with_limits(
+        &root,
+        "/bin/sh",
+        vec!["-c".into(), "exit 23".into()],
+        BTreeMap::from([(
+            "ASB_REPLAY_ENDPOINT".into(),
+            "http://127.0.0.1:4317/replay".into(),
+        )]),
+        limits(),
+    );
+    let record = launch_record(digest_command(
+        input.spec().program(),
+        input.spec().arguments(),
+    ));
+    let result = StrictReplaySandboxLaunch::new(record)
+        .unwrap()
+        .spawn(&backend, input, lease);
+    assert!(
+        result.is_err(),
+        "nonzero child exit must not report success"
+    );
+}
