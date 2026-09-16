@@ -251,6 +251,7 @@ def main() -> None:
             raise QualificationError("supplied artifact does not match lock")
         executable = verify_archive(archive, lock, Path(cache) / "unpacked")
         report = qualify(executable, (str(args.runner),) if args.runner else ())
+        report["platform"] = artifact_name
     payload = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if args.output:
         args.output.write_text(payload, encoding="utf-8")
