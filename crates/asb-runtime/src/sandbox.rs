@@ -301,6 +301,12 @@ impl SandboxSpec {
             resources,
         })
     }
+
+    /// Return the network policy guaranteed by this validated specification.
+    pub fn network_policy(&self) -> NetworkPolicy {
+        // `new` rejects every policy except Deny, so this is an attested value.
+        NetworkPolicy::Deny
+    }
 }
 
 fn valid_key(key: &str) -> bool {
