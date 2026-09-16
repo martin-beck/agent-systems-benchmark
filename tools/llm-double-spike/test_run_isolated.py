@@ -17,6 +17,7 @@ class RunnerContractTests(unittest.TestCase):
 
     def test_command_is_network_and_mount_restricted(self) -> None:
         command = build_command(self.artifact, ["/bin/true"])
+        self.assertIn("--rm", command)
         self.assertIn("--network", command)
         self.assertEqual(command[command.index("--network") + 1], "none")
         self.assertIn("--read-only", command)
@@ -26,6 +27,11 @@ class RunnerContractTests(unittest.TestCase):
         mounts = [part for part in command if part.startswith("type=bind")]
         self.assertEqual(mounts, ["type=bind,src=/srv/data/projects/.asb-ar1249-artifact-audit/mockagents.tar.gz,dst=/input/artifact,readonly"])
         self.assertNotIn("--volume", command)
+
+    def test_cleanup_is_container_owned(self) -> None:
+        command = build_command(self.artifact, ["/bin/true"])
+        self.assertEqual(command[command.index("--rm")], "--rm")
+        self.assertEqual(command[command.index("--mount") + 1].split(",")[-1], "readonly")
 
     def test_shell_vectors_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
