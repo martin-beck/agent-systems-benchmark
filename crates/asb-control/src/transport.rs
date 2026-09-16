@@ -769,7 +769,10 @@ pub enum TransportError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CONTROL_V1, ControlVersion, FrameError, read_frame, write_frame};
+    use crate::{
+        AttemptId, CONTROL_V1, ControlEvent, ControlEventKind, ControlVersion, EventWindow,
+        FrameError, Revision, RunId, read_frame, write_frame,
+    };
     use rcgen::generate_simple_self_signed;
     use rustls::RootCertStore;
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
@@ -954,6 +957,24 @@ mod tests {
             .validate(),
             Err(TransportError::RemoteInvalidBind)
         ));
+    }
+
+    #[test]
+    fn disconnect_preserves_durable_resume_cursor() {
+        let event = |revision| ControlEvent {
+            revision: Revision(revision),
+            kind: ControlEventKind::RunUpdated,
+            run_id: Some(RunId("run-1".into())),
+            attempt_id: Some(AttemptId("attempt-1".into())),
+        };
+        let mut window = EventWindow::restore(4, [event(1), event(2)]).unwrap();
+        let active = Arc::new(AtomicU16::new(0));
+        let permit = RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 4).unwrap();
+        drop(permit);
+        window.append(event(3)).unwrap();
+        let resumed = window.resume(Some(Revision(2)), 4).unwrap();
+        assert_eq!(resumed.items, vec![event(3)]);
+        assert_eq!(active.load(Ordering::Acquire), 0);
     }
 
     #[test]
