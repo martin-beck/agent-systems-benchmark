@@ -414,6 +414,33 @@ fn native_workspace_and_network_are_isolated() {
 }
 
 #[test]
+fn native_loopback_policy_fails_closed_before_launch() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let root = test_root("loopback-policy");
+    let resources = resources(8);
+    let request = SandboxSpec::new(
+        root.parent().unwrap(),
+        PathBuf::from(root.file_name().unwrap()).join("work"),
+        helper_program(&root),
+        vec![
+            "--exact".into(),
+            "sandbox_helper".into(),
+            "--nocapture".into(),
+        ],
+        BTreeMap::new(),
+        resources.clone(),
+        NetworkPolicy::LoopbackOnly,
+    )
+    .unwrap();
+
+    let result = backend.spawn(request, lease(&root, &resources), limits());
+    assert!(matches!(result, Err(SandboxError::NetworkPolicy)));
+    assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
+}
+
+#[test]
 fn short_process_completes_without_ambiguous_scope_ownership() {
     let Some(backend) = native_backend() else {
         return;
