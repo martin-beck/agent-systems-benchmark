@@ -109,6 +109,7 @@ This table is checked against live `doctor` output and
 | Command | Status |
 | --- | --- |
 | `doctor` | supported |
+| `setup` | supported |
 | `capabilities` | supported |
 | `provider-catalog` | supported |
 | `provider-plan` | supported |

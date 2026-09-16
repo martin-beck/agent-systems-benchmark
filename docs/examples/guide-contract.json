@@ -2,6 +2,7 @@
   "schema_version": 1,
   "commands": [
     "doctor",
+    "setup",
     "capabilities",
     "provider-catalog",
     "provider-plan",
