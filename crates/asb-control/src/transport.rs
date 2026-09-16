@@ -420,8 +420,10 @@ impl RemoteTlsConfig {
         if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
             return Err(TransportError::RemoteAlpnMismatch);
         }
+        rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
         tls.sock
             .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
         tls.sock
             .set_write_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
         Ok(tls)
