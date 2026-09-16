@@ -2,12 +2,19 @@
 // SPDX-License-Identifier: MIT
 //! Strict, offline replay plan resolution for the CLI.
 
+use asb_agents::launch_bridge::StrictReplayLaunchBridge;
 use asb_agents::strict_replay::{EgressPolicy, StrictReplayLaunchRecord, StrictReplayLaunchV1};
 use asb_replay::{Cassette, CassetteLimits, decode_cassette};
+use asb_runtime::loopback_sidecar::{
+    LoopbackSidecar, SidecarHandoff, SidecarIdentity, fresh_relay_path,
+};
+use asb_runtime::sandbox::{ResourceLease, SandboxBackend, SandboxLaunchInput, SandboxProcess};
+use asb_runtime::supervisor::PinnedCommand;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 use thiserror::Error;
 
 /// Current CLI strict-replay plan schema.
@@ -27,6 +34,8 @@ pub struct StrictReplayPlanV1 {
     pub cassette_sha256: String,
     /// Expected stable cassette identity.
     pub cassette_id: String,
+    /// Authenticated cassette session identity.
+    pub session_id: String,
     /// Authenticated route digest.
     pub route_sha256: String,
     /// Provider dialect selected by the recording.
@@ -58,6 +67,27 @@ pub struct ResolvedStrictReplay {
     pub artifact_path: PathBuf,
 }
 
+/// Runtime-bound replay retaining its sidecar until execution completes.
+pub struct RuntimeBoundReplay {
+    /// Verified cassette and launch record.
+    pub resolved: ResolvedStrictReplay,
+    /// Bridge consumed by the supervised launch seam.
+    pub bridge: StrictReplayLaunchBridge,
+    /// Owned sidecar whose drop removes the relay socket.
+    pub sidecar: LoopbackSidecar,
+}
+
+/// A supervised replay process retaining the runtime-issued sidecar for the
+/// entire bounded execution.  Dropping this value performs the normal
+/// sandbox/process cleanup and then removes the private relay.
+pub struct RunningRuntimeReplay {
+    /// Runtime-supervised adapter process.
+    pub process: SandboxProcess,
+    /// Authenticated sidecar retained until the process reaches a terminal
+    /// state or the caller explicitly drops the running replay.
+    pub sidecar: LoopbackSidecar,
+}
+
 /// Fail-closed plan or artifact resolution error.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ReplayContractError {
@@ -79,6 +109,98 @@ pub enum ReplayContractError {
     /// Cassette decoding or strict validation failed.
     #[error("cassette artifact is malformed")]
     Malformed,
+    /// Runtime-issued handoff does not match the authenticated launch.
+    #[error("runtime sidecar handoff does not match strict replay launch")]
+    HandoffMismatch,
+}
+
+/// Bind a resolved CLI launch to the runtime-issued sidecar handoff.
+///
+/// The runtime remains the sole issuer of endpoint, generation, deadline and
+/// executable identities. The returned bridge is the only value accepted by
+/// the supervised launch seam.
+pub fn bind_runtime_handoff(
+    launch: &StrictReplayLaunchRecord,
+    handoff: &SidecarHandoff,
+) -> Result<StrictReplayLaunchBridge, ReplayContractError> {
+    StrictReplayLaunchBridge::new(launch, handoff).map_err(|_| ReplayContractError::HandoffMismatch)
+}
+
+/// Launch a resolved replay through the runtime-owned supervisor seam.
+///
+/// The CLI must receive all of these values from the runtime; it cannot
+/// manufacture a backend, lease, relay handoff, or readiness attestation.
+/// In particular, a missing or mismatched relay handoff fails before any child
+/// process is created, preventing an unauthenticated fallback launch.
+pub fn spawn_runtime_replay(
+    bound: RuntimeBoundReplay,
+    backend: &SandboxBackend,
+    input: SandboxLaunchInput,
+    lease: ResourceLease,
+    supervisor: PinnedCommand,
+    sidecar_command: PinnedCommand,
+) -> Result<RunningRuntimeReplay, ReplayContractError> {
+    let metadata = bound.bridge.metadata();
+    let relay = input
+        .replay_handoff()
+        .ok_or(ReplayContractError::HandoffMismatch)?;
+    if input.spec().network_policy() != asb_runtime::sandbox::NetworkPolicy::Deny
+        || relay.generation() != metadata.generation
+        || relay.socket_path() != metadata.relay_path
+    {
+        return Err(ReplayContractError::HandoffMismatch);
+    }
+    let process = bound
+        .bridge
+        .spawn(backend, input, lease, supervisor, sidecar_command)
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    Ok(RunningRuntimeReplay {
+        process,
+        sidecar: bound.sidecar,
+    })
+}
+
+/// Resolve a plan and obtain the runtime-owned sidecar handoff used by the
+/// executable CLI replay path. The sidecar is deliberately created only
+/// after artifact authentication and is dropped when the caller finishes.
+pub fn resolve_and_bind_runtime(
+    plan: &StrictReplayPlanV1,
+    artifact_root: &Path,
+) -> Result<RuntimeBoundReplay, ReplayContractError> {
+    let resolved = resolve_strict_replay(plan, artifact_root)?;
+    let identity = SidecarIdentity::new(
+        format!("{}-{}", plan.run_id, plan.attempt_id),
+        resolved.launch.input.route_sha256.clone(),
+    )
+    .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let relay = fresh_relay_path(
+        artifact_root,
+        &format!("{}-{}", plan.run_id, plan.attempt_id),
+    )
+    .map_err(|_| ReplayContractError::Unavailable)?;
+    let sidecar =
+        LoopbackSidecar::bind(identity, relay).map_err(|_| ReplayContractError::Unavailable)?;
+    let attestation = sidecar
+        .attest_with_commands(
+            true,
+            format!("{:x}", Sha256::digest(b"asb-runtime-loopback-sidecar-v1")),
+            resolved.launch.input.command_sha256.clone(),
+        )
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let handoff = sidecar
+        .handoff(
+            attestation.namespace_ready,
+            Duration::from_millis(resolved.launch.input.timeout_ms),
+            attestation.sidecar_command_digest,
+            attestation.adapter_command_digest,
+        )
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let bridge = bind_runtime_handoff(&resolved.launch, &handoff)?;
+    Ok(RuntimeBoundReplay {
+        resolved,
+        bridge,
+        sidecar,
+    })
 }
 
 /// Resolve and authenticate one strict replay plan without ambient configuration.
@@ -122,6 +244,33 @@ pub fn resolve_strict_replay(
     if cassette.contents.cassette_id != plan.cassette_id {
         return Err(ReplayContractError::DigestMismatch);
     }
+    if cassette.contents.interactions.iter().any(|interaction| {
+        interaction.session_id != plan.session_id
+            || interaction.attempt_id != plan.attempt_id
+            || serde_json::to_value(interaction.dialect)
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref()
+                != Some(plan.provider_dialect.as_str())
+    }) {
+        return Err(ReplayContractError::InvalidPlan);
+    }
+    let mut route = Sha256::new();
+    route.update(b"asb-strict-replay-route-v1");
+    route.update(plan.session_id.as_bytes());
+    route.update([0]);
+    route.update(plan.attempt_id.as_bytes());
+    route.update([0]);
+    let dialect = cassette
+        .contents
+        .interactions
+        .first()
+        .ok_or(ReplayContractError::Malformed)?
+        .dialect;
+    route.update(format!("{dialect:?}").as_bytes());
+    if format!("{:x}", route.finalize()) != plan.route_sha256 {
+        return Err(ReplayContractError::DigestMismatch);
+    }
     let input = StrictReplayLaunchV1 {
         schema_version: 1,
         cassette_sha256: plan.cassette_sha256.clone(),
@@ -157,6 +306,8 @@ fn validate_plan(plan: &StrictReplayPlanV1) -> Result<(), ReplayContractError> {
         || plan.cassette_path.len() > 4096
         || plan.cassette_id.is_empty()
         || plan.cassette_id.len() > 128
+        || plan.session_id.is_empty()
+        || plan.session_id.len() > 128
         || plan.provider_dialect.is_empty()
         || plan.provider_dialect.len() > 128
         || plan.adapter.is_empty()
@@ -188,6 +339,8 @@ fn digest(value: &str) -> bool {
 mod tests {
     use super::*;
     use asb_replay::decode_cassette;
+    use asb_runtime::loopback_sidecar::{LoopbackSidecar, SidecarIdentity};
+    use std::time::Duration;
 
     fn plan(root: &Path) -> StrictReplayPlanV1 {
         let bytes = fs::read(root.join("cassette.json")).unwrap();
@@ -197,11 +350,12 @@ mod tests {
             cassette_path: "cassette.json".into(),
             cassette_sha256: format!("{:x}", Sha256::digest(&bytes)),
             cassette_id: cassette.contents.cassette_id,
-            route_sha256: "b".repeat(64),
-            provider_dialect: "openai-chat-v1".into(),
+            session_id: "session-fixture".into(),
+            route_sha256: "b9ac9f7f23c8f5fdab8431b59618abacd2b78b25586e10bd31beb71cb3183789".into(),
+            provider_dialect: "synthetic".into(),
             adapter: "codex".into(),
             run_id: "run-1".into(),
-            attempt_id: "attempt-1".into(),
+            attempt_id: "attempt-fixture".into(),
             workload_sha256: "c".repeat(64),
             command_sha256: "d".repeat(64),
             egress: EgressPolicy::LoopbackOnly,
@@ -224,14 +378,76 @@ mod tests {
         let root = fixture();
         let resolved = resolve_strict_replay(&plan(root.path()), root.path()).unwrap();
         assert_eq!(resolved.launch.input.egress, EgressPolicy::LoopbackOnly);
-        assert_eq!(resolved.launch.input.attempt_id, "attempt-1");
+        assert_eq!(resolved.launch.input.attempt_id, "attempt-fixture");
     }
 
     #[test]
-    fn rejects_traversal_symlink_digest_and_unknown_egress() {
+    fn runtime_binding_retains_relay_until_bound_replay_is_dropped() {
+        let root = fixture();
+        let bound = resolve_and_bind_runtime(&plan(root.path()), root.path()).unwrap();
+        assert!(bound.sidecar.relay_path().exists());
+        let relay = bound.sidecar.relay_path().to_owned();
+        drop(bound);
+        assert!(!relay.exists());
+    }
+
+    #[test]
+    fn binds_runtime_issued_handoff_and_rejects_route_drift() {
+        let root = fixture();
+        let resolved = resolve_strict_replay(&plan(root.path()), root.path()).unwrap();
+        let identity =
+            SidecarIdentity::new("generation-1", &resolved.launch.input.route_sha256).unwrap();
+        let relay = root.path().join("relay.sock");
+        let sidecar = LoopbackSidecar::bind(identity, &relay).unwrap();
+        let handoff = sidecar
+            .handoff(
+                true,
+                Duration::from_millis(resolved.launch.input.timeout_ms),
+                "e".repeat(64),
+                resolved.launch.input.command_sha256.clone(),
+            )
+            .unwrap();
+        let bridge = bind_runtime_handoff(&resolved.launch, &handoff).unwrap();
+        assert_eq!(
+            bridge.endpoint(),
+            format!("http://{}/replay", handoff.endpoint)
+        );
+        drop(sidecar);
+
+        let wrong_identity =
+            SidecarIdentity::new("generation-1", "a".repeat(64)).expect("valid route digest");
+        let wrong_sidecar =
+            LoopbackSidecar::bind(wrong_identity, root.path().join("wrong.sock")).unwrap();
+        let wrong_handoff = wrong_sidecar
+            .handoff(
+                true,
+                Duration::from_millis(resolved.launch.input.timeout_ms),
+                "e".repeat(64),
+                resolved.launch.input.command_sha256.clone(),
+            )
+            .unwrap();
+        assert_eq!(
+            bind_runtime_handoff(&resolved.launch, &wrong_handoff),
+            Err(ReplayContractError::HandoffMismatch)
+        );
+    }
+
+    #[test]
+    fn rejects_traversal_symlink_digest_unknown_egress_and_oversize() {
         let root = fixture();
         let mut candidate = plan(root.path());
         candidate.cassette_path = "../cassette.json".into();
+        assert_eq!(
+            resolve_strict_replay(&candidate, root.path()),
+            Err(ReplayContractError::UnsafePath)
+        );
+        std::os::unix::fs::symlink(
+            root.path().join("cassette.json"),
+            root.path().join("link.json"),
+        )
+        .unwrap();
+        candidate = plan(root.path());
+        candidate.cassette_path = "link.json".into();
         assert_eq!(
             resolve_strict_replay(&candidate, root.path()),
             Err(ReplayContractError::UnsafePath)
@@ -247,6 +463,30 @@ mod tests {
         assert_eq!(
             resolve_strict_replay(&candidate, root.path()),
             Err(ReplayContractError::InvalidPlan)
+        );
+        let mut encoded = serde_json::to_value(plan(root.path())).unwrap();
+        encoded["egress"] = serde_json::json!("provider_network");
+        assert!(serde_json::from_value::<StrictReplayPlanV1>(encoded).is_err());
+        let oversized = root.path().join("oversized.json");
+        std::fs::File::create(&oversized)
+            .unwrap()
+            .set_len(MAX_CASSETTE_BYTES + 1)
+            .unwrap();
+        candidate = plan(root.path());
+        candidate.cassette_path = "oversized.json".into();
+        assert_eq!(
+            resolve_strict_replay(&candidate, root.path()),
+            Err(ReplayContractError::Oversized)
+        );
+
+        let malformed = root.path().join("malformed.json");
+        fs::write(&malformed, b"not-a-cassette").unwrap();
+        candidate = plan(root.path());
+        candidate.cassette_path = "malformed.json".into();
+        candidate.cassette_sha256 = format!("{:x}", Sha256::digest(b"not-a-cassette"));
+        assert_eq!(
+            resolve_strict_replay(&candidate, root.path()),
+            Err(ReplayContractError::Malformed)
         );
     }
 }
