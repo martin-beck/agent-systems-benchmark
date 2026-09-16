@@ -343,6 +343,23 @@ def commit_tree(root: Path, revision: str) -> str:
 def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     return (
         subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                descendant,
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
+
+
 def validate_merge_integrity_tools() -> None:
     merge = (ROOT / MERGE_TOOL).read_text(encoding="utf-8")
     settings = (ROOT / MERGE_SETTINGS).read_text(encoding="utf-8")
@@ -363,21 +380,6 @@ def validate_merge_integrity_tools() -> None:
     )
     if any(fragment not in settings for fragment in required_settings):
         fail("repository settings tool permits an incompatible web merge mode")
-            [
-                "git",
-                "-C",
-                str(root),
-                "merge-base",
-                "--is-ancestor",
-                ancestor,
-                descendant,
-            ],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode
-        == 0
-    )
 
 
 def topic_first_parent_spine(root: Path, base: str, tip: str) -> list[str]:
