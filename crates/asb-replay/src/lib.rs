@@ -43,7 +43,8 @@ pub use service::{
     ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService, dialect_capabilities,
 };
 pub use workflow::{
-    MAX_WORKFLOW_AGENT_BYTES, NetworkConsequence, RECORDING_WORKFLOW_SCHEMA_VERSION,
-    RecordedArtifact, RecordingCapture, RecordingConfirmation, RecordingMetadata,
-    RecordingWorkflowError, choose_source, seal_recording,
+    MAX_RECORDING_CAMPAIGN_TUPLES, MAX_WORKFLOW_AGENT_BYTES, NetworkConsequence,
+    RECORDING_WORKFLOW_SCHEMA_VERSION, RecordedArtifact, RecordingCampaign, RecordingCapture,
+    RecordingConfirmation, RecordingCoverage, RecordingCoverageState, RecordingMetadata,
+    RecordingTuple, RecordingWorkflowError, choose_source, seal_recording,
 };
