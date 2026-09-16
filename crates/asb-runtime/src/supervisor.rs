@@ -140,7 +140,7 @@ impl SupervisorPlan {
     /// unless it can attest that loopback is ready and both children share its
     /// private namespace.
     pub fn arguments(&self) -> Vec<String> {
-        vec![
+        let mut args = vec![
             "--unshare-net".into(),
             "--relay".into(),
             self.relay.display().to_string(),
@@ -152,9 +152,20 @@ impl SupervisorPlan {
             self.timeout.as_millis().to_string(),
             "--sidecar".into(),
             self.sidecar.executable.display().to_string(),
+            "--sidecar-digest".into(),
+            self.sidecar.digest.clone(),
             "--adapter".into(),
             self.adapter.executable.display().to_string(),
-        ]
+            "--adapter-digest".into(),
+            self.adapter.digest.clone(),
+        ];
+        for arg in &self.sidecar.arguments {
+            args.extend(["--sidecar-arg".to_owned(), arg.clone()]);
+        }
+        for arg in &self.adapter.arguments {
+            args.extend(["--adapter-arg".to_owned(), arg.clone()]);
+        }
+        args
     }
 }
 
