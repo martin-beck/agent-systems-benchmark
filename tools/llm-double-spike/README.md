@@ -39,3 +39,8 @@ AR-1251 invokes `run_isolated.py --artifact ARTIFACT --artifact-sha256 SHA256
 --verify-network-none` as its runner preflight, then passes a direct executable
 argument vector. The runner owns container cleanup with `--rm`; its only host
 input is the validated read-only artifact bind.
+
+AR-1253 pins the fixture runtime to the immutable Python 3.13.15 amd64 image
+`python@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e`.
+The closed manifest requires `--network none` and `python3 -S`; mutable tags,
+digest drift, unknown fields, and ambient site initialization fail closed.
