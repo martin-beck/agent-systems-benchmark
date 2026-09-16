@@ -239,3 +239,34 @@ fn strict_launch_enforces_authenticated_timeout_on_child() {
         asb_runtime::Termination::TimedOut
     );
 }
+
+#[test]
+fn strict_launch_cancellation_is_terminal_and_reaped() {
+    let Some(backend) = backend() else { return };
+    let Some(root) = root("cancel") else { return };
+    let (input, lease) = input_with_limits(
+        &root,
+        "/usr/bin/sleep",
+        vec!["30".into()],
+        BTreeMap::from([(
+            "ASB_REPLAY_ENDPOINT".into(),
+            "http://127.0.0.1:4317/replay".into(),
+        )]),
+        limits(),
+    );
+    let record = launch_record(digest_command(
+        input.spec().program(),
+        input.spec().arguments(),
+    ));
+    let mut process = StrictReplaySandboxLaunch::new(record)
+        .unwrap()
+        .spawn(&backend, input, lease)
+        .unwrap();
+    process.cancel().unwrap();
+    assert_eq!(
+        process.wait().unwrap().termination,
+        asb_runtime::Termination::Cancelled
+    );
+    assert_eq!(process.lifecycle(), asb_runtime::ProcessLifecycle::Terminal);
+    assert!(process.cancel().is_ok());
+}
