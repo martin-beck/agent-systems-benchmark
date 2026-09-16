@@ -15,7 +15,8 @@ use std::time::{Duration, Instant};
 
 use rustix::net::sockopt::socket_peercred;
 use rustix::process::geteuid;
-use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, ServerConfig, ServerConnection, StreamOwned};
 use thiserror::Error;
 
 use crate::ControlLimits;
@@ -70,6 +71,60 @@ impl RemoteTlsConfig {
         let deadline = Duration::from_millis(config.limits.max_timeout_ms);
         let expires = Instant::now() + deadline;
         let connection = ServerConnection::new(Arc::clone(&self.server))
+            .map_err(|_| TransportError::RemoteTlsConfiguration)?;
+        let mut tls = StreamOwned::new(connection, stream);
+        while tls.conn.is_handshaking() {
+            let remaining = expires.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(TransportError::RemoteHandshakeTimeout);
+            }
+            tls.sock.set_read_timeout(Some(remaining))?;
+            tls.sock.set_write_timeout(Some(remaining))?;
+            tls.conn.complete_io(&mut tls.sock).map_err(|error| {
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) {
+                    TransportError::RemoteHandshakeTimeout
+                } else {
+                    TransportError::Io(error)
+                }
+            })?;
+        }
+        if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
+            return Err(TransportError::RemoteAlpnMismatch);
+        }
+        Ok(tls)
+    }
+}
+
+/// Client side of the authenticated remote control TLS boundary.
+#[derive(Debug)]
+pub struct RemoteTlsClient {
+    config: Arc<ClientConfig>,
+}
+
+impl RemoteTlsClient {
+    /// Build a client configuration pinned to the ASB control ALPN.
+    pub fn new(mut config: ClientConfig) -> Self {
+        config.alpn_protocols = vec![b"asb-control/1".to_vec()];
+        Self {
+            config: Arc::new(config),
+        }
+    }
+
+    /// Connect and complete the TLS handshake under the supplied control bound.
+    pub fn connect(
+        &self,
+        stream: TcpStream,
+        server_name: &str,
+        config: RemoteTransportConfig,
+    ) -> Result<StreamOwned<ClientConnection, TcpStream>, TransportError> {
+        let config = config.validate()?;
+        let name = ServerName::try_from(server_name.to_owned())
+            .map_err(|_| TransportError::RemoteTlsConfiguration)?;
+        let expires = Instant::now() + Duration::from_millis(config.limits.max_timeout_ms);
+        let connection = ClientConnection::new(Arc::clone(&self.config), name)
             .map_err(|_| TransportError::RemoteTlsConfiguration)?;
         let mut tls = StreamOwned::new(connection, stream);
         while tls.conn.is_handshaking() {
