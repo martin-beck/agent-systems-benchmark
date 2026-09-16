@@ -311,6 +311,21 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             "provider profile and model must be selected together",
         ));
     }
+    if let (Some(profile), Some(model_name)) = (&provider_profile, &model) {
+        let compatible = match profile.as_str() {
+            "openai" => model_name.starts_with("gpt-") || model_name.starts_with("o1"),
+            "gemini" => model_name.starts_with("gemini-"),
+            "ollama" => ["llama", "mistral", "qwen", "phi"]
+                .iter()
+                .any(|prefix| model_name.starts_with(prefix)),
+            _ => false,
+        };
+        if !compatible {
+            return Err(CliError::validation(
+                "provider profile and model are incompatible or unsupported",
+            ));
+        }
+    }
     let contract = SetupOutput {
         schema_version: OUTPUT_SCHEMA_VERSION,
         ok: true,
@@ -3863,6 +3878,25 @@ mod tests {
         assert_eq!(persisted["mode"], "commit");
         assert_eq!(persisted["provider_profile"], "openai");
         assert_eq!(persisted["model"], "gpt-4o-mini");
+    }
+
+    #[test]
+    fn setup_rejects_cross_provider_model_without_contacting_provider() {
+        let args: Vec<OsString> = [
+            "setup",
+            "--provider-profile",
+            "gemini",
+            "--model",
+            "gpt-4o-mini",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "validation");
+        assert!(value.to_string().len() < 512);
     }
 
     #[test]
