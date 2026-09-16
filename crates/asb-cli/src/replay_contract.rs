@@ -339,7 +339,11 @@ fn digest(value: &str) -> bool {
 mod tests {
     use super::*;
     use asb_replay::decode_cassette;
+    use asb_runtime::ProcessLimits;
     use asb_runtime::loopback_sidecar::{LoopbackSidecar, SidecarIdentity};
+    use asb_runtime::sandbox::{
+        CpuSet, LeaseClass, NetworkPolicy, Resources, SandboxBackend, SandboxLaunchInput, ToolPin,
+    };
     use std::time::Duration;
 
     fn plan(root: &Path) -> StrictReplayPlanV1 {
@@ -430,6 +434,55 @@ mod tests {
             bind_runtime_handoff(&resolved.launch, &wrong_handoff),
             Err(ReplayContractError::HandoffMismatch)
         );
+    }
+
+    #[test]
+    fn runtime_spawn_rejects_missing_relay_before_child_creation() {
+        let root = fixture();
+        let bound = resolve_and_bind_runtime(&plan(root.path()), root.path()).unwrap();
+        let cpus = CpuSet::new(vec![0]).unwrap();
+        let resources = Resources::new(64 * 1024 * 1024, 1, 100, cpus.clone()).unwrap();
+        let spec = asb_runtime::sandbox::SandboxSpec::new(
+            root.path(),
+            PathBuf::from("."),
+            "/usr/bin/true".into(),
+            Vec::new(),
+            Default::default(),
+            resources,
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let input = SandboxLaunchInput::new(
+            spec,
+            ProcessLimits::new(
+                1024,
+                1024,
+                Duration::from_secs(1),
+                Duration::ZERO,
+                Duration::from_millis(10),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let backend = SandboxBackend::new(
+            ToolPin::new(PathBuf::from("/usr/bin/bwrap"), "bwrap".into()).unwrap(),
+            ToolPin::new(PathBuf::from("/usr/bin/systemd-run"), "systemd".into()).unwrap(),
+            ToolPin::new(PathBuf::from("/usr/bin/systemctl"), "systemctl".into()).unwrap(),
+            ToolPin::new(PathBuf::from("/usr/bin/taskset"), "taskset".into()).unwrap(),
+        );
+        let lease = asb_runtime::sandbox::ResourceLease::acquire(root.path(), LeaseClass::Ci, cpus)
+            .unwrap();
+        let digest = format!("{:x}", Sha256::digest(b"/usr/bin/true"));
+        let command = asb_runtime::supervisor::PinnedCommand::new(
+            PathBuf::from("/usr/bin/true"),
+            Vec::new(),
+            digest,
+        )
+        .unwrap();
+        assert!(matches!(
+            spawn_runtime_replay(bound, &backend, input, lease, command.clone(), command),
+            Err(ReplayContractError::HandoffMismatch)
+        ));
     }
 
     #[test]
