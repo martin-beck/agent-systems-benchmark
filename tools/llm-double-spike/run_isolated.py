@@ -32,6 +32,19 @@ def build_command(artifact: Path, command: list[str]) -> list[str]:
     ]
 
 
+def verify_image() -> None:
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "docker", "image", "inspect", IMAGE, "--format", "{{index .RepoDigests 0}}"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=10, check=True, text=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("approved Docker image could not be verified") from error
+    if result.stdout.strip() != IMAGE:
+        raise ValueError("Docker image digest does not match the approved identity")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", required=True, type=Path)
@@ -41,6 +54,7 @@ def main() -> int:
     if args.timeout <= 0 or args.timeout > 600:
         parser.error("timeout must be between 1 and 600 seconds")
     try:
+        verify_image()
         command = build_command(args.artifact, args.command[1:] if args.command[:1] == ["--"] else args.command)
     except ValueError as error:
         parser.error(str(error))
