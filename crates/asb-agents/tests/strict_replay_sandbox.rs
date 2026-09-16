@@ -61,6 +61,103 @@ fn strict_launch_owned_loopback_control_reaches_listener() {
     assert_eq!(output.stdout, b"OK");
 }
 
+/*
+#[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
+fn strict_launch_child_serves_authenticated_cassette_route() {
+    let backend = required_backend();
+    let root = required_root("service");
+    let cassette = decode_cassette(
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    let interaction = cassette.contents.interactions[0].clone();
+    let route = ReplayRoute {
+        session_id: interaction.session_id.clone(),
+        attempt_id: interaction.attempt_id.clone(),
+        dialect: interaction.dialect,
+    };
+    let route_digest = {
+        let mut digest = Sha256::new();
+        digest.update(b"asb-strict-replay-route-v1");
+        digest.update(route.session_id.as_bytes());
+        digest.update([0]);
+        digest.update(route.attempt_id.as_bytes());
+        digest.update([0]);
+        digest.update(format!("{:?}", route.dialect).as_bytes());
+        format!("{:x}", digest.finalize())
+    };
+    let request = ReplayHttpRequest {
+        method: interaction.request.method.clone(),
+        path: interaction.request.path.clone(),
+        headers: interaction.request.headers.clone(),
+        body: serde_json::to_vec(&interaction.request.body).unwrap(),
+    };
+    let mut launch = StrictReplayLaunchV1 {
+        schema_version: 1,
+        cassette_sha256: cassette.integrity.digest.clone(),
+        route_sha256: route_digest,
+        provider_dialect: "gemini-generate-content".into(),
+        adapter: "fixture".into(),
+        run_id: "native-service-run".into(),
+        attempt_id: route.attempt_id.clone(),
+        workload_sha256: "c".repeat(64),
+        command_sha256: String::new(),
+        egress: EgressPolicy::LoopbackOnly,
+        timeout_ms: 5_000,
+    };
+    let endpoint_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!(
+        "http://{}{}",
+        endpoint_listener.local_addr().unwrap(),
+        interaction.request.path
+    );
+    let child_args = vec!["--connect-timeout".into(), "1".into(), endpoint.clone()];
+    launch.command_sha256 = digest_command("/usr/bin/curl", &child_args);
+    let record = StrictReplayLaunchRecord {
+        launch_sha256: launch.digest().unwrap(),
+        input: launch,
+    };
+    let executor = StrictReplayExecutor::new(
+        record.clone(),
+        cassette,
+        Some(ProcessIsolationCapability::Verified),
+    )
+    .unwrap();
+    let service_thread = thread::spawn(move || {
+        use std::io::{Read, Write};
+        let (mut stream, _) = endpoint_listener.accept().unwrap();
+        let mut bytes = [0_u8; 4096];
+        let _ = stream.read(&mut bytes).unwrap();
+        let response = executor.execute(&route, request).unwrap();
+        assert_eq!(response.status, 200);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+    });
+    let (input, lease) = input_with_limits(
+        &root,
+        "/usr/bin/curl",
+        child_args,
+        BTreeMap::from([
+            (
+                "ASB_REPLAY_ROUTE_SHA256".into(),
+                record.input.route_sha256.clone(),
+            ),
+            ("ASB_REPLAY_ENDPOINT".into(), endpoint),
+        ]),
+        limits(),
+    );
+    let mut process = StrictReplaySandboxLaunch::new(record)
+        .unwrap()
+        .spawn(&backend, input, lease)
+        .unwrap();
+    assert_eq!(process.wait().unwrap().exit_code, Some(0));
+    service_thread.join().unwrap();
+}
+*/
+
 fn launch_record(command_sha256: String) -> StrictReplayLaunchRecord {
     let input = StrictReplayLaunchV1 {
         schema_version: 1,
