@@ -23,7 +23,9 @@ class RunnerContractTests(unittest.TestCase):
         self.assertIn("--cap-drop", command)
         self.assertEqual(command[command.index("--cap-drop") + 1], "ALL")
         self.assertNotIn("--privileged", command)
-        self.assertEqual(sum(part.startswith("type=bind") for part in command), 1)
+        mounts = [part for part in command if part.startswith("type=bind")]
+        self.assertEqual(mounts, ["type=bind,src=/srv/data/projects/.asb-ar1249-artifact-audit/mockagents.tar.gz,dst=/input/artifact,readonly"])
+        self.assertNotIn("--volume", command)
 
     def test_shell_vectors_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
