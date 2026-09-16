@@ -35,6 +35,10 @@ pub struct RemoteTransportConfig {
     pub bind: SocketAddr,
     /// Maximum simultaneously admitted remote connections.
     pub max_connections: u16,
+    /// Maximum requests admitted on one connection.
+    pub max_requests_per_connection: u16,
+    /// Idle socket deadline after handshake.
+    pub idle_timeout_ms: u64,
     /// Bounds negotiated frames and request deadlines.
     pub limits: ControlLimits,
 }
@@ -110,6 +114,55 @@ impl RemoteListener {
 #[derive(Debug)]
 pub struct RemoteConnectionPermit {
     active: Arc<AtomicU16>,
+}
+
+/// Bounded per-connection request admission gate.
+#[derive(Debug)]
+pub struct RemoteRequestGate {
+    remaining: AtomicU16,
+}
+
+impl RemoteRequestGate {
+    /// Create a gate with a finite request ceiling.
+    pub fn new(maximum: u16) -> Result<Self, TransportError> {
+        if maximum == 0 || maximum > 1024 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        Ok(Self {
+            remaining: AtomicU16::new(maximum),
+        })
+    }
+
+    /// Reserve one request, failing closed when backpressure is reached.
+    pub fn acquire(&self) -> Result<RemoteRequestPermit<'_>, TransportError> {
+        let mut current = self.remaining.load(Ordering::Acquire);
+        loop {
+            if current == 0 {
+                return Err(TransportError::RemoteBackpressure);
+            }
+            match self.remaining.compare_exchange_weak(
+                current,
+                current - 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(RemoteRequestPermit { gate: self }),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+}
+
+/// RAII request reservation that returns capacity on completion.
+#[derive(Debug)]
+pub struct RemoteRequestPermit<'a> {
+    gate: &'a RemoteRequestGate,
+}
+
+impl Drop for RemoteRequestPermit<'_> {
+    fn drop(&mut self) {
+        self.gate.remaining.fetch_add(1, Ordering::Release);
+    }
 }
 
 impl RemoteConnectionPermit {
@@ -266,6 +319,12 @@ impl RemoteTransportConfig {
             return Err(TransportError::RemoteInvalidBind);
         }
         if self.max_connections == 0 || self.max_connections > 256 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        if self.max_requests_per_connection == 0 || self.max_requests_per_connection > 1024 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        if self.idle_timeout_ms == 0 || self.idle_timeout_ms > self.limits.max_timeout_ms {
             return Err(TransportError::RemoteInvalidLimit);
         }
         self.limits.validate().map_err(TransportError::Protocol)?;
@@ -537,6 +596,9 @@ pub enum TransportError {
     /// Remote listener connection capacity has been exhausted.
     #[error("remote control connection capacity is exhausted")]
     RemoteCapacity,
+    /// Per-connection request capacity has been exhausted.
+    #[error("remote control request backpressure limit reached")]
+    RemoteBackpressure,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
@@ -610,6 +672,8 @@ mod tests {
             enabled: true,
             bind: "127.0.0.1:9443".parse().unwrap(),
             max_connections: 8,
+            max_requests_per_connection: 32,
+            idle_timeout_ms: 5_000,
             limits: ControlLimits::default(),
         }
     }
@@ -665,6 +729,22 @@ mod tests {
         ));
         drop(first);
         assert!(RemoteConnectionPermit::acquire(active, 1).is_ok());
+    }
+
+    #[test]
+    fn remote_request_gate_applies_backpressure_and_recovers() {
+        let gate = RemoteRequestGate::new(1).unwrap();
+        let permit = gate.acquire().unwrap();
+        assert!(matches!(
+            gate.acquire(),
+            Err(TransportError::RemoteBackpressure)
+        ));
+        drop(permit);
+        assert!(gate.acquire().is_ok());
+        assert!(matches!(
+            RemoteRequestGate::new(0),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
     }
 
     fn test_tls_configs() -> (RemoteTlsConfig, RemoteTlsClient, RemoteTlsClient) {
