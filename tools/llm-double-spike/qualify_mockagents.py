@@ -158,7 +158,7 @@ def _stable_hash(body: bytes) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def qualify(executable: Path) -> dict[str, Any]:
+def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="asb-mockagents-") as state:
         root = Path(state)
         agents = root / "agents"
@@ -174,7 +174,7 @@ def qualify(executable: Path) -> dict[str, Any]:
         port = _port()
         environment = {"PATH": str(executable.parent), "HOME": str(root), "LANG": "C", "NO_PROXY": "*", "no_proxy": "*"}
         process = subprocess.Popen(
-            [str(executable), "start", "--host", "127.0.0.1", "--port", str(port), "--agents-dir", str(agents), "--no-color"],
+            [*runner, str(executable), "start", "--host", "127.0.0.1", "--port", str(port), "--agents-dir", str(agents), "--no-color"],
             cwd=root, env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         cases: dict[str, str] = {}
@@ -225,10 +225,23 @@ def qualify(executable: Path) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", type=Path)
+    parser.add_argument("--platform", choices=("linux-amd64", "linux-arm64"), default="linux-amd64")
+    parser.add_argument("--runner", type=Path, help="Pinned emulator executable required for linux-arm64")
+    parser.add_argument("--runner-sha256", help="Expected SHA-256 for the explicit emulator runner")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     lock = load_lock()
-    artifact_name = "linux-arm64" if platform.machine() in {"aarch64", "arm64"} else "linux-amd64"
+    artifact_name = args.platform
+    if artifact_name == "linux-arm64" and args.runner is None:
+        raise QualificationError("linux-arm64 requires an explicit pinned emulator runner")
+    if artifact_name == "linux-arm64" and not args.runner_sha256:
+        raise QualificationError("linux-arm64 requires the emulator runner SHA-256")
+    if args.runner is not None and (not args.runner.is_absolute() or args.runner.is_symlink() or not args.runner.is_file()):
+        raise QualificationError("runner must be an absolute, non-symlink executable")
+    if args.runner is not None and args.runner.stat().st_mode & 0o111 == 0:
+        raise QualificationError("runner is not executable")
+    if args.runner is not None and (not HEX64.fullmatch(args.runner_sha256 or "") or _digest(args.runner) != args.runner_sha256):
+        raise QualificationError("runner does not match its pinned SHA-256")
     pin = lock["artifacts"][artifact_name]
     with tempfile.TemporaryDirectory(prefix="asb-mockagents-download-") as cache:
         archive = args.artifact or Path(cache) / "release.tar.gz"
@@ -237,7 +250,7 @@ def main() -> None:
         elif archive.stat().st_size != pin["size"] or _digest(archive) != pin["sha256"]:
             raise QualificationError("supplied artifact does not match lock")
         executable = verify_archive(archive, lock, Path(cache) / "unpacked")
-        report = qualify(executable)
+        report = qualify(executable, (str(args.runner),) if args.runner else ())
     payload = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if args.output:
         args.output.write_text(payload, encoding="utf-8")
