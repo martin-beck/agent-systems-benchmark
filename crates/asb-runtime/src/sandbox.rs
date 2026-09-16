@@ -410,7 +410,7 @@ impl SandboxBackend {
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
         }
-        if spec.network_policy() == NetworkPolicy::LoopbackOnly {
+        if spec.network_policy() == NetworkPolicy::LoopbackOnly && spec.supervisor.is_none() {
             return Err(SandboxError::NetworkPolicy);
         }
         self.probe()?;
@@ -457,6 +457,19 @@ impl SandboxBackend {
                 return Err(SandboxError::DelegationRejected);
             }
             command.arg("--bind").arg(plan.relay()).arg(RELAY_TARGET);
+            // Bundle payloads are content-pinned by `SupervisorPlan`, but are
+            // not necessarily installed below a standard runtime mount. Make
+            // the exact verified files visible at their already-attested
+            // absolute paths inside the private namespace. This is a
+            // read-only bind and cannot expose a parent directory or alter
+            // host state.
+            let mut payloads = vec![plan.sidecar().executable(), plan.adapter().executable()];
+            if let Some(supervisor) = plan.supervisor() {
+                payloads.push(supervisor.executable());
+            }
+            for payload in payloads {
+                command.arg("--ro-bind").arg(payload).arg(payload);
+            }
         }
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
@@ -974,7 +987,7 @@ pub enum SandboxError {
     },
     /// Lease class or CPUs did not match.
     LeaseMismatch,
-    /// Requested loopback transport is not yet attested by this backend.
+    /// Loopback transport was requested without an attested supervisor.
     NetworkPolicy,
 }
 
