@@ -37,6 +37,30 @@ fn digest_command(program: &str, arguments: &[String]) -> String {
     format!("{:x}", digest.finalize())
 }
 
+#[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
+fn strict_launch_owned_loopback_control_reaches_listener() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!("http://{}/", listener.local_addr().unwrap());
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        use std::io::{Read, Write};
+        let mut request = [0_u8; 1024];
+        let size = stream.read(&mut request).unwrap();
+        assert!(size > 0);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+    });
+    let output = std::process::Command::new("/usr/bin/curl")
+        .args(["--connect-timeout", "1", &endpoint])
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"OK");
+}
+
 fn launch_record(command_sha256: String) -> StrictReplayLaunchRecord {
     let input = StrictReplayLaunchV1 {
         schema_version: 1,
