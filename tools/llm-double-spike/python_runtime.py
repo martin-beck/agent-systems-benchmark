@@ -22,6 +22,8 @@ def load_manifest(path: Path = MANIFEST) -> dict[str, object]:
         raise RuntimeError("runtime manifest fields are not closed")
     if value["schema_version"] != 1 or value["runtime"] != "python" or value["version"] != "3.13.15":
         raise RuntimeError("unsupported Python runtime")
+    if value["source"] != "docker-library/python" or value["source_revision"] != "python:3.13.15-slim-bookworm":
+        raise RuntimeError("runtime source provenance does not match the reviewed release")
     if value["architecture"] != "amd64" or value["image"] != IMAGE:
         raise RuntimeError("runtime image identity does not match the reviewed digest")
     if value["network"] != "none" or value["site_initialization"] != "disabled":

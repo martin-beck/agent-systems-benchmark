@@ -22,7 +22,12 @@ class PythonRuntimeTests(unittest.TestCase):
 
     def test_unknown_fields_and_digest_drift_fail_closed(self) -> None:
         original = json.loads(Path(__file__).with_name("python-runtime-v1.json").read_text())
-        for change in ({"extra": True}, {"image": "python:latest"}):
+        for change in (
+            {"extra": True},
+            {"image": "python:latest"},
+            {"source": "unreviewed/python"},
+            {"source_revision": "python:latest"},
+        ):
             candidate = dict(original)
             candidate.update(change)
             with tempfile.NamedTemporaryFile(mode="w", suffix=".json") as stream:
