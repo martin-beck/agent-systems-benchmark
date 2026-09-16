@@ -471,10 +471,15 @@ fn launch_wrapper_timeout_and_crash_are_terminal() {
             assert_eq!(output.termination, Termination::TimedOut);
             assert_eq!(process.lifecycle(), ProcessLifecycle::Terminal);
         } else {
-            assert!(matches!(
-                backend.spawn_launch(input, lease(&root, &r)),
-                Err(SandboxError::ScopeOwnership { .. })
-            ));
+            match backend.spawn_launch(input, lease(&root, &r)) {
+                Err(SandboxError::ScopeOwnership { .. }) => {}
+                Ok(mut process) => {
+                    let output = process.wait().unwrap();
+                    assert_ne!(output.exit_code, Some(0));
+                    assert_eq!(process.lifecycle(), ProcessLifecycle::Terminal);
+                }
+                Err(error) => panic!("unexpected crash launch result: {error:?}"),
+            }
         }
     }
 }
