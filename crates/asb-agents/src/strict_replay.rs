@@ -602,4 +602,35 @@ mod tests {
             Err(StrictReplayError::InvalidTimeout)
         );
     }
+
+    #[test]
+    fn executor_rejects_duplicate_attempt_after_cassette_consumption() {
+        let (executor, route, request) = qualified_executor_fixture();
+        executor.execute(&route, request.clone()).unwrap();
+        assert_eq!(
+            executor.execute(&route, request),
+            Err(StrictReplayError::ServiceUnavailable)
+        );
+    }
+
+    #[test]
+    fn sandbox_launch_rejects_stale_route_environment() {
+        let launch = input();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        let consumer = StrictReplaySandboxLaunch::new(record).unwrap();
+        let environment = std::collections::BTreeMap::from([
+            ("ASB_REPLAY_ROUTE_SHA256".into(), "e".repeat(64)),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "https://provider.invalid".into(),
+            ),
+        ]);
+        assert_eq!(
+            consumer.validate_route_environment(&environment),
+            Err(StrictReplayError::RouteMismatch)
+        );
+    }
 }
