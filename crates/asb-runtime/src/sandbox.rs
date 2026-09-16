@@ -244,11 +244,8 @@ pub struct SandboxSpec {
     arguments: Vec<String>,
     environment: BTreeMap<String, String>,
     resources: Resources,
-<<<<<<< ours
-=======
     network: NetworkPolicy,
     supervisor: Option<SupervisorPlan>,
->>>>>>> theirs
 }
 
 impl SandboxSpec {

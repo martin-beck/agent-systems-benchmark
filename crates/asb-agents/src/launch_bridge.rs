@@ -3,6 +3,9 @@
 //! Strict-replay launch handoff validation.
 
 use crate::strict_replay::{StrictReplayError, StrictReplayLaunchRecord};
+use asb_runtime::loopback_sidecar::SidecarHandoff;
+use asb_runtime::sandbox::{ResourceLease, SandboxBackend, SandboxLaunchInput, SandboxProcess};
+use asb_runtime::supervisor::{PinnedCommand, SupervisorPlan};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::time::Duration;
@@ -28,6 +31,30 @@ pub trait RuntimeReplayHandoff {
     fn sidecar_command_digest(&self) -> &str;
     /// Content digest of the adapter executable.
     fn adapter_command_digest(&self) -> &str;
+}
+
+impl RuntimeReplayHandoff for SidecarHandoff {
+    fn generation(&self) -> &str {
+        self.generation()
+    }
+    fn route_digest(&self) -> &str {
+        self.route_digest()
+    }
+    fn relay_path(&self) -> &Path {
+        &self.relay_path
+    }
+    fn endpoint(&self) -> SocketAddr {
+        self.endpoint
+    }
+    fn deadline(&self) -> Duration {
+        self.deadline
+    }
+    fn sidecar_command_digest(&self) -> &str {
+        &self.sidecar_command_digest
+    }
+    fn adapter_command_digest(&self) -> &str {
+        &self.adapter_command_digest
+    }
 }
 
 /// Immutable launch data derived exclusively from a runtime handoff.
@@ -76,6 +103,7 @@ impl StrictReplayLaunchBridge {
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
             || handoff.route_digest() != record.input.route_sha256
+            || handoff.adapter_command_digest() != record.input.command_sha256
             || handoff.deadline() != Duration::from_millis(record.input.timeout_ms)
             || !valid_digest(handoff.sidecar_command_digest())
             || !valid_digest(handoff.adapter_command_digest())
@@ -92,6 +120,41 @@ impl StrictReplayLaunchBridge {
             adapter_command_digest: handoff.adapter_command_digest().to_owned(),
         };
         Ok(Self { metadata })
+    }
+
+    /// Launch the adapter and runtime-owned sidecar under the authenticated
+    /// supervisor.  All executable identities come from the handoff or are
+    /// content-verified before any child is created.
+    pub fn spawn(
+        &self,
+        backend: &SandboxBackend,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        supervisor: PinnedCommand,
+        sidecar: PinnedCommand,
+    ) -> Result<SandboxProcess, StrictReplayError> {
+        let adapter = PinnedCommand::new_verified(
+            std::path::PathBuf::from(input.spec().program()),
+            input.spec().arguments().to_vec(),
+            &self.metadata.adapter_command_digest,
+        )
+        .map_err(|_| StrictReplayError::CommandMismatch)?;
+        let plan = SupervisorPlan::new(
+            sidecar,
+            adapter,
+            self.metadata.relay_path.clone(),
+            self.metadata.generation.clone(),
+            self.metadata.route_digest.clone(),
+            self.metadata.deadline,
+        )
+        .map_err(|_| StrictReplayError::HandoffMismatch)?
+        .with_supervisor(supervisor);
+        let spec = input.spec().clone().with_supervisor(plan);
+        let launch = SandboxLaunchInput::new(spec, input.limits())
+            .map_err(|_| StrictReplayError::SandboxUnavailable)?;
+        backend
+            .spawn_launch(launch, lease)
+            .map_err(|_| StrictReplayError::SandboxUnavailable)
     }
 
     /// Child-visible endpoint URI derived from the handoff.
@@ -161,6 +224,7 @@ mod tests {
             run_id: "run".into(),
             attempt_id: "attempt".into(),
             workload_sha256: "b".repeat(64),
+            command_sha256: "d".repeat(64),
             egress: EgressPolicy::LoopbackOnly,
             timeout_ms: 5_000,
         };

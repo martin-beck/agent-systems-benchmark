@@ -207,6 +207,18 @@ pub struct SidecarHandoff {
 }
 
 impl SidecarHandoff {
+    /// Per-launch generation fence.
+    pub fn generation(&self) -> &str {
+        &self.identity.generation
+    }
+
+    /// Authenticated replay route digest.
+    pub fn route_digest(&self) -> &str {
+        &self.identity.route_digest
+    }
+}
+
+impl SidecarHandoff {
     /// Validate the handoff before namespace launch.
     pub fn validate(&self) -> io::Result<()> {
         if self.version != HANDOFF_VERSION || self.deadline.is_zero() {
