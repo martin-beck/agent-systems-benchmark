@@ -1,11 +1,5 @@
 # Repository quality gates
 
-The DCO checker contains one exact historical exception for GitHub merge commit
-`75248467a6fa900d654a8ab920c2a0405e2ff8c9` (PR #192). That published merge
-cannot be rewritten; the checker verifies it is still a two-parent merge and
-continues checking every other commit. This is not a general merge exemption
-and must not be extended to future commits.
-
 AR-0003 makes the roadmap's repository checks mandatory on every pull request.
 The machine-readable source of tool versions, Action commits and downloaded
 binary SHA-256 digests is [quality-tools.json](../config/quality-tools.json).

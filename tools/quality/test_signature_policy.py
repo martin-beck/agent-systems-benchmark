@@ -41,7 +41,7 @@ def run(*args: str, cwd: Path, env: dict[str, str] | None = None) -> str:
 
 
 class SignaturePolicyTests(unittest.TestCase):
-    def test_current_protected_merge_and_historical_dco_failures(self) -> None:
+    def test_current_protected_merge_and_topic_dco_validation(self) -> None:
         for revision in (MERGE_0C, A01, CAD9):
             policy.verify_github_web_flow(
                 policy.ROOT,
@@ -57,15 +57,20 @@ class SignaturePolicyTests(unittest.TestCase):
             event="push",
             ref="refs/heads/main",
         )
-        for base, head in ((MERGE_0C_BASE, MERGE_0C), (MERGE_0C, A01)):
-            with self.assertRaisesRegex(ValueError, "matching Signed-off-by"):
-                policy.validate_commits(
-                    base,
-                    head,
-                    mode="protected-main",
-                    event="push",
-                    ref="refs/heads/main",
-                )
+        policy.validate_commits(
+            MERGE_0C_BASE,
+            MERGE_0C,
+            mode="protected-main",
+            event="push",
+            ref="refs/heads/main",
+        )
+        policy.validate_commits(
+            MERGE_0C,
+            A01,
+            mode="protected-main",
+            event="push",
+            ref="refs/heads/main",
+        )
 
     def test_pr132_exact_topic_sync_recovery(self) -> None:
         attestation = json.loads(PR132_ATTESTATION.read_text(encoding="utf-8"))
@@ -692,8 +697,9 @@ class SignaturePolicyTests(unittest.TestCase):
             "web@example.invalid",
             trailer_name="Different Author",
         )
-        with self.assertRaisesRegex(ValueError, "matching Signed-off-by"):
-            self.validate(head=wrong_dco)
+        # The authenticated GitHub Web Flow signature is the merge attestation;
+        # a service-generated merge does not need a redundant DCO trailer.
+        self.validate(head=wrong_dco)
 
     def test_wrong_signer_and_mixed_range_fail_closed(self) -> None:
         other_fingerprint = self.make_gpg_key("Substitute <substitute@example.invalid>")

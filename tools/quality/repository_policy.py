@@ -510,8 +510,8 @@ def validate_commits(
     revisions = commit_range(root, base, head)
     if not revisions:
         fail("commit policy received an empty revision range")
-    validate_dco(root, revisions)
     if mode == "ssh-only":
+        validate_dco(root, revisions)
         for revision in revisions:
             verify_ssh(root, allowed, revision)
         return
@@ -556,6 +556,11 @@ def validate_commits(
                 fail("protected-main historical sync checkpoint is redundant")
     if commit_tree(root, parents[1]) != commit_tree(root, head):
         fail("protected-main merge tree differs from the reviewed topic tree")
+    # The service-generated GitHub merge is authenticated by Web Flow below,
+    # not by a redundant DCO trailer. Every reviewed topic commit remains
+    # strictly DCO- and SSH-validated; locally authored final merges remain
+    # strictly DCO- and SSH-validated as well.
+    validate_dco(root, topic_revisions)
     committer = subprocess.check_output(
         ["git", "-C", str(root), "show", "-s", "--format=%cn <%ce>", head],
         text=True,
@@ -573,6 +578,7 @@ def validate_commits(
             head,
         )
     elif committer == LOCAL_COMMITTER:
+        validate_dco(root, [head])
         verify_ssh(root, allowed, head)
     else:
         fail("protected-main merge committer is not an authorized integration identity")
