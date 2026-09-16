@@ -82,6 +82,17 @@ known-vulnerable lockfile and an impossible coverage floor. A missing tool,
 unexpectedly permissive new release, or stale command syntax therefore fails CI
 instead of silently skipping a gate.
 
+Gitleaks scans are revision-scoped and use the repository-owned
+`.gitleaks.toml` through `tools/quality/run_gitleaks.sh`. The wrapper requires
+an explicit immutable base and head, verifies that the head descends from the
+base, and rejects symlinked or out-of-repository configuration files. The
+configuration must retain the default rules and has one narrowly reviewed
+allowlist for tokenizer metadata; it must not be expanded to suppress a real
+credential. When a finding is suspected to be a false positive, reproduce it
+with the exact base/head range, fix the metadata or scanner rule, and add a
+focused positive/negative fixture. Never scan an unrelated branch or bypass
+the wrapper to make a gate pass.
+
 After every required repository-quality step succeeds, CI prepares one bounded,
 content-free JSON evidence record and attempts to retain it for one day. Artifact
 publication is explicitly optional: a provider upload failure, including exhausted
