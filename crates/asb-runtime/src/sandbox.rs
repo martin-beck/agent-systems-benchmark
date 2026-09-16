@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
+use crate::relay::{RelayError, ReplayRelayHandoff};
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -333,6 +334,7 @@ impl SandboxSpec {
 pub struct SandboxLaunchInput {
     spec: SandboxSpec,
     limits: ProcessLimits,
+    replay_handoff: Option<ReplayRelayHandoff>,
 }
 
 impl SandboxLaunchInput {
@@ -341,7 +343,11 @@ impl SandboxLaunchInput {
         if spec.network_policy() != NetworkPolicy::Deny {
             return Err(SandboxError::NetworkPolicy);
         }
-        Ok(Self { spec, limits })
+        Ok(Self {
+            spec,
+            limits,
+            replay_handoff: None,
+        })
     }
 
     /// Validated sandbox specification.
@@ -352,6 +358,18 @@ impl SandboxLaunchInput {
     /// Bounded process limits.
     pub fn limits(&self) -> ProcessLimits {
         self.limits
+    }
+
+    /// Attach a validated private replay relay handoff to this launch.
+    pub fn with_replay_handoff(mut self, handoff: ReplayRelayHandoff) -> Result<Self, RelayError> {
+        handoff.validate()?;
+        self.replay_handoff = Some(handoff);
+        Ok(self)
+    }
+
+    /// Return the authenticated relay metadata, if configured.
+    pub fn replay_handoff(&self) -> Option<&ReplayRelayHandoff> {
+        self.replay_handoff.as_ref()
     }
 }
 
