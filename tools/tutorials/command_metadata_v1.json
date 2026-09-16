@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "executable": "asb",
+  "commands": {
+    "doctor": {"forms": [[]]},
+    "capabilities": {"forms": [["--format", "json"]]},
+    "provider-catalog": {"forms": [[]]},
+    "completion": {"forms": [["bash"]]},
+    "plan": {"forms": [["PATH"], ["PATH", "--provider-selection", "PATH"]]},
+    "run": {"forms": [["PATH"], ["PATH", "--provider-selection", "PATH"]]},
+    "sweep": {"forms": [["PATH"], ["PATH", "--provider-selection", "PATH"]]},
+    "record": {"forms": [["PATH", "PATH"]]},
+    "replay": {"forms": [["PATH", "SHA256", "AGENT"]]},
+    "compare": {"min_args": 2},
+    "report": {"min_args": 1},
+    "tui": {"forms": [
+      ["launch"], ["status"], ["doctor"], ["remove"],
+      ["install"], ["install", "--offline"], ["install", "--dry-run"],
+      ["install", "--launch"], ["upgrade"], ["upgrade", "--offline"],
+      ["upgrade", "--dry-run"], ["upgrade", "--launch"]
+    ]},
+    "auth": {"operations": {
+      "enroll": ["--provider", "--endpoint-digest", "--credential-digest", "--idempotency-key"],
+      "status": ["--provider"],
+      "rotate": ["--provider", "--credential-digest", "--idempotency-key"],
+      "revoke": ["--provider", "--idempotency-key"]
+    }}
+  }
+}

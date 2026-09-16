@@ -79,6 +79,10 @@ jobs:
             args+=(--baseline-ref "$RANGE_BASE")
           fi
           python3 tools/quality/contract_consistency.py "${args[@]}"
+      - name: Validate offline tutorial contracts
+        run: |
+          python3 -m unittest tools.tutorials.test_validate
+          python3 tools/tutorials/validate.py tools/tutorials/example-v1.json
       - name: Validate GitHub workflows
         run: |
           "$ASB_QUALITY_BIN/actionlint" -config-file .github/actionlint.yaml
