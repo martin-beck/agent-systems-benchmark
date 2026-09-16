@@ -162,6 +162,15 @@ impl StrictReplaySandboxLaunch {
     pub fn record(&self) -> &StrictReplayLaunchRecord {
         &self.record
     }
+
+    /// Check a candidate process budget against the authenticated deadline.
+    pub fn validate_timeout(&self, timeout: std::time::Duration) -> Result<(), StrictReplayError> {
+        if timeout.as_millis() > u128::from(self.record.input.timeout_ms) {
+            Err(StrictReplayError::InvalidTimeout)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 fn is_digest(value: &str) -> bool {
@@ -551,6 +560,25 @@ mod tests {
         assert_eq!(
             StrictReplaySandboxLaunch::new(record).unwrap_err(),
             StrictReplayError::CommandMismatch
+        );
+    }
+
+    #[test]
+    fn sandbox_launch_rejects_budget_beyond_authenticated_timeout() {
+        let launch = input();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        let consumer = StrictReplaySandboxLaunch::new(record).unwrap();
+        assert!(
+            consumer
+                .validate_timeout(std::time::Duration::from_secs(5))
+                .is_ok()
+        );
+        assert_eq!(
+            consumer.validate_timeout(std::time::Duration::from_millis(5001)),
+            Err(StrictReplayError::InvalidTimeout)
         );
     }
 }
