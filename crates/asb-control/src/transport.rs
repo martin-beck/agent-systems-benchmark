@@ -1074,7 +1074,7 @@ mod tests {
         let generated = generate_simple_self_signed(vec!["localhost".into()]).unwrap();
         let certificate = CertificateDer::from(generated.cert.der().to_vec());
         let key =
-            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(generated.key_pair.serialize_der()));
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(generated.signing_key.serialize_der()));
         let mut roots = RootCertStore::empty();
         roots.add(certificate.clone()).unwrap();
         let verifier = WebPkiClientVerifier::builder(Arc::new(roots.clone()))
