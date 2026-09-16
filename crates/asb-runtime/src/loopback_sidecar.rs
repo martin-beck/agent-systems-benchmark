@@ -19,6 +19,7 @@ use std::time::Duration;
 const MAGIC: &[u8] = b"ASB-REPLAY-SIDECAR/1\n";
 const MAX_ID: usize = 128;
 const MAX_FORWARD_BYTES: usize = 8 * 1024 * 1024;
+const HANDOFF_VERSION: u16 = 1;
 
 /// Per-launch identity used to fence stale and duplicate relay attempts.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -175,15 +176,88 @@ pub struct SidecarAttestation {
     pub route_digest: String,
     /// Whether the launch backend proved the private namespace handoff.
     pub namespace_ready: bool,
+    /// Digest of the immutable sidecar executable.
+    pub sidecar_command_digest: String,
+    /// Digest of the adapter command released into the namespace.
+    pub adapter_command_digest: String,
+}
+
+/// Versioned, runtime-issued handoff passed to a private namespace launcher.
+///
+/// This is deliberately data-only: callers cannot construct a trusted handoff
+/// without the runtime attesting namespace readiness.  The launcher must bind
+/// every field to one process lifetime and reject a changed generation or
+/// command digest.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SidecarHandoff {
+    /// Protocol version.
+    pub version: u16,
+    /// Per-launch identity.
+    pub identity: SidecarIdentity,
+    /// Private Unix relay endpoint.
+    pub relay_path: PathBuf,
+    /// Child-visible loopback endpoint.
+    pub endpoint: SocketAddr,
+    /// Monotonic launch deadline.
+    pub deadline: Duration,
+    /// Pinned sidecar executable digest.
+    pub sidecar_command_digest: String,
+    /// Pinned adapter command digest.
+    pub adapter_command_digest: String,
+}
+
+impl SidecarHandoff {
+    /// Validate the handoff before namespace launch.
+    pub fn validate(&self) -> io::Result<()> {
+        if self.version != HANDOFF_VERSION || self.deadline.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid handoff",
+            ));
+        }
+        if self.endpoint.ip() != IpAddr::V4(Ipv4Addr::LOCALHOST)
+            || self.endpoint.port() == 0
+            || self.relay_path.as_os_str().is_empty()
+            || self.sidecar_command_digest.is_empty()
+            || self.adapter_command_digest.is_empty()
+            || !valid_id(&self.sidecar_command_digest)
+            || !valid_id(&self.adapter_command_digest)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid handoff",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl LoopbackSidecar {
-    /// Build an attestation, failing closed until the launcher proves handoff.
+    /// Build the legacy readiness attestation using explicit placeholder
+    /// command identities. New launchers should use [`Self::handoff`].
     pub fn attest(&self, namespace_ready: bool) -> io::Result<SidecarAttestation> {
+        self.attest_with_commands(namespace_ready, "legacy-sidecar", "legacy-adapter")
+    }
+
+    /// Build an attestation, failing closed until the launcher proves handoff.
+    pub fn attest_with_commands(
+        &self,
+        namespace_ready: bool,
+        sidecar_command_digest: impl Into<String>,
+        adapter_command_digest: impl Into<String>,
+    ) -> io::Result<SidecarAttestation> {
         if !namespace_ready {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 "private namespace handoff unavailable",
+            ));
+        }
+        let sidecar_command_digest = sidecar_command_digest.into();
+        let adapter_command_digest = adapter_command_digest.into();
+        if !valid_id(&sidecar_command_digest) || !valid_id(&adapter_command_digest) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid command digest",
             ));
         }
         Ok(SidecarAttestation {
@@ -191,7 +265,35 @@ impl LoopbackSidecar {
             generation: self.identity.generation.clone(),
             route_digest: self.identity.route_digest.clone(),
             namespace_ready,
+            sidecar_command_digest,
+            adapter_command_digest,
         })
+    }
+
+    /// Build a validated runtime-issued handoff after namespace attestation.
+    pub fn handoff(
+        &self,
+        namespace_ready: bool,
+        deadline: Duration,
+        sidecar_command_digest: impl Into<String>,
+        adapter_command_digest: impl Into<String>,
+    ) -> io::Result<SidecarHandoff> {
+        let attestation = self.attest_with_commands(
+            namespace_ready,
+            sidecar_command_digest,
+            adapter_command_digest,
+        )?;
+        let handoff = SidecarHandoff {
+            version: HANDOFF_VERSION,
+            identity: self.identity.clone(),
+            relay_path: self.relay_path.clone(),
+            endpoint: attestation.endpoint,
+            deadline,
+            sidecar_command_digest: attestation.sidecar_command_digest,
+            adapter_command_digest: attestation.adapter_command_digest,
+        };
+        handoff.validate()?;
+        Ok(handoff)
     }
 }
 
@@ -314,6 +416,62 @@ mod tests {
         assert!(attestation.namespace_ready);
         assert_eq!(attestation.generation, "generation");
         assert_eq!(attestation.route_digest, "route");
+        drop(sidecar);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn handoff_binds_commands_route_and_deadline() {
+        let root = root();
+        let path = root.join("relay.sock");
+        let sidecar =
+            LoopbackSidecar::bind(SidecarIdentity::new("generation", "route").unwrap(), &path)
+                .unwrap();
+        let handoff = sidecar
+            .handoff(
+                true,
+                Duration::from_secs(10),
+                "sidecar-sha256",
+                "adapter-sha256",
+            )
+            .unwrap();
+        assert_eq!(handoff.version, HANDOFF_VERSION);
+        assert_eq!(handoff.relay_path, path);
+        assert_eq!(handoff.endpoint.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(handoff.sidecar_command_digest, "sidecar-sha256");
+        assert_eq!(handoff.adapter_command_digest, "adapter-sha256");
+        drop(sidecar);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn handoff_rejects_unattested_or_unbounded_launches() {
+        let root = root();
+        let path = root.join("relay.sock");
+        let sidecar =
+            LoopbackSidecar::bind(SidecarIdentity::new("generation", "route").unwrap(), &path)
+                .unwrap();
+        assert_eq!(
+            sidecar
+                .handoff(false, Duration::from_secs(1), "sidecar", "adapter")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(
+            sidecar
+                .handoff(true, Duration::ZERO, "sidecar", "adapter")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            sidecar
+                .handoff(true, Duration::from_secs(1), "side car", "adapter")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
         drop(sidecar);
         let _ = fs::remove_dir_all(root);
     }
