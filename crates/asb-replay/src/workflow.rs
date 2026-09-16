@@ -268,6 +268,33 @@ impl RecordingCampaign {
         }
         Ok(coverage)
     }
+
+    /// Require exactly one complete coverage record for every requested tuple.
+    ///
+    /// This is intentionally separate from execution: callers may persist and
+    /// reconcile coverage, but strict offline execution must not start until
+    /// the whole requested matrix is complete and current.
+    pub fn require_complete_coverage(
+        &self,
+        coverage: &[RecordingCoverage],
+    ) -> Result<(), RecordingWorkflowError> {
+        let tuples = self.expand()?;
+        if coverage.len() != tuples.len()
+            || tuples.iter().any(|tuple| {
+                coverage
+                    .iter()
+                    .filter(|entry| entry.tuple == *tuple)
+                    .count()
+                    != 1
+            })
+            || coverage
+                .iter()
+                .any(|entry| entry.state != RecordingCoverageState::Complete)
+        {
+            return Err(RecordingWorkflowError::CoverageIncomplete);
+        }
+        Ok(())
+    }
 }
 
 /// Record, redact, authenticate, and catalog one complete capture.
@@ -369,6 +396,9 @@ pub enum RecordingWorkflowError {
     /// A coverage transition would repeat or regress durable work.
     #[error("recording coverage transition is invalid")]
     CoverageTransition,
+    /// Offline execution requires exactly one complete record per tuple.
+    #[error("recording coverage is incomplete or not current")]
+    CoverageIncomplete,
 }
 
 fn valid_digest(value: &str) -> bool {
@@ -541,6 +571,40 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].tuple.estimated_cost_minor, 9);
         assert_eq!(result[0].state, RecordingCoverageState::Complete);
+    }
+
+    #[test]
+    fn offline_execution_requires_complete_unique_current_coverage() {
+        let campaign = RecordingCampaign {
+            schema_version: 1,
+            provider_profile_sha256: "a".repeat(64),
+            agent_ids: vec!["codex".into(), "aider".into()],
+            workloads: vec![("bug-fix".into(), "v1".into())],
+            max_tuples: 2,
+            cost_per_tuple_minor: 1,
+        };
+        let complete = campaign
+            .execute(|_| Ok(RecordingCoverageState::Complete), || false)
+            .unwrap();
+        assert!(campaign.require_complete_coverage(&complete).is_ok());
+
+        let mut incomplete = complete.clone();
+        incomplete[0].state = RecordingCoverageState::Stale;
+        assert!(matches!(
+            campaign.require_complete_coverage(&incomplete),
+            Err(RecordingWorkflowError::CoverageIncomplete)
+        ));
+        incomplete[0].state = RecordingCoverageState::Complete;
+        incomplete.pop();
+        assert!(matches!(
+            campaign.require_complete_coverage(&incomplete),
+            Err(RecordingWorkflowError::CoverageIncomplete)
+        ));
+        let duplicate = [complete[0].clone(), complete[0].clone()];
+        assert!(matches!(
+            campaign.require_complete_coverage(&duplicate),
+            Err(RecordingWorkflowError::CoverageIncomplete)
+        ));
     }
 
     #[test]
