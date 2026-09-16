@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
+use sha2::Digest;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -212,6 +213,297 @@ pub struct Configuration {
     pub defaults: Defaults,
     /// Per-agent overrides.
     pub agent_overrides: BTreeMap<String, AgentOverride>,
+}
+
+/// Bounded, credential-free provider/model discovery record.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderRegistryV1 {
+    /// Registry contract version.
+    pub schema_version: u16,
+    /// Managed named connections.
+    pub connections: BTreeMap<String, RegistryConnectionV1>,
+    /// Models qualified for each connection.
+    pub models: BTreeMap<String, Vec<RegistryModelV1>>,
+}
+
+/// Public connection identity; endpoint values are never persisted.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegistryConnectionV1 {
+    /// Provider family identifier.
+    pub provider: String,
+    /// Protocol identifier.
+    pub protocol: String,
+    /// Endpoint identity digest.
+    pub endpoint_identity_sha256: String,
+    /// Optional credential locator digest.
+    pub credential_locator_sha256: Option<String>,
+}
+
+/// Model discovered and qualified for one managed connection.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegistryModelV1 {
+    /// Provider model identifier.
+    pub id: String,
+    /// Qualification evidence digest.
+    pub qualification_sha256: String,
+    /// Connection generation used for discovery.
+    pub discovered_at_generation: u64,
+}
+
+impl ProviderRegistryV1 {
+    /// Parse a bounded provider model response into qualified cache entries.
+    pub fn parse_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        if bytes.is_empty() || bytes.len() > 64 * 1024 {
+            return Err(ConfigError::InvalidValue("model catalog size".into()));
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            models: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            id: String,
+        }
+        let catalog: Catalog = serde_json::from_slice(bytes)
+            .map_err(|_| ConfigError::InvalidValue("model catalog format".into()))?;
+        if catalog.models.len() > 256 {
+            return Err(ConfigError::InvalidValue("model catalog count".into()));
+        }
+        let models = catalog
+            .models
+            .into_iter()
+            .map(|model| RegistryModelV1 {
+                qualification_sha256: format!("{:x}", sha2::Sha256::digest(model.id.as_bytes())),
+                id: model.id,
+                discovered_at_generation: generation,
+            })
+            .collect();
+        self.replace_models(connection, generation, models)
+    }
+
+    /// Parse an OpenAI-compatible catalog (`data[].id`).
+    pub fn parse_openai_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            data: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            id: String,
+        }
+        let catalog: Catalog = bounded_json(bytes, "OpenAI model catalog")?;
+        self.replace_discovered_ids(
+            connection,
+            generation,
+            catalog.data.into_iter().map(|model| model.id),
+        )
+    }
+
+    /// Parse a Gemini catalog (`models[].name`), stripping its `models/` prefix.
+    pub fn parse_gemini_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            models: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            name: String,
+        }
+        let catalog: Catalog = bounded_json(bytes, "Gemini model catalog")?;
+        self.replace_discovered_ids(
+            connection,
+            generation,
+            catalog.models.into_iter().map(|model| {
+                model
+                    .name
+                    .strip_prefix("models/")
+                    .unwrap_or(&model.name)
+                    .to_owned()
+            }),
+        )
+    }
+
+    /// Parse an Ollama catalog (`models[].name`).
+    pub fn parse_ollama_model_catalog(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        bytes: &[u8],
+    ) -> Result<(), ConfigError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Catalog {
+            models: Vec<Model>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Model {
+            name: String,
+        }
+        let catalog: Catalog = bounded_json(bytes, "Ollama model catalog")?;
+        self.replace_discovered_ids(
+            connection,
+            generation,
+            catalog.models.into_iter().map(|model| model.name),
+        )
+    }
+
+    fn replace_discovered_ids(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        ids: impl IntoIterator<Item = String>,
+    ) -> Result<(), ConfigError> {
+        let models = ids
+            .into_iter()
+            .map(|id| RegistryModelV1 {
+                qualification_sha256: format!("{:x}", sha2::Sha256::digest(id.as_bytes())),
+                id,
+                discovered_at_generation: generation,
+            })
+            .collect::<Vec<_>>();
+        self.replace_models(connection, generation, models)
+    }
+    /// Add a managed connection, rejecting replacement of an existing identity.
+    pub fn add_connection(
+        &mut self,
+        name: String,
+        connection: RegistryConnectionV1,
+    ) -> Result<(), ConfigError> {
+        if name.is_empty() || self.connections.contains_key(&name) {
+            return Err(ConfigError::InvalidValue("duplicate connection".into()));
+        }
+        self.connections.insert(name, connection);
+        self.validate()
+    }
+
+    /// Remove a managed connection and its cached models atomically.
+    pub fn remove_connection(&mut self, name: &str) -> Result<(), ConfigError> {
+        if self.connections.remove(name).is_none() {
+            return Err(ConfigError::InvalidValue("unknown connection".into()));
+        }
+        self.models.remove(name);
+        self.validate()
+    }
+
+    /// Validate bounded names, digests and generation fencing.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != 1 || self.connections.len() > 128 || self.models.len() > 128 {
+            return Err(ConfigError::InvalidValue("provider registry".into()));
+        }
+        for (name, connection) in &self.connections {
+            validate_text(name, "connection name")?;
+            validate_text(&connection.provider, "provider")?;
+            validate_text(&connection.protocol, "protocol")?;
+            if !matches!(
+                connection.protocol.as_str(),
+                "openai_chat" | "gemini" | "ollama" | "openai_compatible"
+            ) {
+                return Err(ConfigError::InvalidValue(
+                    "unsupported provider protocol".into(),
+                ));
+            }
+            validate_sha256(&connection.endpoint_identity_sha256, "endpoint identity")?;
+            if let Some(digest) = &connection.credential_locator_sha256 {
+                validate_sha256(digest, "credential locator")?;
+            }
+        }
+        for (name, models) in &self.models {
+            if !self.connections.contains_key(name) || models.len() > 256 {
+                return Err(ConfigError::InvalidValue("model registry".into()));
+            }
+            for model in models {
+                validate_text(&model.id, "model id")?;
+                validate_sha256(&model.qualification_sha256, "qualification")?;
+                if model.qualification_sha256
+                    != format!("{:x}", sha2::Sha256::digest(model.id.as_bytes()))
+                {
+                    return Err(ConfigError::InvalidValue(
+                        "qualification does not bind model".into(),
+                    ));
+                }
+                if model.discovered_at_generation == 0 {
+                    return Err(ConfigError::InvalidValue("model generation".into()));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Replace a connection's bounded, already-qualified model cache.
+    pub fn replace_models(
+        &mut self,
+        connection: &str,
+        generation: u64,
+        models: Vec<RegistryModelV1>,
+    ) -> Result<(), ConfigError> {
+        if generation == 0 || models.len() > 256 || !self.connections.contains_key(connection) {
+            return Err(ConfigError::InvalidValue("model discovery".into()));
+        }
+        if models
+            .iter()
+            .any(|model| model.discovered_at_generation != generation)
+        {
+            return Err(ConfigError::InvalidValue("stale model discovery".into()));
+        }
+        let mut ids = BTreeSet::new();
+        if models.iter().any(|model| !ids.insert(&model.id)) {
+            return Err(ConfigError::InvalidValue(
+                "duplicate discovered model".into(),
+            ));
+        }
+        self.models.insert(connection.to_owned(), models);
+        self.validate()
+    }
+
+    /// Return only models qualified for the requested provider protocol.
+    pub fn compatible_models(
+        &self,
+        connection: &str,
+        provider: &str,
+        protocol: &str,
+    ) -> Vec<&RegistryModelV1> {
+        let Some(identity) = self.connections.get(connection) else {
+            return Vec::new();
+        };
+        if identity.provider != provider || identity.protocol != protocol {
+            return Vec::new();
+        }
+        self.models
+            .get(connection)
+            .map_or_else(Vec::new, |models| models.iter().collect())
+    }
+}
+
+fn bounded_json<T: for<'de> Deserialize<'de>>(bytes: &[u8], label: &str) -> Result<T, ConfigError> {
+    if bytes.is_empty() || bytes.len() > 64 * 1024 {
+        return Err(ConfigError::InvalidValue(format!("{label} size")));
+    }
+    serde_json::from_slice(bytes).map_err(|_| ConfigError::InvalidValue(format!("{label} format")))
 }
 
 /// Built-in values used when no persisted value exists.
@@ -876,6 +1168,71 @@ mod tests {
     fn credential_bytes_are_not_deserializable() {
         let raw = r#"{"kind":"environment","locator_sha256":"sk-secret"}"#;
         assert!(serde_json::from_str::<CredentialReference>(raw).is_err());
+    }
+
+    #[test]
+    fn provider_specific_catalogs_are_bounded_and_fail_closed() {
+        let connection = RegistryConnectionV1 {
+            provider: "openai".into(),
+            protocol: "openai_chat".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: None,
+        };
+        let mut registry = ProviderRegistryV1 {
+            schema_version: 1,
+            connections: BTreeMap::from([("primary".into(), connection)]),
+            models: BTreeMap::new(),
+        };
+        registry
+            .parse_openai_model_catalog("primary", 1, br#"{"data":[{"id":"gpt-test"}]}"#)
+            .unwrap();
+        assert_eq!(registry.models["primary"][0].id, "gpt-test");
+        assert!(
+            registry
+                .parse_gemini_model_catalog(
+                    "primary",
+                    2,
+                    br#"{"models":[{"name":"models/gemini-test"}]}"#,
+                )
+                .is_ok()
+        );
+        assert_eq!(registry.models["primary"][0].id, "gemini-test");
+        assert!(
+            registry
+                .parse_ollama_model_catalog("primary", 3, br#"{"models":[{"name":"llama-test"}]}"#,)
+                .is_ok()
+        );
+        assert!(
+            registry
+                .parse_openai_model_catalog("primary", 4, br#"{"data":[{"id":"x"}],"extra":true}"#)
+                .is_err()
+        );
+        assert!(
+            registry
+                .parse_ollama_model_catalog(
+                    "primary",
+                    4,
+                    br#"{"models":[{"name":"x"},{"name":"x"}]}"#
+                )
+                .is_err()
+        );
+        let oversized = vec![b'x'; 64 * 1024 + 1];
+        assert!(
+            registry
+                .parse_openai_model_catalog("primary", 4, &oversized)
+                .is_err()
+        );
+        let too_many = (0..257)
+            .map(|index| serde_json::json!({"id": format!("model-{index}")}))
+            .collect::<Vec<_>>();
+        let too_many = serde_json::to_vec(&serde_json::json!({"data": too_many})).unwrap();
+        assert!(
+            registry
+                .parse_openai_model_catalog("primary", 4, &too_many)
+                .is_err()
+        );
+        registry.models.get_mut("primary").unwrap()[0].qualification_sha256 = "c".repeat(64);
+        assert!(registry.validate().is_err());
     }
 
     #[test]
