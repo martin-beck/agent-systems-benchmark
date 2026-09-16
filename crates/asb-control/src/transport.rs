@@ -634,7 +634,7 @@ mod tests {
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
     use rustls::server::WebPkiClientVerifier;
     use std::io::Write;
-    use std::net::TcpListener;
+    use std::net::{Shutdown, TcpListener};
     use std::thread;
 
     #[test]
@@ -839,6 +839,35 @@ mod tests {
             .unwrap();
         tls.write_all(&(u32::MAX.to_be_bytes())).unwrap();
         assert!(server_thread.join().unwrap());
+    }
+
+    #[test]
+    fn tls_frame_rejects_malformed_and_truncated_payloads() {
+        for truncated in [false, true] {
+            let (server, client, _) = test_tls_configs();
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server_thread = thread::spawn(move || {
+                let (stream, _) = listener.accept().unwrap();
+                let mut tls = server.accept(stream, remote_config()).unwrap();
+                read_frame::<ControlVersion>(&mut tls, remote_config().limits).unwrap_err()
+            });
+            let stream = TcpStream::connect(address).unwrap();
+            let mut tls = client
+                .connect(stream, "localhost", remote_config())
+                .unwrap();
+            if truncated {
+                tls.write_all(&[0, 0, 0]).unwrap();
+                tls.sock.shutdown(Shutdown::Write).unwrap();
+            } else {
+                tls.write_all(&[0, 0, 0, 2, b'{', b'}']).unwrap();
+            }
+            let error = server_thread.join().unwrap();
+            assert!(matches!(
+                (truncated, error),
+                (true, FrameError::Truncated) | (false, FrameError::MalformedJson(_))
+            ));
+        }
     }
 
     #[test]
