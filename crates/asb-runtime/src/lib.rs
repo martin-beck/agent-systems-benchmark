@@ -6,6 +6,8 @@
 pub mod loopback_sidecar;
 /// Private per-launch replay relay transport.
 pub mod relay;
+/// Runtime-owned one-shot strict-replay launch authority.
+pub mod replay_entrypoint;
 /// Rootless namespace isolation and dedicated resource leases.
 pub mod sandbox;
 /// Bounded closed-loop and open-loop experiment scheduling.
