@@ -240,6 +240,10 @@ def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
             if status != 200 or b"tool_calls" not in body or b"lookup" not in body:
                 raise QualificationError("tool-call response was not emitted")
             cases["tool_call"] = _stable_hash(body)
+            status, _, _ = _post(port, "/v1/chat/completions", {"model": "openai-fixture"})
+            if status < 400 or status >= 500:
+                raise QualificationError("malformed request was accepted")
+            cases["malformed_request"] = "rejected"
         finally:
             process.terminate()
             try:
@@ -249,6 +253,7 @@ def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
                 process.wait(timeout=3)
             if process.poll() is None:
                 raise QualificationError("server process did not terminate")
+            cases["cleanup"] = "process-terminated"
         return {"schema_version": 1, "evidence_class": "synthetic", "candidate": "mockagents", "version": "0.5.0", "platform": platform.machine(), "cases": cases, "network": "loopback-only", "credentials": "none"}
 
 
