@@ -20,6 +20,24 @@ pub enum EgressPolicy {
     LoopbackOnly,
 }
 
+/// Capability attested by the selected runtime sandbox.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProcessIsolationCapability {
+    /// The child process boundary denies provider egress.
+    Verified,
+}
+
+/// Bounded lifecycle state for one strict replay attempt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReplayLifecycle {
+    /// No adapter request has been served.
+    Ready,
+    /// The attempt was cancelled and cannot be reused.
+    Cancelled,
+    /// The attempt requires a fresh launch after restart recovery.
+    NeedsRestart,
+}
+
 /// Credential-free, content-bound adapter launch input.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -79,6 +97,10 @@ pub enum StrictReplayError {
     RouteMismatch,
     /// The adapter endpoint is outside the pinned local replay boundary.
     ExternalEndpoint,
+    /// The runtime did not attest process-level egress isolation.
+    IsolationUnavailable,
+    /// The attempt lifecycle does not permit another operation.
+    LifecycleClosed,
 }
 
 /// Bounded replay executor that has no live-provider fallback.
@@ -105,8 +127,12 @@ impl StrictReplayExecutor {
     pub fn new(
         record: StrictReplayLaunchRecord,
         cassette: Cassette,
+        isolation: Option<ProcessIsolationCapability>,
     ) -> Result<Self, StrictReplayError> {
         record.validate()?;
+        if isolation != Some(ProcessIsolationCapability::Verified) {
+            return Err(StrictReplayError::IsolationUnavailable);
+        }
         if cassette.integrity.digest != record.input.cassette_sha256 {
             return Err(StrictReplayError::InvalidIdentity);
         }
@@ -274,7 +300,7 @@ mod tests {
             input: launch,
         };
         assert!(matches!(
-            StrictReplayExecutor::new(record, cassette),
+            StrictReplayExecutor::new(record, cassette, Some(ProcessIsolationCapability::Verified)),
             Err(StrictReplayError::InvalidCassette)
         ));
     }
