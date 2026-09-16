@@ -2100,9 +2100,9 @@ EOF
         fs::write(
             &python,
             r#"#!/bin/sh
-sleep 30 &
+/usr/bin/sleep 30 &
 first=$!
-sleep 30 &
+/usr/bin/sleep 30 &
 second=$!
 printf '%s\n%s\n' "$first" "$second" > ./children.pids
 wait
