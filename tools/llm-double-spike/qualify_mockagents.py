@@ -164,6 +164,12 @@ def _stable_sse_hash(body: bytes) -> str:
     for line in body.splitlines():
         if line.startswith((b"id:", b"created:")):
             continue
+        if line.startswith(b"data:"):
+            payload = line[5:].strip()
+            try:
+                line = b"data:" + _stable_hash(payload).encode()
+            except (UnicodeDecodeError, ValueError):
+                pass
         stable.append(line)
     return hashlib.sha256(b"\n".join(stable)).hexdigest()
 
