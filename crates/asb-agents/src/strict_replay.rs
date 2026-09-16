@@ -5,7 +5,9 @@
 use asb_replay::{
     Cassette, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService,
 };
-use asb_runtime::sandbox::NetworkPolicy;
+use asb_runtime::sandbox::{
+    NetworkPolicy, ResourceLease, SandboxBackend, SandboxLaunchInput, SandboxProcess,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
@@ -66,6 +68,8 @@ pub struct StrictReplayLaunchV1 {
     pub attempt_id: String,
     /// Workload digest.
     pub workload_sha256: String,
+    /// Pinned adapter command digest.
+    pub command_sha256: String,
     /// Required process boundary policy.
     pub egress: EgressPolicy,
     /// Bounded process lifetime in milliseconds.
@@ -107,8 +111,108 @@ pub enum StrictReplayError {
     ExternalEndpoint,
     /// The runtime did not attest process-level egress isolation.
     IsolationUnavailable,
+    /// The launch command differs from its pinned identity.
+    CommandMismatch,
+    /// The runtime sandbox rejected or could not supervise the launch.
+    SandboxUnavailable,
     /// The attempt lifecycle does not permit another operation.
     LifecycleClosed,
+    /// The runtime-issued relay handoff did not match the authenticated launch.
+    HandoffMismatch,
+}
+
+/// Cross-crate consumer seam for launching a strict replay adapter.
+#[derive(Debug)]
+pub struct StrictReplaySandboxLaunch {
+    record: StrictReplayLaunchRecord,
+}
+
+impl StrictReplaySandboxLaunch {
+    /// Validate a launch record and bind it to a pinned adapter command digest.
+    pub fn new(record: StrictReplayLaunchRecord) -> Result<Self, StrictReplayError> {
+        record.validate()?;
+        if !is_digest(&record.input.command_sha256) {
+            return Err(StrictReplayError::CommandMismatch);
+        }
+        Ok(Self { record })
+    }
+
+    /// Spawn only under the runtime-owned denied-network sandbox.
+    pub fn spawn(
+        self,
+        backend: &SandboxBackend,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+    ) -> Result<SandboxProcess, StrictReplayError> {
+        if input.spec().network_policy() != NetworkPolicy::Deny {
+            return Err(StrictReplayError::IsolationUnavailable);
+        }
+        self.validate_route_environment(input.spec().environment())?;
+        if input.limits().timeout().as_millis() > u128::from(self.record.input.timeout_ms) {
+            return Err(StrictReplayError::InvalidTimeout);
+        }
+        if command_digest(input.spec().program(), input.spec().arguments())
+            != self.record.input.command_sha256
+        {
+            return Err(StrictReplayError::CommandMismatch);
+        }
+        backend
+            .spawn_launch(input, lease)
+            .map_err(|_| StrictReplayError::SandboxUnavailable)
+    }
+
+    /// Validate the authenticated route digest and pinned local endpoint.
+    pub fn validate_route_environment(
+        &self,
+        environment: &std::collections::BTreeMap<String, String>,
+    ) -> Result<(), StrictReplayError> {
+        if environment
+            .keys()
+            .any(|key| key != "ASB_REPLAY_ROUTE_SHA256" && key != "ASB_REPLAY_ENDPOINT")
+        {
+            return Err(StrictReplayError::ExternalEndpoint);
+        }
+        if environment.get("ASB_REPLAY_ROUTE_SHA256") != Some(&self.record.input.route_sha256) {
+            return Err(StrictReplayError::RouteMismatch);
+        }
+        let endpoint = environment
+            .get("ASB_REPLAY_ENDPOINT")
+            .ok_or(StrictReplayError::ExternalEndpoint)?;
+        StrictReplayExecutor::validate_endpoint(endpoint)
+    }
+
+    /// Authenticated launch record consumed by this seam.
+    pub fn record(&self) -> &StrictReplayLaunchRecord {
+        &self.record
+    }
+
+    /// Check a candidate process budget against the authenticated deadline.
+    pub fn validate_timeout(&self, timeout: std::time::Duration) -> Result<(), StrictReplayError> {
+        if timeout.as_millis() > u128::from(self.record.input.timeout_ms) {
+            Err(StrictReplayError::InvalidTimeout)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn is_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn command_digest(program: &str, arguments: &[String]) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"asb-strict-replay-command-v1");
+    digest.update(program.as_bytes());
+    digest.update([0]);
+    for argument in arguments {
+        digest.update(argument.as_bytes());
+        digest.update([0]);
+    }
+    format!("{:x}", digest.finalize())
 }
 
 /// Bounded replay executor that has no live-provider fallback.
@@ -298,6 +402,7 @@ mod tests {
             run_id: "run".into(),
             attempt_id: "attempt".into(),
             workload_sha256: "c".repeat(64),
+            command_sha256: "d".repeat(64),
             egress: EgressPolicy::LoopbackOnly,
             timeout_ms: 5000,
         }
@@ -370,7 +475,7 @@ mod tests {
             "schema_version": 1, "cassette_sha256": "a".repeat(64),
             "route_sha256": "b".repeat(64), "provider_dialect": "openai-chat-v1",
             "adapter": "codex", "run_id": "run", "attempt_id": "attempt",
-            "workload_sha256": "c".repeat(64), "egress": "loopback_only",
+            "workload_sha256": "c".repeat(64), "command_sha256": "d".repeat(64), "egress": "loopback_only",
             "timeout_ms": 5000, "credential": "secret", "environment": {"API_KEY": "secret"}
         });
         assert!(serde_json::from_value::<StrictReplayLaunchV1>(value).is_err());
@@ -457,6 +562,91 @@ mod tests {
         assert_eq!(
             executor.execute(&route, request),
             Err(StrictReplayError::AttemptMismatch)
+        );
+    }
+
+    #[test]
+    fn executor_recovery_closes_stale_attempt_without_fallback() {
+        let (executor, route, request) = qualified_executor_fixture();
+        executor.recover_after_restart().unwrap();
+        assert_eq!(
+            executor.execute(&route, request),
+            Err(StrictReplayError::LifecycleClosed)
+        );
+        assert_eq!(
+            executor.recover_after_restart(),
+            Err(StrictReplayError::LifecycleClosed)
+        );
+    }
+
+    #[test]
+    fn sandbox_launch_requires_record_bound_command_digest() {
+        let launch = input();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        assert!(StrictReplaySandboxLaunch::new(record).is_ok());
+
+        let mut invalid = input();
+        invalid.command_sha256 = "not-a-digest".into();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: invalid.digest().unwrap(),
+            input: invalid,
+        };
+        assert_eq!(
+            StrictReplaySandboxLaunch::new(record).unwrap_err(),
+            StrictReplayError::CommandMismatch
+        );
+    }
+
+    #[test]
+    fn sandbox_launch_rejects_budget_beyond_authenticated_timeout() {
+        let launch = input();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        let consumer = StrictReplaySandboxLaunch::new(record).unwrap();
+        assert!(
+            consumer
+                .validate_timeout(std::time::Duration::from_secs(5))
+                .is_ok()
+        );
+        assert_eq!(
+            consumer.validate_timeout(std::time::Duration::from_millis(5001)),
+            Err(StrictReplayError::InvalidTimeout)
+        );
+    }
+
+    #[test]
+    fn executor_rejects_duplicate_attempt_after_cassette_consumption() {
+        let (executor, route, request) = qualified_executor_fixture();
+        executor.execute(&route, request.clone()).unwrap();
+        assert_eq!(
+            executor.execute(&route, request),
+            Err(StrictReplayError::ServiceUnavailable)
+        );
+    }
+
+    #[test]
+    fn sandbox_launch_rejects_stale_route_environment() {
+        let launch = input();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        let consumer = StrictReplaySandboxLaunch::new(record).unwrap();
+        let environment = std::collections::BTreeMap::from([
+            ("ASB_REPLAY_ROUTE_SHA256".into(), "e".repeat(64)),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "https://provider.invalid".into(),
+            ),
+        ]);
+        assert_eq!(
+            consumer.validate_route_environment(&environment),
+            Err(StrictReplayError::RouteMismatch)
         );
     }
 }

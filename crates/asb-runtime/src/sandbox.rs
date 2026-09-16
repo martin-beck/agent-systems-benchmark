@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
+use crate::relay::{RelayError, ReplayRelayHandoff};
+use crate::supervisor::SupervisorPlan;
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{FileTypeExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -242,6 +244,8 @@ pub struct SandboxSpec {
     arguments: Vec<String>,
     environment: BTreeMap<String, String>,
     resources: Resources,
+    network: NetworkPolicy,
+    supervisor: Option<SupervisorPlan>,
 }
 
 impl SandboxSpec {
@@ -299,7 +303,84 @@ impl SandboxSpec {
             arguments,
             environment,
             resources,
+            network,
+            supervisor: None,
         })
+    }
+
+    /// Attach the runtime-owned replay supervisor to this launch.
+    pub fn with_supervisor(mut self, supervisor: SupervisorPlan) -> Self {
+        self.supervisor = Some(supervisor);
+        self
+    }
+
+    /// Network policy requested by this validated specification.
+    pub fn network_policy(&self) -> NetworkPolicy {
+        // `new` rejects every policy except Deny, so this is an attested value.
+        NetworkPolicy::Deny
+    }
+
+    /// Absolute pinned adapter executable path.
+    pub fn program(&self) -> &str {
+        &self.program
+    }
+
+    /// Adapter argument vector in launch order.
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
+
+    /// Environment passed to the pinned adapter process.
+    pub fn environment(&self) -> &BTreeMap<String, String> {
+        &self.environment
+    }
+}
+
+/// Validated input for one supervised adapter launch.
+///
+/// The specification and process limits are constructed before this value is
+/// handed to the backend; the backend still rechecks the network invariant at
+/// the launch boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SandboxLaunchInput {
+    spec: SandboxSpec,
+    limits: ProcessLimits,
+    replay_handoff: Option<ReplayRelayHandoff>,
+}
+
+impl SandboxLaunchInput {
+    /// Bind a validated sandbox specification to bounded process limits.
+    pub fn new(spec: SandboxSpec, limits: ProcessLimits) -> Result<Self, SandboxError> {
+        if spec.network_policy() != NetworkPolicy::Deny {
+            return Err(SandboxError::NetworkPolicy);
+        }
+        Ok(Self {
+            spec,
+            limits,
+            replay_handoff: None,
+        })
+    }
+
+    /// Validated sandbox specification.
+    pub fn spec(&self) -> &SandboxSpec {
+        &self.spec
+    }
+
+    /// Bounded process limits.
+    pub fn limits(&self) -> ProcessLimits {
+        self.limits
+    }
+
+    /// Attach a validated private replay relay handoff to this launch.
+    pub fn with_replay_handoff(mut self, handoff: ReplayRelayHandoff) -> Result<Self, RelayError> {
+        handoff.validate()?;
+        self.replay_handoff = Some(handoff);
+        Ok(self)
+    }
+
+    /// Return the authenticated relay metadata, if configured.
+    pub fn replay_handoff(&self) -> Option<&ReplayRelayHandoff> {
+        self.replay_handoff.as_ref()
     }
 }
 
@@ -381,6 +462,18 @@ impl SandboxBackend {
         self.spawn_with_identity(spec, lease, limits, unit, nonce)
     }
 
+    /// Spawn a validated adapter launch under the denied-network sandbox.
+    pub fn spawn_launch(
+        &self,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+    ) -> Result<SandboxProcess, SandboxError> {
+        if input.spec.network_policy() != NetworkPolicy::Deny {
+            return Err(SandboxError::NetworkPolicy);
+        }
+        self.spawn(input.spec, lease, input.limits)
+    }
+
     fn spawn_with_identity(
         &self,
         spec: SandboxSpec,
@@ -421,10 +514,32 @@ impl SandboxBackend {
             .args(["--setenv", "HOME", "/workspace"])
             .args(["--setenv", "TMPDIR", "/tmp"])
             .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
+        const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
+        if let Some(plan) = &spec.supervisor {
+            if plan.supervisor().is_none() {
+                return Err(SandboxError::DelegationRejected);
+            }
+            let metadata = fs::symlink_metadata(plan.relay()).map_err(|_| {
+                SandboxError::Run(ProcessError::Spawn(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "replay relay socket is unavailable",
+                )))
+            })?;
+            if !metadata.file_type().is_socket() || metadata.permissions().mode() & 0o077 != 0 {
+                return Err(SandboxError::DelegationRejected);
+            }
+            command.arg("--bind").arg(plan.relay()).arg(RELAY_TARGET);
+        }
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
-        command.arg("--").arg(&spec.program).args(&spec.arguments);
+        if let Some(plan) = &spec.supervisor {
+            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
+            command.arg("--").arg(supervisor.executable());
+            command.args(plan.arguments_for_relay(Path::new(RELAY_TARGET)));
+        } else {
+            command.arg("--").arg(&spec.program).args(&spec.arguments);
+        }
         let mut process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
         let scope_cleanup_required = match await_scope_ownership(
             &mut process,
@@ -900,6 +1015,8 @@ pub enum LeaseError {
 /// Sandbox execution failure.
 #[derive(Debug)]
 pub enum SandboxError {
+    /// A launch attempted to bypass the denied-network boundary.
+    NetworkPolicy,
     /// Process boundary failure.
     Run(ProcessError),
     /// Executable identity mismatch.
