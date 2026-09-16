@@ -433,7 +433,6 @@ impl RemoteTlsConfig {
         rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
         tls.sock
             .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
-        rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
         tls.sock
             .set_write_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
         Ok(tls)
@@ -490,6 +489,7 @@ impl RemoteTlsClient {
         if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
             return Err(TransportError::RemoteAlpnMismatch);
         }
+        rustix::net::sockopt::set_socket_keepalive(&tls.sock, true).map_err(io::Error::from)?;
         tls.sock
             .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
         tls.sock
@@ -1107,6 +1107,7 @@ mod tests {
             let mut tls = server
                 .accept(stream, remote_config())
                 .expect("mutual TLS handshake");
+            assert!(rustix::net::sockopt::socket_keepalive(&tls.sock).unwrap());
             let version: ControlVersion = read_frame(&mut tls, remote_config().limits).unwrap();
             assert_eq!(version, CONTROL_V1);
             write_frame(&mut tls, &version, remote_config().limits).unwrap();
@@ -1115,6 +1116,7 @@ mod tests {
         let mut tls = client
             .connect(stream, "localhost", remote_config())
             .expect("mutual TLS client handshake");
+        assert!(rustix::net::sockopt::socket_keepalive(&tls.sock).unwrap());
         write_frame(&mut tls, &CONTROL_V1, remote_config().limits).unwrap();
         let response: ControlVersion = read_frame(&mut tls, remote_config().limits).unwrap();
         assert_eq!(response, CONTROL_V1);
