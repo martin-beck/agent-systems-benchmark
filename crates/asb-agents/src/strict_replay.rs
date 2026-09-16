@@ -564,6 +564,20 @@ mod tests {
     }
 
     #[test]
+    fn executor_recovery_closes_stale_attempt_without_fallback() {
+        let (executor, route, request) = qualified_executor_fixture();
+        executor.recover_after_restart().unwrap();
+        assert_eq!(
+            executor.execute(&route, request),
+            Err(StrictReplayError::LifecycleClosed)
+        );
+        assert_eq!(
+            executor.recover_after_restart(),
+            Err(StrictReplayError::LifecycleClosed)
+        );
+    }
+
+    #[test]
     fn sandbox_launch_requires_record_bound_command_digest() {
         let launch = input();
         let record = StrictReplayLaunchRecord {
