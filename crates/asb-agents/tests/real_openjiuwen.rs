@@ -15,7 +15,6 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const WHEEL_SHA256: &str = "21e9479c6b858cda28c250d63066f862fc0915cf2039edb00f016cbec7f9abba";
-const INTERPRETER_SHA256: &str = "1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118";
 const PUBLIC_SENTINEL: &str = "asb-loopback-public-sentinel";
 const PRIVATE_SENTINELS: [&str; 5] = [
     "asb-ambient-private",
@@ -175,13 +174,25 @@ fn validate_scratch_root(path: &Path) -> Result<(), &'static str> {
     }
     Ok(())
 }
-fn verify_artifacts_at(executable: &Path, wheel: &Path) -> Result<PathBuf, &'static str> {
+fn verify_artifacts_at(
+    executable: &Path,
+    wheel: &Path,
+    expected_interpreter: &Path,
+    expected_interpreter_sha256: &str,
+) -> Result<PathBuf, &'static str> {
     if !executable.is_absolute()
         || !wheel.is_absolute()
+        || !expected_interpreter.is_absolute()
         || executable.is_symlink()
         || wheel.is_symlink()
+        || expected_interpreter.is_symlink()
         || !executable.is_file()
         || !wheel.is_file()
+        || !expected_interpreter.is_file()
+        || expected_interpreter_sha256.len() != 64
+        || !expected_interpreter_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
     {
         return Err("artifact path is not an absolute regular non-symlink file");
     }
@@ -200,12 +211,12 @@ fn verify_artifacts_at(executable: &Path, wheel: &Path) -> Result<PathBuf, &'sta
         return Err("entrypoint is outside the runtime root");
     }
     let interpreter = runtime.join("bin/python");
-    if fs::read_link(&interpreter).ok().as_deref() != Some(Path::new("/usr/bin/python3.12"))
+    if fs::read_link(&interpreter).ok().as_deref() != Some(expected_interpreter)
         || !interpreter.is_file()
         || format!(
             "{:x}",
-            Sha256::digest(fs::read(&interpreter).map_err(|_| "interpreter unreadable")?)
-        ) != INTERPRETER_SHA256
+            Sha256::digest(fs::read(expected_interpreter).map_err(|_| "interpreter unreadable")?,)
+        ) != expected_interpreter_sha256
     {
         return Err("runtime interpreter identity mismatch");
     }
@@ -222,7 +233,7 @@ fn verify_artifacts_at(executable: &Path, wheel: &Path) -> Result<PathBuf, &'sta
 import base64,csv,hashlib,importlib.metadata,json,pathlib,re,sys,zipfile
 root=pathlib.Path(sys.argv[1]).resolve(); wheel=pathlib.Path(sys.argv[2]).resolve(); lock=pathlib.Path(sys.argv[3])
 if pathlib.Path(sys.prefix).resolve()!=root: raise SystemExit('runtime root mismatch')
-site=root/'lib/python3.12/site-packages'; dist=site/'openjiuwen-0.1.17.post1.dist-info'
+site=root/f'lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages'; dist=site/'openjiuwen-0.1.17.post1.dist-info'
 if not dist.is_dir(): raise SystemExit('distribution identity missing')
 ep=(dist/'entry_points.txt').read_text()
 if 'openjiuwen = openjiuwen.harness.cli.cli:cli' not in ep: raise SystemExit('entrypoint metadata mismatch')
@@ -283,6 +294,53 @@ print(json.dumps({'packages':len(installed_versions),'record_files':checked,'whe
     }
     Ok(runtime.to_path_buf())
 }
+fn verified_interpreter_from_manifest(manifest: &Path) -> Result<(PathBuf, String), &'static str> {
+    if !manifest.is_absolute()
+        || manifest.is_symlink()
+        || !manifest.is_file()
+        || fs::metadata(manifest)
+            .map_err(|_| "interpreter manifest metadata unavailable")?
+            .len()
+            > 4096
+    {
+        return Err("interpreter manifest is not a bounded regular non-symlink file");
+    }
+    let value: Value =
+        serde_json::from_slice(&fs::read(manifest).map_err(|_| "interpreter manifest unreadable")?)
+            .map_err(|_| "interpreter manifest malformed")?;
+    let object = value
+        .as_object()
+        .ok_or("interpreter manifest must be an object")?;
+    if object.len() != 3 || value["schema_version"] != 1 {
+        return Err("interpreter manifest schema mismatch");
+    }
+    let interpreter = PathBuf::from(
+        value["interpreter_path"]
+            .as_str()
+            .ok_or("interpreter manifest path missing")?,
+    );
+    let digest = value["interpreter_sha256"]
+        .as_str()
+        .ok_or("interpreter manifest digest missing")?
+        .to_owned();
+    if !interpreter.is_absolute()
+        || interpreter.is_symlink()
+        || !interpreter.is_file()
+        || digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        || format!(
+            "{:x}",
+            Sha256::digest(
+                fs::read(&interpreter).map_err(|_| { "interpreter manifest target unreadable" })?
+            )
+        ) != digest
+    {
+        return Err("interpreter manifest identity mismatch");
+    }
+    Ok((interpreter, digest))
+}
 fn verify_artifacts() -> (PathBuf, PathBuf) {
     assert_eq!(
         std::env::var("ASB_OPENJIUWEN_LOOPBACK_ONLY").as_deref(),
@@ -291,19 +349,70 @@ fn verify_artifacts() -> (PathBuf, PathBuf) {
     let executable =
         PathBuf::from(std::env::var_os("ASB_OPENJIUWEN_EXECUTABLE").expect("pinned executable"));
     let wheel = PathBuf::from(std::env::var_os("ASB_OPENJIUWEN_WHEEL").expect("pinned wheel"));
-    verify_artifacts_at(&executable, &wheel).unwrap();
+    let interpreter =
+        PathBuf::from(std::env::var_os("ASB_OPENJIUWEN_INTERPRETER").expect("pinned interpreter"));
+    let interpreter_sha256 =
+        std::env::var("ASB_OPENJIUWEN_INTERPRETER_SHA256").expect("pinned interpreter digest");
+    let manifest = PathBuf::from(
+        std::env::var_os("ASB_OPENJIUWEN_INTERPRETER_MANIFEST")
+            .expect("verified interpreter manifest"),
+    );
+    let (manifest_interpreter, manifest_digest) =
+        verified_interpreter_from_manifest(&manifest).expect("verified interpreter manifest");
+    assert_eq!(
+        interpreter, manifest_interpreter,
+        "interpreter is not runner-bound"
+    );
+    assert_eq!(
+        interpreter_sha256, manifest_digest,
+        "interpreter digest is not runner-bound"
+    );
+    verify_artifacts_at(&executable, &wheel, &interpreter, &interpreter_sha256).unwrap();
     (executable, wheel)
 }
 #[test]
 fn artifact_attestation_rejects_arbitrary_executables() {
-    assert!(verify_artifacts_at(Path::new("/bin/true"), Path::new("/bin/true")).is_err());
+    assert!(
+        verify_artifacts_at(
+            Path::new("/bin/true"),
+            Path::new("/bin/true"),
+            Path::new("/bin/true"),
+            "0".repeat(64).as_str(),
+        )
+        .is_err()
+    );
+}
+#[test]
+fn interpreter_manifest_rejects_mismatched_identity() {
+    let path = std::env::temp_dir().join(format!(
+        "asb-openjiuwen-manifest-{}.json",
+        std::process::id()
+    ));
+    fs::write(
+        &path,
+        r#"{"schema_version":1,"interpreter_path":"/bin/true","interpreter_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        verified_interpreter_from_manifest(&path),
+        Err("interpreter manifest identity mismatch")
+    );
+    fs::remove_file(path).unwrap();
 }
 #[test]
 #[ignore = "requires pinned OpenJiuwen 0.1.17.post1 wheel"]
 fn artifact_attestation_rejects_mismatched_entrypoint_with_valid_wheel() {
     let wheel =
         PathBuf::from(std::env::var_os("ASB_OPENJIUWEN_WHEEL").expect("pinned OpenJiuwen wheel"));
-    assert!(verify_artifacts_at(Path::new("/bin/true"), &wheel).is_err());
+    assert!(
+        verify_artifacts_at(
+            Path::new("/bin/true"),
+            &wheel,
+            Path::new("/bin/true"),
+            "0".repeat(64).as_str(),
+        )
+        .is_err()
+    );
 }
 fn wait_file(path: &Path, timeout: Duration) {
     let deadline = Instant::now() + timeout;
