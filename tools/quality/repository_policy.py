@@ -64,6 +64,7 @@ GITHUB_WEB_FLOW_KEY_SHA256 = (
 )
 GITHUB_WEB_FLOW_FINGERPRINT = "968479A1AFF927E37D1A566BB5690EEEBB952194"
 GITHUB_COMMITTER = "GitHub <noreply@github.com>"
+LOCAL_COMMITTER = "Martin Beck <martin.beck2@gmx.de>"
 PROTECTED_EVENT = "push"
 PROTECTED_REF = "refs/heads/main"
 QUALITY_SIGNATURE_STEP = """      - name: Enforce repository and commit policy
@@ -559,17 +560,22 @@ def validate_commits(
         ["git", "-C", str(root), "show", "-s", "--format=%cn <%ce>", head],
         text=True,
     ).strip()
-    if committer != GITHUB_COMMITTER:
-        fail("protected-main merge committer is not exact GitHub Web Flow")
     for revision in topic_revisions:
         verify_ssh(root, allowed, revision)
-    verify_github_web_flow(
-        root,
-        web_flow_key or root / GITHUB_WEB_FLOW_KEY.relative_to(ROOT),
-        web_flow_key_sha256,
-        web_flow_fingerprint,
-        head,
-    )
+    if committer == GITHUB_COMMITTER:
+        # Historical GitHub-created merges remain verifiable as evidence, but
+        # repository settings and the integration tool forbid creating new ones.
+        verify_github_web_flow(
+            root,
+            web_flow_key or root / GITHUB_WEB_FLOW_KEY.relative_to(ROOT),
+            web_flow_key_sha256,
+            web_flow_fingerprint,
+            head,
+        )
+    elif committer == LOCAL_COMMITTER:
+        verify_ssh(root, allowed, head)
+    else:
+        fail("protected-main merge committer is not an authorized integration identity")
 
 
 def main() -> int:
