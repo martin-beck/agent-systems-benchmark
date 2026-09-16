@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asb.example.invalid/schema/cli/strict-replay-plan-v1.json",
+  "additionalProperties": false,
+  "type": "object",
+  "title": "ASB strict replay CLI plan v1",
+  "properties": {
+    "schema_version": { "const": 1, "type": "integer" },
+    "cassette_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "cassette_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "cassette_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "route_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "provider_dialect": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "adapter": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "attempt_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "workload_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "command_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "egress": { "type": "string", "enum": ["loopback_only"] },
+    "timeout_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 }
+  },
+  "required": ["schema_version", "cassette_path", "cassette_sha256", "cassette_id", "route_sha256", "provider_dialect", "adapter", "run_id", "attempt_id", "workload_sha256", "command_sha256", "egress", "timeout_ms"]
+}

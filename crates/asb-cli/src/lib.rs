@@ -5,6 +5,7 @@
 pub mod capabilities;
 mod control;
 mod provider_launch;
+pub mod replay_contract;
 mod tui;
 pub mod tui_handoff;
 
