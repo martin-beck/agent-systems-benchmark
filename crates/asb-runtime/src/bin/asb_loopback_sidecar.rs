@@ -73,6 +73,8 @@ fn copy_bounded(reader: &mut impl Read, writer: &mut impl Write) -> io::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::net::UnixListener;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn bounded_copy_preserves_bytes() {
@@ -90,5 +92,52 @@ mod tests {
         let error = copy_bounded(&mut input, &mut output).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::Other);
         assert!(output.len() <= MAX_BYTES as usize);
+    }
+
+    #[test]
+    fn authenticated_relay_forwards_http_without_host_network() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-relay-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("relay.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut handshake = Vec::new();
+            let mut byte = [0_u8; 1];
+            while handshake.last() != Some(&b'\n') {
+                stream.read_exact(&mut byte).unwrap();
+                handshake.push(byte[0]);
+            }
+            assert_eq!(handshake, b"ASB-REPLAY/generation-1\n");
+            let mut request = [0_u8; 128];
+            let count = stream.read(&mut request).unwrap();
+            assert_eq!(&request[..count], b"GET /health HTTP/1.1\r\n\r\n");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+                .unwrap();
+            stream.shutdown(std::net::Shutdown::Both).unwrap();
+        });
+        let tcp_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = tcp_listener.local_addr().unwrap();
+        let client = std::thread::spawn(move || {
+            let mut stream = TcpStream::connect(address).unwrap();
+            stream.write_all(b"GET /health HTTP/1.1\r\n\r\n").unwrap();
+            stream.shutdown(std::net::Shutdown::Write).unwrap();
+            let mut response = Vec::new();
+            stream.read_to_end(&mut response).unwrap();
+            response
+        });
+        let (stream, _) = tcp_listener.accept().unwrap();
+        forward(stream, path.clone(), "generation-1".into()).unwrap();
+        let response = client.join().unwrap();
+        server.join().unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
