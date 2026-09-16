@@ -252,6 +252,10 @@ def main() -> None:
         executable = verify_archive(archive, lock, Path(cache) / "unpacked")
         report = qualify(executable, (str(args.runner),) if args.runner else ())
         report["platform"] = artifact_name
+        repeat = qualify(executable, (str(args.runner),) if args.runner else ())
+        if repeat["cases"] != report["cases"]:
+            raise QualificationError("repeat qualification produced different case results")
+        report["repeatability"] = "stable case inventory and semantic hashes"
     payload = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if args.output:
         args.output.write_text(payload, encoding="utf-8")
