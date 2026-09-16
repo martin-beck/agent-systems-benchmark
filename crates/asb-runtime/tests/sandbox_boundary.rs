@@ -64,6 +64,17 @@ fn limits() -> ProcessLimits {
     .unwrap()
 }
 
+fn short_limits() -> ProcessLimits {
+    ProcessLimits::new(
+        64 * 1024,
+        64 * 1024,
+        Duration::from_millis(100),
+        Duration::from_millis(100),
+        Duration::from_millis(5),
+    )
+    .unwrap()
+}
+
 fn resolve_target_root(value: Option<std::ffi::OsString>, current: &Path) -> PathBuf {
     let Some(value) = value else {
         return env::temp_dir();
@@ -435,6 +446,37 @@ fn short_process_completes_without_ambiguous_scope_ownership() {
     assert_eq!(process.wait().unwrap().exit_code, Some(0));
     drop(process);
     assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
+}
+
+#[test]
+fn launch_wrapper_timeout_and_crash_are_terminal() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    for (name, action) in [("launch-timeout", "sleep"), ("launch-crash", "crash")] {
+        let root = test_root(name);
+        let r = resources(8);
+        let input = SandboxLaunchInput::new(
+            spec(&root, name, action, r.clone(), BTreeMap::new()),
+            if action == "sleep" {
+                short_limits()
+            } else {
+                limits()
+            },
+        )
+        .unwrap();
+        if action == "sleep" {
+            let mut process = backend.spawn_launch(input, lease(&root, &r)).unwrap();
+            let output = process.wait().unwrap();
+            assert_eq!(output.termination, Termination::TimedOut);
+            assert_eq!(process.lifecycle(), ProcessLifecycle::Terminal);
+        } else {
+            assert!(matches!(
+                backend.spawn_launch(input, lease(&root, &r)),
+                Err(SandboxError::ScopeOwnership { .. })
+            ));
+        }
+    }
 }
 
 #[test]
