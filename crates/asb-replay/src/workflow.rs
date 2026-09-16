@@ -195,6 +195,8 @@ pub struct RecordingCampaign {
     pub workloads: Vec<(String, String)>,
     /// Maximum tuples admitted for this campaign.
     pub max_tuples: u16,
+    /// Upper-bound cost estimate for each tuple in minor currency units.
+    pub cost_per_tuple_minor: u64,
 }
 
 impl RecordingCampaign {
@@ -232,11 +234,39 @@ impl RecordingCampaign {
                     workload_id: workload_id.clone(),
                     scorer_revision: scorer_revision.clone(),
                     attempt_id: format!("{}-{}-attempt", agent_id, workload_id),
-                    estimated_cost_minor: 0,
+                    estimated_cost_minor: self.cost_per_tuple_minor,
                 });
             }
         }
         Ok(tuples)
+    }
+
+    /// Execute each tuple once, persisting only bounded coverage metadata.
+    pub fn execute<F, C>(
+        &self,
+        mut capture: F,
+        mut cancelled: C,
+    ) -> Result<Vec<RecordingCoverage>, RecordingWorkflowError>
+    where
+        F: FnMut(&RecordingTuple) -> Result<RecordingCoverageState, RecordingWorkflowError>,
+        C: FnMut() -> bool,
+    {
+        let tuples = self.expand()?;
+        let mut coverage = Vec::with_capacity(tuples.len());
+        for tuple in tuples {
+            if cancelled() {
+                break;
+            }
+            let mut entry = RecordingCoverage {
+                tuple,
+                state: RecordingCoverageState::Ready,
+            };
+            entry.transition(RecordingCoverageState::InProgress)?;
+            let terminal = capture(&entry.tuple)?;
+            entry.transition(terminal)?;
+            coverage.push(entry);
+        }
+        Ok(coverage)
     }
 }
 
@@ -360,6 +390,10 @@ fn valid_identity(value: &str) -> bool {
 mod tests {
     use super::*;
     use crate::{RecordingDescriptor, decode_cassette};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
 
     fn capture() -> RecordingCapture {
         let cassette = decode_cassette(
@@ -390,6 +424,7 @@ mod tests {
             agent_ids: vec!["codex".into(), "aider".into()],
             workloads: vec![("bug-fix".into(), "scorer-v1".into())],
             max_tuples: 2,
+            cost_per_tuple_minor: 7,
         };
         let tuples = campaign.expand().unwrap();
         assert_eq!(tuples.len(), 2);
@@ -405,6 +440,7 @@ mod tests {
             agent_ids: vec!["codex".into(), "aider".into()],
             workloads: vec![("unsafe id".into(), "v1".into())],
             max_tuples: 4,
+            cost_per_tuple_minor: 7,
         };
         assert!(matches!(
             campaign.expand(),
@@ -426,6 +462,7 @@ mod tests {
             agent_ids: vec!["codex".into()],
             workloads: vec![("bug-fix".into(), "v1".into())],
             max_tuples: 1,
+            cost_per_tuple_minor: 7,
         }
         .expand()
         .unwrap()
@@ -458,6 +495,7 @@ mod tests {
             agent_ids: vec!["codex".into()],
             workloads: vec![("bug-fix".into(), "v1".into())],
             max_tuples: 1,
+            cost_per_tuple_minor: 7,
         }
         .expand()
         .unwrap()
@@ -476,6 +514,33 @@ mod tests {
                 .transition(RecordingCoverageState::InProgress)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn campaign_executor_is_bounded_costed_and_cancellable() {
+        let campaign = RecordingCampaign {
+            schema_version: 1,
+            provider_profile_sha256: "a".repeat(64),
+            agent_ids: vec!["codex".into(), "aider".into()],
+            workloads: vec![("bug-fix".into(), "v1".into())],
+            max_tuples: 2,
+            cost_per_tuple_minor: 9,
+        };
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_for_capture = Arc::clone(&calls);
+        let calls_for_cancel = Arc::clone(&calls);
+        let result = campaign
+            .execute(
+                |_| {
+                    calls_for_capture.fetch_add(1, Ordering::Relaxed);
+                    Ok(RecordingCoverageState::Complete)
+                },
+                || calls_for_cancel.load(Ordering::Relaxed) > 0,
+            )
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tuple.estimated_cost_minor, 9);
+        assert_eq!(result[0].state, RecordingCoverageState::Complete);
     }
 
     #[test]
