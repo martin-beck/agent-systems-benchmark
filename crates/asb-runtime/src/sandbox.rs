@@ -519,6 +519,9 @@ impl SandboxBackend {
             .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
         const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
         if let Some(plan) = &spec.supervisor {
+            if plan.supervisor().is_none() {
+                return Err(SandboxError::DelegationRejected);
+            }
             let metadata = fs::symlink_metadata(plan.relay()).map_err(|_| {
                 SandboxError::Run(ProcessError::Spawn(io::Error::new(
                     io::ErrorKind::NotFound,
@@ -534,7 +537,8 @@ impl SandboxBackend {
             command.args(["--setenv", key, value]);
         }
         if let Some(plan) = &spec.supervisor {
-            command.arg("--").arg(plan.executable());
+            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
+            command.arg("--").arg(supervisor.executable());
             command.args(plan.arguments_for_relay(Path::new(RELAY_TARGET)));
         } else {
             command.arg("--").arg(&spec.program).args(&spec.arguments);

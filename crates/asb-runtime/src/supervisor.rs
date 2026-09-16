@@ -7,6 +7,7 @@
 //! host-network flag, an unpinned executable, or an unbounded relay into the
 //! sandbox boundary.
 
+use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
@@ -51,6 +52,32 @@ impl PinnedCommand {
         })
     }
 
+    /// Pin an executable to its current immutable SHA-256 content.
+    pub fn new_verified(
+        executable: PathBuf,
+        arguments: Vec<String>,
+        expected_digest: &str,
+    ) -> Result<Self, SupervisorError> {
+        let command = Self::new(executable, arguments, expected_digest.to_owned())?;
+        let mut file = std::fs::File::open(&command.executable)
+            .map_err(|_| SupervisorError::ExecutableUnavailable)?;
+        let mut digest = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let read = std::io::Read::read(&mut file, &mut buffer)
+                .map_err(|_| SupervisorError::ExecutableUnavailable)?;
+            if read == 0 {
+                break;
+            }
+            digest.update(&buffer[..read]);
+        }
+        let observed = format!("{:x}", digest.finalize());
+        if observed != expected_digest {
+            return Err(SupervisorError::ExecutableDigestMismatch);
+        }
+        Ok(command)
+    }
+
     /// Executable path.
     pub fn executable(&self) -> &Path {
         &self.executable
@@ -68,6 +95,7 @@ impl PinnedCommand {
 /// Authenticated, per-launch supervisor handoff.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupervisorPlan {
+    supervisor: Option<PinnedCommand>,
     sidecar: PinnedCommand,
     adapter: PinnedCommand,
     relay: PathBuf,
@@ -99,6 +127,7 @@ impl SupervisorPlan {
             return Err(SupervisorError::InvalidHandoff);
         }
         Ok(Self {
+            supervisor: None,
             sidecar,
             adapter,
             relay,
@@ -106,6 +135,17 @@ impl SupervisorPlan {
             route_digest,
             timeout,
         })
+    }
+
+    /// Attach the content-pinned supervisor executable from the trusted bundle.
+    pub fn with_supervisor(mut self, supervisor: PinnedCommand) -> Self {
+        self.supervisor = Some(supervisor);
+        self
+    }
+
+    /// Content-pinned supervisor executable, when configured.
+    pub fn supervisor(&self) -> Option<&PinnedCommand> {
+        self.supervisor.as_ref()
     }
 
     /// Sidecar command.
@@ -172,11 +212,6 @@ impl SupervisorPlan {
         }
         args
     }
-
-    /// Fixed in-tree supervisor executable used by the runtime launcher.
-    pub fn executable(&self) -> &'static Path {
-        Path::new("/usr/bin/asb_loopback_supervisor")
-    }
 }
 
 /// Configuration rejected before any process or namespace is created.
@@ -186,6 +221,10 @@ pub enum SupervisorError {
     InvalidCommand,
     /// Relay, generation, route, or deadline handoff was invalid.
     InvalidHandoff,
+    /// The pinned executable could not be read.
+    ExecutableUnavailable,
+    /// The executable content changed after its digest was selected.
+    ExecutableDigestMismatch,
 }
 
 impl std::fmt::Display for SupervisorError {
