@@ -169,6 +169,16 @@ impl RecordingCoverage {
             Err(RecordingWorkflowError::CoverageTransition)
         }
     }
+
+    /// Reconcile an interrupted attempt without repeating uncertain provider work.
+    pub fn reconcile_after_restart(&mut self) -> Result<(), RecordingWorkflowError> {
+        if self.state == RecordingCoverageState::InProgress {
+            self.state = RecordingCoverageState::Stale;
+            Ok(())
+        } else {
+            Err(RecordingWorkflowError::CoverageTransition)
+        }
+    }
 }
 
 /// Explicit bounded matrix of recording work.
@@ -434,6 +444,38 @@ mod tests {
             coverage.transition(RecordingCoverageState::InProgress),
             Err(RecordingWorkflowError::CoverageTransition)
         ));
+        assert!(matches!(
+            coverage.reconcile_after_restart(),
+            Err(RecordingWorkflowError::CoverageTransition)
+        ));
+    }
+
+    #[test]
+    fn interrupted_attempt_becomes_stale_and_is_not_replayed() {
+        let tuple = RecordingCampaign {
+            schema_version: 1,
+            provider_profile_sha256: "a".repeat(64),
+            agent_ids: vec!["codex".into()],
+            workloads: vec![("bug-fix".into(), "v1".into())],
+            max_tuples: 1,
+        }
+        .expand()
+        .unwrap()
+        .remove(0);
+        let mut coverage = RecordingCoverage {
+            tuple,
+            state: RecordingCoverageState::Ready,
+        };
+        coverage
+            .transition(RecordingCoverageState::InProgress)
+            .unwrap();
+        coverage.reconcile_after_restart().unwrap();
+        assert_eq!(coverage.state, RecordingCoverageState::Stale);
+        assert!(
+            coverage
+                .transition(RecordingCoverageState::InProgress)
+                .is_err()
+        );
     }
 
     #[test]
