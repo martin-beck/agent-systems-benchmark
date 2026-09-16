@@ -3,7 +3,7 @@
   "title": "ASB strict replay launch v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "cassette_sha256", "route_sha256", "provider_dialect", "adapter", "run_id", "attempt_id", "workload_sha256", "egress", "timeout_ms"],
+  "required": ["schema_version", "cassette_sha256", "route_sha256", "provider_dialect", "adapter", "run_id", "attempt_id", "workload_sha256", "command_sha256", "egress", "timeout_ms"],
   "properties": {
     "schema_version": {"const": 1},
     "cassette_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -13,6 +13,7 @@
     "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
     "attempt_id": {"type": "string", "minLength": 1, "maxLength": 128},
     "workload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "command_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "egress": {"const": "loopback_only"},
     "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 86400000}
   }
