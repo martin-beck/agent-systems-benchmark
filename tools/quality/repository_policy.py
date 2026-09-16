@@ -126,6 +126,29 @@ def validate_manifest() -> dict[str, object]:
     return data
 
 
+def validate_gitleaks_config() -> None:
+    """Reject broad or unknown Gitleaks policy changes before scanning."""
+    path = ROOT / ".gitleaks.toml"
+    try:
+        import tomllib
+        value = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, ModuleNotFoundError) as error:
+        fail(f"Gitleaks configuration is not valid TOML: {error}")
+    if set(value) != {"title", "extend", "allowlists"}:
+        fail("Gitleaks configuration has unexpected top-level keys")
+    if value["title"] != "ASB secret scan policy" or value["extend"] != {"useDefault": True}:
+        fail("Gitleaks configuration must retain the default rules")
+    allowlists = value["allowlists"]
+    expected = [{
+        "description": "Content-addressed tokenizer metadata is not a credential",
+        "paths": [r"^tools/local-inference-profiles/profiles-v1\.json$"],
+        "regexTarget": "match",
+        "regexes": [r'"tokenizer_sha256"\s*:\s*"[0-9a-f]{64}"'],
+    }]
+    if allowlists != expected:
+        fail("Gitleaks configuration allowlist is broader than the approved exception")
+
+
 def validate_workflows(manifest: dict[str, object]) -> None:
     expected = set(manifest["actions"].values())
     found: set[str] = set()
@@ -603,6 +626,7 @@ def main() -> int:
             print("repository policy: source headers passed")
             return 0
         manifest = validate_manifest()
+        validate_gitleaks_config()
         validate_workflows(manifest)
         validate_markdown(files)
         validate_merge_integrity_tools()

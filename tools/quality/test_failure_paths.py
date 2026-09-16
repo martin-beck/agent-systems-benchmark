@@ -130,6 +130,44 @@ def main() -> int:
         git(leaked, "commit", "-qm", "bad fixture")
         must_fail("gitleaks", [gitleaks, "git", "--no-banner", str(leaked)])
 
+        scoped = temp / "gitleaks-scoped"
+        scoped.mkdir()
+        init_git(scoped)
+        (scoped / ".gitleaks.toml").write_text((ROOT / ".gitleaks.toml").read_text(encoding="utf-8"), encoding="utf-8")
+        (scoped / "base").write_text("base\n", encoding="utf-8")
+        git(scoped, "add", ".")
+        git(scoped, "commit", "-qm", "base")
+        base_revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=scoped, text=True).strip()
+        git(scoped, "checkout", "-qb", "unrelated")
+        fixture_secret = "7f4c8b2e" + "91a6d305" + "c7e8f142" + "0b9a6d3e" + "5c7f8a1b" + "2d4e6f80" + "91a3c5e7" + "b9d2f4a6"
+        (scoped / "unrelated.txt").write_text(f"api_key = {fixture_secret}\n", encoding="utf-8")
+        git(scoped, "add", "unrelated.txt")
+        git(scoped, "commit", "-qm", "unrelated secret")
+        unrelated_revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=scoped, text=True).strip()
+        git(scoped, "checkout", "-q", "-b", "main", base_revision)
+        (scoped / "introduced.txt").write_text("ordinary change\n", encoding="utf-8")
+        git(scoped, "add", "introduced.txt")
+        git(scoped, "commit", "-qm", "introduced change")
+        wrapper = str(ROOT / "tools/quality/run_gitleaks.sh")
+        must_fail("scoped introduced secret", [wrapper, "--gitleaks", gitleaks, "--config", str(scoped / ".gitleaks.toml"), "--base", base_revision, "--head", unrelated_revision, "--repo", str(scoped)])
+        subprocess.run([wrapper, "--gitleaks", gitleaks, "--config", str(scoped / ".gitleaks.toml"), "--base", base_revision, "--head", "HEAD", "--repo", str(scoped)], check=True, capture_output=True, text=True)
+        print("positive fixture passed: unrelated branch is outside the scanned range")
+
+        bad_config = temp / "bad-gitleaks-config"
+        shutil.copytree(ROOT, bad_config, ignore=shutil.ignore_patterns(".git", "target"))
+        init_git(bad_config)
+        (bad_config / ".gitleaks.toml").write_text(
+            'title = "ASB secret scan policy"\n\n[extend]\nuseDefault = false\n',
+            encoding="utf-8",
+        )
+        git(bad_config, "add", ".")
+        git(bad_config, "commit", "-qm", "bad gitleaks policy")
+        must_fail(
+            "Gitleaks configuration policy",
+            ["python3", str(bad_config / "tools/quality/repository_policy.py"), "--head", "HEAD", "--skip-commits"],
+            cwd=bad_config,
+        )
+
         missing_dco = temp / "missing-dco"
         shutil.copytree(ROOT, missing_dco, ignore=shutil.ignore_patterns(".git", "target"))
         init_git(missing_dco)
