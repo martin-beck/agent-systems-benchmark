@@ -1863,6 +1863,11 @@ fn execute_inner(
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
     let (plan, selection) = load_plan_and_selection(path, selection_path)?;
+    if plan.experiment.controls.replay.mode == asb_protocol::ReplayMode::Replay {
+        return Err(CliError::validation(
+            "run cannot use a replay plan without an explicit strict cassette execution",
+        ));
+    }
     let measurement_selection = effective_measurement_selection(&plan)?;
     if sweep && plan.point.sweep_max_concurrency.is_none() {
         return Err(CliError::validation("sweep requires sweep_max_concurrency"));
@@ -4189,6 +4194,30 @@ mod tests {
         );
         assert!(!plan.result_root.exists());
         assert!(!plan.work_root.exists());
+    }
+
+    #[test]
+    fn run_replay_mode_fails_closed_before_creating_execution_roots() {
+        let scratch = Scratch::new("replay-run");
+        let (path, mut plan) = plan_fixture(&scratch.0, "replay-run");
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        plan.experiment.controls.replay.cassette_sha256 = Some("a".repeat(64));
+        plan.experiment.refresh_content_address().unwrap();
+        fs::write(&path, toml::to_string(&plan).unwrap()).unwrap();
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run(
+                &["run".into(), path.as_os_str().to_owned()],
+                &mut output,
+                &mut diagnostic,
+            ),
+            3
+        );
+        assert!(!plan.result_root.exists());
+        assert!(!plan.work_root.exists());
+        let error: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(error["error"]["code"], "validation");
     }
 
     #[test]
