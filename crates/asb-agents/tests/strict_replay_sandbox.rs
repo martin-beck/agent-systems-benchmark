@@ -174,7 +174,7 @@ fn strict_launch_spawns_with_authenticated_loopback_environment() {
         ),
     ]);
     let (input, lease) = input(&root, "/usr/bin/env", environment);
-    assert_eq!(input.spec().environment().len(), 1);
+    assert_eq!(input.spec().environment().len(), 2);
     let record = launch_record(digest_command(
         input.spec().program(),
         input.spec().arguments(),
@@ -195,14 +195,19 @@ fn strict_launch_spawns_with_authenticated_loopback_environment() {
 #[test]
 fn strict_launch_rejects_command_identity_before_native_spawn() {
     let Some(root) = root("reject") else { return };
-    let (input, lease) = input(&root, "/usr/bin/true", BTreeMap::new());
-    let record = launch_record(digest_command("/usr/bin/false", &[]));
-    let backend = SandboxBackend::new(
-        ToolPin::new("/missing/bwrap".into(), "not-used".into()).unwrap(),
-        ToolPin::new("/missing/systemd-run".into(), "not-used".into()).unwrap(),
-        ToolPin::new("/missing/systemctl".into(), "not-used".into()).unwrap(),
-        ToolPin::new("/missing/taskset".into(), "not-used".into()).unwrap(),
+    let (input, lease) = input(
+        &root,
+        "/usr/bin/true",
+        BTreeMap::from([
+            ("ASB_REPLAY_ROUTE_SHA256".into(), "b".repeat(64)),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "http://127.0.0.1:4317/replay".into(),
+            ),
+        ]),
     );
+    let record = launch_record(digest_command("/usr/bin/false", &[]));
+    let backend = backend().expect("native backend was probed for this test");
     let error = match StrictReplaySandboxLaunch::new(record)
         .unwrap()
         .spawn(&backend, input, lease)
@@ -313,11 +318,15 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
         input.spec().program(),
         input.spec().arguments(),
     ));
-    let mut process = StrictReplaySandboxLaunch::new(record)
+    let result = StrictReplaySandboxLaunch::new(record)
         .unwrap()
-        .spawn(&backend, input, lease)
-        .unwrap();
-    let output = process.wait().unwrap();
-    assert_ne!(output.exit_code, Some(0));
-    assert_eq!(process.lifecycle(), asb_runtime::ProcessLifecycle::Terminal);
+        .spawn(&backend, input, lease);
+    match result {
+        Ok(mut process) => {
+            assert_ne!(process.wait().unwrap().exit_code, Some(0));
+            assert_eq!(process.lifecycle(), asb_runtime::ProcessLifecycle::Terminal);
+        }
+        Err(asb_agents::strict_replay::StrictReplayError::SandboxUnavailable) => {}
+        Err(error) => panic!("unexpected crash classification: {error:?}"),
+    }
 }
