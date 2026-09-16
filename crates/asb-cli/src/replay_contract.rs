@@ -135,6 +135,16 @@ pub fn resolve_strict_replay(
     }) {
         return Err(ReplayContractError::InvalidPlan);
     }
+    let mut route = Sha256::new();
+    route.update(b"asb-strict-replay-route-v1");
+    route.update(plan.session_id.as_bytes());
+    route.update([0]);
+    route.update(plan.attempt_id.as_bytes());
+    route.update([0]);
+    route.update(format!("{:?}", cassette.contents.interactions[0].dialect).as_bytes());
+    if format!("{:x}", route.finalize()) != plan.route_sha256 {
+        return Err(ReplayContractError::DigestMismatch);
+    }
     let input = StrictReplayLaunchV1 {
         schema_version: 1,
         cassette_sha256: plan.cassette_sha256.clone(),
@@ -213,7 +223,7 @@ mod tests {
             cassette_sha256: format!("{:x}", Sha256::digest(&bytes)),
             cassette_id: cassette.contents.cassette_id,
             session_id: "session-fixture".into(),
-            route_sha256: "b".repeat(64),
+            route_sha256: "b9ac9f7f23c8f5fdab8431b59618abacd2b78b25586e10bd31beb71cb3183789".into(),
             provider_dialect: "synthetic".into(),
             adapter: "codex".into(),
             run_id: "run-1".into(),

@@ -4,7 +4,7 @@
   "cassette_sha256": "529d11312261c2daef88c9c4a25ae4d14cf520f6931b2a09fff2466ffaa37167",
   "cassette_id": "fixture-buffered",
   "session_id": "session-fixture",
-  "route_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "route_sha256": "b9ac9f7f23c8f5fdab8431b59618abacd2b78b25586e10bd31beb71cb3183789",
   "provider_dialect": "synthetic",
   "adapter": "codex",
   "run_id": "run-1",
