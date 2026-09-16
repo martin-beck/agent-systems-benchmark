@@ -59,6 +59,7 @@ def main() -> int:
     parser.add_argument("--artifact-sha256", required=True)
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--verify-network-none", action="store_true")
+    parser.add_argument("--verify-artifact-version", action="store_true")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.timeout <= 0 or args.timeout > 600:
@@ -71,13 +72,17 @@ def main() -> int:
             if requested:
                 parser.error("network verification does not accept an additional command")
             requested = ["/bin/cat", "/proc/net/route"]
+        if args.verify_artifact_version:
+            if requested or args.verify_network_none:
+                parser.error("artifact version verification does not accept another mode or command")
+            requested = ["/input/artifact", "--version"]
         command = build_command(args.artifact, requested)
     except ValueError as error:
         parser.error(str(error))
     started = time.monotonic()
     try:
         result = subprocess.run(command, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE if args.verify_network_none else subprocess.DEVNULL,
+                                stdout=subprocess.PIPE if (args.verify_network_none or args.verify_artifact_version) else subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, timeout=args.timeout, check=False)
     except subprocess.TimeoutExpired:
         print(json.dumps({"status": "timeout"}, sort_keys=True))
@@ -88,6 +93,12 @@ def main() -> int:
             print(json.dumps({"status": "network-denial-failed"}, sort_keys=True))
             return 1
         print(json.dumps({"status": "network-none-verified"}, sort_keys=True))
+        return 0
+    if args.verify_artifact_version:
+        if result.returncode != 0 or b"0.5.0" not in result.stdout:
+            print(json.dumps({"status": "artifact-identity-failed"}, sort_keys=True))
+            return 1
+        print(json.dumps({"status": "artifact-version-verified"}, sort_keys=True))
         return 0
     elapsed_ms = int((time.monotonic() - started) * 1000)
     print(json.dumps({"status": "completed", "exit_code": result.returncode, "elapsed_ms": elapsed_ms}, sort_keys=True))
