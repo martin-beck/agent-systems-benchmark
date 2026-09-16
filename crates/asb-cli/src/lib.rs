@@ -406,6 +406,8 @@ struct ReplayWorkflowOutput {
     command: &'static str,
     source: ExecutionSource,
     network: &'static str,
+    /// Replay is deterministic evidence, not a fresh model-quality measurement.
+    fresh_model_quality: bool,
     provider_profile_sha256: String,
     agent_id: String,
     cassette_sha256: String,
@@ -535,6 +537,7 @@ fn replay(
             command: "replay",
             source,
             network: "denied",
+            fresh_model_quality: false,
             provider_profile_sha256: provider_profile_sha256.to_owned(),
             agent_id: agent_id.to_owned(),
             cassette_sha256: cassette.integrity.digest,
