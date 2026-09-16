@@ -44,3 +44,8 @@ AR-1253 pins the fixture runtime to the immutable Python 3.13.15 amd64 image
 `python@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e`.
 The closed manifest requires `--network none` and `python3 -S`; mutable tags,
 digest drift, unknown fields, and ambient site initialization fail closed.
+
+AR-1254's `transport_fixture.py` verifies ordered tool events and bounded
+process cancellation/cleanup. Its non-loopback attempt is labeled
+`unavailable-outside-isolation`; only the pinned runner's `--network none`
+execution can promote that observation to denial evidence.
