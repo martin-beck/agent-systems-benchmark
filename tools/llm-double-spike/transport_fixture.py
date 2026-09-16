@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: MIT
 """Bounded credential-free transport lifecycle fixture for MockAgents evidence."""
 from __future__ import annotations
-import argparse, http.client, json, os, signal, socket, subprocess, sys, threading
+import argparse, hashlib, http.client, json, os, signal, socket, subprocess, sys, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 MAX_BODY = 64 * 1024
+LOCK = Path(__file__).with_name("mockagents-v0.5.0.lock.json")
 
 class FixtureHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -52,13 +53,28 @@ def invoke_runner(runner: Path, artifact: Path, digest: str) -> bool:
     result = subprocess.run([sys.executable, str(runner), "--image", "python@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e", "--artifact", str(artifact), "--artifact-sha256", digest, "--verify-artifact-version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=120, text=True, check=False)
     return result.returncode == 0 and "artifact-version-verified" in result.stdout
 
+def pinned_digest(platform: str) -> str:
+    value = json.loads(LOCK.read_text(encoding="utf-8"))
+    artifacts = value.get("artifacts", {})
+    entry = artifacts.get(platform)
+    if not isinstance(entry, dict) or set(entry) != {"url", "size", "sha256"}:
+        raise ValueError("platform artifact pin is malformed")
+    digest = entry["sha256"]
+    if not isinstance(digest, str) or len(digest) != 64 or not all(char in "0123456789abcdef" for char in digest):
+        raise ValueError("platform artifact digest is not immutable")
+    return digest
+
+def invoke_network_probe(runner: Path, artifact: Path, digest: str) -> bool:
+    result = subprocess.run([sys.executable, str(runner), "--artifact", str(artifact), "--artifact-sha256", digest, "--verify-network-none"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=120, text=True, check=False)
+    return result.returncode == 0 and "network-none-verified" in result.stdout
+
 def outbound_attempt() -> str:
     try:
         with socket.create_connection(("192.0.2.1", 9), timeout=1): return "unexpectedly-connected"
     except (OSError, TimeoutError): return "unavailable-outside-isolation"
 
 def main() -> int:
-    parser = argparse.ArgumentParser(); parser.add_argument("--executable", type=Path); parser.add_argument("--runner", type=Path); parser.add_argument("--artifact", type=Path); parser.add_argument("--artifact-sha256"); args = parser.parse_args()
+    parser = argparse.ArgumentParser(); parser.add_argument("--executable", type=Path); parser.add_argument("--runner", type=Path); parser.add_argument("--artifact", type=Path); parser.add_argument("--artifact-sha256"); parser.add_argument("--network-probe", action="store_true"); parser.add_argument("--platform", choices=("linux-amd64", "linux-arm64"), default="linux-amd64"); args = parser.parse_args()
     first = loopback_ordering()
     if first != loopback_ordering() or not cancellation_cleanup():
         print(json.dumps({"status": "failed"}, sort_keys=True)); return 1
@@ -66,9 +82,16 @@ def main() -> int:
     if args.executable is not None and (not args.executable.is_file() or not args.executable.stat().st_mode & 0o111):
         print(json.dumps({"status": "failed"}, sort_keys=True)); return 1
     if args.runner is not None:
-        if args.artifact is None or args.artifact_sha256 is None or not invoke_runner(args.runner, args.artifact, args.artifact_sha256):
+        if args.artifact is None or args.artifact_sha256 is None or args.artifact_sha256 != pinned_digest(args.platform):
             print(json.dumps({"status": "runner-invocation-failed"}, sort_keys=True)); return 1
-        report["mockagents_runner"] = "pinned-version-verified"
+        if args.network_probe:
+            if not invoke_network_probe(args.runner, args.artifact, args.artifact_sha256):
+                print(json.dumps({"status": "network-denial-unproven"}, sort_keys=True)); return 1
+            report["network"] = "none-verified"
+        elif not invoke_runner(args.runner, args.artifact, args.artifact_sha256):
+            print(json.dumps({"status": "runner-invocation-failed"}, sort_keys=True)); return 1
+        report["mockagents_runner"] = "pinned-version-verified" if not args.network_probe else "network-none-probed"
+    report["platform"] = args.platform
     print(json.dumps(report, sort_keys=True)); return 0
 
 if __name__ == "__main__": raise SystemExit(main())
