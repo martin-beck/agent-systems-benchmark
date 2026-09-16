@@ -309,6 +309,37 @@ impl SandboxSpec {
     }
 }
 
+/// Validated input for one supervised adapter launch.
+///
+/// The specification and process limits are constructed before this value is
+/// handed to the backend; the backend still rechecks the network invariant at
+/// the launch boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SandboxLaunchInput {
+    spec: SandboxSpec,
+    limits: ProcessLimits,
+}
+
+impl SandboxLaunchInput {
+    /// Bind a validated sandbox specification to bounded process limits.
+    pub fn new(spec: SandboxSpec, limits: ProcessLimits) -> Result<Self, SandboxError> {
+        if spec.network_policy() != NetworkPolicy::Deny {
+            return Err(SandboxError::NetworkPolicy);
+        }
+        Ok(Self { spec, limits })
+    }
+
+    /// Validated sandbox specification.
+    pub fn spec(&self) -> &SandboxSpec {
+        &self.spec
+    }
+
+    /// Bounded process limits.
+    pub fn limits(&self) -> ProcessLimits {
+        self.limits
+    }
+}
+
 fn valid_key(key: &str) -> bool {
     let mut bytes = key.bytes();
     bytes
@@ -385,6 +416,18 @@ impl SandboxBackend {
     ) -> Result<SandboxProcess, SandboxError> {
         let (unit, nonce) = new_scope_identity()?;
         self.spawn_with_identity(spec, lease, limits, unit, nonce)
+    }
+
+    /// Spawn a validated adapter launch under the denied-network sandbox.
+    pub fn spawn_launch(
+        &self,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+    ) -> Result<SandboxProcess, SandboxError> {
+        if input.spec.network_policy() != NetworkPolicy::Deny {
+            return Err(SandboxError::NetworkPolicy);
+        }
+        self.spawn(input.spec, lease, input.limits)
     }
 
     fn spawn_with_identity(
@@ -906,6 +949,8 @@ pub enum LeaseError {
 /// Sandbox execution failure.
 #[derive(Debug)]
 pub enum SandboxError {
+    /// A launch attempted to bypass the denied-network boundary.
+    NetworkPolicy,
     /// Process boundary failure.
     Run(ProcessError),
     /// Executable identity mismatch.
