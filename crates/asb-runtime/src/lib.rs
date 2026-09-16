@@ -10,6 +10,8 @@ pub mod loopback_sidecar;
 pub mod sandbox;
 /// Bounded closed-loop and open-loop experiment scheduling.
 pub mod scheduler;
+/// Private-namespace replay supervisor contracts and lifecycle validation.
+pub mod supervisor;
 
 #[cfg(not(target_os = "linux"))]
 compile_error!("asb-runtime currently supports Linux process semantics only");
