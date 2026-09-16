@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! Owner-only Linux Unix-domain transport.
 
+use std::collections::VecDeque;
 use std::fs::{self, Permissions};
 use std::io;
+use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
@@ -20,6 +22,87 @@ use rustls::{ClientConfig, ClientConnection, ServerConfig, ServerConnection, Str
 use thiserror::Error;
 
 use crate::ControlLimits;
+
+/// Stream boundary used by bounded frame transport implementations.
+pub trait RemoteIo: Read + Write {}
+
+impl<T: Read + Write> RemoteIo for T {}
+
+/// Deterministic byte-stream fault fixture for transport-level tests.
+#[derive(Debug, Default)]
+pub struct FaultInjectingIo {
+    incoming: VecDeque<u8>,
+    outgoing: Vec<u8>,
+    drop_writes_after: Option<usize>,
+    writes: usize,
+    reorder_reads: bool,
+}
+
+impl FaultInjectingIo {
+    /// Create a fixture with bytes that a peer would send.
+    pub fn new(incoming: impl IntoIterator<Item = u8>) -> Self {
+        Self {
+            incoming: incoming.into_iter().collect(),
+            ..Self::default()
+        }
+    }
+
+    /// Drop writes after `count` successful writes, modelling a partition.
+    pub fn drop_writes_after(mut self, count: usize) -> Self {
+        self.drop_writes_after = Some(count);
+        self
+    }
+
+    /// Reverse each available read chunk, modelling deterministic reordering.
+    pub fn reorder_reads(mut self) -> Self {
+        self.reorder_reads = true;
+        self
+    }
+
+    /// Bytes successfully written by the fixture.
+    #[must_use]
+    pub fn outgoing(&self) -> &[u8] {
+        &self.outgoing
+    }
+}
+
+impl Read for FaultInjectingIo {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        if self.incoming.is_empty() {
+            return Ok(0);
+        }
+        let count = output.len().min(self.incoming.len());
+        for slot in output.iter_mut().take(count) {
+            *slot = if self.reorder_reads {
+                self.incoming.pop_back().expect("count bounds")
+            } else {
+                self.incoming.pop_front().expect("count bounds")
+            };
+        }
+        Ok(count)
+    }
+}
+
+impl Write for FaultInjectingIo {
+    fn write(&mut self, input: &[u8]) -> io::Result<usize> {
+        if self
+            .drop_writes_after
+            .is_some_and(|limit| self.writes >= limit)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "fault fixture partition",
+            ));
+        }
+        self.writes += 1;
+        self.outgoing.extend_from_slice(input);
+        Ok(input.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Explicit admission policy for the optional remote control boundary.
 ///
@@ -839,6 +922,16 @@ mod tests {
             RemoteRateLimiter::new(0),
             Err(TransportError::RemoteInvalidLimit)
         ));
+    }
+
+    #[test]
+    fn fault_fixture_rejects_partition_and_reordered_frames() {
+        let mut encoded = Vec::new();
+        write_frame(&mut encoded, &CONTROL_V1, ControlLimits::default()).unwrap();
+        let mut partition = FaultInjectingIo::default().drop_writes_after(0);
+        assert!(write_frame(&mut partition, &CONTROL_V1, ControlLimits::default()).is_err());
+        let mut reordered = FaultInjectingIo::new(encoded).reorder_reads();
+        assert!(read_frame::<ControlVersion>(&mut reordered, ControlLimits::default()).is_err());
     }
 
     fn test_tls_configs() -> (RemoteTlsConfig, RemoteTlsClient, RemoteTlsClient) {
