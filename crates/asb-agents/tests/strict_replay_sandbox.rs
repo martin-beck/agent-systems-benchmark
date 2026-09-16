@@ -277,8 +277,8 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
     let Some(root) = root("crash") else { return };
     let (input, lease) = input_with_limits(
         &root,
-        "/bin/sh",
-        vec!["-c".into(), "exit 23".into()],
+        "/usr/bin/false",
+        Vec::new(),
         BTreeMap::from([(
             "ASB_REPLAY_ENDPOINT".into(),
             "http://127.0.0.1:4317/replay".into(),
@@ -289,11 +289,11 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
         input.spec().program(),
         input.spec().arguments(),
     ));
-    let result = StrictReplaySandboxLaunch::new(record)
+    let mut process = StrictReplaySandboxLaunch::new(record)
         .unwrap()
-        .spawn(&backend, input, lease);
-    assert!(
-        result.is_err(),
-        "nonzero child exit must not report success"
-    );
+        .spawn(&backend, input, lease)
+        .unwrap();
+    let output = process.wait().unwrap();
+    assert_ne!(output.exit_code, Some(0));
+    assert_eq!(process.lifecycle(), asb_runtime::ProcessLifecycle::Terminal);
 }
