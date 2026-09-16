@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from run_isolated import build_command  # noqa: E402
+from run_isolated import build_command, verify_artifact  # noqa: E402
 
 
 class RunnerContractTests(unittest.TestCase):
@@ -43,6 +44,13 @@ class RunnerContractTests(unittest.TestCase):
             build_command(self.artifact, ["/bin/sh"])
         with self.assertRaises(ValueError):
             build_command(self.artifact, ["-c", "true"])
+
+    def test_artifact_digest_mismatch_is_rejected(self) -> None:
+        with tempfile.NamedTemporaryFile() as artifact:
+            artifact.write(b"pinned fixture")
+            artifact.flush()
+            with self.assertRaises(ValueError):
+                verify_artifact(Path(artifact.name), "0" * 64)
 
 
 if __name__ == "__main__":
