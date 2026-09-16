@@ -449,11 +449,12 @@ pub enum TransportError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{CONTROL_V1, ControlVersion, FrameError, read_frame, write_frame};
     use rcgen::generate_simple_self_signed;
     use rustls::RootCertStore;
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
     use rustls::server::WebPkiClientVerifier;
-    use std::io::{Read, Write};
+    use std::io::Write;
     use std::net::TcpListener;
     use std::thread;
 
@@ -590,19 +591,39 @@ mod tests {
             let mut tls = server
                 .accept(stream, remote_config())
                 .expect("mutual TLS handshake");
-            let mut body = [0_u8; 5];
-            tls.read_exact(&mut body).unwrap();
-            tls.write_all(b"world").unwrap();
+            let version: ControlVersion = read_frame(&mut tls, remote_config().limits).unwrap();
+            assert_eq!(version, CONTROL_V1);
+            write_frame(&mut tls, &version, remote_config().limits).unwrap();
         });
         let stream = TcpStream::connect(address).unwrap();
         let mut tls = client
             .connect(stream, "localhost", remote_config())
             .expect("mutual TLS client handshake");
-        tls.write_all(b"hello").unwrap();
-        let mut response = [0_u8; 5];
-        tls.read_exact(&mut response).unwrap();
-        assert_eq!(&response, b"world");
+        write_frame(&mut tls, &CONTROL_V1, remote_config().limits).unwrap();
+        let response: ControlVersion = read_frame(&mut tls, remote_config().limits).unwrap();
+        assert_eq!(response, CONTROL_V1);
         server_thread.join().unwrap();
+    }
+
+    #[test]
+    fn tls_frame_rejects_oversized_length_without_allocating() {
+        let (server, client, _) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut tls = server.accept(stream, remote_config()).unwrap();
+            matches!(
+                read_frame::<ControlVersion>(&mut tls, remote_config().limits),
+                Err(FrameError::InvalidLength { .. })
+            )
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let mut tls = client
+            .connect(stream, "localhost", remote_config())
+            .unwrap();
+        tls.write_all(&(u32::MAX.to_be_bytes())).unwrap();
+        assert!(server_thread.join().unwrap());
     }
 
     #[test]
