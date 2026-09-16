@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
+use crate::supervisor::SupervisorPlan;
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{FileTypeExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -245,6 +246,7 @@ pub struct SandboxSpec {
     environment: BTreeMap<String, String>,
     resources: Resources,
     network: NetworkPolicy,
+    supervisor: Option<SupervisorPlan>,
 }
 
 impl SandboxSpec {
@@ -303,7 +305,14 @@ impl SandboxSpec {
             environment,
             resources,
             network,
+            supervisor: None,
         })
+    }
+
+    /// Attach the runtime-owned replay supervisor to this launch.
+    pub fn with_supervisor(mut self, supervisor: SupervisorPlan) -> Self {
+        self.supervisor = Some(supervisor);
+        self
     }
 
     /// Network policy requested by this validated specification.
@@ -433,10 +442,28 @@ impl SandboxBackend {
             .args(["--setenv", "HOME", "/workspace"])
             .args(["--setenv", "TMPDIR", "/tmp"])
             .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
+        const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
+        if let Some(plan) = &spec.supervisor {
+            let metadata = fs::symlink_metadata(plan.relay()).map_err(|_| {
+                SandboxError::Run(ProcessError::Spawn(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "replay relay socket is unavailable",
+                )))
+            })?;
+            if !metadata.file_type().is_socket() || metadata.permissions().mode() & 0o077 != 0 {
+                return Err(SandboxError::DelegationRejected);
+            }
+            command.arg("--bind").arg(plan.relay()).arg(RELAY_TARGET);
+        }
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
-        command.arg("--").arg(&spec.program).args(&spec.arguments);
+        if let Some(plan) = &spec.supervisor {
+            command.arg("--").arg(plan.executable());
+            command.args(plan.arguments_for_relay(Path::new(RELAY_TARGET)));
+        } else {
+            command.arg("--").arg(&spec.program).args(&spec.arguments);
+        }
         let mut process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
         let scope_cleanup_required = match await_scope_ownership(
             &mut process,

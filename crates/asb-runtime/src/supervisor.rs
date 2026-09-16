@@ -140,10 +140,15 @@ impl SupervisorPlan {
     /// unless it can attest that loopback is ready and both children share its
     /// private namespace.
     pub fn arguments(&self) -> Vec<String> {
+        self.arguments_for_relay(&self.relay)
+    }
+
+    /// Arguments with the relay path visible inside a sandbox.
+    pub fn arguments_for_relay(&self, relay: &Path) -> Vec<String> {
         let mut args = vec![
             "--unshare-net".into(),
             "--relay".into(),
-            self.relay.display().to_string(),
+            relay.display().to_string(),
             "--generation".into(),
             self.generation.clone(),
             "--route-sha256".into(),
@@ -166,6 +171,11 @@ impl SupervisorPlan {
             args.extend(["--adapter-arg".to_owned(), arg.clone()]);
         }
         args
+    }
+
+    /// Fixed in-tree supervisor executable used by the runtime launcher.
+    pub fn executable(&self) -> &'static Path {
+        Path::new("/usr/bin/asb_loopback_supervisor")
     }
 }
 
@@ -204,6 +214,11 @@ mod tests {
         .unwrap();
         assert!(p.arguments().contains(&"--unshare-net".into()));
         assert!(!p.arguments().contains(&"--share-net".into()));
+        let args = p.arguments_for_relay(Path::new("/tmp/asb-replay-relay.sock"));
+        assert!(
+            args.windows(2)
+                .any(|pair| pair[0] == "--relay" && pair[1] == "/tmp/asb-replay-relay.sock")
+        );
     }
     #[test]
     fn rejects_traversal_and_unbounded_identity() {
