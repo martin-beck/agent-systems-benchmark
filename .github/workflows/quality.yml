@@ -94,11 +94,11 @@ jobs:
           RANGE_BASE: ${{ steps.range.outputs.base }}
           RANGE_HEAD: ${{ steps.range.outputs.head }}
         run: |
-          log_opts="$RANGE_HEAD"
+          args=(--gitleaks "$ASB_QUALITY_BIN/gitleaks" --config .gitleaks.toml --head "$RANGE_HEAD" --repo .)
           if [[ -n "$RANGE_BASE" ]]; then
-            log_opts="$RANGE_BASE..$RANGE_HEAD"
+            args+=(--base "$RANGE_BASE")
           fi
-          "$ASB_QUALITY_BIN/gitleaks" git --redact --no-banner --log-opts="$log_opts" .
+          tools/quality/run_gitleaks.sh "${args[@]}"
       - name: Check dependency policy and advisories
         run: |
           cargo deny --locked check
