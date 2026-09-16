@@ -78,6 +78,34 @@ impl PinnedCommand {
         Ok(command)
     }
 
+    /// Resolve a content-pinned executable from a verified bundle directory.
+    /// The relative path is confined to the bundle and is never interpreted
+    /// through a mutable system path.
+    pub fn from_bundle(
+        bundle_root: &Path,
+        relative_path: &Path,
+        arguments: Vec<String>,
+        expected_digest: &str,
+    ) -> Result<Self, SupervisorError> {
+        if relative_path.is_absolute()
+            || relative_path
+                .components()
+                .any(|component| matches!(component, Component::ParentDir))
+        {
+            return Err(SupervisorError::InvalidCommand);
+        }
+        let root = std::fs::canonicalize(bundle_root)
+            .map_err(|_| SupervisorError::ExecutableUnavailable)?;
+        let executable = root
+            .join(relative_path)
+            .canonicalize()
+            .map_err(|_| SupervisorError::ExecutableUnavailable)?;
+        if !executable.starts_with(&root) {
+            return Err(SupervisorError::InvalidCommand);
+        }
+        Self::new_verified(executable, arguments, expected_digest)
+    }
+
     /// Executable path.
     pub fn executable(&self) -> &Path {
         &self.executable
