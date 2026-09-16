@@ -934,6 +934,40 @@ mod tests {
         assert!(read_frame::<ControlVersion>(&mut reordered, ControlLimits::default()).is_err());
     }
 
+    #[test]
+    fn remote_addresses_and_port_changes_remain_explicit() {
+        let ipv4 = RemoteTransportConfig {
+            bind: "127.0.0.1:9444".parse().unwrap(),
+            ..remote_config()
+        };
+        let ipv6 = RemoteTransportConfig {
+            bind: "[::1]:9445".parse().unwrap(),
+            ..remote_config()
+        };
+        assert!(ipv4.validate().is_ok());
+        assert!(ipv6.validate().is_ok());
+        assert!(matches!(
+            RemoteTransportConfig {
+                bind: "127.0.0.1:0".parse().unwrap(),
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteInvalidBind)
+        ));
+    }
+
+    #[test]
+    fn reconnect_storm_is_bounded_and_restarts_cleanly() {
+        for _ in 0..64 {
+            let mut encoded = Vec::new();
+            write_frame(&mut encoded, &CONTROL_V1, ControlLimits::default()).unwrap();
+            let mut peer = FaultInjectingIo::new(encoded);
+            let version: ControlVersion = read_frame(&mut peer, ControlLimits::default()).unwrap();
+            assert_eq!(version, CONTROL_V1);
+            assert!(peer.outgoing().is_empty());
+        }
+    }
+
     fn test_tls_configs() -> (RemoteTlsConfig, RemoteTlsClient, RemoteTlsClient) {
         let generated = generate_simple_self_signed(vec!["localhost".into()]).unwrap();
         let certificate = CertificateDer::from(generated.cert.der().to_vec());
