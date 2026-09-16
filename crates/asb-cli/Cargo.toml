@@ -19,7 +19,7 @@ asb-workloads = { version = "=0.1.0", path = "../asb-workloads" }
 schemars = "=1.0.4"
 serde = { version = "=1.0.219", features = ["derive"] }
 serde_json = "=1.0.143"
-sha2 = "=0.10.9"
+sha2 = "=0.11.0"
 signal-hook = "=0.3.18"
 toml = "=0.8.23"
 libc = "=0.2.189"
