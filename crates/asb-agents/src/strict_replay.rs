@@ -145,6 +145,7 @@ impl StrictReplaySandboxLaunch {
         if input.spec().network_policy() != NetworkPolicy::Deny {
             return Err(StrictReplayError::IsolationUnavailable);
         }
+        self.validate_route_environment(input.spec().environment())?;
         if input.limits().timeout().as_millis() > u128::from(self.record.input.timeout_ms) {
             return Err(StrictReplayError::InvalidTimeout);
         }
@@ -156,6 +157,20 @@ impl StrictReplaySandboxLaunch {
         backend
             .spawn_launch(input, lease)
             .map_err(|_| StrictReplayError::SandboxUnavailable)
+    }
+
+    /// Validate the authenticated route digest and pinned local endpoint.
+    pub fn validate_route_environment(
+        &self,
+        environment: &std::collections::BTreeMap<String, String>,
+    ) -> Result<(), StrictReplayError> {
+        if environment.get("ASB_REPLAY_ROUTE_SHA256") != Some(&self.record.input.route_sha256) {
+            return Err(StrictReplayError::RouteMismatch);
+        }
+        let endpoint = environment
+            .get("ASB_REPLAY_ENDPOINT")
+            .ok_or(StrictReplayError::ExternalEndpoint)?;
+        StrictReplayExecutor::validate_endpoint(endpoint)
     }
 
     /// Authenticated launch record consumed by this seam.
