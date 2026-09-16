@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "cassette_path": "cassette.json",
+  "cassette_sha256": "529d11312261c2daef88c9c4a25ae4d14cf520f6931b2a09fff2466ffaa37167",
+  "cassette_id": "fixture-buffered",
+  "route_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "provider_dialect": "openai-chat-v1",
+  "adapter": "codex",
+  "run_id": "run-1",
+  "attempt_id": "attempt-1",
+  "workload_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "command_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "egress": "loopback_only",
+  "timeout_ms": 5000
+}
