@@ -17,6 +17,7 @@ fn input() -> (ProviderLaunchV1, ProviderLaunchProjection) {
         catalog_sha256: "a".repeat(64),
         selection_sha256: "b".repeat(64),
         provider_profile_sha256: "c".repeat(64),
+        endpoint_sha256: "7".repeat(64),
         agent: "codex".into(),
         adapter: "codex".into(),
         api_mode: EffectiveApiMode::Responses,

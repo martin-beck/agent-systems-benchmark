@@ -15,7 +15,7 @@ use asb_agents::all_agents_provider::{
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
-    RuntimeBundleIdentity,
+    RuntimeBundleIdentity, credential_target_for_agent,
 };
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
@@ -1030,6 +1030,7 @@ fn build_provider_launch(
         catalog_sha256: selection.catalog_sha256.clone(),
         selection_sha256: selection.selection_sha256.clone(),
         provider_profile_sha256: selection.provider_profile_sha256.clone(),
+        endpoint_sha256: profile.provider_profile().endpoint.identity_sha256.clone(),
         agent: selected.agent.clone(),
         adapter: selected.agent.clone(),
         api_mode: projection.api_mode(),
@@ -2482,6 +2483,7 @@ fn spawn_verified_agent(
                 .env(provider_launch::LAUNCH_VERSION_ENV, "1")
                 .env(provider_launch::LAUNCH_DIGEST_ENV, &launch.launch_sha256)
                 .env(provider_launch::PROVIDER_ENV, &launch.input.provider)
+                .env(provider_launch::ADAPTER_ENV, &launch.input.adapter)
                 .env(provider_launch::MODEL_ENV, &launch.input.model)
                 .env(
                     provider_launch::API_MODE_ENV,
@@ -2492,8 +2494,22 @@ fn spawn_verified_agent(
                     &launch.input.provider_profile_sha256,
                 )
                 .env(
+                    provider_launch::SETTINGS_DIGEST_ENV,
+                    &launch.input.settings_sha256,
+                )
+                .env(
+                    provider_launch::ENDPOINT_DIGEST_ENV,
+                    &launch.input.endpoint_sha256,
+                )
+                .env(
                     provider_launch::CREDENTIAL_REFERENCE_ENV,
                     &launch.input.credential.reference_sha256,
+                )
+                .env(
+                    provider_launch::CREDENTIAL_TARGET_ENV,
+                    credential_target_for_agent(&launch.input.adapter).ok_or_else(|| {
+                        CliError::validation("provider adapter credential target is unsupported")
+                    })?,
                 );
         }
         match RunningProcess::spawn(command, limits) {
@@ -3612,7 +3628,7 @@ mod tests {
         let path = root.join("fixture-agent");
         fs::write(
             &path,
-            b"#!/bin/sh\ntest ! -e ../.asb-private/prompt || exit 97\nif [ \"${ASB_PROVIDER_LAUNCH_V1:-}\" = 1 ]; then\n  test \"${ASB_PROVIDER_LAUNCH_SHA256:-}\" != \"\" || exit 98\n  test \"${ASB_PROVIDER:-}\" = openai || exit 99\n  test \"${ASB_PROVIDER_MODEL:-}\" != \"\" || exit 100\n  test \"${ASB_PROVIDER_PROFILE_SHA256:-}\" != \"\" || exit 101\nfi\nprintf '%s\\n' 'def parse_line(line):' '    if line.endswith(\"\\r\"):' '        line = line[:-1]' '    return line' > parser.py\n",
+            b"#!/bin/sh\ntest ! -e ../.asb-private/prompt || exit 97\nif [ \"${ASB_PROVIDER_LAUNCH_V1:-}\" = 1 ]; then\n  test \"${ASB_PROVIDER_LAUNCH_SHA256:-}\" != \"\" || exit 98\n  test \"${ASB_PROVIDER:-}\" = openai || exit 99\n  test \"${ASB_PROVIDER_MODEL:-}\" != \"\" || exit 100\n  test \"${ASB_PROVIDER_PROFILE_SHA256:-}\" != \"\" || exit 101\n  test \"${ASB_PROVIDER_CREDENTIAL_TARGET:-}\" = CODEX_API_KEY || exit 102\nfi\nprintf '%s\\n' 'def parse_line(line):' '    if line.endswith(\"\\r\"):' '        line = line[:-1]' '    return line' > parser.py\n",
         )
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
