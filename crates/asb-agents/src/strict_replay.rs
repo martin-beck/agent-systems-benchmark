@@ -406,4 +406,57 @@ mod tests {
                 .is_ok()
         );
     }
+
+    fn qualified_executor_fixture() -> (StrictReplayExecutor, ReplayRoute, ReplayHttpRequest) {
+        let cassette = decode_cassette(
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+            CassetteLimits::default(),
+        )
+        .unwrap();
+        let interaction = &cassette.contents.interactions[0];
+        let route = ReplayRoute {
+            session_id: interaction.session_id.clone(),
+            attempt_id: interaction.attempt_id.clone(),
+            dialect: interaction.dialect,
+        };
+        let request = ReplayHttpRequest {
+            method: interaction.request.method.clone(),
+            path: interaction.request.path.clone(),
+            headers: interaction.request.headers.clone(),
+            body: serde_json::to_vec(&interaction.request.body).unwrap(),
+        };
+        let mut launch = input();
+        launch.cassette_sha256 = cassette.integrity.digest.clone();
+        launch.route_sha256 = route_digest(&route);
+        launch.provider_dialect = "gemini-generate-content".into();
+        launch.attempt_id = route.attempt_id.clone();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        (
+            StrictReplayExecutor::new(record, cassette, Some(ProcessIsolationCapability::Verified))
+                .unwrap(),
+            route,
+            request,
+        )
+    }
+
+    #[test]
+    fn executor_executes_a_qualified_cassette_request() {
+        let (executor, route, request) = qualified_executor_fixture();
+        let response = executor.execute(&route, request).unwrap();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.segments.len(), 1);
+    }
+
+    #[test]
+    fn executor_rejects_unmatched_stale_route_before_service() {
+        let (executor, mut route, request) = qualified_executor_fixture();
+        route.attempt_id = "stale-attempt".into();
+        assert_eq!(
+            executor.execute(&route, request),
+            Err(StrictReplayError::AttemptMismatch)
+        );
+    }
 }
