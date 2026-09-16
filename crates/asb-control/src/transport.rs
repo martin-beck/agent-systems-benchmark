@@ -179,12 +179,17 @@ impl RemoteListener {
         if self.draining.load(Ordering::Acquire) != 0 {
             return Err(TransportError::RemoteDraining);
         }
+        let (stream, _) = self.listener.accept()?;
+        // Do not consume a lifecycle permit while waiting on the listener.
+        // Recheck drain after accept to close the race with begin_drain().
+        if self.draining.load(Ordering::Acquire) != 0 {
+            return Err(TransportError::RemoteDraining);
+        }
         let permit = RemoteConnectionPermit::acquire(
             Arc::clone(&self.active),
             self.config.max_connections,
             self.config.max_requests_per_connection,
         )?;
-        let (stream, _) = self.listener.accept()?;
         match self.tls.accept(stream, self.config) {
             Ok(stream) => Ok((stream, permit)),
             Err(error) => {
@@ -969,6 +974,24 @@ mod tests {
             listener.accept(),
             Err(TransportError::RemoteDraining)
         ));
+    }
+
+    #[test]
+    fn listener_drain_times_out_only_for_an_active_session() {
+        let (tls, _, _) = test_tls_configs();
+        let listener = RemoteListener {
+            listener: TcpListener::bind("127.0.0.1:0").unwrap(),
+            tls,
+            config: remote_config(),
+            active: Arc::new(AtomicU16::new(0)),
+            draining: Arc::new(AtomicU16::new(0)),
+        };
+        let permit = RemoteConnectionPermit::acquire(Arc::clone(&listener.active), 1, 1).unwrap();
+        assert!(matches!(
+            listener.drain_until(Instant::now()),
+            Err(TransportError::RemoteDrainTimeout)
+        ));
+        drop(permit);
     }
 
     #[test]
