@@ -117,6 +117,8 @@ pub enum StrictReplayError {
     SandboxUnavailable,
     /// The attempt lifecycle does not permit another operation.
     LifecycleClosed,
+    /// The runtime-issued relay handoff did not match the authenticated launch.
+    HandoffMismatch,
 }
 
 /// Cross-crate consumer seam for launching a strict replay adapter.
