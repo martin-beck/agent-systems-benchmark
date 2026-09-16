@@ -39,6 +39,11 @@ its exact response; it does not retroactively repair an old merge. Historical me
 `b6d04a8305ce6d49cc327e4e6d2d6fa42a88050b` remains unsigned/non-DCO. A signed descendant can
 restore a green current-main evidence range, but must not be described as changing that history.
 
+The later OpenJiuwen merge `1c07e907a6fdf270264a94bef4af6b8ac4e5cbaf` is likewise preserved as published
+history after its post-merge policy check rejected the missing DCO trailer. Recovery must add a new signed,
+DCO-bearing descendant through this local integration path and rerun exact-main policy; it must not rewrite
+or relabel the historical merge.
+
 That historical object has tree `579310d1a7d89418eaafb068a1c1369be5088fc4` and parents
 `a4e1a9de985a4c9f22628c6d604a6e62f4f173e3` and
 `6cf8384bc6cf05ada62abdc102c9f4994191afed`. Push workflow run
