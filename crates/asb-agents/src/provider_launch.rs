@@ -294,6 +294,12 @@ impl ProviderLaunchProjection {
         &self.credential
     }
 
+    /// Environment target owned by the selected adapter for credential injection.
+    pub fn credential_target(&self) -> &'static str {
+        credential_target_for_agent(&self.agent)
+            .expect("adapter projections are constructed only for known agents")
+    }
+
     /// Construct an exact projection from the pinned OpenAI adapter translation.
     pub fn openai(
         profile: &OpenAiProfile,
@@ -361,6 +367,18 @@ impl ProviderLaunchProjection {
             return Err(ProviderLaunchError::ProjectionMismatch("credential"));
         }
         Ok(())
+    }
+}
+
+/// Resolve the adapter-owned credential target without exposing credential material.
+pub fn credential_target_for_agent(agent: &str) -> Option<&'static str> {
+    match agent {
+        "codex" => Some("CODEX_API_KEY"),
+        "opendesk" => Some("OPENDESK_API_KEY"),
+        "opencode" | "aider" | "qwen_code" | "goose" | "mini_swe" | "openhands" => {
+            Some("OPENAI_API_KEY")
+        }
+        _ => None,
     }
 }
 
@@ -455,6 +473,18 @@ mod tests {
             ProviderLaunchRecord::bind(record.input, &drift),
             Err(ProviderLaunchError::ProjectionMismatch("model"))
         );
+    }
+
+    #[test]
+    fn credential_target_is_adapter_owned_and_closed() {
+        assert_eq!(credential_target_for_agent("codex"), Some("CODEX_API_KEY"));
+        assert_eq!(
+            credential_target_for_agent("opendesk"),
+            Some("OPENDESK_API_KEY")
+        );
+        assert_eq!(credential_target_for_agent("aider"), Some("OPENAI_API_KEY"));
+        assert_eq!(credential_target_for_agent("gemini"), None);
+        assert_eq!(credential_target_for_agent("unknown"), None);
     }
 
     #[test]

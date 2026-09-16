@@ -16,3 +16,5 @@ pub(crate) const API_MODE_ENV: &str = "ASB_PROVIDER_API_MODE";
 pub(crate) const PROFILE_DIGEST_ENV: &str = "ASB_PROVIDER_PROFILE_SHA256";
 /// Non-secret credential-reference identity selected by the launch contract.
 pub(crate) const CREDENTIAL_REFERENCE_ENV: &str = "ASB_PROVIDER_CREDENTIAL_REFERENCE_SHA256";
+/// Adapter-owned environment target selected for secret injection.
+pub(crate) const CREDENTIAL_TARGET_ENV: &str = "ASB_PROVIDER_CREDENTIAL_TARGET";
