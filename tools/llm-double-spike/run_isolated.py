@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -15,7 +17,7 @@ PROJECT_ROOT = Path("/srv/data/projects")
 FORBIDDEN = {"sh", "bash", "dash", "zsh", "-c", "--privileged", "--network=host"}
 
 
-def build_command(artifact: Path, command: list[str]) -> list[str]:
+def build_command(artifact: Path, command: list[str], name: str = "") -> list[str]:
     if artifact.is_symlink():
         raise ValueError("artifact must not be a symlink")
     resolved = artifact.resolve()
@@ -23,12 +25,15 @@ def build_command(artifact: Path, command: list[str]) -> list[str]:
         raise ValueError("artifact must be an existing non-symlink file under /srv/data/projects")
     if not command or any(Path(part).name in FORBIDDEN or part in FORBIDDEN for part in command):
         raise ValueError("a direct executable argument vector is required; shell commands are rejected")
+    if name and not re.fullmatch(r"asb-ar1252-[0-9]+", name):
+        raise ValueError("container name must be an internal asb-ar1252 name")
+    name_args = ["--name", name] if name else []
     return [
         "sudo", "-n", "docker", "run", "--rm", "--network", "none", "--read-only",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "128",
         "--memory", "2g", "--cpus", "2", "--ipc", "private",
         "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m", "--tmpfs", "/run:rw,noexec,nosuid,nodev,size=64m",
-        "--mount", f"type=bind,src={resolved},dst=/input/artifact,readonly", IMAGE, *command,
+        *name_args, "--mount", f"type=bind,src={resolved},dst=/input/artifact,readonly", IMAGE, *command,
     ]
 
 
@@ -51,6 +56,26 @@ def verify_artifact(path: Path, expected: str) -> None:
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     if digest != expected:
         raise ValueError("artifact does not match its pinned SHA-256")
+
+
+def verify_cleanup(name: str) -> bool:
+    """Prove Docker removed this run and clean up an unexpected residue."""
+    query = ["sudo", "-n", "docker", "ps", "-a", "--filter", f"name=^{name}$", "--format", "{{.Names}}"]
+    try:
+        result = subprocess.run(query, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=10, check=True, text=True)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if not result.stdout.strip():
+        return True
+    try:
+        subprocess.run(["sudo", "-n", "docker", "rm", "-f", name], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
+        result = subprocess.run(query, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=10, check=True, text=True)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return not result.stdout.strip()
 
 
 def main() -> int:
@@ -76,7 +101,8 @@ def main() -> int:
             if requested or args.verify_network_none:
                 parser.error("artifact version verification does not accept another mode or command")
             requested = ["/input/artifact", "--version"]
-        command = build_command(args.artifact, requested)
+        container_name = f"asb-ar1252-{os.getpid()}"
+        command = build_command(args.artifact, requested, container_name)
     except ValueError as error:
         parser.error(str(error))
     started = time.monotonic()
@@ -85,8 +111,12 @@ def main() -> int:
                                 stdout=subprocess.PIPE if (args.verify_network_none or args.verify_artifact_version) else subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, timeout=args.timeout, check=False)
     except subprocess.TimeoutExpired:
+        verify_cleanup(container_name)
         print(json.dumps({"status": "timeout"}, sort_keys=True))
         return 124
+    if not verify_cleanup(container_name):
+        print(json.dumps({"status": "cleanup-failed"}, sort_keys=True))
+        return 1
     if args.verify_network_none:
         lines = [line for line in result.stdout.splitlines() if line.strip()]
         if result.returncode != 0 or len(lines) != 1 or not lines[0].startswith(b"Iface"):

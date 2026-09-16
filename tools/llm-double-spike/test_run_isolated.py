@@ -29,9 +29,14 @@ class RunnerContractTests(unittest.TestCase):
         self.assertNotIn("--volume", command)
 
     def test_cleanup_is_container_owned(self) -> None:
-        command = build_command(self.artifact, ["/bin/true"])
+        command = build_command(self.artifact, ["/bin/true"], "asb-ar1252-123")
         self.assertEqual(command[command.index("--rm")], "--rm")
+        self.assertEqual(command[command.index("--name") + 1], "asb-ar1252-123")
         self.assertEqual(command[command.index("--mount") + 1].split(",")[-1], "readonly")
+
+    def test_container_name_is_internal_and_bounded(self) -> None:
+        with self.assertRaises(ValueError):
+            build_command(self.artifact, ["/bin/true"], "arbitrary-name")
 
     def test_shell_vectors_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
