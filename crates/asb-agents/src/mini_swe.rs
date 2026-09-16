@@ -1682,6 +1682,13 @@ mod tests {
         }
     }
 
+    fn required_process_identity(pid: u32) -> Option<ProcessIdentity> {
+        match read_process_identity(pid) {
+            Ok(identity) => identity,
+            Err(error) => panic!("process identity evidence failed: {error}"),
+        }
+    }
+
     #[allow(dead_code)]
     fn process_group_members(process_group: u32, session: u32) -> io::Result<Vec<ProcessIdentity>> {
         let mut members = Vec::new();
@@ -2150,10 +2157,7 @@ wait
                 && let Some(pids) = parse_pid_list_evidence(&bytes)
                 && pids.len() == 2
                 && pids.iter().all(|pid| {
-                    read_process_identity(*pid)
-                        .ok()
-                        .flatten()
-                        .is_some_and(|identity| identity.pid == *pid)
+                    required_process_identity(*pid).is_some_and(|identity| identity.pid == *pid)
                 })
             {
                 break pids;
@@ -2167,21 +2171,24 @@ wait
         assert_eq!(children.len(), 2);
         let original_children: Vec<_> = children
             .iter()
-            .map(|pid| read_process_identity(*pid).unwrap().unwrap())
+            .map(|pid| required_process_identity(*pid).unwrap())
             .collect();
+        let leader = required_process_identity(running.pid()).unwrap();
+        let (process_group, session) = (leader.process_group, leader.session);
         running.cancel().unwrap();
         assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
         let terminal_deadline = Instant::now() + Duration::from_secs(2);
         loop {
-            if original_children.iter().all(|original| {
-                matches!(
-                    classify_original(
-                        *original,
-                        read_process_identity(original.pid).ok().flatten()
-                    ),
-                    OriginalProcessState::Missing | OriginalProcessState::Zombie
-                )
-            }) {
+            if runnable_group_members(process_group, session)
+                .unwrap()
+                .is_empty()
+                && original_children.iter().all(|original| {
+                    matches!(
+                        classify_original(*original, required_process_identity(original.pid)),
+                        OriginalProcessState::Missing | OriginalProcessState::Zombie
+                    )
+                })
+            {
                 break;
             }
             assert!(
