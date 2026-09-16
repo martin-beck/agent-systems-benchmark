@@ -228,10 +228,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_traversal_symlink_digest_and_unknown_egress() {
+    fn rejects_traversal_symlink_digest_unknown_egress_and_oversize() {
         let root = fixture();
         let mut candidate = plan(root.path());
         candidate.cassette_path = "../cassette.json".into();
+        assert_eq!(
+            resolve_strict_replay(&candidate, root.path()),
+            Err(ReplayContractError::UnsafePath)
+        );
+        std::os::unix::fs::symlink(
+            root.path().join("cassette.json"),
+            root.path().join("link.json"),
+        )
+        .unwrap();
+        candidate = plan(root.path());
+        candidate.cassette_path = "link.json".into();
         assert_eq!(
             resolve_strict_replay(&candidate, root.path()),
             Err(ReplayContractError::UnsafePath)
@@ -247,6 +258,20 @@ mod tests {
         assert_eq!(
             resolve_strict_replay(&candidate, root.path()),
             Err(ReplayContractError::InvalidPlan)
+        );
+        let mut encoded = serde_json::to_value(plan(root.path())).unwrap();
+        encoded["egress"] = serde_json::json!("provider_network");
+        assert!(serde_json::from_value::<StrictReplayPlanV1>(encoded).is_err());
+        let oversized = root.path().join("oversized.json");
+        std::fs::File::create(&oversized)
+            .unwrap()
+            .set_len(MAX_CASSETTE_BYTES + 1)
+            .unwrap();
+        candidate = plan(root.path());
+        candidate.cassette_path = "oversized.json".into();
+        assert_eq!(
+            resolve_strict_replay(&candidate, root.path()),
+            Err(ReplayContractError::Oversized)
         );
     }
 }
