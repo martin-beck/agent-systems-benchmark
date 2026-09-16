@@ -170,6 +170,7 @@ fn short_limits() -> ProcessLimits {
 }
 
 #[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
 fn strict_launch_spawns_with_authenticated_loopback_environment() {
     let backend = required_backend();
     let root = required_root("success");
@@ -203,6 +204,7 @@ fn strict_launch_spawns_with_authenticated_loopback_environment() {
 }
 
 #[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
 fn strict_launch_rejects_command_identity_before_native_spawn() {
     let root = required_root("reject");
     let (input, lease) = input(
@@ -232,6 +234,7 @@ fn strict_launch_rejects_command_identity_before_native_spawn() {
 }
 
 #[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
 fn strict_launch_enforces_authenticated_timeout_on_child() {
     let backend = required_backend();
     let root = required_root("timeout");
@@ -268,6 +271,7 @@ fn strict_launch_enforces_authenticated_timeout_on_child() {
 }
 
 #[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
 fn strict_launch_cancellation_is_terminal_and_reaped() {
     let backend = required_backend();
     let root = required_root("cancel");
@@ -305,6 +309,7 @@ fn strict_launch_cancellation_is_terminal_and_reaped() {
 }
 
 #[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
 fn strict_launch_nonzero_child_exit_is_fail_closed() {
     let backend = required_backend();
     let root = required_root("crash");
@@ -342,6 +347,7 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
 }
 
 #[test]
+#[ignore = "requires pinned native sandbox and ASB_TEST_ROOT; run the dedicated native gate with --ignored"]
 fn strict_launch_child_provider_egress_is_denied() {
     let backend = required_backend();
     let root = required_root("egress");
