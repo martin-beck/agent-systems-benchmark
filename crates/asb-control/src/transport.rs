@@ -91,8 +91,11 @@ impl RemoteListener {
         ),
         TransportError,
     > {
-        let permit =
-            RemoteConnectionPermit::acquire(Arc::clone(&self.active), self.config.max_connections)?;
+        let permit = RemoteConnectionPermit::acquire(
+            Arc::clone(&self.active),
+            self.config.max_connections,
+            self.config.max_requests_per_connection,
+        )?;
         let (stream, _) = self.listener.accept()?;
         match self.tls.accept(stream, self.config) {
             Ok(stream) => Ok((stream, permit)),
@@ -114,6 +117,7 @@ impl RemoteListener {
 #[derive(Debug)]
 pub struct RemoteConnectionPermit {
     active: Arc<AtomicU16>,
+    requests: RemoteRequestGate,
 }
 
 /// Bounded per-connection request admission gate.
@@ -166,7 +170,11 @@ impl Drop for RemoteRequestPermit<'_> {
 }
 
 impl RemoteConnectionPermit {
-    fn acquire(active: Arc<AtomicU16>, maximum: u16) -> Result<Self, TransportError> {
+    fn acquire(
+        active: Arc<AtomicU16>,
+        maximum: u16,
+        request_maximum: u16,
+    ) -> Result<Self, TransportError> {
         let mut current = active.load(Ordering::Acquire);
         loop {
             if current >= maximum {
@@ -178,10 +186,18 @@ impl RemoteConnectionPermit {
                 Ordering::AcqRel,
                 Ordering::Acquire,
             ) {
-                Ok(_) => return Ok(Self { active }),
+                Ok(_) => {
+                    let requests = RemoteRequestGate::new(request_maximum)?;
+                    return Ok(Self { active, requests });
+                }
                 Err(observed) => current = observed,
             }
         }
+    }
+
+    /// Admit one request on this connection under its bounded backpressure gate.
+    pub fn admit_request(&self) -> Result<RemoteRequestPermit<'_>, TransportError> {
+        self.requests.acquire()
     }
 }
 
@@ -722,13 +738,19 @@ mod tests {
     #[test]
     fn remote_connection_capacity_is_raii_bounded() {
         let active = Arc::new(AtomicU16::new(0));
-        let first = RemoteConnectionPermit::acquire(Arc::clone(&active), 1).unwrap();
+        let first = RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1).unwrap();
+        let request = first.admit_request().unwrap();
         assert!(matches!(
-            RemoteConnectionPermit::acquire(Arc::clone(&active), 1),
+            first.admit_request(),
+            Err(TransportError::RemoteBackpressure)
+        ));
+        drop(request);
+        assert!(matches!(
+            RemoteConnectionPermit::acquire(Arc::clone(&active), 1, 1),
             Err(TransportError::RemoteCapacity)
         ));
         drop(first);
-        assert!(RemoteConnectionPermit::acquire(active, 1).is_ok());
+        assert!(RemoteConnectionPermit::acquire(active, 1, 1).is_ok());
     }
 
     #[test]
