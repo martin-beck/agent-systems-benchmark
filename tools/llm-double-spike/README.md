@@ -19,6 +19,12 @@ boundary prevents fixture success from being misreported as live-provider or
 candidate qualification. No private prompts, credentials, hosts, or unbounded
 responses are accepted.
 
+AR-1251 consumes the isolated executable runner with an explicit pinned artifact
+path and direct argument vector. The runner verifies its immutable image digest,
+uses `--network none`, and permits exactly one validated read-only artifact bind
+at `/input/artifact`; it rejects shell vectors and all other host mounts. The
+`--verify-network-none` mode provides the bounded route-table denial probe.
+
 ## Synthetic scenario contract
 
 `scenario.py` and `scenario.schema.json` define the versioned synthetic-only
