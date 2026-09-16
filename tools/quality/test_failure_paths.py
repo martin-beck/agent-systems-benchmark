@@ -191,7 +191,7 @@ def main() -> int:
         ).strip()
         checker = str(ROOT / "tools/quality/check_dco.py")
         must_fail(
-            "synthetic merge exclusion",
+            "unknown synthetic merge exclusion",
             ["python3", checker, "--root", str(merge_range), "--base", base, "--head", merge_head],
         )
         subprocess.run(
@@ -199,6 +199,19 @@ def main() -> int:
             check=True,
         )
         print("positive fixture passed: pull request base..head DCO range")
+
+        known_merge_checker = temp / "known-merge-checker.py"
+        known_merge_checker.write_text(
+            (ROOT / "tools/quality/check_dco.py")
+            .read_text(encoding="utf-8")
+            .replace("75248467a6fa900d654a8ab920c2a0405e2ff8c9", merge_head),
+            encoding="utf-8",
+        )
+        subprocess.run(
+            ["python3", str(known_merge_checker), "--root", str(merge_range), "--head", merge_head],
+            check=True,
+        )
+        print("positive fixture passed: exact historical merge exception")
 
         broken = temp / "mutable-action"
         shutil.copytree(ROOT, broken, ignore=shutil.ignore_patterns(".git", "target"))

@@ -9,6 +9,13 @@ import argparse
 import subprocess
 from pathlib import Path
 
+# PR #192 was published with this GitHub-generated merge commit. Preserve the
+# immutable history while keeping this exception exact and one-time: all other
+# commits, including future merges, still require a matching DCO trailer.
+KNOWN_HISTORICAL_UNSIGNED_MERGES = frozenset(
+    {"75248467a6fa900d654a8ab920c2a0405e2ff8c9"}
+)
+
 
 def commit_range(root: Path, base: str | None, head: str) -> list[str]:
     expression = head if base is None else f"{base}..{head}"
@@ -22,6 +29,14 @@ def validate_dco(root: Path, revisions: list[str]) -> None:
     if not revisions:
         raise ValueError("DCO policy received an empty revision range")
     for revision in revisions:
+        if revision in KNOWN_HISTORICAL_UNSIGNED_MERGES:
+            parents = subprocess.check_output(
+                ["git", "-C", str(root), "show", "-s", "--format=%P", revision],
+                text=True,
+            ).split()
+            if len(parents) != 2:
+                raise ValueError(f"historical DCO exception is not a merge: {revision}")
+            continue
         author = subprocess.check_output(
             ["git", "-C", str(root), "show", "-s", "--format=%an <%ae>", revision],
             text=True,
