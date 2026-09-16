@@ -346,7 +346,9 @@ fn merge_attestation_preserves_the_historical_unsigned_publication_boundary() {
     assert_eq!(attestation["published_commit_signature"], "unsigned");
     assert_eq!(attestation["publication_method"], "rebase");
     let policy = include_str!("../../../docs/DEVELOPMENT.md");
-    assert!(policy.contains("GitHub web\nmerge, squash, rebase, and auto-merge are not authorized"));
+    assert!(
+        policy.contains("GitHub web\nmerge, squash, rebase, and auto-merge are not authorized")
+    );
     assert!(policy.contains("locally SSH-signed merge"));
     assert!(policy.contains("signed DCO two-parent commit locally"));
     assert!(!policy.contains("gh pr merge --merge"));
