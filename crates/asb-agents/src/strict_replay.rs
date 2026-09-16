@@ -74,6 +74,8 @@ pub enum StrictReplayError {
     ServiceUnavailable,
     /// The route attempt does not match the launch attempt.
     AttemptMismatch,
+    /// The supplied route is not the authenticated launch route.
+    RouteMismatch,
 }
 
 /// Bounded replay executor that has no live-provider fallback.
@@ -106,10 +108,24 @@ impl StrictReplayExecutor {
         if route.attempt_id != self.record.input.attempt_id {
             return Err(StrictReplayError::AttemptMismatch);
         }
+        if route_digest(route) != self.record.input.route_sha256 {
+            return Err(StrictReplayError::RouteMismatch);
+        }
         self.service
             .handle(route, request)
             .map_err(|_| StrictReplayError::ServiceUnavailable)
     }
+}
+
+fn route_digest(route: &ReplayRoute) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"asb-strict-replay-route-v1");
+    digest.update(route.session_id.as_bytes());
+    digest.update([0]);
+    digest.update(route.attempt_id.as_bytes());
+    digest.update([0]);
+    digest.update(format!("{:?}", route.dialect).as_bytes());
+    format!("{:x}", digest.finalize())
 }
 
 impl std::fmt::Display for StrictReplayError {
