@@ -206,7 +206,6 @@ impl RemoteListener {
     }
 
     /// Address selected by the operator.
-    #[must_use]
     pub fn local_addr(&self) -> Result<SocketAddr, TransportError> {
         self.listener.local_addr().map_err(TransportError::Io)
     }
