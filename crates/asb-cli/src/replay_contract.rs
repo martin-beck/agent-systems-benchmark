@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! Strict, offline replay plan resolution for the CLI.
 
+use asb_agents::launch_bridge::StrictReplayLaunchBridge;
 use asb_agents::strict_replay::{EgressPolicy, StrictReplayLaunchRecord, StrictReplayLaunchV1};
 use asb_replay::{Cassette, CassetteLimits, decode_cassette};
+use asb_runtime::loopback_sidecar::SidecarHandoff;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -81,6 +83,21 @@ pub enum ReplayContractError {
     /// Cassette decoding or strict validation failed.
     #[error("cassette artifact is malformed")]
     Malformed,
+    /// Runtime-issued handoff does not match the authenticated launch.
+    #[error("runtime sidecar handoff does not match strict replay launch")]
+    HandoffMismatch,
+}
+
+/// Bind a resolved CLI launch to the runtime-issued sidecar handoff.
+///
+/// The runtime remains the sole issuer of endpoint, generation, deadline and
+/// executable identities. The returned bridge is the only value accepted by
+/// the supervised launch seam.
+pub fn bind_runtime_handoff(
+    launch: &StrictReplayLaunchRecord,
+    handoff: &SidecarHandoff,
+) -> Result<StrictReplayLaunchBridge, ReplayContractError> {
+    StrictReplayLaunchBridge::new(launch, handoff).map_err(|_| ReplayContractError::HandoffMismatch)
 }
 
 /// Resolve and authenticate one strict replay plan without ambient configuration.
@@ -141,7 +158,13 @@ pub fn resolve_strict_replay(
     route.update([0]);
     route.update(plan.attempt_id.as_bytes());
     route.update([0]);
-    route.update(format!("{:?}", cassette.contents.interactions[0].dialect).as_bytes());
+    let dialect = cassette
+        .contents
+        .interactions
+        .first()
+        .ok_or(ReplayContractError::Malformed)?
+        .dialect;
+    route.update(format!("{dialect:?}").as_bytes());
     if format!("{:x}", route.finalize()) != plan.route_sha256 {
         return Err(ReplayContractError::DigestMismatch);
     }
@@ -213,6 +236,8 @@ fn digest(value: &str) -> bool {
 mod tests {
     use super::*;
     use asb_replay::decode_cassette;
+    use asb_runtime::loopback_sidecar::{LoopbackSidecar, SidecarIdentity};
+    use std::time::Duration;
 
     fn plan(root: &Path) -> StrictReplayPlanV1 {
         let bytes = fs::read(root.join("cassette.json")).unwrap();
@@ -251,6 +276,47 @@ mod tests {
         let resolved = resolve_strict_replay(&plan(root.path()), root.path()).unwrap();
         assert_eq!(resolved.launch.input.egress, EgressPolicy::LoopbackOnly);
         assert_eq!(resolved.launch.input.attempt_id, "attempt-fixture");
+    }
+
+    #[test]
+    fn binds_runtime_issued_handoff_and_rejects_route_drift() {
+        let root = fixture();
+        let resolved = resolve_strict_replay(&plan(root.path()), root.path()).unwrap();
+        let identity =
+            SidecarIdentity::new("generation-1", &resolved.launch.input.route_sha256).unwrap();
+        let relay = root.path().join("relay.sock");
+        let sidecar = LoopbackSidecar::bind(identity, &relay).unwrap();
+        let handoff = sidecar
+            .handoff(
+                true,
+                Duration::from_millis(resolved.launch.input.timeout_ms),
+                "e".repeat(64),
+                resolved.launch.input.command_sha256.clone(),
+            )
+            .unwrap();
+        let bridge = bind_runtime_handoff(&resolved.launch, &handoff).unwrap();
+        assert_eq!(
+            bridge.endpoint(),
+            format!("http://{}/replay", handoff.endpoint)
+        );
+        drop(sidecar);
+
+        let wrong_identity =
+            SidecarIdentity::new("generation-1", "a".repeat(64)).expect("valid route digest");
+        let wrong_sidecar =
+            LoopbackSidecar::bind(wrong_identity, root.path().join("wrong.sock")).unwrap();
+        let wrong_handoff = wrong_sidecar
+            .handoff(
+                true,
+                Duration::from_millis(resolved.launch.input.timeout_ms),
+                "e".repeat(64),
+                resolved.launch.input.command_sha256.clone(),
+            )
+            .unwrap();
+        assert_eq!(
+            bind_runtime_handoff(&resolved.launch, &wrong_handoff),
+            Err(ReplayContractError::HandoffMismatch)
+        );
     }
 
     #[test]
@@ -298,6 +364,16 @@ mod tests {
         assert_eq!(
             resolve_strict_replay(&candidate, root.path()),
             Err(ReplayContractError::Oversized)
+        );
+
+        let malformed = root.path().join("malformed.json");
+        fs::write(&malformed, b"not-a-cassette").unwrap();
+        candidate = plan(root.path());
+        candidate.cassette_path = "malformed.json".into();
+        candidate.cassette_sha256 = format!("{:x}", Sha256::digest(b"not-a-cassette"));
+        assert_eq!(
+            resolve_strict_replay(&candidate, root.path()),
+            Err(ReplayContractError::Malformed)
         );
     }
 }
