@@ -45,6 +45,6 @@ pub use service::{
 pub use workflow::{
     MAX_RECORDING_CAMPAIGN_TUPLES, MAX_WORKFLOW_AGENT_BYTES, NetworkConsequence,
     RECORDING_WORKFLOW_SCHEMA_VERSION, RecordedArtifact, RecordingCampaign, RecordingCapture,
-    RecordingConfirmation, RecordingMetadata, RecordingTuple, RecordingWorkflowError,
-    choose_source, seal_recording,
+    RecordingConfirmation, RecordingCoverage, RecordingCoverageState, RecordingMetadata,
+    RecordingTuple, RecordingWorkflowError, choose_source, seal_recording,
 };

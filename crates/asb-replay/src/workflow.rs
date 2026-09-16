@@ -108,6 +108,67 @@ pub struct RecordingTuple {
     pub workload_id: String,
     /// Scorer revision used for the tuple.
     pub scorer_revision: String,
+    /// Stable attempt identity used to prevent duplicate paid work.
+    pub attempt_id: String,
+    /// Bounded upper-bound cost estimate in minor currency units.
+    pub estimated_cost_minor: u64,
+}
+
+/// Durable coverage state for one recording tuple.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingCoverageState {
+    /// No recording attempt has started.
+    Ready,
+    /// A recording attempt is active or needs reconciliation.
+    InProgress,
+    /// A complete authenticated cassette is available.
+    Complete,
+    /// Recording failed and requires a new attempt.
+    Failed,
+    /// The prior capture no longer matches current identity.
+    Stale,
+}
+
+/// Bounded durable coverage entry without captured content.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCoverage {
+    /// Tuple identity.
+    pub tuple: RecordingTuple,
+    /// Current durable state.
+    pub state: RecordingCoverageState,
+}
+
+impl RecordingCoverage {
+    /// Apply one lifecycle transition, rejecting duplicate or regressive work.
+    pub fn transition(
+        &mut self,
+        next: RecordingCoverageState,
+    ) -> Result<(), RecordingWorkflowError> {
+        let allowed = matches!(
+            (self.state, next),
+            (
+                RecordingCoverageState::Ready,
+                RecordingCoverageState::InProgress
+            ) | (
+                RecordingCoverageState::InProgress,
+                RecordingCoverageState::Complete
+            ) | (
+                RecordingCoverageState::InProgress,
+                RecordingCoverageState::Failed
+            ) | (
+                RecordingCoverageState::InProgress,
+                RecordingCoverageState::Stale
+            )
+        );
+        if allowed {
+            self.state = next;
+            Ok(())
+        } else {
+            Err(RecordingWorkflowError::CoverageTransition)
+        }
+    }
 }
 
 /// Explicit bounded matrix of recording work.
@@ -160,6 +221,8 @@ impl RecordingCampaign {
                     agent_id: agent_id.clone(),
                     workload_id: workload_id.clone(),
                     scorer_revision: scorer_revision.clone(),
+                    attempt_id: format!("{}-{}-attempt", agent_id, workload_id),
+                    estimated_cost_minor: 0,
                 });
             }
         }
@@ -263,6 +326,9 @@ pub enum RecordingWorkflowError {
     /// The campaign matrix exceeds its tuple bound.
     #[error("recording campaign exceeds its tuple bound")]
     CampaignTooLarge,
+    /// A coverage transition would repeat or regress durable work.
+    #[error("recording coverage transition is invalid")]
+    CoverageTransition,
 }
 
 fn valid_digest(value: &str) -> bool {
@@ -339,6 +405,34 @@ mod tests {
         assert!(matches!(
             campaign.expand(),
             Err(RecordingWorkflowError::CampaignTooLarge)
+        ));
+    }
+
+    #[test]
+    fn coverage_transitions_are_single_use_and_fail_closed() {
+        let tuple = RecordingCampaign {
+            schema_version: 1,
+            provider_profile_sha256: "a".repeat(64),
+            agent_ids: vec!["codex".into()],
+            workloads: vec![("bug-fix".into(), "v1".into())],
+            max_tuples: 1,
+        }
+        .expand()
+        .unwrap()
+        .remove(0);
+        let mut coverage = RecordingCoverage {
+            tuple,
+            state: RecordingCoverageState::Ready,
+        };
+        coverage
+            .transition(RecordingCoverageState::InProgress)
+            .unwrap();
+        coverage
+            .transition(RecordingCoverageState::Complete)
+            .unwrap();
+        assert!(matches!(
+            coverage.transition(RecordingCoverageState::InProgress),
+            Err(RecordingWorkflowError::CoverageTransition)
         ));
     }
 
