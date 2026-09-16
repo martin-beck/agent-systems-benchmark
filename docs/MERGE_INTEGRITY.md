@@ -44,6 +44,10 @@ history after its post-merge policy check rejected the missing DCO trailer. Reco
 DCO-bearing descendant through this local integration path and rerun exact-main policy; it must not rewrite
 or relabel the historical merge.
 
+PR #186 was later published as merge `a7a64bcc86e9fa625547ed00a0be1c1e6dde3d73`; its missing DCO
+trailer is another preserved historical failure. A signed descendant recovery is required before
+the exact-main policy can be green again.
+
 That historical object has tree `579310d1a7d89418eaafb068a1c1369be5088fc4` and parents
 `a4e1a9de985a4c9f22628c6d604a6e62f4f173e3` and
 `6cf8384bc6cf05ada62abdc102c9f4994191afed`. Push workflow run
