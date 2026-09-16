@@ -64,6 +64,7 @@ GITHUB_WEB_FLOW_KEY_SHA256 = (
 )
 GITHUB_WEB_FLOW_FINGERPRINT = "968479A1AFF927E37D1A566BB5690EEEBB952194"
 GITHUB_COMMITTER = "GitHub <noreply@github.com>"
+LOCAL_COMMITTER = "Martin Beck <martin.beck2@gmx.de>"
 PROTECTED_EVENT = "push"
 PROTECTED_REF = "refs/heads/main"
 QUALITY_SIGNATURE_STEP = """      - name: Enforce repository and commit policy
@@ -571,8 +572,10 @@ def validate_commits(
             web_flow_fingerprint,
             head,
         )
-    else:
+    elif committer == LOCAL_COMMITTER:
         verify_ssh(root, allowed, head)
+    else:
+        fail("protected-main merge committer is not an authorized integration identity")
 
 
 def main() -> int:
