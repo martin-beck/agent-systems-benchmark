@@ -20,7 +20,7 @@ esac
 mkdir -p "$destination/bin" "$destination/cache"
 destination="$(realpath -e "$destination")"
 
-for tool in actionlint zizmor gitleaks; do
+for tool in actionlint zizmor gitleaks shellcheck; do
   version="$(jq -er --arg tool "$tool" '.external[$tool].version' "$manifest")"
   repository="$(jq -er --arg tool "$tool" '.external[$tool].repository' "$manifest")"
   asset="$(jq -er --arg tool "$tool" --arg platform "$platform" '.external[$tool][$platform].asset' "$manifest")"
@@ -37,7 +37,7 @@ for tool in actionlint zizmor gitleaks; do
   printf '%s  %s\n' "$digest" "$archive" | sha256sum --check --strict >/dev/null
   extract="$(mktemp -d "$destination/.extract.XXXXXX")"
   trap 'rm -rf -- "$extract"' EXIT
-  tar --extract --gzip --file "$archive" --directory "$extract"
+  tar --extract --file "$archive" --directory "$extract"
   binary="$(find "$extract" -type f -name "$tool" -perm -u+x -print -quit)"
   [[ -n "$binary" ]] || {
     printf '%s archive does not contain its executable\n' "$tool" >&2
@@ -51,4 +51,5 @@ done
 "$destination/bin/actionlint" -version | grep -F "1.7.12" >&2
 "$destination/bin/zizmor" --version | grep -F "1.30.0" >&2
 "$destination/bin/gitleaks" version | grep -F "8.30.1" >&2
+"$destination/bin/shellcheck" --version | grep -F "version: 0.11.0" >&2
 printf '%s\n' "$destination/bin"

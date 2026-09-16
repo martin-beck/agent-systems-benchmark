@@ -52,6 +52,7 @@ def main() -> int:
     parser.add_argument("--bin-dir", type=Path, required=True)
     args = parser.parse_args()
     actionlint = str(args.bin_dir / "actionlint")
+    shellcheck = str(args.bin_dir / "shellcheck")
     zizmor = str(args.bin_dir / "zizmor")
     gitleaks = str(args.bin_dir / "gitleaks")
 
@@ -111,6 +112,9 @@ def main() -> int:
             encoding="utf-8",
         )
         must_fail("actionlint", [actionlint, str(bad_workflow)])
+        shellcheck_fixture = temp / "shellcheck-defect.sh"
+        shellcheck_fixture.write_text("#!/bin/sh\necho $1\n", encoding="utf-8")
+        must_fail("shellcheck", [shellcheck, str(shellcheck_fixture)])
         must_fail("zizmor", [zizmor, "--pedantic", str(bad_workflow)])
 
         leaked = temp / "leaked"
