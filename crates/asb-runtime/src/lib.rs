@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// A per-launch, authenticated loopback-to-Unix relay for strict replay.
+pub mod loopback_sidecar;
 /// Rootless namespace isolation and dedicated resource leases.
 pub mod sandbox;
 /// Bounded closed-loop and open-loop experiment scheduling.
