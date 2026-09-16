@@ -163,10 +163,16 @@ fn short_limits() -> ProcessLimits {
 fn strict_launch_spawns_with_authenticated_loopback_environment() {
     let Some(backend) = backend() else { return };
     let Some(root) = root("success") else { return };
-    let environment = BTreeMap::from([(
-        "ASB_REPLAY_ENDPOINT".into(),
-        "http://127.0.0.1:4317/replay".into(),
-    )]);
+    let environment = BTreeMap::from([
+        (
+            "ASB_REPLAY_ROUTE_SHA256".into(),
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into(),
+        ),
+        (
+            "ASB_REPLAY_ENDPOINT".into(),
+            "http://127.0.0.1:4317/replay".into(),
+        ),
+    ]);
     let (input, lease) = input(&root, "/usr/bin/env", environment);
     assert_eq!(input.spec().environment().len(), 1);
     let record = launch_record(digest_command(
@@ -218,10 +224,16 @@ fn strict_launch_enforces_authenticated_timeout_on_child() {
         &root,
         "/usr/bin/sleep",
         vec!["30".into()],
-        BTreeMap::from([(
-            "ASB_REPLAY_ENDPOINT".into(),
-            "http://127.0.0.1:4317/replay".into(),
-        )]),
+        BTreeMap::from([
+            (
+                "ASB_REPLAY_ROUTE_SHA256".into(),
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into(),
+            ),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "http://127.0.0.1:4317/replay".into(),
+            ),
+        ]),
         short_limits(),
     );
     let mut record = launch_record(digest_command(
@@ -248,10 +260,16 @@ fn strict_launch_cancellation_is_terminal_and_reaped() {
         &root,
         "/usr/bin/sleep",
         vec!["30".into()],
-        BTreeMap::from([(
-            "ASB_REPLAY_ENDPOINT".into(),
-            "http://127.0.0.1:4317/replay".into(),
-        )]),
+        BTreeMap::from([
+            (
+                "ASB_REPLAY_ROUTE_SHA256".into(),
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into(),
+            ),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "http://127.0.0.1:4317/replay".into(),
+            ),
+        ]),
         limits(),
     );
     let record = launch_record(digest_command(
@@ -279,10 +297,16 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
         &root,
         "/usr/bin/false",
         Vec::new(),
-        BTreeMap::from([(
-            "ASB_REPLAY_ENDPOINT".into(),
-            "http://127.0.0.1:4317/replay".into(),
-        )]),
+        BTreeMap::from([
+            (
+                "ASB_REPLAY_ROUTE_SHA256".into(),
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into(),
+            ),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "http://127.0.0.1:4317/replay".into(),
+            ),
+        ]),
         limits(),
     );
     let record = launch_record(digest_command(
