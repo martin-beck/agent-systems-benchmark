@@ -152,10 +152,20 @@ def _stable_hash(body: bytes) -> str:
         value = json.loads(body)
     except json.JSONDecodeError:
         return hashlib.sha256(body).hexdigest()
-    if isinstance(value, dict):
-        value.pop("id", None)
-        value.pop("created", None)
+    value = _without_generated_identity(value)
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _without_generated_identity(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_generated_identity(item)
+            for key, item in value.items()
+            if key not in {"id", "created", "created_at"}
+        }
+    if isinstance(value, list):
+        return [_without_generated_identity(item) for item in value]
+    return value
 
 
 def _stable_sse_hash(body: bytes) -> str:
