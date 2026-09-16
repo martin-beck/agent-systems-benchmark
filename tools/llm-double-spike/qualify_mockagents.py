@@ -190,7 +190,7 @@ def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
         agents = root / "agents"
         agents.mkdir(mode=0o700)
         (agents / "openai.yaml").write_text(
-            "apiVersion: mockagents/v1\nkind: Agent\nmetadata:\n  name: openai-fixture\nspec:\n  protocol: openai-chat-completions\n  model: openai-fixture\n  behavior:\n    scenarios:\n      - name: default\n        response:\n          content: READY\n",
+            "apiVersion: mockagents/v1\nkind: Agent\nmetadata:\n  name: openai-fixture\nspec:\n  protocol: openai-chat-completions\n  model: openai-fixture\n  tools:\n    - name: lookup\n      description: bounded fixture lookup\n      parameters:\n        type: object\n        properties:\n          key:\n            type: string\n        required: [key]\n      responses:\n        - default: true\n          response:\n            value: READY\n  behavior:\n    scenarios:\n      - name: tool\n        match:\n          content_contains: tool\n        response:\n          content: TOOL\n          tool_calls:\n            - name: lookup\n              arguments:\n                key: fixture\n      - name: default\n        response:\n          content: READY\n",
             encoding="utf-8",
         )
         (agents / "anthropic.yaml").write_text(
@@ -236,6 +236,10 @@ def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
             cases["unmatched_route"] = "pass" if status == 404 else "fail"
             if cases["unmatched_route"] != "pass":
                 raise QualificationError("unmatched route was accepted")
+            status, body, _ = _post(port, "/v1/chat/completions", {"model": "openai-fixture", "messages": [{"role": "user", "content": "tool"}]})
+            if status != 200 or b"tool_calls" not in body or b"lookup" not in body:
+                raise QualificationError("tool-call response was not emitted")
+            cases["tool_call"] = _stable_hash(body)
         finally:
             process.terminate()
             try:
