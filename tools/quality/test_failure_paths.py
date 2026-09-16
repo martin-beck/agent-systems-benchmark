@@ -200,18 +200,10 @@ def main() -> int:
         )
         print("positive fixture passed: pull request base..head DCO range")
 
-        known_merge_checker = temp / "known-merge-checker.py"
-        known_merge_checker.write_text(
-            (ROOT / "tools/quality/check_dco.py")
-            .read_text(encoding="utf-8")
-            .replace("75248467a6fa900d654a8ab920c2a0405e2ff8c9", merge_head),
-            encoding="utf-8",
+        must_fail(
+            "historical merge remains rejected by strict DCO checker",
+            ["python3", checker, "--root", str(merge_range), "--head", merge_head],
         )
-        subprocess.run(
-            ["python3", str(known_merge_checker), "--root", str(merge_range), "--head", merge_head],
-            check=True,
-        )
-        print("positive fixture passed: exact historical merge exception")
 
         broken = temp / "mutable-action"
         shutil.copytree(ROOT, broken, ignore=shutil.ignore_patterns(".git", "target"))
