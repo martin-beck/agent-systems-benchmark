@@ -164,6 +164,12 @@ impl StrictReplaySandboxLaunch {
         &self,
         environment: &std::collections::BTreeMap<String, String>,
     ) -> Result<(), StrictReplayError> {
+        if environment
+            .keys()
+            .any(|key| key != "ASB_REPLAY_ROUTE_SHA256" && key != "ASB_REPLAY_ENDPOINT")
+        {
+            return Err(StrictReplayError::ExternalEndpoint);
+        }
         if environment.get("ASB_REPLAY_ROUTE_SHA256") != Some(&self.record.input.route_sha256) {
             return Err(StrictReplayError::RouteMismatch);
         }
