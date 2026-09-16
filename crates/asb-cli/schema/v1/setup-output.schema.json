@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asb.example.invalid/schema/cli/setup-output-v1.json",
+  "title": "ASB setup preflight output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ok", "command", "mode", "steps", "persistent_change", "provider_contact", "provider_profile", "model"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "ok": {"const": true},
+    "command": {"const": "setup"},
+    "mode": {"enum": ["preflight", "commit"]},
+    "steps": {"type": "array", "const": ["detect-installed-agents", "select-provider-and-model", "configure-authentication", "confirm-persistence"]},
+    "persistent_change": {"type": "boolean"},
+    "provider_contact": {"const": false},
+    "provider_profile": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "model": {"type": ["string", "null"], "minLength": 1, "maxLength": 128}
+  }
+}

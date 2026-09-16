@@ -23,6 +23,7 @@
         "command": "doctor",
         "commands": [
           "doctor",
+          "setup",
           "capabilities",
           "provider-catalog",
           "provider-plan",

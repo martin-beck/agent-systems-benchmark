@@ -112,6 +112,8 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
+        [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
+        [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
         [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
@@ -226,6 +228,7 @@ fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
 fn command_name(args: &[OsString]) -> &'static str {
     match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
+        Some("setup") => "setup",
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
         Some("provider-catalog") => "provider-catalog",
@@ -247,11 +250,108 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct SetupOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    mode: &'static str,
+    steps: &'static [&'static str],
+    persistent_change: bool,
+    provider_contact: bool,
+    provider_profile: Option<String>,
+    model: Option<String>,
+}
+
+/// Emit a side-effect-free setup checklist. Interactive mutation is a later
+/// phase; this contract gives scripts a stable, explicit preflight surface.
+fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let mut provider_profile = None;
+    let mut model = None;
+    let mut output_path = None;
+    let mut index = 0;
+    while index < args.len() {
+        let value = args[index].as_str();
+        let target = match value {
+            "--provider-profile" => &mut provider_profile,
+            "--model" => &mut model,
+            "--output" => &mut output_path,
+            "--format=json" => {
+                index += 1;
+                continue;
+            }
+            _ => {
+                return Err(CliError::usage(
+                    "setup accepts --provider-profile, --model, --output, and --format=json",
+                ));
+            }
+        };
+        index += 1;
+        let argument = args
+            .get(index)
+            .ok_or_else(|| CliError::usage("setup option is missing a value"))?;
+        if argument.is_empty() || argument.len() > MAX_ID_BYTES {
+            return Err(CliError::validation(
+                "setup option value is empty or too long",
+            ));
+        }
+        *target = Some(argument.clone());
+        index += 1;
+    }
+    if provider_profile.is_some() != model.is_some() {
+        return Err(CliError::validation(
+            "provider profile and model must be selected together",
+        ));
+    }
+    if let (Some(profile), Some(model_name)) = (&provider_profile, &model) {
+        let compatible = match profile.as_str() {
+            "openai" => model_name.starts_with("gpt-") || model_name.starts_with("o1"),
+            "gemini" => model_name.starts_with("gemini-"),
+            "ollama" => ["llama", "mistral", "qwen", "phi"]
+                .iter()
+                .any(|prefix| model_name.starts_with(prefix)),
+            _ => false,
+        };
+        if !compatible {
+            return Err(CliError::validation(
+                "provider profile and model are incompatible or unsupported",
+            ));
+        }
+    }
+    let contract = SetupOutput {
+        schema_version: OUTPUT_SCHEMA_VERSION,
+        ok: true,
+        command: "setup",
+        mode: if output_path.is_some() {
+            "commit"
+        } else {
+            "preflight"
+        },
+        steps: &[
+            "detect-installed-agents",
+            "select-provider-and-model",
+            "configure-authentication",
+            "confirm-persistence",
+        ],
+        persistent_change: output_path.is_some(),
+        provider_contact: false,
+        provider_profile,
+        model,
+    };
+    if let Some(path) = output_path {
+        let encoded = serde_json::to_vec(&contract)
+            .map_err(|_| CliError::operation("setup configuration cannot be encoded"))?;
+        write_atomic_private(Path::new(&path), &encoded)?;
+    }
+    write_json(output, &contract)
 }
 
 fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
@@ -260,7 +360,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor capabilities provider-catalog provider-plan plan run sweep compare report record replay completion serve tui --help --version' asb"
+        "complete -W 'doctor setup capabilities provider-catalog provider-plan plan run sweep compare report record replay completion serve tui --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -417,6 +517,7 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
             interactive_stderr: io::stderr().is_terminal(),
             commands: &[
                 "doctor",
+                "setup",
                 "capabilities",
                 "provider-catalog",
                 "provider-plan",
@@ -3705,6 +3806,97 @@ mod tests {
         assert_eq!(run(&["unknown".into()], &mut output, &mut diagnostic), 2);
         let error: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(error["error"]["code"], "usage");
+    }
+
+    #[test]
+    fn setup_preflight_is_machine_readable_and_side_effect_free() {
+        let mut output = Vec::new();
+        assert_eq!(run(&["setup".into()], &mut output, &mut Vec::new()), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["command"], "setup");
+        assert_eq!(value["mode"], "preflight");
+        assert_eq!(value["persistent_change"], false);
+        assert_eq!(value["provider_contact"], false);
+        assert_eq!(value["steps"].as_array().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn setup_rejects_unknown_options() {
+        let mut output = Vec::new();
+        assert_eq!(
+            run(
+                &["setup".into(), "--unknown".into()],
+                &mut output,
+                &mut Vec::new()
+            ),
+            2
+        );
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "usage");
+    }
+
+    #[test]
+    fn setup_requires_complete_provider_selection_and_does_not_commit_on_error() {
+        let scratch = Scratch::new("setup");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--provider-profile",
+            "openai",
+            "--output",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        assert!(!destination.exists());
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "validation");
+    }
+
+    #[test]
+    fn setup_commits_only_validated_selection_atomically() {
+        let scratch = Scratch::new("setup-valid");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--provider-profile",
+            "openai",
+            "--model",
+            "gpt-4o-mini",
+            "--output",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let persisted: Value = serde_json::from_slice(&fs::read(&destination).unwrap()).unwrap();
+        assert_eq!(persisted["mode"], "commit");
+        assert_eq!(persisted["provider_profile"], "openai");
+        assert_eq!(persisted["model"], "gpt-4o-mini");
+    }
+
+    #[test]
+    fn setup_rejects_cross_provider_model_without_contacting_provider() {
+        let args: Vec<OsString> = [
+            "setup",
+            "--provider-profile",
+            "gemini",
+            "--model",
+            "gpt-4o-mini",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "validation");
+        assert!(value.to_string().len() < 512);
     }
 
     #[test]
