@@ -328,7 +328,7 @@ fn provenance_binds_the_exact_cli_and_public_fixture_sources() {
 }
 
 #[test]
-fn merge_attestation_preserves_the_unsigned_publication_boundary() {
+fn merge_attestation_preserves_the_historical_unsigned_publication_boundary() {
     let attestation: Value = serde_json::from_str(MERGE_ATTESTATION).unwrap();
     assert_eq!(attestation["schema_version"], 1);
     assert_eq!(attestation["pull_request"], 129);
@@ -346,6 +346,10 @@ fn merge_attestation_preserves_the_unsigned_publication_boundary() {
     assert_eq!(attestation["published_commit_signature"], "unsigned");
     assert_eq!(attestation["publication_method"], "rebase");
     let policy = include_str!("../../../docs/DEVELOPMENT.md");
-    assert!(policy.contains("gh pr merge --merge"));
-    assert!(policy.contains("Rebase\nand squash publication are prohibited"));
+    assert!(
+        policy.contains("GitHub web\nmerge, squash, rebase, and auto-merge are not authorized")
+    );
+    assert!(policy.contains("locally SSH-signed merge"));
+    assert!(policy.contains("signed DCO two-parent commit locally"));
+    assert!(!policy.contains("gh pr merge --merge"));
 }

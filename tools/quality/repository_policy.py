@@ -30,6 +30,8 @@ CANARY_LABEL = "asb-development-v1-x86_64-ubuntu2404"
 TRUSTED_WORKFLOW = Path(".github/workflows/development-host-trusted.yml")
 QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
 EMULATED_AARCH64_WORKFLOW = Path(".github/workflows/emulated-aarch64.yml")
+MERGE_TOOL = Path("tools/integration/merge_pr.py")
+MERGE_SETTINGS = Path("tools/integration/repository_settings.py")
 HUAWEI_COPYRIGHT = "Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved."
 SPDX_MIT = "SPDX-License-Identifier: MIT"
 EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
@@ -358,6 +360,28 @@ def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     )
 
 
+def validate_merge_integrity_tools() -> None:
+    merge = (ROOT / MERGE_TOOL).read_text(encoding="utf-8")
+    settings = (ROOT / MERGE_SETTINGS).read_text(encoding="utf-8")
+    required_merge = (
+        '"commit-tree",\n                "-S",',
+        'f"--force-with-lease={args.target_ref}:{base}"',
+        'parents != [base, head]',
+        'remote target changed before publication',
+    )
+    if any(fragment not in merge for fragment in required_merge):
+        fail("signed merge tool lacks an exact identity or lease boundary")
+    required_settings = (
+        '"allow_merge_commit": False',
+        '"allow_squash_merge": False',
+        '"allow_rebase_merge": False',
+        '"allow_auto_merge": False',
+        '"web_commit_signoff_required": True',
+    )
+    if any(fragment not in settings for fragment in required_settings):
+        fail("repository settings tool permits an incompatible web merge mode")
+
+
 def topic_first_parent_spine(root: Path, base: str, tip: str) -> list[str]:
     reverse_spine: list[str] = []
     current = tip
@@ -569,6 +593,7 @@ def main() -> int:
         manifest = validate_manifest()
         validate_workflows(manifest)
         validate_markdown(files)
+        validate_merge_integrity_tools()
         if not args.skip_commits:
             validate_commits(
                 args.base,

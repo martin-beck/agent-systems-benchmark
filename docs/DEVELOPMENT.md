@@ -62,12 +62,13 @@ handoffctl; schema/tooling/policy changes need review and CI. Do not manually ed
 generated CURRENT, PROJECT_STATE or WORKTREES views. Both repositories reject
 unrelated private project history and runtime configuration.
 
-Publish protected product pull requests with `gh pr merge --merge` only. Rebase
-and squash publication are prohibited because GitHub can recreate a reviewed,
-locally signed commit without its SSH signature. Before releasing its AR, verify
-the GitHub merge commit is signed, its tree is the independently reviewed tree,
-and the reviewed commit retains its raw matching DCO trailer. A mismatch remains
-an explicit in-progress recovery; never rewrite protected `main` to conceal it.
+Reviewed product changes use the [signed merge integrity](MERGE_INTEGRITY.md) procedure. GitHub web
+merge, squash, rebase, and auto-merge are not authorized because they cannot create the required
+locally SSH-signed merge. Integration records the exact base, reviewed head and tree, constructs a
+signed DCO two-parent commit locally, and publishes only through an exact target-ref lease.
+Before releasing its AR, verify the GitHub merge commit is signed, its tree is the independently
+reviewed tree, and the reviewed commit retains its raw matching DCO trailer. A mismatch remains an
+explicit in-progress recovery; never rewrite protected `main` to conceal it.
 
 A task is done only when its acceptance criteria, applicable exact-head CI and
 post-merge evidence pass and the durable state matches the actual result.
