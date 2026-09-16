@@ -8,6 +8,7 @@ use asb_replay::{Cassette, CassetteLimits, decode_cassette};
 use asb_runtime::loopback_sidecar::{
     LoopbackSidecar, SidecarHandoff, SidecarIdentity, fresh_relay_path,
 };
+use asb_runtime::replay_entrypoint::ReplayLaunchAuthority;
 use asb_runtime::sandbox::{ResourceLease, SandboxBackend, SandboxLaunchInput, SandboxProcess};
 use asb_runtime::supervisor::PinnedCommand;
 use serde::{Deserialize, Serialize};
@@ -158,6 +159,28 @@ pub fn spawn_runtime_replay(
         process,
         sidecar: bound.sidecar,
     })
+}
+
+/// Consume a complete runtime-issued authority and launch exactly once.
+pub fn spawn_authorized_replay(
+    launch: &StrictReplayLaunchRecord,
+    authority: &mut ReplayLaunchAuthority,
+) -> Result<RunningRuntimeReplay, ReplayContractError> {
+    let (handoff, sidecar, backend, input, lease, supervisor, sidecar_command) = authority
+        .take_launch()
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let bridge = bind_runtime_handoff(launch, &handoff)?;
+    let metadata = bridge.metadata();
+    let relay = input
+        .replay_handoff()
+        .ok_or(ReplayContractError::HandoffMismatch)?;
+    if relay.generation() != metadata.generation || relay.socket_path() != metadata.relay_path {
+        return Err(ReplayContractError::HandoffMismatch);
+    }
+    let process = bridge
+        .spawn(&backend, input, lease, supervisor, sidecar_command)
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    Ok(RunningRuntimeReplay { process, sidecar })
 }
 
 /// Resolve a plan and obtain the runtime-owned sidecar handoff used by the

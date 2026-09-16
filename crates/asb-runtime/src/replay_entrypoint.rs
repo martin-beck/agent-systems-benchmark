@@ -3,6 +3,8 @@
 //! Runtime-owned, one-shot authority for strict-replay launch consumers.
 
 use crate::loopback_sidecar::{LoopbackSidecar, SidecarHandoff};
+use crate::sandbox::{ResourceLease, SandboxBackend, SandboxLaunchInput};
+use crate::supervisor::PinnedCommand;
 use std::io;
 use std::time::Duration;
 
@@ -11,6 +13,15 @@ use std::time::Duration;
 pub struct ReplayLaunchAuthority {
     handoff: Option<SidecarHandoff>,
     sidecar: Option<LoopbackSidecar>,
+    launch: Option<LaunchParts>,
+}
+
+struct LaunchParts {
+    backend: SandboxBackend,
+    input: SandboxLaunchInput,
+    lease: ResourceLease,
+    supervisor: PinnedCommand,
+    sidecar_command: PinnedCommand,
 }
 
 impl ReplayLaunchAuthority {
@@ -32,7 +43,39 @@ impl ReplayLaunchAuthority {
         Ok(Self {
             handoff: Some(handoff),
             sidecar: Some(sidecar),
+            launch: None,
         })
+    }
+
+    /// Issue a complete runtime launch capability, including the denied
+    /// sandbox context, resource lease, and verified supervisor commands.
+    pub fn issue_launch(
+        sidecar: LoopbackSidecar,
+        namespace_ready: bool,
+        deadline: Duration,
+        sidecar_command_digest: impl Into<String>,
+        adapter_command_digest: impl Into<String>,
+        backend: SandboxBackend,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        supervisor: PinnedCommand,
+        sidecar_command: PinnedCommand,
+    ) -> io::Result<Self> {
+        let mut authority = Self::issue(
+            sidecar,
+            namespace_ready,
+            deadline,
+            sidecar_command_digest,
+            adapter_command_digest,
+        )?;
+        authority.launch = Some(LaunchParts {
+            backend,
+            input,
+            lease,
+            supervisor,
+            sidecar_command,
+        });
+        Ok(authority)
     }
 
     /// Consume the authority once for a supervised launch.
@@ -44,6 +87,36 @@ impl ReplayLaunchAuthority {
                 "replay launch authority already consumed",
             )),
         }
+    }
+
+    /// Consume a complete launch capability exactly once.
+    pub fn take_launch(
+        &mut self,
+    ) -> io::Result<(
+        SidecarHandoff,
+        LoopbackSidecar,
+        SandboxBackend,
+        SandboxLaunchInput,
+        ResourceLease,
+        PinnedCommand,
+        PinnedCommand,
+    )> {
+        let (handoff, sidecar) = self.take_once()?;
+        let launch = self.launch.take().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "launch capability is incomplete",
+            )
+        })?;
+        Ok((
+            handoff,
+            sidecar,
+            launch.backend,
+            launch.input,
+            launch.lease,
+            launch.supervisor,
+            launch.sidecar_command,
+        ))
     }
 }
 

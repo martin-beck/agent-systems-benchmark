@@ -455,10 +455,9 @@ fn replay_plan(
     )?;
     let plan: replay_contract::StrictReplayPlanV1 = serde_json::from_slice(&bytes)
         .map_err(|_| CliError::validation("strict replay plan syntax or shape is invalid"))?;
-    let (resolved, bridge) = replay_contract::resolve_and_bind_runtime(&plan, artifact_root)
-        .map_err(|_| {
-            CliError::validation("strict replay plan failed runtime handoff validation")
-        })?;
+    let bound = replay_contract::resolve_and_bind_runtime(&plan, artifact_root).map_err(|_| {
+        CliError::validation("strict replay plan failed runtime handoff validation")
+    })?;
     write_json(
         stdout,
         &json!({
@@ -466,9 +465,9 @@ fn replay_plan(
             "ok": true,
             "command": "replay-plan",
             "network": "denied",
-            "cassette_sha256": resolved.launch.input.cassette_sha256,
-            "route_sha256": resolved.launch.input.route_sha256,
-            "endpoint": bridge.endpoint(),
+            "cassette_sha256": bound.resolved.launch.input.cassette_sha256,
+            "route_sha256": bound.resolved.launch.input.route_sha256,
+            "endpoint": bound.bridge.endpoint(),
             "non_fresh": true,
         }),
     )
