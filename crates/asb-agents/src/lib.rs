@@ -15,6 +15,7 @@ pub mod codex;
 pub mod credential;
 pub mod gemini;
 pub mod goose;
+pub mod launch_bridge;
 pub mod mini_swe;
 pub mod ollama;
 pub mod openai;
