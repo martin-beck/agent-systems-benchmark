@@ -559,17 +559,20 @@ def validate_commits(
         ["git", "-C", str(root), "show", "-s", "--format=%cn <%ce>", head],
         text=True,
     ).strip()
-    if committer != GITHUB_COMMITTER:
-        fail("protected-main merge committer is not exact GitHub Web Flow")
     for revision in topic_revisions:
         verify_ssh(root, allowed, revision)
-    verify_github_web_flow(
-        root,
-        web_flow_key or root / GITHUB_WEB_FLOW_KEY.relative_to(ROOT),
-        web_flow_key_sha256,
-        web_flow_fingerprint,
-        head,
-    )
+    if committer == GITHUB_COMMITTER:
+        # Historical GitHub-created merges remain verifiable as evidence, but
+        # repository settings and the integration tool forbid creating new ones.
+        verify_github_web_flow(
+            root,
+            web_flow_key or root / GITHUB_WEB_FLOW_KEY.relative_to(ROOT),
+            web_flow_key_sha256,
+            web_flow_fingerprint,
+            head,
+        )
+    else:
+        verify_ssh(root, allowed, head)
 
 
 def main() -> int:
