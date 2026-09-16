@@ -147,6 +147,7 @@ pub struct RemoteListener {
     config: RemoteTransportConfig,
     active: Arc<AtomicU16>,
     draining: Arc<AtomicU16>,
+    admission_lock: Mutex<()>,
 }
 
 impl RemoteListener {
@@ -163,6 +164,7 @@ impl RemoteListener {
             config,
             active: Arc::new(AtomicU16::new(0)),
             draining: Arc::new(AtomicU16::new(0)),
+            admission_lock: Mutex::new(()),
         })
     }
 
@@ -182,6 +184,10 @@ impl RemoteListener {
         let (stream, _) = self.listener.accept()?;
         // Do not consume a lifecycle permit while waiting on the listener.
         // Recheck drain after accept to close the race with begin_drain().
+        let _admission = self
+            .admission_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if self.draining.load(Ordering::Acquire) != 0 {
             return Err(TransportError::RemoteDraining);
         }
@@ -201,6 +207,10 @@ impl RemoteListener {
 
     /// Begin graceful drain; existing permits remain valid.
     pub fn begin_drain(&self) {
+        let _admission = self
+            .admission_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         self.draining.store(1, Ordering::Release);
     }
 
@@ -967,6 +977,7 @@ mod tests {
             config: remote_config(),
             active: Arc::new(AtomicU16::new(0)),
             draining: Arc::new(AtomicU16::new(0)),
+            admission_lock: Mutex::new(()),
         };
         listener
             .drain_until(Instant::now() + Duration::from_secs(1))
@@ -987,6 +998,7 @@ mod tests {
             config: remote_config(),
             active: Arc::new(AtomicU16::new(0)),
             draining: Arc::new(AtomicU16::new(0)),
+            admission_lock: Mutex::new(()),
         };
         let permit = RemoteConnectionPermit::acquire(Arc::clone(&listener.active), 1, 1).unwrap();
         assert!(matches!(
