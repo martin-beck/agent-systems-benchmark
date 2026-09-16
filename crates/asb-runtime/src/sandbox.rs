@@ -136,6 +136,8 @@ impl Resources {
 pub enum NetworkPolicy {
     /// Isolated namespace with no host interfaces.
     Deny,
+    /// Isolated namespace exposing only an authenticated loopback service.
+    LoopbackOnly,
     /// Deliberately unsupported for untrusted execution.
     Host,
 }
@@ -242,6 +244,7 @@ pub struct SandboxSpec {
     arguments: Vec<String>,
     environment: BTreeMap<String, String>,
     resources: Resources,
+    network: NetworkPolicy,
 }
 
 impl SandboxSpec {
@@ -289,7 +292,7 @@ impl SandboxSpec {
         {
             return Err(ConfigError::Environment);
         }
-        if network != NetworkPolicy::Deny {
+        if matches!(network, NetworkPolicy::Host) {
             return Err(ConfigError::NetworkPolicy);
         }
         Ok(Self {
@@ -299,7 +302,13 @@ impl SandboxSpec {
             arguments,
             environment,
             resources,
+            network,
         })
+    }
+
+    /// Network policy requested by this validated specification.
+    pub fn network_policy(&self) -> NetworkPolicy {
+        self.network
     }
 }
 
@@ -391,6 +400,9 @@ impl SandboxBackend {
     ) -> Result<SandboxProcess, SandboxError> {
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
+        }
+        if spec.network_policy() == NetworkPolicy::LoopbackOnly {
+            return Err(SandboxError::NetworkPolicy);
         }
         self.probe()?;
         let mut command = pinned_command(&self.systemd_run);
@@ -931,6 +943,8 @@ pub enum SandboxError {
     },
     /// Lease class or CPUs did not match.
     LeaseMismatch,
+    /// Requested loopback transport is not yet attested by this backend.
+    NetworkPolicy,
 }
 
 impl fmt::Display for ConfigError {
@@ -1220,6 +1234,16 @@ mod tests {
             ),
             Err(ConfigError::NetworkPolicy)
         ));
+        let loopback = spec_with(
+            PathBuf::new(),
+            "/bin/true",
+            vec![],
+            BTreeMap::new(),
+            "valid",
+            NetworkPolicy::LoopbackOnly,
+        )
+        .unwrap();
+        assert_eq!(loopback.network_policy(), NetworkPolicy::LoopbackOnly);
         spec_with(
             PathBuf::new(),
             "/bin/true",
