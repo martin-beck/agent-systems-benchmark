@@ -68,6 +68,8 @@ pub struct StrictReplayLaunchV1 {
     pub attempt_id: String,
     /// Workload digest.
     pub workload_sha256: String,
+    /// Pinned adapter command digest.
+    pub command_sha256: String,
     /// Required process boundary policy.
     pub egress: EgressPolicy,
     /// Bounded process lifetime in milliseconds.
@@ -118,25 +120,19 @@ pub enum StrictReplayError {
 }
 
 /// Cross-crate consumer seam for launching a strict replay adapter.
+#[derive(Debug)]
 pub struct StrictReplaySandboxLaunch {
     record: StrictReplayLaunchRecord,
-    command_sha256: String,
 }
 
 impl StrictReplaySandboxLaunch {
     /// Validate a launch record and bind it to a pinned adapter command digest.
-    pub fn new(
-        record: StrictReplayLaunchRecord,
-        command_sha256: String,
-    ) -> Result<Self, StrictReplayError> {
+    pub fn new(record: StrictReplayLaunchRecord) -> Result<Self, StrictReplayError> {
         record.validate()?;
-        if !is_digest(&command_sha256) {
+        if !is_digest(&record.input.command_sha256) {
             return Err(StrictReplayError::CommandMismatch);
         }
-        Ok(Self {
-            record,
-            command_sha256,
-        })
+        Ok(Self { record })
     }
 
     /// Spawn only under the runtime-owned denied-network sandbox.
@@ -149,7 +145,9 @@ impl StrictReplaySandboxLaunch {
         if input.spec().network_policy() != NetworkPolicy::Deny {
             return Err(StrictReplayError::IsolationUnavailable);
         }
-        if command_digest(input.spec().program(), input.spec().arguments()) != self.command_sha256 {
+        if command_digest(input.spec().program(), input.spec().arguments())
+            != self.record.input.command_sha256
+        {
             return Err(StrictReplayError::CommandMismatch);
         }
         backend
@@ -369,6 +367,7 @@ mod tests {
             run_id: "run".into(),
             attempt_id: "attempt".into(),
             workload_sha256: "c".repeat(64),
+            command_sha256: "d".repeat(64),
             egress: EgressPolicy::LoopbackOnly,
             timeout_ms: 5000,
         }
@@ -441,7 +440,7 @@ mod tests {
             "schema_version": 1, "cassette_sha256": "a".repeat(64),
             "route_sha256": "b".repeat(64), "provider_dialect": "openai-chat-v1",
             "adapter": "codex", "run_id": "run", "attempt_id": "attempt",
-            "workload_sha256": "c".repeat(64), "egress": "loopback_only",
+            "workload_sha256": "c".repeat(64), "command_sha256": "d".repeat(64), "egress": "loopback_only",
             "timeout_ms": 5000, "credential": "secret", "environment": {"API_KEY": "secret"}
         });
         assert!(serde_json::from_value::<StrictReplayLaunchV1>(value).is_err());
@@ -528,6 +527,27 @@ mod tests {
         assert_eq!(
             executor.execute(&route, request),
             Err(StrictReplayError::AttemptMismatch)
+        );
+    }
+
+    #[test]
+    fn sandbox_launch_requires_record_bound_command_digest() {
+        let launch = input();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: launch.digest().unwrap(),
+            input: launch,
+        };
+        assert!(StrictReplaySandboxLaunch::new(record).is_ok());
+
+        let mut invalid = input();
+        invalid.command_sha256 = "not-a-digest".into();
+        let record = StrictReplayLaunchRecord {
+            launch_sha256: invalid.digest().unwrap(),
+            input: invalid,
+        };
+        assert_eq!(
+            StrictReplaySandboxLaunch::new(record).unwrap_err(),
+            StrictReplayError::CommandMismatch
         );
     }
 }
