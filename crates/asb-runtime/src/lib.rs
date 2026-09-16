@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Private per-launch replay relay transport.
+pub mod relay;
 /// Rootless namespace isolation and dedicated resource leases.
 pub mod sandbox;
 /// Bounded closed-loop and open-loop experiment scheduling.
