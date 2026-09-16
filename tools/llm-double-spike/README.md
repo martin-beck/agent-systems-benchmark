@@ -34,3 +34,8 @@ downgrades, unknown fields, duplicate ordering, overflow, private or
 credential-like fields, and non-loopback URLs. It is intentionally separate
 from the content-addressed cassette schema and cannot convert synthetic output
 into replay or live evidence.
+
+AR-1251 invokes `run_isolated.py --artifact ARTIFACT --artifact-sha256 SHA256
+--verify-network-none` as its runner preflight, then passes a direct executable
+argument vector. The runner owns container cleanup with `--rm`; its only host
+input is the validated read-only artifact bind.
