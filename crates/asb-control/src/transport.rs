@@ -205,6 +205,18 @@ impl RemoteListener {
         self.draining.load(Ordering::Acquire) != 0
     }
 
+    /// Wait for all accepted connections to release their permits.
+    pub fn drain_until(&self, deadline: Instant) -> Result<(), TransportError> {
+        self.begin_drain();
+        while self.active.load(Ordering::Acquire) != 0 {
+            if Instant::now() >= deadline {
+                return Err(TransportError::RemoteDrainTimeout);
+            }
+            std::thread::yield_now();
+        }
+        Ok(())
+    }
+
     /// Address selected by the operator.
     pub fn local_addr(&self) -> Result<SocketAddr, TransportError> {
         self.listener.local_addr().map_err(TransportError::Io)
@@ -771,6 +783,9 @@ pub enum TransportError {
     /// Request rate exceeded its bounded one-second window.
     #[error("remote control request rate limit reached")]
     RemoteRateLimited,
+    /// Existing remote connections did not drain before the deadline.
+    #[error("remote control listener drain deadline exceeded")]
+    RemoteDrainTimeout,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
@@ -933,6 +948,26 @@ mod tests {
         assert!(matches!(
             RemoteRateLimiter::new(0),
             Err(TransportError::RemoteInvalidLimit)
+        ));
+    }
+
+    #[test]
+    fn listener_drain_completes_and_rejects_new_sessions() {
+        let (tls, _, _) = test_tls_configs();
+        let listener = RemoteListener {
+            listener: TcpListener::bind("127.0.0.1:0").unwrap(),
+            tls,
+            config: remote_config(),
+            active: Arc::new(AtomicU16::new(0)),
+            draining: Arc::new(AtomicU16::new(0)),
+        };
+        listener
+            .drain_until(Instant::now() + Duration::from_secs(1))
+            .unwrap();
+        assert!(listener.is_draining());
+        assert!(matches!(
+            listener.accept(),
+            Err(TransportError::RemoteDraining)
         ));
     }
 
