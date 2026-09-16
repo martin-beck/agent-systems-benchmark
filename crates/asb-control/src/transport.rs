@@ -4,6 +4,7 @@
 
 use std::fs::{self, Permissions};
 use std::io;
+use std::net::{IpAddr, SocketAddr};
 use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -15,6 +16,47 @@ use rustix::process::geteuid;
 use thiserror::Error;
 
 use crate::ControlLimits;
+
+/// Explicit admission policy for the optional remote control boundary.
+///
+/// This contract is intentionally separate from the owner-only Unix socket:
+/// remote transport is never enabled by frontend location or environment.
+/// A later TLS listener must consume this validated value rather than infer
+/// an address or security policy from process state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RemoteTransportConfig {
+    /// Explicitly opt in to the remote listener.
+    pub enabled: bool,
+    /// Address selected by the operator; no implicit default is permitted.
+    pub bind: SocketAddr,
+    /// Maximum simultaneously admitted remote connections.
+    pub max_connections: u16,
+    /// Bounds negotiated frames and request deadlines.
+    pub limits: ControlLimits,
+}
+
+impl RemoteTransportConfig {
+    /// Validate the explicit remote admission boundary.
+    pub fn validate(self) -> Result<Self, TransportError> {
+        if !self.enabled {
+            return Err(TransportError::RemoteDisabled);
+        }
+        if self.bind.port() == 0 {
+            return Err(TransportError::RemoteInvalidBind);
+        }
+        if self.bind.ip().is_unspecified() {
+            return Err(TransportError::RemoteWildcardBind);
+        }
+        if matches!(self.bind.ip(), IpAddr::V4(ip) if ip.is_broadcast()) {
+            return Err(TransportError::RemoteInvalidBind);
+        }
+        if self.max_connections == 0 || self.max_connections > 256 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        self.limits.validate().map_err(TransportError::Protocol)?;
+        Ok(self)
+    }
+}
 
 /// Authenticated local peer identity obtained from the kernel, never client data.
 ///
@@ -256,6 +298,18 @@ pub enum TransportError {
     /// Bound node is not a private same-user socket.
     #[error("local control socket permissions or ownership are unsafe")]
     UnsafeSocket,
+    /// Remote control was not explicitly enabled.
+    #[error("remote control transport is disabled")]
+    RemoteDisabled,
+    /// Remote control bind address or port is invalid.
+    #[error("remote control bind address is invalid")]
+    RemoteInvalidBind,
+    /// Wildcard remote binds require a separately reviewed policy.
+    #[error("remote control wildcard bind is not permitted")]
+    RemoteWildcardBind,
+    /// Remote connection limit is outside the implementation bound.
+    #[error("remote control connection limit is invalid")]
+    RemoteInvalidLimit,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
@@ -314,5 +368,55 @@ mod tests {
             rejected.to_string(),
             "local control peer is not owned by the expected user"
         );
+    }
+
+    fn remote_config() -> RemoteTransportConfig {
+        RemoteTransportConfig {
+            enabled: true,
+            bind: "127.0.0.1:9443".parse().unwrap(),
+            max_connections: 8,
+            limits: ControlLimits::default(),
+        }
+    }
+
+    #[test]
+    fn remote_admission_requires_explicit_non_wildcard_bind() {
+        assert!(matches!(
+            RemoteTransportConfig {
+                enabled: false,
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteDisabled)
+        ));
+        assert!(matches!(
+            RemoteTransportConfig {
+                bind: "0.0.0.0:9443".parse().unwrap(),
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteWildcardBind)
+        ));
+        assert!(remote_config().validate().is_ok());
+    }
+
+    #[test]
+    fn remote_admission_rejects_unbounded_connection_limits() {
+        assert!(matches!(
+            RemoteTransportConfig {
+                max_connections: 0,
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
+        assert!(matches!(
+            RemoteTransportConfig {
+                max_connections: 257,
+                ..remote_config()
+            }
+            .validate(),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
     }
 }
