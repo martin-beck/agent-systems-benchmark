@@ -16,8 +16,10 @@ FORBIDDEN = {"sh", "bash", "dash", "zsh", "-c", "--privileged", "--network=host"
 
 
 def build_command(artifact: Path, command: list[str]) -> list[str]:
+    if artifact.is_symlink():
+        raise ValueError("artifact must not be a symlink")
     resolved = artifact.resolve()
-    if not resolved.is_relative_to(PROJECT_ROOT) or resolved.is_symlink() or not resolved.is_file():
+    if not resolved.is_relative_to(PROJECT_ROOT) or not resolved.is_file():
         raise ValueError("artifact must be an existing non-symlink file under /srv/data/projects")
     if not command or any(Path(part).name in FORBIDDEN or part in FORBIDDEN for part in command):
         raise ValueError("a direct executable argument vector is required; shell commands are rejected")
