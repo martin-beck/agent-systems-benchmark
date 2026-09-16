@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "first-run",
+  "title": "First offline inspection",
+  "steps": [
+    {
+      "id": "show-capabilities",
+      "command": ["asb", "capabilities", "--format", "json"],
+      "expect": {"exit_code": 0, "stdout_shape": "capabilities-v1"},
+      "network": "denied",
+      "credentials": "none"
+    }
+  ]
+}
