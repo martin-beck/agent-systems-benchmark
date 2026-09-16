@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from run_isolated import build_command, verify_artifact  # noqa: E402
+from run_isolated import PYTHON_IMAGE, build_command, verify_artifact  # noqa: E402
 
 
 class RunnerContractTests(unittest.TestCase):
@@ -38,6 +38,12 @@ class RunnerContractTests(unittest.TestCase):
     def test_container_name_is_internal_and_bounded(self) -> None:
         with self.assertRaises(ValueError):
             build_command(self.artifact, ["/bin/true"], "arbitrary-name")
+
+    def test_only_reviewed_python_digest_can_be_selected(self) -> None:
+        command = build_command(self.artifact, ["/bin/true"], "asb-ar1252-123", PYTHON_IMAGE)
+        self.assertIn(PYTHON_IMAGE, command)
+        with self.assertRaises(ValueError):
+            build_command(self.artifact, ["/bin/true"], "asb-ar1252-123", "python:latest")
 
     def test_shell_vectors_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
