@@ -164,6 +164,37 @@ impl Drop for LoopbackSidecar {
     }
 }
 
+/// Evidence that the sidecar was handed to a private child namespace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SidecarAttestation {
+    /// Child-visible loopback endpoint.
+    pub endpoint: SocketAddr,
+    /// Per-launch generation.
+    pub generation: String,
+    /// Cassette route digest.
+    pub route_digest: String,
+    /// Whether the launch backend proved the private namespace handoff.
+    pub namespace_ready: bool,
+}
+
+impl LoopbackSidecar {
+    /// Build an attestation, failing closed until the launcher proves handoff.
+    pub fn attest(&self, namespace_ready: bool) -> io::Result<SidecarAttestation> {
+        if !namespace_ready {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "private namespace handoff unavailable",
+            ));
+        }
+        Ok(SidecarAttestation {
+            endpoint: self.endpoint(),
+            generation: self.identity.generation.clone(),
+            route_digest: self.identity.route_digest.clone(),
+            namespace_ready,
+        })
+    }
+}
+
 /// Create a private temporary relay path without replacing an existing file.
 pub fn fresh_relay_path(root: &Path, generation: &str) -> io::Result<PathBuf> {
     if !valid_id(generation) {
@@ -266,5 +297,24 @@ mod tests {
             input.len()
         );
         assert_eq!(output, input);
+    }
+
+    #[test]
+    fn namespace_handoff_is_required_for_attestation() {
+        let root = root();
+        let path = root.join("relay.sock");
+        let sidecar =
+            LoopbackSidecar::bind(SidecarIdentity::new("generation", "route").unwrap(), &path)
+                .unwrap();
+        assert_eq!(
+            sidecar.attest(false).unwrap_err().kind(),
+            io::ErrorKind::Unsupported
+        );
+        let attestation = sidecar.attest(true).unwrap();
+        assert!(attestation.namespace_ready);
+        assert_eq!(attestation.generation, "generation");
+        assert_eq!(attestation.route_digest, "route");
+        drop(sidecar);
+        let _ = fs::remove_dir_all(root);
     }
 }
