@@ -317,6 +317,11 @@ impl SandboxSpec {
     pub fn arguments(&self) -> &[String] {
         &self.arguments
     }
+
+    /// Environment passed to the pinned adapter process.
+    pub fn environment(&self) -> &BTreeMap<String, String> {
+        &self.environment
+    }
 }
 
 /// Validated input for one supervised adapter launch.
