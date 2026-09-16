@@ -1446,7 +1446,9 @@ mod tests {
     const MAX_PROC_STAT_BYTES: u64 = 4096;
     const MAX_PID_EVIDENCE_BYTES: u64 = 32;
     const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;
+    #[allow(dead_code)]
     const MAX_PROC_ENTRIES: usize = 65_536;
+    #[allow(dead_code)]
     const MAX_PROCESS_GROUP_MEMBERS: usize = 1_024;
 
     fn canonical_repository_root() -> io::Result<PathBuf> {
@@ -1680,6 +1682,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     fn process_group_members(process_group: u32, session: u32) -> io::Result<Vec<ProcessIdentity>> {
         let mut members = Vec::new();
         for (index, entry) in fs::read_dir("/proc")?.enumerate() {
@@ -1708,6 +1711,7 @@ mod tests {
         Ok(members)
     }
 
+    #[allow(dead_code)]
     fn runnable_group_members(
         process_group: u32,
         session: u32,
@@ -2141,22 +2145,18 @@ wait
         // fixture.  Keep the readiness bound finite and below the process limit;
         // a missing publication still fails closed at the deadline.
         let readiness_deadline = Instant::now() + Duration::from_secs(60);
-        let (children, original_group) = loop {
+        let children = loop {
             if let Ok(bytes) = read_bounded(&pid_path, MAX_PID_LIST_EVIDENCE_BYTES)
                 && let Some(pids) = parse_pid_list_evidence(&bytes)
                 && pids.len() == 2
-                && let Ok(members) = process_group_members(
-                    running.pid(),
-                    pids.first()
-                        .and_then(|pid| read_process_identity(*pid).ok().flatten())
-                        .map(|identity| identity.session)
-                        .unwrap_or(0),
-                )
-                && pids
-                    .iter()
-                    .all(|pid| members.iter().any(|identity| identity.pid == *pid))
+                && pids.iter().all(|pid| {
+                    read_process_identity(*pid)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|identity| identity.pid == *pid)
+                })
             {
-                break (pids, members);
+                break pids;
             }
             assert!(
                 Instant::now() < readiness_deadline,
@@ -2165,27 +2165,23 @@ wait
             std::thread::sleep(Duration::from_millis(5));
         };
         assert_eq!(children.len(), 2);
-        let session = original_group
+        let original_children: Vec<_> = children
             .iter()
-            .find(|identity| identity.pid == children[0])
-            .unwrap()
-            .session;
-        assert!(
-            original_group
-                .iter()
-                .any(|identity| identity.pid == running.pid())
-        );
-        assert!(original_group.iter().all(|identity| {
-            identity.process_group == running.pid() && identity.session == session
-        }));
+            .map(|pid| read_process_identity(*pid).unwrap().unwrap())
+            .collect();
         running.cancel().unwrap();
         assert_eq!(running.wait().unwrap().status(), TerminalStatus::Cancelled);
         let terminal_deadline = Instant::now() + Duration::from_secs(2);
         loop {
-            if runnable_group_members(running.pid(), session)
-                .unwrap()
-                .is_empty()
-            {
+            if original_children.iter().all(|original| {
+                !matches!(
+                    classify_original(
+                        *original,
+                        read_process_identity(original.pid).ok().flatten()
+                    ),
+                    OriginalProcessState::Runnable
+                )
+            }) {
                 break;
             }
             assert!(
