@@ -65,6 +65,16 @@ pub struct ResolvedStrictReplay {
     pub artifact_path: PathBuf,
 }
 
+/// Runtime-bound replay retaining its sidecar until execution completes.
+pub struct RuntimeBoundReplay {
+    /// Verified cassette and launch record.
+    pub resolved: ResolvedStrictReplay,
+    /// Bridge consumed by the supervised launch seam.
+    pub bridge: StrictReplayLaunchBridge,
+    /// Owned sidecar whose drop removes the relay socket.
+    pub sidecar: LoopbackSidecar,
+}
+
 /// Fail-closed plan or artifact resolution error.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ReplayContractError {
@@ -109,7 +119,7 @@ pub fn bind_runtime_handoff(
 pub fn resolve_and_bind_runtime(
     plan: &StrictReplayPlanV1,
     artifact_root: &Path,
-) -> Result<(ResolvedStrictReplay, StrictReplayLaunchBridge), ReplayContractError> {
+) -> Result<RuntimeBoundReplay, ReplayContractError> {
     let resolved = resolve_strict_replay(plan, artifact_root)?;
     let identity = SidecarIdentity::new(
         format!("{}-{}", plan.run_id, plan.attempt_id),
@@ -123,17 +133,27 @@ pub fn resolve_and_bind_runtime(
     .map_err(|_| ReplayContractError::Unavailable)?;
     let sidecar =
         LoopbackSidecar::bind(identity, relay).map_err(|_| ReplayContractError::Unavailable)?;
-    let handoff = sidecar
-        .handoff(
+    let attestation = sidecar
+        .attest_with_commands(
             true,
-            Duration::from_millis(resolved.launch.input.timeout_ms),
             format!("{:x}", Sha256::digest(b"asb-runtime-loopback-sidecar-v1")),
             resolved.launch.input.command_sha256.clone(),
         )
         .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let handoff = sidecar
+        .handoff(
+            attestation.namespace_ready,
+            Duration::from_millis(resolved.launch.input.timeout_ms),
+            attestation.sidecar_command_digest,
+            attestation.adapter_command_digest,
+        )
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
     let bridge = bind_runtime_handoff(&resolved.launch, &handoff)?;
-    drop(sidecar);
-    Ok((resolved, bridge))
+    Ok(RuntimeBoundReplay {
+        resolved,
+        bridge,
+        sidecar,
+    })
 }
 
 /// Resolve and authenticate one strict replay plan without ambient configuration.
@@ -312,6 +332,16 @@ mod tests {
         let resolved = resolve_strict_replay(&plan(root.path()), root.path()).unwrap();
         assert_eq!(resolved.launch.input.egress, EgressPolicy::LoopbackOnly);
         assert_eq!(resolved.launch.input.attempt_id, "attempt-fixture");
+    }
+
+    #[test]
+    fn runtime_binding_retains_relay_until_bound_replay_is_dropped() {
+        let root = fixture();
+        let bound = resolve_and_bind_runtime(&plan(root.path()), root.path()).unwrap();
+        assert!(bound.sidecar.relay_path().exists());
+        let relay = bound.sidecar.relay_path().to_owned();
+        drop(bound);
+        assert!(!relay.exists());
     }
 
     #[test]
