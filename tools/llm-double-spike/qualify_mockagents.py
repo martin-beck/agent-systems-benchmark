@@ -158,6 +158,16 @@ def _stable_hash(body: bytes) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _stable_sse_hash(body: bytes) -> str:
+    """Hash SSE semantics while excluding generated event identity fields."""
+    stable = []
+    for line in body.splitlines():
+        if line.startswith((b"id:", b"created:")):
+            continue
+        stable.append(line)
+    return hashlib.sha256(b"\n".join(stable)).hexdigest()
+
+
 def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="asb-mockagents-") as state:
         root = Path(state)
@@ -201,7 +211,7 @@ def qualify(executable: Path, runner: tuple[str, ...] = ()) -> dict[str, Any]:
             status, body, kind = _post(port, "/v1/messages", {"model": "anthropic-fixture", "messages": [{"role": "user", "content": "ready"}], "stream": True})
             if status != 200 or "text/event-stream" not in kind or b"message_stop" not in body:
                 raise QualificationError("anthropic SSE protocol failed")
-            cases["anthropic_sse"] = hashlib.sha256(body).hexdigest()
+            cases["anthropic_sse"] = _stable_sse_hash(body)
             status, body, kind = _post(port, "/v1/responses", {"model": "openai-fixture", "input": "ready"})
             if status != 200 or "application/json" not in kind:
                 raise QualificationError("OpenAI Responses protocol failed")
