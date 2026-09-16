@@ -330,3 +330,38 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
         Err(error) => panic!("unexpected crash classification: {error:?}"),
     }
 }
+
+#[test]
+fn strict_launch_child_provider_egress_is_denied() {
+    let Some(backend) = backend() else { return };
+    let Some(root) = root("egress") else { return };
+    let (input, lease) = input_with_limits(
+        &root,
+        "/usr/bin/curl",
+        vec![
+            "--connect-timeout".into(),
+            "0.1".into(),
+            "http://198.51.100.1/".into(),
+        ],
+        BTreeMap::from([
+            ("ASB_REPLAY_ROUTE_SHA256".into(), "b".repeat(64)),
+            (
+                "ASB_REPLAY_ENDPOINT".into(),
+                "http://127.0.0.1:4317/replay".into(),
+            ),
+        ]),
+        short_limits(),
+    );
+    let record = launch_record(digest_command(
+        input.spec().program(),
+        input.spec().arguments(),
+    ));
+    let result = StrictReplaySandboxLaunch::new(record)
+        .unwrap()
+        .spawn(&backend, input, lease);
+    match result {
+        Ok(mut process) => assert_ne!(process.wait().unwrap().exit_code, Some(0)),
+        Err(asb_agents::strict_replay::StrictReplayError::SandboxUnavailable) => {}
+        Err(error) => panic!("unexpected egress classification: {error:?}"),
+    }
+}
