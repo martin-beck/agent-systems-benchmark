@@ -449,6 +449,13 @@ pub enum TransportError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rcgen::generate_simple_self_signed;
+    use rustls::RootCertStore;
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+    use rustls::server::WebPkiClientVerifier;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
 
     #[test]
     fn guarded_cleanup_removes_only_matching_socket_nodes() {
@@ -544,5 +551,71 @@ mod tests {
             .validate(),
             Err(TransportError::RemoteInvalidLimit)
         ));
+    }
+
+    fn test_tls_configs() -> (RemoteTlsConfig, RemoteTlsClient, RemoteTlsClient) {
+        let generated = generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let certificate = CertificateDer::from(generated.cert.der().to_vec());
+        let key =
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(generated.key_pair.serialize_der()));
+        let mut roots = RootCertStore::empty();
+        roots.add(certificate.clone()).unwrap();
+        let verifier = WebPkiClientVerifier::builder(Arc::new(roots.clone()))
+            .build()
+            .unwrap();
+        let server = ServerConfig::builder()
+            .with_client_cert_verifier(verifier)
+            .with_single_cert(vec![certificate.clone()], key.clone_key())
+            .unwrap();
+        let client = ClientConfig::builder().with_root_certificates(roots);
+        let authenticated = client
+            .clone()
+            .with_client_auth_cert(vec![certificate], key)
+            .unwrap();
+        let unauthenticated = client.with_no_client_auth();
+        (
+            RemoteTlsConfig::new(server).unwrap(),
+            RemoteTlsClient::new(authenticated),
+            RemoteTlsClient::new(unauthenticated),
+        )
+    }
+
+    #[test]
+    fn tls_frame_round_trip_uses_authenticated_mtls_and_alpn() {
+        let (server, client, _) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut tls = server
+                .accept(stream, remote_config())
+                .expect("mutual TLS handshake");
+            let mut body = [0_u8; 5];
+            tls.read_exact(&mut body).unwrap();
+            tls.write_all(b"world").unwrap();
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let mut tls = client
+            .connect(stream, "localhost", remote_config())
+            .expect("mutual TLS client handshake");
+        tls.write_all(b"hello").unwrap();
+        let mut response = [0_u8; 5];
+        tls.read_exact(&mut response).unwrap();
+        assert_eq!(&response, b"world");
+        server_thread.join().unwrap();
+    }
+
+    #[test]
+    fn tls_server_rejects_client_without_certificate() {
+        let (server, _, unauthenticated_client) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            server.accept(stream, remote_config()).is_err()
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let _ = unauthenticated_client.connect(stream, "localhost", remote_config());
+        assert!(server_thread.join().unwrap());
     }
 }
