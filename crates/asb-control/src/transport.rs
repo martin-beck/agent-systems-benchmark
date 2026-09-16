@@ -403,6 +403,10 @@ impl RemoteTlsConfig {
         if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
             return Err(TransportError::RemoteAlpnMismatch);
         }
+        tls.sock
+            .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        tls.sock
+            .set_write_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
         Ok(tls)
     }
 }
@@ -457,6 +461,10 @@ impl RemoteTlsClient {
         if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
             return Err(TransportError::RemoteAlpnMismatch);
         }
+        tls.sock
+            .set_read_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
+        tls.sock
+            .set_write_timeout(Some(Duration::from_millis(config.idle_timeout_ms)))?;
         Ok(tls)
     }
 }
