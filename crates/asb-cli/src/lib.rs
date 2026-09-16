@@ -2482,6 +2482,7 @@ fn spawn_verified_agent(
                 .env(provider_launch::LAUNCH_VERSION_ENV, "1")
                 .env(provider_launch::LAUNCH_DIGEST_ENV, &launch.launch_sha256)
                 .env(provider_launch::PROVIDER_ENV, &launch.input.provider)
+                .env(provider_launch::ADAPTER_ENV, &launch.input.adapter)
                 .env(provider_launch::MODEL_ENV, &launch.input.model)
                 .env(
                     provider_launch::API_MODE_ENV,
@@ -2490,6 +2491,10 @@ fn spawn_verified_agent(
                 .env(
                     provider_launch::PROFILE_DIGEST_ENV,
                     &launch.input.provider_profile_sha256,
+                )
+                .env(
+                    provider_launch::SETTINGS_DIGEST_ENV,
+                    &launch.input.settings_sha256,
                 )
                 .env(
                     provider_launch::CREDENTIAL_REFERENCE_ENV,

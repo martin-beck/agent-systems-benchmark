@@ -14,6 +14,10 @@ pub(crate) const MODEL_ENV: &str = "ASB_PROVIDER_MODEL";
 pub(crate) const API_MODE_ENV: &str = "ASB_PROVIDER_API_MODE";
 /// Non-secret profile identity selected by the launch contract.
 pub(crate) const PROFILE_DIGEST_ENV: &str = "ASB_PROVIDER_PROFILE_SHA256";
+/// Exact settings identity selected by the launch contract.
+pub(crate) const SETTINGS_DIGEST_ENV: &str = "ASB_PROVIDER_SETTINGS_SHA256";
+/// Exact adapter identity selected by the launch contract.
+pub(crate) const ADAPTER_ENV: &str = "ASB_PROVIDER_ADAPTER";
 /// Non-secret credential-reference identity selected by the launch contract.
 pub(crate) const CREDENTIAL_REFERENCE_ENV: &str = "ASB_PROVIDER_CREDENTIAL_REFERENCE_SHA256";
 /// Adapter-owned environment target selected for secret injection.
