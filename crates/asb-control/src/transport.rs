@@ -9,8 +9,8 @@ use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use rustix::net::sockopt::socket_peercred;
@@ -63,6 +63,7 @@ pub struct RemoteListener {
     tls: RemoteTlsConfig,
     config: RemoteTransportConfig,
     active: Arc<AtomicU16>,
+    draining: Arc<AtomicU16>,
 }
 
 impl RemoteListener {
@@ -78,6 +79,7 @@ impl RemoteListener {
             tls,
             config,
             active: Arc::new(AtomicU16::new(0)),
+            draining: Arc::new(AtomicU16::new(0)),
         })
     }
 
@@ -91,6 +93,9 @@ impl RemoteListener {
         ),
         TransportError,
     > {
+        if self.draining.load(Ordering::Acquire) != 0 {
+            return Err(TransportError::RemoteDraining);
+        }
         let permit = RemoteConnectionPermit::acquire(
             Arc::clone(&self.active),
             self.config.max_connections,
@@ -104,6 +109,17 @@ impl RemoteListener {
                 Err(error)
             }
         }
+    }
+
+    /// Begin graceful drain; existing permits remain valid.
+    pub fn begin_drain(&self) {
+        self.draining.store(1, Ordering::Release);
+    }
+
+    /// Whether new connections are refused during graceful drain.
+    #[must_use]
+    pub fn is_draining(&self) -> bool {
+        self.draining.load(Ordering::Acquire) != 0
     }
 
     /// Address selected by the operator.
@@ -161,6 +177,42 @@ impl RemoteRequestGate {
 #[derive(Debug)]
 pub struct RemoteRequestPermit<'a> {
     gate: &'a RemoteRequestGate,
+}
+
+/// Bounded one-second request rate limiter.
+#[derive(Debug)]
+pub struct RemoteRateLimiter {
+    state: Mutex<(Instant, u16)>,
+    maximum: u16,
+}
+
+impl RemoteRateLimiter {
+    /// Construct a finite rate limiter.
+    pub fn new(maximum: u16) -> Result<Self, TransportError> {
+        if maximum == 0 || maximum > 4096 {
+            return Err(TransportError::RemoteInvalidLimit);
+        }
+        Ok(Self {
+            state: Mutex::new((Instant::now(), 0)),
+            maximum,
+        })
+    }
+
+    /// Admit one request or reject it under the current one-second window.
+    pub fn acquire(&self) -> Result<(), TransportError> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if state.0.elapsed() >= Duration::from_secs(1) {
+            *state = (Instant::now(), 0);
+        }
+        if state.1 >= self.maximum {
+            return Err(TransportError::RemoteRateLimited);
+        }
+        state.1 += 1;
+        Ok(())
+    }
 }
 
 impl Drop for RemoteRequestPermit<'_> {
@@ -615,6 +667,12 @@ pub enum TransportError {
     /// Per-connection request capacity has been exhausted.
     #[error("remote control request backpressure limit reached")]
     RemoteBackpressure,
+    /// Listener is draining and refuses new connections.
+    #[error("remote control listener is draining")]
+    RemoteDraining,
+    /// Request rate exceeded its bounded one-second window.
+    #[error("remote control request rate limit reached")]
+    RemoteRateLimited,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
@@ -765,6 +823,20 @@ mod tests {
         assert!(gate.acquire().is_ok());
         assert!(matches!(
             RemoteRequestGate::new(0),
+            Err(TransportError::RemoteInvalidLimit)
+        ));
+    }
+
+    #[test]
+    fn remote_rate_limiter_fails_closed_at_window_capacity() {
+        let limiter = RemoteRateLimiter::new(1).unwrap();
+        assert!(limiter.acquire().is_ok());
+        assert!(matches!(
+            limiter.acquire(),
+            Err(TransportError::RemoteRateLimited)
+        ));
+        assert!(matches!(
+            RemoteRateLimiter::new(0),
             Err(TransportError::RemoteInvalidLimit)
         ));
     }
