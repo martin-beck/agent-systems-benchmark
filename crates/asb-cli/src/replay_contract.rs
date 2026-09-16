@@ -27,6 +27,8 @@ pub struct StrictReplayPlanV1 {
     pub cassette_sha256: String,
     /// Expected stable cassette identity.
     pub cassette_id: String,
+    /// Authenticated cassette session identity.
+    pub session_id: String,
     /// Authenticated route digest.
     pub route_sha256: String,
     /// Provider dialect selected by the recording.
@@ -122,6 +124,17 @@ pub fn resolve_strict_replay(
     if cassette.contents.cassette_id != plan.cassette_id {
         return Err(ReplayContractError::DigestMismatch);
     }
+    if cassette.contents.interactions.iter().any(|interaction| {
+        interaction.session_id != plan.session_id
+            || interaction.attempt_id != plan.attempt_id
+            || serde_json::to_value(interaction.dialect)
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref()
+                != Some(plan.provider_dialect.as_str())
+    }) {
+        return Err(ReplayContractError::InvalidPlan);
+    }
     let input = StrictReplayLaunchV1 {
         schema_version: 1,
         cassette_sha256: plan.cassette_sha256.clone(),
@@ -157,6 +170,8 @@ fn validate_plan(plan: &StrictReplayPlanV1) -> Result<(), ReplayContractError> {
         || plan.cassette_path.len() > 4096
         || plan.cassette_id.is_empty()
         || plan.cassette_id.len() > 128
+        || plan.session_id.is_empty()
+        || plan.session_id.len() > 128
         || plan.provider_dialect.is_empty()
         || plan.provider_dialect.len() > 128
         || plan.adapter.is_empty()
@@ -197,11 +212,12 @@ mod tests {
             cassette_path: "cassette.json".into(),
             cassette_sha256: format!("{:x}", Sha256::digest(&bytes)),
             cassette_id: cassette.contents.cassette_id,
+            session_id: "session-fixture".into(),
             route_sha256: "b".repeat(64),
-            provider_dialect: "openai-chat-v1".into(),
+            provider_dialect: "synthetic".into(),
             adapter: "codex".into(),
             run_id: "run-1".into(),
-            attempt_id: "attempt-1".into(),
+            attempt_id: "attempt-fixture".into(),
             workload_sha256: "c".repeat(64),
             command_sha256: "d".repeat(64),
             egress: EgressPolicy::LoopbackOnly,
@@ -224,7 +240,7 @@ mod tests {
         let root = fixture();
         let resolved = resolve_strict_replay(&plan(root.path()), root.path()).unwrap();
         assert_eq!(resolved.launch.input.egress, EgressPolicy::LoopbackOnly);
-        assert_eq!(resolved.launch.input.attempt_id, "attempt-1");
+        assert_eq!(resolved.launch.input.attempt_id, "attempt-fixture");
     }
 
     #[test]
