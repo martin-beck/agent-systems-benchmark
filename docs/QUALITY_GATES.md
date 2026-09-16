@@ -107,7 +107,8 @@ python3 tools/quality/check_coverage.py
 bin_dir="$(tools/quality/install-external-tools.sh)"
 "$bin_dir/actionlint" -config-file .github/actionlint.yaml
 "$bin_dir/zizmor" --pedantic .
-"$bin_dir/gitleaks" git --redact --no-banner .
+tools/quality/run_gitleaks.sh --gitleaks "$bin_dir/gitleaks" --config .gitleaks.toml \\
+  --base origin/main --head HEAD --repo .
 python3 tools/quality/repository_policy.py --base origin/main --head HEAD
 python3 tools/quality/test_failure_paths.py --bin-dir "$bin_dir"
 python3 -m unittest tools.quality.test_signature_policy
