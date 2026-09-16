@@ -7,6 +7,7 @@ use asb_replay::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use url::Url;
 
 /// Current strict replay launch contract.
 pub const STRICT_REPLAY_LAUNCH_V1: u16 = 1;
@@ -76,6 +77,8 @@ pub enum StrictReplayError {
     AttemptMismatch,
     /// The supplied route is not the authenticated launch route.
     RouteMismatch,
+    /// The adapter endpoint is outside the pinned local replay boundary.
+    ExternalEndpoint,
 }
 
 /// Bounded replay executor that has no live-provider fallback.
@@ -85,6 +88,19 @@ pub struct StrictReplayExecutor {
 }
 
 impl StrictReplayExecutor {
+    /// Reject provider endpoints before an adapter process can be launched.
+    pub fn validate_endpoint(endpoint: &str) -> Result<(), StrictReplayError> {
+        let url = Url::parse(endpoint).map_err(|_| StrictReplayError::ExternalEndpoint)?;
+        if url.scheme() != "http"
+            || url.username() != ""
+            || url.host_str() != Some("127.0.0.1")
+            || url.port().is_none()
+        {
+            return Err(StrictReplayError::ExternalEndpoint);
+        }
+        Ok(())
+    }
+
     /// Authenticate a launch record and bind one cassette to its local service.
     pub fn new(
         record: StrictReplayLaunchRecord,
@@ -236,6 +252,12 @@ mod tests {
             .validate(),
             Err(StrictReplayError::DigestMismatch)
         );
+    }
+
+    #[test]
+    fn endpoint_policy_rejects_provider_egress() {
+        assert!(StrictReplayExecutor::validate_endpoint("https://api.openai.com/v1").is_err());
+        assert!(StrictReplayExecutor::validate_endpoint("http://127.0.0.1:4317/replay").is_ok());
     }
 
     #[test]
