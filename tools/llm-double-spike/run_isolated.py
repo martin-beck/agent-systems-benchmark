@@ -72,7 +72,8 @@ def main() -> int:
         print(json.dumps({"status": "timeout"}, sort_keys=True))
         return 124
     if args.verify_network_none:
-        if result.returncode != 0 or result.stdout.strip():
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        if result.returncode != 0 or len(lines) != 1 or not lines[0].startswith(b"Iface"):
             print(json.dumps({"status": "network-denial-failed"}, sort_keys=True))
             return 1
         print(json.dumps({"status": "network-none-verified"}, sort_keys=True))
