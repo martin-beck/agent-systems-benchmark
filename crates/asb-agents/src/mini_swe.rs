@@ -2174,12 +2174,12 @@ wait
         let terminal_deadline = Instant::now() + Duration::from_secs(2);
         loop {
             if original_children.iter().all(|original| {
-                !matches!(
+                matches!(
                     classify_original(
                         *original,
                         read_process_identity(original.pid).ok().flatten()
                     ),
-                    OriginalProcessState::Runnable
+                    OriginalProcessState::Missing | OriginalProcessState::Zombie
                 )
             }) {
                 break;
