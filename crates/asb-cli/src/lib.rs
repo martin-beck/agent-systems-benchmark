@@ -112,10 +112,8 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
-        [command] if command == "setup" => setup(stdout).map(|()| 0),
-        [command, format] if command == "setup" && format == "--format=json" => {
-            setup(stdout).map(|()| 0)
-        }
+        [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
+        [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
         [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
@@ -269,28 +267,76 @@ struct SetupOutput {
     steps: &'static [&'static str],
     persistent_change: bool,
     provider_contact: bool,
+    provider_profile: Option<String>,
+    model: Option<String>,
 }
 
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
 /// phase; this contract gives scripts a stable, explicit preflight surface.
-fn setup(output: &mut dyn Write) -> Result<(), CliError> {
-    write_json(
-        output,
-        &SetupOutput {
-            schema_version: OUTPUT_SCHEMA_VERSION,
-            ok: true,
-            command: "setup",
-            mode: "preflight",
-            steps: &[
-                "detect-installed-agents",
-                "select-provider-and-model",
-                "configure-authentication",
-                "confirm-persistence",
-            ],
-            persistent_change: false,
-            provider_contact: false,
+fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let mut provider_profile = None;
+    let mut model = None;
+    let mut output_path = None;
+    let mut index = 0;
+    while index < args.len() {
+        let value = args[index].as_str();
+        let target = match value {
+            "--provider-profile" => &mut provider_profile,
+            "--model" => &mut model,
+            "--output" => &mut output_path,
+            "--format=json" => {
+                index += 1;
+                continue;
+            }
+            _ => {
+                return Err(CliError::usage(
+                    "setup accepts --provider-profile, --model, --output, and --format=json",
+                ));
+            }
+        };
+        index += 1;
+        let argument = args
+            .get(index)
+            .ok_or_else(|| CliError::usage("setup option is missing a value"))?;
+        if argument.is_empty() || argument.len() > MAX_ID_BYTES {
+            return Err(CliError::validation(
+                "setup option value is empty or too long",
+            ));
+        }
+        *target = Some(argument.clone());
+        index += 1;
+    }
+    if provider_profile.is_some() != model.is_some() {
+        return Err(CliError::validation(
+            "provider profile and model must be selected together",
+        ));
+    }
+    let contract = SetupOutput {
+        schema_version: OUTPUT_SCHEMA_VERSION,
+        ok: true,
+        command: "setup",
+        mode: if output_path.is_some() {
+            "commit"
+        } else {
+            "preflight"
         },
-    )
+        steps: &[
+            "detect-installed-agents",
+            "select-provider-and-model",
+            "configure-authentication",
+            "confirm-persistence",
+        ],
+        persistent_change: output_path.is_some(),
+        provider_contact: false,
+        provider_profile,
+        model,
+    };
+    if let Some(path) = output_path {
+        let encoded = serde_json::to_vec(&contract)
+            .map_err(|_| CliError::operation("setup configuration cannot be encoded"))?;
+        write_atomic_private(Path::new(&path), &encoded)?;
+    }
+    write_json(output, &contract)
 }
 
 fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
@@ -3772,6 +3818,51 @@ mod tests {
         );
         let value: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(value["error"]["code"], "usage");
+    }
+
+    #[test]
+    fn setup_requires_complete_provider_selection_and_does_not_commit_on_error() {
+        let scratch = Scratch::new("setup");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--provider-profile",
+            "openai",
+            "--output",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        assert!(!destination.exists());
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "validation");
+    }
+
+    #[test]
+    fn setup_commits_only_validated_selection_atomically() {
+        let scratch = Scratch::new("setup-valid");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--provider-profile",
+            "openai",
+            "--model",
+            "gpt-4o-mini",
+            "--output",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let persisted: Value = serde_json::from_slice(&fs::read(&destination).unwrap()).unwrap();
+        assert_eq!(persisted["mode"], "commit");
+        assert_eq!(persisted["provider_profile"], "openai");
+        assert_eq!(persisted["model"], "gpt-4o-mini");
     }
 
     #[test]
