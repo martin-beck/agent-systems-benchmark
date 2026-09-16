@@ -4,7 +4,7 @@
 
 use asb_runtime::sandbox::{
     CpuSet, LeaseClass, NetworkPolicy, ResourceLease, Resources, SandboxBackend, SandboxError,
-    SandboxSpec, ToolPin,
+    SandboxLaunchInput, SandboxSpec, ToolPin,
 };
 use asb_runtime::{ProcessLifecycle, ProcessLimits, Termination};
 use std::collections::BTreeMap;
@@ -430,7 +430,8 @@ fn short_process_completes_without_ambiguous_scope_ownership() {
         NetworkPolicy::Deny,
     )
     .unwrap();
-    let mut process = backend.spawn(request, lease(&root, &r), limits()).unwrap();
+    let input = SandboxLaunchInput::new(request, limits()).unwrap();
+    let mut process = backend.spawn_launch(input, lease(&root, &r)).unwrap();
     assert_eq!(process.wait().unwrap().exit_code, Some(0));
     drop(process);
     assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
@@ -558,7 +559,8 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
         NetworkPolicy::Deny,
     )
     .unwrap();
-    let process = backend.spawn(request, lease(&root, &r), limits()).unwrap();
+    let input = SandboxLaunchInput::new(request, limits()).unwrap();
+    let process = backend.spawn_launch(input, lease(&root, &r)).unwrap();
     let unit = process.unit().to_owned();
     assert_eq!(process.lifecycle(), ProcessLifecycle::Running);
     drop(process);
