@@ -49,7 +49,8 @@ def _safe_arg(value: Any, name: str) -> str:
 
 def _path_arg(value: str, name: str) -> None:
     if (
-        value.startswith("/")
+        value.startswith("-")
+        or value.startswith("/")
         or value.startswith("~")
         or ".." in value.split("/")
         or "://" in value
@@ -161,7 +162,7 @@ def validate_metadata(metadata: Any) -> dict[str, Any]:
                 if not isinstance(form, list) or len(form) > MAX_ARGS:
                     raise ValidationError(f"metadata command {name} has an invalid form")
                 for value in form:
-                    if not isinstance(value, str) or value not in {"PATH", "SHA256", "AGENT", "bash", "json", "--offline", "--dry-run", "--launch", "launch", "status", "doctor", "remove", "install", "upgrade"} and not value.startswith("--"):
+                    if not isinstance(value, str) or value not in {"PATH", "SHA256", "AGENT", "bash", "json", "--format", "--provider-selection", "--offline", "--dry-run", "--launch", "--provider", "--endpoint-digest", "--credential-digest", "--idempotency-key", "launch", "status", "doctor", "remove", "install", "upgrade"}:
                         raise ValidationError(f"metadata command {name} has an unknown grammar token")
         elif "min_args" in spec:
             if not isinstance(spec["min_args"], int) or spec["min_args"] < 1 or spec["min_args"] > MAX_ARGS:

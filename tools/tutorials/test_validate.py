@@ -76,6 +76,14 @@ class TutorialValidatorTests(unittest.TestCase):
         metadata["commands"]["doctor"]["forms"] = "not-an-array"
         with self.assertRaises(ValidationError):
             validate_metadata(metadata)
+        metadata = json.loads(json.dumps(METADATA))
+        metadata["commands"]["capabilities"]["forms"] = [["--renamed", "json"]]
+        with self.assertRaises(ValidationError):
+            validate_metadata(metadata)
+
+    def test_path_operands_cannot_be_options(self):
+        with self.assertRaises(ValidationError):
+            validate_document(document(["asb", "compare", "--unknown", "run.json"]), METADATA)
 
     def test_schema_and_validator_contract_fields_stay_in_parity(self):
         self.assertEqual(
@@ -93,6 +101,10 @@ class TutorialValidatorTests(unittest.TestCase):
         self.assertEqual(SCHEMA["properties"]["schema_version"]["const"], 1)
         self.assertEqual(step["properties"]["network"]["const"], "denied")
         self.assertEqual(step["properties"]["credentials"]["const"], "none")
+        self.assertFalse(SCHEMA["additionalProperties"])
+        self.assertFalse(step["additionalProperties"])
+        self.assertEqual(step["properties"]["command"]["maxItems"], 16)
+        self.assertEqual(step["properties"]["references"]["maxItems"], 16)
 
     def test_file_loader_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
