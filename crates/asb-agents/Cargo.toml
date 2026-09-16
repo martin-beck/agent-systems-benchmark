@@ -10,6 +10,7 @@ repository.workspace = true
 asb-core = { version = "=0.1.0", path = "../asb-core" }
 asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
 asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
+asb-replay = { version = "=0.1.0", path = "../asb-replay" }
 serde = "=1.0.219"
 serde_json = "=1.0.143"
 sha2 = "=0.10.9"
@@ -17,7 +18,6 @@ rustix = { version = "=1.1.4", features = ["fs"] }
 url = "=2.5.7"
 
 [dev-dependencies]
-asb-replay = { version = "=0.1.0", path = "../asb-replay" }
 asb-workloads = { version = "=0.1.0", path = "../asb-workloads" }
 jsonschema = { version = "=0.33.0", default-features = false }
 
