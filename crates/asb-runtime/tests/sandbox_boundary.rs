@@ -7,6 +7,7 @@ use asb_runtime::sandbox::{
     SandboxSpec, ToolPin,
 };
 use asb_runtime::{ProcessLifecycle, ProcessLimits, Termination};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -396,6 +397,103 @@ fn native_workspace_and_network_are_isolated() {
         thread::sleep(Duration::from_millis(5));
     }
     assert!(connection.is_none(), "sandbox reached host loopback");
+}
+
+#[test]
+fn native_loopback_policy_reaches_owned_cassette_and_reaps_relay() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let root = test_root("loopback-cassette");
+    let resources = resources(8);
+    let relay = root.join("work").join("cassette.sock");
+    let listener = std::os::unix::net::UnixListener::bind(&relay).unwrap();
+    fs::set_permissions(&relay, fs::Permissions::from_mode(0o600)).unwrap();
+    let server = thread::spawn(move || {
+        use std::io::{Read, Write};
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut handshake = Vec::new();
+        let mut byte = [0_u8; 1];
+        while handshake.last() != Some(&b'\n') {
+            stream.read_exact(&mut byte).unwrap();
+            handshake.push(byte[0]);
+        }
+        assert_eq!(handshake, b"ASB-REPLAY/generation-1233\n");
+        let mut request = Vec::new();
+        let mut chunk = [0_u8; 1];
+        while !request.ends_with(b"\r\n\r\n") {
+            stream.read_exact(&mut chunk).unwrap();
+            request.push(chunk[0]);
+        }
+        assert!(request.starts_with(b"GET /health"));
+        let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK");
+    });
+
+    fn digest(path: &Path) -> String {
+        let mut file = fs::File::open(path).unwrap();
+        let mut hasher = Sha256::new();
+        std::io::copy(&mut file, &mut hasher).unwrap();
+        format!("{:x}", hasher.finalize())
+    }
+    let supervisor_path = PathBuf::from(env!("CARGO_BIN_EXE_asb_loopback_supervisor"));
+    let sidecar_path = PathBuf::from(env!("CARGO_BIN_EXE_asb_loopback_sidecar"));
+    let curl_path = PathBuf::from("/usr/bin/curl");
+    let supervisor = asb_runtime::supervisor::PinnedCommand::new_verified(
+        supervisor_path.clone(),
+        vec![],
+        &digest(&supervisor_path),
+    )
+    .unwrap();
+    let sidecar = asb_runtime::supervisor::PinnedCommand::new_verified(
+        sidecar_path.clone(),
+        vec![
+            "--listen".into(),
+            "127.0.0.1:39123".into(),
+            "--relay".into(),
+            "/tmp/asb-replay-relay.sock".into(),
+            "--generation".into(),
+            "generation-1233".into(),
+        ],
+        &digest(&sidecar_path),
+    )
+    .unwrap();
+    let adapter = asb_runtime::supervisor::PinnedCommand::new_verified(
+        curl_path.clone(),
+        vec![
+            "--fail".into(),
+            "--silent".into(),
+            "http://127.0.0.1:39123/health".into(),
+        ],
+        &digest(&curl_path),
+    )
+    .unwrap();
+    let plan = asb_runtime::supervisor::SupervisorPlan::new(
+        sidecar,
+        adapter,
+        relay,
+        "generation-1233".into(),
+        "a".repeat(64),
+        Duration::from_secs(10),
+    )
+    .unwrap()
+    .with_supervisor(supervisor);
+    let request = SandboxSpec::new(
+        root.parent().unwrap(),
+        PathBuf::from(root.file_name().unwrap()).join("work"),
+        "/bin/true".into(),
+        vec![],
+        BTreeMap::new(),
+        resources.clone(),
+        NetworkPolicy::LoopbackOnly,
+    )
+    .unwrap()
+    .with_supervisor(plan);
+    let mut process = backend
+        .spawn(request, lease(&root, &resources), limits())
+        .unwrap();
+    let output = process.wait().unwrap();
+    server.join().unwrap();
+    assert_eq!(output.exit_code, Some(0));
 }
 
 #[test]

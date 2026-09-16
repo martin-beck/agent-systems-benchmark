@@ -137,6 +137,8 @@ impl Resources {
 pub enum NetworkPolicy {
     /// Isolated namespace with no host interfaces.
     Deny,
+    /// Isolated namespace exposing only the runtime-owned replay relay.
+    LoopbackOnly,
     /// Deliberately unsupported for untrusted execution.
     Host,
 }
@@ -243,6 +245,7 @@ pub struct SandboxSpec {
     arguments: Vec<String>,
     environment: BTreeMap<String, String>,
     resources: Resources,
+    network: NetworkPolicy,
     supervisor: Option<SupervisorPlan>,
 }
 
@@ -291,7 +294,7 @@ impl SandboxSpec {
         {
             return Err(ConfigError::Environment);
         }
-        if network != NetworkPolicy::Deny {
+        if network == NetworkPolicy::Host {
             return Err(ConfigError::NetworkPolicy);
         }
         Ok(Self {
@@ -301,6 +304,7 @@ impl SandboxSpec {
             arguments,
             environment,
             resources,
+            network,
             supervisor: None,
         })
     }
@@ -309,6 +313,11 @@ impl SandboxSpec {
     pub fn with_supervisor(mut self, supervisor: SupervisorPlan) -> Self {
         self.supervisor = Some(supervisor);
         self
+    }
+
+    /// Return the requested network policy.
+    pub fn network_policy(&self) -> NetworkPolicy {
+        self.network
     }
 }
 
@@ -401,6 +410,9 @@ impl SandboxBackend {
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
         }
+        if spec.network == NetworkPolicy::LoopbackOnly && spec.supervisor.is_none() {
+            return Err(SandboxError::NetworkPolicy);
+        }
         self.probe()?;
         let mut command = pinned_command(&self.systemd_run);
         command.env("ASB_SCOPE_NONCE", &nonce);
@@ -445,6 +457,19 @@ impl SandboxBackend {
                 return Err(SandboxError::DelegationRejected);
             }
             command.arg("--bind").arg(plan.relay()).arg(RELAY_TARGET);
+            // Bundle payloads are content-pinned by `SupervisorPlan`, but are
+            // not necessarily installed below a standard runtime mount. Make
+            // the exact verified files visible at their already-attested
+            // absolute paths inside the private namespace. This is a
+            // read-only bind and cannot expose a parent directory or alter
+            // host state.
+            let mut payloads = vec![plan.sidecar().executable(), plan.adapter().executable()];
+            if let Some(supervisor) = plan.supervisor() {
+                payloads.push(supervisor.executable());
+            }
+            for payload in payloads {
+                command.arg("--ro-bind").arg(payload).arg(payload);
+            }
         }
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
@@ -962,6 +987,8 @@ pub enum SandboxError {
     },
     /// Lease class or CPUs did not match.
     LeaseMismatch,
+    /// Loopback transport was requested without an attested supervisor.
+    NetworkPolicy,
 }
 
 impl fmt::Display for ConfigError {

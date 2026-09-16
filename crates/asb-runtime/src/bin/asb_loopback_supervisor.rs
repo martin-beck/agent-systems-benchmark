@@ -113,7 +113,16 @@ fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Resul
                 return Err("adapter failed".into());
             }
         }
-        if sidecar_done.is_some() && adapter_done.is_some() {
+        // The relay is a service for the adapter, not an independent
+        // benchmark participant. Once the adapter has completed successfully
+        // tear the sidecar down and reap it so a healthy one-shot replay does
+        // not run until the supervisor deadline.
+        if adapter_done.is_some_and(|status| status.success()) {
+            if sidecar_done.is_none() {
+                let _ = sidecar.kill();
+                let _ = sidecar.try_wait().map_err(|_| "sidecar wait failed")?;
+                let _ = sidecar.wait().map_err(|_| "sidecar wait failed")?;
+            }
             return Ok(());
         }
         thread::sleep(Duration::from_millis(5));
