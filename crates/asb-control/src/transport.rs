@@ -4,15 +4,18 @@
 
 use std::fs::{self, Permissions};
 use std::io;
+use std::net::TcpStream;
 use std::net::{IpAddr, SocketAddr};
 use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use rustix::net::sockopt::socket_peercred;
 use rustix::process::geteuid;
+use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use thiserror::Error;
 
 use crate::ControlLimits;
@@ -33,6 +36,65 @@ pub struct RemoteTransportConfig {
     pub max_connections: u16,
     /// Bounds negotiated frames and request deadlines.
     pub limits: ControlLimits,
+}
+
+/// Authenticated TLS configuration for the explicitly enabled remote boundary.
+pub struct RemoteTlsConfig {
+    server: Arc<ServerConfig>,
+}
+
+impl std::fmt::Debug for RemoteTlsConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RemoteTlsConfig")
+            .finish_non_exhaustive()
+    }
+}
+
+impl RemoteTlsConfig {
+    /// Build a server configuration and pin the ASB protocol ALPN identifier.
+    pub fn new(mut server: ServerConfig) -> Result<Self, TransportError> {
+        server.alpn_protocols = vec![b"asb-control/1".to_vec()];
+        Ok(Self {
+            server: Arc::new(server),
+        })
+    }
+
+    /// Complete one bounded TLS handshake before application framing.
+    pub fn accept(
+        &self,
+        stream: TcpStream,
+        config: RemoteTransportConfig,
+    ) -> Result<StreamOwned<ServerConnection, TcpStream>, TransportError> {
+        let config = config.validate()?;
+        let deadline = Duration::from_millis(config.limits.max_timeout_ms);
+        let expires = Instant::now() + deadline;
+        let connection = ServerConnection::new(Arc::clone(&self.server))
+            .map_err(|_| TransportError::RemoteTlsConfiguration)?;
+        let mut tls = StreamOwned::new(connection, stream);
+        while tls.conn.is_handshaking() {
+            let remaining = expires.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(TransportError::RemoteHandshakeTimeout);
+            }
+            tls.sock.set_read_timeout(Some(remaining))?;
+            tls.sock.set_write_timeout(Some(remaining))?;
+            tls.conn.complete_io(&mut tls.sock).map_err(|error| {
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) {
+                    TransportError::RemoteHandshakeTimeout
+                } else {
+                    TransportError::Io(error)
+                }
+            })?;
+        }
+        if tls.conn.alpn_protocol() != Some(b"asb-control/1") {
+            return Err(TransportError::RemoteAlpnMismatch);
+        }
+        Ok(tls)
+    }
 }
 
 impl RemoteTransportConfig {
@@ -310,6 +372,15 @@ pub enum TransportError {
     /// Remote connection limit is outside the implementation bound.
     #[error("remote control connection limit is invalid")]
     RemoteInvalidLimit,
+    /// TLS server configuration could not be initialized.
+    #[error("remote TLS configuration is invalid")]
+    RemoteTlsConfiguration,
+    /// TLS negotiation exceeded the configured deadline.
+    #[error("remote TLS handshake deadline exceeded")]
+    RemoteHandshakeTimeout,
+    /// The peer did not negotiate the ASB control ALPN.
+    #[error("remote TLS ALPN negotiation failed")]
+    RemoteAlpnMismatch,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
