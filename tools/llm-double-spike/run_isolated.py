@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import time
@@ -44,9 +45,18 @@ def verify_image() -> None:
         raise ValueError("Docker image digest does not match the approved identity")
 
 
+def verify_artifact(path: Path, expected: str) -> None:
+    if len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
+        raise ValueError("artifact SHA-256 is not a lowercase hexadecimal digest")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest != expected:
+        raise ValueError("artifact does not match its pinned SHA-256")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", required=True, type=Path)
+    parser.add_argument("--artifact-sha256", required=True)
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--verify-network-none", action="store_true")
     parser.add_argument("command", nargs=argparse.REMAINDER)
@@ -55,6 +65,7 @@ def main() -> int:
         parser.error("timeout must be between 1 and 600 seconds")
     try:
         verify_image()
+        verify_artifact(args.artifact, args.artifact_sha256)
         requested = args.command[1:] if args.command[:1] == ["--"] else args.command
         if args.verify_network_none:
             if requested:
