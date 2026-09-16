@@ -66,6 +66,12 @@ fn backend() -> Option<SandboxBackend> {
     backend.probe().ok().map(|_| backend)
 }
 
+fn required_backend() -> SandboxBackend {
+    backend().expect(
+        "strict replay native integration requires pinned sandbox backend; refusing to skip",
+    )
+}
+
 fn root(label: &str) -> Option<PathBuf> {
     let parent = PathBuf::from(env::var_os("ASB_TEST_ROOT")?);
     if !parent.is_absolute() || !parent.starts_with("/srv/data/projects/") {
@@ -76,6 +82,10 @@ fn root(label: &str) -> Option<PathBuf> {
     fs::create_dir_all(path.join("work")).ok()?;
     fs::create_dir(path.join("leases")).ok()?;
     Some(path)
+}
+
+fn required_root(label: &str) -> PathBuf {
+    root(label).expect("strict replay native integration requires ASB_TEST_ROOT under /srv/data/projects; refusing to skip")
 }
 
 fn resources() -> Resources {
@@ -161,8 +171,8 @@ fn short_limits() -> ProcessLimits {
 
 #[test]
 fn strict_launch_spawns_with_authenticated_loopback_environment() {
-    let Some(backend) = backend() else { return };
-    let Some(root) = root("success") else { return };
+    let backend = required_backend();
+    let root = required_root("success");
     let environment = BTreeMap::from([
         (
             "ASB_REPLAY_ROUTE_SHA256".into(),
@@ -194,7 +204,7 @@ fn strict_launch_spawns_with_authenticated_loopback_environment() {
 
 #[test]
 fn strict_launch_rejects_command_identity_before_native_spawn() {
-    let Some(root) = root("reject") else { return };
+    let root = required_root("reject");
     let (input, lease) = input(
         &root,
         "/usr/bin/true",
@@ -223,8 +233,8 @@ fn strict_launch_rejects_command_identity_before_native_spawn() {
 
 #[test]
 fn strict_launch_enforces_authenticated_timeout_on_child() {
-    let Some(backend) = backend() else { return };
-    let Some(root) = root("timeout") else { return };
+    let backend = required_backend();
+    let root = required_root("timeout");
     let (input, lease) = input_with_limits(
         &root,
         "/usr/bin/sleep",
@@ -259,8 +269,8 @@ fn strict_launch_enforces_authenticated_timeout_on_child() {
 
 #[test]
 fn strict_launch_cancellation_is_terminal_and_reaped() {
-    let Some(backend) = backend() else { return };
-    let Some(root) = root("cancel") else { return };
+    let backend = required_backend();
+    let root = required_root("cancel");
     let (input, lease) = input_with_limits(
         &root,
         "/usr/bin/sleep",
@@ -296,8 +306,8 @@ fn strict_launch_cancellation_is_terminal_and_reaped() {
 
 #[test]
 fn strict_launch_nonzero_child_exit_is_fail_closed() {
-    let Some(backend) = backend() else { return };
-    let Some(root) = root("crash") else { return };
+    let backend = required_backend();
+    let root = required_root("crash");
     let (input, lease) = input_with_limits(
         &root,
         "/usr/bin/false",
@@ -333,8 +343,8 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
 
 #[test]
 fn strict_launch_child_provider_egress_is_denied() {
-    let Some(backend) = backend() else { return };
-    let Some(root) = root("egress") else { return };
+    let backend = required_backend();
+    let root = required_root("egress");
     let (input, lease) = input_with_limits(
         &root,
         "/usr/bin/curl",
