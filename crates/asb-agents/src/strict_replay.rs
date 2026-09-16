@@ -145,6 +145,9 @@ impl StrictReplaySandboxLaunch {
         if input.spec().network_policy() != NetworkPolicy::Deny {
             return Err(StrictReplayError::IsolationUnavailable);
         }
+        if input.limits().timeout().as_millis() > u128::from(self.record.input.timeout_ms) {
+            return Err(StrictReplayError::InvalidTimeout);
+        }
         if command_digest(input.spec().program(), input.spec().arguments())
             != self.record.input.command_sha256
         {
