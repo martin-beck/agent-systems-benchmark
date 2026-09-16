@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Versioned adapter-facing strict replay launch contract.
 
+use asb_replay::{
+    Cassette, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -65,6 +68,48 @@ pub enum StrictReplayError {
     DigestMismatch,
     /// Provider egress was not denied.
     EgressNotDenied,
+    /// The cassette could not be made available as a strict service.
+    InvalidCassette,
+    /// The route or request was rejected by the strict service.
+    ServiceUnavailable,
+    /// The route attempt does not match the launch attempt.
+    AttemptMismatch,
+}
+
+/// Bounded replay executor that has no live-provider fallback.
+pub struct StrictReplayExecutor {
+    record: StrictReplayLaunchRecord,
+    service: StrictReplayService,
+}
+
+impl StrictReplayExecutor {
+    /// Authenticate a launch record and bind one cassette to its local service.
+    pub fn new(
+        record: StrictReplayLaunchRecord,
+        cassette: Cassette,
+    ) -> Result<Self, StrictReplayError> {
+        record.validate()?;
+        if cassette.integrity.digest != record.input.cassette_sha256 {
+            return Err(StrictReplayError::InvalidIdentity);
+        }
+        let service = StrictReplayService::new(cassette, ReplayLimits::default())
+            .map_err(|_| StrictReplayError::InvalidCassette)?;
+        Ok(Self { record, service })
+    }
+
+    /// Serve one adapter request only from the authenticated local cassette route.
+    pub fn execute(
+        &self,
+        route: &ReplayRoute,
+        request: ReplayHttpRequest,
+    ) -> Result<ReplayHttpResponse, StrictReplayError> {
+        if route.attempt_id != self.record.input.attempt_id {
+            return Err(StrictReplayError::AttemptMismatch);
+        }
+        self.service
+            .handle(route, request)
+            .map_err(|_| StrictReplayError::ServiceUnavailable)
+    }
 }
 
 impl std::fmt::Display for StrictReplayError {
