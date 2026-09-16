@@ -437,6 +437,38 @@ mod tests {
     }
 
     #[test]
+    fn buffered_and_stream_captures_emit_only_redacted_metadata() {
+        for fixture in [
+            include_bytes!("../fixtures/v1/buffered.json").as_slice(),
+            include_bytes!("../fixtures/v1/events.json").as_slice(),
+        ] {
+            let cassette = decode_cassette(fixture, CassetteLimits::default()).unwrap();
+            let capture = RecordingCapture {
+                schema_version: RECORDING_WORKFLOW_SCHEMA_VERSION,
+                provider_profile_sha256: "a".repeat(64),
+                agent_id: "codex".into(),
+                network: NetworkConsequence::LoopbackOnly,
+                estimated_cost_minor: 0,
+                confirmation: RecordingConfirmation {
+                    record: true,
+                    network: true,
+                    cost: false,
+                },
+                contents: cassette.contents,
+            };
+            let artifact = seal_recording(
+                capture,
+                RedactionPolicy::default(),
+                CassetteLimits::default(),
+            )
+            .unwrap();
+            let metadata = serde_json::to_string(&artifact.metadata).unwrap();
+            assert!(!metadata.contains("authorization"));
+            assert!(artifact.metadata.complete);
+        }
+    }
+
+    #[test]
     fn sealing_requires_consent_and_emits_only_safe_metadata() {
         let artifact = seal_recording(
             capture(),
