@@ -1030,6 +1030,7 @@ fn build_provider_launch(
         catalog_sha256: selection.catalog_sha256.clone(),
         selection_sha256: selection.selection_sha256.clone(),
         provider_profile_sha256: selection.provider_profile_sha256.clone(),
+        endpoint_sha256: profile.provider_profile().endpoint.identity_sha256.clone(),
         agent: selected.agent.clone(),
         adapter: selected.agent.clone(),
         api_mode: projection.api_mode(),
@@ -2495,6 +2496,10 @@ fn spawn_verified_agent(
                 .env(
                     provider_launch::SETTINGS_DIGEST_ENV,
                     &launch.input.settings_sha256,
+                )
+                .env(
+                    provider_launch::ENDPOINT_DIGEST_ENV,
+                    &launch.input.endpoint_sha256,
                 )
                 .env(
                     provider_launch::CREDENTIAL_REFERENCE_ENV,

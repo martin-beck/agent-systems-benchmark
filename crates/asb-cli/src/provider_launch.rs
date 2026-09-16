@@ -16,6 +16,8 @@ pub(crate) const API_MODE_ENV: &str = "ASB_PROVIDER_API_MODE";
 pub(crate) const PROFILE_DIGEST_ENV: &str = "ASB_PROVIDER_PROFILE_SHA256";
 /// Exact settings identity selected by the launch contract.
 pub(crate) const SETTINGS_DIGEST_ENV: &str = "ASB_PROVIDER_SETTINGS_SHA256";
+/// Exact endpoint identity selected by the launch contract.
+pub(crate) const ENDPOINT_DIGEST_ENV: &str = "ASB_PROVIDER_ENDPOINT_SHA256";
 /// Exact adapter identity selected by the launch contract.
 pub(crate) const ADAPTER_ENV: &str = "ASB_PROVIDER_ADAPTER";
 /// Non-secret credential-reference identity selected by the launch contract.

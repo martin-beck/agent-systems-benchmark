@@ -3,6 +3,7 @@
   "catalog_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "selection_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "provider_profile_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "endpoint_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
   "agent": "codex",
   "adapter": "codex",
   "api_mode": "responses",

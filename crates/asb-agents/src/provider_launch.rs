@@ -72,6 +72,8 @@ pub struct ProviderLaunchV1 {
     pub selection_sha256: String,
     /// Exact provider profile settings identity.
     pub provider_profile_sha256: String,
+    /// Exact endpoint identity selected by the provider profile.
+    pub endpoint_sha256: String,
     /// Stable selected agent identity.
     pub agent: String,
     /// Exact adapter identity.
@@ -175,6 +177,7 @@ impl ProviderLaunchV1 {
                 "provider_profile_sha256",
                 self.provider_profile_sha256.as_str(),
             ),
+            ("endpoint_sha256", self.endpoint_sha256.as_str()),
             ("settings_sha256", self.settings_sha256.as_str()),
             ("workload_sha256", self.workload_sha256.as_str()),
             ("runtime.bundle_sha256", self.runtime.bundle_sha256.as_str()),
@@ -413,6 +416,7 @@ mod tests {
             catalog_sha256: "a".repeat(64),
             selection_sha256: "b".repeat(64),
             provider_profile_sha256: "c".repeat(64),
+            endpoint_sha256: "7".repeat(64),
             agent: "codex".into(),
             adapter: "codex".into(),
             api_mode: EffectiveApiMode::Responses,
