@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "ok": true,
+  "command": "setup",
+  "mode": "preflight",
+  "steps": ["detect-installed-agents", "select-provider-and-model", "configure-authentication", "confirm-persistence"],
+  "persistent_change": false,
+  "provider_contact": false,
+  "provider_profile": null,
+  "model": null
+}
