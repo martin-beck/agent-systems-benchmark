@@ -627,6 +627,30 @@ mod tests {
     }
 
     #[test]
+    fn tls_handshake_rejects_slow_peer_at_bounded_deadline() {
+        let (server, client, _) = test_tls_configs();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let bounded = RemoteTransportConfig {
+            limits: ControlLimits {
+                max_timeout_ms: 100,
+                ..ControlLimits::default()
+            },
+            ..remote_config()
+        };
+        let server_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            thread::sleep(Duration::from_millis(300));
+            server.accept(stream, bounded).is_err()
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        let started = Instant::now();
+        let _ = client.connect(stream, "localhost", bounded);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(server_thread.join().unwrap());
+    }
+
+    #[test]
     fn tls_server_rejects_client_without_certificate() {
         let (server, _, unauthenticated_client) = test_tls_configs();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
