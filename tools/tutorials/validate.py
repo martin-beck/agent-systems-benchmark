@@ -48,7 +48,13 @@ def _safe_arg(value: Any, name: str) -> str:
 
 
 def _path_arg(value: str, name: str) -> None:
-    if value.startswith("/") or value.startswith("~") or ".." in value.split("/"):
+    if (
+        value.startswith("/")
+        or value.startswith("~")
+        or ".." in value.split("/")
+        or "://" in value
+        or value.lower().startswith(("http:", "https:", "tcp:", "udp:"))
+    ):
         raise ValidationError(f"{name} must be a repository-relative reference")
 
 
@@ -67,6 +73,8 @@ def _command(command: Any, metadata: dict[str, Any], step: str) -> None:
     if root in {"compare", "report"}:
         if len(tail) < spec["min_args"]:
             raise ValidationError(f"step {step} has too few arguments for {root}")
+        for value in tail:
+            _path_arg(value, f"step {step} {root} path")
         return
     if root == "auth":
         if not tail or tail[0] not in spec["operations"]:
@@ -130,6 +138,46 @@ def validate_document(document: Any, metadata: dict[str, Any]) -> None:
                 raise ValidationError(f"step {step_id} has an invalid reference kind")
 
 
+def validate_metadata(metadata: Any) -> dict[str, Any]:
+    """Validate the checked-in metadata before using it as executable grammar."""
+    root = _object(metadata, "command metadata", {"schema_version", "executable", "commands"})
+    if root.get("schema_version") != 1 or root.get("executable") != "asb":
+        raise ValidationError("command metadata has an unsupported schema or executable")
+    commands = root.get("commands")
+    if not isinstance(commands, dict) or not commands:
+        raise ValidationError("command metadata commands must be a non-empty object")
+    for name, raw in commands.items():
+        if not isinstance(name, str) or not ID.fullmatch(name):
+            raise ValidationError("command metadata contains an invalid command name")
+        spec = _object(raw, f"metadata command {name}", {"forms", "min_args", "operations"})
+        present = [key for key in ("forms", "min_args", "operations") if key in spec]
+        if len(present) != 1:
+            raise ValidationError(f"metadata command {name} must define exactly one grammar form")
+        if "forms" in spec:
+            forms = spec["forms"]
+            if not isinstance(forms, list) or not forms:
+                raise ValidationError(f"metadata command {name} forms are invalid")
+            for form in forms:
+                if not isinstance(form, list) or len(form) > MAX_ARGS:
+                    raise ValidationError(f"metadata command {name} has an invalid form")
+                for value in form:
+                    if not isinstance(value, str) or value not in {"PATH", "SHA256", "AGENT", "bash", "json", "--offline", "--dry-run", "--launch", "launch", "status", "doctor", "remove", "install", "upgrade"} and not value.startswith("--"):
+                        raise ValidationError(f"metadata command {name} has an unknown grammar token")
+        elif "min_args" in spec:
+            if not isinstance(spec["min_args"], int) or spec["min_args"] < 1 or spec["min_args"] > MAX_ARGS:
+                raise ValidationError(f"metadata command {name} has an invalid minimum argument count")
+        else:
+            operations = spec["operations"]
+            if not isinstance(operations, dict) or not operations:
+                raise ValidationError(f"metadata command {name} operations are invalid")
+            for operation, required in operations.items():
+                if not ID.fullmatch(operation) or not isinstance(required, list) or not required:
+                    raise ValidationError(f"metadata command {name} has an invalid operation")
+                if any(not isinstance(option, str) or not option.startswith("--") for option in required):
+                    raise ValidationError(f"metadata command {name} has an invalid option")
+    return root
+
+
 def load(path: Path) -> Any:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
         raise ValidationError("tutorial must be a bounded regular file")
@@ -145,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--metadata", type=Path, default=Path(__file__).with_name("command_metadata_v1.json"))
     args = parser.parse_args(argv)
     try:
-        metadata = load(args.metadata)
+        metadata = validate_metadata(load(args.metadata))
         validate_document(load(args.tutorial), metadata)
     except ValidationError as exc:
         print(f"tutorial validation failed: {exc}", file=sys.stderr)
