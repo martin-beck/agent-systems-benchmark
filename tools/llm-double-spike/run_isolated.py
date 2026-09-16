@@ -1,0 +1,58 @@
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
+"""Run a bounded qualification command in the approved offline container."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import time
+from pathlib import Path
+
+IMAGE = "ubuntu@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517"
+PROJECT_ROOT = Path("/srv/data/projects")
+FORBIDDEN = {"sh", "bash", "dash", "zsh", "-c", "--privileged", "--network=host"}
+
+
+def build_command(artifact: Path, command: list[str]) -> list[str]:
+    resolved = artifact.resolve()
+    if not resolved.is_relative_to(PROJECT_ROOT) or resolved.is_symlink() or not resolved.is_file():
+        raise ValueError("artifact must be an existing non-symlink file under /srv/data/projects")
+    if not command or any(Path(part).name in FORBIDDEN or part in FORBIDDEN for part in command):
+        raise ValueError("a direct executable argument vector is required; shell commands are rejected")
+    return [
+        "sudo", "-n", "docker", "run", "--rm", "--network", "none", "--read-only",
+        "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "128",
+        "--memory", "2g", "--cpus", "2", "--ipc", "private",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m", "--tmpfs", "/run:rw,noexec,nosuid,nodev,size=64m",
+        "--mount", f"type=bind,src={resolved},dst=/input/artifact,readonly", IMAGE, *command,
+    ]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--artifact", required=True, type=Path)
+    parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    if args.timeout <= 0 or args.timeout > 600:
+        parser.error("timeout must be between 1 and 600 seconds")
+    try:
+        command = build_command(args.artifact, args.command[1:] if args.command[:1] == ["--"] else args.command)
+    except ValueError as error:
+        parser.error(str(error))
+    started = time.monotonic()
+    try:
+        result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=args.timeout, check=False)
+    except subprocess.TimeoutExpired:
+        print(json.dumps({"status": "timeout"}, sort_keys=True))
+        return 124
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    print(json.dumps({"status": "completed", "exit_code": result.returncode, "elapsed_ms": elapsed_ms}, sort_keys=True))
+    return result.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
