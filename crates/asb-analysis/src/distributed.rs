@@ -219,6 +219,11 @@ impl Coordinator {
     /// Remove a worker; its leases become stale and cannot complete.
     pub fn remove(&mut self, worker: &WorkerId) {
         self.workers.remove(worker);
+        for lease in self.leases.values_mut() {
+            if lease.worker == *worker {
+                lease.expires_at_ns = 0;
+            }
+        }
         self.active_attempts.retain(|(owner, _)| owner != worker);
     }
     /// Lease an attempt, fencing an expired prior lease with a new token.
@@ -360,12 +365,19 @@ mod tests {
         let completion =
             AttemptCompletion::new("attempt-1", id.clone(), lease.fence(), 2, 0, HASH).unwrap();
         assert!(matches!(
-            coordinator.complete(completion, 1),
+            coordinator.complete(completion.clone(), 1),
             Err(CoordinationError::StaleLease)
         ));
         assert!(matches!(
             coordinator.acquire("attempt-2", &id, 2, 10),
             Err(CoordinationError::UnknownWorker)
+        ));
+        coordinator
+            .register(WorkerCapability::new(id.clone(), "linux-amd64", 1).unwrap())
+            .unwrap();
+        assert!(matches!(
+            coordinator.complete(completion, 2),
+            Err(CoordinationError::StaleLease)
         ));
     }
 
