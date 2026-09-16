@@ -48,22 +48,35 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", required=True, type=Path)
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("--verify-network-none", action="store_true")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.timeout <= 0 or args.timeout > 600:
         parser.error("timeout must be between 1 and 600 seconds")
     try:
         verify_image()
-        command = build_command(args.artifact, args.command[1:] if args.command[:1] == ["--"] else args.command)
+        requested = args.command[1:] if args.command[:1] == ["--"] else args.command
+        if args.verify_network_none:
+            if requested:
+                parser.error("network verification does not accept an additional command")
+            requested = ["/bin/cat", "/proc/net/route"]
+        command = build_command(args.artifact, requested)
     except ValueError as error:
         parser.error(str(error))
     started = time.monotonic()
     try:
-        result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        result = subprocess.run(command, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE if args.verify_network_none else subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, timeout=args.timeout, check=False)
     except subprocess.TimeoutExpired:
         print(json.dumps({"status": "timeout"}, sort_keys=True))
         return 124
+    if args.verify_network_none:
+        if result.returncode != 0 or result.stdout.strip():
+            print(json.dumps({"status": "network-denial-failed"}, sort_keys=True))
+            return 1
+        print(json.dumps({"status": "network-none-verified"}, sort_keys=True))
+        return 0
     elapsed_ms = int((time.monotonic() - started) * 1000)
     print(json.dumps({"status": "completed", "exit_code": result.returncode, "elapsed_ms": elapsed_ms}, sort_keys=True))
     return result.returncode
