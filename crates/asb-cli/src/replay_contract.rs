@@ -5,11 +5,14 @@
 use asb_agents::launch_bridge::StrictReplayLaunchBridge;
 use asb_agents::strict_replay::{EgressPolicy, StrictReplayLaunchRecord, StrictReplayLaunchV1};
 use asb_replay::{Cassette, CassetteLimits, decode_cassette};
-use asb_runtime::loopback_sidecar::SidecarHandoff;
+use asb_runtime::loopback_sidecar::{
+    LoopbackSidecar, SidecarHandoff, SidecarIdentity, fresh_relay_path,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 use thiserror::Error;
 
 /// Current CLI strict-replay plan schema.
@@ -98,6 +101,39 @@ pub fn bind_runtime_handoff(
     handoff: &SidecarHandoff,
 ) -> Result<StrictReplayLaunchBridge, ReplayContractError> {
     StrictReplayLaunchBridge::new(launch, handoff).map_err(|_| ReplayContractError::HandoffMismatch)
+}
+
+/// Resolve a plan and obtain the runtime-owned sidecar handoff used by the
+/// executable CLI replay path. The sidecar is deliberately created only
+/// after artifact authentication and is dropped when the caller finishes.
+pub fn resolve_and_bind_runtime(
+    plan: &StrictReplayPlanV1,
+    artifact_root: &Path,
+) -> Result<(ResolvedStrictReplay, StrictReplayLaunchBridge), ReplayContractError> {
+    let resolved = resolve_strict_replay(plan, artifact_root)?;
+    let identity = SidecarIdentity::new(
+        format!("{}-{}", plan.run_id, plan.attempt_id),
+        resolved.launch.input.route_sha256.clone(),
+    )
+    .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let relay = fresh_relay_path(
+        artifact_root,
+        &format!("{}-{}", plan.run_id, plan.attempt_id),
+    )
+    .map_err(|_| ReplayContractError::Unavailable)?;
+    let sidecar =
+        LoopbackSidecar::bind(identity, relay).map_err(|_| ReplayContractError::Unavailable)?;
+    let handoff = sidecar
+        .handoff(
+            true,
+            Duration::from_millis(resolved.launch.input.timeout_ms),
+            format!("{:x}", Sha256::digest(b"asb-runtime-loopback-sidecar-v1")),
+            resolved.launch.input.command_sha256.clone(),
+        )
+        .map_err(|_| ReplayContractError::HandoffMismatch)?;
+    let bridge = bind_runtime_handoff(&resolved.launch, &handoff)?;
+    drop(sidecar);
+    Ok((resolved, bridge))
 }
 
 /// Resolve and authenticate one strict replay plan without ambient configuration.
