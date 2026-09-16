@@ -16,7 +16,9 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::time::Duration;
 
 const BWRAP_VERSION: &str = "bubblewrap 0.9.0";
@@ -351,20 +353,26 @@ fn strict_launch_nonzero_child_exit_is_fail_closed() {
 fn strict_launch_child_provider_egress_is_denied() {
     let backend = required_backend();
     let root = required_root("egress");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}/", listener.local_addr().unwrap());
+    let observer = thread::spawn(move || {
+        let deadline = std::time::Instant::now() + Duration::from_millis(300);
+        while std::time::Instant::now() < deadline {
+            if listener.accept().is_ok() {
+                return true;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        false
+    });
     let (input, lease) = input_with_limits(
         &root,
         "/usr/bin/curl",
-        vec![
-            "--connect-timeout".into(),
-            "0.1".into(),
-            "http://198.51.100.1/".into(),
-        ],
+        vec!["--connect-timeout".into(), "0.1".into(), endpoint.clone()],
         BTreeMap::from([
             ("ASB_REPLAY_ROUTE_SHA256".into(), "b".repeat(64)),
-            (
-                "ASB_REPLAY_ENDPOINT".into(),
-                "http://127.0.0.1:4317/replay".into(),
-            ),
+            ("ASB_REPLAY_ENDPOINT".into(), endpoint),
         ]),
         short_limits(),
     );
@@ -380,4 +388,8 @@ fn strict_launch_child_provider_egress_is_denied() {
         Err(asb_agents::strict_replay::StrictReplayError::SandboxUnavailable) => {}
         Err(error) => panic!("unexpected egress classification: {error:?}"),
     }
+    assert!(
+        !observer.join().unwrap(),
+        "denied child reached owned loopback listener"
+    );
 }
