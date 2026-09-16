@@ -4,13 +4,13 @@
 
 use std::fs::{self, Permissions};
 use std::io;
-use std::net::TcpStream;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::os::fd::AsFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::{Duration, Instant};
 
 use rustix::net::sockopt::socket_peercred;
@@ -42,6 +42,104 @@ pub struct RemoteTransportConfig {
 /// Authenticated TLS configuration for the explicitly enabled remote boundary.
 pub struct RemoteTlsConfig {
     server: Arc<ServerConfig>,
+}
+
+impl Clone for RemoteTlsConfig {
+    fn clone(&self) -> Self {
+        Self {
+            server: Arc::clone(&self.server),
+        }
+    }
+}
+
+/// Explicitly bound remote listener with a bounded authenticated connection count.
+#[derive(Debug)]
+pub struct RemoteListener {
+    listener: TcpListener,
+    tls: RemoteTlsConfig,
+    config: RemoteTransportConfig,
+    active: Arc<AtomicU16>,
+}
+
+impl RemoteListener {
+    /// Bind the configured address; no listener exists when remote transport is disabled.
+    pub fn bind(
+        tls: RemoteTlsConfig,
+        config: RemoteTransportConfig,
+    ) -> Result<Self, TransportError> {
+        let config = config.validate()?;
+        let listener = TcpListener::bind(config.bind)?;
+        Ok(Self {
+            listener,
+            tls,
+            config,
+            active: Arc::new(AtomicU16::new(0)),
+        })
+    }
+
+    /// Accept one mTLS connection while enforcing the configured capacity.
+    pub fn accept(
+        &self,
+    ) -> Result<
+        (
+            StreamOwned<ServerConnection, TcpStream>,
+            RemoteConnectionPermit,
+        ),
+        TransportError,
+    > {
+        let permit =
+            RemoteConnectionPermit::acquire(Arc::clone(&self.active), self.config.max_connections)?;
+        let (stream, _) = self.listener.accept()?;
+        match self.tls.accept(stream, self.config) {
+            Ok(stream) => Ok((stream, permit)),
+            Err(error) => {
+                drop(permit);
+                Err(error)
+            }
+        }
+    }
+
+    /// Address selected by the operator.
+    #[must_use]
+    pub fn local_addr(&self) -> Result<SocketAddr, TransportError> {
+        self.listener.local_addr().map_err(TransportError::Io)
+    }
+}
+
+/// RAII permit for one authenticated remote connection.
+#[derive(Debug)]
+pub struct RemoteConnectionPermit {
+    active: Arc<AtomicU16>,
+}
+
+impl RemoteConnectionPermit {
+    fn acquire(active: Arc<AtomicU16>, maximum: u16) -> Result<Self, TransportError> {
+        let mut current = active.load(Ordering::Acquire);
+        loop {
+            if current >= maximum {
+                return Err(TransportError::RemoteCapacity);
+            }
+            match active.compare_exchange_weak(
+                current,
+                current + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(Self { active }),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+}
+
+impl Drop for RemoteConnectionPermit {
+    fn drop(&mut self) {
+        let _ = self
+            .active
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
+                count.checked_sub(1)
+            });
+    }
 }
 
 impl std::fmt::Debug for RemoteTlsConfig {
@@ -436,6 +534,9 @@ pub enum TransportError {
     /// The peer did not negotiate the ASB control ALPN.
     #[error("remote TLS ALPN negotiation failed")]
     RemoteAlpnMismatch,
+    /// Remote listener connection capacity has been exhausted.
+    #[error("remote control connection capacity is exhausted")]
+    RemoteCapacity,
     /// Kernel-authenticated peer belongs to another user.
     #[error("local control peer is not owned by the expected user")]
     UnauthorizedPeer {
@@ -552,6 +653,18 @@ mod tests {
             .validate(),
             Err(TransportError::RemoteInvalidLimit)
         ));
+    }
+
+    #[test]
+    fn remote_connection_capacity_is_raii_bounded() {
+        let active = Arc::new(AtomicU16::new(0));
+        let first = RemoteConnectionPermit::acquire(Arc::clone(&active), 1).unwrap();
+        assert!(matches!(
+            RemoteConnectionPermit::acquire(Arc::clone(&active), 1),
+            Err(TransportError::RemoteCapacity)
+        ));
+        drop(first);
+        assert!(RemoteConnectionPermit::acquire(active, 1).is_ok());
     }
 
     fn test_tls_configs() -> (RemoteTlsConfig, RemoteTlsClient, RemoteTlsClient) {
