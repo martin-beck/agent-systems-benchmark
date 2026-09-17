@@ -15,6 +15,7 @@ import selectors
 import signal
 import stat
 import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -33,6 +34,10 @@ LIMITATIONS = [
 ]
 SANDBOX_UNAVAILABLE = b"native sandbox capability unavailable:"
 SANDBOX_LIMITATION = "native-sandbox-unavailable"
+DIAGNOSTICS_ENV = "ASB_HOSTED_PORTABILITY_DIAGNOSTICS"
+FAILURE_CLASSES = frozenset(
+    {"spawn", "nonzero", "timeout", "output_limit", "source_race", "unavailable", "evidence", "unknown"}
+)
 SCHEMA_SHA256 = {
     "hosted-portability.schema.json": "50646c9648afc2963580ef55209a9c967277ed7023fe0bd546898767bbb6ed00",
     "native-evidence.schema.json": "332056435d69dd8cdd237e7b587289c8b31e75f514c04ecdec04bd75e4356017",
@@ -41,6 +46,24 @@ SCHEMA_SHA256 = {
 
 class PortabilityError(RuntimeError):
     """A hosted portability precondition or check failed."""
+
+
+def _emit_diagnostic(slot: str, failure_class: str) -> None:
+    """Emit only fixed CI diagnostics when explicitly enabled."""
+    if os.environ.get(DIAGNOSTICS_ENV) != "1":
+        return
+    if failure_class not in FAILURE_CLASSES:
+        failure_class = "unknown"
+    print(
+        f"ERROR: hosted portability diagnostic check={slot} class={failure_class}",
+        file=sys.stderr,
+    )
+
+
+def _failure(slot: str, failure_class: str, message: str) -> PortabilityError:
+    """Report a fixed diagnostic while preserving the generic public error."""
+    _emit_diagnostic(slot, failure_class)
+    return PortabilityError(message)
 
 
 def _bounded_json(path: Path, expected_sha256: str | None = None) -> dict[str, Any]:
@@ -307,7 +330,7 @@ def _run(slot: str, argv: Sequence[str], source: Path) -> dict[str, Any]:
     try:
         return cast(dict[str, Any], native.run_check(argv, source))
     except native.EvidenceError as error:
-        raise PortabilityError(f"hosted portability {slot} check did not pass") from error
+        raise _failure(slot, "unknown", f"hosted portability {slot} check did not pass") from error
 
 
 def _check_projection(argv: Sequence[str], output: bytes, status: str) -> dict[str, Any]:
@@ -324,27 +347,29 @@ def _check_projection(argv: Sequence[str], output: bytes, status: str) -> dict[s
 
 
 def _run_sandbox(argv: Sequence[str], source: Path, timeout: int = 900) -> dict[str, Any]:
-    """Run the sandbox checks and classify only their fixed unavailable marker."""
+    """Run bounded sandbox checks and project only fixed failure diagnostics."""
     if not argv or any(not isinstance(item, str) or not item for item in argv):
-        raise PortabilityError("hosted portability sandbox check did not pass")
+        raise _failure("sandbox", "evidence", "hosted portability sandbox check did not pass")
     try:
         process = subprocess.Popen(
             list(argv), cwd=source, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, close_fds=True, start_new_session=True,
         )
     except OSError as error:
-        raise PortabilityError("hosted portability sandbox check did not pass") from error
+        raise _failure("sandbox", "spawn", "hosted portability sandbox check did not pass") from error
     assert process.stdout is not None
     output = bytearray()
     deadline = time.monotonic() + timeout
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     failed = False
+    failure_class = "unknown"
     try:
         while selector.get_map():
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 failed = True
+                failure_class = "timeout"
                 break
             events = selector.select(min(remaining, 1.0))
             if not events and process.poll() is not None:
@@ -357,26 +382,39 @@ def _run_sandbox(argv: Sequence[str], source: Path, timeout: int = 900) -> dict[
                 output.extend(chunk)
                 if len(output) > native.MAX_OUTPUT_BYTES:
                     failed = True
+                    failure_class = "output_limit"
                     break
             if failed:
                 break
         if failed:
             os.killpg(process.pid, signal.SIGKILL)
         returncode = process.wait(timeout=10)
-    except (OSError, subprocess.TimeoutExpired) as error:
+    except subprocess.TimeoutExpired as error:
         try:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait(timeout=10)
         except (OSError, subprocess.TimeoutExpired):
             pass
-        raise PortabilityError("hosted portability sandbox check did not pass") from error
+        raise _failure("sandbox", "timeout", "hosted portability sandbox check did not pass") from error
+    except OSError as error:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        raise _failure("sandbox", "unknown", "hosted portability sandbox check did not pass") from error
     finally:
         selector.close()
         process.stdout.close()
     if SANDBOX_UNAVAILABLE in output:
+        _emit_diagnostic("sandbox", "unavailable")
         result = _check_projection(argv, bytes(output), "unavailable")
         result["limitation"] = SANDBOX_LIMITATION
         return result
+    if failed or returncode != 0:
+        if failed:
+            raise _failure("sandbox", failure_class, "hosted portability sandbox check did not pass")
+        raise _failure("sandbox", "nonzero", "hosted portability sandbox check did not pass")
     if failed or returncode != 0:
         raise PortabilityError("hosted portability sandbox check did not pass")
     return _check_projection(argv, bytes(output), "passed")
@@ -415,6 +453,7 @@ def collect(
         for name, argv in checks
     }
     if _source(source, base_commit) != (commit, tree):
+        _emit_diagnostic("source", "source_race")
         raise PortabilityError("source identity changed while checks ran")
     return {
         "format_version": 1,

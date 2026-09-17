@@ -2,9 +2,12 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
+import contextlib
 import copy
 import importlib.util
+import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -319,6 +322,66 @@ class HostedPortabilityTests(unittest.TestCase):
             with self.assertRaisesRegex(HOSTED.native.EvidenceError, "symlink"):
                 HOSTED.native.write_atomic(link / "other.json", self.report, root)
 
+    def test_opt_in_diagnostics_are_fixed_and_privacy_safe(self) -> None:
+        cases = (
+            ("spawn", ["/definitely/missing/asb-sandbox"], 900),
+            (
+                "nonzero",
+                [sys.executable, "-c", "import sys; print(\"PRIVATE_SENTINEL\"); sys.exit(7)"],
+                900,
+            ),
+            ("timeout", [sys.executable, "-c", "import time; time.sleep(1)"], 0.01),
+        )
+        for failure_class, argv, timeout in cases:
+            with self.subTest(failure_class=failure_class):
+                stderr = io.StringIO()
+                with (
+                    mock.patch.dict(os.environ, {HOSTED.DIAGNOSTICS_ENV: "1"}, clear=False),
+                    contextlib.redirect_stderr(stderr),
+                    self.assertRaises(HOSTED.PortabilityError),
+                ):
+                    HOSTED._run_sandbox(argv, ROOT, timeout=timeout)
+                self.assertEqual(
+                    stderr.getvalue(),
+                    f"ERROR: hosted portability diagnostic check=sandbox class={failure_class}\n",
+                )
+                self.assertNotIn("PRIVATE_SENTINEL", stderr.getvalue())
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {HOSTED.DIAGNOSTICS_ENV: "1"}, clear=False),
+            mock.patch.object(HOSTED.native, "MAX_OUTPUT_BYTES", 1),
+            contextlib.redirect_stderr(stderr),
+            self.assertRaises(HOSTED.PortabilityError),
+        ):
+            HOSTED._run_sandbox([sys.executable, "-c", "print(\"too much\")"], ROOT)
+        self.assertEqual(
+            stderr.getvalue(),
+            "ERROR: hosted portability diagnostic check=sandbox class=output_limit\n",
+        )
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            contextlib.redirect_stderr(stderr),
+            self.assertRaises(HOSTED.PortabilityError),
+        ):
+            HOSTED._run_sandbox([sys.executable, "-c", "import sys; sys.exit(1)"], ROOT)
+        self.assertEqual(stderr.getvalue(), "")
+
+        for failure_class in ("source_race", "unavailable", "evidence", "unknown"):
+            with self.subTest(failure_class=failure_class):
+                stderr = io.StringIO()
+                with (
+                    mock.patch.dict(os.environ, {HOSTED.DIAGNOSTICS_ENV: "1"}, clear=False),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    HOSTED._emit_diagnostic("sandbox", failure_class)
+                self.assertEqual(
+                    stderr.getvalue(),
+                    f"ERROR: hosted portability diagnostic check=sandbox class={failure_class}\n",
+                )
+
     def test_workflow_keeps_artifact_kinds_distinct_and_conditional(self) -> None:
         workflow = (ROOT / ".github/workflows/native-platforms.yml").read_text()
         self.assertIn(
@@ -328,6 +391,7 @@ class HostedPortabilityTests(unittest.TestCase):
         self.assertIn("--execution-class github-hosted", workflow)
         self.assertIn("native_evidence.py", workflow)
         self.assertIn("hosted_portability.py validate-artifact", workflow)
+        self.assertIn("ASB_HOSTED_PORTABILITY_DIAGNOSTICS: \"1\"", workflow)
         self.assertIn("steps.evidence.outputs.kind == 'hosted-portability'", workflow)
         self.assertIn("steps.evidence.outputs.kind == 'native-qualification'", workflow)
         self.assertIn("hosted-portability-${{ matrix.runner }}", workflow)
