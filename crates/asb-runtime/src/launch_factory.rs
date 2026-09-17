@@ -268,7 +268,7 @@ mod tests {
     use super::*;
     use crate::ProcessLimits;
     use crate::relay::ReplayRelay;
-    use crate::sandbox::{CpuSet, NetworkPolicy, Resources, SandboxSpec};
+    use crate::sandbox::{CpuSet, NetworkPolicy, Resources, SandboxSpec, ToolPin};
     use crate::supervisor::{PinnedCommand, SupervisorPlan};
     use std::collections::BTreeMap;
     use std::fs;
@@ -279,13 +279,40 @@ mod tests {
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn fixture() -> (ReplayLaunchAuthority, fs::File, std::path::PathBuf) {
-        fixture_with_token(|input, lease, cassette_sha256| {
+        fixture_with_token(None, |input, lease, cassette_sha256| {
             RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette_sha256))
         })
         .unwrap()
     }
 
+    fn qualified_backend() -> Option<SandboxBackend> {
+        let bubblewrap =
+            ToolPin::new(PathBuf::from("/usr/bin/bwrap"), "bubblewrap 0.9.0".into()).ok()?;
+        let systemd_run = ToolPin::new(
+            PathBuf::from("/usr/bin/systemd-run"),
+            "systemd 255 (255.4-1ubuntu8.17)".into(),
+        )
+        .ok()?;
+        let systemctl = ToolPin::new(
+            PathBuf::from("/usr/bin/systemctl"),
+            "systemd 255 (255.4-1ubuntu8.17)".into(),
+        )
+        .ok()?;
+        let taskset = ToolPin::new(
+            PathBuf::from("/usr/bin/taskset"),
+            "taskset from util-linux 2.39.3".into(),
+        )
+        .ok()?;
+        Some(SandboxBackend::new(
+            bubblewrap,
+            systemd_run,
+            systemctl,
+            taskset,
+        ))
+    }
+
     fn fixture_with_token(
+        backend: Option<SandboxBackend>,
         make_token: impl FnOnce(&SandboxLaunchInput, &ResourceLease, &str) -> RuntimeLaunchToken,
     ) -> Result<(ReplayLaunchAuthority, fs::File, std::path::PathBuf), LaunchAuthorityError> {
         let root = std::env::temp_dir().join(format!(
@@ -338,18 +365,30 @@ mod tests {
         )
         .unwrap();
         let cassette_sha256 = "e".repeat(64);
-        let authority = ReplayLaunchFactory::issue(
-            make_token(&input, &lease, &cassette_sha256),
-            input,
-            lease,
-            cassette_sha256,
-        )?;
+        let token = make_token(&input, &lease, &cassette_sha256);
+        if backend.is_some() {
+            // Keep the authenticated relay socket alive through the delegated
+            // child launch; the test removes its private root after reaping.
+            std::mem::forget(relay);
+        }
+        let authority = match backend {
+            Some(backend) => ReplayLaunchFactory::issue_with_backend(
+                token,
+                input,
+                lease,
+                cassette_sha256,
+                backend,
+            )?,
+            None => ReplayLaunchFactory::issue(token, input, lease, cassette_sha256)?,
+        };
         Ok((authority, fs::File::open("/dev/null").unwrap(), root))
     }
 
     #[test]
     fn issuance_rejects_token_bound_to_another_launch_context() {
-        let result = fixture_with_token(|_, _, _| RuntimeLaunchToken::test_only("0".repeat(64)));
+        let result = fixture_with_token(None, |_, _, _| {
+            RuntimeLaunchToken::test_only("0".repeat(64))
+        });
         assert!(matches!(
             result,
             Err(LaunchAuthorityError::IdentityMismatch)
@@ -455,6 +494,27 @@ mod tests {
             context.spawn(),
             Err(SandboxError::DelegationRejected)
         ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    #[ignore = "requires delegated bwrap namespace capability"]
+    fn qualified_runtime_backend_executes_and_reaps_child() {
+        let Some(backend) = qualified_backend() else {
+            return;
+        };
+        let (authority, _file, root) =
+            fixture_with_token(Some(backend), |input, lease, cassette| {
+                RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette))
+            })
+            .unwrap();
+        let mut child = authority
+            .consume_for(&"e".repeat(64))
+            .unwrap()
+            .spawn()
+            .unwrap();
+        let output = child.wait().unwrap();
+        assert_eq!(output.exit_code, Some(0));
         let _ = fs::remove_dir_all(root);
     }
 }
