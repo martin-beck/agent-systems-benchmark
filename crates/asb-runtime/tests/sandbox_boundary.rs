@@ -688,6 +688,184 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
 }
 
 #[test]
+fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
+    let backend = native_backend().expect("AR-1301 native qualification requires sandbox support");
+    for mode in ["stale", "malformed", "duplicate", "mismatch"] {
+        let mode = mode.to_owned();
+        let root_name = format!("supervisor-authenticated-{mode}");
+        let root = test_root(&root_name);
+        let generation = format!("authenticated-negative-{mode}");
+        let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
+        let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
+        let cassette_bytes =
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+        let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
+        let request_body =
+            serde_json::to_string(&cassette.contents.interactions[0].request.body).unwrap();
+        let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+        let route = ReplayRoute {
+            session_id: "gemini-public-session".into(),
+            attempt_id: "attempt-1".into(),
+            dialect: ProviderDialect::GeminiGenerateContent,
+        };
+        let server_mode = mode.clone();
+        let server = thread::spawn(move || -> Result<(), String> {
+            let first = relay.accept_authenticated();
+            match server_mode.as_str() {
+                "stale" => matches!(first, Err(asb_runtime::relay::RelayError::StaleGeneration))
+                    .then_some(())
+                    .ok_or_else(|| "stale generation was accepted".into()),
+                "malformed" => {
+                    matches!(first, Err(asb_runtime::relay::RelayError::InvalidHandshake))
+                        .then_some(())
+                        .ok_or_else(|| "malformed handshake was accepted".into())
+                }
+                "duplicate" => {
+                    first.map_err(|error| format!("first authenticated peer failed: {error}"))?;
+                    matches!(
+                        relay.accept_authenticated(),
+                        Err(asb_runtime::relay::RelayError::Duplicate)
+                    )
+                    .then_some(())
+                    .ok_or_else(|| "duplicate authenticated peer was accepted".into())
+                }
+                "mismatch" => {
+                    let mut stream =
+                        first.map_err(|error| format!("authenticated peer failed: {error}"))?;
+                    let status = service
+                        .serve_authenticated_connection(&mut stream, &route)
+                        .map_err(|error| format!("strict mismatch service failed: {error}"))?;
+                    (status != 200)
+                        .then_some(())
+                        .ok_or_else(|| "strict route mismatch unexpectedly succeeded".into())
+                }
+                _ => Err("unknown negative mode".into()),
+            }
+        });
+        let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+        let executable_dir = executable_dir
+            .parent()
+            .and_then(|path| {
+                (path.file_name().and_then(|name| name.to_str()) == Some("deps"))
+                    .then(|| path.parent().unwrap())
+            })
+            .unwrap_or_else(|| executable_dir.parent().unwrap());
+        let sidecar_path = executable_dir.join("asb_loopback_sidecar");
+        let supervisor_path = executable_dir.join("asb_loopback_supervisor");
+        assert!(sidecar_path.is_file());
+        assert!(supervisor_path.is_file());
+        let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = port_probe.local_addr().unwrap().port();
+        drop(port_probe);
+        let mut sidecar_args = vec![
+            "--listen".into(),
+            format!("127.0.0.1:{port}"),
+            "--relay".into(),
+            "/tmp/asb-replay-relay.sock".into(),
+            "--generation".into(),
+            generation.clone(),
+        ];
+        if mode != "mismatch" {
+            sidecar_args.extend(["--handshake-mode".into(), mode.clone().into()]);
+        }
+        let sidecar = PinnedCommand::new_verified(
+            sidecar_path.clone(),
+            sidecar_args,
+            &file_sha256(&sidecar_path),
+        )
+        .unwrap();
+        let request_path = if mode == "mismatch" {
+            "/wrong-route"
+        } else {
+            "/v1beta/models/fixture-model:streamGenerateContent?alt=sse"
+        };
+        let adapter = PinnedCommand::new_verified(
+            PathBuf::from("/usr/bin/curl"),
+            vec![
+                "--fail".into(),
+                "--silent".into(),
+                "--header".into(),
+                "content-type: application/json".into(),
+                "--header".into(),
+                "x-goog-api-key: fixture-key".into(),
+                "--data-binary".into(),
+                request_body,
+                format!("http://127.0.0.1:{port}{request_path}"),
+            ],
+            &file_sha256(Path::new("/usr/bin/curl")),
+        )
+        .unwrap();
+        let supervisor = PinnedCommand::new_verified(
+            supervisor_path.clone(),
+            Vec::new(),
+            &file_sha256(&supervisor_path),
+        )
+        .unwrap();
+        let plan = SupervisorPlan::new(
+            sidecar,
+            adapter,
+            handoff.socket_path().to_path_buf(),
+            generation,
+            "c".repeat(64),
+            Duration::from_secs(3),
+        )
+        .unwrap()
+        .with_supervisor(supervisor);
+        let resources = Resources::new(
+            128 * 1024 * 1024,
+            16,
+            100,
+            CpuSet::new(vec![first_allowed_cpu()]).unwrap(),
+        )
+        .unwrap();
+        let lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            resources.cpus().clone(),
+        )
+        .unwrap();
+        let sandbox = SandboxSpec::new(
+            &root,
+            PathBuf::from("work"),
+            "/bin/true".into(),
+            Vec::new(),
+            BTreeMap::new(),
+            resources,
+            NetworkPolicy::Deny,
+        )
+        .unwrap()
+        .with_supervisor(plan);
+        let input = SandboxLaunchInput::new(sandbox, limits())
+            .unwrap()
+            .with_replay_handoff(handoff)
+            .unwrap();
+        let cassette_digest = file_sha256(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
+                .as_path(),
+        );
+        let token = backend
+            .attest_replay_launch(&input, &lease, &cassette_digest)
+            .unwrap();
+        let authority =
+            ReplayLaunchFactory::issue(token, input, lease, cassette_digest.clone()).unwrap();
+        let context = authority.consume_for(&cassette_digest).unwrap();
+        let mut process = context.spawn(&backend).unwrap();
+        let output = process.wait().unwrap().clone();
+        assert_ne!(
+            output.exit_code,
+            Some(0),
+            "negative mode {mode} unexpectedly succeeded"
+        );
+        assert!(
+            server.join().unwrap().is_ok(),
+            "negative mode {mode} was not rejected"
+        );
+        assert!(!root.join("asb-replay-relay.sock").exists());
+    }
+}
+
+#[test]
 fn authenticated_replay_boundary_rejects_stale_malformed_duplicate_and_mismatch() {
     let root = test_root("authenticated-negative-boundary");
     let mut relay = ReplayRelay::bind(&root, "negative-generation").unwrap();
