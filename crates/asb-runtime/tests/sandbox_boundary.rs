@@ -18,9 +18,10 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -686,6 +687,68 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
     assert!(!root.join("asb-replay-relay.sock").exists());
 }
 
+#[test]
+fn authenticated_replay_boundary_rejects_stale_malformed_duplicate_and_mismatch() {
+    let root = test_root("authenticated-negative-boundary");
+    let mut relay = ReplayRelay::bind(&root, "negative-generation").unwrap();
+    let relay_path = relay.socket_path().to_owned();
+
+    let stale = UnixStream::connect(&relay_path).unwrap();
+    let mut stale_writer = stale.try_clone().unwrap();
+    stale_writer.write_all(b"stale-generation\n").unwrap();
+    drop(stale_writer);
+    assert!(matches!(
+        relay.accept_authenticated(),
+        Err(asb_runtime::relay::RelayError::StaleGeneration)
+    ));
+
+    let malformed = UnixStream::connect(&relay_path).unwrap();
+    let mut malformed_writer = malformed.try_clone().unwrap();
+    malformed_writer.write_all(b"malformed").unwrap();
+    malformed.shutdown(std::net::Shutdown::Write).unwrap();
+    malformed_writer
+        .shutdown(std::net::Shutdown::Write)
+        .unwrap();
+    drop(malformed_writer);
+    assert!(matches!(
+        relay.accept_authenticated(),
+        Err(asb_runtime::relay::RelayError::InvalidHandshake)
+    ));
+
+    let valid = UnixStream::connect(&relay_path).unwrap();
+    let mut valid_writer = valid.try_clone().unwrap();
+    valid_writer.write_all(b"negative-generation\n").unwrap();
+    let accepted = relay.accept_authenticated().unwrap();
+    assert!(matches!(
+        relay.accept_authenticated(),
+        Err(asb_runtime::relay::RelayError::Duplicate)
+    ));
+    drop(accepted);
+    drop(valid_writer);
+    drop(valid);
+
+    let cassette = decode_cassette(
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+    let mismatch = service.handle(
+        &ReplayRoute {
+            session_id: "wrong-session".into(),
+            attempt_id: "attempt-1".into(),
+            dialect: ProviderDialect::GeminiGenerateContent,
+        },
+        ReplayHttpRequest {
+            method: "POST".into(),
+            path: "/wrong-route".into(),
+            headers: Vec::new(),
+            body: b"{}".to_vec(),
+        },
+    );
+    assert!(mismatch.is_err(), "strict mismatch unexpectedly succeeded");
+}
+
 fn run_supervised_fault(
     backend: &SandboxBackend,
     name: &str,
@@ -827,9 +890,9 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         );
         assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
     }
-    let (termination, exit_code, _root) = run_supervised_fault(
+    let (termination, exit_code, crash_root) = run_supervised_fault(
         &backend,
-        "crash-before-restart",
+        "crash-before-fresh-generation",
         shell,
         vec!["-c".into(), "exit 23".into()],
         true_bin,
@@ -839,6 +902,20 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
     );
     assert_eq!(termination, Termination::Exited);
     assert_ne!(exit_code, Some(0));
+    assert!(!crash_root.join("relay.sock").exists());
+    let (termination, exit_code, restart_root) = run_supervised_fault(
+        &backend,
+        "fresh-generation-after-crash",
+        true_bin,
+        Vec::new(),
+        true_bin,
+        Vec::new(),
+        Duration::from_secs(2),
+        None,
+    );
+    assert_eq!(termination, Termination::Exited);
+    assert_eq!(exit_code, Some(0));
+    assert!(!restart_root.join("relay.sock").exists());
     let mut unrelated = Command::new("/bin/sleep").arg("30").spawn().unwrap();
     let (termination, exit_code, _root) = run_supervised_fault(
         &backend,
