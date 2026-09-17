@@ -6,52 +6,75 @@
   "properties": {
     "certificate_sha256": {
       "description": "Immutable certificate content digest.",
-      "type": "string"
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
     },
     "endpoint_identity_sha256": {
       "description": "Endpoint identity digest bound during enrollment.",
-      "type": "string"
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
     },
     "generation": {
       "description": "Monotonic enrollment generation.",
       "type": "integer",
       "format": "uint64",
-      "minimum": 0
+      "minimum": 1
     },
     "issuer_sha256": {
       "description": "Issuer certificate digest, or the trust anchor digest for the root.",
-      "type": "string"
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
     },
     "not_after": {
       "description": "Exclusive validity end in Unix seconds.",
       "type": "integer",
       "format": "uint64",
-      "minimum": 0
+      "minimum": 1
     },
     "not_before": {
       "description": "Inclusive validity start in Unix seconds.",
       "type": "integer",
       "format": "uint64",
-      "minimum": 0
+      "minimum": 1
     },
     "role": {
       "description": "Least-privilege role bound to this identity.",
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "observer",
+        "operator",
+        "administrator"
+      ],
+      "maxLength": 32,
+      "minLength": 1
     },
     "schema_version": {
       "description": "Protocol version.",
       "type": "integer",
       "format": "uint16",
+      "const": 1,
       "maximum": 65535,
       "minimum": 0
     },
     "subject_sha256": {
       "description": "Stable subject identity digest.",
-      "type": "string"
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
     },
     "trust_anchor_sha256": {
       "description": "Explicit trust anchor digest selected by the runtime.",
-      "type": "string"
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
     }
   },
   "additionalProperties": false,

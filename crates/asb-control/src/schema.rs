@@ -13,7 +13,55 @@ use crate::{
 
 /// Canonical schema for the versioned certificate identity metadata.
 pub fn certificate_identity_schema() -> Schema {
-    canonical::<CertificateIdentityV1>()
+    let mut value = serde_json::to_value(canonical::<CertificateIdentityV1>())
+        .expect("certificate schema serializes");
+    let properties = value
+        .get_mut("properties")
+        .and_then(Value::as_object_mut)
+        .expect("certificate schema properties");
+    for name in [
+        "subject_sha256",
+        "issuer_sha256",
+        "certificate_sha256",
+        "trust_anchor_sha256",
+        "endpoint_identity_sha256",
+    ] {
+        let property = properties
+            .get_mut(name)
+            .and_then(Value::as_object_mut)
+            .expect("certificate digest property");
+        property.insert("minLength".into(), json!(64));
+        property.insert("maxLength".into(), json!(64));
+        property.insert("pattern".into(), json!("^[0-9a-f]{64}$"));
+    }
+    properties
+        .get_mut("schema_version")
+        .and_then(Value::as_object_mut)
+        .expect("certificate schema version")
+        .insert("const".into(), json!(1));
+    properties
+        .get_mut("generation")
+        .and_then(Value::as_object_mut)
+        .expect("certificate generation")
+        .insert("minimum".into(), json!(1));
+    for name in ["not_before", "not_after"] {
+        properties
+            .get_mut(name)
+            .and_then(Value::as_object_mut)
+            .expect("certificate validity")
+            .insert("minimum".into(), json!(1));
+    }
+    let role = properties
+        .get_mut("role")
+        .and_then(Value::as_object_mut)
+        .expect("certificate role");
+    role.insert("minLength".into(), json!(1));
+    role.insert("maxLength".into(), json!(32));
+    role.insert(
+        "enum".into(),
+        json!(["observer", "operator", "administrator"]),
+    );
+    serde_json::from_value(value).expect("certificate schema remains valid")
 }
 
 fn canonical<T: JsonSchema>() -> Schema {

@@ -569,5 +569,22 @@ mod tests {
         let mut value = serde_json::to_value(&identity).unwrap();
         value["untrusted"] = serde_json::json!(true);
         assert!(serde_json::from_value::<CertificateIdentityV1>(value).is_err());
+        let schema = serde_json::to_value(crate::certificate_identity_schema()).unwrap();
+        assert_eq!(
+            schema["properties"]["schema_version"]["const"],
+            serde_json::json!(1)
+        );
+        assert_eq!(
+            schema["properties"]["generation"]["minimum"],
+            serde_json::json!(1)
+        );
+        assert_eq!(
+            schema["properties"]["subject_sha256"]["pattern"],
+            serde_json::json!("^[0-9a-f]{64}$")
+        );
+        assert_eq!(
+            schema["properties"]["role"]["enum"],
+            serde_json::json!(["observer", "operator", "administrator"])
+        );
     }
 }
