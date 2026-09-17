@@ -113,6 +113,11 @@ fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Resul
                 return Err("adapter failed".into());
             }
         }
+        if adapter_done.is_some_and(|status| status.success()) && sidecar_done.is_none() {
+            let _ = sidecar.kill();
+            let _ = sidecar.wait();
+            return Ok(());
+        }
         if sidecar_done.is_some() && adapter_done.is_some() {
             return Ok(());
         }

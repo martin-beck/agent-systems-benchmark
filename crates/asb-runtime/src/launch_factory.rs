@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
-use crate::sandbox::{LeaseClass, ResourceLease, SandboxLaunchInput};
+use crate::sandbox::{
+    LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput, SandboxProcess,
+};
 use sha2::{Digest, Sha256};
 
 /// A launch authority that can only be issued by the runtime factory.
@@ -195,6 +197,13 @@ fn valid_digest(value: &str) -> bool {
 }
 
 impl ReplayLaunchContext {
+    /// Consume this runtime-owned context by spawning its validated supervised
+    /// launch. The lease and launch input remain one-shot and cannot be cloned
+    /// or reconstructed by a caller.
+    pub fn spawn(self, backend: &SandboxBackend) -> Result<SandboxProcess, SandboxError> {
+        backend.spawn_launch(self.input, self.lease)
+    }
+
     /// Issue the one-shot authenticated operation used by the primary replay path.
     pub fn issue_operation(
         &mut self,

@@ -193,7 +193,8 @@ impl ReplayRelay {
             return Err(RelayError::InvalidHandshake);
         }
         handshake.pop();
-        if handshake == self.generation.as_bytes() {
+        let prefixed = format!("ASB-REPLAY/{}", self.generation);
+        if handshake == self.generation.as_bytes() || handshake == prefixed.as_bytes() {
             self.consumed = true;
             Ok(reader.into_inner())
         } else {

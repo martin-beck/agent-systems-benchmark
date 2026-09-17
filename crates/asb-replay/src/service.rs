@@ -521,8 +521,13 @@ impl StrictReplayService {
         Ok(())
     }
 
-    #[cfg(test)]
-    fn serve_connection<S: Read + Write>(
+    /// Serve one already-authenticated replay connection.
+    ///
+    /// Authentication and generation binding are intentionally owned by the
+    /// runtime relay. Callers must pass only the stream returned by that
+    /// authenticated boundary; this method performs no provider access or
+    /// fallback and advances the cassette cursor only after a complete match.
+    pub fn serve_authenticated_connection<S: Read + Write>(
         &self,
         stream: &mut S,
         route: &ReplayRoute,
@@ -534,6 +539,15 @@ impl StrictReplayService {
             &CancellationToken::default(),
         )
         .map(|report| report.status)
+    }
+
+    #[cfg(test)]
+    fn serve_connection<S: Read + Write>(
+        &self,
+        stream: &mut S,
+        route: &ReplayRoute,
+    ) -> Result<u16, ReplayError> {
+        self.serve_authenticated_connection(stream, route)
     }
 
     fn serve_connection_paced<S: Read + Write>(
