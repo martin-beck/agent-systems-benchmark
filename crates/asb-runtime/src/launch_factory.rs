@@ -419,4 +419,16 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn consumed_context_issues_only_one_operation() {
+        let (authority, _file, root) = fixture();
+        let mut context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let _operation = context.issue_operation().unwrap();
+        assert!(matches!(
+            context.issue_operation(),
+            Err(crate::ReplayOperationError::AlreadyIssued)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
 }
