@@ -6,8 +6,12 @@ use asb_core::replay_transport::{
     MAX_PAYLOAD, ReplayRequest, ReplayResponse, ReplayTransportError,
 };
 use std::io::{Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+const IO_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug)]
 /// Runtime-owned one-shot server which authenticates one launch generation.
@@ -26,8 +30,21 @@ impl ReplayTransportIssuer {
     ) -> Result<Self, ReplayTransportError> {
         ReplayRequest::new(generation.clone(), "bind-check".into(), Vec::new())?;
         let path = path.into();
+        if !path.is_absolute()
+            || path.parent().is_none_or(|parent| {
+                std::fs::symlink_metadata(parent).is_err()
+                    || std::fs::symlink_metadata(parent).is_ok_and(|m| m.file_type().is_symlink())
+                    || std::fs::metadata(parent).is_err_and(|_| true)
+                    || std::fs::metadata(parent)
+                        .is_ok_and(|m| !m.is_dir() || m.permissions().mode() & 0o777 != 0o700)
+            })
+        {
+            return Err(ReplayTransportError::InvalidEnvelope);
+        }
         let listener =
             UnixListener::bind(&path).map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|_| ReplayTransportError::InvalidEnvelope)?;
         Ok(Self {
             listener,
             path,
@@ -47,6 +64,10 @@ impl ReplayTransportIssuer {
         let (mut stream, _) = self
             .listener
             .accept()
+            .map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+        stream
+            .set_read_timeout(Some(IO_TIMEOUT))
+            .and_then(|_| stream.set_write_timeout(Some(IO_TIMEOUT)))
             .map_err(|_| ReplayTransportError::InvalidEnvelope)?;
         let request = read_request(&mut stream)?;
         if request.generation != self.generation {
@@ -75,8 +96,22 @@ pub struct ReplayTransportClient {
     used: bool,
 }
 impl ReplayTransportClient {
-    /// Connect to a runtime-issued endpoint.
-    pub fn connect(path: &Path, generation: String) -> Result<Self, ReplayTransportError> {
+    /// Issue a client from the runtime-owned issuer.
+    pub fn issue(issuer: &ReplayTransportIssuer) -> Result<Self, ReplayTransportError> {
+        let stream =
+            UnixStream::connect(&issuer.path).map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+        stream
+            .set_read_timeout(Some(IO_TIMEOUT))
+            .and_then(|_| stream.set_write_timeout(Some(IO_TIMEOUT)))
+            .map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+        Ok(Self {
+            stream,
+            generation: issuer.generation.clone(),
+            used: false,
+        })
+    }
+    #[cfg(test)]
+    fn connect(path: &Path, generation: String) -> Result<Self, ReplayTransportError> {
         let stream =
             UnixStream::connect(path).map_err(|_| ReplayTransportError::InvalidEnvelope)?;
         Ok(Self {
@@ -88,15 +123,13 @@ impl ReplayTransportClient {
     /// Send one request and validate its matching response.
     pub fn request(
         &mut self,
-        request: ReplayRequest,
+        request_id: String,
+        payload: Vec<u8>,
     ) -> Result<ReplayResponse, ReplayTransportError> {
-        if self.used || request.generation != self.generation {
-            return Err(if self.used {
-                ReplayTransportError::DuplicateRequest
-            } else {
-                ReplayTransportError::StaleGeneration
-            });
+        if self.used {
+            return Err(ReplayTransportError::DuplicateRequest);
         }
+        let request = ReplayRequest::new(self.generation.clone(), request_id, payload)?;
         write_frame(&mut self.stream, &request.encode()?)?;
         let response = ReplayResponse::decode(&read_frame(&mut self.stream)?)?;
         if response.generation != self.generation || response.request_id != request.request_id {
@@ -145,15 +178,22 @@ impl Drop for ReplayTransportIssuer {
 mod tests {
     use super::*;
     use std::thread;
+    fn private_path(label: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("asb-transport-{label}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        dir.join("relay.sock")
+    }
     #[test]
     fn one_shot_authenticates_and_replies() {
-        let path = std::env::temp_dir().join(format!("asb-transport-{}.sock", std::process::id()));
+        let path = private_path("roundtrip");
         let mut issuer = ReplayTransportIssuer::bind(&path, "g1".into()).unwrap();
         let p = path.clone();
+        let generation = "g1".to_owned();
         let t = thread::spawn(move || {
-            let mut c = ReplayTransportClient::connect(&p, "g1".into()).unwrap();
-            c.request(ReplayRequest::new("g1".into(), "r1".into(), b"x".to_vec()).unwrap())
-                .unwrap()
+            let mut c = ReplayTransportClient::connect(&p, generation).unwrap();
+            c.request("r1".into(), b"x".to_vec()).unwrap()
         });
         let (request, stream) = issuer.accept_once().unwrap();
         issuer
@@ -176,8 +216,7 @@ mod tests {
 
     #[test]
     fn stale_generation_is_rejected_before_response() {
-        let path =
-            std::env::temp_dir().join(format!("asb-transport-stale-{}.sock", std::process::id()));
+        let path = private_path("stale");
         let issuer = ReplayTransportIssuer::bind(&path, "current".into()).unwrap();
         drop(issuer);
         assert!(matches!(
