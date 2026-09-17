@@ -12,6 +12,8 @@ pub mod sandbox;
 pub mod scheduler;
 /// Private-namespace replay supervisor contracts and lifecycle validation.
 pub mod supervisor;
+/// Runtime-owned one-shot authenticated replay transport.
+pub mod transport;
 
 #[cfg(not(target_os = "linux"))]
 compile_error!("asb-runtime currently supports Linux process semantics only");
