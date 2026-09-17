@@ -28,6 +28,7 @@ use asb_replay::{
     CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
     SourceChoice, seal_recording,
 };
+use asb_runtime::launch_factory::ReplayLaunchAuthority;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
     StopReason, SystemClock, capacity_order, highest_confirmed_capacity,
@@ -80,7 +81,34 @@ pub fn entry(args: Vec<OsString>) -> ExitCode {
 
 /// Execute one CLI request with injected output streams.
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
-    match dispatch(args, stdout, stderr) {
+    match dispatch(args, stdout, stderr, None) {
+        Ok(exit_code) => exit_code,
+        Err(error) => {
+            let envelope = ErrorEnvelope {
+                schema_version: OUTPUT_SCHEMA_VERSION,
+                ok: false,
+                command: command_name(args),
+                error,
+            };
+            if write_json(stdout, &envelope).is_err() {
+                let _ = writeln!(stderr, "ASB could not write structured error output");
+            }
+            envelope.error.exit_code
+        }
+    }
+}
+
+/// Execute a strict-replay CLI request with runtime-issued launch authority.
+///
+/// The ordinary argument-only entry point intentionally cannot execute replay;
+/// runtime supervision must inject this opaque, one-shot authority.
+pub fn run_with_replay_authority(
+    args: &[OsString],
+    authority: ReplayLaunchAuthority,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    match dispatch(args, stdout, stderr, Some(authority)) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -101,6 +129,7 @@ fn dispatch(
     args: &[OsString],
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
+    mut replay_authority: Option<ReplayLaunchAuthority>,
 ) -> Result<u8, CliError> {
     let words = unicode_args(args)?;
     match words.as_slice() {
@@ -150,9 +179,14 @@ fn dispatch(
         [command, input, output] if command == "record" => {
             record(Path::new(input), Path::new(output), stdout).map(|()| 0)
         }
-        [command, cassette, profile, agent] if command == "replay" => {
-            replay(Path::new(cassette), profile, agent, stdout).map(|()| 0)
-        }
+        [command, cassette, profile, agent] if command == "replay" => replay(
+            Path::new(cassette),
+            profile,
+            agent,
+            replay_authority.take(),
+            stdout,
+        )
+        .map(|()| 0),
         _ => Err(CliError::usage("unsupported arguments; use asb --help")),
     }
 }
@@ -400,11 +434,16 @@ fn replay(
     cassette_path: &Path,
     provider_profile_sha256: &str,
     agent_id: &str,
+    authority: Option<ReplayLaunchAuthority>,
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
         .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+    let _runtime_context = authority
+        .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
+        .consume_for(&cassette.integrity.digest)
+        .map_err(|_| CliError::validation("runtime replay authority does not match cassette"))?;
     let descriptor = RecordingDescriptor {
         provider_profile_sha256: provider_profile_sha256.to_owned(),
         agent_id: agent_id.to_owned(),
@@ -5172,11 +5211,14 @@ mod tests {
                 &mut replay_output,
                 &mut diagnostics,
             ),
-            0
+            3
         );
         let replay: Value = serde_json::from_slice(&replay_output).unwrap();
-        assert_eq!(replay["network"], "denied");
-        assert_eq!(replay["cassette_sha256"], digest);
-        assert_eq!(replay["source"]["replay"]["cassette_sha256"], digest);
+        assert_eq!(replay["ok"], false);
+        assert_eq!(
+            replay["error"]["message"],
+            "runtime replay authority is required"
+        );
+        let _ = digest;
     }
 }

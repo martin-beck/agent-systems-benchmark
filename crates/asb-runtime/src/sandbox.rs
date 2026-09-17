@@ -334,6 +334,11 @@ impl SandboxSpec {
     pub fn environment(&self) -> &BTreeMap<String, String> {
         &self.environment
     }
+
+    /// Runtime-owned supervisor plan attached to this launch, when present.
+    pub fn supervisor(&self) -> Option<&SupervisorPlan> {
+        self.supervisor.as_ref()
+    }
 }
 
 /// Validated input for one supervised adapter launch.
@@ -449,6 +454,25 @@ impl SandboxBackend {
         } else {
             Err(SandboxError::DelegationRejected)
         }
+    }
+
+    /// Attest the runtime boundary before issuing replay launch authority.
+    pub fn attest_replay_launch(
+        &self,
+        input: &SandboxLaunchInput,
+        lease: &ResourceLease,
+        cassette_sha256: &str,
+    ) -> Result<crate::launch_factory::RuntimeLaunchToken, SandboxError> {
+        self.probe()?;
+        Ok(crate::launch_factory::RuntimeLaunchToken {
+            nonce: (std::process::id() as u128) << 64
+                | PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed) as u128,
+            binding_digest: crate::launch_factory::launch_binding_digest(
+                input,
+                lease,
+                cassette_sha256,
+            ),
+        })
     }
 
     /// Spawn while retaining a matching benchmark CPU lease.

@@ -268,12 +268,12 @@ fn checked_transcript_is_reproducible_complete_and_privacy_safe() {
         );
     }
     assert_eq!(actual["steps"].as_array().unwrap().len(), 8);
-    assert!(
-        actual["steps"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|step| step["exit_code"] == 0)
+    let steps = actual["steps"].as_array().unwrap();
+    assert!(steps[..7].iter().all(|step| step["exit_code"] == 0));
+    assert_eq!(steps[7]["exit_code"], 3);
+    assert_eq!(
+        steps[7]["stdout"]["error"]["message"],
+        "runtime replay authority is required"
     );
     let encoded = serde_json::to_string(&actual).unwrap();
     assert!(encoded.contains("${SCENARIO_ROOT}"));

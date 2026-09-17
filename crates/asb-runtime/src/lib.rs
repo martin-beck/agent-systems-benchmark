@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Runtime-issued authority for strict-replay launch inputs.
+pub mod launch_factory;
 /// A per-launch, authenticated loopback-to-Unix relay for strict replay.
 pub mod loopback_sidecar;
 /// Private per-launch replay relay transport.
