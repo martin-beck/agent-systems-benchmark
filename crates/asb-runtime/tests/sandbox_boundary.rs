@@ -150,6 +150,9 @@ fn first_allowed_cpu() -> u32 {
 }
 
 fn native_backend() -> Option<SandboxBackend> {
+    if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_none() {
+        return None;
+    }
     fn unavailable(error: impl std::fmt::Display) -> Option<SandboxBackend> {
         if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_some() {
             panic!("required native sandbox capability unavailable: {error}");
