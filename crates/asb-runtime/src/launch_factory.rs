@@ -334,7 +334,10 @@ mod tests {
         // failure.  Use a deterministic argument-tolerant fixture instead.
         let supervisor = PinnedCommand::new(
             Path::new("/bin/sh").to_owned(),
-            vec!["-c".into(), "exit 0".into()],
+            vec![
+                "-c".into(),
+                "printf '%s\\n' \"$0\" \"$@\" > /workspace/supervisor-args".into(),
+            ],
             "c".repeat(64),
         )
         .unwrap();
@@ -532,6 +535,10 @@ mod tests {
             "delegated replay child failed: {}",
             String::from_utf8_lossy(&output.stderr.bytes)
         );
+        let args = fs::read_to_string(root.join("workspace/supervisor-args")).unwrap();
+        assert!(args.lines().any(|arg| arg == "--unshare-net"));
+        assert!(args.lines().any(|arg| arg == "--relay"));
+        assert!(args.lines().any(|arg| arg == "generation-1"));
         let _ = fs::remove_dir_all(root);
     }
 }
