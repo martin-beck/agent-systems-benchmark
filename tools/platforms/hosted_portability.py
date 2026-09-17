@@ -373,12 +373,12 @@ def _run_sandbox(argv: Sequence[str], source: Path, timeout: int = 900) -> dict[
     finally:
         selector.close()
         process.stdout.close()
-    if failed or returncode != 0:
-        raise PortabilityError("hosted portability sandbox check did not pass")
     if SANDBOX_UNAVAILABLE in output:
         result = _check_projection(argv, bytes(output), "unavailable")
         result["limitation"] = SANDBOX_LIMITATION
         return result
+    if failed or returncode != 0:
+        raise PortabilityError("hosted portability sandbox check did not pass")
     return _check_projection(argv, bytes(output), "passed")
 
 
