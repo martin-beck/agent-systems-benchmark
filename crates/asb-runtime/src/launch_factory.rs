@@ -329,8 +329,15 @@ mod tests {
             PinnedCommand::new(Path::new("/bin/true").to_owned(), vec![], "a".repeat(64)).unwrap();
         let adapter =
             PinnedCommand::new(Path::new("/bin/true").to_owned(), vec![], "b".repeat(64)).unwrap();
-        let supervisor =
-            PinnedCommand::new(Path::new("/bin/true").to_owned(), vec![], "c".repeat(64)).unwrap();
+        // The supervisor receives its full argument contract below; `/bin/true`
+        // rejects those arguments and exits 1, which masquerades as a sandbox
+        // failure.  Use a deterministic argument-tolerant fixture instead.
+        let supervisor = PinnedCommand::new(
+            Path::new("/bin/sh").to_owned(),
+            vec!["-c".into(), "exit 0".into()],
+            "c".repeat(64),
+        )
+        .unwrap();
         let plan = SupervisorPlan::new(
             sidecar,
             adapter,
@@ -347,7 +354,12 @@ mod tests {
             "/bin/true".into(),
             vec![],
             BTreeMap::new(),
-            Resources::new(1024 * 1024, 1, 100, CpuSet::new(vec![0]).unwrap()).unwrap(),
+            // Namespace creation itself needs a realistic cgroup headroom;
+            // one megabyte makes bwrap fail with EAGAIN before the child can
+            // start, which obscures the delegated-capability result.
+            // taskset, bwrap, the supervisor and its descendants all need a
+            // process slot; TasksMax=1 makes namespace setup fail with EAGAIN.
+            Resources::new(64 * 1024 * 1024, 16, 100, CpuSet::new(vec![0]).unwrap()).unwrap(),
             NetworkPolicy::Deny,
         )
         .unwrap()
@@ -512,9 +524,14 @@ mod tests {
             .consume_for(&"e".repeat(64))
             .unwrap()
             .spawn()
-            .unwrap();
+            .unwrap_or_else(|error| panic!("delegated replay child spawn failed: {error:?}"));
         let output = child.wait().unwrap();
-        assert_eq!(output.exit_code, Some(0));
+        assert_eq!(
+            output.exit_code,
+            Some(0),
+            "delegated replay child failed: {}",
+            String::from_utf8_lossy(&output.stderr.bytes)
+        );
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -560,6 +560,11 @@ impl SandboxBackend {
         if let Some(plan) = &spec.supervisor {
             let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
             command.arg("--").arg(supervisor.executable());
+            // Preserve the runtime-pinned supervisor arguments before the
+            // generated relay contract.  Omitting them silently changes the
+            // executable invocation (and made argument-sensitive fixtures
+            // fail as if namespace creation had failed).
+            command.args(supervisor.arguments());
             command.args(plan.arguments_for_relay(Path::new(RELAY_TARGET)));
         } else {
             command.arg("--").arg(&spec.program).args(&spec.arguments);
