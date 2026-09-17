@@ -960,10 +960,12 @@ fn run_supervised_fault(
     cancel_after: Option<Duration>,
 ) -> (Termination, Option<i32>, TestRoot) {
     let root = test_root(name);
-    let relay = root.join("relay.sock");
-    let _relay_listener = std::os::unix::net::UnixListener::bind(&relay).unwrap();
-    fs::set_permissions(&relay, fs::Permissions::from_mode(0o600)).unwrap();
     let generation = format!("fault-{name}");
+    // Use the runtime-owned generation-authenticated relay in every matrix
+    // case. A raw UnixListener would let an unrelated child failure look like
+    // a valid supervised replay launch.
+    let relay = ReplayRelay::bind(&root, &generation).unwrap();
+    let relay_path = relay.socket_path().to_owned();
     let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
     let supervisor_path = executable_dir
         .parent()
@@ -993,7 +995,7 @@ fn run_supervised_fault(
     let plan = SupervisorPlan::new(
         sidecar,
         adapter,
-        relay.clone(),
+        relay_path.clone(),
         generation,
         "c".repeat(64),
         timeout,
@@ -1027,7 +1029,7 @@ fn run_supervised_fault(
         }
         Err(error) => panic!("supervised fault {name} failed to spawn: {error:?}"),
     };
-    let _ = fs::remove_file(&relay);
+    drop(relay);
     result
 }
 
