@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CertificateIdentityV1",
+  "description": "Public certificate identity metadata. Private key material and certificate bytes never cross\nthis boundary; each certificate is represented by its immutable SHA-256 digest.",
+  "type": "object",
+  "properties": {
+    "certificate_sha256": {
+      "description": "Immutable certificate content digest.",
+      "type": "string"
+    },
+    "endpoint_identity_sha256": {
+      "description": "Endpoint identity digest bound during enrollment.",
+      "type": "string"
+    },
+    "generation": {
+      "description": "Monotonic enrollment generation.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "issuer_sha256": {
+      "description": "Issuer certificate digest, or the trust anchor digest for the root.",
+      "type": "string"
+    },
+    "not_after": {
+      "description": "Exclusive validity end in Unix seconds.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "not_before": {
+      "description": "Inclusive validity start in Unix seconds.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "role": {
+      "description": "Least-privilege role bound to this identity.",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Protocol version.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "subject_sha256": {
+      "description": "Stable subject identity digest.",
+      "type": "string"
+    },
+    "trust_anchor_sha256": {
+      "description": "Explicit trust anchor digest selected by the runtime.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "subject_sha256",
+    "issuer_sha256",
+    "certificate_sha256",
+    "trust_anchor_sha256",
+    "generation",
+    "not_before",
+    "not_after",
+    "role",
+    "endpoint_identity_sha256"
+  ]
+}

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Versioned, credential-free certificate-chain authorization boundary.
 
-use std::sync::Arc;
+use std::collections::BTreeSet;
+use std::sync::{Arc, Mutex};
 
 use rustls::RootCertStore;
 use rustls::pki_types::{CertificateDer, UnixTime};
@@ -11,6 +12,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+use x509_parser::parse_x509_certificate;
 
 const MAX_CHAIN_LENGTH: usize = 8;
 const CLOCK_SKEW_SECONDS: u64 = 300;
@@ -65,11 +67,13 @@ impl IssuedCertificateChainV1 {
 }
 
 /// Runtime-owned authority for one trust anchor and enrollment generation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct CertificateAuthorityV1 {
     trust_anchor_sha256: String,
     generation: u64,
     trust_anchor_der: Option<Vec<u8>>,
+    endpoint_identity_sha256: Option<String>,
+    revoked_generations: Arc<Mutex<BTreeSet<u64>>>,
 }
 
 impl CertificateAuthorityV1 {
@@ -83,6 +87,8 @@ impl CertificateAuthorityV1 {
             trust_anchor_sha256,
             generation,
             trust_anchor_der: None,
+            endpoint_identity_sha256: None,
+            revoked_generations: Arc::new(Mutex::new(BTreeSet::new())),
         })
     }
 
@@ -98,11 +104,36 @@ impl CertificateAuthorityV1 {
             trust_anchor_sha256: digest_bytes(&trust_anchor_der),
             generation: validate_generation(generation)?,
             trust_anchor_der: Some(trust_anchor_der),
+            endpoint_identity_sha256: None,
+            revoked_generations: Arc::new(Mutex::new(BTreeSet::new())),
         })
     }
 
-    /// Issue an authorization result after validating the complete ordered chain and pairing.
-    pub fn issue(
+    /// Construct an authority bound to the enrolled endpoint identity.
+    pub fn with_trust_anchor_and_endpoint(
+        trust_anchor_der: Vec<u8>,
+        generation: u64,
+        endpoint_identity_sha256: String,
+    ) -> Result<Self, CertificateError> {
+        validate_digest(&endpoint_identity_sha256)?;
+        let mut authority = Self::with_trust_anchor(trust_anchor_der, generation)?;
+        authority.endpoint_identity_sha256 = Some(endpoint_identity_sha256);
+        Ok(authority)
+    }
+
+    /// Revoke a generation atomically; all subsequent issuance attempts fail closed.
+    pub fn revoke_generation(&self, generation: u64) -> Result<(), CertificateError> {
+        if generation == 0 {
+            return Err(CertificateError::InvalidGeneration);
+        }
+        self.revoked_generations
+            .lock()
+            .map_err(|_| CertificateError::RevocationStateUnavailable)?
+            .insert(generation);
+        Ok(())
+    }
+
+    fn validate_metadata(
         &self,
         chain: &[CertificateIdentityV1],
         pairing_fingerprint_sha256: &str,
@@ -143,9 +174,38 @@ impl CertificateAuthorityV1 {
         pairing_fingerprint_sha256: &str,
         now: u64,
     ) -> Result<IssuedCertificateChainV1, CertificateError> {
-        let issued = self.issue(chain, pairing_fingerprint_sha256, now)?;
+        let issued = self.validate_metadata(chain, pairing_fingerprint_sha256, now)?;
+        if self
+            .revoked_generations
+            .lock()
+            .map_err(|_| CertificateError::RevocationStateUnavailable)?
+            .contains(&self.generation)
+        {
+            return Err(CertificateError::RevokedGeneration);
+        }
+        let endpoint = self
+            .endpoint_identity_sha256
+            .as_deref()
+            .ok_or(CertificateError::EndpointBindingUnavailable)?;
+        if chain[0].endpoint_identity_sha256 != endpoint {
+            return Err(CertificateError::EndpointBindingMismatch);
+        }
         if digest_bytes(&leaf_der) != issued.identity.certificate_sha256 {
             return Err(CertificateError::CertificateDigestMismatch);
+        }
+        if intermediates_der.len() != chain.len().saturating_sub(1)
+            || chain
+                .iter()
+                .skip(1)
+                .zip(&intermediates_der)
+                .any(|(identity, der)| digest_bytes(der) != identity.certificate_sha256)
+        {
+            return Err(CertificateError::CertificateDigestMismatch);
+        }
+        let (_, parsed_leaf) = parse_x509_certificate(&leaf_der)
+            .map_err(|_| CertificateError::InvalidCertificateDer)?;
+        if digest_bytes(parsed_leaf.subject().as_raw()) != issued.identity.subject_sha256 {
+            return Err(CertificateError::PairingMismatch);
         }
         let anchor = self
             .trust_anchor_der
@@ -216,6 +276,18 @@ pub enum CertificateError {
     /// The presented chain does not validate to the pinned trust anchor.
     #[error("certificate chain validation failed")]
     ChainValidationFailed,
+    /// The authority has no enrolled endpoint binding.
+    #[error("certificate endpoint binding is unavailable")]
+    EndpointBindingUnavailable,
+    /// The certificate endpoint binding does not match enrollment.
+    #[error("certificate endpoint binding does not match enrollment")]
+    EndpointBindingMismatch,
+    /// The certificate generation has been revoked.
+    #[error("certificate generation is revoked")]
+    RevokedGeneration,
+    /// Revocation state could not be read or updated safely.
+    #[error("certificate revocation state is unavailable")]
+    RevocationStateUnavailable,
 }
 
 fn validate_generation(generation: u64) -> Result<u64, CertificateError> {
@@ -320,7 +392,9 @@ mod tests {
     fn issues_valid_pairing_bound_chain() {
         let authority = CertificateAuthorityV1::new("a".repeat(64), 7).unwrap();
         let chain = vec![identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64))];
-        let issued = authority.issue(&chain, &"c".repeat(64), 1_000).unwrap();
+        let issued = authority
+            .validate_metadata(&chain, &"c".repeat(64), 1_000)
+            .unwrap();
         assert_eq!(issued.identity().subject_sha256, "c".repeat(64));
         assert_eq!(issued.chain_sha256().len(), 64);
     }
@@ -330,19 +404,19 @@ mod tests {
         let authority = CertificateAuthorityV1::new("a".repeat(64), 7).unwrap();
         let chain = vec![identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64))];
         assert_eq!(
-            authority.issue(&chain, &"f".repeat(64), 1_000),
+            authority.validate_metadata(&chain, &"f".repeat(64), 1_000),
             Err(CertificateError::PairingMismatch)
         );
         let mut wrong_anchor = chain[0].clone();
         wrong_anchor.trust_anchor_sha256 = "f".repeat(64);
         assert_eq!(
-            authority.issue(&[wrong_anchor], &"c".repeat(64), 1_000),
+            authority.validate_metadata(&[wrong_anchor], &"c".repeat(64), 1_000),
             Err(CertificateError::TrustAnchorMismatch)
         );
         let mut expired = chain[0].clone();
         expired.not_after = 500;
         assert_eq!(
-            authority.issue(&[expired], &"c".repeat(64), 1_000),
+            authority.validate_metadata(&[expired], &"c".repeat(64), 1_000),
             Err(CertificateError::InvalidValidity)
         );
     }
@@ -370,7 +444,8 @@ mod tests {
         let leaf_der = leaf_cert.der().to_vec();
         let root_digest = digest_bytes(&root_der);
         let leaf_digest = digest_bytes(&leaf_der);
-        let subject = "c".repeat(64);
+        let (_, parsed_leaf) = parse_x509_certificate(&leaf_der).unwrap();
+        let subject = digest_bytes(parsed_leaf.subject().as_raw());
         let identity = CertificateIdentityV1 {
             schema_version: 1,
             subject_sha256: subject.clone(),
@@ -383,12 +458,32 @@ mod tests {
             role: "operator".into(),
             endpoint_identity_sha256: "b".repeat(64),
         };
-        let authority = CertificateAuthorityV1::with_trust_anchor(root_der.clone(), 7).unwrap();
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            root_der.clone(),
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
         let issued = authority
             .issue_der(&[identity], leaf_der, Vec::new(), &subject, 1_700_000_000)
             .unwrap();
         assert_eq!(issued.identity().generation, 7);
-
+        let mismatched_endpoint = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            root_cert.der().to_vec(),
+            7,
+            "f".repeat(64),
+        )
+        .unwrap();
+        assert_eq!(
+            mismatched_endpoint.issue_der(
+                &[issued.identity().clone()],
+                vec![1, 2, 3],
+                Vec::new(),
+                &subject,
+                1_700_000_000
+            ),
+            Err(CertificateError::EndpointBindingMismatch)
+        );
         let mut malformed = root_der;
         malformed[0] ^= 1;
         assert_eq!(
@@ -402,6 +497,17 @@ mod tests {
             Err(CertificateError::CertificateDigestMismatch)
         );
         let _ = malformed;
+        authority.revoke_generation(7).unwrap();
+        assert_eq!(
+            authority.issue_der(
+                &[issued.identity().clone()],
+                vec![1, 2, 3],
+                Vec::new(),
+                &subject,
+                1_700_000_000
+            ),
+            Err(CertificateError::RevokedGeneration)
+        );
     }
 
     #[test]
@@ -417,7 +523,7 @@ mod tests {
                 &"c".repeat(64),
                 1_000
             ),
-            Err(CertificateError::TrustAnchorUnavailable)
+            Err(CertificateError::EndpointBindingUnavailable)
         );
     }
 
@@ -428,32 +534,40 @@ mod tests {
         let mut unsupported = base.clone();
         unsupported.schema_version = 2;
         assert_eq!(
-            authority.issue(&[unsupported], &"c".repeat(64), 1_000),
+            authority.validate_metadata(&[unsupported], &"c".repeat(64), 1_000),
             Err(CertificateError::UnsupportedSchema)
         );
         let mut wrong_generation = base.clone();
         wrong_generation.generation = 8;
         assert_eq!(
-            authority.issue(&[wrong_generation], &"c".repeat(64), 1_000),
+            authority.validate_metadata(&[wrong_generation], &"c".repeat(64), 1_000),
             Err(CertificateError::InvalidGeneration)
         );
         let mut wrong_role = base.clone();
         wrong_role.role = "administrator\0".into();
         assert_eq!(
-            authority.issue(&[wrong_role], &"c".repeat(64), 1_000),
+            authority.validate_metadata(&[wrong_role], &"c".repeat(64), 1_000),
             Err(CertificateError::InvalidRole)
         );
         let mut wrong_issuer = base.clone();
         wrong_issuer.issuer_sha256 = "f".repeat(64);
         let parent = identity(&"d".repeat(64), &"a".repeat(64), &"d".repeat(64));
         assert_eq!(
-            authority.issue(&[wrong_issuer, parent], &"c".repeat(64), 1_000),
+            authority.validate_metadata(&[wrong_issuer, parent], &"c".repeat(64), 1_000),
             Err(CertificateError::IssuerMismatch)
         );
         let too_long = vec![base; MAX_CHAIN_LENGTH + 1];
         assert_eq!(
-            authority.issue(&too_long, &"c".repeat(64), 1_000),
+            authority.validate_metadata(&too_long, &"c".repeat(64), 1_000),
             Err(CertificateError::InvalidChainLength)
         );
+    }
+
+    #[test]
+    fn identity_schema_rejects_unknown_fields_and_endpoint_confusion() {
+        let identity = identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64));
+        let mut value = serde_json::to_value(&identity).unwrap();
+        value["untrusted"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<CertificateIdentityV1>(value).is_err());
     }
 }

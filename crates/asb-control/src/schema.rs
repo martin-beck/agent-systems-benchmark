@@ -6,7 +6,15 @@ use schemars::{JsonSchema, Schema, schema_for};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
-use crate::{AnalysisEvidence, ControlEvent, ControlRequest, ControlResponse, HistoryEvidence};
+use crate::{
+    AnalysisEvidence, CertificateIdentityV1, ControlEvent, ControlRequest, ControlResponse,
+    HistoryEvidence,
+};
+
+/// Canonical schema for the versioned certificate identity metadata.
+pub fn certificate_identity_schema() -> Schema {
+    canonical::<CertificateIdentityV1>()
+}
 
 fn canonical<T: JsonSchema>() -> Schema {
     let mut value = serde_json::to_value(schema_for!(T)).expect("schema serializes");
