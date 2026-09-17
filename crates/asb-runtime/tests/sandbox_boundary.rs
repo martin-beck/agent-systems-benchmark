@@ -6,10 +6,13 @@ use asb_runtime::sandbox::{
     CpuSet, LeaseClass, NetworkPolicy, ResourceLease, Resources, SandboxBackend, SandboxError,
     SandboxLaunchInput, SandboxSpec, ToolPin,
 };
+use asb_runtime::supervisor::{PinnedCommand, SupervisorPlan};
 use asb_runtime::{ProcessLifecycle, ProcessLimits, Termination};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -17,7 +20,6 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
-
 const BWRAP_VERSION: &str = "bubblewrap 0.9.0";
 const SYSTEMD_VERSION: &str = "systemd 255 (255.4-1ubuntu8.17)";
 const TASKSET_VERSION: &str = "taskset from util-linux 2.39.3";
@@ -199,6 +201,20 @@ fn helper_program(root: &Path) -> String {
         root,
         &fs::canonicalize(env::current_exe().unwrap()).unwrap(),
     )
+}
+
+fn file_sha256(path: &Path) -> String {
+    let mut file = fs::File::open(path).unwrap();
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).unwrap();
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    format!("{:x}", digest.finalize())
 }
 
 fn spec(
@@ -482,6 +498,135 @@ fn launch_wrapper_timeout_and_crash_are_terminal() {
             }
         }
     }
+}
+
+#[test]
+fn native_supervisor_forwards_cassette_http_and_reaps_children() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let root = test_root("supervisor-cassette");
+    let relay = root.join("relay.sock");
+    let relay_listener = std::os::unix::net::UnixListener::bind(&relay).unwrap();
+    relay_listener.set_nonblocking(true).unwrap();
+    let generation = "native-cassette-generation";
+    let server = thread::spawn(move || -> Result<(), String> {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut stream = loop {
+            match relay_listener.accept() {
+                Ok((stream, _)) => break stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline {
+                        return Err("supervisor never connected to relay".into());
+                    }
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => return Err(format!("relay accept failed: {error}")),
+            }
+        };
+        let mut handshake = Vec::new();
+        let mut byte = [0_u8; 1];
+        while handshake.last() != Some(&b'\n') {
+            stream.read_exact(&mut byte).unwrap();
+            handshake.push(byte[0]);
+        }
+        if handshake != format!("ASB-REPLAY/{generation}\n").as_bytes() {
+            return Err("relay handshake mismatch".into());
+        }
+        let mut request = [0_u8; 4096];
+        let count = stream.read(&mut request).unwrap();
+        if !request[..count].starts_with(b"GET /health") {
+            return Err("relay request mismatch".into());
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+        stream.shutdown(std::net::Shutdown::Both).unwrap();
+        Ok(())
+    });
+    let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let executable_dir = executable_dir.parent().unwrap();
+    let sidecar_path = executable_dir.join("asb_loopback_sidecar");
+    let supervisor_path = executable_dir.join("asb_loopback_supervisor");
+    if !sidecar_path.is_file()
+        || !supervisor_path.is_file()
+        || !Path::new("/usr/bin/curl").is_file()
+    {
+        let _ = server.join().unwrap();
+        return;
+    }
+    let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = port_probe.local_addr().unwrap().port();
+    drop(port_probe);
+    let sidecar = PinnedCommand::new_verified(
+        sidecar_path.clone(),
+        vec![
+            "--listen".into(),
+            format!("127.0.0.1:{port}"),
+            "--relay".into(),
+            "/tmp/asb-replay-relay.sock".into(),
+            "--generation".into(),
+            generation.into(),
+        ],
+        &file_sha256(&sidecar_path),
+    )
+    .unwrap();
+    let adapter = PinnedCommand::new_verified(
+        PathBuf::from("/usr/bin/curl"),
+        vec![
+            "--fail".into(),
+            "--silent".into(),
+            format!("http://127.0.0.1:{port}/health"),
+        ],
+        &file_sha256(Path::new("/usr/bin/curl")),
+    )
+    .unwrap();
+    let supervisor = PinnedCommand::new_verified(
+        supervisor_path.clone(),
+        Vec::new(),
+        &file_sha256(&supervisor_path),
+    )
+    .unwrap();
+    let plan = SupervisorPlan::new(
+        sidecar,
+        adapter,
+        relay,
+        generation.into(),
+        "b".repeat(64),
+        Duration::from_secs(10),
+    )
+    .unwrap()
+    .with_supervisor(supervisor);
+    let resources = Resources::new(
+        128 * 1024 * 1024,
+        16,
+        100,
+        CpuSet::new(vec![first_allowed_cpu()]).unwrap(),
+    )
+    .unwrap();
+    let lease = ResourceLease::acquire(
+        &root.join("leases"),
+        LeaseClass::Benchmark,
+        resources.cpus().clone(),
+    )
+    .unwrap();
+    let sandbox = SandboxSpec::new(
+        &root,
+        PathBuf::from("work"),
+        "/bin/true".into(),
+        Vec::new(),
+        BTreeMap::new(),
+        resources,
+        NetworkPolicy::Deny,
+    )
+    .unwrap()
+    .with_supervisor(plan);
+    let mut process = backend.spawn(sandbox, lease, limits()).unwrap();
+    let output = process.wait().unwrap().clone();
+    let server_result = server.join().unwrap();
+    assert!(server_result.is_ok(), "relay failure: {server_result:?}; child output: {output:?}");
+    assert_eq!(output.exit_code, Some(0));
+    assert_eq!(output.termination, Termination::Exited);
 }
 
 #[test]
