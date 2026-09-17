@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
 set -eu
 fail() { echo "capability-unavailable: $1" >&2; exit 78; }
 command -v bwrap >/dev/null 2>&1 || fail "bubblewrap is absent"

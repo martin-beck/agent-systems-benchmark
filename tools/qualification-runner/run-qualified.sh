@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
 set -eu
 # Never add --privileged implicitly: nested namespace support requires an
 # explicitly approved VM or host runner and Docker must fail closed here.
