@@ -624,9 +624,203 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
     let mut process = backend.spawn(sandbox, lease, limits()).unwrap();
     let output = process.wait().unwrap().clone();
     let server_result = server.join().unwrap();
-    assert!(server_result.is_ok(), "relay failure: {server_result:?}; child output: {output:?}");
+    assert!(
+        server_result.is_ok(),
+        "relay failure: {server_result:?}; child output: {output:?}"
+    );
     assert_eq!(output.exit_code, Some(0));
     assert_eq!(output.termination, Termination::Exited);
+}
+
+fn run_supervised_fault(
+    backend: &SandboxBackend,
+    name: &str,
+    sidecar_executable: &Path,
+    sidecar_arguments: Vec<String>,
+    adapter_executable: &Path,
+    adapter_arguments: Vec<String>,
+    timeout: Duration,
+    cancel_after: Option<Duration>,
+) -> (Termination, Option<i32>, TestRoot) {
+    let root = test_root(name);
+    let relay = root.join("relay.sock");
+    let _relay_listener = std::os::unix::net::UnixListener::bind(&relay).unwrap();
+    fs::set_permissions(&relay, fs::Permissions::from_mode(0o600)).unwrap();
+    let generation = format!("fault-{name}");
+    let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let supervisor_path = executable_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("asb_loopback_supervisor");
+    assert!(supervisor_path.is_file());
+    let sidecar = PinnedCommand::new_verified(
+        sidecar_executable.to_owned(),
+        sidecar_arguments,
+        &file_sha256(sidecar_executable),
+    )
+    .unwrap();
+    let adapter = PinnedCommand::new_verified(
+        adapter_executable.to_owned(),
+        adapter_arguments,
+        &file_sha256(adapter_executable),
+    )
+    .unwrap();
+    let supervisor = PinnedCommand::new_verified(
+        supervisor_path.clone(),
+        Vec::new(),
+        &file_sha256(&supervisor_path),
+    )
+    .unwrap();
+    let plan = SupervisorPlan::new(
+        sidecar,
+        adapter,
+        relay.clone(),
+        generation,
+        "c".repeat(64),
+        timeout,
+    )
+    .unwrap()
+    .with_supervisor(supervisor);
+    let resources = resources(16);
+    let lease = lease(&root, &resources);
+    let sandbox = SandboxSpec::new(
+        &root,
+        PathBuf::from("work"),
+        "/bin/true".into(),
+        Vec::new(),
+        BTreeMap::new(),
+        resources,
+        NetworkPolicy::Deny,
+    )
+    .unwrap()
+    .with_supervisor(plan);
+    let result = match backend.spawn(sandbox, lease, limits()) {
+        Ok(mut process) => {
+            if let Some(delay) = cancel_after {
+                thread::sleep(delay);
+                process.cancel().unwrap();
+            }
+            let output = process.wait().unwrap();
+            (output.termination, output.exit_code, root)
+        }
+        Err(SandboxError::ScopeOwnership { exit_code, .. }) => {
+            (Termination::Exited, exit_code, root)
+        }
+        Err(error) => panic!("supervised fault {name} failed to spawn: {error:?}"),
+    };
+    let _ = fs::remove_file(&relay);
+    result
+}
+
+#[test]
+fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let shell = Path::new("/bin/sh");
+    let true_bin = Path::new("/bin/true");
+    let cases = [
+        (
+            "sidecar-crash",
+            vec!["-c".into(), "exit 17".into()],
+            true_bin,
+            Vec::new(),
+        ),
+        (
+            "adapter-crash",
+            vec!["-c".into(), "sleep 30".into()],
+            shell,
+            vec!["-c".into(), "exit 19".into()],
+        ),
+        (
+            "supervisor-timeout",
+            vec!["-c".into(), "sleep 30".into()],
+            shell,
+            vec!["-c".into(), "sleep 30".into()],
+        ),
+        (
+            "provider-egress-denied",
+            vec!["-c".into(), "sleep 30".into()],
+            Path::new("/usr/bin/curl"),
+            vec![
+                "--fail".into(),
+                "--silent".into(),
+                "http://192.0.2.1/".into(),
+            ],
+        ),
+    ];
+    for (name, sidecar_args, adapter, adapter_args) in cases {
+        let (termination, exit_code, _root) = run_supervised_fault(
+            &backend,
+            name,
+            shell,
+            sidecar_args,
+            adapter,
+            adapter_args,
+            Duration::from_millis(250),
+            None,
+        );
+        assert_eq!(
+            termination,
+            Termination::Exited,
+            "fault {name} did not reach a terminal state"
+        );
+        assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
+    }
+    let mut unrelated = Command::new("/bin/sleep").arg("30").spawn().unwrap();
+    let (termination, exit_code, _root) = run_supervised_fault(
+        &backend,
+        "unrelated-process",
+        shell,
+        vec!["-c".into(), "exit 23".into()],
+        true_bin,
+        Vec::new(),
+        Duration::from_secs(2),
+        None,
+    );
+    assert_eq!(termination, Termination::Exited);
+    assert_ne!(exit_code, Some(0));
+    assert!(
+        unrelated.try_wait().unwrap().is_none(),
+        "unrelated process was reaped"
+    );
+    unrelated.kill().unwrap();
+    unrelated.wait().unwrap();
+
+    for attempt in 0..3 {
+        let name = format!("restart-{attempt}");
+        let (termination, exit_code, root) = run_supervised_fault(
+            &backend,
+            &name,
+            true_bin,
+            Vec::new(),
+            true_bin,
+            Vec::new(),
+            Duration::from_secs(2),
+            None,
+        );
+        assert_eq!(termination, Termination::Exited);
+        assert_eq!(exit_code, Some(0));
+        assert!(
+            !root.join("relay.sock").exists(),
+            "relay leaked after {name}"
+        );
+    }
+
+    let (termination, exit_code, _root) = run_supervised_fault(
+        &backend,
+        "cancellation",
+        shell,
+        vec!["-c".into(), "sleep 30".into()],
+        shell,
+        vec!["-c".into(), "sleep 30".into()],
+        Duration::from_secs(2),
+        Some(Duration::from_millis(20)),
+    );
+    assert_eq!(termination, Termination::Cancelled);
+    assert_eq!(exit_code, None);
 }
 
 #[test]
