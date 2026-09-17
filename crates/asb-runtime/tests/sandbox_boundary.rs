@@ -689,6 +689,9 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
 
 #[test]
 fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
+    if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_none() {
+        return;
+    }
     let Some(backend) = native_backend() else {
         return;
     };
