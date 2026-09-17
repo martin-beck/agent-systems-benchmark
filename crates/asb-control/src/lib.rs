@@ -6,6 +6,7 @@
 //! owner-only Unix-domain socket and may disconnect without owning run lifetime.
 
 mod catalog;
+mod certificate;
 mod endpoint;
 mod frame;
 mod handoff;
@@ -16,6 +17,7 @@ mod state;
 mod transport;
 
 pub use catalog::*;
+pub use certificate::*;
 pub use endpoint::*;
 pub use frame::*;
 pub use handoff::*;
