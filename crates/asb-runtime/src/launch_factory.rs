@@ -32,6 +32,7 @@ pub struct ReplayLaunchContext {
     sidecar_digest: String,
     adapter_digest: String,
     supervisor_digest: Option<String>,
+    operation_issued: bool,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -184,6 +185,7 @@ impl ReplayLaunchAuthority {
             sidecar_digest: self.sidecar_digest,
             adapter_digest: self.adapter_digest,
             supervisor_digest: self.supervisor_digest,
+            operation_issued: false,
         })
     }
 }
@@ -193,6 +195,17 @@ fn valid_digest(value: &str) -> bool {
 }
 
 impl ReplayLaunchContext {
+    /// Issue the one-shot authenticated operation used by the primary replay path.
+    pub fn issue_operation(
+        &mut self,
+    ) -> Result<crate::ReplayOperation, crate::ReplayOperationError> {
+        if self.operation_issued {
+            return Err(crate::ReplayOperationError::AlreadyIssued);
+        }
+        self.operation_issued = true;
+        crate::ReplayOperation::issue(self.generation.clone())
+            .map_err(crate::ReplayOperationError::Transport)
+    }
     /// Validated launch input for the runtime backend.
     pub fn input(&self) -> &SandboxLaunchInput {
         &self.input

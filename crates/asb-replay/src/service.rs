@@ -8,6 +8,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
@@ -149,7 +150,8 @@ pub fn dialect_capabilities() -> [DialectCapability; 4] {
 }
 
 /// Session and attempt selected by the trusted benchmark coordinator.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReplayRoute {
     /// Cassette session identity.
     pub session_id: String,
@@ -202,7 +204,8 @@ impl ReplayLimits {
 }
 
 /// A bounded semantic HTTP request.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReplayHttpRequest {
     /// Uppercase method.
     pub method: String,
@@ -212,6 +215,48 @@ pub struct ReplayHttpRequest {
     pub headers: Vec<Header>,
     /// Complete provider JSON body bytes.
     pub body: Vec<u8>,
+}
+
+/// Authenticated operation request carried through the runtime transport.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayDispatchRequest {
+    /// Strict route selected by the runtime-owned launch.
+    pub route: ReplayRoute,
+    /// One bounded semantic provider request.
+    pub request: ReplayHttpRequest,
+}
+
+impl ReplayDispatchRequest {
+    /// Reject unredacted credential headers before transport serialization.
+    pub fn validate(&self) -> Result<(), ReplayError> {
+        if self.request.body.len() > MAX_HTTP_BODY_BYTES
+            || self.request.headers.len() > MAX_HTTP_HEADERS
+            || self.request.headers.iter().any(|header| {
+                matches!(
+                    header.name.as_str(),
+                    "authorization" | "proxy-authorization" | "cookie" | "set-cookie" | "x-api-key"
+                )
+            })
+        {
+            return Err(ReplayError::InvalidHttp);
+        }
+        Ok(())
+    }
+}
+
+/// Authenticated operation response carried through the runtime transport.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayDispatchResponse {
+    /// HTTP status selected by the cassette.
+    pub status: u16,
+    /// Response headers after strict filtering.
+    pub headers: Vec<Header>,
+    /// Buffered or event-stream body segments.
+    pub segments: Vec<Vec<u8>>,
+    /// Original bounded segment offsets in nanoseconds.
+    pub recorded_offsets_ns: Vec<u64>,
 }
 
 /// Response head and independently writable semantic body segments.
@@ -225,6 +270,57 @@ pub struct ReplayHttpResponse {
     pub segments: Vec<Vec<u8>>,
     /// Original monotonic offset for each semantic body segment.
     pub recorded_offsets: Vec<Duration>,
+}
+
+/// Encode one strict request for the runtime-owned operation transport.
+pub fn encode_dispatch_request(request: &ReplayDispatchRequest) -> Result<Vec<u8>, ReplayError> {
+    request.validate()?;
+    serde_json::to_vec(request).map_err(|_| ReplayError::InvalidHttp)
+}
+
+/// Decode one strict request from the runtime-owned operation transport.
+pub fn decode_dispatch_request(bytes: &[u8]) -> Result<ReplayDispatchRequest, ReplayError> {
+    let request: ReplayDispatchRequest =
+        serde_json::from_slice(bytes).map_err(|_| ReplayError::InvalidHttp)?;
+    request.validate()?;
+    Ok(request)
+}
+
+/// Encode a strict response without exposing internal cursor state.
+pub fn encode_dispatch_response(response: &ReplayHttpResponse) -> Result<Vec<u8>, ReplayError> {
+    let recorded_offsets_ns = response
+        .recorded_offsets
+        .iter()
+        .map(Duration::as_nanos)
+        .map(|value| u64::try_from(value).map_err(|_| ReplayError::InvalidHttp))
+        .collect::<Result<Vec<_>, _>>()?;
+    serde_json::to_vec(&ReplayDispatchResponse {
+        status: response.status,
+        headers: response.headers.clone(),
+        segments: response.segments.clone(),
+        recorded_offsets_ns,
+    })
+    .map_err(|_| ReplayError::InvalidHttp)
+}
+
+/// Decode a strict response from the runtime-owned operation transport.
+pub fn decode_dispatch_response(bytes: &[u8]) -> Result<ReplayHttpResponse, ReplayError> {
+    let response: ReplayDispatchResponse =
+        serde_json::from_slice(bytes).map_err(|_| ReplayError::InvalidHttp)?;
+    if response.segments.len() != response.recorded_offsets_ns.len() {
+        return Err(ReplayError::InvalidHttp);
+    }
+    let recorded_offsets = response
+        .recorded_offsets_ns
+        .into_iter()
+        .map(Duration::from_nanos)
+        .collect();
+    Ok(ReplayHttpResponse {
+        status: response.status,
+        headers: response.headers,
+        segments: response.segments,
+        recorded_offsets,
+    })
 }
 
 /// Socket response status and pacing evidence, when an interaction was served.
@@ -1815,5 +1911,50 @@ mod tests {
                 Err(ReplayError::InvalidCassette)
             ));
         }
+    }
+
+    #[test]
+    fn dispatch_wire_response_round_trips_and_rejects_shape_drift() {
+        let response = ReplayHttpResponse {
+            status: 200,
+            headers: vec![Header {
+                name: "content-type".into(),
+                value: "application/json".into(),
+            }],
+            segments: vec![br#"{"ok":true}"#.to_vec()],
+            recorded_offsets: vec![Duration::ZERO],
+        };
+        let encoded = encode_dispatch_response(&response).unwrap();
+        assert_eq!(decode_dispatch_response(&encoded).unwrap(), response);
+        assert!(matches!(
+            decode_dispatch_response(
+                br#"{"status":200,"headers":[],"segments":[],"recorded_offsets_ns":[1]}"#
+            ),
+            Err(ReplayError::InvalidHttp)
+        ));
+        assert!(matches!(
+            decode_dispatch_response(br#"{"status":200,"headers":[],"segments":[],"recorded_offsets_ns":[],"unknown":true}"#),
+            Err(ReplayError::InvalidHttp)
+        ));
+        let credential_bearing = ReplayDispatchRequest {
+            route: ReplayRoute {
+                session_id: "session".into(),
+                attempt_id: "attempt".into(),
+                dialect: ProviderDialect::Synthetic,
+            },
+            request: ReplayHttpRequest {
+                method: "POST".into(),
+                path: "/v1/synthetic".into(),
+                headers: vec![Header {
+                    name: "authorization".into(),
+                    value: "[ASB_REDACTED:000001]".into(),
+                }],
+                body: b"{}".to_vec(),
+            },
+        };
+        assert!(matches!(
+            encode_dispatch_request(&credential_bearing),
+            Err(ReplayError::InvalidHttp)
+        ));
     }
 }

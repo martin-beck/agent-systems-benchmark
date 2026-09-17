@@ -9,9 +9,11 @@ use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 const IO_TIMEOUT: Duration = Duration::from_secs(5);
+static OPERATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug)]
 /// Runtime-owned one-shot server which authenticates one launch generation.
@@ -106,6 +108,74 @@ pub struct ReplayTransportClient {
     stream: UnixStream,
     generation: String,
     used: bool,
+}
+
+/// Runtime-issued, one-shot operation context for a strict-replay dispatch.
+///
+/// The context owns both ends of a private authenticated transport.  A caller
+/// can submit exactly one bounded request through it; the runtime verifies the
+/// generation and request identity before the response is returned.
+pub struct ReplayOperation {
+    root: PathBuf,
+    issuer: ReplayTransportIssuer,
+    client: ReplayTransportClient,
+}
+
+impl ReplayOperation {
+    /// Create a private operation endpoint for one runtime launch generation.
+    pub(crate) fn issue(generation: String) -> Result<Self, ReplayTransportError> {
+        let root = std::env::temp_dir().join(format!(
+            "asb-replay-operation-{}-{}",
+            std::process::id(),
+            OPERATION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+        let issuer = ReplayTransportIssuer::bind(root.join("operation.sock"), generation)?;
+        let client = ReplayTransportClient::issue(&issuer)?;
+        Ok(Self {
+            root,
+            issuer,
+            client,
+        })
+    }
+
+    /// Dispatch one request to a bounded offline handler and return its response.
+    pub fn dispatch<F>(
+        &mut self,
+        request_id: String,
+        payload: Vec<u8>,
+        handler: F,
+    ) -> Result<Vec<u8>, ReplayTransportError>
+    where
+        F: FnOnce(Vec<u8>) -> Result<Vec<u8>, ReplayTransportError> + Send,
+    {
+        std::thread::scope(|scope| {
+            let issuer = &mut self.issuer;
+            let client = &mut self.client;
+            let server = scope.spawn(move || {
+                let (request, stream) = issuer.accept_once()?;
+                let response_payload = handler(request.payload)?;
+                let response =
+                    ReplayResponse::new(request.generation, request.request_id, response_payload)?;
+                issuer.respond(stream, response)?;
+                Ok::<(), ReplayTransportError>(())
+            });
+            let response = client.request(request_id, payload);
+            let server_result = server
+                .join()
+                .map_err(|_| ReplayTransportError::InvalidEnvelope)?;
+            server_result?;
+            response.map(|value| value.payload)
+        })
+    }
+}
+
+impl Drop for ReplayOperation {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir(&self.root);
+    }
 }
 impl ReplayTransportClient {
     /// Issue a client from the runtime-owned issuer.
@@ -320,6 +390,33 @@ mod tests {
         drop(writer);
         assert!(matches!(
             read_frame(&mut reader),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+    }
+
+    #[test]
+    fn runtime_operation_round_trip_is_single_use_and_bounded() {
+        let mut operation = ReplayOperation::issue("generation-1".into()).unwrap();
+        let response = operation
+            .dispatch("request-1".into(), b"request".to_vec(), |payload| {
+                assert_eq!(payload, b"request");
+                Ok(b"response".to_vec())
+            })
+            .unwrap();
+        assert_eq!(response, b"response");
+        assert!(matches!(
+            operation.dispatch("request-2".into(), Vec::new(), |_| Ok(Vec::new())),
+            Err(ReplayTransportError::DuplicateRequest)
+        ));
+    }
+
+    #[test]
+    fn runtime_operation_handler_failure_has_no_fallback_response() {
+        let mut operation = ReplayOperation::issue("generation-2".into()).unwrap();
+        assert!(matches!(
+            operation.dispatch("request-1".into(), b"bad".to_vec(), |_| {
+                Err(ReplayTransportError::InvalidEnvelope)
+            }),
             Err(ReplayTransportError::InvalidEnvelope)
         ));
     }

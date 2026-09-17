@@ -409,6 +409,8 @@ struct ReplayWorkflowOutput {
     provider_profile_sha256: String,
     agent_id: String,
     cassette_sha256: String,
+    response_status: u16,
+    response_sha256: String,
 }
 
 fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
@@ -440,7 +442,7 @@ fn replay(
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
         .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
-    let _runtime_context = authority
+    let mut runtime_context = authority
         .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
         .consume_for(&cassette.integrity.digest)
         .map_err(|_| CliError::validation("runtime replay authority does not match cassette"))?;
@@ -463,6 +465,59 @@ fn replay(
         }),
     )
     .map_err(|_| CliError::validation("recording cassette is not an exact compatible replay"))?;
+    let interaction = cassette
+        .contents
+        .interactions
+        .first()
+        .ok_or_else(|| CliError::validation("recording cassette has no replay interaction"))?;
+    let route = asb_replay::ReplayRoute {
+        session_id: interaction.session_id.clone(),
+        attempt_id: interaction.attempt_id.clone(),
+        dialect: interaction.dialect,
+    };
+    let request = asb_replay::ReplayHttpRequest {
+        method: interaction.request.method.clone(),
+        path: interaction.request.path.clone(),
+        headers: interaction.request.headers.clone(),
+        body: asb_replay::canonical_json_bytes(&interaction.request.body)
+            .map_err(|_| CliError::validation("recording request body is not canonical"))?,
+    };
+    let encoded_request =
+        asb_replay::encode_dispatch_request(&asb_replay::ReplayDispatchRequest { route, request })
+            .map_err(|_| CliError::validation("replay operation request is not bounded"))?;
+    let service =
+        asb_replay::StrictReplayService::new(cassette.clone(), asb_replay::ReplayLimits::default())
+            .map_err(|_| {
+                CliError::validation("recording cassette cannot initialize strict replay")
+            })?;
+    let mut operation = runtime_context
+        .issue_operation()
+        .map_err(|_| CliError::operation("runtime replay operation could not be issued"))?;
+    let encoded_response = operation
+        .dispatch(
+            "replay-operation-1".into(),
+            encoded_request,
+            move |payload| {
+                let request = asb_replay::decode_dispatch_request(&payload)
+                    .map_err(|_| asb_runtime::ReplayTransportError::InvalidEnvelope)?;
+                let response = service
+                    .handle(&request.route, request.request)
+                    .map_err(|_| asb_runtime::ReplayTransportError::InvalidEnvelope)?;
+                asb_replay::encode_dispatch_response(&response)
+                    .map_err(|_| asb_runtime::ReplayTransportError::InvalidEnvelope)
+            },
+        )
+        .map_err(|_| CliError::operation("strict replay operation failed; no provider fallback"))?;
+    let response = asb_replay::decode_dispatch_response(&encoded_response)
+        .map_err(|_| CliError::operation("strict replay response was malformed"))?;
+    let response_sha256 = response
+        .segments
+        .iter()
+        .fold(Sha256::new(), |mut digest, segment| {
+            digest.update(segment);
+            digest
+        })
+        .finalize();
     write_json(
         stdout,
         &ReplayWorkflowOutput {
@@ -474,6 +529,8 @@ fn replay(
             provider_profile_sha256: provider_profile_sha256.to_owned(),
             agent_id: agent_id.to_owned(),
             cassette_sha256: cassette.integrity.digest,
+            response_status: response.status,
+            response_sha256: format!("{response_sha256:x}"),
         },
     )
 }
