@@ -18,6 +18,7 @@ pub struct ReplayLaunchAuthority {
     sidecar_digest: String,
     adapter_digest: String,
     supervisor_digest: Option<String>,
+    cassette_sha256: String,
 }
 
 /// Owned launch values transferred after one-shot authority consumption.
@@ -35,6 +36,19 @@ pub struct ReplayLaunchContext {
 /// Runtime-owned factory for validated replay launch authority.
 pub struct ReplayLaunchFactory;
 
+/// Opaque proof that the runtime performed its launch-boundary attestation.
+#[derive(Debug)]
+pub struct RuntimeLaunchToken {
+    pub(crate) nonce: u128,
+}
+
+impl RuntimeLaunchToken {
+    #[cfg(test)]
+    pub(crate) fn test_only() -> Self {
+        Self { nonce: 1 }
+    }
+}
+
 /// Authority construction failures; no process is started on any failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LaunchAuthorityError {
@@ -49,9 +63,14 @@ pub enum LaunchAuthorityError {
 impl ReplayLaunchFactory {
     /// Issue opaque authority from already validated runtime launch values.
     pub fn issue(
+        token: RuntimeLaunchToken,
         input: SandboxLaunchInput,
         lease: ResourceLease,
+        cassette_sha256: String,
     ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
+        if token.nonce == 0 || !valid_digest(&cassette_sha256) {
+            return Err(LaunchAuthorityError::InvalidLaunchInput);
+        }
         if lease.class() != LeaseClass::Benchmark {
             return Err(LaunchAuthorityError::InvalidLease);
         }
@@ -81,14 +100,21 @@ impl ReplayLaunchFactory {
             sidecar_digest,
             adapter_digest,
             supervisor_digest,
+            cassette_sha256,
         })
     }
 }
 
 impl ReplayLaunchAuthority {
     /// Consume this authority exactly once and transfer its validated values.
-    pub fn consume(self) -> ReplayLaunchContext {
-        ReplayLaunchContext {
+    pub fn consume_for(
+        self,
+        cassette_sha256: &str,
+    ) -> Result<ReplayLaunchContext, LaunchAuthorityError> {
+        if self.cassette_sha256 != cassette_sha256 {
+            return Err(LaunchAuthorityError::IdentityMismatch);
+        }
+        Ok(ReplayLaunchContext {
             input: self.input,
             lease: self.lease,
             generation: self.generation,
@@ -96,8 +122,12 @@ impl ReplayLaunchAuthority {
             sidecar_digest: self.sidecar_digest,
             adapter_digest: self.adapter_digest,
             supervisor_digest: self.supervisor_digest,
-        }
+        })
     }
+}
+
+fn valid_digest(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 impl ReplayLaunchContext {
@@ -141,10 +171,17 @@ mod tests {
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
+    static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
     fn fixture() -> (ReplayLaunchAuthority, fs::File, std::path::PathBuf) {
-        let root = std::env::temp_dir().join(format!("asb-launch-factory-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "asb-launch-factory-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         fs::create_dir_all(root.join("workspace")).unwrap();
@@ -189,14 +226,20 @@ mod tests {
             CpuSet::new(vec![0]).unwrap(),
         )
         .unwrap();
-        let authority = ReplayLaunchFactory::issue(input, lease).unwrap();
+        let authority = ReplayLaunchFactory::issue(
+            RuntimeLaunchToken::test_only(),
+            input,
+            lease,
+            "e".repeat(64),
+        )
+        .unwrap();
         (authority, fs::File::open("/dev/null").unwrap(), root)
     }
 
     #[test]
     fn authority_consumption_preserves_attested_identities() {
         let (authority, _file, root) = fixture();
-        let context = authority.consume();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
         assert_eq!(context.generation(), "generation-1");
         assert_eq!(context.route_digest(), "d".repeat(64));
         assert_eq!(context.sidecar_digest(), "a".repeat(64));
@@ -231,7 +274,12 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(
-            ReplayLaunchFactory::issue(input, lease),
+            ReplayLaunchFactory::issue(
+                RuntimeLaunchToken::test_only(),
+                input,
+                lease,
+                "e".repeat(64)
+            ),
             Err(LaunchAuthorityError::InvalidLaunchInput)
         ));
         let _ = fs::remove_dir_all(root);
@@ -258,8 +306,23 @@ mod tests {
         let lease =
             ResourceLease::acquire(&leases, LeaseClass::Ci, CpuSet::new(vec![0]).unwrap()).unwrap();
         assert!(matches!(
-            ReplayLaunchFactory::issue(input, lease),
+            ReplayLaunchFactory::issue(
+                RuntimeLaunchToken::test_only(),
+                input,
+                lease,
+                "e".repeat(64)
+            ),
             Err(LaunchAuthorityError::InvalidLease)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn consumption_rejects_wrong_cassette_identity() {
+        let (authority, _file, root) = fixture();
+        assert!(matches!(
+            authority.consume_for(&"f".repeat(64)),
+            Err(LaunchAuthorityError::IdentityMismatch)
         ));
         let _ = fs::remove_dir_all(root);
     }

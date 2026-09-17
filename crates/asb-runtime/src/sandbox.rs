@@ -456,6 +456,17 @@ impl SandboxBackend {
         }
     }
 
+    /// Attest the runtime boundary before issuing replay launch authority.
+    pub fn attest_replay_launch(
+        &self,
+    ) -> Result<crate::launch_factory::RuntimeLaunchToken, SandboxError> {
+        self.probe()?;
+        Ok(crate::launch_factory::RuntimeLaunchToken {
+            nonce: (std::process::id() as u128) << 64
+                | PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed) as u128,
+        })
+    }
+
     /// Spawn while retaining a matching benchmark CPU lease.
     pub fn spawn(
         &self,

@@ -437,12 +437,13 @@ fn replay(
     authority: Option<ReplayLaunchAuthority>,
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
-    let _runtime_context = authority
-        .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
-        .consume();
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
         .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+    let _runtime_context = authority
+        .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
+        .consume_for(&cassette.integrity.digest)
+        .map_err(|_| CliError::validation("runtime replay authority does not match cassette"))?;
     let descriptor = RecordingDescriptor {
         provider_profile_sha256: provider_profile_sha256.to_owned(),
         agent_id: agent_id.to_owned(),
