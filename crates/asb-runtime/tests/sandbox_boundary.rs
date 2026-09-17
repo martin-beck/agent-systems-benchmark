@@ -3,8 +3,9 @@
 //! Native rootless namespace and delegated cgroup boundary tests.
 
 use asb_replay::{
-    CassetteLimits, Header, ProviderDialect, ReplayHttpRequest, ReplayRoute, StrictReplayService,
-    decode_cassette,
+    CassetteLimits, Header, ProviderDialect, ReplayDispatchRequest, ReplayHttpRequest,
+    ReplayRoute, StrictReplayService, decode_cassette, encode_dispatch_request,
+    encode_dispatch_response,
 };
 use asb_runtime::launch_factory::ReplayLaunchFactory;
 use asb_runtime::relay::ReplayRelay;
@@ -979,11 +980,8 @@ fn run_supervised_fault(
 ) -> (Termination, Option<i32>, TestRoot, String) {
     let root = test_root(name);
     let generation = format!("fault-{name}");
-    // Use the runtime-owned generation-authenticated relay in every matrix
-    // case. A raw UnixListener would let an unrelated child failure look like
-    // a valid supervised replay launch.
     let relay = ReplayRelay::bind(&root, &generation).unwrap();
-    let relay_path = relay.socket_path().to_owned();
+    let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
     let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
     let supervisor_path = executable_dir
         .parent()
@@ -1013,7 +1011,7 @@ fn run_supervised_fault(
     let plan = SupervisorPlan::new(
         sidecar,
         adapter,
-        relay_path.clone(),
+        handoff.socket_path().to_path_buf(),
         generation,
         "c".repeat(64),
         timeout,
@@ -1033,7 +1031,64 @@ fn run_supervised_fault(
     )
     .unwrap()
     .with_supervisor(plan);
-    let result = match backend.spawn(sandbox, lease, limits()) {
+    let input = SandboxLaunchInput::new(sandbox, limits())
+        .unwrap()
+        .with_replay_handoff(handoff)
+        .unwrap();
+    let cassette_digest = "c".repeat(64);
+    let token = backend
+        .attest_replay_launch(&input, &lease, &cassette_digest)
+        .unwrap();
+    let authority = ReplayLaunchFactory::issue(token, input, lease, cassette_digest).unwrap();
+    let mut context = authority.consume_for(&"c".repeat(64)).unwrap();
+    let mut operation = context.issue_operation().unwrap();
+    let cassette = decode_cassette(
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    let request_body = serde_json::to_vec(&cassette.contents.interactions[0].request.body)
+        .unwrap();
+    let dispatch = ReplayDispatchRequest {
+        route: ReplayRoute {
+            session_id: "gemini-public-session".into(),
+            attempt_id: format!("fault-{name}"),
+            dialect: ProviderDialect::GeminiGenerateContent,
+        },
+        request: ReplayHttpRequest {
+            method: "POST".into(),
+            path: "/v1beta/models/fixture-model:streamGenerateContent?alt=sse".into(),
+            headers: vec![
+                Header {
+                    name: "content-type".into(),
+                    value: "application/json".into(),
+                },
+                Header {
+                    name: "x-goog-api-key".into(),
+                    value: "fixture-key".into(),
+                },
+            ],
+            body: request_body,
+        },
+    };
+    let dispatch_payload = encode_dispatch_request(&dispatch).unwrap();
+    let dispatch_result = operation
+        .dispatch(format!("fault-{name}"), dispatch_payload, move |payload| {
+            let request = asb_replay::decode_dispatch_request(&payload)
+                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)?;
+            let service = StrictReplayService::new(cassette, Default::default())
+                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)?;
+            let response = service
+                .handle(&request.route, request.request)
+                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)?;
+            encode_dispatch_response(&response)
+                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)
+        })
+        .unwrap();
+    let response = asb_replay::decode_dispatch_response(&dispatch_result).unwrap();
+    assert_eq!(response.status, 200);
+    assert!(!response.segments.is_empty());
+    let result = match context.spawn(backend) {
         Ok(mut process) => {
             if let Some(delay) = cancel_after {
                 thread::sleep(delay);
