@@ -9,7 +9,7 @@ repository.workspace = true
 [dependencies]
 asb-core = { version = "=0.1.0", path = "../asb-core" }
 rustix = { version = "=1.1.4", features = ["process"] }
-sha2 = "=0.10.9"
+sha2 = "=0.11.0"
 
 [dev-dependencies]
 asb-replay = { version = "=0.1.0", path = "../asb-replay" }
