@@ -338,22 +338,17 @@
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "codex"
       ],
-      "exit_code": 0,
+      "exit_code": 3,
       "stderr": [],
       "stdout": {
-        "agent_id": "codex",
-        "cassette_sha256": "<sha256>",
         "command": "replay",
-        "network": "denied",
-        "ok": true,
-        "provider_profile_sha256": "<sha256>",
-        "schema_version": 1,
-        "source": {
-          "replay": {
-            "cassette_id": "fixture-buffered",
-            "cassette_sha256": "<sha256>"
-          }
-        }
+        "error": {
+          "code": "validation",
+          "exit_code": 3,
+          "message": "runtime replay authority is required"
+        },
+        "ok": false,
+        "schema_version": 1
       }
     }
   ]
