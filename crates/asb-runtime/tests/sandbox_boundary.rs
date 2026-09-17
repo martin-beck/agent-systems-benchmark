@@ -850,13 +850,26 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
         let authority =
             ReplayLaunchFactory::issue(token, input, lease, cassette_digest.clone()).unwrap();
         let context = authority.consume_for(&cassette_digest).unwrap();
-        let mut process = context.spawn(&backend).unwrap();
-        let output = process.wait().unwrap().clone();
-        assert_ne!(
-            output.exit_code,
-            Some(0),
-            "negative mode {mode} unexpectedly succeeded"
-        );
+        match context.spawn(&backend) {
+            Ok(mut process) => {
+                let output = process.wait().unwrap().clone();
+                assert_ne!(
+                    output.exit_code,
+                    Some(0),
+                    "negative mode {mode} unexpectedly succeeded"
+                );
+            }
+            Err(SandboxError::ScopeOwnership { exit_code, .. }) => {
+                assert_ne!(
+                    exit_code,
+                    Some(0),
+                    "negative mode {mode} unexpectedly succeeded"
+                );
+            }
+            Err(error) => {
+                panic!("negative mode {mode} failed before supervised execution: {error:?}");
+            }
+        }
         assert!(
             server.join().unwrap().is_ok(),
             "negative mode {mode} was not rejected"
