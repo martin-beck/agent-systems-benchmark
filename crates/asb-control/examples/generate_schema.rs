@@ -6,11 +6,12 @@ use std::fs;
 use std::path::PathBuf;
 
 use asb_control::{
-    analysis_evidence_schema, control_event_schema, control_request_schema,
-    control_request_schema_v1_2, control_request_schema_v1_3, control_request_schema_v1_4,
-    control_request_schema_v1_5, control_request_schema_v1_6, control_response_schema,
-    control_response_schema_v1_2, control_response_schema_v1_3, control_response_schema_v1_4,
-    control_response_schema_v1_5, control_response_schema_v1_6, history_evidence_schema,
+    analysis_evidence_schema, certificate_identity_schema, control_event_schema,
+    control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
+    control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
+    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
+    control_response_schema_v1_4, control_response_schema_v1_5, control_response_schema_v1_6,
+    history_evidence_schema,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,6 +23,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     write(&output, "request.schema.json", &control_request_schema())?;
     write(&output, "response.schema.json", &control_response_schema())?;
     write(&output, "event.schema.json", &control_event_schema())?;
+    write(
+        &output,
+        "certificate-identity.schema.json",
+        &certificate_identity_schema(),
+    )?;
     write(
         &output,
         "history-evidence.schema.json",
