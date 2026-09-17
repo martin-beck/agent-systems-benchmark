@@ -440,7 +440,7 @@ fn replay(
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
         .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
-    let _runtime_context = authority
+    let runtime_context = authority
         .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
         .consume_for(&cassette.integrity.digest)
         .map_err(|_| CliError::validation("runtime replay authority does not match cassette"))?;
@@ -463,6 +463,15 @@ fn replay(
         }),
     )
     .map_err(|_| CliError::validation("recording cassette is not an exact compatible replay"))?;
+    let mut child = runtime_context
+        .spawn()
+        .map_err(|_| CliError::validation("runtime replay child could not be supervised"))?;
+    let output = child
+        .wait()
+        .map_err(|_| CliError::validation("runtime replay child did not terminate cleanly"))?;
+    if output.exit_code != Some(0) {
+        return Err(CliError::validation("runtime replay child failed closed"));
+    }
     write_json(
         stdout,
         &ReplayWorkflowOutput {
