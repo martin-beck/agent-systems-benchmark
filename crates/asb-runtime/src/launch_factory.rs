@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
-use crate::sandbox::{LeaseClass, ResourceLease, SandboxLaunchInput};
+use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
 use sha2::{Digest, Sha256};
 
 /// A launch authority that can only be issued by the runtime factory.
@@ -20,6 +20,7 @@ pub struct ReplayLaunchAuthority {
     adapter_digest: String,
     supervisor_digest: Option<String>,
     cassette_sha256: String,
+    backend: Option<SandboxBackend>,
 }
 
 /// Owned launch values transferred after one-shot authority consumption.
@@ -32,6 +33,7 @@ pub struct ReplayLaunchContext {
     sidecar_digest: String,
     adapter_digest: String,
     supervisor_digest: Option<String>,
+    backend: Option<SandboxBackend>,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -73,6 +75,31 @@ impl ReplayLaunchFactory {
         lease: ResourceLease,
         cassette_sha256: String,
     ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
+        Self::issue_inner(token, input, lease, cassette_sha256, None)
+    }
+
+    /// Issue authority together with the runtime-owned sandbox backend.
+    ///
+    /// The backend is retained inside the opaque authority so a CLI caller
+    /// cannot substitute tools or isolation settings between issuance and
+    /// supervised child creation.
+    pub fn issue_with_backend(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        cassette_sha256: String,
+        backend: SandboxBackend,
+    ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
+        Self::issue_inner(token, input, lease, cassette_sha256, Some(backend))
+    }
+
+    fn issue_inner(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        cassette_sha256: String,
+        backend: Option<SandboxBackend>,
+    ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
         if token.nonce == 0 || !valid_digest(&cassette_sha256) {
             return Err(LaunchAuthorityError::InvalidLaunchInput);
         }
@@ -109,6 +136,7 @@ impl ReplayLaunchFactory {
             adapter_digest,
             supervisor_digest,
             cassette_sha256,
+            backend,
         })
     }
 }
@@ -184,6 +212,7 @@ impl ReplayLaunchAuthority {
             sidecar_digest: self.sidecar_digest,
             adapter_digest: self.adapter_digest,
             supervisor_digest: self.supervisor_digest,
+            backend: self.backend,
         })
     }
 }
@@ -193,6 +222,17 @@ fn valid_digest(value: &str) -> bool {
 }
 
 impl ReplayLaunchContext {
+    /// Consume the runtime-issued context through the sandbox backend.
+    ///
+    /// The context owns the validated launch input and benchmark lease. Passing
+    /// both directly to the backend prevents a caller from replacing either
+    /// value between authority consumption and child creation.
+    pub fn spawn(self) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
+        self.backend
+            .ok_or(SandboxError::DelegationRejected)?
+            .spawn_launch(self.input, self.lease)
+    }
+
     /// Validated launch input for the runtime backend.
     pub fn input(&self) -> &SandboxLaunchInput {
         &self.input
@@ -228,7 +268,7 @@ mod tests {
     use super::*;
     use crate::ProcessLimits;
     use crate::relay::ReplayRelay;
-    use crate::sandbox::{CpuSet, NetworkPolicy, Resources, SandboxSpec};
+    use crate::sandbox::{CpuSet, NetworkPolicy, Resources, SandboxSpec, ToolPin};
     use crate::supervisor::{PinnedCommand, SupervisorPlan};
     use std::collections::BTreeMap;
     use std::fs;
@@ -239,13 +279,40 @@ mod tests {
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn fixture() -> (ReplayLaunchAuthority, fs::File, std::path::PathBuf) {
-        fixture_with_token(|input, lease, cassette_sha256| {
+        fixture_with_token(None, |input, lease, cassette_sha256| {
             RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette_sha256))
         })
         .unwrap()
     }
 
+    fn qualified_backend() -> Option<SandboxBackend> {
+        let bubblewrap =
+            ToolPin::new(PathBuf::from("/usr/bin/bwrap"), "bubblewrap 0.9.0".into()).ok()?;
+        let systemd_run = ToolPin::new(
+            PathBuf::from("/usr/bin/systemd-run"),
+            "systemd 255 (255.4-1ubuntu8.17)".into(),
+        )
+        .ok()?;
+        let systemctl = ToolPin::new(
+            PathBuf::from("/usr/bin/systemctl"),
+            "systemd 255 (255.4-1ubuntu8.17)".into(),
+        )
+        .ok()?;
+        let taskset = ToolPin::new(
+            PathBuf::from("/usr/bin/taskset"),
+            "taskset from util-linux 2.39.3".into(),
+        )
+        .ok()?;
+        Some(SandboxBackend::new(
+            bubblewrap,
+            systemd_run,
+            systemctl,
+            taskset,
+        ))
+    }
+
     fn fixture_with_token(
+        backend: Option<SandboxBackend>,
         make_token: impl FnOnce(&SandboxLaunchInput, &ResourceLease, &str) -> RuntimeLaunchToken,
     ) -> Result<(ReplayLaunchAuthority, fs::File, std::path::PathBuf), LaunchAuthorityError> {
         let root = std::env::temp_dir().join(format!(
@@ -298,18 +365,30 @@ mod tests {
         )
         .unwrap();
         let cassette_sha256 = "e".repeat(64);
-        let authority = ReplayLaunchFactory::issue(
-            make_token(&input, &lease, &cassette_sha256),
-            input,
-            lease,
-            cassette_sha256,
-        )?;
+        let token = make_token(&input, &lease, &cassette_sha256);
+        if backend.is_some() {
+            // Keep the authenticated relay socket alive through the delegated
+            // child launch; the test removes its private root after reaping.
+            std::mem::forget(relay);
+        }
+        let authority = match backend {
+            Some(backend) => ReplayLaunchFactory::issue_with_backend(
+                token,
+                input,
+                lease,
+                cassette_sha256,
+                backend,
+            )?,
+            None => ReplayLaunchFactory::issue(token, input, lease, cassette_sha256)?,
+        };
         Ok((authority, fs::File::open("/dev/null").unwrap(), root))
     }
 
     #[test]
     fn issuance_rejects_token_bound_to_another_launch_context() {
-        let result = fixture_with_token(|_, _, _| RuntimeLaunchToken::test_only("0".repeat(64)));
+        let result = fixture_with_token(None, |_, _, _| {
+            RuntimeLaunchToken::test_only("0".repeat(64))
+        });
         assert!(matches!(
             result,
             Err(LaunchAuthorityError::IdentityMismatch)
@@ -404,6 +483,38 @@ mod tests {
             authority.consume_for(&"f".repeat(64)),
             Err(LaunchAuthorityError::IdentityMismatch)
         ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_without_runtime_backend_cannot_spawn() {
+        let (authority, _file, root) = fixture();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        assert!(matches!(
+            context.spawn(),
+            Err(SandboxError::DelegationRejected)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    #[ignore = "requires delegated bwrap namespace capability"]
+    fn qualified_runtime_backend_executes_and_reaps_child() {
+        let Some(backend) = qualified_backend() else {
+            return;
+        };
+        let (authority, _file, root) =
+            fixture_with_token(Some(backend), |input, lease, cassette| {
+                RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette))
+            })
+            .unwrap();
+        let mut child = authority
+            .consume_for(&"e".repeat(64))
+            .unwrap()
+            .spawn()
+            .unwrap();
+        let output = child.wait().unwrap();
+        assert_eq!(output.exit_code, Some(0));
         let _ = fs::remove_dir_all(root);
     }
 }

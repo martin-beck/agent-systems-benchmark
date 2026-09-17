@@ -440,7 +440,7 @@ fn replay(
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
         .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
-    let _runtime_context = authority
+    let runtime_context = authority
         .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
         .consume_for(&cassette.integrity.digest)
         .map_err(|_| CliError::validation("runtime replay authority does not match cassette"))?;
@@ -463,6 +463,15 @@ fn replay(
         }),
     )
     .map_err(|_| CliError::validation("recording cassette is not an exact compatible replay"))?;
+    let mut child = runtime_context
+        .spawn()
+        .map_err(|_| CliError::validation("runtime replay child could not be supervised"))?;
+    let output = child
+        .wait()
+        .map_err(|_| CliError::validation("runtime replay child did not terminate cleanly"))?;
+    if output.exit_code != Some(0) {
+        return Err(CliError::validation("runtime replay child failed closed"));
+    }
     write_json(
         stdout,
         &ReplayWorkflowOutput {
@@ -483,13 +492,19 @@ fn read_bounded_json(
     maximum: usize,
     label: &'static str,
 ) -> Result<Vec<u8>, CliError> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|_| CliError::validation("workflow input is unavailable"))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() as usize > maximum
-    {
+    // Open and validate the same descriptor that is read.  A separate
+    // symlink_metadata/metadata check leaves a replacement window in which a
+    // validated path can be swapped before File::open; O_NOFOLLOW makes the
+    // final component fail closed instead.
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .map_err(|_| CliError::validation(label))?;
+    let metadata = file.metadata().map_err(|_| CliError::validation(label))?;
+    if !metadata.is_file() || metadata.len() > maximum as u64 {
         return Err(CliError::validation(label));
     }
-    let file = fs::File::open(path).map_err(|_| CliError::validation(label))?;
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take((maximum as u64).saturating_add(1))
         .read_to_end(&mut bytes)
