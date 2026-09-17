@@ -459,11 +459,19 @@ impl SandboxBackend {
     /// Attest the runtime boundary before issuing replay launch authority.
     pub fn attest_replay_launch(
         &self,
+        input: &SandboxLaunchInput,
+        lease: &ResourceLease,
+        cassette_sha256: &str,
     ) -> Result<crate::launch_factory::RuntimeLaunchToken, SandboxError> {
         self.probe()?;
         Ok(crate::launch_factory::RuntimeLaunchToken {
             nonce: (std::process::id() as u128) << 64
                 | PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed) as u128,
+            binding_digest: crate::launch_factory::launch_binding_digest(
+                input,
+                lease,
+                cassette_sha256,
+            ),
         })
     }
 

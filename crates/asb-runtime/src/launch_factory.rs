@@ -3,6 +3,7 @@
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
 use crate::sandbox::{LeaseClass, ResourceLease, SandboxLaunchInput};
+use sha2::{Digest, Sha256};
 
 /// A launch authority that can only be issued by the runtime factory.
 ///
@@ -40,12 +41,16 @@ pub struct ReplayLaunchFactory;
 #[derive(Debug)]
 pub struct RuntimeLaunchToken {
     pub(crate) nonce: u128,
+    pub(crate) binding_digest: String,
 }
 
 impl RuntimeLaunchToken {
     #[cfg(test)]
-    pub(crate) fn test_only() -> Self {
-        Self { nonce: 1 }
+    pub(crate) fn test_only(binding_digest: String) -> Self {
+        Self {
+            nonce: 1,
+            binding_digest,
+        }
     }
 }
 
@@ -87,6 +92,9 @@ impl ReplayLaunchFactory {
         {
             return Err(LaunchAuthorityError::IdentityMismatch);
         }
+        if token.binding_digest != launch_binding_digest(&input, &lease, &cassette_sha256) {
+            return Err(LaunchAuthorityError::IdentityMismatch);
+        }
         let generation = plan.generation().to_owned();
         let route_digest = plan.route_digest().to_owned();
         let sidecar_digest = plan.sidecar().digest().to_owned();
@@ -103,6 +111,60 @@ impl ReplayLaunchFactory {
             cassette_sha256,
         })
     }
+}
+
+/// Hash the complete runtime launch context so an attestation cannot be
+/// replayed with another command, lease, relay, supervisor, or cassette.
+pub(crate) fn launch_binding_digest(
+    input: &SandboxLaunchInput,
+    lease: &ResourceLease,
+    cassette_sha256: &str,
+) -> String {
+    let spec = input.spec();
+    let plan = spec.supervisor();
+    let mut fields = vec![
+        cassette_sha256.to_owned(),
+        format!("{spec:?}"),
+        format!("{:?}", input.limits()),
+        spec.program().to_owned(),
+        spec.arguments().join("\0"),
+        spec.environment()
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect::<Vec<_>>()
+            .join("\0"),
+        format!("{:?}", lease.class()),
+        format!("{:?}", lease.cpus()),
+    ];
+    if let Some(handoff) = input.replay_handoff() {
+        fields.extend([
+            handoff.generation().to_owned(),
+            handoff.socket_path().display().to_string(),
+            handoff.child_endpoint().display().to_string(),
+        ]);
+    } else {
+        fields.push("<no-replay-handoff>".to_owned());
+    }
+    if let Some(plan) = plan {
+        fields.extend([
+            plan.generation().to_owned(),
+            plan.relay().display().to_string(),
+            plan.route_digest().to_owned(),
+            plan.sidecar().digest().to_owned(),
+            plan.adapter().digest().to_owned(),
+            plan.supervisor()
+                .map(|command| command.digest().to_owned())
+                .unwrap_or_else(|| "<no-supervisor>".to_owned()),
+        ]);
+    } else {
+        fields.push("<no-supervisor-plan>".to_owned());
+    }
+    let mut hasher = Sha256::new();
+    for field in fields {
+        hasher.update((field.len() as u64).to_le_bytes());
+        hasher.update(field.as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
 }
 
 impl ReplayLaunchAuthority {
@@ -177,6 +239,15 @@ mod tests {
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn fixture() -> (ReplayLaunchAuthority, fs::File, std::path::PathBuf) {
+        fixture_with_token(|input, lease, cassette_sha256| {
+            RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette_sha256))
+        })
+        .unwrap()
+    }
+
+    fn fixture_with_token(
+        make_token: impl FnOnce(&SandboxLaunchInput, &ResourceLease, &str) -> RuntimeLaunchToken,
+    ) -> Result<(ReplayLaunchAuthority, fs::File, std::path::PathBuf), LaunchAuthorityError> {
         let root = std::env::temp_dir().join(format!(
             "asb-launch-factory-{}-{}",
             std::process::id(),
@@ -226,14 +297,23 @@ mod tests {
             CpuSet::new(vec![0]).unwrap(),
         )
         .unwrap();
+        let cassette_sha256 = "e".repeat(64);
         let authority = ReplayLaunchFactory::issue(
-            RuntimeLaunchToken::test_only(),
+            make_token(&input, &lease, &cassette_sha256),
             input,
             lease,
-            "e".repeat(64),
-        )
-        .unwrap();
-        (authority, fs::File::open("/dev/null").unwrap(), root)
+            cassette_sha256,
+        )?;
+        Ok((authority, fs::File::open("/dev/null").unwrap(), root))
+    }
+
+    #[test]
+    fn issuance_rejects_token_bound_to_another_launch_context() {
+        let result = fixture_with_token(|_, _, _| RuntimeLaunchToken::test_only("0".repeat(64)));
+        assert!(matches!(
+            result,
+            Err(LaunchAuthorityError::IdentityMismatch)
+        ));
     }
 
     #[test]
@@ -275,7 +355,7 @@ mod tests {
         .unwrap();
         assert!(matches!(
             ReplayLaunchFactory::issue(
-                RuntimeLaunchToken::test_only(),
+                RuntimeLaunchToken::test_only("0".repeat(64)),
                 input,
                 lease,
                 "e".repeat(64)
@@ -307,7 +387,7 @@ mod tests {
             ResourceLease::acquire(&leases, LeaseClass::Ci, CpuSet::new(vec![0]).unwrap()).unwrap();
         assert!(matches!(
             ReplayLaunchFactory::issue(
-                RuntimeLaunchToken::test_only(),
+                RuntimeLaunchToken::test_only("0".repeat(64)),
                 input,
                 lease,
                 "e".repeat(64)
