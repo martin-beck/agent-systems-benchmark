@@ -11,7 +11,7 @@ asb-core = { version = "=0.1.0", path = "../asb-core" }
 asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
 asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
 asb-replay = { version = "=0.1.0", path = "../asb-replay" }
-serde = "=1.0.220"
+serde = "=1.0.229"
 serde_json = "=1.0.143"
 sha2 = "=0.10.9"
 rustix = { version = "=1.1.4", features = ["fs"] }
