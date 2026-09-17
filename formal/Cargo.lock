@@ -95,6 +95,7 @@ dependencies = [
 name = "asb-runtime"
 version = "0.1.0"
 dependencies = [
+ "asb-core",
  "rustix",
  "sha2",
 ]
