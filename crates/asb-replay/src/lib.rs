@@ -39,8 +39,10 @@ pub use selection::{
     SourceSelectionError,
 };
 pub use service::{
-    DialectCapability, MAX_IO_TIMEOUT, ReplayDeliveryReport, ReplayError, ReplayHttpRequest,
-    ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService, dialect_capabilities,
+    DialectCapability, MAX_IO_TIMEOUT, ReplayDeliveryReport, ReplayDispatchRequest,
+    ReplayDispatchResponse, ReplayError, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits,
+    ReplayRoute, StrictReplayService, decode_dispatch_request, decode_dispatch_response,
+    dialect_capabilities, encode_dispatch_request, encode_dispatch_response,
 };
 pub use workflow::{
     MAX_RECORDING_CAMPAIGN_TUPLES, MAX_WORKFLOW_AGENT_BYTES, NetworkConsequence,

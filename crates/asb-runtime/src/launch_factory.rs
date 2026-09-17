@@ -32,6 +32,7 @@ pub struct ReplayLaunchContext {
     sidecar_digest: String,
     adapter_digest: String,
     supervisor_digest: Option<String>,
+    operation_issued: bool,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -184,6 +185,7 @@ impl ReplayLaunchAuthority {
             sidecar_digest: self.sidecar_digest,
             adapter_digest: self.adapter_digest,
             supervisor_digest: self.supervisor_digest,
+            operation_issued: false,
         })
     }
 }
@@ -193,6 +195,17 @@ fn valid_digest(value: &str) -> bool {
 }
 
 impl ReplayLaunchContext {
+    /// Issue the one-shot authenticated operation used by the primary replay path.
+    pub fn issue_operation(
+        &mut self,
+    ) -> Result<crate::ReplayOperation, crate::ReplayOperationError> {
+        if self.operation_issued {
+            return Err(crate::ReplayOperationError::AlreadyIssued);
+        }
+        self.operation_issued = true;
+        crate::ReplayOperation::issue(self.generation.clone())
+            .map_err(crate::ReplayOperationError::Transport)
+    }
     /// Validated launch input for the runtime backend.
     pub fn input(&self) -> &SandboxLaunchInput {
         &self.input
@@ -403,6 +416,18 @@ mod tests {
         assert!(matches!(
             authority.consume_for(&"f".repeat(64)),
             Err(LaunchAuthorityError::IdentityMismatch)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn consumed_context_issues_only_one_operation() {
+        let (authority, _file, root) = fixture();
+        let mut context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let _operation = context.issue_operation().unwrap();
+        assert!(matches!(
+            context.issue_operation(),
+            Err(crate::ReplayOperationError::AlreadyIssued)
         ));
         let _ = fs::remove_dir_all(root);
     }

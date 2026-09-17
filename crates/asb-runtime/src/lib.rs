@@ -12,6 +12,17 @@ pub mod relay;
 pub mod sandbox;
 /// Bounded closed-loop and open-loop experiment scheduling.
 pub mod scheduler;
+pub use asb_core::replay_transport::ReplayTransportError;
+pub use transport::ReplayOperation;
+
+/// Failure while issuing the runtime-owned replay operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReplayOperationError {
+    /// The launch context has already issued its one-shot operation.
+    AlreadyIssued,
+    /// The authenticated transport could not be created.
+    Transport(ReplayTransportError),
+}
 /// Private-namespace replay supervisor contracts and lifecycle validation.
 pub mod supervisor;
 /// Runtime-owned one-shot authenticated replay transport.
