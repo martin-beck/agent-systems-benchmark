@@ -20,6 +20,8 @@ pub struct ReplayTransportIssuer {
     path: PathBuf,
     generation: String,
     consumed: bool,
+    accepted_request_id: Option<String>,
+    responded: bool,
 }
 
 impl ReplayTransportIssuer {
@@ -50,6 +52,8 @@ impl ReplayTransportIssuer {
             path,
             generation,
             consumed: false,
+            accepted_request_id: None,
+            responded: false,
         })
     }
     /// Return the private endpoint path.
@@ -74,18 +78,26 @@ impl ReplayTransportIssuer {
             return Err(ReplayTransportError::StaleGeneration);
         }
         self.consumed = true;
+        self.accepted_request_id = Some(request.request_id.clone());
         Ok((request, stream))
     }
     /// Send one response on the authenticated stream.
     pub fn respond(
-        &self,
+        &mut self,
         mut stream: UnixStream,
         response: ReplayResponse,
     ) -> Result<(), ReplayTransportError> {
-        if response.generation != self.generation {
+        if self.responded {
+            return Err(ReplayTransportError::DuplicateRequest);
+        }
+        if response.generation != self.generation
+            || self.accepted_request_id.as_deref() != Some(response.request_id.as_str())
+        {
             return Err(ReplayTransportError::StaleGeneration);
         }
-        write_frame(&mut stream, &response.encode()?)
+        write_frame(&mut stream, &response.encode()?)?;
+        self.responded = true;
+        Ok(())
     }
 }
 
@@ -196,6 +208,13 @@ mod tests {
             c.request("r1".into(), b"x".to_vec()).unwrap()
         });
         let (request, stream) = issuer.accept_once().unwrap();
+        assert!(matches!(
+            issuer.respond(
+                stream.try_clone().unwrap(),
+                ReplayResponse::new("g1".into(), "wrong".into(), b"bad".to_vec()).unwrap()
+            ),
+            Err(ReplayTransportError::StaleGeneration)
+        ));
         issuer
             .respond(
                 stream,
@@ -208,6 +227,13 @@ mod tests {
             )
             .unwrap();
         assert_eq!(t.join().unwrap().payload, b"ok");
+        assert!(matches!(
+            issuer.respond(
+                UnixStream::pair().unwrap().0,
+                ReplayResponse::new("g1".into(), "r1".into(), b"again".to_vec()).unwrap()
+            ),
+            Err(ReplayTransportError::DuplicateRequest)
+        ));
         assert!(matches!(
             issuer.accept_once(),
             Err(ReplayTransportError::DuplicateRequest)
