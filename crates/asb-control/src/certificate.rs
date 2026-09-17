@@ -317,7 +317,9 @@ fn validate_identity(
     if identity.generation == 0 || identity.generation != generation {
         return Err(CertificateError::InvalidGeneration);
     }
-    if identity.not_before > identity.not_after
+    if identity.not_before == 0
+        || identity.not_after == 0
+        || identity.not_before > identity.not_after
         || now.saturating_add(CLOCK_SKEW_SECONDS) < identity.not_before
         || now > identity.not_after.saturating_add(CLOCK_SKEW_SECONDS)
     {
