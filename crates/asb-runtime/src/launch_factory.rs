@@ -193,6 +193,18 @@ fn valid_digest(value: &str) -> bool {
 }
 
 impl ReplayLaunchContext {
+    /// Consume the runtime-issued context through the sandbox backend.
+    ///
+    /// The context owns the validated launch input and benchmark lease. Passing
+    /// both directly to the backend prevents a caller from replacing either
+    /// value between authority consumption and child creation.
+    pub fn spawn(
+        self,
+        backend: &crate::sandbox::SandboxBackend,
+    ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
+        backend.spawn_launch(self.input, self.lease)
+    }
+
     /// Validated launch input for the runtime backend.
     pub fn input(&self) -> &SandboxLaunchInput {
         &self.input
