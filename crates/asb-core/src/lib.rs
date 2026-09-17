@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Checked domain primitives for benchmark experiments.
 mod budget;
+pub mod replay_transport;
 
 pub use budget::*;
 
