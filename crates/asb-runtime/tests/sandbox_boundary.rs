@@ -555,6 +555,8 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
         probe_response.is_ok(),
         "fixture request did not match: {probe_response:?}"
     );
+    let expected_status = probe_response.as_ref().unwrap().status;
+    let expected_segments = probe_response.as_ref().unwrap().segments.clone();
     let server = thread::spawn(move || -> Result<u16, String> {
         let mut stream = relay
             .accept_authenticated()
@@ -603,6 +605,10 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
         vec![
             "--fail".into(),
             "--silent".into(),
+            "--connect-timeout".into(),
+            "3".into(),
+            "--max-time".into(),
+            "20".into(),
             "--header".into(),
             "accept:".into(),
             "--header".into(),
@@ -634,7 +640,7 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
                 .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
                 .as_path(),
         ),
-        Duration::from_secs(10),
+        Duration::from_secs(30),
     )
     .unwrap()
     .with_supervisor(supervisor);
@@ -686,7 +692,15 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
     );
     assert_eq!(output.exit_code, Some(0));
     assert_eq!(output.termination, Termination::Exited);
-    assert!(String::from_utf8_lossy(&output.stdout.bytes).contains("done"));
+    assert_eq!(server_result, Ok(expected_status));
+    let body = &output.stdout.bytes;
+    for segment in expected_segments {
+        assert!(
+            body.windows(segment.len()).any(|window| window == segment),
+            "authenticated response segment missing"
+        );
+    }
+    assert!(String::from_utf8_lossy(body).contains("done"));
     assert!(!root.join("asb-replay-relay.sock").exists());
 }
 
@@ -792,6 +806,10 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
             vec![
                 "--fail".into(),
                 "--silent".into(),
+                "--connect-timeout".into(),
+                "3".into(),
+                "--max-time".into(),
+                "20".into(),
                 "--header".into(),
                 "content-type: application/json".into(),
                 "--header".into(),
@@ -958,12 +976,14 @@ fn run_supervised_fault(
     adapter_arguments: Vec<String>,
     timeout: Duration,
     cancel_after: Option<Duration>,
-) -> (Termination, Option<i32>, TestRoot) {
+) -> (Termination, Option<i32>, TestRoot, String) {
     let root = test_root(name);
-    let relay = root.join("relay.sock");
-    let _relay_listener = std::os::unix::net::UnixListener::bind(&relay).unwrap();
-    fs::set_permissions(&relay, fs::Permissions::from_mode(0o600)).unwrap();
     let generation = format!("fault-{name}");
+    // Use the runtime-owned generation-authenticated relay in every matrix
+    // case. A raw UnixListener would let an unrelated child failure look like
+    // a valid supervised replay launch.
+    let relay = ReplayRelay::bind(&root, &generation).unwrap();
+    let relay_path = relay.socket_path().to_owned();
     let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
     let supervisor_path = executable_dir
         .parent()
@@ -993,7 +1013,7 @@ fn run_supervised_fault(
     let plan = SupervisorPlan::new(
         sidecar,
         adapter,
-        relay.clone(),
+        relay_path.clone(),
         generation,
         "c".repeat(64),
         timeout,
@@ -1020,14 +1040,19 @@ fn run_supervised_fault(
                 process.cancel().unwrap();
             }
             let output = process.wait().unwrap();
-            (output.termination, output.exit_code, root)
+            (
+                output.termination,
+                output.exit_code,
+                root,
+                String::from_utf8_lossy(&output.stdout.bytes).into_owned(),
+            )
         }
         Err(SandboxError::ScopeOwnership { exit_code, .. }) => {
-            (Termination::Exited, exit_code, root)
+            (Termination::Exited, exit_code, root, String::new())
         }
         Err(error) => panic!("supervised fault {name} failed to spawn: {error:?}"),
     };
-    let _ = fs::remove_file(&relay);
+    drop(relay);
     result
 }
 
@@ -1036,6 +1061,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
     let Some(backend) = native_backend() else {
         return;
     };
+    native_supervisor_forwards_cassette_http_and_reaps_children();
     let shell = Path::new("/bin/sh");
     let true_bin = Path::new("/bin/true");
     let cases = [
@@ -1064,6 +1090,10 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             vec![
                 "--fail".into(),
                 "--silent".into(),
+                "--connect-timeout".into(),
+                "1".into(),
+                "--write-out".into(),
+                "ASB_PROVIDER_EGRESS_RC=%{exitcode}".into(),
                 "http://192.0.2.1/".into(),
             ],
         ),
@@ -1071,11 +1101,11 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             "descendant-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
             shell,
-            vec!["-c".into(), "curl --fail --silent http://192.0.2.1/".into()],
+            vec!["-c".into(), "curl --fail --silent --connect-timeout 1 --write-out ASB_DESCENDANT_EGRESS_RC=%{exitcode} http://192.0.2.1/".into()],
         ),
     ];
     for (name, sidecar_args, adapter, adapter_args) in cases {
-        let (termination, exit_code, _root) = run_supervised_fault(
+        let (termination, exit_code, _root, output) = run_supervised_fault(
             &backend,
             name,
             shell,
@@ -1091,8 +1121,20 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             "fault {name} did not reach a terminal state"
         );
         assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
+        if name == "provider-egress-denied" {
+            assert!(
+                output.contains("ASB_PROVIDER_EGRESS_RC=7"),
+                "provider denial marker missing: {output:?}"
+            );
+        }
+        if name == "descendant-egress-denied" {
+            assert!(
+                output.contains("ASB_DESCENDANT_EGRESS_RC=7"),
+                "descendant denial marker missing: {output:?}"
+            );
+        }
     }
-    let (termination, exit_code, crash_root) = run_supervised_fault(
+    let (termination, exit_code, crash_root, _) = run_supervised_fault(
         &backend,
         "crash-before-fresh-generation",
         shell,
@@ -1105,7 +1147,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
     assert_eq!(termination, Termination::Exited);
     assert_ne!(exit_code, Some(0));
     assert!(!crash_root.join("relay.sock").exists());
-    let (termination, exit_code, restart_root) = run_supervised_fault(
+    let (termination, exit_code, restart_root, _) = run_supervised_fault(
         &backend,
         "fresh-generation-after-crash",
         true_bin,
@@ -1119,7 +1161,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
     assert_eq!(exit_code, Some(0));
     assert!(!restart_root.join("relay.sock").exists());
     let mut unrelated = Command::new("/bin/sleep").arg("30").spawn().unwrap();
-    let (termination, exit_code, _root) = run_supervised_fault(
+    let (termination, exit_code, _root, _) = run_supervised_fault(
         &backend,
         "unrelated-process",
         shell,
@@ -1140,7 +1182,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
 
     for attempt in 0..3 {
         let name = format!("restart-{attempt}");
-        let (termination, exit_code, root) = run_supervised_fault(
+        let (termination, exit_code, root, _) = run_supervised_fault(
             &backend,
             &name,
             true_bin,
@@ -1158,7 +1200,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         );
     }
 
-    let (termination, exit_code, _root) = run_supervised_fault(
+    let (termination, exit_code, _root, _) = run_supervised_fault(
         &backend,
         "cancellation",
         shell,

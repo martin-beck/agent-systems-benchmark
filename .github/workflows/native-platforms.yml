@@ -31,7 +31,17 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends bubblewrap=0.9.0-1ubuntu0.1
+          # Only these reviewed package revisions are permitted; repository state may not widen the pin.
+          available=""
+          for candidate in 0.9.0-1ubuntu0.2 0.9.0-1build1; do
+            if apt-cache madison bubblewrap | awk '{print $3}' | grep -Fxq "$candidate"; then
+              available="$candidate"
+              break
+            fi
+          done
+          test -n "$available" || { echo "ERROR: no reviewed bubblewrap package revision is available (allowed: 0.9.0-1ubuntu0.2, 0.9.0-1build1)" >&2; exit 1; }
+          sudo apt-get install --yes --no-install-recommends "bubblewrap=$available"
+          test "$(dpkg-query -W -f='${Version}' bubblewrap)" = "$available" || { echo "ERROR: installed bubblewrap version differs from reviewed allowlist pin" >&2; exit 1; }
       - name: Collect classified platform evidence
         id: evidence
         env:
