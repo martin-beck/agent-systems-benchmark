@@ -334,6 +334,11 @@ impl SandboxSpec {
     pub fn environment(&self) -> &BTreeMap<String, String> {
         &self.environment
     }
+
+    /// Runtime-owned supervisor plan attached to this launch, when present.
+    pub fn supervisor(&self) -> Option<&SupervisorPlan> {
+        self.supervisor.as_ref()
+    }
 }
 
 /// Validated input for one supervised adapter launch.
