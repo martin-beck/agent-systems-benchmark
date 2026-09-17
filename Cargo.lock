@@ -116,6 +116,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+ "x509-parser",
 ]
 
 [[package]]

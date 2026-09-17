@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "subject_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "issuer_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "certificate_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "trust_anchor_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "generation": 1,
+  "not_before": 1700000000,
+  "not_after": 1700003600,
+  "role": "operator",
+  "endpoint_identity_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

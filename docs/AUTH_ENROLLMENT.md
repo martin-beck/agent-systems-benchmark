@@ -16,3 +16,16 @@ Every probe carries the enrollment generation. A replacement increments the
 generation and resets status to `untested`, so a delayed probe cannot restore a
 stale credential. Revocation is terminal for the record. No environment,
 argument, control-frame or public-evidence fallback is performed.
+
+## Runtime certificate chain boundary
+
+The control runtime accepts a certificate chain only when the enrollment authority
+has pinned the DER trust anchor and generation. The CertificateAuthorityV1 issue_der
+operation validates the leaf and ordered intermediates with the offline
+rustls/webpki verifier; it does not fetch roots, consult a system trust store, or
+fall back to digest-only metadata. The leaf digest must match the identity record
+and the pairing fingerprint must match the leaf subject identity. Missing anchors,
+malformed DER, issuer/anchor mismatches, expired or not-yet-valid certificates,
+unsupported roles, stale generations, and unknown fields fail closed. Only bounded
+identity digests and authorization outcomes are suitable for durable public evidence;
+certificate and private-key bytes must remain in the caller's protected memory/store.
