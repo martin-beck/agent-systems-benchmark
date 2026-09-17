@@ -10,7 +10,7 @@
         "value": {
           "runner_instance_id": "runner-1",
           "generation": 3,
-          "catalog_sha256": "e24007b09d9f6b112269689a535ba00968300c9653d71e349f37835d0d8c5e92",
+          "catalog_sha256": "62894f407bd441dae43524e271bc42d16ed5ed672edcc3e874aec230c1701986",
           "target": {
             "operating_system": "linux",
             "architecture": "x86_64",
@@ -30,11 +30,17 @@
                 "package_id": "agent-package",
                 "version": "1.2.3",
                 "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "signature_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                "signature_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "signer": {
+                  "key_id": "release-key-1",
+                  "principal": "asb-release"
+                }
               },
               "provenance": {
                 "source_revision": "cccccccccccccccccccccccccccccccccccccccc",
-                "manifest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                "manifest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "sbom_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "license_ref": "MIT"
               },
               "capabilities": ["chat", "tools"],
               "availability": {"status": "available"}
