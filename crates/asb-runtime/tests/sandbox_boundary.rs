@@ -749,6 +749,7 @@ fn authenticated_replay_boundary_rejects_stale_malformed_duplicate_and_mismatch(
     assert!(mismatch.is_err(), "strict mismatch unexpectedly succeeded");
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_supervised_fault(
     backend: &SandboxBackend,
     name: &str,
