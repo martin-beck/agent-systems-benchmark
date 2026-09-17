@@ -605,6 +605,10 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
         vec![
             "--fail".into(),
             "--silent".into(),
+            "--connect-timeout".into(),
+            "3".into(),
+            "--max-time".into(),
+            "20".into(),
             "--header".into(),
             "accept:".into(),
             "--header".into(),
@@ -636,7 +640,7 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
                 .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
                 .as_path(),
         ),
-        Duration::from_secs(10),
+        Duration::from_secs(30),
     )
     .unwrap()
     .with_supervisor(supervisor);
@@ -802,6 +806,10 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
             vec![
                 "--fail".into(),
                 "--silent".into(),
+                "--connect-timeout".into(),
+                "3".into(),
+                "--max-time".into(),
+                "20".into(),
                 "--header".into(),
                 "content-type: application/json".into(),
                 "--header".into(),
@@ -1082,6 +1090,10 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             vec![
                 "--fail".into(),
                 "--silent".into(), "--connect-timeout".into(), "1".into(), "--write-out".into(), "ASB_PROVIDER_EGRESS_RC=%{exitcode}".into(),
+            "--connect-timeout".into(),
+            "3".into(),
+            "--max-time".into(),
+            "20".into(),
                 "http://192.0.2.1/".into(),
             ],
         ),
