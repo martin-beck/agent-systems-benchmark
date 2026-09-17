@@ -201,12 +201,8 @@ mod tests {
     fn one_shot_authenticates_and_replies() {
         let path = private_path("roundtrip");
         let mut issuer = ReplayTransportIssuer::bind(&path, "g1".into()).unwrap();
-        let p = path.clone();
-        let generation = "g1".to_owned();
-        let t = thread::spawn(move || {
-            let mut c = ReplayTransportClient::connect(&p, generation).unwrap();
-            c.request("r1".into(), b"x".to_vec()).unwrap()
-        });
+        let mut client = ReplayTransportClient::issue(&issuer).unwrap();
+        let t = thread::spawn(move || client.request("r1".into(), b"x".to_vec()).unwrap());
         let (request, stream) = issuer.accept_once().unwrap();
         assert!(matches!(
             issuer.respond(
@@ -247,6 +243,32 @@ mod tests {
         drop(issuer);
         assert!(matches!(
             ReplayTransportIssuer::bind(&path, "../escape".into()),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+        assert!(matches!(
+            ReplayTransportIssuer::bind(
+                std::env::temp_dir().join("asb-transport-arbitrary.sock"),
+                "valid".into()
+            ),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+    }
+
+    #[test]
+    fn stale_generation_peer_is_rejected_on_transport() {
+        let path = private_path("peer-stale");
+        let mut issuer = ReplayTransportIssuer::bind(&path, "current".into()).unwrap();
+        let p = path.clone();
+        let t = thread::spawn(move || {
+            let mut client = ReplayTransportClient::connect(&p, "stale".into()).unwrap();
+            client.request("r1".into(), b"x".to_vec())
+        });
+        assert!(matches!(
+            issuer.accept_once(),
+            Err(ReplayTransportError::StaleGeneration)
+        ));
+        assert!(matches!(
+            t.join().unwrap(),
             Err(ReplayTransportError::InvalidEnvelope)
         ));
     }
