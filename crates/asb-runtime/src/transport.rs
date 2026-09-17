@@ -24,9 +24,7 @@ impl ReplayTransportIssuer {
         path: impl Into<PathBuf>,
         generation: String,
     ) -> Result<Self, ReplayTransportError> {
-        if generation.is_empty() {
-            return Err(ReplayTransportError::InvalidEnvelope);
-        }
+        ReplayRequest::new(generation.clone(), "bind-check".into(), Vec::new())?;
         let path = path.into();
         let listener =
             UnixListener::bind(&path).map_err(|_| ReplayTransportError::InvalidEnvelope)?;
@@ -173,6 +171,18 @@ mod tests {
         assert!(matches!(
             issuer.accept_once(),
             Err(ReplayTransportError::DuplicateRequest)
+        ));
+    }
+
+    #[test]
+    fn stale_generation_is_rejected_before_response() {
+        let path =
+            std::env::temp_dir().join(format!("asb-transport-stale-{}.sock", std::process::id()));
+        let issuer = ReplayTransportIssuer::bind(&path, "current".into()).unwrap();
+        drop(issuer);
+        assert!(matches!(
+            ReplayTransportIssuer::bind(&path, "../escape".into()),
+            Err(ReplayTransportError::InvalidEnvelope)
         ));
     }
 }
