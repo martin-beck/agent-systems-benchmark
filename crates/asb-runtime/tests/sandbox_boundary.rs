@@ -1085,6 +1085,8 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         ),
         (
             "provider-egress-denied",
+            vec!["-c".into(), "sleep 30".into()],
+            Path::new("/usr/bin/curl"),
             vec![
                 "--fail".into(),
                 "--silent".into(),
