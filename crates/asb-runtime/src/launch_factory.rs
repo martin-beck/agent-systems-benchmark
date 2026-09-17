@@ -446,4 +446,15 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn context_without_runtime_backend_cannot_spawn() {
+        let (authority, _file, root) = fixture();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        assert!(matches!(
+            context.spawn(),
+            Err(SandboxError::DelegationRejected)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
 }
