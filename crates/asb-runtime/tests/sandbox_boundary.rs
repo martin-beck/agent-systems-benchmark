@@ -555,6 +555,8 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
         probe_response.is_ok(),
         "fixture request did not match: {probe_response:?}"
     );
+    let expected_status = probe_response.as_ref().unwrap().status;
+    let expected_segments = probe_response.as_ref().unwrap().segments.clone();
     let server = thread::spawn(move || -> Result<u16, String> {
         let mut stream = relay
             .accept_authenticated()
@@ -686,7 +688,15 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
     );
     assert_eq!(output.exit_code, Some(0));
     assert_eq!(output.termination, Termination::Exited);
-    assert!(String::from_utf8_lossy(&output.stdout.bytes).contains("done"));
+    assert_eq!(server_result, Ok(expected_status));
+    let body = &output.stdout.bytes;
+    for segment in expected_segments {
+        assert!(
+            body.windows(segment.len()).any(|window| window == segment),
+            "authenticated response segment missing"
+        );
+    }
+    assert!(String::from_utf8_lossy(body).contains("done"));
     assert!(!root.join("asb-replay-relay.sock").exists());
 }
 
