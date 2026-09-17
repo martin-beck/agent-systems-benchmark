@@ -194,4 +194,66 @@ mod tests {
             Err(ReplayTransportError::InvalidEnvelope)
         );
     }
+
+    #[test]
+    fn rejects_wire_headers_lengths_and_invalid_utf8() {
+        let request = ReplayRequest::new("g".into(), "r".into(), b"x".to_vec()).unwrap();
+        let encoded = request.encode().unwrap();
+        for malformed in [
+            Vec::new(),
+            b"bad".to_vec(),
+            {
+                let mut bytes = encoded.clone();
+                bytes[0] = b'X';
+                bytes
+            },
+            {
+                let mut bytes = encoded.clone();
+                bytes[4] = VERSION + 1;
+                bytes
+            },
+            {
+                let mut bytes = encoded.clone();
+                bytes[5] = 0xff;
+                bytes[6] = 0xff;
+                bytes
+            },
+            {
+                let mut bytes = encoded.clone();
+                bytes[12] = 2;
+                bytes
+            },
+            {
+                let mut bytes = encoded.clone();
+                bytes[13] = 0xff;
+                bytes
+            },
+        ] {
+            assert_eq!(
+                ReplayRequest::decode(&malformed),
+                Err(ReplayTransportError::InvalidEnvelope)
+            );
+        }
+    }
+
+    #[test]
+    fn response_round_trip_and_field_validation() {
+        let response = ReplayResponse::new("g1".into(), "r1".into(), b"ok".to_vec()).unwrap();
+        assert_eq!(
+            ReplayResponse::decode(&response.encode().unwrap()),
+            Ok(response)
+        );
+        assert_eq!(
+            ReplayResponse::new("g".into(), "bad.id".into(), vec![]),
+            Err(ReplayTransportError::InvalidEnvelope)
+        );
+        assert_eq!(
+            ReplayRequest::new("g".into(), "r".into(), vec![])
+                .unwrap()
+                .encode()
+                .unwrap()
+                .len(),
+            15
+        );
+    }
 }

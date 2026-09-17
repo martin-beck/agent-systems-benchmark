@@ -189,6 +189,7 @@ impl Drop for ReplayTransportIssuer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::thread;
     fn private_path(label: &str) -> PathBuf {
         let dir =
@@ -202,7 +203,10 @@ mod tests {
         let path = private_path("roundtrip");
         let mut issuer = ReplayTransportIssuer::bind(&path, "g1".into()).unwrap();
         let mut client = ReplayTransportClient::issue(&issuer).unwrap();
-        let t = thread::spawn(move || client.request("r1".into(), b"x".to_vec()).unwrap());
+        let t = thread::spawn(move || {
+            let response = client.request("r1".into(), b"x".to_vec()).unwrap();
+            (client, response)
+        });
         let (request, stream) = issuer.accept_once().unwrap();
         assert!(matches!(
             issuer.respond(
@@ -222,7 +226,12 @@ mod tests {
                 .unwrap(),
             )
             .unwrap();
-        assert_eq!(t.join().unwrap().payload, b"ok");
+        let (mut client, response) = t.join().unwrap();
+        assert_eq!(response.payload, b"ok");
+        assert!(matches!(
+            client.request("r2".into(), Vec::new()),
+            Err(ReplayTransportError::DuplicateRequest)
+        ));
         assert!(matches!(
             issuer.respond(
                 UnixStream::pair().unwrap().0,
@@ -271,5 +280,61 @@ mod tests {
             t.join().unwrap(),
             Err(ReplayTransportError::InvalidEnvelope)
         ));
+    }
+
+    #[test]
+    fn malformed_and_oversized_frames_fail_closed() {
+        let (mut writer, mut reader) = UnixStream::pair().unwrap();
+        writer.write_all(&3u32.to_be_bytes()).unwrap();
+        writer.write_all(b"bad").unwrap();
+        assert!(matches!(
+            read_request(&mut reader),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+
+        let (mut writer, mut reader) = UnixStream::pair().unwrap();
+        writer
+            .write_all(&((MAX_PAYLOAD + 257) as u32).to_be_bytes())
+            .unwrap();
+        assert!(matches!(
+            read_frame(&mut reader),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+
+        let (mut writer, _reader) = UnixStream::pair().unwrap();
+        assert!(matches!(
+            write_frame(&mut writer, &vec![0; MAX_PAYLOAD + 257]),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+    }
+
+    #[test]
+    fn missing_endpoint_and_unreadable_peer_fail_closed() {
+        let missing = std::env::temp_dir().join(format!("asb-missing-{}", std::process::id()));
+        assert!(matches!(
+            ReplayTransportClient::connect(&missing, "g".into()),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+
+        let (writer, mut reader) = UnixStream::pair().unwrap();
+        drop(writer);
+        assert!(matches!(
+            read_frame(&mut reader),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bind_rejects_non_private_parent() {
+        let dir = std::env::temp_dir().join(format!("asb-transport-public-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(matches!(
+            ReplayTransportIssuer::bind(dir.join("relay.sock"), "g".into()),
+            Err(ReplayTransportError::InvalidEnvelope)
+        ));
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir(&dir);
     }
 }
