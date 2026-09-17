@@ -420,6 +420,21 @@ def topic_first_parent_spine(root: Path, base: str, tip: str) -> list[str]:
     return list(reversed(reverse_spine))
 
 
+def validate_current_topic_base(
+    root: Path, base: str | None, head: str
+) -> None:
+    """Require a pull-request topic to include the current protected base."""
+    if base is None:
+        fail("pull-request admission requires an immutable current base")
+    exact_commit(root, base)
+    exact_commit(root, head)
+    if not is_ancestor(root, base, head):
+        fail(
+            "pull-request topic is not based on the current protected base; "
+            "rebase or synchronize before requesting review"
+        )
+
+
 def verify_ssh(root: Path, allowed: Path, revision: str) -> None:
     result = subprocess.run(
         [
@@ -530,6 +545,8 @@ def validate_commits(
             fail("protected-main mode requires an immutable range base")
         exact_commit(root, base)
         exact_commit(root, head)
+    elif event == "pull_request":
+        validate_current_topic_base(root, base, head)
     revisions = commit_range(root, base, head)
     if not revisions:
         fail("commit policy received an empty revision range")
