@@ -766,7 +766,7 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
             generation.clone(),
         ];
         if mode != "mismatch" {
-            sidecar_args.extend(["--handshake-mode".into(), mode.clone().into()]);
+            sidecar_args.extend(["--handshake-mode".into(), mode.clone()]);
         }
         let sidecar = PinnedCommand::new_verified(
             sidecar_path.clone(),
