@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
-use crate::sandbox::{LeaseClass, ResourceLease, SandboxLaunchInput};
+use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
 use sha2::{Digest, Sha256};
 
 /// A launch authority that can only be issued by the runtime factory.
@@ -20,6 +20,7 @@ pub struct ReplayLaunchAuthority {
     adapter_digest: String,
     supervisor_digest: Option<String>,
     cassette_sha256: String,
+    backend: Option<SandboxBackend>,
 }
 
 /// Owned launch values transferred after one-shot authority consumption.
@@ -32,6 +33,7 @@ pub struct ReplayLaunchContext {
     sidecar_digest: String,
     adapter_digest: String,
     supervisor_digest: Option<String>,
+    backend: Option<SandboxBackend>,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -73,6 +75,31 @@ impl ReplayLaunchFactory {
         lease: ResourceLease,
         cassette_sha256: String,
     ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
+        Self::issue_inner(token, input, lease, cassette_sha256, None)
+    }
+
+    /// Issue authority together with the runtime-owned sandbox backend.
+    ///
+    /// The backend is retained inside the opaque authority so a CLI caller
+    /// cannot substitute tools or isolation settings between issuance and
+    /// supervised child creation.
+    pub fn issue_with_backend(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        cassette_sha256: String,
+        backend: SandboxBackend,
+    ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
+        Self::issue_inner(token, input, lease, cassette_sha256, Some(backend))
+    }
+
+    fn issue_inner(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        cassette_sha256: String,
+        backend: Option<SandboxBackend>,
+    ) -> Result<ReplayLaunchAuthority, LaunchAuthorityError> {
         if token.nonce == 0 || !valid_digest(&cassette_sha256) {
             return Err(LaunchAuthorityError::InvalidLaunchInput);
         }
@@ -109,6 +136,7 @@ impl ReplayLaunchFactory {
             adapter_digest,
             supervisor_digest,
             cassette_sha256,
+            backend,
         })
     }
 }
@@ -184,6 +212,7 @@ impl ReplayLaunchAuthority {
             sidecar_digest: self.sidecar_digest,
             adapter_digest: self.adapter_digest,
             supervisor_digest: self.supervisor_digest,
+            backend: self.backend,
         })
     }
 }
@@ -198,11 +227,10 @@ impl ReplayLaunchContext {
     /// The context owns the validated launch input and benchmark lease. Passing
     /// both directly to the backend prevents a caller from replacing either
     /// value between authority consumption and child creation.
-    pub fn spawn(
-        self,
-        backend: &crate::sandbox::SandboxBackend,
-    ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
-        backend.spawn_launch(self.input, self.lease)
+    pub fn spawn(self) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
+        self.backend
+            .ok_or(SandboxError::DelegationRejected)?
+            .spawn_launch(self.input, self.lease)
     }
 
     /// Validated launch input for the runtime backend.
