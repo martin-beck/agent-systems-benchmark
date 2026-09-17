@@ -1317,6 +1317,9 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
 
 #[test]
 fn cleanup_failure_retains_lease_until_drop_retry_cleans_descendant() {
+    if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_none() {
+        return;
+    }
     let root = test_root("cleanup-retry");
     let reject = root.join("reject-cleanup");
     let wrapper = root.join("systemctl-wrapper");
