@@ -3360,6 +3360,38 @@ mod tests {
             ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "recording"
         ));
 
+        let wrong_runner =
+            ControlCall::RecordingCampaignProgress(asb_control::RecordingCampaignProgressRequest {
+                runner_instance_id: "other-runner".into(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        assert_eq!(
+            backend.execute(&wrong_runner, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let missing_campaign =
+            ControlCall::RecordingCampaignProgress(asb_control::RecordingCampaignProgressRequest {
+                runner_instance_id: backend.runner_instance_id().into(),
+                campaign_id: "campaign-missing".into(),
+            });
+        assert_eq!(
+            backend.execute(&missing_campaign, deadline()),
+            Err(BackendFailure::NotFound)
+        );
+
+        let unavailable_offline = ControlCall::RecordingCampaignOfflineDefault(
+            asb_control::RecordingCampaignOfflineDefaultParams {
+                idempotency_key: "lifecycle-offline-before-capture".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: backend.runner_instance_id().into(),
+                campaign_id: plan.campaign_id.clone(),
+            },
+        );
+        assert_eq!(
+            backend.execute(&unavailable_offline, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+
         let reconcile_call = ControlCall::RecordingCampaignReconcile(
             asb_control::RecordingCampaignReconcileParams {
                 idempotency_key: "lifecycle-reconcile".into(),
@@ -3368,24 +3400,63 @@ mod tests {
                 campaign_id: plan.campaign_id.clone(),
             },
         );
-        let reconciled = execute(reconcile_call).unwrap();
+        let reconciled = execute(reconcile_call.clone()).unwrap();
         assert!(matches!(
             reconciled.result,
             ControlResult::RecordingCampaignLifecycle(ref value)
                 if value.state == "needs_reconciliation"
         ));
+        // Reconciliation is idempotent once the runtime has reported the
+        // provider capture boundary as unresolved.
+        assert_eq!(execute(reconcile_call.clone()).unwrap(), reconciled);
 
         let cancel_call =
             ControlCall::RecordingCampaignCancel(asb_control::RecordingCampaignCancelParams {
                 idempotency_key: "lifecycle-cancel".into(),
                 expected_generation: Revision(2),
                 runner_instance_id: runner,
-                campaign_id: plan.campaign_id,
+                campaign_id: plan.campaign_id.clone(),
             });
-        let cancelled = execute(cancel_call).unwrap();
+        let cancelled = execute(cancel_call.clone()).unwrap();
         assert!(matches!(
             cancelled.result,
             ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "cancelled"
+        ));
+        assert_eq!(execute(cancel_call.clone()).unwrap(), cancelled);
+
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            let record = catalog.recording_campaign.as_mut().unwrap();
+            record.state = "complete".into();
+            record.covered_tuple_count = record.tuple_count;
+            record.offline_ready = true;
+            record.unavailable_reason = None;
+            commit_catalog(&backend.state_root, &catalog).unwrap();
+        }
+        let cancel_complete =
+            ControlCall::RecordingCampaignCancel(asb_control::RecordingCampaignCancelParams {
+                idempotency_key: "lifecycle-cancel-complete".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: backend.runner_instance_id().into(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        assert_eq!(
+            backend.execute(&cancel_complete, deadline()),
+            Err(BackendFailure::Rejected)
+        );
+        let offline_ready = ControlCall::RecordingCampaignOfflineDefault(
+            asb_control::RecordingCampaignOfflineDefaultParams {
+                idempotency_key: "lifecycle-offline-ready".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: backend.runner_instance_id().into(),
+                campaign_id: plan.campaign_id.clone(),
+            },
+        );
+        let activated = execute(offline_ready).unwrap();
+        assert!(matches!(
+            activated.result,
+            ControlResult::RecordingCampaignLifecycle(ref value)
+                if value.state == "complete" && value.offline_ready && value.unavailable_reason.is_none()
         ));
     }
 
