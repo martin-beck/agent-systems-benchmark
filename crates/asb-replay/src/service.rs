@@ -2012,10 +2012,10 @@ mod tests {
             attempt_id: "attempt".into(),
             dialect: ProviderDialect::OpenaiChatCompletions,
         };
-        assert_eq!(
+        assert!(matches!(
             exchange.into_cassette_contents(&route, "cassette-2".into()),
             Err(ReplayError::InvalidHttp)
-        );
+        ));
     }
 
     fn body() -> Value {
