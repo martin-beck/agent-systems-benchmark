@@ -5,11 +5,13 @@
 use super::*;
 use asb_control::{
     AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, AuthStatusResponse, BackendFailure,
-    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend,
-    ControlCall, ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
-    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
-    PlanReference, ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId,
-    RunSummary, SettingsIssue, SettingsValidation,
+    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ConfigurationSnapshot,
+    ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
+    ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
+    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference, ProviderAuthMethod,
+    ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogEntry,
+    ProviderCatalogRequest, ProviderModel, ProvisionedControlServer, PublicRunState,
+    RequestDeadline, Revision, RunId, RunSummary, SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
@@ -108,6 +110,8 @@ enum MutationTarget {
     Repeat { run_id: String },
     Launch { run_id: String, attempt_id: String },
     Cancel { run_id: String, attempt_id: String },
+    ConfigurationApply,
+    RecordingCampaignPlan,
     AuthEnroll { provider: String },
     AuthRotate { provider: String },
     AuthRevoke { provider: String },
@@ -133,6 +137,33 @@ struct Catalog {
     events: Vec<ControlEvent>,
     #[serde(default)]
     auth: BTreeMap<String, AuthRecord>,
+    #[serde(default)]
+    configuration: Option<ConfigurationRecord>,
+    #[serde(default)]
+    recording_campaign: Option<RecordingCampaignRecord>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ConfigurationRecord {
+    agent_ids: Vec<String>,
+    provider_id: String,
+    model_id: String,
+    auth_method: asb_control::ProviderAuthMethod,
+    credential_reference_sha256: Option<String>,
+    generation: u64,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RecordingCampaignRecord {
+    campaign_id: String,
+    provider_id: String,
+    model_id: String,
+    agent_ids: Vec<String>,
+    workload_ids: Vec<String>,
+    tuple_count: u16,
+    generation: u64,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -336,6 +367,8 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         mutations: BTreeMap::new(),
         events: Vec::new(),
         auth: BTreeMap::new(),
+        configuration: None,
+        recording_campaign: None,
     })
 }
 
@@ -349,6 +382,54 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         || catalog.revision.0 != catalog.events.last().map_or(0, |event| event.revision.0)
     {
         return Err(CliError::operation("control catalog is invalid"));
+    }
+    if let Some(configuration) = &catalog.configuration {
+        let snapshot = ConfigurationSnapshot {
+            runner_instance_id: catalog.runner_instance_id.clone(),
+            generation: Revision(configuration.generation),
+            configured: true,
+            agent_ids: configuration.agent_ids.clone(),
+            provider_id: Some(configuration.provider_id.clone()),
+            model_id: Some(configuration.model_id.clone()),
+            auth_method: Some(configuration.auth_method),
+            credential_reference_sha256: configuration.credential_reference_sha256.clone(),
+        };
+        snapshot
+            .validate()
+            .map_err(|_| CliError::operation("control configuration is invalid"))?;
+    }
+    if let Some(campaign) = &catalog.recording_campaign {
+        asb_control::validate_identity(&campaign.campaign_id)
+            .and_then(|_| asb_control::validate_identity(&campaign.provider_id))
+            .and_then(|_| asb_control::validate_identity(&campaign.model_id))
+            .map_err(|_| CliError::operation("control recording campaign identity is invalid"))?;
+        if campaign.generation == 0
+            || campaign.agent_ids.is_empty()
+            || campaign.workload_ids.is_empty()
+            || campaign.tuple_count
+                != u16::try_from(
+                    campaign
+                        .agent_ids
+                        .len()
+                        .saturating_mul(campaign.workload_ids.len()),
+                )
+                .unwrap_or(0)
+        {
+            return Err(CliError::operation("control recording campaign is invalid"));
+        }
+        let mut agents = campaign.agent_ids.clone();
+        let mut workloads = campaign.workload_ids.clone();
+        agents.sort();
+        workloads.sort();
+        if agents != campaign.agent_ids
+            || workloads != campaign.workload_ids
+            || agents.windows(2).any(|pair| pair[0] == pair[1])
+            || workloads.windows(2).any(|pair| pair[0] == pair[1])
+        {
+            return Err(CliError::operation(
+                "control recording campaign ordering is invalid",
+            ));
+        }
     }
     for (plan_id, plan) in &catalog.plans {
         asb_control::validate_identity(plan_id)
@@ -443,6 +524,8 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 asb_control::validate_identity(provider)
                     .map_err(|_| CliError::operation("control auth mutation target is invalid"))?;
             }
+            MutationTarget::ConfigurationApply => {}
+            MutationTarget::RecordingCampaignPlan => {}
         }
         match (mutation.state, mutation.result.as_ref()) {
             (MutationState::Committed, Some(result))
@@ -513,6 +596,25 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .auth
                     .get(provider)
                     .is_some_and(|record| record.provider == *provider),
+                (MutationTarget::ConfigurationApply, ControlResult::Configuration(snapshot)) => {
+                    catalog.configuration.as_ref().is_some_and(|configuration| {
+                        snapshot.configured
+                            && snapshot.generation.0 == configuration.generation
+                            && snapshot.provider_id.as_deref()
+                                == Some(configuration.provider_id.as_str())
+                    })
+                }
+                (MutationTarget::RecordingCampaignPlan, ControlResult::RecordingCampaign(plan)) => {
+                    catalog.recording_campaign.as_ref().is_some_and(|campaign| {
+                        plan.campaign_id == campaign.campaign_id
+                            && plan.generation.0 == campaign.generation
+                            && plan.provider_id == campaign.provider_id
+                            && plan.model_id == campaign.model_id
+                            && plan.agent_ids == campaign.agent_ids
+                            && plan.workload_ids == campaign.workload_ids
+                            && plan.tuple_count == campaign.tuple_count
+                    })
+                }
                 _ => false,
             };
             if !target_matches {
@@ -732,7 +834,9 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             }
             MutationTarget::AuthEnroll { .. }
             | MutationTarget::AuthRotate { .. }
-            | MutationTarget::AuthRevoke { .. } => {}
+            | MutationTarget::AuthRevoke { .. }
+            | MutationTarget::ConfigurationApply
+            | MutationTarget::RecordingCampaignPlan => {}
             MutationTarget::CreatePlan | MutationTarget::Repeat { .. } => {}
         }
     }
@@ -1239,6 +1343,28 @@ impl ControlBackend for RunnerBackend {
                     baseline_measurement_catalog(),
                 )),
             ),
+            ControlCall::ProviderCatalog(request) => {
+                let catalog = self.provider_catalog(request)?;
+                self.bind(call, ControlResult::ProviderCatalog(catalog))
+            }
+            ControlCall::ConfigurationStatus(request) => {
+                let snapshot = self.configuration_status(request)?;
+                self.bind(call, ControlResult::Configuration(snapshot))
+            }
+            ControlCall::ConfigurationApply(params) => {
+                self.configuration_apply(call, params, deadline)
+            }
+            ControlCall::RecordingCampaignEstimate(request) => {
+                let estimate = self.recording_campaign_estimate(request)?;
+                self.bind(call, ControlResult::RecordingCampaignEstimate(estimate))
+            }
+            ControlCall::RecordingCampaignPlan(params) => {
+                self.recording_campaign_plan(call, params, deadline)
+            }
+            ControlCall::RecordingCampaignStatus(request) => {
+                let status = self.recording_campaign_status(request)?;
+                self.bind(call, ControlResult::RecordingCampaignStatus(status))
+            }
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
             // operation fail-closed until the authenticated catalog provider is
@@ -1765,6 +1891,370 @@ impl ControlBackend for RunnerBackend {
     }
 }
 
+impl RunnerBackend {
+    fn recording_campaign_estimate(
+        &self,
+        request: &asb_control::RecordingCampaignEstimateRequest,
+    ) -> Result<asb_control::RecordingCampaignEstimate, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let configuration = self.configuration_status(&ConfigurationStatusRequest {
+            runner_instance_id: self.runner_instance_id.clone(),
+        })?;
+        let tuple_count = request
+            .agent_ids
+            .len()
+            .checked_mul(request.workload_ids.len())
+            .and_then(|count| u16::try_from(count).ok())
+            .ok_or(BackendFailure::Rejected)?;
+        let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
+            action: ProviderCatalogAction::Status,
+            runner_instance_id: self.runner_instance_id.clone(),
+            known_generation: None,
+        })?;
+        let provider_ok = provider_catalog.providers.iter().any(|provider| {
+            provider.provider_id == request.provider_id
+                && matches!(&provider.availability, ProviderAvailability::Available)
+                && provider.models.iter().any(|model| {
+                    model.model_id == request.model_id
+                        && matches!(&model.availability, ProviderAvailability::Available)
+                })
+        });
+        let workloads_ok = request
+            .workload_ids
+            .iter()
+            .all(|workload| OriginalWorkloads::describe(workload).is_ok());
+        let configured_selection_matches = configuration.configured
+            && configuration.provider_id.as_deref() == Some(request.provider_id.as_str())
+            && configuration.model_id.as_deref() == Some(request.model_id.as_str())
+            && configuration.agent_ids == request.agent_ids;
+        let (complete_coverage, offline_ready, unavailable_reason) = if !configuration.configured {
+            (false, false, Some("configuration-required".to_owned()))
+        } else if !configured_selection_matches {
+            (false, false, Some("configuration-mismatch".to_owned()))
+        } else if !provider_ok {
+            (false, false, Some("provider-model-unavailable".to_owned()))
+        } else if !workloads_ok {
+            (false, false, Some("workload-unavailable".to_owned()))
+        } else {
+            // An estimate never fabricates cassette coverage. Recording must
+            // be launched explicitly and then reconciled before offline use.
+            (false, false, Some("recording-required".to_owned()))
+        };
+        Ok(asb_control::RecordingCampaignEstimate {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: configuration.generation,
+            tuple_count,
+            complete_coverage,
+            offline_ready,
+            unavailable_reason,
+        })
+    }
+
+    fn recording_campaign_plan(
+        &self,
+        call: &ControlCall,
+        params: &asb_control::RecordingCampaignPlanParams,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        if params.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let configuration = self.configuration_status(&ConfigurationStatusRequest {
+            runner_instance_id: self.runner_instance_id.clone(),
+        })?;
+        if !configuration.configured
+            || configuration.generation != params.expected_generation
+            || configuration.provider_id.as_deref() != Some(params.provider_id.as_str())
+            || configuration.model_id.as_deref() != Some(params.model_id.as_str())
+            || configuration.agent_ids != params.agent_ids
+        {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
+            action: ProviderCatalogAction::Status,
+            runner_instance_id: self.runner_instance_id.clone(),
+            known_generation: None,
+        })?;
+        let provider = provider_catalog
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == params.provider_id)
+            .ok_or(BackendFailure::Rejected)?;
+        if !matches!(&provider.availability, ProviderAvailability::Available)
+            || !provider.models.iter().any(|model| {
+                model.model_id == params.model_id
+                    && matches!(&model.availability, ProviderAvailability::Available)
+            })
+            || params
+                .workload_ids
+                .iter()
+                .any(|workload| OriginalWorkloads::describe(workload).is_err())
+        {
+            return Err(BackendFailure::Rejected);
+        }
+        let tuple_count = params
+            .agent_ids
+            .len()
+            .checked_mul(params.workload_ids.len())
+            .and_then(|value| u16::try_from(value).ok())
+            .ok_or(BackendFailure::Rejected)?;
+        let request_digest = BoundControlResult::new(
+            call,
+            ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
+        )
+        .map_err(|_| BackendFailure::Rejected)?
+        .request_sha256;
+        let campaign_id = format!("campaign-{}", &request_digest[..24]);
+        let runner_instance_id = self.runner_instance_id.clone();
+        self.mutation(
+            call,
+            &params.idempotency_key,
+            MutationTarget::RecordingCampaignPlan,
+            deadline,
+            |catalog| {
+                catalog.recording_campaign = Some(RecordingCampaignRecord {
+                    campaign_id: campaign_id.clone(),
+                    provider_id: params.provider_id.clone(),
+                    model_id: params.model_id.clone(),
+                    agent_ids: params.agent_ids.clone(),
+                    workload_ids: params.workload_ids.clone(),
+                    tuple_count,
+                    generation: configuration.generation.0,
+                });
+                Ok(ControlResult::RecordingCampaign(
+                    asb_control::RecordingCampaignPlan {
+                        runner_instance_id: runner_instance_id.clone(),
+                        generation: configuration.generation,
+                        campaign_id: campaign_id.clone(),
+                        provider_id: params.provider_id.clone(),
+                        model_id: params.model_id.clone(),
+                        agent_ids: params.agent_ids.clone(),
+                        workload_ids: params.workload_ids.clone(),
+                        tuple_count,
+                        state: "planned".to_owned(),
+                        offline_ready: false,
+                        unavailable_reason: Some("recording-required".to_owned()),
+                    },
+                ))
+            },
+        )
+    }
+
+    fn recording_campaign_status(
+        &self,
+        request: &asb_control::RecordingCampaignStatusRequest,
+    ) -> Result<asb_control::RecordingCampaignStatus, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let campaign =
+            catalog
+                .recording_campaign
+                .as_ref()
+                .map(|record| asb_control::RecordingCampaignPlan {
+                    runner_instance_id: self.runner_instance_id.clone(),
+                    generation: Revision(record.generation),
+                    campaign_id: record.campaign_id.clone(),
+                    provider_id: record.provider_id.clone(),
+                    model_id: record.model_id.clone(),
+                    agent_ids: record.agent_ids.clone(),
+                    workload_ids: record.workload_ids.clone(),
+                    tuple_count: record.tuple_count,
+                    state: "planned".to_owned(),
+                    offline_ready: false,
+                    unavailable_reason: Some("recording-required".to_owned()),
+                });
+        let generation = catalog
+            .configuration
+            .as_ref()
+            .map_or(Revision(1), |configuration| {
+                Revision(configuration.generation)
+            });
+        Ok(asb_control::RecordingCampaignStatus {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation,
+            campaign,
+        })
+    }
+
+    fn configuration_apply(
+        &self,
+        call: &ControlCall,
+        params: &asb_control::ConfigurationApplyParams,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let runner_instance_id = self.runner_instance_id.clone();
+        let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
+            action: ProviderCatalogAction::Status,
+            runner_instance_id: runner_instance_id.clone(),
+            known_generation: None,
+        })?;
+        let provider = provider_catalog
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == params.selection.provider_id)
+            .ok_or(BackendFailure::Rejected)?;
+        if !matches!(&provider.availability, ProviderAvailability::Available)
+            || !provider
+                .auth_methods
+                .contains(&params.selection.auth_method)
+            || !provider.models.iter().any(|model| {
+                model.model_id == params.selection.model_id
+                    && matches!(&model.availability, ProviderAvailability::Available)
+            })
+        {
+            return Err(BackendFailure::Rejected);
+        }
+        self.mutation(
+            call,
+            &params.idempotency_key,
+            MutationTarget::ConfigurationApply,
+            deadline,
+            |catalog| {
+                let actual = catalog
+                    .configuration
+                    .as_ref()
+                    .map_or(1, |configuration| configuration.generation);
+                if actual != params.expected_generation.0 {
+                    return Err(BackendFailure::StaleIdentity);
+                }
+                let next_generation = actual.checked_add(1).ok_or(BackendFailure::Rejected)?;
+                catalog.configuration = Some(ConfigurationRecord {
+                    agent_ids: params.selection.agent_ids.clone(),
+                    provider_id: params.selection.provider_id.clone(),
+                    model_id: params.selection.model_id.clone(),
+                    auth_method: params.selection.auth_method,
+                    credential_reference_sha256: params
+                        .selection
+                        .credential_reference_sha256
+                        .clone(),
+                    generation: next_generation,
+                });
+                Ok(ControlResult::Configuration(ConfigurationSnapshot {
+                    runner_instance_id: runner_instance_id.clone(),
+                    generation: Revision(next_generation),
+                    configured: true,
+                    agent_ids: params.selection.agent_ids.clone(),
+                    provider_id: Some(params.selection.provider_id.clone()),
+                    model_id: Some(params.selection.model_id.clone()),
+                    auth_method: Some(params.selection.auth_method),
+                    credential_reference_sha256: params
+                        .selection
+                        .credential_reference_sha256
+                        .clone(),
+                }))
+            },
+        )
+    }
+
+    fn configuration_status(
+        &self,
+        request: &ConfigurationStatusRequest,
+    ) -> Result<ConfigurationSnapshot, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let Some(configuration) = &catalog.configuration else {
+            return Ok(ConfigurationSnapshot {
+                runner_instance_id: self.runner_instance_id.clone(),
+                generation: Revision(1),
+                configured: false,
+                agent_ids: Vec::new(),
+                provider_id: None,
+                model_id: None,
+                auth_method: None,
+                credential_reference_sha256: None,
+            });
+        };
+        Ok(ConfigurationSnapshot {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(configuration.generation),
+            configured: true,
+            agent_ids: configuration.agent_ids.clone(),
+            provider_id: Some(configuration.provider_id.clone()),
+            model_id: Some(configuration.model_id.clone()),
+            auth_method: Some(configuration.auth_method),
+            credential_reference_sha256: configuration.credential_reference_sha256.clone(),
+        })
+    }
+
+    fn provider_catalog(
+        &self,
+        request: &ProviderCatalogRequest,
+    ) -> Result<ProviderCatalog, BackendFailure> {
+        if matches!(request.action, ProviderCatalogAction::Refresh) {
+            // Discovery and connectivity probing must be supplied by a
+            // verified provider registry; never label a static projection as
+            // refreshed or connected.
+            return Err(BackendFailure::CapabilityUnavailable);
+        }
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let generation = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .revision
+            .0
+            .max(1);
+        if request
+            .known_generation
+            .is_some_and(|known| known.0 > generation)
+        {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let mut catalog = ProviderCatalog {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(generation),
+            catalog_sha256: String::new(),
+            providers: vec![
+                ProviderCatalogEntry {
+                    provider_id: "ollama".into(),
+                    display_name: "Ollama".into(),
+                    auth_methods: vec![ProviderAuthMethod::LocalDaemon, ProviderAuthMethod::None],
+                    models: vec![ProviderModel {
+                        model_id: asb_agents::ollama::OLLAMA_MODEL.into(),
+                        revision: "local-daemon".into(),
+                        availability: ProviderAvailability::Unavailable(
+                            "verified-daemon-unavailable".into(),
+                        ),
+                    }],
+                    availability: ProviderAvailability::Unavailable(
+                        "verified-daemon-unavailable".into(),
+                    ),
+                },
+                ProviderCatalogEntry {
+                    provider_id: "openai".into(),
+                    display_name: "OpenAI".into(),
+                    auth_methods: vec![ProviderAuthMethod::CredentialReference],
+                    models: vec![ProviderModel {
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        revision: "provider-catalog-v1".into(),
+                        availability: ProviderAvailability::Available,
+                    }],
+                    availability: ProviderAvailability::Available,
+                },
+            ],
+            refreshed: false,
+        };
+        catalog.catalog_sha256 = catalog
+            .computed_sha256()
+            .map_err(|_| BackendFailure::Rejected)?;
+        Ok(catalog)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2239,6 +2729,330 @@ mod tests {
             backend.execute(&call, deadline()),
             Err(BackendFailure::CapabilityUnavailable)
         );
+    }
+
+    #[test]
+    fn provider_catalog_exposes_models_and_auth_methods_without_credentials() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Status,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::ProviderCatalog(catalog) = result.result else {
+            panic!("provider catalog result");
+        };
+        assert_eq!(catalog.providers.len(), 2);
+        assert_eq!(catalog.providers[0].provider_id, "ollama");
+        assert_eq!(catalog.providers[1].provider_id, "openai");
+        assert_eq!(
+            catalog.providers[1].models[0].model_id,
+            asb_agents::openai::OPENAI_MODEL
+        );
+        assert!(matches!(
+            catalog.providers[0].availability,
+            asb_control::ProviderAvailability::Unavailable(_)
+        ));
+        let encoded = serde_json::to_string(&catalog).unwrap();
+        assert!(!encoded.contains("api_key"));
+        assert!(!encoded.contains("sk-"));
+        let refresh = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Refresh,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        assert_eq!(
+            backend.execute(&refresh, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+
+        let socket = scratch.0.join("provider-catalog.sock");
+        let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
+        let service = thread::spawn(move || server.serve_one());
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            &socket,
+            ControlLimits::default(),
+            [asb_control::CONTROL_PROVIDER_CATALOG_V1],
+        )
+        .expect("connect provider catalog client");
+        let runner_instance_id = client.negotiated().runner_instance_id.clone();
+        let response = client
+            .call(
+                ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Status,
+                    runner_instance_id,
+                    known_generation: None,
+                }),
+                5_000,
+            )
+            .expect("provider catalog response")
+            .into_result()
+            .expect("successful result");
+        assert!(
+            matches!(response, ControlSuccess::Operation(operation) if matches!(operation.result, ControlResult::ProviderCatalog(_)))
+        );
+        drop(client);
+        service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn configuration_status_is_explicitly_unconfigured_and_generation_bound() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+        });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::Configuration(snapshot) = result.result else {
+            panic!("configuration result");
+        };
+        assert!(!snapshot.configured);
+        assert_eq!(snapshot.generation, Revision(1));
+        assert!(snapshot.provider_id.is_none());
+        assert!(snapshot.credential_reference_sha256.is_none());
+    }
+
+    #[test]
+    fn configuration_apply_is_idempotent_and_generation_fenced() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let runner_instance_id = backend.runner_instance_id().to_owned();
+        let selection = asb_control::ConfigurationSelection {
+            agent_ids: vec!["aider".into()],
+            provider_id: "openai".into(),
+            model_id: asb_agents::openai::OPENAI_MODEL.into(),
+            auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+            credential_reference_sha256: Some("a".repeat(64)),
+        };
+        let call = ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+            idempotency_key: "configure-1".into(),
+            expected_generation: Revision(1),
+            selection,
+        });
+        let first = backend.execute(&call, deadline()).unwrap();
+        first
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let second = backend.execute(&call, deadline()).unwrap();
+        assert_eq!(first, second);
+        let stale = ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+            idempotency_key: "configure-2".into(),
+            expected_generation: Revision(1),
+            selection: match &call {
+                ControlCall::ConfigurationApply(params) => params.selection.clone(),
+                _ => unreachable!(),
+            },
+        });
+        assert_eq!(
+            backend.execute(&stale, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let status = backend
+            .execute(
+                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                    runner_instance_id,
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::Configuration(snapshot) = status.result else {
+            panic!("configuration status result");
+        };
+        assert!(snapshot.configured);
+        assert_eq!(snapshot.generation, Revision(2));
+
+        // Configuration is a durable default, not merely an in-memory wizard
+        // draft.  A fresh backend instance must expose the same privacy-safe
+        // selection and generation after restart.
+        drop(backend);
+        let restarted = open_backend(state).unwrap();
+        let restarted_status = restarted
+            .execute(
+                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                    runner_instance_id: restarted.runner_instance_id().to_owned(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::Configuration(restarted_snapshot) = restarted_status.result else {
+            panic!("restarted configuration result");
+        };
+        assert_eq!(restarted_snapshot.generation, Revision(2));
+        assert_eq!(restarted_snapshot.agent_ids, vec!["aider"]);
+        assert_eq!(restarted_snapshot.provider_id.as_deref(), Some("openai"));
+        assert_eq!(
+            restarted_snapshot.model_id.as_deref(),
+            Some(asb_agents::openai::OPENAI_MODEL)
+        );
+        assert_eq!(
+            restarted_snapshot.credential_reference_sha256,
+            Some("a".repeat(64))
+        );
+    }
+
+    #[test]
+    fn recording_estimate_covers_all_current_workloads_without_fabricating_offline_ready() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        backend
+            .execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "recording-config".into(),
+                    expected_generation: Revision(1),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: vec!["aider".into()],
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                        credential_reference_sha256: Some("b".repeat(64)),
+                    },
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let call =
+            ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: vec!["aider".into()],
+                workload_ids: OriginalWorkloads::fixture_ids()
+                    .iter()
+                    .map(|id| (*id).to_owned())
+                    .collect(),
+            });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCampaignEstimate(estimate) = result.result else {
+            panic!("recording estimate result");
+        };
+        assert_eq!(estimate.tuple_count, 7);
+        assert!(!estimate.complete_coverage);
+        assert!(!estimate.offline_ready);
+        assert_eq!(
+            estimate.unavailable_reason.as_deref(),
+            Some("recording-required")
+        );
+
+        let mismatched =
+            ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: vec!["codex".into()],
+                workload_ids: OriginalWorkloads::fixture_ids()
+                    .iter()
+                    .map(|id| (*id).to_owned())
+                    .collect(),
+            });
+        let ControlResult::RecordingCampaignEstimate(mismatch) =
+            backend.execute(&mismatched, deadline()).unwrap().result
+        else {
+            panic!("mismatched recording estimate result");
+        };
+        assert_eq!(
+            mismatch.unavailable_reason.as_deref(),
+            Some("configuration-mismatch")
+        );
+    }
+
+    #[test]
+    fn recording_campaign_plan_is_durable_idempotent_and_not_offline_ready() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let runner_instance_id = backend.runner_instance_id().to_owned();
+        backend
+            .execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "campaign-config".into(),
+                    expected_generation: Revision(1),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: vec!["aider".into()],
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                        credential_reference_sha256: Some("c".repeat(64)),
+                    },
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let call = ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
+            idempotency_key: "campaign-plan".into(),
+            expected_generation: Revision(2),
+            runner_instance_id,
+            provider_id: "openai".into(),
+            model_id: asb_agents::openai::OPENAI_MODEL.into(),
+            agent_ids: vec!["aider".into()],
+            workload_ids: vec![
+                "original.bug-fix".into(),
+                "original.feature-addition".into(),
+            ],
+        });
+        let first = backend.execute(&call, deadline()).unwrap();
+        first
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let second = backend.execute(&call, deadline()).unwrap();
+        assert_eq!(first, second);
+        let ControlResult::RecordingCampaign(plan) = first.result else {
+            panic!("campaign plan result");
+        };
+        assert_eq!(plan.tuple_count, 2);
+        assert_eq!(plan.state, "planned");
+        assert!(!plan.offline_ready);
+        assert_eq!(
+            plan.unavailable_reason.as_deref(),
+            Some("recording-required")
+        );
+
+        drop(backend);
+        let restarted = open_backend(state).unwrap();
+        let status = restarted
+            .execute(
+                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                    runner_instance_id: restarted.runner_instance_id().to_owned(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        assert!(
+            matches!(status.result, ControlResult::Configuration(snapshot) if snapshot.configured)
+        );
+        let campaign_status_call =
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: restarted.runner_instance_id().to_owned(),
+            });
+        let campaign_status = restarted
+            .execute(&campaign_status_call, deadline())
+            .unwrap();
+        campaign_status
+            .validate_for_call(&campaign_status_call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCampaignStatus(campaign_status) = campaign_status.result else {
+            panic!("campaign status result");
+        };
+        assert!(campaign_status.campaign.is_some());
     }
 
     #[test]

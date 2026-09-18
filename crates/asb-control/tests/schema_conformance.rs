@@ -7,9 +7,10 @@ use asb_control::{
     ControlSuccess, HistoryEvidence, ProtocolError, analysis_evidence_schema, control_event_schema,
     control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
     control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
-    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
-    control_response_schema_v1_4, control_response_schema_v1_5, control_response_schema_v1_6,
-    history_evidence_schema, validate_request,
+    control_request_schema_v1_7, control_response_schema, control_response_schema_v1_2,
+    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
+    control_response_schema_v1_6, control_response_schema_v1_7, history_evidence_schema,
+    validate_request,
 };
 use serde_json::{Value, json};
 
@@ -25,6 +26,8 @@ const REQUEST_SCHEMA_V1_5: &str = include_str!("../schema/v1.5/request.schema.js
 const RESPONSE_SCHEMA_V1_5: &str = include_str!("../schema/v1.5/response.schema.json");
 const REQUEST_SCHEMA_V1_6: &str = include_str!("../schema/v1.6/request.schema.json");
 const RESPONSE_SCHEMA_V1_6: &str = include_str!("../schema/v1.6/response.schema.json");
+const REQUEST_SCHEMA_V1_7: &str = include_str!("../schema/v1.7/request.schema.json");
+const RESPONSE_SCHEMA_V1_7: &str = include_str!("../schema/v1.7/response.schema.json");
 const EVENT_SCHEMA: &str = include_str!("../schema/v1/event.schema.json");
 const NEGOTIATE: &str = include_str!("../fixtures/v1/negotiate-request.json");
 const LAUNCH: &str = include_str!("../fixtures/v1/launch-request.json");
@@ -302,6 +305,8 @@ fn checked_in_schemas_equal_fresh_generation() {
     let generated_response_v1_5 = serde_json::to_value(control_response_schema_v1_5()).unwrap();
     let generated_request_v1_6 = serde_json::to_value(control_request_schema_v1_6()).unwrap();
     let generated_response_v1_6 = serde_json::to_value(control_response_schema_v1_6()).unwrap();
+    let generated_request_v1_7 = serde_json::to_value(control_request_schema_v1_7()).unwrap();
+    let generated_response_v1_7 = serde_json::to_value(control_response_schema_v1_7()).unwrap();
     let generated_event = serde_json::to_value(control_event_schema()).unwrap();
     let generated_history = serde_json::to_value(history_evidence_schema()).unwrap();
     let generated_analysis = serde_json::to_value(analysis_evidence_schema()).unwrap();
@@ -352,6 +357,14 @@ fn checked_in_schemas_equal_fresh_generation() {
     assert_eq!(
         serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_6).unwrap(),
         generated_response_v1_6
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(REQUEST_SCHEMA_V1_7).unwrap(),
+        generated_request_v1_7
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_7).unwrap(),
+        generated_response_v1_7
     );
     assert_eq!(
         serde_json::from_str::<Value>(EVENT_SCHEMA).unwrap(),
