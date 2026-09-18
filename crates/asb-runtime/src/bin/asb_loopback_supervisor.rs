@@ -9,6 +9,7 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -120,10 +121,25 @@ fn spawn_ready_sidecar(args: &[String], executable: &str) -> Result<Child, Strin
         .stdout
         .take()
         .ok_or_else(|| "sidecar readiness pipe unavailable".to_owned())?;
-    let mut line = String::new();
-    BufReader::new(stdout)
-        .read_line(&mut line)
-        .map_err(|_| "sidecar readiness read failed")?;
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut line = String::new();
+        let result = BufReader::new(stdout).read_line(&mut line).map(|_| line);
+        let _ = sender.send(result);
+    });
+    let line = match receiver.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(line)) => line,
+        Ok(Err(_)) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("sidecar readiness read failed".into());
+        }
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("sidecar readiness timed out".into());
+        }
+    };
     if line.trim_end() != "ASB_SIDECAR_READY" {
         let _ = child.kill();
         let _ = child.wait();
