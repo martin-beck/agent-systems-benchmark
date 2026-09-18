@@ -272,6 +272,22 @@ pub struct ReplayHttpResponse {
     pub recorded_offsets: Vec<Duration>,
 }
 
+/// One bounded provider exchange observed at the runtime-owned capture seam.
+///
+/// The forwarding callback receives the original request so the runtime can
+/// attach credentials and contact the selected provider. The returned
+/// exchange is sanitized before it leaves this boundary: credential-bearing
+/// transport headers are omitted, while bodies remain bounded raw input for
+/// the recording redaction policy. Callers must pass it through
+/// [`crate::seal_recording`] before persistence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProviderCaptureExchange {
+    /// Request after credential-bearing transport headers were removed.
+    pub request: ReplayHttpRequest,
+    /// Response after credential-bearing transport headers were removed.
+    pub response: ReplayHttpResponse,
+}
+
 /// Encode one strict request for the runtime-owned operation transport.
 pub fn encode_dispatch_request(request: &ReplayDispatchRequest) -> Result<Vec<u8>, ReplayError> {
     request.validate()?;
@@ -539,6 +555,35 @@ impl StrictReplayService {
             &CancellationToken::default(),
         )
         .map(|report| report.status)
+    }
+
+    /// Capture one authenticated provider exchange without owning provider
+    /// credentials or opening an outbound socket.
+    ///
+    /// Authentication and provider forwarding are runtime responsibilities.
+    /// The callback may receive the original request, including credentials,
+    /// but the returned exchange is sanitized and bounded for the recording
+    /// redaction boundary. A callback failure is returned without writing a
+    /// provider response to the client.
+    pub fn capture_authenticated_connection<S, F>(
+        &self,
+        stream: &mut S,
+        route: &ReplayRoute,
+        forward: F,
+    ) -> Result<ProviderCaptureExchange, ReplayError>
+    where
+        S: Read + Write,
+        F: FnOnce(&ReplayRoute, &ReplayHttpRequest) -> Result<ReplayHttpResponse, ReplayError>,
+    {
+        let request = read_http_request(stream, self.limits)?;
+        validate_http_request(&request, self.limits)?;
+        let response = forward(route, &request)?;
+        validate_http_response(&response, self.limits)?;
+        write_http_response(stream, &response).map_err(ReplayError::Io)?;
+        Ok(ProviderCaptureExchange {
+            request: sanitize_capture_request(request),
+            response: sanitize_capture_response(response),
+        })
     }
 
     #[cfg(test)]
@@ -1246,6 +1291,60 @@ fn validate_http_request(
     Ok(())
 }
 
+fn validate_http_response(
+    response: &ReplayHttpResponse,
+    limits: ReplayLimits,
+) -> Result<(), ReplayError> {
+    if !(100..=599).contains(&response.status)
+        || response.headers.len() > limits.max_headers
+        || response.segments.is_empty()
+        || response
+            .segments
+            .iter()
+            .any(|segment| segment.len() > limits.max_body_bytes)
+        || response
+            .segments
+            .iter()
+            .try_fold(0_usize, |total, segment| total.checked_add(segment.len()))
+            .is_none_or(|total| total > limits.max_body_bytes)
+    {
+        return Err(ReplayError::InvalidHttp);
+    }
+    let mut previous: Option<&str> = None;
+    for header in &response.headers {
+        if header.name != header.name.to_ascii_lowercase()
+            || !valid_header_name(&header.name)
+            || header.value.chars().any(char::is_control)
+            || previous.is_some_and(|name| name >= header.name.as_str())
+        {
+            return Err(ReplayError::InvalidHttp);
+        }
+        previous = Some(&header.name);
+    }
+    Ok(())
+}
+
+fn capture_sensitive_header(name: &str) -> bool {
+    matches!(
+        name,
+        "authorization" | "proxy-authorization" | "cookie" | "set-cookie" | "x-api-key"
+    )
+}
+
+fn sanitize_capture_request(mut request: ReplayHttpRequest) -> ReplayHttpRequest {
+    request
+        .headers
+        .retain(|header| !capture_sensitive_header(&header.name));
+    request
+}
+
+fn sanitize_capture_response(mut response: ReplayHttpResponse) -> ReplayHttpResponse {
+    response
+        .headers
+        .retain(|header| !capture_sensitive_header(&header.name));
+    response
+}
+
 fn request_matches(
     incoming: &ReplayHttpRequest,
     expected: &RecordedRequest,
@@ -1658,6 +1757,73 @@ mod tests {
         assert_eq!(error.kind(), ErrorKind::TimedOut);
         assert!(elapsed < Duration::from_millis(100));
         assert!(slow.writes < 1_024);
+    }
+
+    #[test]
+    fn capture_boundary_forwards_credentials_but_returns_sanitized_exchange() {
+        let input = b"POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer secret\r\ncontent-length: 2\r\n\r\n{}".to_vec();
+        let mut io = MemoryIo::new(input);
+        let route = ReplayRoute {
+            session_id: "session".into(),
+            attempt_id: "attempt".into(),
+            dialect: ProviderDialect::OpenaiChatCompletions,
+        };
+        let exchange = StrictReplayService {
+            state: Mutex::new(ReplayState {
+                routes: BTreeMap::new(),
+                cursors: BTreeMap::new(),
+                reservations: BTreeMap::new(),
+                sensitive_headers: BTreeSet::new(),
+                request_body_pointers: BTreeMap::new(),
+            }),
+            limits: ReplayLimits::default(),
+        }
+        .capture_authenticated_connection(&mut io, &route, |callback_route, request| {
+            assert_eq!(callback_route, &route);
+            assert_eq!(
+                request
+                    .headers
+                    .iter()
+                    .find(|header| header.name == "authorization")
+                    .map(|header| header.value.as_str()),
+                Some("Bearer secret")
+            );
+            Ok(ReplayHttpResponse {
+                status: 200,
+                headers: vec![
+                    Header {
+                        name: "content-type".into(),
+                        value: "application/json".into(),
+                    },
+                    Header {
+                        name: "set-cookie".into(),
+                        value: "secret=1".into(),
+                    },
+                ],
+                segments: vec![b"{}".to_vec()],
+                recorded_offsets: vec![Duration::ZERO],
+            })
+        })
+        .unwrap();
+        assert!(
+            exchange
+                .request
+                .headers
+                .iter()
+                .all(|header| header.name != "authorization")
+        );
+        assert!(
+            exchange
+                .response
+                .headers
+                .iter()
+                .all(|header| header.name != "set-cookie")
+        );
+        assert!(
+            String::from_utf8(io.output)
+                .unwrap()
+                .contains("content-length: 2")
+        );
     }
 
     fn body() -> Value {
