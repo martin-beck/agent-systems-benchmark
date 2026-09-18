@@ -3,8 +3,8 @@
 //! Native rootless namespace and delegated cgroup boundary tests.
 
 use asb_replay::{
-    CassetteLimits, Header, ProviderDialect, ReplayDispatchRequest, ReplayHttpRequest, ReplayRoute,
-    StrictReplayService, decode_cassette, encode_dispatch_request, encode_dispatch_response,
+    CassetteLimits, Header, ProviderDialect, ReplayHttpRequest, ReplayRoute, StrictReplayService,
+    decode_cassette,
 };
 use asb_runtime::launch_factory::ReplayLaunchFactory;
 use asb_runtime::relay::ReplayRelay;
@@ -976,10 +976,11 @@ fn run_supervised_fault(
     adapter_arguments: Vec<String>,
     timeout: Duration,
     cancel_after: Option<Duration>,
+    authenticated_request: bool,
 ) -> (Termination, Option<i32>, TestRoot, String) {
     let root = test_root(name);
     let generation = format!("fault-{name}");
-    let relay = ReplayRelay::bind(&root, &generation).unwrap();
+    let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
     let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
     let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
     let supervisor_path = executable_dir
@@ -989,18 +990,87 @@ fn run_supervised_fault(
         .unwrap()
         .join("asb_loopback_supervisor");
     assert!(supervisor_path.is_file());
-    let sidecar = PinnedCommand::new_verified(
-        sidecar_executable.to_owned(),
-        sidecar_arguments,
-        &file_sha256(sidecar_executable),
-    )
-    .unwrap();
-    let adapter = PinnedCommand::new_verified(
-        adapter_executable.to_owned(),
-        adapter_arguments,
-        &file_sha256(adapter_executable),
-    )
-    .unwrap();
+    let cassette_bytes =
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+    let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
+    let request_body =
+        serde_json::to_string(&cassette.contents.interactions[0].request.body).unwrap();
+    let route = ReplayRoute {
+        session_id: "gemini-public-session".into(),
+        attempt_id: "attempt-1".into(),
+        dialect: ProviderDialect::GeminiGenerateContent,
+    };
+    let mut server = None;
+    let (sidecar_arguments, adapter_arguments) = if authenticated_request {
+        let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+        let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = port_probe.local_addr().unwrap().port();
+        drop(port_probe);
+        let server_route = route.clone();
+        server = Some(thread::spawn(move || -> Result<u16, String> {
+            let mut stream = relay
+                .accept_authenticated()
+                .map_err(|error| format!("relay authentication failed: {error}"))?;
+            service
+                .serve_authenticated_connection(&mut stream, &server_route)
+                .map_err(|error| format!("strict cassette service failed: {error}"))
+        }));
+        let request = format!(
+            "curl --fail --silent --connect-timeout 3 --max-time 10 --header 'accept:' --header 'content-type: application/json' --header \"$(printf 'x-goog-api-key: %s' \"$ASB_FIXTURE_KEY\")\" --data-binary @/workspace/work/replay-request.json http://127.0.0.1:{port}/v1beta/models/fixture-model:streamGenerateContent?alt=sse && {}",
+            adapter_arguments
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "true".into())
+        );
+        (
+            vec![
+                "--listen".into(),
+                format!("127.0.0.1:{port}"),
+                "--relay".into(),
+                "/tmp/asb-replay-relay.sock".into(),
+                "--generation".into(),
+                generation.clone(),
+            ],
+            vec!["-c".into(), request],
+        )
+    } else {
+        (sidecar_arguments, adapter_arguments)
+    };
+    let executable_path = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let executable_parent = executable_path.parent().unwrap();
+    let executable_dir =
+        if executable_parent.file_name().and_then(|name| name.to_str()) == Some("deps") {
+            executable_parent.parent().unwrap().to_owned()
+        } else {
+            executable_parent.to_owned()
+        };
+    let sidecar_executable = if authenticated_request {
+        executable_dir.join("asb_loopback_sidecar")
+    } else {
+        sidecar_executable.to_owned()
+    };
+    assert!(
+        sidecar_executable.is_file(),
+        "pinned sidecar fixture is missing"
+    );
+    let sidecar_digest = file_sha256(&sidecar_executable);
+    let sidecar =
+        PinnedCommand::new_verified(sidecar_executable, sidecar_arguments, &sidecar_digest)
+            .unwrap();
+    let mut environment = BTreeMap::new();
+    if authenticated_request {
+        fs::write(root.join("work/replay-request.json"), &request_body).unwrap();
+        environment.insert("ASB_FIXTURE_KEY".into(), "fixture-key".into());
+    }
+    let adapter_executable = if authenticated_request {
+        PathBuf::from("/bin/sh")
+    } else {
+        adapter_executable.to_owned()
+    };
+    let adapter_digest = file_sha256(&adapter_executable);
+    let adapter =
+        PinnedCommand::new_verified(adapter_executable, adapter_arguments, &adapter_digest)
+            .unwrap();
     let supervisor = PinnedCommand::new_verified(
         supervisor_path.clone(),
         Vec::new(),
@@ -1024,7 +1094,7 @@ fn run_supervised_fault(
         PathBuf::from("work"),
         "/bin/true".into(),
         Vec::new(),
-        BTreeMap::new(),
+        environment,
         resources,
         NetworkPolicy::Deny,
     )
@@ -1039,53 +1109,7 @@ fn run_supervised_fault(
         .attest_replay_launch(&input, &lease, &cassette_digest)
         .unwrap();
     let authority = ReplayLaunchFactory::issue(token, input, lease, cassette_digest).unwrap();
-    let mut context = authority.consume_for(&"c".repeat(64)).unwrap();
-    let mut operation = context.issue_operation().unwrap();
-    let cassette = decode_cassette(
-        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
-        CassetteLimits::default(),
-    )
-    .unwrap();
-    let request_body = serde_json::to_vec(&cassette.contents.interactions[0].request.body).unwrap();
-    let dispatch = ReplayDispatchRequest {
-        route: ReplayRoute {
-            session_id: "gemini-public-session".into(),
-            attempt_id: "attempt-1".into(),
-            dialect: ProviderDialect::GeminiGenerateContent,
-        },
-        request: ReplayHttpRequest {
-            method: "POST".into(),
-            path: "/v1beta/models/fixture-model:streamGenerateContent?alt=sse".into(),
-            headers: vec![
-                Header {
-                    name: "content-type".into(),
-                    value: "application/json".into(),
-                },
-                Header {
-                    name: "x-goog-api-key".into(),
-                    value: "fixture-key".into(),
-                },
-            ],
-            body: request_body,
-        },
-    };
-    let dispatch_payload = encode_dispatch_request(&dispatch).unwrap();
-    let dispatch_result = operation
-        .dispatch(format!("fault-{name}"), dispatch_payload, move |payload| {
-            let request = asb_replay::decode_dispatch_request(&payload)
-                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)?;
-            let service = StrictReplayService::new(cassette, Default::default())
-                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)?;
-            let response = service
-                .handle(&request.route, request.request)
-                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)?;
-            encode_dispatch_response(&response)
-                .map_err(|_| asb_core::replay_transport::ReplayTransportError::InvalidEnvelope)
-        })
-        .unwrap();
-    let response = asb_replay::decode_dispatch_response(&dispatch_result).unwrap();
-    assert_eq!(response.status, 200);
-    assert!(!response.segments.is_empty());
+    let context = authority.consume_for(&"c".repeat(64)).unwrap();
     let result = match context.spawn(backend) {
         Ok(mut process) => {
             if let Some(delay) = cancel_after {
@@ -1105,7 +1129,16 @@ fn run_supervised_fault(
         }
         Err(error) => panic!("supervised fault {name} failed to spawn: {error:?}"),
     };
-    drop(relay);
+    if let Some(server) = server {
+        let server_result = server.join().unwrap();
+        if authenticated_request {
+            assert_eq!(
+                server_result,
+                Ok(200),
+                "authenticated relay failure: {server_result:?}"
+            );
+        }
+    }
     result
 }
 
@@ -1139,16 +1172,13 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             "provider-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
             shell,
-            vec![
-                "-c".into(),
-                "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/".into(),
-            ],
+            vec!["-c".into(), "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/; rc=$?; printf 'ASB_PROVIDER_EGRESS_RC=%s\\n' \"$rc\"; exit \"$rc\"".into()],
         ),
         (
             "descendant-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
             shell,
-            vec!["-c".into(), "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/".into()],
+            vec!["-c".into(), "sh -c 'curl --noproxy \\* --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/; exit 19'".into()],
         ),
     ];
     for (name, sidecar_args, adapter, adapter_args) in cases {
@@ -1166,6 +1196,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             adapter_args,
             fault_timeout,
             None,
+            name != "sidecar-crash",
         );
         assert_eq!(
             termination,
@@ -1173,6 +1204,12 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             "fault {name} did not reach a terminal state"
         );
         assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
+        if name == "provider-egress-denied" {
+            assert_eq!(exit_code, Some(7), "provider egress cause missing");
+        }
+        if name == "descendant-egress-denied" {
+            assert_eq!(exit_code, Some(19), "descendant egress cause missing");
+        }
     }
     let (termination, exit_code, crash_root, _) = run_supervised_fault(
         &backend,
@@ -1183,6 +1220,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         Vec::new(),
         Duration::from_secs(2),
         None,
+        false,
     );
     assert_eq!(termination, Termination::Exited);
     assert_ne!(exit_code, Some(0));
@@ -1196,6 +1234,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         Vec::new(),
         Duration::from_secs(2),
         None,
+        true,
     );
     assert_eq!(termination, Termination::Exited);
     assert_eq!(exit_code, Some(0));
@@ -1210,6 +1249,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         Vec::new(),
         Duration::from_secs(2),
         None,
+        false,
     );
     assert_eq!(termination, Termination::Exited);
     assert_ne!(exit_code, Some(0));
@@ -1231,6 +1271,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             Vec::new(),
             Duration::from_secs(2),
             None,
+            true,
         );
         assert_eq!(termination, Termination::Exited);
         assert_eq!(exit_code, Some(0));
@@ -1249,6 +1290,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         vec!["-c".into(), "sleep 30".into()],
         Duration::from_secs(2),
         Some(Duration::from_millis(20)),
+        true,
     );
     assert_eq!(termination, Termination::Cancelled);
     assert_eq!(exit_code, None);

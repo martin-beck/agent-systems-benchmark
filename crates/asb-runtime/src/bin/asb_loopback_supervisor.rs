@@ -26,7 +26,19 @@ fn repeated(args: &[String], name: &str) -> Vec<String> {
         .collect()
 }
 
-fn main() -> Result<(), String> {
+fn main() {
+    if let Err(error) = run() {
+        let code = error
+            .strip_prefix("adapter failed: ")
+            .and_then(|value| value.parse::<i32>().ok())
+            .filter(|value| (1..=125).contains(value))
+            .unwrap_or(1);
+        eprintln!("{error}");
+        std::process::exit(code);
+    }
+}
+
+fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().skip(1).collect();
     if args
         .iter()
@@ -107,10 +119,26 @@ fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Resul
         }
         if adapter_done.is_none() {
             adapter_done = adapter.try_wait().map_err(|_| "adapter wait failed")?;
-            if adapter_done.is_some_and(|status| !status.success()) {
+            if adapter_done
+                .as_ref()
+                .is_some_and(|status| !status.success())
+            {
+                if let Some(status) = adapter_done.as_ref() {
+                    println!(
+                        "ASB_SUPERVISED_ADAPTER_EXIT={}",
+                        status.code().unwrap_or(-1)
+                    );
+                    let _ = io::stdout().flush();
+                }
                 let _ = sidecar.kill();
                 let _ = sidecar.wait();
-                return Err("adapter failed".into());
+                return Err(format!(
+                    "adapter failed: {}",
+                    adapter_done
+                        .as_ref()
+                        .and_then(std::process::ExitStatus::code)
+                        .unwrap_or(1)
+                ));
             }
         }
         if adapter_done.is_some_and(|status| status.success()) && sidecar_done.is_none() {
