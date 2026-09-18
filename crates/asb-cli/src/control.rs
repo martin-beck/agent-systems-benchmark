@@ -3289,6 +3289,27 @@ mod tests {
     }
 
     #[test]
+    fn recording_campaign_status_is_empty_before_a_plan() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call =
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+            });
+
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCampaignStatus(status) = result.result else {
+            panic!("campaign status result");
+        };
+        assert!(status.campaign.is_none());
+    }
+
+    #[test]
     fn recording_campaign_lifecycle_transitions_are_durable_and_fail_closed() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
