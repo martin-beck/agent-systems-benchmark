@@ -615,6 +615,70 @@
         "events"
       ]
     },
+    "ConfigurationSnapshot": {
+      "description": "Privacy-safe setup projection consumed by independent frontends.",
+      "type": "object",
+      "properties": {
+        "agent_ids": {
+          "description": "Selected agent IDs, sorted and without executable paths.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "auth_method": {
+          "description": "Selected authentication method, if configured.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthMethod"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configured": {
+          "description": "Whether a complete selectable configuration is present.",
+          "type": "boolean"
+        },
+        "credential_reference_sha256": {
+          "description": "Digest of a credential reference, never the credential itself.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generation": {
+          "description": "Monotonic setup generation used for later mutation fencing.",
+          "$ref": "#/$defs/Revision"
+        },
+        "model_id": {
+          "description": "Selected provider model, if configured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_id": {
+          "description": "Selected provider profile, if configured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runner_instance_id": {
+          "description": "Runner instance identity.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id",
+        "generation",
+        "configured",
+        "agent_ids"
+      ]
+    },
     "ControlEvent": {
       "description": "Privacy-reviewed public runner event.",
       "type": "object",
@@ -970,6 +1034,24 @@
             },
             "value": {
               "$ref": "#/$defs/ProviderCatalog"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Privacy-safe current setup projection.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "configuration"
+            },
+            "value": {
+              "$ref": "#/$defs/ConfigurationSnapshot"
             }
           },
           "additionalProperties": false,

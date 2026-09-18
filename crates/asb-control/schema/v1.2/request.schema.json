@@ -53,6 +53,23 @@
       ]
     },
     {
+      "description": "Read the current privacy-safe setup projection.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "configuration_status"
+        },
+        "params": {
+          "$ref": "#/$defs/ConfigurationStatusRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Obtain the immutable catalog of selectable measurements.",
       "type": "object",
       "properties": {
@@ -321,6 +338,20 @@
         "run_id",
         "attempt_id",
         "idempotency_key"
+      ]
+    },
+    "ConfigurationStatusRequest": {
+      "description": "Read-only request for the runner's current setup state.",
+      "type": "object",
+      "properties": {
+        "runner_instance_id": {
+          "description": "Runner identity received during protocol negotiation.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id"
       ]
     },
     "ControlLimits": {

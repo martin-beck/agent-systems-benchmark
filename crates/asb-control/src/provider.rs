@@ -110,6 +110,87 @@ pub struct ProviderCatalog {
     pub refreshed: bool,
 }
 
+/// Read-only request for the runner's current setup state.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationStatusRequest {
+    /// Runner identity received during protocol negotiation.
+    pub runner_instance_id: String,
+}
+
+/// Privacy-safe setup projection consumed by independent frontends.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationSnapshot {
+    /// Runner instance identity.
+    pub runner_instance_id: String,
+    /// Monotonic setup generation used for later mutation fencing.
+    pub generation: Revision,
+    /// Whether a complete selectable configuration is present.
+    pub configured: bool,
+    /// Selected agent IDs, sorted and without executable paths.
+    pub agent_ids: Vec<String>,
+    /// Selected provider profile, if configured.
+    pub provider_id: Option<String>,
+    /// Selected provider model, if configured.
+    pub model_id: Option<String>,
+    /// Selected authentication method, if configured.
+    pub auth_method: Option<ProviderAuthMethod>,
+    /// Digest of a credential reference, never the credential itself.
+    pub credential_reference_sha256: Option<String>,
+}
+
+impl ConfigurationStatusRequest {
+    /// Validate request identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)
+    }
+}
+
+impl ConfigurationSnapshot {
+    /// Validate explicit configured/unconfigured invariants and privacy bounds.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        if self.generation.0 == 0 || self.agent_ids.len() > MAX_PROVIDERS {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        let mut agents = BTreeSet::new();
+        let mut previous = None;
+        for agent in &self.agent_ids {
+            validate_catalog_string(agent)?;
+            if previous.is_some_and(|value: &str| value >= agent.as_str())
+                || !agents.insert(agent.as_str())
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            previous = Some(agent.as_str());
+        }
+        for value in [&self.provider_id, &self.model_id].into_iter().flatten() {
+            validate_catalog_string(value)?;
+        }
+        if let Some(digest) = &self.credential_reference_sha256 {
+            validate_digest(digest)?;
+        }
+        let complete = self.configured
+            && !self.agent_ids.is_empty()
+            && self.provider_id.is_some()
+            && self.model_id.is_some()
+            && self.auth_method.is_some();
+        if complete != self.configured {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if !self.configured
+            && (self.credential_reference_sha256.is_some()
+                || self.provider_id.is_some()
+                || self.model_id.is_some()
+                || self.auth_method.is_some())
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+
 impl ProviderCatalogRequest {
     /// Validate request shape and generation binding supplied by the client.
     pub fn validate(&self) -> Result<(), ProtocolError> {

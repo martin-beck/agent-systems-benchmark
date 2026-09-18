@@ -5,13 +5,13 @@
 use super::*;
 use asb_control::{
     AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, AuthStatusResponse, BackendFailure,
-    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend,
-    ControlCall, ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
-    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
-    PlanReference, ProviderAuthMethod, ProviderAvailability, ProviderCatalog,
-    ProviderCatalogAction, ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel,
-    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
-    SettingsIssue, SettingsValidation,
+    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ConfigurationSnapshot,
+    ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
+    ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
+    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference, ProviderAuthMethod,
+    ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogEntry,
+    ProviderCatalogRequest, ProviderModel, ProvisionedControlServer, PublicRunState,
+    RequestDeadline, Revision, RunId, RunSummary, SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
@@ -135,6 +135,19 @@ struct Catalog {
     events: Vec<ControlEvent>,
     #[serde(default)]
     auth: BTreeMap<String, AuthRecord>,
+    #[serde(default)]
+    configuration: Option<ConfigurationRecord>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ConfigurationRecord {
+    agent_ids: Vec<String>,
+    provider_id: String,
+    model_id: String,
+    auth_method: asb_control::ProviderAuthMethod,
+    credential_reference_sha256: Option<String>,
+    generation: u64,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -338,6 +351,7 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         mutations: BTreeMap::new(),
         events: Vec::new(),
         auth: BTreeMap::new(),
+        configuration: None,
     })
 }
 
@@ -351,6 +365,21 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         || catalog.revision.0 != catalog.events.last().map_or(0, |event| event.revision.0)
     {
         return Err(CliError::operation("control catalog is invalid"));
+    }
+    if let Some(configuration) = &catalog.configuration {
+        let snapshot = ConfigurationSnapshot {
+            runner_instance_id: catalog.runner_instance_id.clone(),
+            generation: Revision(configuration.generation),
+            configured: true,
+            agent_ids: configuration.agent_ids.clone(),
+            provider_id: Some(configuration.provider_id.clone()),
+            model_id: Some(configuration.model_id.clone()),
+            auth_method: Some(configuration.auth_method),
+            credential_reference_sha256: configuration.credential_reference_sha256.clone(),
+        };
+        snapshot
+            .validate()
+            .map_err(|_| CliError::operation("control configuration is invalid"))?;
     }
     for (plan_id, plan) in &catalog.plans {
         asb_control::validate_identity(plan_id)
@@ -1245,6 +1274,10 @@ impl ControlBackend for RunnerBackend {
                 let catalog = self.provider_catalog(request)?;
                 self.bind(call, ControlResult::ProviderCatalog(catalog))
             }
+            ControlCall::ConfigurationStatus(request) => {
+                let snapshot = self.configuration_status(request)?;
+                self.bind(call, ControlResult::Configuration(snapshot))
+            }
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
             // operation fail-closed until the authenticated catalog provider is
@@ -1772,6 +1805,41 @@ impl ControlBackend for RunnerBackend {
 }
 
 impl RunnerBackend {
+    fn configuration_status(
+        &self,
+        request: &ConfigurationStatusRequest,
+    ) -> Result<ConfigurationSnapshot, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let Some(configuration) = &catalog.configuration else {
+            return Ok(ConfigurationSnapshot {
+                runner_instance_id: self.runner_instance_id.clone(),
+                generation: Revision(1),
+                configured: false,
+                agent_ids: Vec::new(),
+                provider_id: None,
+                model_id: None,
+                auth_method: None,
+                credential_reference_sha256: None,
+            });
+        };
+        Ok(ConfigurationSnapshot {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(configuration.generation),
+            configured: true,
+            agent_ids: configuration.agent_ids.clone(),
+            provider_id: Some(configuration.provider_id.clone()),
+            model_id: Some(configuration.model_id.clone()),
+            auth_method: Some(configuration.auth_method),
+            credential_reference_sha256: configuration.credential_reference_sha256.clone(),
+        })
+    }
+
     fn provider_catalog(
         &self,
         request: &ProviderCatalogRequest,
@@ -2384,6 +2452,28 @@ mod tests {
         );
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn configuration_status_is_explicitly_unconfigured_and_generation_bound() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+        });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::Configuration(snapshot) = result.result else {
+            panic!("configuration result");
+        };
+        assert!(!snapshot.configured);
+        assert_eq!(snapshot.generation, Revision(1));
+        assert!(snapshot.provider_id.is_none());
+        assert!(snapshot.credential_reference_sha256.is_none());
     }
 
     #[test]

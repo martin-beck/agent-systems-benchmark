@@ -226,6 +226,8 @@ pub enum ControlCall {
     AuthRevoke(AuthRevokeParams),
     /// Read or refresh the authenticated provider/model catalog.
     ProviderCatalog(crate::ProviderCatalogRequest),
+    /// Read the current privacy-safe setup projection.
+    ConfigurationStatus(crate::ConfigurationStatusRequest),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -341,6 +343,7 @@ impl ControlCall {
             | Self::AuthRotate(_)
             | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
             Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
+            Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1360,6 +1363,8 @@ pub enum ControlResult {
     AuthStatus(AuthStatusResponse),
     /// Authenticated provider/model catalog snapshot.
     ProviderCatalog(crate::ProviderCatalog),
+    /// Privacy-safe current setup projection.
+    Configuration(crate::ConfigurationSnapshot),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1426,6 +1431,9 @@ impl BoundControlResult {
             ControlResult::ProviderCatalog(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::Configuration(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1454,6 +1462,7 @@ impl ControlResult {
             Self::Capabilities(_) => Ok(()),
             Self::AgentCatalog(value) => value.validate(),
             Self::ProviderCatalog(value) => value.validate(),
+            Self::Configuration(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
@@ -1594,6 +1603,7 @@ impl ControlResult {
                 | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
+                | (ControlCall::ConfigurationStatus(_), Self::Configuration(_))
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -1641,6 +1651,9 @@ impl ControlResult {
                 catalog.runner_instance_id == request.runner_instance_id
                     && catalog.refreshed
                         == matches!(request.action, crate::ProviderCatalogAction::Refresh)
+            }
+            (ControlCall::ConfigurationStatus(request), Self::Configuration(snapshot)) => {
+                snapshot.runner_instance_id == request.runner_instance_id
             }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
@@ -1869,6 +1882,7 @@ pub fn validate_request(
             validate_idempotency_key(&params.idempotency_key)?;
         }
         ControlCall::ProviderCatalog(params) => params.validate()?,
+        ControlCall::ConfigurationStatus(params) => params.validate()?,
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,
