@@ -31,6 +31,10 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
     let listener = TcpListener::bind(&listen).map_err(|_| "loopback bind failed")?;
+    println!("ASB_SIDECAR_READY");
+    io::stdout()
+        .flush()
+        .map_err(|_| "sidecar readiness write failed")?;
     for stream in listener.incoming() {
         let stream = stream.map_err(|_| "loopback accept failed")?;
         let relay = relay.clone();

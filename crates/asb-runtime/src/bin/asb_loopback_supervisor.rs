@@ -5,7 +5,7 @@
 //! mutates host networking.
 
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -67,7 +67,17 @@ fn run() -> Result<(), String> {
     listener
         .set_nonblocking(true)
         .map_err(|_| "loopback setup failed".to_owned())?;
-    let sidecar = spawn(&args, "--sidecar", "--sidecar-arg")?;
+    let sidecar_executable = value(&args, "--sidecar")?;
+    let sidecar = if Path::new(&sidecar_executable)
+        .file_name()
+        .and_then(|name| name.to_str())
+        == Some("asb_loopback_sidecar")
+        && !args.iter().any(|arg| arg == "--handshake-mode")
+    {
+        spawn_ready_sidecar(&args, &sidecar_executable)?
+    } else {
+        spawn(&args, "--sidecar", "--sidecar-arg")?
+    };
     let adapter = spawn(&args, "--adapter", "--adapter-arg")?;
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     println!(
@@ -96,6 +106,30 @@ fn spawn(args: &[String], command_name: &str, arg_name: &str) -> Result<Child, S
     command
         .spawn()
         .map_err(|_| format!("failed to start {command_name}"))
+}
+
+fn spawn_ready_sidecar(args: &[String], executable: &str) -> Result<Child, String> {
+    let mut command = Command::new(executable);
+    command
+        .args(repeated(args, "--sidecar-arg"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
+    let mut child = command.spawn().map_err(|_| "failed to start sidecar")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "sidecar readiness pipe unavailable".to_owned())?;
+    let mut line = String::new();
+    BufReader::new(stdout)
+        .read_line(&mut line)
+        .map_err(|_| "sidecar readiness read failed")?;
+    if line.trim_end() != "ASB_SIDECAR_READY" {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("sidecar readiness marker invalid".into());
+    }
+    Ok(child)
 }
 
 fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Result<(), String> {
