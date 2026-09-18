@@ -179,6 +179,9 @@ fn dispatch(
         [command, input, output] if command == "record" => {
             record(Path::new(input), Path::new(output), stdout).map(|()| 0)
         }
+        [command, manifest] if command == "record-campaign" => {
+            record_campaign(Path::new(manifest), stdout).map(|()| 0)
+        }
         [command, cassette, profile, agent] if command == "replay" => replay(
             Path::new(cassette),
             profile,
@@ -287,7 +290,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
-    writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
+    writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb record-campaign MANIFEST.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
 }
 
@@ -394,7 +397,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup capabilities provider-catalog provider-plan plan run sweep compare report record replay completion serve tui --help --version' asb"
+        "complete -W 'doctor setup capabilities provider-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -432,6 +435,131 @@ fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), Cli
     }
     write_atomic_private(output, &encoded)?;
     write_json(stdout, &artifact.metadata)
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordingCampaignManifest {
+    schema_version: u16,
+    provider_profile_sha256: String,
+    agent_ids: Vec<String>,
+    workload_ids: Vec<String>,
+    entries: Vec<RecordingCampaignEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordingCampaignEntry {
+    workload_id: String,
+    capture_path: PathBuf,
+    cassette_path: PathBuf,
+}
+
+#[derive(Serialize)]
+struct RecordingCampaignOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    campaign_id: String,
+    tuple_count: u16,
+    complete_coverage: bool,
+    offline_ready: bool,
+    unavailable_reason: Option<&'static str>,
+    recordings: Vec<asb_replay::RecordingMetadata>,
+}
+
+fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "recording campaign manifest")?;
+    let manifest: RecordingCampaignManifest = serde_json::from_slice(&bytes)
+        .map_err(|_| CliError::validation("recording campaign manifest is invalid"))?;
+    if manifest.schema_version != asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION
+        || manifest.agent_ids.is_empty()
+        || manifest.workload_ids.is_empty()
+        || manifest.agent_ids.len() > MAX_SELECTED_AGENTS
+        || manifest.workload_ids.len() > MAX_SELECTED_AGENTS
+        || manifest.entries.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
+    {
+        return Err(CliError::validation("recording campaign bounds are invalid"));
+    }
+    if !valid_sha256(&manifest.provider_profile_sha256)
+        || manifest.agent_ids.windows(2).any(|pair| pair[0] >= pair[1])
+        || manifest.workload_ids.windows(2).any(|pair| pair[0] >= pair[1])
+        || manifest.agent_ids.iter().any(|agent| parse_agent(agent).is_err())
+    {
+        return Err(CliError::validation("recording campaign identities are invalid"));
+    }
+    let workloads = manifest
+        .workload_ids
+        .iter()
+        .map(|id| {
+            OriginalWorkloads::describe(id)
+                .map(|workload| (id.clone(), workload.scoring_version))
+                .map_err(|_| CliError::validation("recording campaign workload is unavailable"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let campaign = asb_replay::RecordingCampaign {
+        schema_version: manifest.schema_version,
+        provider_profile_sha256: manifest.provider_profile_sha256.clone(),
+        agent_ids: manifest.agent_ids.clone(),
+        workloads,
+        max_tuples: u16::try_from(asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES).unwrap_or(u16::MAX),
+        cost_per_tuple_minor: 0,
+    };
+    let tuples = campaign
+        .expand()
+        .map_err(|_| CliError::validation("recording campaign matrix is invalid"))?;
+    let expected = tuples
+        .iter()
+        .map(|tuple| (tuple.agent_id.clone(), tuple.workload_id.clone()))
+        .collect::<BTreeSet<_>>();
+    let mut seen = BTreeSet::new();
+    let mut recordings = Vec::with_capacity(manifest.entries.len());
+    for entry in manifest.entries {
+        if !manifest.workload_ids.contains(&entry.workload_id) {
+            return Err(CliError::validation("recording campaign entry workload is not selected"));
+        }
+        let capture_bytes = read_bounded_json(
+            &entry.capture_path,
+            MAX_CAPTURE_BYTES,
+            "recording campaign capture",
+        )?;
+        let capture: RecordingCapture = serde_json::from_slice(&capture_bytes)
+            .map_err(|_| CliError::validation("recording campaign capture is invalid"))?;
+        if capture.provider_profile_sha256 != manifest.provider_profile_sha256
+            || !manifest.agent_ids.contains(&capture.agent_id)
+            || !seen.insert((capture.agent_id.clone(), entry.workload_id.clone()))
+        {
+            return Err(CliError::validation("recording campaign coverage is duplicate or mismatched"));
+        }
+        let artifact = seal_recording(capture, Default::default(), CassetteLimits::default())
+            .map_err(|_| CliError::validation("recording campaign capture cannot be sealed"))?;
+        let encoded = serde_json::to_vec(&artifact.cassette)
+            .map_err(|_| CliError::operation("recording campaign cassette cannot be encoded"))?;
+        if encoded.len() > MAX_CAPTURE_BYTES {
+            return Err(CliError::validation("recording campaign cassette is too large"));
+        }
+        write_atomic_private(&entry.cassette_path, &encoded)?;
+        recordings.push(artifact.metadata);
+    }
+    let complete = seen == expected;
+    let campaign_id = format!(
+        "campaign-{}",
+        &format!("{:x}", Sha256::digest(serde_json::to_vec(&campaign).unwrap_or_default()))[..24]
+    );
+    write_json(
+        stdout,
+        &RecordingCampaignOutput {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: complete,
+            command: "record-campaign",
+            campaign_id,
+            tuple_count: u16::try_from(expected.len()).unwrap_or(u16::MAX),
+            complete_coverage: complete,
+            offline_ready: complete,
+            unavailable_reason: (!complete).then_some("recording-coverage-incomplete"),
+            recordings,
+        },
+    )
 }
 
 fn replay(
@@ -5329,5 +5457,59 @@ mod tests {
             "runtime replay authority is required"
         );
         let _ = digest;
+    }
+
+    #[test]
+    fn record_campaign_requires_exact_matrix_before_offline_ready() {
+        let scratch = Scratch::new("record-campaign");
+        let capture_path = scratch.0.join("capture.json");
+        let cassette_path = scratch.0.join("cassette.json");
+        let manifest_path = scratch.0.join("campaign.json");
+        let cassette = asb_replay::decode_cassette(
+            include_bytes!("../../asb-replay/fixtures/v1/buffered.json"),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        let capture = asb_replay::RecordingCapture {
+            schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            provider_profile_sha256: "a".repeat(64),
+            agent_id: "codex".into(),
+            network: asb_replay::NetworkConsequence::LoopbackOnly,
+            estimated_cost_minor: 0,
+            confirmation: asb_replay::RecordingConfirmation {
+                record: true,
+                network: true,
+                cost: false,
+            },
+            contents: cassette.contents,
+        };
+        fs::write(&capture_path, serde_json::to_vec(&capture).unwrap()).unwrap();
+        let manifest = serde_json::json!({
+            "schema_version": asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            "provider_profile_sha256": "a".repeat(64),
+            "agent_ids": ["codex"],
+            "workload_ids": ["original.bug-fix"],
+            "entries": [{
+                "workload_id": "original.bug-fix",
+                "capture_path": capture_path,
+                "cassette_path": cassette_path
+            }]
+        });
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let mut output = Vec::new();
+        let mut diagnostics = Vec::new();
+        assert_eq!(
+            run(
+                &["record-campaign".into(), manifest_path.as_os_str().to_owned()],
+                &mut output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(result["complete_coverage"], true);
+        assert_eq!(result["offline_ready"], true);
+        assert_eq!(result["tuple_count"], 1);
+        assert!(cassette_path.is_file());
     }
 }
