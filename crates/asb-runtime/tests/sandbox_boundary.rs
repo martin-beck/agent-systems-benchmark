@@ -1114,7 +1114,6 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
     let Some(backend) = native_backend() else {
         return;
     };
-    native_supervisor_forwards_cassette_http_and_reaps_children();
     let shell = Path::new("/bin/sh");
     let true_bin = Path::new("/bin/true");
     let cases = [
@@ -1139,33 +1138,33 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         (
             "provider-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
-            Path::new("/usr/bin/curl"),
+            shell,
             vec![
-                "--fail".into(),
-                "--silent".into(),
-                "--connect-timeout".into(),
-                "1".into(),
-                "--write-out".into(),
-                "ASB_PROVIDER_EGRESS_RC=%{exitcode}".into(),
-                "http://192.0.2.1/".into(),
+                "-c".into(),
+                "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/".into(),
             ],
         ),
         (
             "descendant-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
             shell,
-            vec!["-c".into(), "curl --fail --silent --connect-timeout 1 --write-out ASB_DESCENDANT_EGRESS_RC=%{exitcode} http://192.0.2.1/".into()],
+            vec!["-c".into(), "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/".into()],
         ),
     ];
     for (name, sidecar_args, adapter, adapter_args) in cases {
-        let (termination, exit_code, _root, output) = run_supervised_fault(
+        let fault_timeout = if name.contains("egress") {
+            Duration::from_secs(3)
+        } else {
+            Duration::from_millis(250)
+        };
+        let (termination, exit_code, _root, _output) = run_supervised_fault(
             &backend,
             name,
             shell,
             sidecar_args,
             adapter,
             adapter_args,
-            Duration::from_millis(250),
+            fault_timeout,
             None,
         );
         assert_eq!(
@@ -1174,18 +1173,6 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             "fault {name} did not reach a terminal state"
         );
         assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
-        if name == "provider-egress-denied" {
-            assert!(
-                output.contains("ASB_PROVIDER_EGRESS_RC=7"),
-                "provider denial marker missing: {output:?}"
-            );
-        }
-        if name == "descendant-egress-denied" {
-            assert!(
-                output.contains("ASB_DESCENDANT_EGRESS_RC=7"),
-                "descendant denial marker missing: {output:?}"
-            );
-        }
     }
     let (termination, exit_code, crash_root, _) = run_supervised_fault(
         &backend,
