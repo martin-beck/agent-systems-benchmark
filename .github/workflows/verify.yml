@@ -108,5 +108,11 @@ jobs:
             fi
             python3 tools/quality/check_dco.py "${args[@]}"
           fi
+      - name: Require current pull-request base
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/quality/check_current_topic_base.py --base "$PR_BASE" --head "$PR_HEAD"
       - name: Clean generated state
         run: git diff --exit-code

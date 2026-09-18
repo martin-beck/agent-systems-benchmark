@@ -97,6 +97,18 @@ pub struct AgentPackage {
     pub sha256: String,
     /// SHA-256 of the detached signature bytes.
     pub signature_sha256: String,
+    /// Public signing-key identity, never the key material itself.
+    pub signer: AgentSigner,
+}
+
+/// Public identity of the key and principal that signed the package.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSigner {
+    /// Stable operator-provisioned key identity.
+    pub key_id: String,
+    /// Bounded public signing principal.
+    pub principal: String,
 }
 
 /// Immutable source and runtime provenance for one package.
@@ -107,6 +119,10 @@ pub struct AgentProvenance {
     pub source_revision: String,
     /// SHA-256 of the signed runtime manifest.
     pub manifest_sha256: String,
+    /// SHA-256 of the SBOM describing the complete package inventory.
+    pub sbom_sha256: String,
+    /// SPDX license identifier or expression for the package.
+    pub license_ref: String,
 }
 
 /// One stable agent entry. It is safe to expose and contains no credentials.
@@ -256,7 +272,13 @@ fn validate_package(package: &AgentPackage) -> Result<(), ProtocolError> {
     validate_token(&package.package_id)?;
     validate_token(&package.version)?;
     validate_digest(&package.sha256)?;
-    validate_digest(&package.signature_sha256)
+    validate_digest(&package.signature_sha256)?;
+    validate_signer(&package.signer)
+}
+
+fn validate_signer(signer: &AgentSigner) -> Result<(), ProtocolError> {
+    validate_token(&signer.key_id)?;
+    validate_token(&signer.principal)
 }
 
 fn validate_provenance(provenance: &AgentProvenance) -> Result<(), ProtocolError> {
@@ -268,7 +290,9 @@ fn validate_provenance(provenance: &AgentProvenance) -> Result<(), ProtocolError
     {
         return Err(ProtocolError::InvalidResponse);
     }
-    validate_digest(&provenance.manifest_sha256)
+    validate_digest(&provenance.manifest_sha256)?;
+    validate_digest(&provenance.sbom_sha256)?;
+    validate_token(&provenance.license_ref)
 }
 
 fn validate_identifier(value: &str) -> Result<(), ProtocolError> {
@@ -313,10 +337,16 @@ mod tests {
                 version: "1.2.3".into(),
                 sha256: "a".repeat(64),
                 signature_sha256: "b".repeat(64),
+                signer: AgentSigner {
+                    key_id: "release-key-1".into(),
+                    principal: "asb-release".into(),
+                },
             },
             provenance: AgentProvenance {
                 source_revision: "c".repeat(40),
                 manifest_sha256: "d".repeat(64),
+                sbom_sha256: "e".repeat(64),
+                license_ref: "MIT".into(),
             },
             capabilities: vec!["chat".into(), "tools".into()],
             availability: AgentAvailability::Available,
@@ -368,6 +398,14 @@ mod tests {
         unsigned.agents[0].package.signature_sha256 = "0".into();
         assert!(unsigned.validate().is_err());
 
+        let mut invalid_signer = catalog();
+        invalid_signer.agents[0].package.signer.key_id = "key id".into();
+        assert!(invalid_signer.validate().is_err());
+
+        let mut incomplete_provenance = catalog();
+        incomplete_provenance.agents[0].provenance.sbom_sha256 = "0".into();
+        assert!(incomplete_provenance.validate().is_err());
+
         let mut unsorted_capabilities = catalog();
         unsorted_capabilities.agents[0].capabilities = vec!["tools".into(), "chat".into()];
         assert!(unsorted_capabilities.validate().is_err());
@@ -379,7 +417,7 @@ mod tests {
         let bytes = canonical_agent_catalog_bytes(&catalog).unwrap();
         assert_eq!(
             catalog.computed_sha256().unwrap(),
-            "cba97a13d8123b0d24c381174cd26a35fcfb64d24d34cfaa8549bec8ea578520"
+            "b7749d29dabbc7e8faf00d0f1c01b8c188fe5fef15f52d94f19145977b2b53b3"
         );
         assert!(!String::from_utf8(bytes).unwrap().contains("catalog_sha256"));
 
@@ -392,14 +430,20 @@ mod tests {
                 "availability": {"status": "available"},
                 "capabilities": ["chat", "tools"],
                 "provenance": {
+                    "license_ref": "MIT",
                     "manifest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sbom_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
                     "source_revision": "cccccccccccccccccccccccccccccccccccccccc"
                 },
                 "package": {
                     "version": "1.2.3",
                     "signature_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                     "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                    "package_id": "agent-package"
+                    "package_id": "agent-package",
+                    "signer": {
+                        "principal": "asb-release",
+                        "key_id": "release-key-1"
+                    }
                 },
                 "target": {
                     "libc_version": "2.35",
@@ -415,7 +459,7 @@ mod tests {
                 "architecture": "x86_64",
                 "operating_system": "linux"
             },
-            "catalog_sha256": "cba97a13d8123b0d24c381174cd26a35fcfb64d24d34cfaa8549bec8ea578520",
+            "catalog_sha256": "b7749d29dabbc7e8faf00d0f1c01b8c188fe5fef15f52d94f19145977b2b53b3",
             "generation": 1,
             "runner_instance_id": "runner-1"
         }"#;

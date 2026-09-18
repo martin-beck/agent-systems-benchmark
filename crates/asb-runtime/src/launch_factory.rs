@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
-use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
+use crate::sandbox::{
+    LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput, SandboxProcess,
+};
 use sha2::{Digest, Sha256};
 
 /// A launch authority that can only be issued by the runtime factory.
@@ -34,6 +36,7 @@ pub struct ReplayLaunchContext {
     adapter_digest: String,
     supervisor_digest: Option<String>,
     backend: Option<SandboxBackend>,
+    operation_issued: bool,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -213,6 +216,7 @@ impl ReplayLaunchAuthority {
             adapter_digest: self.adapter_digest,
             supervisor_digest: self.supervisor_digest,
             backend: self.backend,
+            operation_issued: false,
         })
     }
 }
@@ -233,6 +237,17 @@ impl ReplayLaunchContext {
             .spawn_launch(self.input, self.lease)
     }
 
+    /// Issue the one-shot authenticated operation used by the primary replay path.
+    pub fn issue_operation(
+        &mut self,
+    ) -> Result<crate::ReplayOperation, crate::ReplayOperationError> {
+        if self.operation_issued {
+            return Err(crate::ReplayOperationError::AlreadyIssued);
+        }
+        self.operation_issued = true;
+        crate::ReplayOperation::issue(self.generation.clone())
+            .map_err(crate::ReplayOperationError::Transport)
+    }
     /// Validated launch input for the runtime backend.
     pub fn input(&self) -> &SandboxLaunchInput {
         &self.input
@@ -539,6 +554,18 @@ mod tests {
         assert!(args.lines().any(|arg| arg == "--unshare-net"));
         assert!(args.lines().any(|arg| arg == "--relay"));
         assert!(args.lines().any(|arg| arg == "generation-1"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn consumed_context_issues_only_one_operation() {
+        let (authority, _file, root) = fixture();
+        let mut context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let _operation = context.issue_operation().unwrap();
+        assert!(matches!(
+            context.issue_operation(),
+            Err(crate::ReplayOperationError::AlreadyIssued)
+        ));
         let _ = fs::remove_dir_all(root);
     }
 }

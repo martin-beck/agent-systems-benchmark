@@ -50,6 +50,11 @@ second parent must already be an ancestor of the current protected base. No
 off-spine revision, octopus merge, second historical checkpoint, or second exact-base
 sync is accepted. Every introduced spine commit remains SSH-signed and DCO-valid,
 and the final GitHub merge tree must exactly equal the reviewed topic-tip tree.
+Pull-request admission also requires the submitted topic tip to contain the
+current protected-base commit as an ancestor. If protected main advances while
+a pull request is under review, the topic must be rebased or synchronized and
+all exact-head checks must run again before merge; a post-merge failure cannot
+retroactively qualify a stale topic.
 The [PR #132 attestation](attestations/capability-coverage-pr132-merge.json) records
 the historical failure that established this bounded recovery; it does not turn
 that failed workflow run green retroactively.

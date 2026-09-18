@@ -38,19 +38,19 @@ publication; a frontend must recompute it before using the catalog.
 ## Vectors
 
 For a one-entry snapshot with runner `runner-1`, generation `1`, Linux
-`x86_64`/glibc `2.35`, package `agent-package` version `1.2.3`, capabilities
-`["chat","tools"]`, and the `a`/`b`/`c`/`d` placeholder digests from the Rust
-unit fixture, the canonical bytes are:
+`x86_64`/glibc `2.35`, package `agent-package` version `1.2.3`, public signer
+`release-key-1`/`asb-release`, SPDX `MIT` license, and the `a`/`b`/`c`/`d`/`e`
+placeholder digests from the Rust unit fixture, the canonical bytes are:
 
 ```text
-{"agents":[{"agent_id":"agent-a","availability":{"status":"available"},"capabilities":["chat","tools"],"package":{"package_id":"agent-package","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","signature_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","version":"1.2.3"},"provenance":{"manifest_sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","source_revision":"cccccccccccccccccccccccccccccccccccccccc"},"target":{"architecture":"x86_64","libc":"glibc","libc_version":"2.35","operating_system":"linux"}}],"generation":1,"refreshed":false,"runner_instance_id":"runner-1","target":{"architecture":"x86_64","libc":"glibc","libc_version":"2.35","operating_system":"linux"}}
+{"agents":[{"agent_id":"agent-a","availability":{"status":"available"},"capabilities":["chat","tools"],"package":{"package_id":"agent-package","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","signature_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","signer":{"key_id":"release-key-1","principal":"asb-release"},"version":"1.2.3"},"provenance":{"license_ref":"MIT","manifest_sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","sbom_sha256":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","source_revision":"cccccccccccccccccccccccccccccccccccccccc"},"target":{"architecture":"x86_64","libc":"glibc","libc_version":"2.35","operating_system":"linux"}}],"generation":1,"refreshed":false,"runner_instance_id":"runner-1","target":{"architecture":"x86_64","libc":"glibc","libc_version":"2.35","operating_system":"linux"}}
 ```
 
 Its digest is
-`cba97a13d8123b0d24c381174cd26a35fcfb64d24d34cfaa8549bec8ea578520`.
+`b7749d29dabbc7e8faf00d0f1c01b8c188fe5fef15f52d94f19145977b2b53b3`.
 
 The checked-in v1.4 response fixture uses generation `3` and has digest
-`e24007b09d9f6b112269689a535ba00968300c9653d71e349f37835d0d8c5e92`.
+`62894f407bd441dae43524e271bc42d16ed5ed672edcc3e874aec230c1701986`.
 The executable `canonical_agent_catalog_bytes` and tests are the normative
 implementation and regression vectors for both repositories.
 

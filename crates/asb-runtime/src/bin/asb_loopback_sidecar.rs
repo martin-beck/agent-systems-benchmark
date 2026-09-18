@@ -26,7 +26,15 @@ fn main() -> Result<(), String> {
     if !relay.is_absolute() || generation.is_empty() || generation.len() > 128 {
         return Err("invalid bounded relay handoff".into());
     }
+    if let Ok(mode) = argument("--handshake-mode") {
+        run_handshake_probe(&relay, &generation, &mode)?;
+        return Ok(());
+    }
     let listener = TcpListener::bind(&listen).map_err(|_| "loopback bind failed")?;
+    println!("ASB_SIDECAR_READY");
+    io::stdout()
+        .flush()
+        .map_err(|_| "sidecar readiness write failed")?;
     for stream in listener.incoming() {
         let stream = stream.map_err(|_| "loopback accept failed")?;
         let relay = relay.clone();
@@ -34,6 +42,33 @@ fn main() -> Result<(), String> {
         thread::spawn(move || {
             let _ = forward(stream, relay, generation);
         });
+    }
+    Ok(())
+}
+
+fn run_handshake_probe(relay: &PathBuf, generation: &str, mode: &str) -> Result<(), String> {
+    let handshake = match mode {
+        "stale" => "ASB-REPLAY/stale-generation\n".to_owned(),
+        "malformed" => "malformed".to_owned(),
+        "duplicate" => format!("ASB-REPLAY/{generation}\n"),
+        _ => return Err("unknown bounded handshake mode".into()),
+    };
+    let mut first = UnixStream::connect(relay).map_err(|_| "relay connection failed")?;
+    first
+        .write_all(handshake.as_bytes())
+        .map_err(|_| "relay handshake failed")?;
+    first
+        .shutdown(std::net::Shutdown::Write)
+        .map_err(|_| "relay handshake shutdown failed")?;
+    if mode == "duplicate" {
+        let mut second =
+            UnixStream::connect(relay).map_err(|_| "duplicate relay connection failed")?;
+        second
+            .write_all(handshake.as_bytes())
+            .map_err(|_| "duplicate relay handshake failed")?;
+        second
+            .shutdown(std::net::Shutdown::Write)
+            .map_err(|_| "duplicate relay handshake shutdown failed")?;
     }
     Ok(())
 }

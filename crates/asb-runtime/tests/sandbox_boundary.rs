@@ -2,22 +2,31 @@
 // SPDX-License-Identifier: MIT
 //! Native rootless namespace and delegated cgroup boundary tests.
 
+use asb_replay::{
+    CassetteLimits, Header, ProviderDialect, ReplayHttpRequest, ReplayRoute, StrictReplayService,
+    decode_cassette,
+};
+use asb_runtime::launch_factory::ReplayLaunchFactory;
+use asb_runtime::relay::ReplayRelay;
 use asb_runtime::sandbox::{
     CpuSet, LeaseClass, NetworkPolicy, ResourceLease, Resources, SandboxBackend, SandboxError,
     SandboxLaunchInput, SandboxSpec, ToolPin,
 };
+use asb_runtime::supervisor::{PinnedCommand, SupervisorPlan};
 use asb_runtime::{ProcessLifecycle, ProcessLimits, Termination};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
-
 const BWRAP_VERSION: &str = "bubblewrap 0.9.0";
 const SYSTEMD_VERSION: &str = "systemd 255 (255.4-1ubuntu8.17)";
 const TASKSET_VERSION: &str = "taskset from util-linux 2.39.3";
@@ -141,6 +150,7 @@ fn first_allowed_cpu() -> u32 {
 }
 
 fn native_backend() -> Option<SandboxBackend> {
+    env::var_os("ASB_REQUIRE_NATIVE_SANDBOX")?;
     fn unavailable(error: impl std::fmt::Display) -> Option<SandboxBackend> {
         if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_some() {
             panic!("required native sandbox capability unavailable: {error}");
@@ -199,6 +209,20 @@ fn helper_program(root: &Path) -> String {
         root,
         &fs::canonicalize(env::current_exe().unwrap()).unwrap(),
     )
+}
+
+fn file_sha256(path: &Path) -> String {
+    let mut file = fs::File::open(path).unwrap();
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).unwrap();
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    format!("{:x}", digest.finalize())
 }
 
 fn spec(
@@ -485,6 +509,800 @@ fn launch_wrapper_timeout_and_crash_are_terminal() {
 }
 
 #[test]
+fn native_supervisor_forwards_cassette_http_and_reaps_children() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let root = test_root("supervisor-cassette");
+    let generation = "native-cassette-generation";
+    let mut relay = ReplayRelay::bind(&root, generation).unwrap();
+    let child_endpoint = "/tmp/asb-replay-relay.sock";
+    let handoff = relay.handoff(child_endpoint).unwrap();
+    let cassette_bytes =
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+    let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
+    let request_body =
+        serde_json::to_string(&cassette.contents.interactions[0].request.body).unwrap();
+    let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+    let route = ReplayRoute {
+        session_id: "gemini-public-session".into(),
+        attempt_id: "attempt-1".into(),
+        dialect: ProviderDialect::GeminiGenerateContent,
+    };
+    let probe_service = StrictReplayService::new(
+        decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let probe_response = probe_service.handle(
+        &route,
+        ReplayHttpRequest {
+            method: "POST".into(),
+            path: "/v1beta/models/fixture-model:streamGenerateContent?alt=sse".into(),
+            headers: vec![
+                Header {
+                    name: "content-type".into(),
+                    value: "application/json".into(),
+                },
+                Header {
+                    name: "x-goog-api-key".into(),
+                    value: "fixture-key".into(),
+                },
+            ],
+            body: request_body.as_bytes().to_vec(),
+        },
+    );
+    assert!(
+        probe_response.is_ok(),
+        "fixture request did not match: {probe_response:?}"
+    );
+    let expected_status = probe_response.as_ref().unwrap().status;
+    let expected_segments = probe_response.as_ref().unwrap().segments.clone();
+    let server = thread::spawn(move || -> Result<u16, String> {
+        let mut stream = relay
+            .accept_authenticated()
+            .map_err(|error| format!("relay authentication failed: {error}"))?;
+        service
+            .serve_authenticated_connection(&mut stream, &route)
+            .map_err(|error| format!("strict cassette service failed: {error}"))
+    });
+    let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let executable_dir = executable_dir
+        .parent()
+        .and_then(|path| {
+            (path.file_name().and_then(|name| name.to_str()) == Some("deps"))
+                .then(|| path.parent().unwrap())
+        })
+        .unwrap_or_else(|| executable_dir.parent().unwrap());
+    let sidecar_path = executable_dir.join("asb_loopback_sidecar");
+    let supervisor_path = executable_dir.join("asb_loopback_supervisor");
+    assert!(sidecar_path.is_file(), "pinned sidecar fixture is missing");
+    assert!(
+        supervisor_path.is_file(),
+        "pinned supervisor fixture is missing"
+    );
+    assert!(
+        Path::new("/usr/bin/curl").is_file(),
+        "pinned curl fixture is missing"
+    );
+    let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = port_probe.local_addr().unwrap().port();
+    drop(port_probe);
+    let sidecar = PinnedCommand::new_verified(
+        sidecar_path.clone(),
+        vec![
+            "--listen".into(),
+            format!("127.0.0.1:{port}"),
+            "--relay".into(),
+            child_endpoint.into(),
+            "--generation".into(),
+            generation.into(),
+        ],
+        &file_sha256(&sidecar_path),
+    )
+    .unwrap();
+    let adapter = PinnedCommand::new_verified(
+        PathBuf::from("/usr/bin/curl"),
+        vec![
+            "--fail".into(),
+            "--silent".into(),
+            "--connect-timeout".into(),
+            "3".into(),
+            "--max-time".into(),
+            "20".into(),
+            "--header".into(),
+            "accept:".into(),
+            "--header".into(),
+            "content-type: application/json".into(),
+            "--header".into(),
+            "x-goog-api-key: fixture-key".into(),
+            "--data-binary".into(),
+            request_body,
+            format!(
+                "http://127.0.0.1:{port}/v1beta/models/fixture-model:streamGenerateContent?alt=sse"
+            ),
+        ],
+        &file_sha256(Path::new("/usr/bin/curl")),
+    )
+    .unwrap();
+    let supervisor = PinnedCommand::new_verified(
+        supervisor_path.clone(),
+        Vec::new(),
+        &file_sha256(&supervisor_path),
+    )
+    .unwrap();
+    let plan = SupervisorPlan::new(
+        sidecar,
+        adapter,
+        handoff.socket_path().to_path_buf(),
+        generation.into(),
+        file_sha256(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
+                .as_path(),
+        ),
+        Duration::from_secs(30),
+    )
+    .unwrap()
+    .with_supervisor(supervisor);
+    let resources = Resources::new(
+        128 * 1024 * 1024,
+        16,
+        100,
+        CpuSet::new(vec![first_allowed_cpu()]).unwrap(),
+    )
+    .unwrap();
+    let lease = ResourceLease::acquire(
+        &root.join("leases"),
+        LeaseClass::Benchmark,
+        resources.cpus().clone(),
+    )
+    .unwrap();
+    let sandbox = SandboxSpec::new(
+        &root,
+        PathBuf::from("work"),
+        "/bin/true".into(),
+        Vec::new(),
+        BTreeMap::new(),
+        resources,
+        NetworkPolicy::Deny,
+    )
+    .unwrap()
+    .with_supervisor(plan);
+    let input = SandboxLaunchInput::new(sandbox, limits())
+        .unwrap()
+        .with_replay_handoff(handoff)
+        .unwrap();
+    let cassette_digest = file_sha256(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
+            .as_path(),
+    );
+    let token = backend
+        .attest_replay_launch(&input, &lease, &cassette_digest)
+        .unwrap();
+    let authority =
+        ReplayLaunchFactory::issue(token, input, lease, cassette_digest.clone()).unwrap();
+    let context = authority.consume_for(&cassette_digest).unwrap();
+    let mut process = context.spawn(&backend).unwrap();
+    let output = process.wait().unwrap().clone();
+    let server_result = server.join().unwrap();
+    assert!(
+        server_result == Ok(200),
+        "relay failure: {server_result:?}; child output: {output:?}"
+    );
+    assert_eq!(output.exit_code, Some(0));
+    assert_eq!(output.termination, Termination::Exited);
+    assert_eq!(server_result, Ok(expected_status));
+    let body = &output.stdout.bytes;
+    for segment in expected_segments {
+        assert!(
+            body.windows(segment.len()).any(|window| window == segment),
+            "authenticated response segment missing"
+        );
+    }
+    assert!(String::from_utf8_lossy(body).contains("done"));
+    assert!(!root.join("asb-replay-relay.sock").exists());
+}
+
+#[test]
+fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
+    if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_none() {
+        return;
+    }
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    for mode in ["stale", "malformed", "duplicate", "mismatch"] {
+        let mode = mode.to_owned();
+        let root_name = format!("supervisor-authenticated-{mode}");
+        let root = test_root(&root_name);
+        let generation = format!("authenticated-negative-{mode}");
+        let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
+        let child_endpoint = "/tmp/asb-replay-relay.sock";
+        let handoff = relay.handoff(child_endpoint).unwrap();
+        let cassette_bytes =
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+        let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
+        let request_body =
+            serde_json::to_string(&cassette.contents.interactions[0].request.body).unwrap();
+        let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+        let route = ReplayRoute {
+            session_id: "gemini-public-session".into(),
+            attempt_id: "attempt-1".into(),
+            dialect: ProviderDialect::GeminiGenerateContent,
+        };
+        let server_mode = mode.clone();
+        let server = thread::spawn(move || -> Result<(), String> {
+            let first = relay.accept_authenticated();
+            match server_mode.as_str() {
+                "stale" => matches!(first, Err(asb_runtime::relay::RelayError::StaleGeneration))
+                    .then_some(())
+                    .ok_or_else(|| "stale generation was accepted".into()),
+                "malformed" => {
+                    matches!(first, Err(asb_runtime::relay::RelayError::InvalidHandshake))
+                        .then_some(())
+                        .ok_or_else(|| "malformed handshake was accepted".into())
+                }
+                "duplicate" => {
+                    first.map_err(|error| format!("first authenticated peer failed: {error}"))?;
+                    matches!(
+                        relay.accept_authenticated(),
+                        Err(asb_runtime::relay::RelayError::Duplicate)
+                    )
+                    .then_some(())
+                    .ok_or_else(|| "duplicate authenticated peer was accepted".into())
+                }
+                "mismatch" => {
+                    let mut stream =
+                        first.map_err(|error| format!("authenticated peer failed: {error}"))?;
+                    let status = service
+                        .serve_authenticated_connection(&mut stream, &route)
+                        .map_err(|error| format!("strict mismatch service failed: {error}"))?;
+                    (status != 200).then_some(()).ok_or_else(|| {
+                        format!("strict route mismatch unexpectedly succeeded: status={status}")
+                    })
+                }
+                _ => Err("unknown negative mode".into()),
+            }
+        });
+        let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+        let executable_dir = executable_dir
+            .parent()
+            .and_then(|path| {
+                (path.file_name().and_then(|name| name.to_str()) == Some("deps"))
+                    .then(|| path.parent().unwrap())
+            })
+            .unwrap_or_else(|| executable_dir.parent().unwrap());
+        let sidecar_path = executable_dir.join("asb_loopback_sidecar");
+        let supervisor_path = executable_dir.join("asb_loopback_supervisor");
+        assert!(sidecar_path.is_file());
+        assert!(supervisor_path.is_file());
+        let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = port_probe.local_addr().unwrap().port();
+        drop(port_probe);
+        let mut sidecar_args = vec![
+            "--listen".into(),
+            format!("127.0.0.1:{port}"),
+            "--relay".into(),
+            child_endpoint.into(),
+            "--generation".into(),
+            generation.clone(),
+        ];
+        if mode != "mismatch" {
+            sidecar_args.extend(["--handshake-mode".into(), mode.clone()]);
+        }
+        let sidecar = PinnedCommand::new_verified(
+            sidecar_path.clone(),
+            sidecar_args,
+            &file_sha256(&sidecar_path),
+        )
+        .unwrap();
+        let request_path = if mode == "mismatch" {
+            "/wrong-route"
+        } else {
+            "/v1beta/models/fixture-model:streamGenerateContent?alt=sse"
+        };
+        let adapter = PinnedCommand::new_verified(
+            PathBuf::from("/usr/bin/curl"),
+            vec![
+                "--fail".into(),
+                "--silent".into(),
+                "--connect-timeout".into(),
+                "3".into(),
+                "--max-time".into(),
+                "2".into(),
+                "--header".into(),
+                "content-type: application/json".into(),
+                "--header".into(),
+                "x-goog-api-key: fixture-key".into(),
+                "--data-binary".into(),
+                request_body,
+                format!("http://127.0.0.1:{port}{request_path}"),
+            ],
+            &file_sha256(Path::new("/usr/bin/curl")),
+        )
+        .unwrap();
+        let supervisor = PinnedCommand::new_verified(
+            supervisor_path.clone(),
+            Vec::new(),
+            &file_sha256(&supervisor_path),
+        )
+        .unwrap();
+        let plan = SupervisorPlan::new(
+            sidecar,
+            adapter,
+            handoff.socket_path().to_path_buf(),
+            generation,
+            "c".repeat(64),
+            Duration::from_secs(3),
+        )
+        .unwrap()
+        .with_supervisor(supervisor);
+        let resources = Resources::new(
+            128 * 1024 * 1024,
+            16,
+            100,
+            CpuSet::new(vec![first_allowed_cpu()]).unwrap(),
+        )
+        .unwrap();
+        let lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            resources.cpus().clone(),
+        )
+        .unwrap();
+        let sandbox = SandboxSpec::new(
+            &root,
+            PathBuf::from("work"),
+            "/bin/true".into(),
+            Vec::new(),
+            BTreeMap::new(),
+            resources,
+            NetworkPolicy::Deny,
+        )
+        .unwrap()
+        .with_supervisor(plan);
+        let input = SandboxLaunchInput::new(sandbox, limits())
+            .unwrap()
+            .with_replay_handoff(handoff)
+            .unwrap();
+        let cassette_digest = file_sha256(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
+                .as_path(),
+        );
+        let token = backend
+            .attest_replay_launch(&input, &lease, &cassette_digest)
+            .unwrap();
+        let authority =
+            ReplayLaunchFactory::issue(token, input, lease, cassette_digest.clone()).unwrap();
+        let context = authority.consume_for(&cassette_digest).unwrap();
+        match context.spawn(&backend) {
+            Ok(mut process) => {
+                let output = process.wait().unwrap().clone();
+                assert_ne!(
+                    output.exit_code,
+                    Some(0),
+                    "negative mode {mode} unexpectedly succeeded"
+                );
+            }
+            Err(SandboxError::ScopeOwnership { exit_code, .. }) => {
+                assert_ne!(
+                    exit_code,
+                    Some(0),
+                    "negative mode {mode} unexpectedly succeeded"
+                );
+            }
+            Err(error) => {
+                panic!("negative mode {mode} failed before supervised execution: {error:?}");
+            }
+        }
+        assert!(
+            server.join().unwrap().is_ok(),
+            "negative mode {mode} was not rejected"
+        );
+        assert!(!root.join("asb-replay-relay.sock").exists());
+    }
+}
+
+#[test]
+fn authenticated_replay_boundary_rejects_stale_malformed_duplicate_and_mismatch() {
+    let root = test_root("authenticated-negative-boundary");
+    let mut relay = ReplayRelay::bind(&root, "negative-generation").unwrap();
+    let relay_path = relay.socket_path().to_owned();
+
+    let stale = UnixStream::connect(&relay_path).unwrap();
+    let mut stale_writer = stale.try_clone().unwrap();
+    stale_writer.write_all(b"stale-generation\n").unwrap();
+    drop(stale_writer);
+    assert!(matches!(
+        relay.accept_authenticated(),
+        Err(asb_runtime::relay::RelayError::StaleGeneration)
+    ));
+
+    let malformed = UnixStream::connect(&relay_path).unwrap();
+    let mut malformed_writer = malformed.try_clone().unwrap();
+    malformed_writer.write_all(b"malformed").unwrap();
+    malformed.shutdown(std::net::Shutdown::Write).unwrap();
+    malformed_writer
+        .shutdown(std::net::Shutdown::Write)
+        .unwrap();
+    drop(malformed_writer);
+    assert!(matches!(
+        relay.accept_authenticated(),
+        Err(asb_runtime::relay::RelayError::InvalidHandshake)
+    ));
+
+    let valid = UnixStream::connect(&relay_path).unwrap();
+    let mut valid_writer = valid.try_clone().unwrap();
+    valid_writer.write_all(b"negative-generation\n").unwrap();
+    let accepted = relay.accept_authenticated().unwrap();
+    assert!(matches!(
+        relay.accept_authenticated(),
+        Err(asb_runtime::relay::RelayError::Duplicate)
+    ));
+    drop(accepted);
+    drop(valid_writer);
+    drop(valid);
+
+    let cassette = decode_cassette(
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        CassetteLimits::default(),
+    )
+    .unwrap();
+    let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+    let mismatch = service.handle(
+        &ReplayRoute {
+            session_id: "wrong-session".into(),
+            attempt_id: "attempt-1".into(),
+            dialect: ProviderDialect::GeminiGenerateContent,
+        },
+        ReplayHttpRequest {
+            method: "POST".into(),
+            path: "/wrong-route".into(),
+            headers: Vec::new(),
+            body: b"{}".to_vec(),
+        },
+    );
+    assert!(mismatch.is_err(), "strict mismatch unexpectedly succeeded");
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_supervised_fault(
+    backend: &SandboxBackend,
+    name: &str,
+    sidecar_executable: &Path,
+    sidecar_arguments: Vec<String>,
+    adapter_executable: &Path,
+    adapter_arguments: Vec<String>,
+    timeout: Duration,
+    cancel_after: Option<Duration>,
+    authenticated_request: bool,
+) -> (Termination, Option<i32>, TestRoot, String) {
+    let root = test_root(name);
+    let generation = format!("fault-{name}");
+    let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
+    let child_endpoint = "/tmp/asb-replay-relay.sock";
+    let handoff = relay.handoff(child_endpoint).unwrap();
+    let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let supervisor_path = executable_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("asb_loopback_supervisor");
+    assert!(supervisor_path.is_file());
+    let cassette_bytes =
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+    let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
+    let request_body =
+        serde_json::to_string(&cassette.contents.interactions[0].request.body).unwrap();
+    let route = ReplayRoute {
+        session_id: "gemini-public-session".into(),
+        attempt_id: "attempt-1".into(),
+        dialect: ProviderDialect::GeminiGenerateContent,
+    };
+    let mut server = None;
+    let (sidecar_arguments, adapter_arguments) = if authenticated_request {
+        let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+        let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = port_probe.local_addr().unwrap().port();
+        drop(port_probe);
+        let server_route = route.clone();
+        let fault_name = name.to_owned();
+        server = Some(thread::spawn(move || -> Result<u16, String> {
+            let mut stream = relay
+                .accept_authenticated()
+                .map_err(|error| format!("relay authentication failed: {error}"))?;
+            service
+                .serve_authenticated_connection(&mut stream, &server_route)
+                .map_err(|error| {
+                    format!("strict cassette service failed for {fault_name}: {error}")
+                })
+        }));
+        let request = format!(
+            "curl --fail --silent --connect-timeout 3 --max-time 10 --header 'accept:' --header 'content-type: application/json' --header \"$(printf 'x-goog-api-key: %s' \"$ASB_FIXTURE_KEY\")\" --data-binary @/workspace/work/replay-request.json http://127.0.0.1:{port}/v1beta/models/fixture-model:streamGenerateContent?alt=sse && {}",
+            adapter_arguments
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "true".into())
+        );
+        (
+            vec![
+                "--listen".into(),
+                format!("127.0.0.1:{port}"),
+                "--relay".into(),
+                child_endpoint.into(),
+                "--generation".into(),
+                generation.clone(),
+            ],
+            vec!["-c".into(), request],
+        )
+    } else {
+        (sidecar_arguments, adapter_arguments)
+    };
+    let executable_path = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let executable_parent = executable_path.parent().unwrap();
+    let executable_dir =
+        if executable_parent.file_name().and_then(|name| name.to_str()) == Some("deps") {
+            executable_parent.parent().unwrap().to_owned()
+        } else {
+            executable_parent.to_owned()
+        };
+    let sidecar_executable = if authenticated_request {
+        executable_dir.join("asb_loopback_sidecar")
+    } else {
+        sidecar_executable.to_owned()
+    };
+    assert!(
+        sidecar_executable.is_file(),
+        "pinned sidecar fixture is missing"
+    );
+    let sidecar_digest = file_sha256(&sidecar_executable);
+    let sidecar =
+        PinnedCommand::new_verified(sidecar_executable, sidecar_arguments, &sidecar_digest)
+            .unwrap();
+    let mut environment = BTreeMap::new();
+    if authenticated_request {
+        fs::write(root.join("work/replay-request.json"), &request_body).unwrap();
+        environment.insert("ASB_FIXTURE_KEY".into(), "fixture-key".into());
+    }
+    let adapter_executable = if authenticated_request {
+        PathBuf::from("/bin/sh")
+    } else {
+        adapter_executable.to_owned()
+    };
+    let adapter_digest = file_sha256(&adapter_executable);
+    let adapter =
+        PinnedCommand::new_verified(adapter_executable, adapter_arguments, &adapter_digest)
+            .unwrap();
+    let supervisor = PinnedCommand::new_verified(
+        supervisor_path.clone(),
+        Vec::new(),
+        &file_sha256(&supervisor_path),
+    )
+    .unwrap();
+    let plan = SupervisorPlan::new(
+        sidecar,
+        adapter,
+        handoff.socket_path().to_path_buf(),
+        generation,
+        "c".repeat(64),
+        timeout,
+    )
+    .unwrap()
+    .with_supervisor(supervisor);
+    let resources = resources(16);
+    let lease = lease(&root, &resources);
+    let sandbox = SandboxSpec::new(
+        &root,
+        PathBuf::from("work"),
+        "/bin/true".into(),
+        Vec::new(),
+        environment,
+        resources,
+        NetworkPolicy::Deny,
+    )
+    .unwrap()
+    .with_supervisor(plan);
+    let input = SandboxLaunchInput::new(sandbox, limits())
+        .unwrap()
+        .with_replay_handoff(handoff)
+        .unwrap();
+    let cassette_digest = "c".repeat(64);
+    let token = backend
+        .attest_replay_launch(&input, &lease, &cassette_digest)
+        .unwrap();
+    let authority = ReplayLaunchFactory::issue(token, input, lease, cassette_digest).unwrap();
+    let context = authority.consume_for(&"c".repeat(64)).unwrap();
+    let result = match context.spawn(backend) {
+        Ok(mut process) => {
+            if let Some(delay) = cancel_after {
+                thread::sleep(delay);
+                process.cancel().unwrap();
+            }
+            let output = process.wait().unwrap();
+            (
+                output.termination,
+                output.exit_code,
+                root,
+                String::from_utf8_lossy(&output.stdout.bytes).into_owned(),
+            )
+        }
+        Err(SandboxError::ScopeOwnership { exit_code, .. }) => {
+            (Termination::Exited, exit_code, root, String::new())
+        }
+        Err(error) => panic!("supervised fault {name} failed to spawn: {error:?}"),
+    };
+    if let Some(server) = server {
+        let server_result = server.join().unwrap();
+        if authenticated_request {
+            assert_eq!(
+                server_result,
+                Ok(200),
+                "authenticated relay failure: {server_result:?}"
+            );
+        }
+    }
+    result
+}
+
+#[test]
+fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
+    let Some(backend) = native_backend() else {
+        return;
+    };
+    let shell = Path::new("/bin/sh");
+    let true_bin = Path::new("/bin/true");
+    let cases = [
+        (
+            "sidecar-crash",
+            vec!["-c".into(), "exit 17".into()],
+            true_bin,
+            Vec::new(),
+        ),
+        (
+            "adapter-crash",
+            vec!["-c".into(), "sleep 30".into()],
+            shell,
+            vec!["-c".into(), "exit 19".into()],
+        ),
+        (
+            "supervisor-timeout",
+            vec!["-c".into(), "sleep 30".into()],
+            shell,
+            vec!["-c".into(), "sleep 30".into()],
+        ),
+        (
+            "provider-egress-denied",
+            vec!["-c".into(), "sleep 30".into()],
+            shell,
+            vec!["-c".into(), "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/; rc=$?; printf 'ASB_PROVIDER_EGRESS_RC=%s\\n' \"$rc\"; exit \"$rc\"".into()],
+        ),
+        (
+            "descendant-egress-denied",
+            vec!["-c".into(), "sleep 30".into()],
+            shell,
+            vec!["-c".into(), "sh -c 'curl --noproxy \\* --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/; exit 19'".into()],
+        ),
+    ];
+    for (name, sidecar_args, adapter, adapter_args) in cases {
+        let fault_timeout = if name == "sidecar-crash" {
+            Duration::from_millis(250)
+        } else {
+            Duration::from_secs(3)
+        };
+        let (termination, exit_code, _root, _output) = run_supervised_fault(
+            &backend,
+            name,
+            shell,
+            sidecar_args,
+            adapter,
+            adapter_args,
+            fault_timeout,
+            None,
+            name != "sidecar-crash",
+        );
+        assert_eq!(
+            termination,
+            Termination::Exited,
+            "fault {name} did not reach a terminal state"
+        );
+        assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
+        if name == "provider-egress-denied" {
+            assert_eq!(exit_code, Some(7), "provider egress cause missing");
+        }
+        if name == "descendant-egress-denied" {
+            assert_eq!(exit_code, Some(19), "descendant egress cause missing");
+        }
+    }
+    let (termination, exit_code, crash_root, _) = run_supervised_fault(
+        &backend,
+        "crash-before-fresh-generation",
+        shell,
+        vec!["-c".into(), "exit 23".into()],
+        true_bin,
+        Vec::new(),
+        Duration::from_secs(2),
+        None,
+        false,
+    );
+    assert_eq!(termination, Termination::Exited);
+    assert_ne!(exit_code, Some(0));
+    assert!(!crash_root.join("relay.sock").exists());
+    let (termination, exit_code, restart_root, _) = run_supervised_fault(
+        &backend,
+        "fresh-generation-after-crash",
+        true_bin,
+        Vec::new(),
+        true_bin,
+        Vec::new(),
+        Duration::from_secs(2),
+        None,
+        true,
+    );
+    assert_eq!(termination, Termination::Exited);
+    assert_eq!(exit_code, Some(0));
+    assert!(!restart_root.join("relay.sock").exists());
+    let mut unrelated = Command::new("/bin/sleep").arg("30").spawn().unwrap();
+    let (termination, exit_code, _root, _) = run_supervised_fault(
+        &backend,
+        "unrelated-process",
+        shell,
+        vec!["-c".into(), "exit 23".into()],
+        true_bin,
+        Vec::new(),
+        Duration::from_secs(2),
+        None,
+        false,
+    );
+    assert_eq!(termination, Termination::Exited);
+    assert_ne!(exit_code, Some(0));
+    assert!(
+        unrelated.try_wait().unwrap().is_none(),
+        "unrelated process was reaped"
+    );
+    unrelated.kill().unwrap();
+    unrelated.wait().unwrap();
+
+    for attempt in 0..3 {
+        let name = format!("restart-{attempt}");
+        let (termination, exit_code, root, _) = run_supervised_fault(
+            &backend,
+            &name,
+            true_bin,
+            Vec::new(),
+            true_bin,
+            Vec::new(),
+            Duration::from_secs(2),
+            None,
+            true,
+        );
+        assert_eq!(termination, Termination::Exited);
+        assert_eq!(exit_code, Some(0));
+        assert!(
+            !root.join("relay.sock").exists(),
+            "relay leaked after {name}"
+        );
+    }
+
+    let (termination, exit_code, _root, _) = run_supervised_fault(
+        &backend,
+        "cancellation",
+        shell,
+        vec!["-c".into(), "sleep 30".into()],
+        shell,
+        vec!["-c".into(), "sleep 30".into()],
+        Duration::from_secs(2),
+        Some(Duration::from_millis(500)),
+        true,
+    );
+    assert_eq!(termination, Termination::Cancelled);
+    assert_eq!(exit_code, None);
+}
+
+#[test]
 fn native_cgroup_limits_and_cleanup_are_real() {
     let Some(backend) = native_backend() else {
         return;
@@ -629,6 +1447,9 @@ fn dropping_sandbox_stops_scope_and_releases_lease() {
 
 #[test]
 fn cleanup_failure_retains_lease_until_drop_retry_cleans_descendant() {
+    if env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_none() {
+        return;
+    }
     let root = test_root("cleanup-retry");
     let reject = root.join("reject-cleanup");
     let wrapper = root.join("systemctl-wrapper");

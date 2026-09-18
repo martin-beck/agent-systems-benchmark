@@ -213,6 +213,17 @@ impl SupervisorPlan {
 
     /// Arguments with the relay path visible inside a sandbox.
     pub fn arguments_for_relay(&self, relay: &Path) -> Vec<String> {
+        self.arguments_for_namespace(relay, &self.sidecar.executable, &self.adapter.executable)
+    }
+
+    /// Arguments for a namespace where the pinned executables have been
+    /// mounted at explicit paths. Host paths must never escape the sandbox.
+    pub fn arguments_for_namespace(
+        &self,
+        relay: &Path,
+        sidecar: &Path,
+        adapter: &Path,
+    ) -> Vec<String> {
         let mut args = vec![
             "--unshare-net".into(),
             "--relay".into(),
@@ -224,11 +235,11 @@ impl SupervisorPlan {
             "--timeout-ms".into(),
             self.timeout.as_millis().to_string(),
             "--sidecar".into(),
-            self.sidecar.executable.display().to_string(),
+            sidecar.display().to_string(),
             "--sidecar-digest".into(),
             self.sidecar.digest.clone(),
             "--adapter".into(),
-            self.adapter.executable.display().to_string(),
+            adapter.display().to_string(),
             "--adapter-digest".into(),
             self.adapter.digest.clone(),
         ];

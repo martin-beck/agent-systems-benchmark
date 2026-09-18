@@ -189,15 +189,20 @@ class HostedPortabilityTests(unittest.TestCase):
         self.assertEqual(unavailable["status"], "unavailable")
         self.assertEqual(unavailable["limitation"], "native-sandbox-unavailable")
         self.assertNotIn("fixed", json.dumps(unavailable))
+        unavailable_nonzero = HOSTED._run_sandbox(
+            [
+                sys.executable,
+                "-c",
+                "import sys; print('native sandbox capability unavailable: fixed'); sys.exit(1)",
+            ],
+            ROOT,
+        )
+        self.assertEqual(unavailable_nonzero["status"], "unavailable")
         with self.assertRaisesRegex(
             HOSTED.PortabilityError, "hosted portability sandbox check did not pass"
         ):
             HOSTED._run_sandbox(
-                [
-                    sys.executable,
-                    "-c",
-                    "import sys; print('native sandbox capability unavailable: private'); sys.exit(1)",
-                ],
+                [sys.executable, "-c", "import sys; print('unexpected failure'); sys.exit(1)"],
                 ROOT,
             )
 

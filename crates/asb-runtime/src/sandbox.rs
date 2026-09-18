@@ -539,6 +539,9 @@ impl SandboxBackend {
             .args(["--setenv", "TMPDIR", "/tmp"])
             .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
         const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
+        const SUPERVISOR_TARGET: &str = "/tmp/asb-replay-supervisor";
+        const SIDECAR_TARGET: &str = "/tmp/asb-replay-sidecar";
+        const ADAPTER_TARGET: &str = "/tmp/asb-replay-adapter";
         if let Some(plan) = &spec.supervisor {
             if plan.supervisor().is_none() {
                 return Err(SandboxError::DelegationRejected);
@@ -553,19 +556,28 @@ impl SandboxBackend {
                 return Err(SandboxError::DelegationRejected);
             }
             command.arg("--bind").arg(plan.relay()).arg(RELAY_TARGET);
+            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
+            command
+                .arg("--ro-bind")
+                .arg(supervisor.executable())
+                .arg(SUPERVISOR_TARGET)
+                .arg("--ro-bind")
+                .arg(plan.sidecar().executable())
+                .arg(SIDECAR_TARGET)
+                .arg("--ro-bind")
+                .arg(plan.adapter().executable())
+                .arg(ADAPTER_TARGET);
         }
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
         if let Some(plan) = &spec.supervisor {
-            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
-            command.arg("--").arg(supervisor.executable());
-            // Preserve the runtime-pinned supervisor arguments before the
-            // generated relay contract.  Omitting them silently changes the
-            // executable invocation (and made argument-sensitive fixtures
-            // fail as if namespace creation had failed).
-            command.args(supervisor.arguments());
-            command.args(plan.arguments_for_relay(Path::new(RELAY_TARGET)));
+            command.arg("--").arg(SUPERVISOR_TARGET);
+            command.args(plan.arguments_for_namespace(
+                Path::new(RELAY_TARGET),
+                Path::new(SIDECAR_TARGET),
+                Path::new(ADAPTER_TARGET),
+            ));
         } else {
             command.arg("--").arg(&spec.program).args(&spec.arguments);
         }

@@ -153,6 +153,10 @@
           "description": "SHA-256 of the detached signature bytes.",
           "type": "string"
         },
+        "signer": {
+          "description": "Public signing-key identity, never the key material itself.",
+          "$ref": "#/$defs/AgentSigner"
+        },
         "version": {
           "description": "Exact package version.",
           "type": "string"
@@ -163,15 +167,24 @@
         "package_id",
         "version",
         "sha256",
-        "signature_sha256"
+        "signature_sha256",
+        "signer"
       ]
     },
     "AgentProvenance": {
       "description": "Immutable source and runtime provenance for one package.",
       "type": "object",
       "properties": {
+        "license_ref": {
+          "description": "SPDX license identifier or expression for the package.",
+          "type": "string"
+        },
         "manifest_sha256": {
           "description": "SHA-256 of the signed runtime manifest.",
+          "type": "string"
+        },
+        "sbom_sha256": {
+          "description": "SHA-256 of the SBOM describing the complete package inventory.",
           "type": "string"
         },
         "source_revision": {
@@ -182,7 +195,28 @@
       "additionalProperties": false,
       "required": [
         "source_revision",
-        "manifest_sha256"
+        "manifest_sha256",
+        "sbom_sha256",
+        "license_ref"
+      ]
+    },
+    "AgentSigner": {
+      "description": "Public identity of the key and principal that signed the package.",
+      "type": "object",
+      "properties": {
+        "key_id": {
+          "description": "Stable operator-provisioned key identity.",
+          "type": "string"
+        },
+        "principal": {
+          "description": "Bounded public signing principal.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key_id",
+        "principal"
       ]
     },
     "AgentTarget": {

@@ -170,8 +170,10 @@ admitted. A response is accepted only when its runner identity matches the reque
 being displayed.
 
 Every entry is target-bound and carries a stable agent ID, exact package version and digest,
-detached-signature digest, source revision, signed runtime-manifest digest, and sorted capability
-IDs. All supported entries remain visible, including unavailable entries with one closed reason
+detached-signature digest, public signer key identity and principal, source revision, signed
+runtime-manifest digest, SBOM digest, SPDX license reference, and sorted capability IDs. The
+signer fields identify public verification metadata only; key material and credentials are never
+part of the catalog. All supported entries remain visible, including unavailable entries with one closed reason
 such as `incompatible_target`, `incomplete_provenance`, `unverified_artifact`, or `policy_denied`.
 Malformed, duplicate, stale-generation, unsigned, target-mismatched, and incomplete projections
 fail closed in the protocol validator. The operation does not install or launch agents; lifecycle
