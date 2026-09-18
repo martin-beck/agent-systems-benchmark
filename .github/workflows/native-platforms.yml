@@ -50,6 +50,7 @@ jobs:
           HOSTED_EVIDENCE_FILE: ${{ runner.temp }}/hosted-portability-${{ matrix.runner }}.json
           NATIVE_EVIDENCE_FILE: ${{ runner.temp }}/native-qualification-${{ matrix.runner }}.json
           RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+          ASB_HOSTED_PORTABILITY_DIAGNOSTICS: "1"
         run: |
           route="$(python3 tools/platforms/hosted_portability.py route --execution-class github-hosted)"
           case "$route" in
