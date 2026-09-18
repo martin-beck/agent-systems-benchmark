@@ -2468,7 +2468,7 @@ mod tests {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
         prepare_root(&state).unwrap();
-        let backend = open_backend(state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
 
         let publication = backend
             .execute(&ControlCall::MeasurementCatalog, deadline())
@@ -2621,7 +2621,7 @@ mod tests {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
         prepare_root(&state).unwrap();
-        let backend = open_backend(state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
         let runner_instance_id = backend.runner_instance_id().to_owned();
         let selection = asb_control::ConfigurationSelection {
             agent_ids: vec!["aider".into()],
@@ -2666,6 +2666,30 @@ mod tests {
         };
         assert!(snapshot.configured);
         assert_eq!(snapshot.generation, Revision(2));
+
+        // Configuration is a durable default, not merely an in-memory wizard
+        // draft.  A fresh backend instance must expose the same privacy-safe
+        // selection and generation after restart.
+        drop(backend);
+        let restarted = open_backend(state).unwrap();
+        let restarted_status = restarted
+            .execute(
+                &ControlCall::ConfigurationStatus(
+                    asb_control::ConfigurationStatusRequest {
+                        runner_instance_id: restarted.runner_instance_id().to_owned(),
+                    },
+                ),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::Configuration(restarted_snapshot) = restarted_status.result else {
+            panic!("restarted configuration result");
+        };
+        assert_eq!(restarted_snapshot.generation, Revision(2));
+        assert_eq!(restarted_snapshot.agent_ids, vec!["aider"]);
+        assert_eq!(restarted_snapshot.provider_id.as_deref(), Some("openai"));
+        assert_eq!(restarted_snapshot.model_id.as_deref(), Some(asb_agents::openai::OPENAI_MODEL));
+        assert_eq!(restarted_snapshot.credential_reference_sha256, Some("a".repeat(64)));
     }
 
     #[test]
