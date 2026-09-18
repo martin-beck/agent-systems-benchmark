@@ -661,6 +661,33 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                             && plan.tuple_count == campaign.tuple_count
                     })
                 }
+                (
+                    MutationTarget::RecordingCampaignLifecycle { campaign_id, .. },
+                    ControlResult::RecordingCampaignLifecycle(lifecycle),
+                ) => catalog.recording_campaign.as_ref().is_some_and(|campaign| {
+                    lifecycle.campaign_id == *campaign_id
+                        && lifecycle.campaign_id == campaign.campaign_id
+                        && lifecycle.generation.0 == campaign.generation
+                        && lifecycle.provider_id == campaign.provider_id
+                        && lifecycle.model_id == campaign.model_id
+                        && lifecycle.agent_ids == campaign.agent_ids
+                        && lifecycle.workload_ids == campaign.workload_ids
+                        && lifecycle.tuple_count == campaign.tuple_count
+                        // Lifecycle mutation results are historical snapshots.  A later
+                        // reconcile/cancel transition may legitimately change the current
+                        // campaign state, so only immutable identity and matrix fields are
+                        // matched here.
+                        && lifecycle.covered_tuple_count <= lifecycle.tuple_count
+                        && matches!(
+                            lifecycle.state.as_str(),
+                            "planned"
+                                | "recording"
+                                | "needs_reconciliation"
+                                | "complete"
+                                | "cancelled"
+                                | "failed"
+                        )
+                }),
                 _ => false,
             };
             if !target_matches {
@@ -3259,6 +3286,107 @@ mod tests {
             panic!("campaign status result");
         };
         assert!(campaign_status.campaign.is_some());
+    }
+
+    #[test]
+    fn recording_campaign_lifecycle_transitions_are_durable_and_fail_closed() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let runner = backend.runner_instance_id().to_owned();
+        backend
+            .execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "lifecycle-config".into(),
+                    expected_generation: Revision(1),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: vec!["aider".into()],
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                        credential_reference_sha256: Some("d".repeat(64)),
+                    },
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let plan = backend
+            .execute(
+                &ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
+                    idempotency_key: "lifecycle-plan".into(),
+                    expected_generation: Revision(2),
+                    runner_instance_id: runner.clone(),
+                    provider_id: "openai".into(),
+                    model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                    agent_ids: vec!["aider".into()],
+                    workload_ids: vec!["original.bug-fix".into()],
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::RecordingCampaign(plan) = plan.result else {
+            panic!("campaign plan result");
+        };
+        let execute = |call: ControlCall| {
+            backend.execute(&call, deadline()).inspect(|result| {
+                result
+                    .validate_for_call(&call, ControlLimits::default())
+                    .unwrap();
+            })
+        };
+        let execute_call =
+            ControlCall::RecordingCampaignExecute(asb_control::RecordingCampaignExecuteParams {
+                idempotency_key: "lifecycle-execute".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        let first = execute(execute_call.clone()).unwrap();
+        assert!(matches!(
+            first.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "recording"
+        ));
+        assert_eq!(execute(execute_call.clone()).unwrap(), first);
+
+        let progress_call =
+            ControlCall::RecordingCampaignProgress(asb_control::RecordingCampaignProgressRequest {
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        let progress = execute(progress_call).unwrap();
+        assert!(matches!(
+            progress.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "recording"
+        ));
+
+        let reconcile_call = ControlCall::RecordingCampaignReconcile(
+            asb_control::RecordingCampaignReconcileParams {
+                idempotency_key: "lifecycle-reconcile".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            },
+        );
+        let reconciled = execute(reconcile_call).unwrap();
+        assert!(matches!(
+            reconciled.result,
+            ControlResult::RecordingCampaignLifecycle(ref value)
+                if value.state == "needs_reconciliation"
+        ));
+
+        let cancel_call =
+            ControlCall::RecordingCampaignCancel(asb_control::RecordingCampaignCancelParams {
+                idempotency_key: "lifecycle-cancel".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner,
+                campaign_id: plan.campaign_id,
+            });
+        let cancelled = execute(cancel_call).unwrap();
+        assert!(matches!(
+            cancelled.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "cancelled"
+        ));
     }
 
     #[test]
