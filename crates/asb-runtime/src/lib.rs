@@ -6,6 +6,7 @@
 pub mod launch_factory;
 /// A per-launch, authenticated loopback-to-Unix relay for strict replay.
 pub mod loopback_sidecar;
+pub mod provider_capture;
 /// Private per-launch replay relay transport.
 pub mod relay;
 /// Rootless namespace isolation and dedicated resource leases.

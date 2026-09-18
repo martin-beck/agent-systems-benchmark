@@ -136,3 +136,12 @@ repository policy and already-installed analyzer executions are deterministic
 against the checked-out tree. Coverage establishes exercised lines, not
 correctness; formal, concurrency, mutation and fuzz evidence remain owned by
 their later ARs.
+
+Provider recording is runtime-authorized only. The control service persists an
+exact agent/workload tuple matrix and records a cassette as complete only when
+the runtime capture callback reports a content digest plus successful redaction
+and strict-replay verification. A standalone control process has no capture
+authority and therefore fails closed; path-based recording imports cannot mark a
+campaign complete. Interrupted in-progress tuples are reconciled to `stale`
+without retrying an uncertain provider effect, and offline activation requires
+one current verified cassette for every tuple.

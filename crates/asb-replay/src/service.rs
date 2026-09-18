@@ -288,6 +288,138 @@ pub struct ProviderCaptureExchange {
     pub response: ReplayHttpResponse,
 }
 
+impl ProviderCaptureExchange {
+    /// Convert one runtime-owned exchange into the canonical cassette shape.
+    ///
+    /// This conversion is deliberately downstream of
+    /// [`StrictReplayService::capture_authenticated_connection`].  It accepts
+    /// only the already-sanitized exchange returned by that method; callers
+    /// cannot use it to turn a path-supplied manifest into a live capture.
+    pub fn into_cassette_contents(
+        self,
+        route: &ReplayRoute,
+        cassette_id: String,
+    ) -> Result<crate::CassetteContents, ReplayError> {
+        let request_body = if self.request.body.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&self.request.body).map_err(|_| ReplayError::InvalidHttp)?
+        };
+        let model = request_body
+            .get("model")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .ok_or(ReplayError::InvalidHttp)?
+            .to_owned();
+        let request_digest = crate::cassette::canonical_value_digest(&request_body)
+            .map_err(|_| ReplayError::InvalidHttp)?;
+        let response_body = if self.response.segments.len() == 1 {
+            let payload: Value = serde_json::from_slice(&self.response.segments[0])
+                .map_err(|_| ReplayError::InvalidHttp)?;
+            let payload_digest = crate::cassette::canonical_value_digest(&payload)
+                .map_err(|_| ReplayError::InvalidHttp)?;
+            let response_id = payload
+                .get("id")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            crate::ResponseBody::Buffered {
+                payload,
+                payload_sha256: payload_digest,
+                response_id,
+                terminal: crate::TerminalEvent::Completed,
+            }
+        } else {
+            if self.response.segments.is_empty()
+                || self.response.segments.len() != self.response.recorded_offsets.len()
+            {
+                return Err(ReplayError::InvalidHttp);
+            }
+            let mut events = Vec::with_capacity(self.response.segments.len());
+            for (sequence, (segment, offset)) in self
+                .response
+                .segments
+                .iter()
+                .zip(&self.response.recorded_offsets)
+                .enumerate()
+            {
+                let payload = segment
+                    .strip_prefix(b"data: ")
+                    .and_then(|value| value.strip_suffix(b"\n\n"))
+                    .filter(|value| *value != b"[DONE]")
+                    .ok_or(ReplayError::InvalidHttp)
+                    .and_then(|value| {
+                        serde_json::from_slice::<Value>(value).map_err(|_| ReplayError::InvalidHttp)
+                    })?;
+                let payload_sha256 = crate::cassette::canonical_value_digest(&payload)
+                    .map_err(|_| ReplayError::InvalidHttp)?;
+                events.push(crate::CassetteEvent {
+                    sequence: u32::try_from(sequence).map_err(|_| ReplayError::InvalidHttp)?,
+                    monotonic_offset_ns: u64::try_from(offset.as_nanos())
+                        .map_err(|_| ReplayError::InvalidHttp)?,
+                    event_type: "message".to_owned(),
+                    response_id: payload
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(ToOwned::to_owned),
+                    previous_response_id: None,
+                    tool_call_id: None,
+                    payload,
+                    payload_sha256,
+                    terminal: None,
+                });
+            }
+            if let Some(last) = events.last_mut() {
+                last.terminal = Some(crate::TerminalEvent::Completed);
+            }
+            crate::ResponseBody::Events {
+                events,
+                transport_chunk_bytes: self
+                    .response
+                    .segments
+                    .iter()
+                    .map(|segment| {
+                        u32::try_from(segment.len()).map_err(|_| ReplayError::InvalidHttp)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            }
+        };
+        let interaction_id = format!("{}-capture-0", route.attempt_id);
+        let interaction = crate::Interaction {
+            session_id: route.session_id.clone(),
+            attempt_id: route.attempt_id.clone(),
+            interaction_id,
+            ordinal: 0,
+            dialect: route.dialect,
+            request: crate::RecordedRequest {
+                method: self.request.method,
+                path: self.request.path,
+                headers: self.request.headers,
+                body: request_body,
+                body_sha256: request_digest,
+                model,
+                options: BTreeMap::new(),
+                tools: Vec::new(),
+                previous_response_id: None,
+            },
+            response: crate::RecordedResponse {
+                status: self.response.status,
+                headers: self.response.headers,
+                body: response_body,
+            },
+        };
+        let redaction = crate::RedactionPolicy::default()
+            .descriptor()
+            .map_err(|_| ReplayError::InvalidCassette)?;
+        Ok(crate::CassetteContents {
+            schema_version: crate::CASSETTE_SCHEMA_VERSION,
+            cassette_id,
+            normalization: crate::PolicyVersion { version: 1 },
+            redaction,
+            interactions: vec![interaction],
+        })
+    }
+}
+
 /// Encode one strict request for the runtime-owned operation transport.
 pub fn encode_dispatch_request(request: &ReplayDispatchRequest) -> Result<Vec<u8>, ReplayError> {
     request.validate()?;
@@ -1823,6 +1955,66 @@ mod tests {
             String::from_utf8(io.output)
                 .unwrap()
                 .contains("content-length: 2")
+        );
+    }
+
+    #[test]
+    fn sanitized_exchange_converts_to_authenticated_cassette_contents() {
+        let exchange = ProviderCaptureExchange {
+            request: ReplayHttpRequest {
+                method: "POST".into(),
+                path: "/v1/chat/completions".into(),
+                headers: vec![],
+                body: br#"{"model":"fixture-model","messages":[]}"#.to_vec(),
+            },
+            response: ReplayHttpResponse {
+                status: 200,
+                headers: vec![],
+                segments: vec![br#"{"id":"response-1","choices":[]}"#.to_vec()],
+                recorded_offsets: vec![Duration::ZERO],
+            },
+        };
+        let route = ReplayRoute {
+            session_id: "session".into(),
+            attempt_id: "attempt".into(),
+            dialect: ProviderDialect::OpenaiChatCompletions,
+        };
+        let contents = exchange
+            .into_cassette_contents(&route, "cassette-1".into())
+            .unwrap();
+        let (redacted, _) = crate::Redactor::new(crate::RedactionPolicy::default())
+            .unwrap()
+            .redact_contents(contents)
+            .unwrap();
+        let encoded = crate::seal_cassette(redacted, CassetteLimits::default()).unwrap();
+        let cassette = crate::decode_cassette(&encoded, CassetteLimits::default()).unwrap();
+        assert_eq!(cassette.contents.interactions.len(), 1);
+    }
+
+    #[test]
+    fn sanitized_exchange_rejects_missing_model_identity() {
+        let exchange = ProviderCaptureExchange {
+            request: ReplayHttpRequest {
+                method: "POST".into(),
+                path: "/v1/chat/completions".into(),
+                headers: vec![],
+                body: br#"{"messages":[]}"#.to_vec(),
+            },
+            response: ReplayHttpResponse {
+                status: 200,
+                headers: vec![],
+                segments: vec![br#"{"choices":[]}"#.to_vec()],
+                recorded_offsets: vec![Duration::ZERO],
+            },
+        };
+        let route = ReplayRoute {
+            session_id: "session".into(),
+            attempt_id: "attempt".into(),
+            dialect: ProviderDialect::OpenaiChatCompletions,
+        };
+        assert_eq!(
+            exchange.into_cassette_contents(&route, "cassette-2".into()),
+            Err(ReplayError::InvalidHttp)
         );
     }
 
