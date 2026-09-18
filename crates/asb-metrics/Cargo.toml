@@ -10,7 +10,7 @@ repository.workspace = true
 asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
 asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
 rustix = { version = "=1.1.4", features = ["param"] }
-sha2 = "=0.10.9"
+sha2 = "=0.11.0"
 
 [dev-dependencies]
 rustix = { version = "=1.1.4", features = ["fs"] }
