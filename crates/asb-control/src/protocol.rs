@@ -30,14 +30,17 @@ pub const CONTROL_AGENT_CATALOG_V1: ControlVersion = ControlVersion { major: 1, 
 pub const CONTROL_AGENT_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 5 };
 /// Version of additive provider-authentication lifecycle operations.
 pub const CONTROL_AUTH_V1: ControlVersion = ControlVersion { major: 1, minor: 6 };
+/// Version of the additive provider/model catalog operation.
+pub const CONTROL_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 7 };
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 6] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 7] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
     CONTROL_AGENT_CATALOG_V1,
     CONTROL_AGENT_LIFECYCLE_V1,
     CONTROL_AUTH_V1,
+    CONTROL_PROVIDER_CATALOG_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -221,6 +224,8 @@ pub enum ControlCall {
     AuthRotate(AuthRotateParams),
     /// Revoke an enrollment.
     AuthRevoke(AuthRevokeParams),
+    /// Read or refresh the authenticated provider/model catalog.
+    ProviderCatalog(crate::ProviderCatalogRequest),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -335,6 +340,7 @@ impl ControlCall {
             | Self::AuthStatus(_)
             | Self::AuthRotate(_)
             | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
+            Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1352,6 +1358,8 @@ pub enum ControlResult {
     Acknowledged(MutationAcknowledgement),
     /// Public credential enrollment status.
     AuthStatus(AuthStatusResponse),
+    /// Authenticated provider/model catalog snapshot.
+    ProviderCatalog(crate::ProviderCatalog),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1415,6 +1423,9 @@ impl BoundControlResult {
             ControlResult::AgentLifecycle(_) if version < CONTROL_AGENT_LIFECYCLE_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::ProviderCatalog(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1442,6 +1453,7 @@ impl ControlResult {
         match self {
             Self::Capabilities(_) => Ok(()),
             Self::AgentCatalog(value) => value.validate(),
+            Self::ProviderCatalog(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
@@ -1581,6 +1593,7 @@ impl ControlResult {
                 | (ControlCall::AuthRotate(_), Self::Acknowledged(_))
                 | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
+                | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -1623,6 +1636,11 @@ impl ControlResult {
                 catalog.runner_instance_id == request.runner_instance_id
                     && catalog.refreshed
                         == matches!(request.action, crate::AgentCatalogAction::Refresh)
+            }
+            (ControlCall::ProviderCatalog(request), Self::ProviderCatalog(catalog)) => {
+                catalog.runner_instance_id == request.runner_instance_id
+                    && catalog.refreshed
+                        == matches!(request.action, crate::ProviderCatalogAction::Refresh)
             }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
@@ -1850,6 +1868,7 @@ pub fn validate_request(
             validate_digest(&params.credential_locator_sha256)?;
             validate_idempotency_key(&params.idempotency_key)?;
         }
+        ControlCall::ProviderCatalog(params) => params.validate()?,
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,

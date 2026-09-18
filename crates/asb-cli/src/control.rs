@@ -8,8 +8,10 @@ use asb_control::{
     BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ControlBackend,
     ControlCall, ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
     MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
-    PlanReference, ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId,
-    RunSummary, SettingsIssue, SettingsValidation,
+    PlanReference, ProviderAuthMethod, ProviderAvailability, ProviderCatalog,
+    ProviderCatalogAction, ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel,
+    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
+    SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1239,6 +1241,10 @@ impl ControlBackend for RunnerBackend {
                     baseline_measurement_catalog(),
                 )),
             ),
+            ControlCall::ProviderCatalog(request) => {
+                let catalog = self.provider_catalog(request)?;
+                self.bind(call, ControlResult::ProviderCatalog(catalog))
+            }
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
             // operation fail-closed until the authenticated catalog provider is
@@ -1765,6 +1771,69 @@ impl ControlBackend for RunnerBackend {
     }
 }
 
+impl RunnerBackend {
+    fn provider_catalog(
+        &self,
+        request: &ProviderCatalogRequest,
+    ) -> Result<ProviderCatalog, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let generation = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .revision
+            .0
+            .max(1);
+        if request
+            .known_generation
+            .is_some_and(|known| known.0 > generation)
+        {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let refreshed = matches!(request.action, ProviderCatalogAction::Refresh);
+        let mut catalog = ProviderCatalog {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(generation),
+            catalog_sha256: String::new(),
+            providers: vec![
+                ProviderCatalogEntry {
+                    provider_id: "ollama".into(),
+                    display_name: "Ollama".into(),
+                    auth_methods: vec![ProviderAuthMethod::LocalDaemon, ProviderAuthMethod::None],
+                    models: vec![ProviderModel {
+                        model_id: asb_agents::ollama::OLLAMA_MODEL.into(),
+                        revision: "local-daemon".into(),
+                        availability: ProviderAvailability::Unavailable(
+                            "verified-daemon-unavailable".into(),
+                        ),
+                    }],
+                    availability: ProviderAvailability::Unavailable(
+                        "verified-daemon-unavailable".into(),
+                    ),
+                },
+                ProviderCatalogEntry {
+                    provider_id: "openai".into(),
+                    display_name: "OpenAI".into(),
+                    auth_methods: vec![ProviderAuthMethod::CredentialReference],
+                    models: vec![ProviderModel {
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        revision: "provider-catalog-v1".into(),
+                        availability: ProviderAvailability::Available,
+                    }],
+                    availability: ProviderAvailability::Available,
+                },
+            ],
+            refreshed,
+        };
+        catalog.catalog_sha256 = catalog
+            .computed_sha256()
+            .map_err(|_| BackendFailure::Rejected)?;
+        Ok(catalog)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2239,6 +2308,68 @@ mod tests {
             backend.execute(&call, deadline()),
             Err(BackendFailure::CapabilityUnavailable)
         );
+    }
+
+    #[test]
+    fn provider_catalog_exposes_models_and_auth_methods_without_credentials() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Status,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::ProviderCatalog(catalog) = result.result else {
+            panic!("provider catalog result");
+        };
+        assert_eq!(catalog.providers.len(), 2);
+        assert_eq!(catalog.providers[0].provider_id, "ollama");
+        assert_eq!(catalog.providers[1].provider_id, "openai");
+        assert_eq!(
+            catalog.providers[1].models[0].model_id,
+            asb_agents::openai::OPENAI_MODEL
+        );
+        assert!(matches!(
+            catalog.providers[0].availability,
+            asb_control::ProviderAvailability::Unavailable(_)
+        ));
+        let encoded = serde_json::to_string(&catalog).unwrap();
+        assert!(!encoded.contains("api_key"));
+        assert!(!encoded.contains("sk-"));
+
+        let socket = scratch.0.join("provider-catalog.sock");
+        let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
+        let service = thread::spawn(move || server.serve_one());
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            &socket,
+            ControlLimits::default(),
+            [asb_control::CONTROL_PROVIDER_CATALOG_V1],
+        )
+        .expect("connect provider catalog client");
+        let runner_instance_id = client.negotiated().runner_instance_id.clone();
+        let response = client
+            .call(
+                ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Status,
+                    runner_instance_id,
+                    known_generation: None,
+                }),
+                5_000,
+            )
+            .expect("provider catalog response")
+            .into_result()
+            .expect("successful result");
+        assert!(
+            matches!(response, ControlSuccess::Operation(operation) if matches!(operation.result, ControlResult::ProviderCatalog(_)))
+        );
+        drop(client);
+        service.join().unwrap().unwrap();
     }
 
     #[test]
