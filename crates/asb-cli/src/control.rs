@@ -1292,6 +1292,10 @@ impl ControlBackend for RunnerBackend {
             ControlCall::ConfigurationApply(params) => {
                 self.configuration_apply(call, params, deadline)
             }
+            ControlCall::RecordingCampaignEstimate(request) => {
+                let estimate = self.recording_campaign_estimate(request)?;
+                self.bind(call, ControlResult::RecordingCampaignEstimate(estimate))
+            }
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
             // operation fail-closed until the authenticated catalog provider is
@@ -1819,6 +1823,58 @@ impl ControlBackend for RunnerBackend {
 }
 
 impl RunnerBackend {
+    fn recording_campaign_estimate(
+        &self,
+        request: &asb_control::RecordingCampaignEstimateRequest,
+    ) -> Result<asb_control::RecordingCampaignEstimate, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let configuration = self.configuration_status(&ConfigurationStatusRequest {
+            runner_instance_id: self.runner_instance_id.clone(),
+        })?;
+        let tuple_count = request
+            .agent_ids
+            .len()
+            .checked_mul(request.workload_ids.len())
+            .and_then(|count| u16::try_from(count).ok())
+            .ok_or(BackendFailure::Rejected)?;
+        let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
+            action: ProviderCatalogAction::Status,
+            runner_instance_id: self.runner_instance_id.clone(),
+            known_generation: None,
+        })?;
+        let provider_ok = provider_catalog.providers.iter().any(|provider| {
+            provider.provider_id == request.provider_id
+                && matches!(&provider.availability, ProviderAvailability::Available)
+                && provider.models.iter().any(|model| {
+                    model.model_id == request.model_id
+                        && matches!(&model.availability, ProviderAvailability::Available)
+                })
+        });
+        let workloads_ok = request
+            .workload_ids
+            .iter()
+            .all(|workload| OriginalWorkloads::describe(workload).is_ok());
+        let (complete_coverage, offline_ready, unavailable_reason) = if !provider_ok {
+            (false, false, Some("provider-model-unavailable".to_owned()))
+        } else if !workloads_ok {
+            (false, false, Some("workload-unavailable".to_owned()))
+        } else {
+            // An estimate never fabricates cassette coverage. Recording must
+            // be launched explicitly and then reconciled before offline use.
+            (false, false, Some("recording-required".to_owned()))
+        };
+        Ok(asb_control::RecordingCampaignEstimate {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: configuration.generation,
+            tuple_count,
+            complete_coverage,
+            offline_ready,
+            unavailable_reason,
+        })
+    }
+
     fn configuration_apply(
         &self,
         call: &ControlCall,
@@ -2610,6 +2666,39 @@ mod tests {
         };
         assert!(snapshot.configured);
         assert_eq!(snapshot.generation, Revision(2));
+    }
+
+    #[test]
+    fn recording_estimate_covers_all_current_workloads_without_fabricating_offline_ready() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call =
+            ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: vec!["aider".into()],
+                workload_ids: OriginalWorkloads::fixture_ids()
+                    .iter()
+                    .map(|id| (*id).to_owned())
+                    .collect(),
+            });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCampaignEstimate(estimate) = result.result else {
+            panic!("recording estimate result");
+        };
+        assert_eq!(estimate.tuple_count, 7);
+        assert!(!estimate.complete_coverage);
+        assert!(!estimate.offline_ready);
+        assert_eq!(
+            estimate.unavailable_reason.as_deref(),
+            Some("recording-required")
+        );
     }
 
     #[test]

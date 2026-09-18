@@ -170,10 +170,56 @@ pub struct ConfigurationSelection {
     pub credential_reference_sha256: Option<String>,
 }
 
+/// Read-only bounded recording-campaign estimate request.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignEstimateRequest {
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Provider profile selected for the campaign.
+    pub provider_id: String,
+    /// Model selected for the campaign.
+    pub model_id: String,
+    /// Selected agent IDs.
+    pub agent_ids: Vec<String>,
+    /// Selected workload IDs.
+    pub workload_ids: Vec<String>,
+}
+
+/// Explicit estimate and offline-readiness projection for recording campaigns.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignEstimate {
+    /// Runner identity.
+    pub runner_instance_id: String,
+    /// Configuration generation used for this estimate.
+    pub generation: Revision,
+    /// Number of agent x workload tuples requested.
+    pub tuple_count: u16,
+    /// Whether every requested tuple has current complete coverage.
+    pub complete_coverage: bool,
+    /// Whether the selected configuration may run offline immediately.
+    pub offline_ready: bool,
+    /// Stable explanation when recording or offline replay is unavailable.
+    pub unavailable_reason: Option<String>,
+}
+
 impl ConfigurationStatusRequest {
     /// Validate request identity.
     pub fn validate(&self) -> Result<(), ProtocolError> {
         validate_identity(&self.runner_instance_id)
+    }
+}
+
+impl RecordingCampaignEstimateRequest {
+    /// Validate bounded, canonical request fields without provider contact.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        validate_catalog_string(&self.provider_id)?;
+        validate_catalog_string(&self.model_id)?;
+        validate_sorted_ids(&self.agent_ids, false)?;
+        validate_sorted_ids(&self.workload_ids, false)?;
+        Ok(())
     }
 }
 
@@ -258,6 +304,43 @@ impl ConfigurationSnapshot {
         }
         Ok(())
     }
+}
+
+impl RecordingCampaignEstimate {
+    /// Validate explicit incomplete/ready semantics and bounded public fields.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        if self.generation.0 == 0 || self.tuple_count == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if self.offline_ready && (!self.complete_coverage || self.unavailable_reason.is_some()) {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if !self.offline_ready && self.unavailable_reason.is_none() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if let Some(reason) = &self.unavailable_reason {
+            validate_catalog_string(reason)?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_sorted_ids(values: &[String], allow_empty: bool) -> Result<(), ProtocolError> {
+    if (!allow_empty && values.is_empty()) || values.len() > MAX_PROVIDERS {
+        return Err(ProtocolError::InvalidResponse);
+    }
+    let mut ids = BTreeSet::new();
+    let mut previous = None;
+    for value in values {
+        validate_catalog_string(value)?;
+        if previous.is_some_and(|item: &str| item >= value.as_str()) || !ids.insert(value.as_str())
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        previous = Some(value.as_str());
+    }
+    Ok(())
 }
 
 impl ProviderCatalogRequest {
