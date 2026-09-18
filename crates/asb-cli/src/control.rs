@@ -2864,6 +2864,19 @@ mod tests {
         }
     }
 
+    struct ErrorProviderCapture {
+        error: ProviderCaptureError,
+    }
+
+    impl ProviderCapture for ErrorProviderCapture {
+        fn capture(
+            &self,
+            _request: &ProviderCaptureRequest,
+        ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
+            Err(self.error)
+        }
+    }
+
     struct Scratch(PathBuf, fs::File, fs::File, std::ffi::OsString);
 
     impl std::ops::Deref for Scratch {
@@ -4018,6 +4031,81 @@ mod tests {
                 if value.state == "complete" && value.offline_ready && value.covered_tuple_count == 1
         ));
         assert_eq!(capture.calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn runtime_capture_failures_remain_typed_and_fail_closed() {
+        for (suffix, error) in [
+            ("identity", ProviderCaptureError::IdentityMismatch),
+            ("bounds", ProviderCaptureError::Bounds),
+            ("verification", ProviderCaptureError::Verification),
+        ] {
+            let scratch = Scratch::new();
+            let state = scratch.0.join("state");
+            prepare_root(&state).unwrap();
+            let backend =
+                open_backend_with_capture(state, Arc::new(ErrorProviderCapture { error })).unwrap();
+            let runner = backend.runner_instance_id().to_owned();
+            backend
+                .execute(
+                    &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                        idempotency_key: format!("capture-error-config-{suffix}"),
+                        expected_generation: Revision(1),
+                        selection: asb_control::ConfigurationSelection {
+                            agent_ids: vec!["aider".into()],
+                            provider_id: "openai".into(),
+                            model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                            auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                            credential_reference_sha256: Some("d".repeat(64)),
+                        },
+                    }),
+                    deadline(),
+                )
+                .unwrap();
+            let plan = backend
+                .execute(
+                    &ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
+                        idempotency_key: format!("capture-error-plan-{suffix}"),
+                        expected_generation: Revision(2),
+                        runner_instance_id: runner.clone(),
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        agent_ids: vec!["aider".into()],
+                        workload_ids: vec!["original.bug-fix".into()],
+                    }),
+                    deadline(),
+                )
+                .unwrap();
+            let ControlResult::RecordingCampaign(plan) = plan.result else {
+                panic!("campaign plan result");
+            };
+            let execute = ControlCall::RecordingCampaignExecute(
+                asb_control::RecordingCampaignExecuteParams {
+                    idempotency_key: format!("capture-error-execute-{suffix}"),
+                    expected_generation: Revision(2),
+                    runner_instance_id: runner,
+                    campaign_id: plan.campaign_id,
+                },
+            );
+            assert_eq!(
+                backend.execute(&execute, deadline()),
+                Err(BackendFailure::Rejected)
+            );
+            let catalog = backend.catalog.lock().unwrap();
+            let record = catalog.recording_campaign.as_ref().unwrap();
+            assert_eq!(record.state, "failed");
+            assert_eq!(record.covered_tuple_count, 0);
+            assert!(!record.offline_ready);
+            assert_eq!(
+                record.unavailable_reason.as_deref(),
+                Some(match error {
+                    ProviderCaptureError::IdentityMismatch => "runtime-capture-identity-mismatch",
+                    ProviderCaptureError::Bounds => "runtime-capture-bounds",
+                    ProviderCaptureError::Verification => "runtime-capture-verification-failed",
+                    ProviderCaptureError::Unavailable => unreachable!(),
+                })
+            );
+        }
     }
 
     #[test]
