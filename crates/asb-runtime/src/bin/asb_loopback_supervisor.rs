@@ -5,10 +5,11 @@
 //! mutates host networking.
 
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -26,7 +27,19 @@ fn repeated(args: &[String], name: &str) -> Vec<String> {
         .collect()
 }
 
-fn main() -> Result<(), String> {
+fn main() {
+    if let Err(error) = run() {
+        let code = error
+            .strip_prefix("adapter failed: ")
+            .and_then(|value| value.parse::<i32>().ok())
+            .filter(|value| (1..=125).contains(value))
+            .unwrap_or(1);
+        eprintln!("{error}");
+        std::process::exit(code);
+    }
+}
+
+fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().skip(1).collect();
     if args
         .iter()
@@ -55,7 +68,15 @@ fn main() -> Result<(), String> {
     listener
         .set_nonblocking(true)
         .map_err(|_| "loopback setup failed".to_owned())?;
-    let sidecar = spawn(&args, "--sidecar", "--sidecar-arg")?;
+    let sidecar_executable = value(&args, "--sidecar")?;
+    let sidecar_args = repeated(&args, "--sidecar-arg");
+    let sidecar_is_protocol = sidecar_args.iter().any(|arg| arg == "--listen");
+    let sidecar_has_handshake_probe = sidecar_args.iter().any(|arg| arg == "--handshake-mode");
+    let sidecar = if sidecar_is_protocol && !sidecar_has_handshake_probe {
+        spawn_ready_sidecar(&args, &sidecar_executable)?
+    } else {
+        spawn(&args, "--sidecar", "--sidecar-arg")?
+    };
     let adapter = spawn(&args, "--adapter", "--adapter-arg")?;
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     println!(
@@ -86,6 +107,45 @@ fn spawn(args: &[String], command_name: &str, arg_name: &str) -> Result<Child, S
         .map_err(|_| format!("failed to start {command_name}"))
 }
 
+fn spawn_ready_sidecar(args: &[String], executable: &str) -> Result<Child, String> {
+    let mut command = Command::new(executable);
+    command
+        .args(repeated(args, "--sidecar-arg"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
+    let mut child = command.spawn().map_err(|_| "failed to start sidecar")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "sidecar readiness pipe unavailable".to_owned())?;
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut line = String::new();
+        let result = BufReader::new(stdout).read_line(&mut line).map(|_| line);
+        let _ = sender.send(result);
+    });
+    let line = match receiver.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(line)) => line,
+        Ok(Err(_)) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("sidecar readiness read failed".into());
+        }
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("sidecar readiness timed out".into());
+        }
+    };
+    if line.trim_end() != "ASB_SIDECAR_READY" {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("sidecar readiness marker invalid".into());
+    }
+    Ok(child)
+}
+
 fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Result<(), String> {
     let mut sidecar_done = None;
     let mut adapter_done = None;
@@ -107,10 +167,26 @@ fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Resul
         }
         if adapter_done.is_none() {
             adapter_done = adapter.try_wait().map_err(|_| "adapter wait failed")?;
-            if adapter_done.is_some_and(|status| !status.success()) {
+            if adapter_done
+                .as_ref()
+                .is_some_and(|status| !status.success())
+            {
+                if let Some(status) = adapter_done.as_ref() {
+                    println!(
+                        "ASB_SUPERVISED_ADAPTER_EXIT={}",
+                        status.code().unwrap_or(-1)
+                    );
+                    let _ = io::stdout().flush();
+                }
                 let _ = sidecar.kill();
                 let _ = sidecar.wait();
-                return Err("adapter failed".into());
+                return Err(format!(
+                    "adapter failed: {}",
+                    adapter_done
+                        .as_ref()
+                        .and_then(std::process::ExitStatus::code)
+                        .unwrap_or(1)
+                ));
             }
         }
         if adapter_done.is_some_and(|status| status.success()) && sidecar_done.is_none() {

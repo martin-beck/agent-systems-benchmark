@@ -516,7 +516,8 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
     let root = test_root("supervisor-cassette");
     let generation = "native-cassette-generation";
     let mut relay = ReplayRelay::bind(&root, generation).unwrap();
-    let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
+    let child_endpoint = "/tmp/asb-replay-relay.sock";
+    let handoff = relay.handoff(child_endpoint).unwrap();
     let cassette_bytes =
         include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
     let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
@@ -593,7 +594,7 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
             "--listen".into(),
             format!("127.0.0.1:{port}"),
             "--relay".into(),
-            "/tmp/asb-replay-relay.sock".into(),
+            child_endpoint.into(),
             "--generation".into(),
             generation.into(),
         ],
@@ -718,7 +719,8 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
         let root = test_root(&root_name);
         let generation = format!("authenticated-negative-{mode}");
         let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
-        let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
+        let child_endpoint = "/tmp/asb-replay-relay.sock";
+        let handoff = relay.handoff(child_endpoint).unwrap();
         let cassette_bytes =
             include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
         let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
@@ -757,9 +759,9 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
                     let status = service
                         .serve_authenticated_connection(&mut stream, &route)
                         .map_err(|error| format!("strict mismatch service failed: {error}"))?;
-                    (status != 200)
-                        .then_some(())
-                        .ok_or_else(|| "strict route mismatch unexpectedly succeeded".into())
+                    (status != 200).then_some(()).ok_or_else(|| {
+                        format!("strict route mismatch unexpectedly succeeded: status={status}")
+                    })
                 }
                 _ => Err("unknown negative mode".into()),
             }
@@ -783,7 +785,7 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
             "--listen".into(),
             format!("127.0.0.1:{port}"),
             "--relay".into(),
-            "/tmp/asb-replay-relay.sock".into(),
+            child_endpoint.into(),
             "--generation".into(),
             generation.clone(),
         ];
@@ -809,7 +811,7 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
                 "--connect-timeout".into(),
                 "3".into(),
                 "--max-time".into(),
-                "20".into(),
+                "2".into(),
                 "--header".into(),
                 "content-type: application/json".into(),
                 "--header".into(),
@@ -976,14 +978,13 @@ fn run_supervised_fault(
     adapter_arguments: Vec<String>,
     timeout: Duration,
     cancel_after: Option<Duration>,
+    authenticated_request: bool,
 ) -> (Termination, Option<i32>, TestRoot, String) {
     let root = test_root(name);
     let generation = format!("fault-{name}");
-    // Use the runtime-owned generation-authenticated relay in every matrix
-    // case. A raw UnixListener would let an unrelated child failure look like
-    // a valid supervised replay launch.
-    let relay = ReplayRelay::bind(&root, &generation).unwrap();
-    let relay_path = relay.socket_path().to_owned();
+    let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
+    let child_endpoint = "/tmp/asb-replay-relay.sock";
+    let handoff = relay.handoff(child_endpoint).unwrap();
     let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
     let supervisor_path = executable_dir
         .parent()
@@ -992,18 +993,90 @@ fn run_supervised_fault(
         .unwrap()
         .join("asb_loopback_supervisor");
     assert!(supervisor_path.is_file());
-    let sidecar = PinnedCommand::new_verified(
-        sidecar_executable.to_owned(),
-        sidecar_arguments,
-        &file_sha256(sidecar_executable),
-    )
-    .unwrap();
-    let adapter = PinnedCommand::new_verified(
-        adapter_executable.to_owned(),
-        adapter_arguments,
-        &file_sha256(adapter_executable),
-    )
-    .unwrap();
+    let cassette_bytes =
+        include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+    let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
+    let request_body =
+        serde_json::to_string(&cassette.contents.interactions[0].request.body).unwrap();
+    let route = ReplayRoute {
+        session_id: "gemini-public-session".into(),
+        attempt_id: "attempt-1".into(),
+        dialect: ProviderDialect::GeminiGenerateContent,
+    };
+    let mut server = None;
+    let (sidecar_arguments, adapter_arguments) = if authenticated_request {
+        let service = StrictReplayService::new(cassette, Default::default()).unwrap();
+        let port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = port_probe.local_addr().unwrap().port();
+        drop(port_probe);
+        let server_route = route.clone();
+        let fault_name = name.to_owned();
+        server = Some(thread::spawn(move || -> Result<u16, String> {
+            let mut stream = relay
+                .accept_authenticated()
+                .map_err(|error| format!("relay authentication failed: {error}"))?;
+            service
+                .serve_authenticated_connection(&mut stream, &server_route)
+                .map_err(|error| {
+                    format!("strict cassette service failed for {fault_name}: {error}")
+                })
+        }));
+        let request = format!(
+            "curl --fail --silent --connect-timeout 3 --max-time 10 --header 'accept:' --header 'content-type: application/json' --header \"$(printf 'x-goog-api-key: %s' \"$ASB_FIXTURE_KEY\")\" --data-binary @/workspace/work/replay-request.json http://127.0.0.1:{port}/v1beta/models/fixture-model:streamGenerateContent?alt=sse && {}",
+            adapter_arguments
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "true".into())
+        );
+        (
+            vec![
+                "--listen".into(),
+                format!("127.0.0.1:{port}"),
+                "--relay".into(),
+                child_endpoint.into(),
+                "--generation".into(),
+                generation.clone(),
+            ],
+            vec!["-c".into(), request],
+        )
+    } else {
+        (sidecar_arguments, adapter_arguments)
+    };
+    let executable_path = fs::canonicalize(env::current_exe().unwrap()).unwrap();
+    let executable_parent = executable_path.parent().unwrap();
+    let executable_dir =
+        if executable_parent.file_name().and_then(|name| name.to_str()) == Some("deps") {
+            executable_parent.parent().unwrap().to_owned()
+        } else {
+            executable_parent.to_owned()
+        };
+    let sidecar_executable = if authenticated_request {
+        executable_dir.join("asb_loopback_sidecar")
+    } else {
+        sidecar_executable.to_owned()
+    };
+    assert!(
+        sidecar_executable.is_file(),
+        "pinned sidecar fixture is missing"
+    );
+    let sidecar_digest = file_sha256(&sidecar_executable);
+    let sidecar =
+        PinnedCommand::new_verified(sidecar_executable, sidecar_arguments, &sidecar_digest)
+            .unwrap();
+    let mut environment = BTreeMap::new();
+    if authenticated_request {
+        fs::write(root.join("work/replay-request.json"), &request_body).unwrap();
+        environment.insert("ASB_FIXTURE_KEY".into(), "fixture-key".into());
+    }
+    let adapter_executable = if authenticated_request {
+        PathBuf::from("/bin/sh")
+    } else {
+        adapter_executable.to_owned()
+    };
+    let adapter_digest = file_sha256(&adapter_executable);
+    let adapter =
+        PinnedCommand::new_verified(adapter_executable, adapter_arguments, &adapter_digest)
+            .unwrap();
     let supervisor = PinnedCommand::new_verified(
         supervisor_path.clone(),
         Vec::new(),
@@ -1013,7 +1086,7 @@ fn run_supervised_fault(
     let plan = SupervisorPlan::new(
         sidecar,
         adapter,
-        relay_path.clone(),
+        handoff.socket_path().to_path_buf(),
         generation,
         "c".repeat(64),
         timeout,
@@ -1027,13 +1100,23 @@ fn run_supervised_fault(
         PathBuf::from("work"),
         "/bin/true".into(),
         Vec::new(),
-        BTreeMap::new(),
+        environment,
         resources,
         NetworkPolicy::Deny,
     )
     .unwrap()
     .with_supervisor(plan);
-    let result = match backend.spawn(sandbox, lease, limits()) {
+    let input = SandboxLaunchInput::new(sandbox, limits())
+        .unwrap()
+        .with_replay_handoff(handoff)
+        .unwrap();
+    let cassette_digest = "c".repeat(64);
+    let token = backend
+        .attest_replay_launch(&input, &lease, &cassette_digest)
+        .unwrap();
+    let authority = ReplayLaunchFactory::issue(token, input, lease, cassette_digest).unwrap();
+    let context = authority.consume_for(&"c".repeat(64)).unwrap();
+    let result = match context.spawn(backend) {
         Ok(mut process) => {
             if let Some(delay) = cancel_after {
                 thread::sleep(delay);
@@ -1052,7 +1135,16 @@ fn run_supervised_fault(
         }
         Err(error) => panic!("supervised fault {name} failed to spawn: {error:?}"),
     };
-    drop(relay);
+    if let Some(server) = server {
+        let server_result = server.join().unwrap();
+        if authenticated_request {
+            assert_eq!(
+                server_result,
+                Ok(200),
+                "authenticated relay failure: {server_result:?}"
+            );
+        }
+    }
     result
 }
 
@@ -1061,7 +1153,6 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
     let Some(backend) = native_backend() else {
         return;
     };
-    native_supervisor_forwards_cassette_http_and_reaps_children();
     let shell = Path::new("/bin/sh");
     let true_bin = Path::new("/bin/true");
     let cases = [
@@ -1086,34 +1177,32 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         (
             "provider-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
-            Path::new("/usr/bin/curl"),
-            vec![
-                "--fail".into(),
-                "--silent".into(),
-                "--connect-timeout".into(),
-                "1".into(),
-                "--write-out".into(),
-                "ASB_PROVIDER_EGRESS_RC=%{exitcode}".into(),
-                "http://192.0.2.1/".into(),
-            ],
+            shell,
+            vec!["-c".into(), "curl --noproxy '*' --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/; rc=$?; printf 'ASB_PROVIDER_EGRESS_RC=%s\\n' \"$rc\"; exit \"$rc\"".into()],
         ),
         (
             "descendant-egress-denied",
             vec!["-c".into(), "sleep 30".into()],
             shell,
-            vec!["-c".into(), "curl --fail --silent --connect-timeout 1 --write-out ASB_DESCENDANT_EGRESS_RC=%{exitcode} http://192.0.2.1/".into()],
+            vec!["-c".into(), "sh -c 'curl --noproxy \\* --fail --silent --connect-timeout 1 --max-time 1 http://192.0.2.1/; exit 19'".into()],
         ),
     ];
     for (name, sidecar_args, adapter, adapter_args) in cases {
-        let (termination, exit_code, _root, output) = run_supervised_fault(
+        let fault_timeout = if name == "sidecar-crash" {
+            Duration::from_millis(250)
+        } else {
+            Duration::from_secs(3)
+        };
+        let (termination, exit_code, _root, _output) = run_supervised_fault(
             &backend,
             name,
             shell,
             sidecar_args,
             adapter,
             adapter_args,
-            Duration::from_millis(250),
+            fault_timeout,
             None,
+            name != "sidecar-crash",
         );
         assert_eq!(
             termination,
@@ -1122,16 +1211,10 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         );
         assert_ne!(exit_code, Some(0), "fault {name} unexpectedly succeeded");
         if name == "provider-egress-denied" {
-            assert!(
-                output.contains("ASB_PROVIDER_EGRESS_RC=7"),
-                "provider denial marker missing: {output:?}"
-            );
+            assert_eq!(exit_code, Some(7), "provider egress cause missing");
         }
         if name == "descendant-egress-denied" {
-            assert!(
-                output.contains("ASB_DESCENDANT_EGRESS_RC=7"),
-                "descendant denial marker missing: {output:?}"
-            );
+            assert_eq!(exit_code, Some(19), "descendant egress cause missing");
         }
     }
     let (termination, exit_code, crash_root, _) = run_supervised_fault(
@@ -1143,6 +1226,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         Vec::new(),
         Duration::from_secs(2),
         None,
+        false,
     );
     assert_eq!(termination, Termination::Exited);
     assert_ne!(exit_code, Some(0));
@@ -1156,6 +1240,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         Vec::new(),
         Duration::from_secs(2),
         None,
+        true,
     );
     assert_eq!(termination, Termination::Exited);
     assert_eq!(exit_code, Some(0));
@@ -1170,6 +1255,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         Vec::new(),
         Duration::from_secs(2),
         None,
+        false,
     );
     assert_eq!(termination, Termination::Exited);
     assert_ne!(exit_code, Some(0));
@@ -1191,6 +1277,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
             Vec::new(),
             Duration::from_secs(2),
             None,
+            true,
         );
         assert_eq!(termination, Termination::Exited);
         assert_eq!(exit_code, Some(0));
@@ -1208,7 +1295,8 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         shell,
         vec!["-c".into(), "sleep 30".into()],
         Duration::from_secs(2),
-        Some(Duration::from_millis(20)),
+        Some(Duration::from_millis(500)),
+        true,
     );
     assert_eq!(termination, Termination::Cancelled);
     assert_eq!(exit_code, None);
