@@ -272,6 +272,216 @@ pub struct RecordingCampaignStatus {
     pub campaign: Option<RecordingCampaignPlan>,
 }
 
+/// Idempotent request to admit a planned campaign for runtime-owned capture.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignExecuteParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Setup generation returned by the last configuration status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact durable campaign to execute.
+    pub campaign_id: String,
+}
+
+/// Read-only request for durable recording progress.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignProgressRequest {
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact campaign to inspect.
+    pub campaign_id: String,
+}
+
+/// Idempotent cancellation of a recording campaign.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignCancelParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Setup generation returned by the last configuration status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact durable campaign to cancel.
+    pub campaign_id: String,
+}
+
+/// Idempotent reconciliation of an interrupted recording campaign.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignReconcileParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Setup generation returned by the last configuration status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact durable campaign to reconcile.
+    pub campaign_id: String,
+}
+
+/// Idempotent activation of a fully covered campaign as the offline default.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignOfflineDefaultParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Setup generation returned by the last configuration status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact durable campaign to activate.
+    pub campaign_id: String,
+}
+
+/// Durable recording lifecycle and tuple coverage projection.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignLifecycle {
+    /// Runner identity.
+    pub runner_instance_id: String,
+    /// Setup generation used by this campaign.
+    pub generation: Revision,
+    /// Stable campaign identity.
+    pub campaign_id: String,
+    /// Provider profile selected for the campaign.
+    pub provider_id: String,
+    /// Model selected for the campaign.
+    pub model_id: String,
+    /// Selected agents, in canonical order.
+    pub agent_ids: Vec<String>,
+    /// Selected workloads, in canonical order.
+    pub workload_ids: Vec<String>,
+    /// Number of exact agent/workload tuples.
+    pub tuple_count: u16,
+    /// Number of tuples with verified durable cassette coverage.
+    pub covered_tuple_count: u16,
+    /// Durable lifecycle state.
+    pub state: String,
+    /// True only after complete coverage has been reconciled.
+    pub offline_ready: bool,
+    /// Stable explanation when not ready.
+    pub unavailable_reason: Option<String>,
+}
+
+impl RecordingCampaignExecuteParams {
+    /// Validate bounded execute identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_mutation(
+            &self.idempotency_key,
+            self.expected_generation,
+            &self.runner_instance_id,
+            &self.campaign_id,
+        )
+    }
+}
+impl RecordingCampaignProgressRequest {
+    /// Validate bounded progress identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_read(&self.runner_instance_id, &self.campaign_id)
+    }
+}
+impl RecordingCampaignCancelParams {
+    /// Validate bounded cancel identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_mutation(
+            &self.idempotency_key,
+            self.expected_generation,
+            &self.runner_instance_id,
+            &self.campaign_id,
+        )
+    }
+}
+impl RecordingCampaignReconcileParams {
+    /// Validate bounded reconcile identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_mutation(
+            &self.idempotency_key,
+            self.expected_generation,
+            &self.runner_instance_id,
+            &self.campaign_id,
+        )
+    }
+}
+impl RecordingCampaignOfflineDefaultParams {
+    /// Validate bounded offline-default identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_mutation(
+            &self.idempotency_key,
+            self.expected_generation,
+            &self.runner_instance_id,
+            &self.campaign_id,
+        )
+    }
+}
+
+fn validate_campaign_read(
+    runner_instance_id: &str,
+    campaign_id: &str,
+) -> Result<(), ProtocolError> {
+    validate_identity(runner_instance_id)?;
+    validate_identity(campaign_id)
+}
+
+fn validate_campaign_mutation(
+    idempotency_key: &str,
+    expected_generation: Revision,
+    runner_instance_id: &str,
+    campaign_id: &str,
+) -> Result<(), ProtocolError> {
+    validate_idempotency_key(idempotency_key)?;
+    if expected_generation.0 == 0 {
+        return Err(ProtocolError::InvalidResponse);
+    }
+    validate_campaign_read(runner_instance_id, campaign_id)
+}
+
+impl RecordingCampaignLifecycle {
+    /// Validate explicit lifecycle and coverage invariants.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        validate_identity(&self.campaign_id)?;
+        validate_catalog_string(&self.provider_id)?;
+        validate_catalog_string(&self.model_id)?;
+        validate_sorted_ids(&self.agent_ids, false)?;
+        validate_sorted_ids(&self.workload_ids, false)?;
+        let tuples = self
+            .agent_ids
+            .len()
+            .checked_mul(self.workload_ids.len())
+            .and_then(|v| u16::try_from(v).ok())
+            .ok_or(ProtocolError::InvalidResponse)?;
+        if self.generation.0 == 0
+            || self.tuple_count != tuples
+            || self.covered_tuple_count > self.tuple_count
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if !matches!(
+            self.state.as_str(),
+            "planned" | "recording" | "needs_reconciliation" | "complete" | "cancelled" | "failed"
+        ) {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if self.offline_ready
+            != (self.state == "complete" && self.covered_tuple_count == self.tuple_count)
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if self.offline_ready != self.unavailable_reason.is_none() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if !self.offline_ready && self.unavailable_reason.is_none() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+
 impl ConfigurationStatusRequest {
     /// Validate request identity.
     pub fn validate(&self) -> Result<(), ProtocolError> {

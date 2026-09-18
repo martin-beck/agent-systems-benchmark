@@ -31,6 +31,50 @@ fn limits() -> ControlLimits {
     }
 }
 
+#[test]
+fn recording_lifecycle_is_versioned_and_fail_closed() {
+    assert_eq!(
+        CONTROL_RECORDING_LIFECYCLE_V1,
+        ControlVersion { major: 1, minor: 8 }
+    );
+    let call = ControlCall::RecordingCampaignExecute(RecordingCampaignExecuteParams {
+        idempotency_key: "record-1".into(),
+        expected_generation: Revision(2),
+        runner_instance_id: "runner-1".into(),
+        campaign_id: "campaign-1".into(),
+    });
+    let lifecycle = ControlResult::RecordingCampaignLifecycle(RecordingCampaignLifecycle {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(2),
+        campaign_id: "campaign-1".into(),
+        provider_id: "openai".into(),
+        model_id: "model".into(),
+        agent_ids: vec!["agent".into()],
+        workload_ids: vec!["workload".into()],
+        tuple_count: 1,
+        covered_tuple_count: 0,
+        state: "recording".into(),
+        offline_ready: false,
+        unavailable_reason: Some("provider-capture-required".into()),
+    });
+    lifecycle.validate(limits()).unwrap();
+    lifecycle.validate_for_call(&call, limits()).unwrap();
+    let bound = BoundControlResult::new(&call, lifecycle).unwrap();
+    assert!(
+        bound
+            .validate_for_call_and_version(&call, limits(), CONTROL_PROVIDER_CATALOG_V1)
+            .is_err()
+    );
+    bound
+        .validate_for_call_and_version(&call, limits(), CONTROL_RECORDING_LIFECYCLE_V1)
+        .unwrap();
+    let mut invalid = bound.result;
+    if let ControlResult::RecordingCampaignLifecycle(value) = &mut invalid {
+        value.offline_ready = true;
+    }
+    assert!(invalid.validate(limits()).is_err());
+}
+
 fn lifecycle_binding() -> AgentLifecycleBinding {
     AgentLifecycleBinding {
         agent_id: "codex".into(),

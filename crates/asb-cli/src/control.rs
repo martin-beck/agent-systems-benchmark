@@ -112,6 +112,7 @@ enum MutationTarget {
     Cancel { run_id: String, attempt_id: String },
     ConfigurationApply,
     RecordingCampaignPlan,
+    RecordingCampaignLifecycle { campaign_id: String, action: String },
     AuthEnroll { provider: String },
     AuthRotate { provider: String },
     AuthRevoke { provider: String },
@@ -164,6 +165,22 @@ struct RecordingCampaignRecord {
     workload_ids: Vec<String>,
     tuple_count: u16,
     generation: u64,
+    #[serde(default = "default_recording_state")]
+    state: String,
+    #[serde(default)]
+    covered_tuple_count: u16,
+    #[serde(default)]
+    offline_ready: bool,
+    #[serde(default = "default_recording_reason")]
+    unavailable_reason: Option<String>,
+}
+
+fn default_recording_state() -> String {
+    "planned".to_owned()
+}
+
+fn default_recording_reason() -> Option<String> {
+    Some("recording-required".to_owned())
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -206,6 +223,25 @@ struct RunnerBackend {
     catalog: Arc<Mutex<Catalog>>,
     active: Arc<Mutex<BTreeMap<String, ActiveRun>>>,
     state_lock: Arc<fs::File>,
+}
+
+#[derive(Clone, Copy)]
+enum RecordingLifecycleAction {
+    Execute,
+    Cancel,
+    Reconcile,
+    OfflineDefault,
+}
+
+impl RecordingLifecycleAction {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Execute => "execute",
+            Self::Cancel => "cancel",
+            Self::Reconcile => "reconcile",
+            Self::OfflineDefault => "offline_default",
+        }
+    }
 }
 
 pub(crate) fn serve(path: &Path) -> Result<(), CliError> {
@@ -526,6 +562,16 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             }
             MutationTarget::ConfigurationApply => {}
             MutationTarget::RecordingCampaignPlan => {}
+            MutationTarget::RecordingCampaignLifecycle {
+                campaign_id,
+                action,
+            } => {
+                asb_control::validate_identity(campaign_id)
+                    .and_then(|()| asb_control::validate_identity(action))
+                    .map_err(|_| {
+                        CliError::operation("control recording mutation target is invalid")
+                    })?;
+            }
         }
         match (mutation.state, mutation.result.as_ref()) {
             (MutationState::Committed, Some(result))
@@ -836,7 +882,8 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             | MutationTarget::AuthRotate { .. }
             | MutationTarget::AuthRevoke { .. }
             | MutationTarget::ConfigurationApply
-            | MutationTarget::RecordingCampaignPlan => {}
+            | MutationTarget::RecordingCampaignPlan
+            | MutationTarget::RecordingCampaignLifecycle { .. } => {}
             MutationTarget::CreatePlan | MutationTarget::Repeat { .. } => {}
         }
     }
@@ -1365,6 +1412,46 @@ impl ControlBackend for RunnerBackend {
                 let status = self.recording_campaign_status(request)?;
                 self.bind(call, ControlResult::RecordingCampaignStatus(status))
             }
+            ControlCall::RecordingCampaignExecute(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Execute,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignProgress(request) => {
+                self.recording_campaign_progress(call, request)
+            }
+            ControlCall::RecordingCampaignCancel(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Cancel,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignReconcile(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Reconcile,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignOfflineDefault(params) => self
+                .recording_campaign_lifecycle(
+                    call,
+                    &params.idempotency_key,
+                    params.expected_generation,
+                    &params.runner_instance_id,
+                    &params.campaign_id,
+                    RecordingLifecycleAction::OfflineDefault,
+                    deadline,
+                ),
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
             // operation fail-closed until the authenticated catalog provider is
@@ -2022,6 +2109,10 @@ impl RunnerBackend {
                     workload_ids: params.workload_ids.clone(),
                     tuple_count,
                     generation: configuration.generation.0,
+                    state: "planned".to_owned(),
+                    covered_tuple_count: 0,
+                    offline_ready: false,
+                    unavailable_reason: Some("recording-required".to_owned()),
                 });
                 Ok(ControlResult::RecordingCampaign(
                     asb_control::RecordingCampaignPlan {
@@ -2053,23 +2144,23 @@ impl RunnerBackend {
             .catalog
             .lock()
             .map_err(|_| BackendFailure::NeedsReconciliation)?;
-        let campaign =
-            catalog
-                .recording_campaign
-                .as_ref()
-                .map(|record| asb_control::RecordingCampaignPlan {
-                    runner_instance_id: self.runner_instance_id.clone(),
-                    generation: Revision(record.generation),
-                    campaign_id: record.campaign_id.clone(),
-                    provider_id: record.provider_id.clone(),
-                    model_id: record.model_id.clone(),
-                    agent_ids: record.agent_ids.clone(),
-                    workload_ids: record.workload_ids.clone(),
-                    tuple_count: record.tuple_count,
-                    state: "planned".to_owned(),
-                    offline_ready: false,
-                    unavailable_reason: Some("recording-required".to_owned()),
-                });
+        let campaign = catalog
+            .recording_campaign
+            .as_ref()
+            .filter(|record| record.state == "planned")
+            .map(|record| asb_control::RecordingCampaignPlan {
+                runner_instance_id: self.runner_instance_id.clone(),
+                generation: Revision(record.generation),
+                campaign_id: record.campaign_id.clone(),
+                provider_id: record.provider_id.clone(),
+                model_id: record.model_id.clone(),
+                agent_ids: record.agent_ids.clone(),
+                workload_ids: record.workload_ids.clone(),
+                tuple_count: record.tuple_count,
+                state: "planned".to_owned(),
+                offline_ready: false,
+                unavailable_reason: Some("recording-required".to_owned()),
+            });
         let generation = catalog
             .configuration
             .as_ref()
@@ -2081,6 +2172,121 @@ impl RunnerBackend {
             generation,
             campaign,
         })
+    }
+
+    fn recording_campaign_progress(
+        &self,
+        call: &ControlCall,
+        request: &asb_control::RecordingCampaignProgressRequest,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let record = catalog
+            .recording_campaign
+            .as_ref()
+            .filter(|record| record.campaign_id == request.campaign_id)
+            .ok_or(BackendFailure::NotFound)?;
+        self.bind(
+            call,
+            ControlResult::RecordingCampaignLifecycle(self.lifecycle_projection(record)),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn recording_campaign_lifecycle(
+        &self,
+        call: &ControlCall,
+        key: &str,
+        expected_generation: Revision,
+        runner_instance_id: &str,
+        campaign_id: &str,
+        action: RecordingLifecycleAction,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        if runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let target = MutationTarget::RecordingCampaignLifecycle {
+            campaign_id: campaign_id.to_owned(),
+            action: action.name().to_owned(),
+        };
+        let runner_instance_id = self.runner_instance_id.clone();
+        self.mutation(call, key, target, deadline, |catalog| {
+            let record = catalog
+                .recording_campaign
+                .as_mut()
+                .filter(|record| record.campaign_id == campaign_id)
+                .ok_or(BackendFailure::NotFound)?;
+            if record.generation != expected_generation.0 {
+                return Err(BackendFailure::StaleIdentity);
+            }
+            match action {
+                RecordingLifecycleAction::Execute if record.state == "planned" => {
+                    record.state = "recording".to_owned();
+                    record.unavailable_reason = Some("provider-capture-required".to_owned());
+                }
+                RecordingLifecycleAction::Execute => {}
+                RecordingLifecycleAction::Cancel if !record.offline_ready => {
+                    record.state = "cancelled".to_owned();
+                    record.unavailable_reason = Some("recording-cancelled".to_owned());
+                }
+                RecordingLifecycleAction::Cancel => return Err(BackendFailure::Rejected),
+                RecordingLifecycleAction::Reconcile => {
+                    if record.state == "recording" {
+                        record.state = "needs_reconciliation".to_owned();
+                        record.unavailable_reason = Some("provider-capture-required".to_owned());
+                    }
+                }
+                RecordingLifecycleAction::OfflineDefault => {
+                    if !record.offline_ready || record.state != "complete" {
+                        return Err(BackendFailure::CapabilityUnavailable);
+                    }
+                }
+            }
+            if matches!(action, RecordingLifecycleAction::OfflineDefault) {
+                record.unavailable_reason = None;
+            }
+            let projection = asb_control::RecordingCampaignLifecycle {
+                runner_instance_id: runner_instance_id.clone(),
+                generation: Revision(record.generation),
+                campaign_id: record.campaign_id.clone(),
+                provider_id: record.provider_id.clone(),
+                model_id: record.model_id.clone(),
+                agent_ids: record.agent_ids.clone(),
+                workload_ids: record.workload_ids.clone(),
+                tuple_count: record.tuple_count,
+                covered_tuple_count: record.covered_tuple_count,
+                state: record.state.clone(),
+                offline_ready: record.offline_ready,
+                unavailable_reason: record.unavailable_reason.clone(),
+            };
+            Ok(ControlResult::RecordingCampaignLifecycle(projection))
+        })
+    }
+
+    fn lifecycle_projection(
+        &self,
+        record: &RecordingCampaignRecord,
+    ) -> asb_control::RecordingCampaignLifecycle {
+        asb_control::RecordingCampaignLifecycle {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(record.generation),
+            campaign_id: record.campaign_id.clone(),
+            provider_id: record.provider_id.clone(),
+            model_id: record.model_id.clone(),
+            agent_ids: record.agent_ids.clone(),
+            workload_ids: record.workload_ids.clone(),
+            tuple_count: record.tuple_count,
+            covered_tuple_count: record.covered_tuple_count,
+            state: record.state.clone(),
+            offline_ready: record.offline_ready,
+            unavailable_reason: record.unavailable_reason.clone(),
+        }
     }
 
     fn configuration_apply(
