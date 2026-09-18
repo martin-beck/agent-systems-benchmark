@@ -1856,7 +1856,15 @@ impl RunnerBackend {
             .workload_ids
             .iter()
             .all(|workload| OriginalWorkloads::describe(workload).is_ok());
-        let (complete_coverage, offline_ready, unavailable_reason) = if !provider_ok {
+        let configured_selection_matches = configuration.configured
+            && configuration.provider_id.as_deref() == Some(request.provider_id.as_str())
+            && configuration.model_id.as_deref() == Some(request.model_id.as_str())
+            && configuration.agent_ids == request.agent_ids;
+        let (complete_coverage, offline_ready, unavailable_reason) = if !configuration.configured {
+            (false, false, Some("configuration-required".to_owned()))
+        } else if !configured_selection_matches {
+            (false, false, Some("configuration-mismatch".to_owned()))
+        } else if !provider_ok {
             (false, false, Some("provider-model-unavailable".to_owned()))
         } else if !workloads_ok {
             (false, false, Some("workload-unavailable".to_owned()))
@@ -2698,6 +2706,22 @@ mod tests {
         let state = scratch.0.join("state");
         prepare_root(&state).unwrap();
         let backend = open_backend(state).unwrap();
+        backend
+            .execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "recording-config".into(),
+                    expected_generation: Revision(1),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: vec!["aider".into()],
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                        credential_reference_sha256: Some("b".repeat(64)),
+                    },
+                }),
+                deadline(),
+            )
+            .unwrap();
         let call =
             ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
                 runner_instance_id: backend.runner_instance_id().to_owned(),
@@ -2723,6 +2747,25 @@ mod tests {
             estimate.unavailable_reason.as_deref(),
             Some("recording-required")
         );
+
+        let mismatched = ControlCall::RecordingCampaignEstimate(
+            asb_control::RecordingCampaignEstimateRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: vec!["codex".into()],
+                workload_ids: OriginalWorkloads::fixture_ids()
+                    .iter()
+                    .map(|id| (*id).to_owned())
+                    .collect(),
+            },
+        );
+        let ControlResult::RecordingCampaignEstimate(mismatch) =
+            backend.execute(&mismatched, deadline()).unwrap().result
+        else {
+            panic!("mismatched recording estimate result");
+        };
+        assert_eq!(mismatch.unavailable_reason.as_deref(), Some("configuration-mismatch"));
     }
 
     #[test]
