@@ -2468,7 +2468,7 @@ mod tests {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
         prepare_root(&state).unwrap();
-        let backend = open_backend(state.clone()).unwrap();
+        let backend = open_backend(state).unwrap();
 
         let publication = backend
             .execute(&ControlCall::MeasurementCatalog, deadline())
