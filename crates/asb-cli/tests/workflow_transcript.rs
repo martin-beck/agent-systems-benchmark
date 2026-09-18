@@ -78,6 +78,8 @@ fn write_plan(root: &Path, run_id: &str) -> (PathBuf, PathBuf) {
     experiment.workload.workload_sha256 = workload.content_sha256;
     experiment.workload.scorer_revision = workload.scoring_version;
     experiment.platform.architecture = std::env::consts::ARCH.to_owned();
+    experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+    experiment.controls.replay.cassette_sha256 = None;
     experiment.refresh_content_address().unwrap();
     let result_root = root.join("results");
     let work_root = root.join("work");
