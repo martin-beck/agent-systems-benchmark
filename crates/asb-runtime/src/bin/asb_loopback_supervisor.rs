@@ -69,12 +69,10 @@ fn run() -> Result<(), String> {
         .set_nonblocking(true)
         .map_err(|_| "loopback setup failed".to_owned())?;
     let sidecar_executable = value(&args, "--sidecar")?;
-    let sidecar = if Path::new(&sidecar_executable)
-        .file_name()
-        .and_then(|name| name.to_str())
-        == Some("asb_loopback_sidecar")
-        && !args.iter().any(|arg| arg == "--handshake-mode")
-    {
+    let sidecar_args = repeated(&args, "--sidecar-arg");
+    let sidecar_is_protocol = sidecar_args.iter().any(|arg| arg == "--listen");
+    let sidecar_has_handshake_probe = sidecar_args.iter().any(|arg| arg == "--handshake-mode");
+    let sidecar = if sidecar_is_protocol && !sidecar_has_handshake_probe {
         spawn_ready_sidecar(&args, &sidecar_executable)?
     } else {
         spawn(&args, "--sidecar", "--sidecar-arg")?

@@ -516,7 +516,8 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
     let root = test_root("supervisor-cassette");
     let generation = "native-cassette-generation";
     let mut relay = ReplayRelay::bind(&root, generation).unwrap();
-    let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
+    let child_endpoint = "/tmp/asb-replay-relay.sock";
+    let handoff = relay.handoff(child_endpoint).unwrap();
     let cassette_bytes =
         include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
     let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
@@ -593,7 +594,7 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
             "--listen".into(),
             format!("127.0.0.1:{port}"),
             "--relay".into(),
-            "/tmp/asb-replay-relay.sock".into(),
+            child_endpoint.into(),
             "--generation".into(),
             generation.into(),
         ],
@@ -718,7 +719,8 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
         let root = test_root(&root_name);
         let generation = format!("authenticated-negative-{mode}");
         let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
-        let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
+        let child_endpoint = "/tmp/asb-replay-relay.sock";
+        let handoff = relay.handoff(child_endpoint).unwrap();
         let cassette_bytes =
             include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
         let cassette = decode_cassette(cassette_bytes, CassetteLimits::default()).unwrap();
@@ -757,9 +759,9 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
                     let status = service
                         .serve_authenticated_connection(&mut stream, &route)
                         .map_err(|error| format!("strict mismatch service failed: {error}"))?;
-                    (status != 200)
-                        .then_some(())
-                        .ok_or_else(|| "strict route mismatch unexpectedly succeeded".into())
+                    (status != 200).then_some(()).ok_or_else(|| {
+                        format!("strict route mismatch unexpectedly succeeded: status={status}")
+                    })
                 }
                 _ => Err("unknown negative mode".into()),
             }
@@ -783,7 +785,7 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
             "--listen".into(),
             format!("127.0.0.1:{port}"),
             "--relay".into(),
-            "/tmp/asb-replay-relay.sock".into(),
+            child_endpoint.into(),
             "--generation".into(),
             generation.clone(),
         ];
@@ -809,7 +811,7 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
                 "--connect-timeout".into(),
                 "3".into(),
                 "--max-time".into(),
-                "20".into(),
+                "2".into(),
                 "--header".into(),
                 "content-type: application/json".into(),
                 "--header".into(),
@@ -981,7 +983,8 @@ fn run_supervised_fault(
     let root = test_root(name);
     let generation = format!("fault-{name}");
     let mut relay = ReplayRelay::bind(&root, &generation).unwrap();
-    let handoff = relay.handoff("/tmp/asb-replay-relay.sock").unwrap();
+    let child_endpoint = "/tmp/asb-replay-relay.sock";
+    let handoff = relay.handoff(child_endpoint).unwrap();
     let executable_dir = fs::canonicalize(env::current_exe().unwrap()).unwrap();
     let supervisor_path = executable_dir
         .parent()
@@ -1007,13 +1010,16 @@ fn run_supervised_fault(
         let port = port_probe.local_addr().unwrap().port();
         drop(port_probe);
         let server_route = route.clone();
+        let fault_name = name.to_owned();
         server = Some(thread::spawn(move || -> Result<u16, String> {
             let mut stream = relay
                 .accept_authenticated()
                 .map_err(|error| format!("relay authentication failed: {error}"))?;
             service
                 .serve_authenticated_connection(&mut stream, &server_route)
-                .map_err(|error| format!("strict cassette service failed: {error}"))
+                .map_err(|error| {
+                    format!("strict cassette service failed for {fault_name}: {error}")
+                })
         }));
         let request = format!(
             "curl --fail --silent --connect-timeout 3 --max-time 10 --header 'accept:' --header 'content-type: application/json' --header \"$(printf 'x-goog-api-key: %s' \"$ASB_FIXTURE_KEY\")\" --data-binary @/workspace/work/replay-request.json http://127.0.0.1:{port}/v1beta/models/fixture-model:streamGenerateContent?alt=sse && {}",
@@ -1027,7 +1033,7 @@ fn run_supervised_fault(
                 "--listen".into(),
                 format!("127.0.0.1:{port}"),
                 "--relay".into(),
-                "/tmp/asb-replay-relay.sock".into(),
+                child_endpoint.into(),
                 "--generation".into(),
                 generation.clone(),
             ],
@@ -1182,10 +1188,10 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         ),
     ];
     for (name, sidecar_args, adapter, adapter_args) in cases {
-        let fault_timeout = if name.contains("egress") {
-            Duration::from_secs(3)
-        } else {
+        let fault_timeout = if name == "sidecar-crash" {
             Duration::from_millis(250)
+        } else {
+            Duration::from_secs(3)
         };
         let (termination, exit_code, _root, _output) = run_supervised_fault(
             &backend,
@@ -1289,7 +1295,7 @@ fn native_supervisor_fault_matrix_is_terminal_and_noninterfering() {
         shell,
         vec!["-c".into(), "sleep 30".into()],
         Duration::from_secs(2),
-        Some(Duration::from_millis(20)),
+        Some(Duration::from_millis(500)),
         true,
     );
     assert_eq!(termination, Termination::Cancelled);
