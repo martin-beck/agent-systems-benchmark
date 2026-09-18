@@ -87,6 +87,23 @@
       ]
     },
     {
+      "description": "Apply a complete idempotent setup selection.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "configuration_apply"
+        },
+        "params": {
+          "$ref": "#/$defs/ConfigurationApplyParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Obtain the immutable catalog of selectable measurements.",
       "type": "object",
       "properties": {
@@ -402,6 +419,72 @@
         "idempotency_key"
       ]
     },
+    "ConfigurationApplyParams": {
+      "description": "Idempotent setup mutation submitted by an independent frontend.",
+      "type": "object",
+      "properties": {
+        "expected_generation": {
+          "description": "Generation returned by the last status read.",
+          "$ref": "#/$defs/Revision"
+        },
+        "idempotency_key": {
+          "description": "Retry-safe mutation identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "selection": {
+          "description": "Complete replacement selection; partial updates are not accepted.",
+          "$ref": "#/$defs/ConfigurationSelection"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "expected_generation",
+        "selection"
+      ]
+    },
+    "ConfigurationSelection": {
+      "description": "Provider/model/auth selection stored by the runner without secret values.",
+      "type": "object",
+      "properties": {
+        "agent_ids": {
+          "description": "Selected agents, sorted by canonical ID.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "auth_method": {
+          "description": "Authentication route selected by the user.",
+          "$ref": "#/$defs/ProviderAuthMethod"
+        },
+        "credential_reference_sha256": {
+          "description": "Digest of an external credential reference, never its value.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "description": "Selected model from the provider catalog.",
+          "type": "string"
+        },
+        "provider_id": {
+          "description": "Selected provider profile.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_ids",
+        "provider_id",
+        "model_id",
+        "auth_method"
+      ]
+    },
     "ConfigurationStatusRequest": {
       "description": "Read-only request for the runner's current setup state.",
       "type": "object",
@@ -577,6 +660,26 @@
       "additionalProperties": false,
       "required": [
         "limit"
+      ]
+    },
+    "ProviderAuthMethod": {
+      "description": "Authentication method supported by a provider profile.",
+      "oneOf": [
+        {
+          "description": "Resolve a credential from an environment or OS credential helper.",
+          "type": "string",
+          "const": "credential_reference"
+        },
+        {
+          "description": "Use an explicitly provisioned local daemon without a secret in ASB.",
+          "type": "string",
+          "const": "local_daemon"
+        },
+        {
+          "description": "Provider requires no credential.",
+          "type": "string",
+          "const": "none"
+        }
       ]
     },
     "RepeatParams": {

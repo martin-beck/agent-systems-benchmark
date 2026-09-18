@@ -228,6 +228,8 @@ pub enum ControlCall {
     ProviderCatalog(crate::ProviderCatalogRequest),
     /// Read the current privacy-safe setup projection.
     ConfigurationStatus(crate::ConfigurationStatusRequest),
+    /// Apply a complete idempotent setup selection.
+    ConfigurationApply(crate::ConfigurationApplyParams),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -344,6 +346,7 @@ impl ControlCall {
             | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
             Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
+            Self::ConfigurationApply(_) => CONTROL_PROVIDER_CATALOG_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1604,6 +1607,7 @@ impl ControlResult {
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
                 | (ControlCall::ConfigurationStatus(_), Self::Configuration(_))
+                | (ControlCall::ConfigurationApply(_), Self::Configuration(_))
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -1654,6 +1658,9 @@ impl ControlResult {
             }
             (ControlCall::ConfigurationStatus(request), Self::Configuration(snapshot)) => {
                 snapshot.runner_instance_id == request.runner_instance_id
+            }
+            (ControlCall::ConfigurationApply(request), Self::Configuration(snapshot)) => {
+                snapshot.generation.0 > request.expected_generation.0 && snapshot.configured
             }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
@@ -1883,6 +1890,7 @@ pub fn validate_request(
         }
         ControlCall::ProviderCatalog(params) => params.validate()?,
         ControlCall::ConfigurationStatus(params) => params.validate()?,
+        ControlCall::ConfigurationApply(params) => params.validate()?,
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,

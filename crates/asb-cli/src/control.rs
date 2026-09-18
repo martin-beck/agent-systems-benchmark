@@ -110,6 +110,7 @@ enum MutationTarget {
     Repeat { run_id: String },
     Launch { run_id: String, attempt_id: String },
     Cancel { run_id: String, attempt_id: String },
+    ConfigurationApply,
     AuthEnroll { provider: String },
     AuthRotate { provider: String },
     AuthRevoke { provider: String },
@@ -474,6 +475,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 asb_control::validate_identity(provider)
                     .map_err(|_| CliError::operation("control auth mutation target is invalid"))?;
             }
+            MutationTarget::ConfigurationApply => {}
         }
         match (mutation.state, mutation.result.as_ref()) {
             (MutationState::Committed, Some(result))
@@ -544,6 +546,14 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .auth
                     .get(provider)
                     .is_some_and(|record| record.provider == *provider),
+                (MutationTarget::ConfigurationApply, ControlResult::Configuration(snapshot)) => {
+                    catalog.configuration.as_ref().is_some_and(|configuration| {
+                        snapshot.configured
+                            && snapshot.generation.0 == configuration.generation
+                            && snapshot.provider_id.as_deref()
+                                == Some(configuration.provider_id.as_str())
+                    })
+                }
                 _ => false,
             };
             if !target_matches {
@@ -763,7 +773,8 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             }
             MutationTarget::AuthEnroll { .. }
             | MutationTarget::AuthRotate { .. }
-            | MutationTarget::AuthRevoke { .. } => {}
+            | MutationTarget::AuthRevoke { .. }
+            | MutationTarget::ConfigurationApply => {}
             MutationTarget::CreatePlan | MutationTarget::Repeat { .. } => {}
         }
     }
@@ -1277,6 +1288,9 @@ impl ControlBackend for RunnerBackend {
             ControlCall::ConfigurationStatus(request) => {
                 let snapshot = self.configuration_status(request)?;
                 self.bind(call, ControlResult::Configuration(snapshot))
+            }
+            ControlCall::ConfigurationApply(params) => {
+                self.configuration_apply(call, params, deadline)
             }
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
@@ -1805,6 +1819,76 @@ impl ControlBackend for RunnerBackend {
 }
 
 impl RunnerBackend {
+    fn configuration_apply(
+        &self,
+        call: &ControlCall,
+        params: &asb_control::ConfigurationApplyParams,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let runner_instance_id = self.runner_instance_id.clone();
+        let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
+            action: ProviderCatalogAction::Status,
+            runner_instance_id: runner_instance_id.clone(),
+            known_generation: None,
+        })?;
+        let provider = provider_catalog
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == params.selection.provider_id)
+            .ok_or(BackendFailure::Rejected)?;
+        if !matches!(&provider.availability, ProviderAvailability::Available)
+            || !provider
+                .auth_methods
+                .contains(&params.selection.auth_method)
+            || !provider.models.iter().any(|model| {
+                model.model_id == params.selection.model_id
+                    && matches!(&model.availability, ProviderAvailability::Available)
+            })
+        {
+            return Err(BackendFailure::Rejected);
+        }
+        self.mutation(
+            call,
+            &params.idempotency_key,
+            MutationTarget::ConfigurationApply,
+            deadline,
+            |catalog| {
+                let actual = catalog
+                    .configuration
+                    .as_ref()
+                    .map_or(1, |configuration| configuration.generation);
+                if actual != params.expected_generation.0 {
+                    return Err(BackendFailure::StaleIdentity);
+                }
+                let next_generation = actual.checked_add(1).ok_or(BackendFailure::Rejected)?;
+                catalog.configuration = Some(ConfigurationRecord {
+                    agent_ids: params.selection.agent_ids.clone(),
+                    provider_id: params.selection.provider_id.clone(),
+                    model_id: params.selection.model_id.clone(),
+                    auth_method: params.selection.auth_method,
+                    credential_reference_sha256: params
+                        .selection
+                        .credential_reference_sha256
+                        .clone(),
+                    generation: next_generation,
+                });
+                Ok(ControlResult::Configuration(ConfigurationSnapshot {
+                    runner_instance_id: runner_instance_id.clone(),
+                    generation: Revision(next_generation),
+                    configured: true,
+                    agent_ids: params.selection.agent_ids.clone(),
+                    provider_id: Some(params.selection.provider_id.clone()),
+                    model_id: Some(params.selection.model_id.clone()),
+                    auth_method: Some(params.selection.auth_method),
+                    credential_reference_sha256: params
+                        .selection
+                        .credential_reference_sha256
+                        .clone(),
+                }))
+            },
+        )
+    }
+
     fn configuration_status(
         &self,
         request: &ConfigurationStatusRequest,
@@ -2474,6 +2558,58 @@ mod tests {
         assert_eq!(snapshot.generation, Revision(1));
         assert!(snapshot.provider_id.is_none());
         assert!(snapshot.credential_reference_sha256.is_none());
+    }
+
+    #[test]
+    fn configuration_apply_is_idempotent_and_generation_fenced() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let runner_instance_id = backend.runner_instance_id().to_owned();
+        let selection = asb_control::ConfigurationSelection {
+            agent_ids: vec!["aider".into()],
+            provider_id: "openai".into(),
+            model_id: asb_agents::openai::OPENAI_MODEL.into(),
+            auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+            credential_reference_sha256: Some("a".repeat(64)),
+        };
+        let call = ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+            idempotency_key: "configure-1".into(),
+            expected_generation: Revision(1),
+            selection,
+        });
+        let first = backend.execute(&call, deadline()).unwrap();
+        first
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let second = backend.execute(&call, deadline()).unwrap();
+        assert_eq!(first, second);
+        let stale = ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+            idempotency_key: "configure-2".into(),
+            expected_generation: Revision(1),
+            selection: match &call {
+                ControlCall::ConfigurationApply(params) => params.selection.clone(),
+                _ => unreachable!(),
+            },
+        });
+        assert_eq!(
+            backend.execute(&stale, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let status = backend
+            .execute(
+                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                    runner_instance_id,
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::Configuration(snapshot) = status.result else {
+            panic!("configuration status result");
+        };
+        assert!(snapshot.configured);
+        assert_eq!(snapshot.generation, Revision(2));
     }
 
     #[test]

@@ -8,7 +8,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{ProtocolError, Revision, validate_digest, validate_identity};
+use crate::{
+    ProtocolError, Revision, validate_digest, validate_idempotency_key, validate_identity,
+};
 
 const MAX_PROVIDERS: usize = 32;
 const MAX_MODELS_PER_PROVIDER: usize = 64;
@@ -140,10 +142,77 @@ pub struct ConfigurationSnapshot {
     pub credential_reference_sha256: Option<String>,
 }
 
+/// Idempotent setup mutation submitted by an independent frontend.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationApplyParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Generation returned by the last status read.
+    pub expected_generation: Revision,
+    /// Complete replacement selection; partial updates are not accepted.
+    pub selection: ConfigurationSelection,
+}
+
+/// Provider/model/auth selection stored by the runner without secret values.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationSelection {
+    /// Selected agents, sorted by canonical ID.
+    pub agent_ids: Vec<String>,
+    /// Selected provider profile.
+    pub provider_id: String,
+    /// Selected model from the provider catalog.
+    pub model_id: String,
+    /// Authentication route selected by the user.
+    pub auth_method: ProviderAuthMethod,
+    /// Digest of an external credential reference, never its value.
+    pub credential_reference_sha256: Option<String>,
+}
+
 impl ConfigurationStatusRequest {
     /// Validate request identity.
     pub fn validate(&self) -> Result<(), ProtocolError> {
         validate_identity(&self.runner_instance_id)
+    }
+}
+
+impl ConfigurationApplyParams {
+    /// Validate bounded replacement selection and credential-reference privacy.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_idempotency_key(&self.idempotency_key)?;
+        if self.expected_generation.0 == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        let selection = &self.selection;
+        validate_catalog_string(&selection.provider_id)?;
+        validate_catalog_string(&selection.model_id)?;
+        if selection.agent_ids.is_empty() || selection.agent_ids.len() > MAX_PROVIDERS {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        let mut agents = BTreeSet::new();
+        let mut previous = None;
+        for agent in &selection.agent_ids {
+            validate_catalog_string(agent)?;
+            if previous.is_some_and(|value: &str| value >= agent.as_str())
+                || !agents.insert(agent.as_str())
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            previous = Some(agent.as_str());
+        }
+        match (
+            &selection.auth_method,
+            &selection.credential_reference_sha256,
+        ) {
+            (ProviderAuthMethod::CredentialReference, Some(digest)) => validate_digest(digest)?,
+            (ProviderAuthMethod::CredentialReference, None) => {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            (_, Some(_)) => return Err(ProtocolError::InvalidResponse),
+            (_, None) => {}
+        }
+        Ok(())
     }
 }
 
