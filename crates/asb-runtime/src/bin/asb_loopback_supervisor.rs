@@ -178,6 +178,9 @@ fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Resul
                     );
                     let _ = io::stdout().flush();
                 }
+                // Preserve the final authenticated response even when the
+                // adapter deliberately exits non-zero after consuming it.
+                thread::sleep(Duration::from_millis(250));
                 let _ = sidecar.kill();
                 let _ = sidecar.wait();
                 return Err(format!(
@@ -190,6 +193,10 @@ fn supervise(mut sidecar: Child, mut adapter: Child, deadline: Instant) -> Resul
             }
         }
         if adapter_done.is_some_and(|status| status.success()) && sidecar_done.is_none() {
+            // Let the bounded relay-copy threads flush the adapter's final
+            // response before terminating the long-lived listener.  The
+            // grace is fixed and short; it cannot extend the launch deadline.
+            thread::sleep(Duration::from_millis(250));
             let _ = sidecar.kill();
             let _ = sidecar.wait();
             return Ok(());

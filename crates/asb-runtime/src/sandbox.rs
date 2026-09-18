@@ -572,7 +572,9 @@ impl SandboxBackend {
             command.args(["--setenv", key, value]);
         }
         if let Some(plan) = &spec.supervisor {
+            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
             command.arg("--").arg(SUPERVISOR_TARGET);
+            command.args(supervisor.arguments());
             command.args(plan.arguments_for_namespace(
                 Path::new(RELAY_TARGET),
                 Path::new(SIDECAR_TARGET),
