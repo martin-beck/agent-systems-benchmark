@@ -322,6 +322,8 @@ fn remove_setup_variants(value: &mut Value) {
         "recording_campaign_estimate",
         "recording_campaign_plan",
         "recording_campaign_status",
+        "configuration",
+        "recording_campaign",
     ] {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
