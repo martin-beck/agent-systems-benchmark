@@ -519,7 +519,7 @@ fn replay(
         })
         .finalize();
     let mut child = runtime_context
-        .spawn()
+        .spawn_owned()
         .map_err(|_| CliError::validation("runtime replay child could not be supervised"))?;
     let output = child
         .wait()

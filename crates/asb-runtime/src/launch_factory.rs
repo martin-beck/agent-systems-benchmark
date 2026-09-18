@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
-use crate::sandbox::{
-    LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput, SandboxProcess,
-};
+use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
 use sha2::{Digest, Sha256};
 
 /// A launch authority that can only be issued by the runtime factory.
@@ -226,12 +224,22 @@ fn valid_digest(value: &str) -> bool {
 }
 
 impl ReplayLaunchContext {
-    /// Consume the runtime-issued context through the sandbox backend.
+    /// Consume the runtime-issued context through an explicitly supplied backend.
     ///
     /// The context owns the validated launch input and benchmark lease. Passing
     /// both directly to the backend prevents a caller from replacing either
     /// value between authority consumption and child creation.
-    pub fn spawn(self) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
+    pub fn spawn(
+        self,
+        backend: &SandboxBackend,
+    ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
+        backend.spawn_launch(self.input, self.lease)
+    }
+
+    /// Consume the runtime-issued context through the backend retained by the authority.
+    pub fn spawn_owned(
+        self,
+    ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
         self.backend
             .ok_or(SandboxError::DelegationRejected)?
             .spawn_launch(self.input, self.lease)
@@ -521,7 +529,7 @@ mod tests {
         let (authority, _file, root) = fixture();
         let context = authority.consume_for(&"e".repeat(64)).unwrap();
         assert!(matches!(
-            context.spawn(),
+            context.spawn_owned(),
             Err(SandboxError::DelegationRejected)
         ));
         let _ = fs::remove_dir_all(root);
@@ -541,7 +549,7 @@ mod tests {
         let mut child = authority
             .consume_for(&"e".repeat(64))
             .unwrap()
-            .spawn()
+            .spawn_owned()
             .unwrap_or_else(|error| panic!("delegated replay child spawn failed: {error:?}"));
         let output = child.wait().unwrap();
         assert_eq!(
