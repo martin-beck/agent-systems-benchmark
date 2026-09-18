@@ -3370,6 +3370,46 @@ mod tests {
         ));
         assert_eq!(execute(execute_call.clone()).unwrap(), first);
 
+        let stale_runner_execute = asb_control::RecordingCampaignExecuteParams {
+            idempotency_key: "lifecycle-stale-runner".into(),
+            expected_generation: Revision(2),
+            runner_instance_id: "other-runner".into(),
+            campaign_id: plan.campaign_id.clone(),
+        };
+        assert_eq!(
+            backend.execute(
+                &ControlCall::RecordingCampaignExecute(stale_runner_execute),
+                deadline()
+            ),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let missing_execute = asb_control::RecordingCampaignExecuteParams {
+            idempotency_key: "lifecycle-missing".into(),
+            expected_generation: Revision(2),
+            runner_instance_id: backend.runner_instance_id().into(),
+            campaign_id: "campaign-missing".into(),
+        };
+        assert_eq!(
+            backend.execute(
+                &ControlCall::RecordingCampaignExecute(missing_execute),
+                deadline()
+            ),
+            Err(BackendFailure::NotFound)
+        );
+        let stale_generation = asb_control::RecordingCampaignExecuteParams {
+            idempotency_key: "lifecycle-stale-generation".into(),
+            expected_generation: Revision(1),
+            runner_instance_id: backend.runner_instance_id().into(),
+            campaign_id: plan.campaign_id.clone(),
+        };
+        assert_eq!(
+            backend.execute(
+                &ControlCall::RecordingCampaignExecute(stale_generation),
+                deadline()
+            ),
+            Err(BackendFailure::StaleIdentity)
+        );
+
         let progress_call =
             ControlCall::RecordingCampaignProgress(asb_control::RecordingCampaignProgressRequest {
                 runner_instance_id: runner.clone(),
