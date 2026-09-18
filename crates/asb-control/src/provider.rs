@@ -252,6 +252,26 @@ pub struct RecordingCampaignPlan {
     pub unavailable_reason: Option<String>,
 }
 
+/// Read-only request for the last durable recording campaign plan.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignStatusRequest {
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+}
+
+/// Restart-safe campaign status projection.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignStatus {
+    /// Runner identity.
+    pub runner_instance_id: String,
+    /// Current setup generation.
+    pub generation: Revision,
+    /// Last durable plan, if one has been created.
+    pub campaign: Option<RecordingCampaignPlan>,
+}
+
 impl ConfigurationStatusRequest {
     /// Validate request identity.
     pub fn validate(&self) -> Result<(), ProtocolError> {
@@ -317,6 +337,32 @@ impl RecordingCampaignPlan {
             || self.unavailable_reason.as_deref() != Some("recording-required")
         {
             return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+
+impl RecordingCampaignStatusRequest {
+    /// Validate request identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)
+    }
+}
+
+impl RecordingCampaignStatus {
+    /// Validate the absence/presence invariants without inferring readiness.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        if self.generation.0 == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if let Some(campaign) = &self.campaign {
+            campaign.validate()?;
+            if campaign.runner_instance_id != self.runner_instance_id
+                || campaign.generation != self.generation
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
         }
         Ok(())
     }

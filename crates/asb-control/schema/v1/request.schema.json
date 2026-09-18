@@ -121,6 +121,23 @@
       ]
     },
     {
+      "description": "Read the last durable recording campaign plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_status"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignStatusRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Validate settings without creating durable run state.",
       "type": "object",
       "properties": {
@@ -732,6 +749,20 @@
         "model_id",
         "agent_ids",
         "workload_ids"
+      ]
+    },
+    "RecordingCampaignStatusRequest": {
+      "description": "Read-only request for the last durable recording campaign plan.",
+      "type": "object",
+      "properties": {
+        "runner_instance_id": {
+          "description": "Runner identity received during negotiation.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id"
       ]
     },
     "RepeatParams": {

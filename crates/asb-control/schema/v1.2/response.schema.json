@@ -572,6 +572,24 @@
           ]
         },
         {
+          "description": "Restart-safe recording campaign status.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "recording_campaign_status"
+            },
+            "value": {
+              "$ref": "#/$defs/RecordingCampaignStatus"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
           "description": "Recent run page.",
           "type": "object",
           "properties": {
@@ -1755,6 +1773,36 @@
         "tuple_count",
         "state",
         "offline_ready"
+      ]
+    },
+    "RecordingCampaignStatus": {
+      "description": "Restart-safe campaign status projection.",
+      "type": "object",
+      "properties": {
+        "campaign": {
+          "description": "Last durable plan, if one has been created.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RecordingCampaignPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generation": {
+          "description": "Current setup generation.",
+          "$ref": "#/$defs/Revision"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id",
+        "generation"
       ]
     },
     "RequestId": {

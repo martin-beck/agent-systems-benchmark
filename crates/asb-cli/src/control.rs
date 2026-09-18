@@ -1359,6 +1359,10 @@ impl ControlBackend for RunnerBackend {
             ControlCall::RecordingCampaignPlan(params) => {
                 self.recording_campaign_plan(call, params, deadline)
             }
+            ControlCall::RecordingCampaignStatus(request) => {
+                let status = self.recording_campaign_status(request)?;
+                self.bind(call, ControlResult::RecordingCampaignStatus(status))
+            }
             // Agent catalog population and package verification are deliberately
             // not inferred from the runner's local state yet. Keep the new wire
             // operation fail-closed until the authenticated catalog provider is
@@ -2034,6 +2038,43 @@ impl RunnerBackend {
                 ))
             },
         )
+    }
+
+    fn recording_campaign_status(
+        &self,
+        request: &asb_control::RecordingCampaignStatusRequest,
+    ) -> Result<asb_control::RecordingCampaignStatus, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let campaign = catalog.recording_campaign.as_ref().map(|record| {
+            asb_control::RecordingCampaignPlan {
+                runner_instance_id: self.runner_instance_id.clone(),
+                generation: Revision(record.generation),
+                campaign_id: record.campaign_id.clone(),
+                provider_id: record.provider_id.clone(),
+                model_id: record.model_id.clone(),
+                agent_ids: record.agent_ids.clone(),
+                workload_ids: record.workload_ids.clone(),
+                tuple_count: record.tuple_count,
+                state: "planned".to_owned(),
+                offline_ready: false,
+                unavailable_reason: Some("recording-required".to_owned()),
+            }
+        });
+        let generation = catalog
+            .configuration
+            .as_ref()
+            .map_or(Revision(1), |configuration| Revision(configuration.generation));
+        Ok(asb_control::RecordingCampaignStatus {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation,
+            campaign,
+        })
     }
 
     fn configuration_apply(
@@ -2983,6 +3024,21 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(status.result, ControlResult::Configuration(snapshot) if snapshot.configured));
+        let campaign_status_call = ControlCall::RecordingCampaignStatus(
+            asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: restarted.runner_instance_id().to_owned(),
+            },
+        );
+        let campaign_status = restarted
+            .execute(&campaign_status_call, deadline())
+            .unwrap();
+        campaign_status
+            .validate_for_call(&campaign_status_call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCampaignStatus(campaign_status) = campaign_status.result else {
+            panic!("campaign status result");
+        };
+        assert!(campaign_status.campaign.is_some());
     }
 
     #[test]
