@@ -3208,6 +3208,75 @@ mod tests {
     }
 
     #[test]
+    fn recording_estimate_rejects_stale_unconfigured_and_invalid_requests() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let runner = backend.runner_instance_id().to_owned();
+        let estimate = |runner_instance_id: &str, agent_ids: Vec<&str>, workload_ids: Vec<&str>| {
+            ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
+                runner_instance_id: runner_instance_id.to_owned(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: agent_ids.into_iter().map(str::to_owned).collect(),
+                workload_ids: workload_ids.into_iter().map(str::to_owned).collect(),
+            })
+        };
+
+        assert_eq!(
+            backend.execute(
+                &estimate("other-runner", vec!["aider"], vec!["original.bug-fix"]),
+                deadline()
+            ),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let unconfigured = backend
+            .execute(
+                &estimate(&runner, vec!["aider"], vec!["original.bug-fix"]),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::RecordingCampaignEstimate(unconfigured) = unconfigured.result else {
+            panic!("unconfigured recording estimate result");
+        };
+        assert_eq!(
+            unconfigured.unavailable_reason.as_deref(),
+            Some("configuration-required")
+        );
+
+        backend
+            .execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "recording-estimate-config".into(),
+                    expected_generation: Revision(1),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: vec!["aider".into()],
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                        credential_reference_sha256: Some("e".repeat(64)),
+                    },
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let invalid = backend
+            .execute(
+                &estimate(&runner, vec!["aider"], vec!["unknown.workload"]),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::RecordingCampaignEstimate(invalid) = invalid.result else {
+            panic!("invalid recording estimate result");
+        };
+        assert_eq!(
+            invalid.unavailable_reason.as_deref(),
+            Some("workload-unavailable")
+        );
+    }
+
+    #[test]
     fn recording_campaign_plan_is_durable_idempotent_and_not_offline_ready() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
