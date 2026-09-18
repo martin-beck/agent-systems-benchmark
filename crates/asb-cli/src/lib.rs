@@ -3869,6 +3869,11 @@ mod tests {
         value.workload.workload_sha256 = workload.content_sha256;
         value.workload.scorer_revision = workload.scoring_version;
         value.platform.architecture = std::env::consts::ARCH.to_owned();
+        // Generic command fixtures exercise the provider/live execution path.
+        // Replay plans now require an explicit runtime-issued cassette authority;
+        // dedicated replay tests construct that mode deliberately.
+        value.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        value.controls.replay.cassette_sha256 = None;
         value.refresh_content_address().unwrap();
         value
     }
