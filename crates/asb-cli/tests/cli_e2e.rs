@@ -81,6 +81,8 @@ fn cancellation_plan(root: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     experiment.workload.workload_sha256 = workload.content_sha256;
     experiment.workload.scorer_revision = workload.scoring_version;
     experiment.platform.architecture = std::env::consts::ARCH.to_owned();
+    experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+    experiment.controls.replay.cassette_sha256 = None;
     experiment.refresh_content_address().unwrap();
     let result_root = root.join("results");
     let work_root = root.join("work");
@@ -160,7 +162,11 @@ fn sigint_cancels_process_group_persists_terminal_state_and_returns_json() {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // Coverage-instrumented workspace runs can spend several seconds loading
+    // the full agent/runtime graph before the child creates its marker. Keep
+    // the startup bound finite, but leave enough room for that qualification
+    // path instead of turning scheduler variance into a false failure.
+    let deadline = Instant::now() + Duration::from_secs(15);
     while !child_marker_exists(&scratch.0.join("work")) {
         assert!(Instant::now() < deadline, "agent process did not start");
         thread::sleep(Duration::from_millis(5));
