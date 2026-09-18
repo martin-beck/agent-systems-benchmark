@@ -1642,7 +1642,10 @@ impl ControlResult {
                     ControlCall::RecordingCampaignEstimate(_),
                     Self::RecordingCampaignEstimate(_)
                 )
-                | (ControlCall::RecordingCampaignPlan(_), Self::RecordingCampaign(_))
+                | (
+                    ControlCall::RecordingCampaignPlan(_),
+                    Self::RecordingCampaign(_)
+                )
                 | (
                     ControlCall::RecordingCampaignStatus(_),
                     Self::RecordingCampaignStatus(_)

@@ -479,14 +479,24 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
         || manifest.workload_ids.len() > MAX_SELECTED_AGENTS
         || manifest.entries.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
     {
-        return Err(CliError::validation("recording campaign bounds are invalid"));
+        return Err(CliError::validation(
+            "recording campaign bounds are invalid",
+        ));
     }
     if !valid_sha256(&manifest.provider_profile_sha256)
         || manifest.agent_ids.windows(2).any(|pair| pair[0] >= pair[1])
-        || manifest.workload_ids.windows(2).any(|pair| pair[0] >= pair[1])
-        || manifest.agent_ids.iter().any(|agent| parse_agent(agent).is_err())
+        || manifest
+            .workload_ids
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || manifest
+            .agent_ids
+            .iter()
+            .any(|agent| parse_agent(agent).is_err())
     {
-        return Err(CliError::validation("recording campaign identities are invalid"));
+        return Err(CliError::validation(
+            "recording campaign identities are invalid",
+        ));
     }
     let workloads = manifest
         .workload_ids
@@ -516,7 +526,9 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     let mut recordings = Vec::with_capacity(manifest.entries.len());
     for entry in manifest.entries {
         if !manifest.workload_ids.contains(&entry.workload_id) {
-            return Err(CliError::validation("recording campaign entry workload is not selected"));
+            return Err(CliError::validation(
+                "recording campaign entry workload is not selected",
+            ));
         }
         let capture_bytes = read_bounded_json(
             &entry.capture_path,
@@ -529,14 +541,18 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
             || !manifest.agent_ids.contains(&capture.agent_id)
             || !seen.insert((capture.agent_id.clone(), entry.workload_id.clone()))
         {
-            return Err(CliError::validation("recording campaign coverage is duplicate or mismatched"));
+            return Err(CliError::validation(
+                "recording campaign coverage is duplicate or mismatched",
+            ));
         }
         let artifact = seal_recording(capture, Default::default(), CassetteLimits::default())
             .map_err(|_| CliError::validation("recording campaign capture cannot be sealed"))?;
         let encoded = serde_json::to_vec(&artifact.cassette)
             .map_err(|_| CliError::operation("recording campaign cassette cannot be encoded"))?;
         if encoded.len() > MAX_CAPTURE_BYTES {
-            return Err(CliError::validation("recording campaign cassette is too large"));
+            return Err(CliError::validation(
+                "recording campaign cassette is too large",
+            ));
         }
         write_atomic_private(&entry.cassette_path, &encoded)?;
         recordings.push(artifact.metadata);
@@ -544,7 +560,10 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     let complete = seen == expected;
     let campaign_id = format!(
         "campaign-{}",
-        &format!("{:x}", Sha256::digest(serde_json::to_vec(&campaign).unwrap_or_default()))[..24]
+        &format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&campaign).unwrap_or_default())
+        )[..24]
     );
     write_json(
         stdout,
@@ -5500,7 +5519,10 @@ mod tests {
         let mut diagnostics = Vec::new();
         assert_eq!(
             run(
-                &["record-campaign".into(), manifest_path.as_os_str().to_owned()],
+                &[
+                    "record-campaign".into(),
+                    manifest_path.as_os_str().to_owned()
+                ],
                 &mut output,
                 &mut diagnostics,
             ),

@@ -426,7 +426,9 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             || agents.windows(2).any(|pair| pair[0] == pair[1])
             || workloads.windows(2).any(|pair| pair[0] == pair[1])
         {
-            return Err(CliError::operation("control recording campaign ordering is invalid"));
+            return Err(CliError::operation(
+                "control recording campaign ordering is invalid",
+            ));
         }
     }
     for (plan_id, plan) in &catalog.plans {
@@ -2051,25 +2053,29 @@ impl RunnerBackend {
             .catalog
             .lock()
             .map_err(|_| BackendFailure::NeedsReconciliation)?;
-        let campaign = catalog.recording_campaign.as_ref().map(|record| {
-            asb_control::RecordingCampaignPlan {
-                runner_instance_id: self.runner_instance_id.clone(),
-                generation: Revision(record.generation),
-                campaign_id: record.campaign_id.clone(),
-                provider_id: record.provider_id.clone(),
-                model_id: record.model_id.clone(),
-                agent_ids: record.agent_ids.clone(),
-                workload_ids: record.workload_ids.clone(),
-                tuple_count: record.tuple_count,
-                state: "planned".to_owned(),
-                offline_ready: false,
-                unavailable_reason: Some("recording-required".to_owned()),
-            }
-        });
+        let campaign =
+            catalog
+                .recording_campaign
+                .as_ref()
+                .map(|record| asb_control::RecordingCampaignPlan {
+                    runner_instance_id: self.runner_instance_id.clone(),
+                    generation: Revision(record.generation),
+                    campaign_id: record.campaign_id.clone(),
+                    provider_id: record.provider_id.clone(),
+                    model_id: record.model_id.clone(),
+                    agent_ids: record.agent_ids.clone(),
+                    workload_ids: record.workload_ids.clone(),
+                    tuple_count: record.tuple_count,
+                    state: "planned".to_owned(),
+                    offline_ready: false,
+                    unavailable_reason: Some("recording-required".to_owned()),
+                });
         let generation = catalog
             .configuration
             .as_ref()
-            .map_or(Revision(1), |configuration| Revision(configuration.generation));
+            .map_or(Revision(1), |configuration| {
+                Revision(configuration.generation)
+            });
         Ok(asb_control::RecordingCampaignStatus {
             runner_instance_id: self.runner_instance_id.clone(),
             generation,
@@ -2876,11 +2882,9 @@ mod tests {
         let restarted = open_backend(state).unwrap();
         let restarted_status = restarted
             .execute(
-                &ControlCall::ConfigurationStatus(
-                    asb_control::ConfigurationStatusRequest {
-                        runner_instance_id: restarted.runner_instance_id().to_owned(),
-                    },
-                ),
+                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                    runner_instance_id: restarted.runner_instance_id().to_owned(),
+                }),
                 deadline(),
             )
             .unwrap();
@@ -2890,8 +2894,14 @@ mod tests {
         assert_eq!(restarted_snapshot.generation, Revision(2));
         assert_eq!(restarted_snapshot.agent_ids, vec!["aider"]);
         assert_eq!(restarted_snapshot.provider_id.as_deref(), Some("openai"));
-        assert_eq!(restarted_snapshot.model_id.as_deref(), Some(asb_agents::openai::OPENAI_MODEL));
-        assert_eq!(restarted_snapshot.credential_reference_sha256, Some("a".repeat(64)));
+        assert_eq!(
+            restarted_snapshot.model_id.as_deref(),
+            Some(asb_agents::openai::OPENAI_MODEL)
+        );
+        assert_eq!(
+            restarted_snapshot.credential_reference_sha256,
+            Some("a".repeat(64))
+        );
     }
 
     #[test]
@@ -2942,8 +2952,8 @@ mod tests {
             Some("recording-required")
         );
 
-        let mismatched = ControlCall::RecordingCampaignEstimate(
-            asb_control::RecordingCampaignEstimateRequest {
+        let mismatched =
+            ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
                 runner_instance_id: backend.runner_instance_id().to_owned(),
                 provider_id: "openai".into(),
                 model_id: asb_agents::openai::OPENAI_MODEL.into(),
@@ -2952,14 +2962,16 @@ mod tests {
                     .iter()
                     .map(|id| (*id).to_owned())
                     .collect(),
-            },
-        );
+            });
         let ControlResult::RecordingCampaignEstimate(mismatch) =
             backend.execute(&mismatched, deadline()).unwrap().result
         else {
             panic!("mismatched recording estimate result");
         };
-        assert_eq!(mismatch.unavailable_reason.as_deref(), Some("configuration-mismatch"));
+        assert_eq!(
+            mismatch.unavailable_reason.as_deref(),
+            Some("configuration-mismatch")
+        );
     }
 
     #[test]
@@ -2985,20 +2997,18 @@ mod tests {
                 deadline(),
             )
             .unwrap();
-        let call = ControlCall::RecordingCampaignPlan(
-            asb_control::RecordingCampaignPlanParams {
-                idempotency_key: "campaign-plan".into(),
-                expected_generation: Revision(2),
-                runner_instance_id,
-                provider_id: "openai".into(),
-                model_id: asb_agents::openai::OPENAI_MODEL.into(),
-                agent_ids: vec!["aider".into()],
-                workload_ids: vec![
-                    "original.bug-fix".into(),
-                    "original.feature-addition".into(),
-                ],
-            },
-        );
+        let call = ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
+            idempotency_key: "campaign-plan".into(),
+            expected_generation: Revision(2),
+            runner_instance_id,
+            provider_id: "openai".into(),
+            model_id: asb_agents::openai::OPENAI_MODEL.into(),
+            agent_ids: vec!["aider".into()],
+            workload_ids: vec![
+                "original.bug-fix".into(),
+                "original.feature-addition".into(),
+            ],
+        });
         let first = backend.execute(&call, deadline()).unwrap();
         first
             .validate_for_call(&call, ControlLimits::default())
@@ -3011,7 +3021,10 @@ mod tests {
         assert_eq!(plan.tuple_count, 2);
         assert_eq!(plan.state, "planned");
         assert!(!plan.offline_ready);
-        assert_eq!(plan.unavailable_reason.as_deref(), Some("recording-required"));
+        assert_eq!(
+            plan.unavailable_reason.as_deref(),
+            Some("recording-required")
+        );
 
         drop(backend);
         let restarted = open_backend(state).unwrap();
@@ -3023,12 +3036,13 @@ mod tests {
                 deadline(),
             )
             .unwrap();
-        assert!(matches!(status.result, ControlResult::Configuration(snapshot) if snapshot.configured));
-        let campaign_status_call = ControlCall::RecordingCampaignStatus(
-            asb_control::RecordingCampaignStatusRequest {
-                runner_instance_id: restarted.runner_instance_id().to_owned(),
-            },
+        assert!(
+            matches!(status.result, ControlResult::Configuration(snapshot) if snapshot.configured)
         );
+        let campaign_status_call =
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: restarted.runner_instance_id().to_owned(),
+            });
         let campaign_status = restarted
             .execute(&campaign_status_call, deadline())
             .unwrap();

@@ -315,6 +315,18 @@ fn remove_provider_catalog_variants(value: &mut Value) {
     remove_tagged_variant(value, "/$defs/ControlResult/oneOf", "provider_catalog");
 }
 
+fn remove_setup_variants(value: &mut Value) {
+    for tag in [
+        "configuration_status",
+        "configuration_apply",
+        "recording_campaign_plan",
+        "recording_campaign_status",
+    ] {
+        remove_tagged_variant(value, "/oneOf", tag);
+        remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
+    }
+}
+
 fn collect_definition_refs(value: &Value, refs: &mut BTreeSet<String>) {
     match value {
         Value::Object(object) => {
@@ -371,6 +383,7 @@ pub fn control_request_schema() -> Schema {
     remove_lifecycle_variants(&mut value);
     remove_auth_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 request schema remains valid")
 }
@@ -381,6 +394,7 @@ pub fn control_request_schema_v1_2() -> Schema {
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.2 request schema remains valid")
 }
@@ -400,6 +414,7 @@ pub fn control_response_schema() -> Schema {
     remove_lifecycle_variants(&mut value);
     remove_auth_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 response schema remains valid")
 }
@@ -413,6 +428,7 @@ pub fn control_response_schema_v1_2() -> Schema {
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.2 response schema remains valid")
 }
@@ -423,6 +439,7 @@ pub fn control_request_schema_v1_3() -> Schema {
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.3 request schema remains valid")
 }
@@ -435,6 +452,7 @@ pub fn control_response_schema_v1_3() -> Schema {
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.3 response schema remains valid")
 }
@@ -444,6 +462,7 @@ pub fn control_request_schema_v1_4() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_lifecycle_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.4 request schema remains valid")
 }
@@ -455,6 +474,7 @@ pub fn control_response_schema_v1_4() -> Schema {
     let mut value = serde_json::to_value(schema).expect("v1.4 response schema serializes");
     remove_lifecycle_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.4 response schema remains valid")
 }
@@ -464,6 +484,7 @@ pub fn control_request_schema_v1_5() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_auth_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.5 request schema remains valid")
 }
@@ -475,6 +496,7 @@ pub fn control_response_schema_v1_5() -> Schema {
     let mut value = serde_json::to_value(schema).expect("v1.5 response schema serializes");
     remove_auth_variants(&mut value);
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.5 response schema remains valid")
 }
@@ -484,6 +506,7 @@ pub fn control_response_schema_v1_5() -> Schema {
 pub fn control_request_schema_v1_6() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.6 request schema remains valid")
 }
@@ -495,6 +518,7 @@ pub fn control_response_schema_v1_6() -> Schema {
     settings_validation_invariant(&mut schema);
     let mut value = serde_json::to_value(schema).expect("v1.6 response schema serializes");
     remove_provider_catalog_variants(&mut value);
+    remove_setup_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.6 response schema remains valid")
 }
