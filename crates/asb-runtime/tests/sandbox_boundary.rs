@@ -3,9 +3,8 @@
 //! Native rootless namespace and delegated cgroup boundary tests.
 
 use asb_replay::{
-    CassetteLimits, Header, ProviderDialect, ReplayDispatchRequest, ReplayHttpRequest,
-    ReplayRoute, StrictReplayService, decode_cassette, encode_dispatch_request,
-    encode_dispatch_response,
+    CassetteLimits, Header, ProviderDialect, ReplayDispatchRequest, ReplayHttpRequest, ReplayRoute,
+    StrictReplayService, decode_cassette, encode_dispatch_request, encode_dispatch_response,
 };
 use asb_runtime::launch_factory::ReplayLaunchFactory;
 use asb_runtime::relay::ReplayRelay;
@@ -1047,12 +1046,11 @@ fn run_supervised_fault(
         CassetteLimits::default(),
     )
     .unwrap();
-    let request_body = serde_json::to_vec(&cassette.contents.interactions[0].request.body)
-        .unwrap();
+    let request_body = serde_json::to_vec(&cassette.contents.interactions[0].request.body).unwrap();
     let dispatch = ReplayDispatchRequest {
         route: ReplayRoute {
             session_id: "gemini-public-session".into(),
-            attempt_id: format!("fault-{name}"),
+            attempt_id: "attempt-1".into(),
             dialect: ProviderDialect::GeminiGenerateContent,
         },
         request: ReplayHttpRequest {
