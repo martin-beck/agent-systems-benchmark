@@ -232,6 +232,8 @@ pub enum ControlCall {
     ConfigurationApply(crate::ConfigurationApplyParams),
     /// Estimate a bounded recording campaign without provider effects.
     RecordingCampaignEstimate(crate::RecordingCampaignEstimateRequest),
+    /// Persist an exact bounded recording campaign plan.
+    RecordingCampaignPlan(crate::RecordingCampaignPlanParams),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -350,6 +352,7 @@ impl ControlCall {
             Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationApply(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::RecordingCampaignEstimate(_) => CONTROL_PROVIDER_CATALOG_V1,
+            Self::RecordingCampaignPlan(_) => CONTROL_PROVIDER_CATALOG_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1373,6 +1376,8 @@ pub enum ControlResult {
     Configuration(crate::ConfigurationSnapshot),
     /// Bounded recording/offline-readiness estimate.
     RecordingCampaignEstimate(crate::RecordingCampaignEstimate),
+    /// Durable recording campaign plan awaiting execution and coverage.
+    RecordingCampaign(crate::RecordingCampaignPlan),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1447,6 +1452,9 @@ impl BoundControlResult {
             {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::RecordingCampaign(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1477,6 +1485,7 @@ impl ControlResult {
             Self::ProviderCatalog(value) => value.validate(),
             Self::Configuration(value) => value.validate(),
             Self::RecordingCampaignEstimate(value) => value.validate(),
+            Self::RecordingCampaign(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
@@ -1623,6 +1632,7 @@ impl ControlResult {
                     ControlCall::RecordingCampaignEstimate(_),
                     Self::RecordingCampaignEstimate(_)
                 )
+                | (ControlCall::RecordingCampaignPlan(_), Self::RecordingCampaign(_))
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -1681,6 +1691,14 @@ impl ControlResult {
                 ControlCall::RecordingCampaignEstimate(request),
                 Self::RecordingCampaignEstimate(estimate),
             ) => estimate.runner_instance_id == request.runner_instance_id,
+            (ControlCall::RecordingCampaignPlan(request), Self::RecordingCampaign(plan)) => {
+                plan.runner_instance_id == request.runner_instance_id
+                    && plan.generation == request.expected_generation
+                    && plan.provider_id == request.provider_id
+                    && plan.model_id == request.model_id
+                    && plan.agent_ids == request.agent_ids
+                    && plan.workload_ids == request.workload_ids
+            }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
             }
@@ -1911,6 +1929,7 @@ pub fn validate_request(
         ControlCall::ConfigurationStatus(params) => params.validate()?,
         ControlCall::ConfigurationApply(params) => params.validate()?,
         ControlCall::RecordingCampaignEstimate(params) => params.validate()?,
+        ControlCall::RecordingCampaignPlan(params) => params.validate()?,
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,

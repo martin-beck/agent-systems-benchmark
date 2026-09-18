@@ -121,6 +121,23 @@
       ]
     },
     {
+      "description": "Persist an exact bounded recording campaign plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_plan"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignPlanParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Obtain the immutable catalog of selectable measurements.",
       "type": "object",
       "properties": {
@@ -732,6 +749,59 @@
       },
       "additionalProperties": false,
       "required": [
+        "runner_instance_id",
+        "provider_id",
+        "model_id",
+        "agent_ids",
+        "workload_ids"
+      ]
+    },
+    "RecordingCampaignPlanParams": {
+      "description": "Idempotent request to persist an exact recording matrix for later execution.",
+      "type": "object",
+      "properties": {
+        "agent_ids": {
+          "description": "Selected agent IDs.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expected_generation": {
+          "description": "Setup generation returned by the last configuration status read.",
+          "$ref": "#/$defs/Revision"
+        },
+        "idempotency_key": {
+          "description": "Retry-safe mutation identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "model_id": {
+          "description": "Model selected for the campaign.",
+          "type": "string"
+        },
+        "provider_id": {
+          "description": "Provider profile selected for the campaign.",
+          "type": "string"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity received during negotiation.",
+          "type": "string"
+        },
+        "workload_ids": {
+          "description": "Selected workload IDs.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "expected_generation",
         "runner_instance_id",
         "provider_id",
         "model_id",

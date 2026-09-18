@@ -554,6 +554,24 @@
           ]
         },
         {
+          "description": "Durable recording campaign plan awaiting execution and coverage.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "recording_campaign"
+            },
+            "value": {
+              "$ref": "#/$defs/RecordingCampaignPlan"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
           "description": "Recent run page.",
           "type": "object",
           "properties": {
@@ -1783,6 +1801,81 @@
         "generation",
         "tuple_count",
         "complete_coverage",
+        "offline_ready"
+      ]
+    },
+    "RecordingCampaignPlan": {
+      "description": "Durable, privacy-safe recording campaign plan.",
+      "type": "object",
+      "properties": {
+        "agent_ids": {
+          "description": "Selected agents, in canonical order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "campaign_id": {
+          "description": "Stable content-derived campaign identity.",
+          "type": "string"
+        },
+        "generation": {
+          "description": "Setup generation used by this plan.",
+          "$ref": "#/$defs/Revision"
+        },
+        "model_id": {
+          "description": "Model selected for the campaign.",
+          "type": "string"
+        },
+        "offline_ready": {
+          "description": "A plan never claims offline readiness before coverage reconciliation.",
+          "type": "boolean"
+        },
+        "provider_id": {
+          "description": "Provider profile selected for the campaign.",
+          "type": "string"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity.",
+          "type": "string"
+        },
+        "state": {
+          "description": "Current lifecycle state; a new plan is always `planned`.",
+          "type": "string"
+        },
+        "tuple_count": {
+          "description": "Number of exact agent/workload tuples.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "unavailable_reason": {
+          "description": "Stable explanation for the current state.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workload_ids": {
+          "description": "Selected workloads, in canonical order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id",
+        "generation",
+        "campaign_id",
+        "provider_id",
+        "model_id",
+        "agent_ids",
+        "workload_ids",
+        "tuple_count",
+        "state",
         "offline_ready"
       ]
     },

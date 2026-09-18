@@ -204,6 +204,54 @@ pub struct RecordingCampaignEstimate {
     pub unavailable_reason: Option<String>,
 }
 
+/// Idempotent request to persist an exact recording matrix for later execution.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignPlanParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Setup generation returned by the last configuration status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Provider profile selected for the campaign.
+    pub provider_id: String,
+    /// Model selected for the campaign.
+    pub model_id: String,
+    /// Selected agent IDs.
+    pub agent_ids: Vec<String>,
+    /// Selected workload IDs.
+    pub workload_ids: Vec<String>,
+}
+
+/// Durable, privacy-safe recording campaign plan.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignPlan {
+    /// Runner identity.
+    pub runner_instance_id: String,
+    /// Setup generation used by this plan.
+    pub generation: Revision,
+    /// Stable content-derived campaign identity.
+    pub campaign_id: String,
+    /// Provider profile selected for the campaign.
+    pub provider_id: String,
+    /// Model selected for the campaign.
+    pub model_id: String,
+    /// Selected agents, in canonical order.
+    pub agent_ids: Vec<String>,
+    /// Selected workloads, in canonical order.
+    pub workload_ids: Vec<String>,
+    /// Number of exact agent/workload tuples.
+    pub tuple_count: u16,
+    /// Current lifecycle state; a new plan is always `planned`.
+    pub state: String,
+    /// A plan never claims offline readiness before coverage reconciliation.
+    pub offline_ready: bool,
+    /// Stable explanation for the current state.
+    pub unavailable_reason: Option<String>,
+}
+
 impl ConfigurationStatusRequest {
     /// Validate request identity.
     pub fn validate(&self) -> Result<(), ProtocolError> {
@@ -219,6 +267,57 @@ impl RecordingCampaignEstimateRequest {
         validate_catalog_string(&self.model_id)?;
         validate_sorted_ids(&self.agent_ids, false)?;
         validate_sorted_ids(&self.workload_ids, false)?;
+        Ok(())
+    }
+}
+
+impl RecordingCampaignPlanParams {
+    /// Validate bounded, canonical campaign selection without provider effects.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_idempotency_key(&self.idempotency_key)?;
+        validate_identity(&self.runner_instance_id)?;
+        if self.expected_generation.0 == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        validate_catalog_string(&self.provider_id)?;
+        validate_catalog_string(&self.model_id)?;
+        validate_sorted_ids(&self.agent_ids, false)?;
+        validate_sorted_ids(&self.workload_ids, false)?;
+        let tuples = self
+            .agent_ids
+            .len()
+            .checked_mul(self.workload_ids.len())
+            .ok_or(ProtocolError::InvalidResponse)?;
+        if tuples == 0 || tuples > 256 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+
+impl RecordingCampaignPlan {
+    /// Validate explicit planned-state semantics and bounded public fields.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        validate_identity(&self.campaign_id)?;
+        validate_catalog_string(&self.provider_id)?;
+        validate_catalog_string(&self.model_id)?;
+        validate_sorted_ids(&self.agent_ids, false)?;
+        validate_sorted_ids(&self.workload_ids, false)?;
+        let tuples = self
+            .agent_ids
+            .len()
+            .checked_mul(self.workload_ids.len())
+            .and_then(|value| u16::try_from(value).ok())
+            .ok_or(ProtocolError::InvalidResponse)?;
+        if self.generation.0 == 0
+            || self.tuple_count != tuples
+            || self.state != "planned"
+            || self.offline_ready
+            || self.unavailable_reason.as_deref() != Some("recording-required")
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
         Ok(())
     }
 }
