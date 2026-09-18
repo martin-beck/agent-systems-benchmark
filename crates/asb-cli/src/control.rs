@@ -1776,6 +1776,12 @@ impl RunnerBackend {
         &self,
         request: &ProviderCatalogRequest,
     ) -> Result<ProviderCatalog, BackendFailure> {
+        if matches!(request.action, ProviderCatalogAction::Refresh) {
+            // Discovery and connectivity probing must be supplied by a
+            // verified provider registry; never label a static projection as
+            // refreshed or connected.
+            return Err(BackendFailure::CapabilityUnavailable);
+        }
         if request.runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
         }
@@ -1792,7 +1798,6 @@ impl RunnerBackend {
         {
             return Err(BackendFailure::StaleIdentity);
         }
-        let refreshed = matches!(request.action, ProviderCatalogAction::Refresh);
         let mut catalog = ProviderCatalog {
             runner_instance_id: self.runner_instance_id.clone(),
             generation: Revision(generation),
@@ -1825,7 +1830,7 @@ impl RunnerBackend {
                     availability: ProviderAvailability::Available,
                 },
             ],
-            refreshed,
+            refreshed: false,
         };
         catalog.catalog_sha256 = catalog
             .computed_sha256()
@@ -2342,6 +2347,15 @@ mod tests {
         let encoded = serde_json::to_string(&catalog).unwrap();
         assert!(!encoded.contains("api_key"));
         assert!(!encoded.contains("sk-"));
+        let refresh = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Refresh,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        assert_eq!(
+            backend.execute(&refresh, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
 
         let socket = scratch.0.join("provider-catalog.sock");
         let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
