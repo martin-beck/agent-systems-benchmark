@@ -70,23 +70,6 @@
       ]
     },
     {
-      "description": "Estimate a bounded recording campaign without provider effects.",
-      "type": "object",
-      "properties": {
-        "method": {
-          "type": "string",
-          "const": "recording_campaign_estimate"
-        },
-        "params": {
-          "$ref": "#/$defs/RecordingCampaignEstimateRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ]
-    },
-    {
       "description": "Obtain the immutable catalog of selectable measurements.",
       "type": "object",
       "properties": {
@@ -563,46 +546,6 @@
       "additionalProperties": false,
       "required": [
         "limit"
-      ]
-    },
-    "RecordingCampaignEstimateRequest": {
-      "description": "Read-only bounded recording-campaign estimate request.",
-      "type": "object",
-      "properties": {
-        "agent_ids": {
-          "description": "Selected agent IDs.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "model_id": {
-          "description": "Model selected for the campaign.",
-          "type": "string"
-        },
-        "provider_id": {
-          "description": "Provider profile selected for the campaign.",
-          "type": "string"
-        },
-        "runner_instance_id": {
-          "description": "Runner identity received during negotiation.",
-          "type": "string"
-        },
-        "workload_ids": {
-          "description": "Selected workload IDs.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "runner_instance_id",
-        "provider_id",
-        "model_id",
-        "agent_ids",
-        "workload_ids"
       ]
     },
     "RepeatParams": {

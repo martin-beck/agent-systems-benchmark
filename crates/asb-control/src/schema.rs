@@ -319,6 +319,7 @@ fn remove_setup_variants(value: &mut Value) {
     for tag in [
         "configuration_status",
         "configuration_apply",
+        "recording_campaign_estimate",
         "recording_campaign_plan",
         "recording_campaign_status",
     ] {

@@ -536,24 +536,6 @@
           ]
         },
         {
-          "description": "Bounded recording/offline-readiness estimate.",
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "recording_campaign_estimate"
-            },
-            "value": {
-              "$ref": "#/$defs/RecordingCampaignEstimate"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "value"
-          ]
-        },
-        {
           "description": "Durable recording campaign plan awaiting execution and coverage.",
           "type": "object",
           "properties": {
@@ -1636,50 +1618,6 @@
           "type": "string",
           "const": "needs_reconciliation"
         }
-      ]
-    },
-    "RecordingCampaignEstimate": {
-      "description": "Explicit estimate and offline-readiness projection for recording campaigns.",
-      "type": "object",
-      "properties": {
-        "complete_coverage": {
-          "description": "Whether every requested tuple has current complete coverage.",
-          "type": "boolean"
-        },
-        "generation": {
-          "description": "Configuration generation used for this estimate.",
-          "$ref": "#/$defs/Revision"
-        },
-        "offline_ready": {
-          "description": "Whether the selected configuration may run offline immediately.",
-          "type": "boolean"
-        },
-        "runner_instance_id": {
-          "description": "Runner identity.",
-          "type": "string"
-        },
-        "tuple_count": {
-          "description": "Number of agent x workload tuples requested.",
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        },
-        "unavailable_reason": {
-          "description": "Stable explanation when recording or offline replay is unavailable.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "runner_instance_id",
-        "generation",
-        "tuple_count",
-        "complete_coverage",
-        "offline_ready"
       ]
     },
     "RecordingCampaignPlan": {
