@@ -32,8 +32,10 @@ pub const CONTROL_AGENT_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1
 pub const CONTROL_AUTH_V1: ControlVersion = ControlVersion { major: 1, minor: 6 };
 /// Version of the additive provider/model catalog operation.
 pub const CONTROL_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 7 };
+/// Version of the additive recording-campaign lifecycle operations.
+pub const CONTROL_RECORDING_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 8 };
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 7] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 8] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -41,6 +43,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 7] = [
     CONTROL_AGENT_LIFECYCLE_V1,
     CONTROL_AUTH_V1,
     CONTROL_PROVIDER_CATALOG_V1,
+    CONTROL_RECORDING_LIFECYCLE_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -236,6 +239,16 @@ pub enum ControlCall {
     RecordingCampaignPlan(crate::RecordingCampaignPlanParams),
     /// Read the last durable recording campaign plan.
     RecordingCampaignStatus(crate::RecordingCampaignStatusRequest),
+    /// Admit a planned campaign for runtime-owned recording.
+    RecordingCampaignExecute(crate::RecordingCampaignExecuteParams),
+    /// Read durable tuple coverage and lifecycle state.
+    RecordingCampaignProgress(crate::RecordingCampaignProgressRequest),
+    /// Cancel a recording campaign before offline activation.
+    RecordingCampaignCancel(crate::RecordingCampaignCancelParams),
+    /// Reconcile a campaign after an interrupted runtime effect.
+    RecordingCampaignReconcile(crate::RecordingCampaignReconcileParams),
+    /// Make a completely covered campaign the offline default.
+    RecordingCampaignOfflineDefault(crate::RecordingCampaignOfflineDefaultParams),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Validate settings without creating durable run state.
@@ -356,6 +369,11 @@ impl ControlCall {
             Self::RecordingCampaignEstimate(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::RecordingCampaignPlan(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::RecordingCampaignStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
+            Self::RecordingCampaignExecute(_)
+            | Self::RecordingCampaignProgress(_)
+            | Self::RecordingCampaignCancel(_)
+            | Self::RecordingCampaignReconcile(_)
+            | Self::RecordingCampaignOfflineDefault(_) => CONTROL_RECORDING_LIFECYCLE_V1,
             _ => CONTROL_V1,
         }
     }
@@ -1384,6 +1402,8 @@ pub enum ControlResult {
     RecordingCampaign(crate::RecordingCampaignPlan),
     /// Restart-safe recording campaign status.
     RecordingCampaignStatus(crate::RecordingCampaignStatus),
+    /// Durable recording campaign lifecycle and tuple coverage.
+    RecordingCampaignLifecycle(crate::RecordingCampaignLifecycle),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1464,6 +1484,11 @@ impl BoundControlResult {
             ControlResult::RecordingCampaignStatus(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::RecordingCampaignLifecycle(_)
+                if version < CONTROL_RECORDING_LIFECYCLE_V1 =>
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1496,6 +1521,7 @@ impl ControlResult {
             Self::RecordingCampaignEstimate(value) => value.validate(),
             Self::RecordingCampaign(value) => value.validate(),
             Self::RecordingCampaignStatus(value) => value.validate(),
+            Self::RecordingCampaignLifecycle(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
@@ -1650,6 +1676,26 @@ impl ControlResult {
                     ControlCall::RecordingCampaignStatus(_),
                     Self::RecordingCampaignStatus(_)
                 )
+                | (
+                    ControlCall::RecordingCampaignExecute(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignProgress(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignCancel(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignReconcile(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignOfflineDefault(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -1720,6 +1766,45 @@ impl ControlResult {
                 ControlCall::RecordingCampaignStatus(request),
                 Self::RecordingCampaignStatus(status),
             ) => status.runner_instance_id == request.runner_instance_id,
+            (
+                ControlCall::RecordingCampaignExecute(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignCancel(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignReconcile(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignOfflineDefault(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignProgress(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+            }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
             }
@@ -1952,6 +2037,11 @@ pub fn validate_request(
         ControlCall::RecordingCampaignEstimate(params) => params.validate()?,
         ControlCall::RecordingCampaignPlan(params) => params.validate()?,
         ControlCall::RecordingCampaignStatus(params) => params.validate()?,
+        ControlCall::RecordingCampaignExecute(params) => params.validate()?,
+        ControlCall::RecordingCampaignProgress(params) => params.validate()?,
+        ControlCall::RecordingCampaignCancel(params) => params.validate()?,
+        ControlCall::RecordingCampaignReconcile(params) => params.validate()?,
+        ControlCall::RecordingCampaignOfflineDefault(params) => params.validate()?,
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,

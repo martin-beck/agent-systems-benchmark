@@ -29,9 +29,10 @@ pub use schema::{
     analysis_evidence_schema, certificate_identity_schema, control_event_schema,
     control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
     control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
-    control_request_schema_v1_7, control_response_schema, control_response_schema_v1_2,
-    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
-    control_response_schema_v1_6, control_response_schema_v1_7, history_evidence_schema,
+    control_request_schema_v1_7, control_request_schema_v1_8, control_response_schema,
+    control_response_schema_v1_2, control_response_schema_v1_3, control_response_schema_v1_4,
+    control_response_schema_v1_5, control_response_schema_v1_6, control_response_schema_v1_7,
+    control_response_schema_v1_8, history_evidence_schema,
 };
 pub use state::*;
 pub use transport::*;
