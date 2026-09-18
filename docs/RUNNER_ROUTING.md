@@ -30,6 +30,14 @@ reports public source-test status. Runtime assertions verify the trust class and
 label-selected OS/architecture without intentionally printing a runner name,
 host identity, runtime root, token, environment, or raw diagnostic log.
 
+Required public checks must remain on the disposable `ubuntu-24.04` label. A
+self-hosted development runner is not a substitute for those checks: it is only
+eligible for the two protected manual workflows above. For post-merge evidence,
+use the canonical `push` run produced by a reviewed merge. A manually dispatched
+quality run is diagnostic only and may scan the complete published history,
+including preserved historical merge-integrity incidents; its result must not be
+used to override or reinterpret the range-scoped push result.
+
 GitHub generates self-hosted job metadata outside workflow control. That
 metadata can include the pseudonymous runner registration name and the machine
 name, so these public workflow logs do **not** prove complete host-identity
