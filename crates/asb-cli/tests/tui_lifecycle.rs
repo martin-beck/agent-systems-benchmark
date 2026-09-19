@@ -37,15 +37,22 @@ impl Scratch {
     }
 
     fn command(&self, operation: &str) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_asb"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_asb"));
+        command
             .args(["tui", operation])
             .env_clear()
             .env("HOME", self.0.join("home"))
             .env("XDG_DATA_HOME", self.0.join("data"))
             .env("XDG_STATE_HOME", self.0.join("state"))
-            .env("XDG_CACHE_HOME", self.0.join("cache"))
-            .output()
-            .unwrap()
+            .env("XDG_CACHE_HOME", self.0.join("cache"));
+        if std::env::var_os("LLVM_PROFILE_FILE").is_some() {
+            command.env(
+                "LLVM_PROFILE_FILE",
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../target/asb-tui-lifecycle-%p-%m.profraw"),
+            );
+        }
+        command.output().unwrap()
     }
 }
 
