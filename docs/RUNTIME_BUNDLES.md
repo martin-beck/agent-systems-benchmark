@@ -3,7 +3,7 @@
 ASB agent installations use the version-1 contract in
 [asb-bundle](../crates/asb-bundle/README.md). A bundle directory contains exactly:
 
-- manifest.json and its detached manifest.json.sig SSHSIG;
+- manifest.json and, for the `signed` profile, its detached manifest.json.sig SSHSIG;
 - the SPDX 2.3 and CycloneDX 1.6 documents named by the manifest; and
 - every regular payload and license-evidence file in the sorted artifact inventory.
 
@@ -14,6 +14,13 @@ manifest, and signs its exact bytes:
 ```sh
 ssh-keygen -Y sign -f RELEASE_KEY -n asb-runtime-bundle-v1 manifest.json
 ```
+
+The manifest's explicit `profile` and `signature_status` fields distinguish the normal `signed`
+profile from opt-in `unsigned-development` and `unsigned-release` profiles. Unsigned profiles
+retain complete content hashes, SBOMs, license evidence, target identity, and provenance; they
+omit only `manifest.json.sig`. The default verifier and all formal qualification paths reject
+unsigned profiles. A caller may deliberately consume one for development or a tagged release
+with `asb-bundle-verify ... --profile unsigned-development` or `--profile unsigned-release`.
 
 Release keys are never part of a bundle. Installers carry an independently provisioned OpenSSH
 allowed-signers file, required principal, exact trusted ssh-keygen path and its SHA-256. They

@@ -26,7 +26,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 /// Runtime-bundle manifest schema version supported by this crate.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 /// SSH signature namespace used only for ASB runtime bundles.
 pub const SIGNATURE_NAMESPACE: &str = "asb-runtime-bundle-v1";
 /// Version of the signed platform release-manifest contract.
@@ -44,13 +44,54 @@ const MAX_ALLOWED_SIGNERS_BYTES: u64 = 1024 * 1024;
 const MAX_STRING_BYTES: usize = 4096;
 const SIGNATURE_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Explicit publication profile carried by every runtime-bundle manifest.
+///
+/// Unsigned profiles are intentionally opt-in and are never accepted by the
+/// default verifier or by formal qualification paths.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BundleProfile {
+    /// Production profile; the manifest must have a trusted detached signature.
+    Signed,
+    /// Local development profile; integrity metadata remains mandatory.
+    UnsignedDevelopment,
+    /// Explicit tagged-release profile for environments without a release key.
+    UnsignedRelease,
+}
+
+/// Truthful signature state recorded in public bundle metadata.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SignatureStatus {
+    /// The detached manifest signature is present and verified.
+    Signed,
+    /// No detached manifest signature is present.
+    Unsigned,
+}
+
+/// Signature policy selected by a caller. The default API uses
+/// [`VerificationPolicy::RequireSignature`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationPolicy {
+    /// Require the signed production profile.
+    RequireSignature,
+    /// Explicitly permit only an unsigned-development manifest.
+    AllowUnsignedDevelopment,
+    /// Explicitly permit only an unsigned-release manifest.
+    AllowUnsignedRelease,
+}
+
 /// A signed runtime bundle complete content-addressed inventory.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeBundleManifest {
-    /// Manifest schema version; currently exactly one.
+    /// Manifest schema version; currently exactly two.
     #[schemars(schema_with = "schema_version")]
     pub schema_version: u32,
+    /// Explicit publication profile; unsigned profiles are never implicit.
+    pub profile: BundleProfile,
+    /// Truthful detached-signature state for this manifest.
+    pub signature_status: SignatureStatus,
     /// Stable bounded bundle identifier.
     #[schemars(length(min = 1, max = 4096))]
     pub bundle_id: String,
@@ -287,6 +328,10 @@ pub struct VerifiedBundle {
     pub bundle_id: String,
     /// Verified bundle version.
     pub bundle_version: String,
+    /// Profile selected by the verified manifest.
+    pub profile: BundleProfile,
+    /// Truthful signature state selected by the verified manifest.
+    pub signature_status: SignatureStatus,
     /// Verified content digest.
     pub content_sha256: String,
     /// Number of verified artifacts.
@@ -352,16 +397,46 @@ pub fn verify_bundle(
     config: &VerifierConfig,
     expected: &ExpectedTarget<'_>,
 ) -> Result<VerifiedBundle, VerifyError> {
+    verify_bundle_with_policy(
+        bundle_root,
+        config,
+        expected,
+        VerificationPolicy::RequireSignature,
+    )
+}
+
+/// Verify a bundle with an explicit signature policy.
+///
+/// The default [`verify_bundle`] entrypoint remains signature-required. An
+/// unsigned profile can only be consumed when the caller names the matching
+/// opt-in policy, and it is never accepted by formal qualification callers.
+pub fn verify_bundle_with_policy(
+    bundle_root: &Path,
+    config: &VerifierConfig,
+    expected: &ExpectedTarget<'_>,
+    policy: VerificationPolicy,
+) -> Result<VerifiedBundle, VerifyError> {
     let root = validate_root(bundle_root)?;
     let manifest_path = root.join("manifest.json");
     let signature_path = root.join("manifest.json.sig");
     let (manifest_bytes, manifest_file) =
         read_regular_bounded_with_file(&manifest_path, MAX_MANIFEST_BYTES)?;
-    validate_regular_file_bounded(&signature_path, MAX_SIGNATURE_BYTES)?;
-    verify_signature(manifest_file, &signature_path, config)?;
-
     let manifest: RuntimeBundleManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|_| VerifyError::Metadata("manifest is not strict schema-v1 JSON".into()))?;
+    validate_profile(&manifest, policy)?;
+    match manifest.signature_status {
+        SignatureStatus::Signed => {
+            validate_regular_file_bounded(&signature_path, MAX_SIGNATURE_BYTES)?;
+            verify_signature(manifest_file, &signature_path, config)?;
+        }
+        SignatureStatus::Unsigned => {
+            if signature_path.exists() {
+                return Err(VerifyError::Metadata(
+                    "unsigned profile must not include manifest.json.sig".into(),
+                ));
+            }
+        }
+    }
     validate_manifest(&manifest, expected)?;
     if expected_inventory(&manifest)? != enumerate_files(&root)? {
         return Err(VerifyError::Content(
@@ -411,11 +486,38 @@ pub fn verify_bundle(
         manifest_sha256: sha256(&manifest_bytes),
         bundle_id: manifest.bundle_id,
         bundle_version: manifest.bundle_version,
+        profile: manifest.profile,
+        signature_status: manifest.signature_status,
         content_sha256: manifest.content_sha256,
         artifact_count: artifacts.len(),
         supervisor,
         sidecar,
     })
+}
+
+fn validate_profile(
+    manifest: &RuntimeBundleManifest,
+    policy: VerificationPolicy,
+) -> Result<(), VerifyError> {
+    let allowed = match policy {
+        VerificationPolicy::RequireSignature => {
+            manifest.profile == BundleProfile::Signed
+                && manifest.signature_status == SignatureStatus::Signed
+        }
+        VerificationPolicy::AllowUnsignedDevelopment => {
+            manifest.profile == BundleProfile::UnsignedDevelopment
+                && manifest.signature_status == SignatureStatus::Unsigned
+        }
+        VerificationPolicy::AllowUnsignedRelease => {
+            manifest.profile == BundleProfile::UnsignedRelease
+                && manifest.signature_status == SignatureStatus::Unsigned
+        }
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err(VerifyError::Signature)
+    }
 }
 
 fn validate_root(path: &Path) -> Result<PathBuf, VerifyError> {
@@ -434,6 +536,13 @@ fn validate_manifest(
 ) -> Result<(), VerifyError> {
     if manifest.schema_version != SCHEMA_VERSION {
         return Err(VerifyError::Metadata("unsupported schema version".into()));
+    }
+    if (manifest.profile == BundleProfile::Signed)
+        != (manifest.signature_status == SignatureStatus::Signed)
+    {
+        return Err(VerifyError::Metadata(
+            "profile and signature_status disagree".into(),
+        ));
     }
     for (name, value) in [
         ("bundle_id", manifest.bundle_id.as_str()),
@@ -607,7 +716,9 @@ fn expected_inventory(manifest: &RuntimeBundleManifest) -> Result<BTreeSet<Strin
         }
     }
     paths.insert("manifest.json".into());
-    paths.insert("manifest.json.sig".into());
+    if manifest.signature_status == SignatureStatus::Signed {
+        paths.insert("manifest.json.sig".into());
+    }
     Ok(paths)
 }
 
