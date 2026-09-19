@@ -101,6 +101,8 @@ def make_manifest(root: pathlib.Path, args: argparse.Namespace) -> None:
     spdx_sha, cdx_sha = write_sboms(root, inventory)
     manifest = {
         "schema_version": 1,
+        "profile": args.profile,
+        "signature_status": "signed" if args.profile == "signed" else "unsigned",
         "bundle_id": args.bundle_id,
         "bundle_version": args.bundle_version,
         "target": {
@@ -177,11 +179,17 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--arch", required=True)
     parser.add_argument("--libc", required=True)
     parser.add_argument("--libc-version", required=True)
-    parser.add_argument("--key", type=pathlib.Path, required=True)
-    parser.add_argument("--allowed-signers", type=pathlib.Path, required=True)
-    parser.add_argument("--principal", required=True)
+    parser.add_argument(
+        "--profile",
+        choices=("signed", "unsigned-development", "unsigned-release"),
+        default="signed",
+        help="publication profile; signed is the fail-closed default",
+    )
+    parser.add_argument("--key", type=pathlib.Path)
+    parser.add_argument("--allowed-signers", type=pathlib.Path)
+    parser.add_argument("--principal")
     parser.add_argument("--ssh-keygen", type=pathlib.Path, default=pathlib.Path("/usr/bin/ssh-keygen"))
-    parser.add_argument("--ssh-keygen-sha256", required=True)
+    parser.add_argument("--ssh-keygen-sha256")
     parser.add_argument("--output", type=pathlib.Path, required=True)
     parser.add_argument("--supervisor", type=pathlib.Path, required=True)
     parser.add_argument("--sidecar", type=pathlib.Path, required=True)
@@ -190,8 +198,13 @@ def parse() -> argparse.Namespace:
 
 def main() -> int:
     args = parse()
-    if not args.key.is_file() or not args.allowed_signers.is_file():
-        raise SystemExit("signing key and allowed-signers file must be regular files")
+    if args.profile == "signed":
+        if not args.key or not args.allowed_signers or not args.principal or not args.ssh_keygen_sha256:
+            raise SystemExit(
+                "signed profile requires --key, --allowed-signers, --principal, and --ssh-keygen-sha256"
+            )
+        if not args.key.is_file() or not args.allowed_signers.is_file():
+            raise SystemExit("signing key and allowed-signers file must be regular files")
     for helper in (args.supervisor, args.sidecar):
         if not helper.is_file() or helper.is_symlink():
             raise SystemExit("supervisor and sidecar must be regular files")
@@ -208,9 +221,12 @@ def main() -> int:
         shutil.copyfile(ROOT / "LICENSE", stage / "LICENSE")
         (stage / "LICENSE").chmod(0o644)
         make_manifest(stage, args)
-        subprocess.run([str(args.ssh_keygen), "-Y", "sign", "-f", str(args.key), "-n", NAMESPACE, str(stage / "manifest.json")], check=True)
+        if args.profile == "signed":
+            subprocess.run([str(args.ssh_keygen), "-Y", "sign", "-f", str(args.key), "-n", NAMESPACE, str(stage / "manifest.json")], check=True)
         verifier = ROOT / "target" / "release" / "asb-bundle-verify"
-        command = [str(verifier), str(stage), str(args.allowed_signers), args.principal, str(args.ssh_keygen), args.ssh_keygen_sha256, args.os, args.arch, args.libc, args.libc_version]
+        command = [str(verifier), str(stage), str(args.allowed_signers or stage / "unused-signers"), args.principal or "unused", str(args.ssh_keygen), args.ssh_keygen_sha256 or ("0" * 64), args.os, args.arch, args.libc, args.libc_version]
+        if args.profile != "signed":
+            command.extend(["--profile", args.profile])
         subprocess.run(command, check=True)
         archive(stage, args.output)
     print(args.output)

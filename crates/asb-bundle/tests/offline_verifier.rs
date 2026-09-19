@@ -3,9 +3,10 @@
 //! Real SSHSIG and filesystem-boundary tests for the offline verifier.
 
 use asb_bundle::{
-    BundleArtifact, BundleArtifactRole, ExpectedTarget, RuntimeBundleManifest, RuntimeComponents,
-    RuntimeTarget, SIGNATURE_NAMESPACE, SbomDocument, VerifierConfig, VerifyError, content_digest,
-    verify_bundle,
+    BundleArtifact, BundleArtifactRole, BundleProfile, ExpectedTarget, RuntimeBundleManifest,
+    RuntimeComponents, RuntimeTarget, SIGNATURE_NAMESPACE, SbomDocument, SignatureStatus,
+    VerificationPolicy, VerifierConfig, VerifyError, content_digest, verify_bundle,
+    verify_bundle_with_policy,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -201,6 +202,8 @@ fn create_fixture() -> Fixture {
     fs::write(root.join("cyclonedx.json"), &cyclonedx_bytes).expect("write CycloneDX");
     let manifest = RuntimeBundleManifest {
         schema_version: 1,
+        profile: BundleProfile::Signed,
+        signature_status: SignatureStatus::Signed,
         bundle_id: "fixture-agent".into(),
         bundle_version: "1.2.3".into(),
         target: RuntimeTarget {
@@ -274,6 +277,83 @@ fn verifies_signed_complete_offline_bundle() {
         verified.sidecar.as_ref().expect("sidecar").path,
         fixture.root.join("bin/sidecar")
     );
+}
+
+fn make_unsigned_fixture(profile: BundleProfile) -> Fixture {
+    let fixture = create_fixture();
+    fs::remove_file(fixture.root.join("manifest.json.sig")).expect("remove detached signature");
+    rewrite_manifest_unsigned(&fixture, profile);
+    fixture
+}
+
+fn rewrite_manifest_unsigned(fixture: &Fixture, profile: BundleProfile) {
+    let path = fixture.root.join("manifest.json");
+    let mut manifest: RuntimeBundleManifest =
+        serde_json::from_slice(&fs::read(&path).expect("read manifest")).expect("parse manifest");
+    manifest.profile = profile;
+    manifest.signature_status = SignatureStatus::Unsigned;
+    fs::write(
+        path,
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write unsigned manifest");
+}
+
+#[test]
+fn unsigned_development_requires_explicit_policy_and_preserves_integrity() {
+    let fixture = make_unsigned_fixture(BundleProfile::UnsignedDevelopment);
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Signature)
+    ));
+    let verified = verify_bundle_with_policy(
+        &fixture.root,
+        &config(&fixture),
+        &target(),
+        VerificationPolicy::AllowUnsignedDevelopment,
+    )
+    .expect("explicit development policy");
+    assert_eq!(verified.profile, BundleProfile::UnsignedDevelopment);
+    assert_eq!(verified.signature_status, SignatureStatus::Unsigned);
+    assert!(matches!(
+        verify_bundle_with_policy(
+            &fixture.root,
+            &config(&fixture),
+            &target(),
+            VerificationPolicy::AllowUnsignedRelease,
+        ),
+        Err(VerifyError::Signature)
+    ));
+}
+
+#[test]
+fn unsigned_release_is_explicit_and_cannot_be_formal_default() {
+    let fixture = make_unsigned_fixture(BundleProfile::UnsignedRelease);
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Signature)
+    ));
+    let verified = verify_bundle_with_policy(
+        &fixture.root,
+        &config(&fixture),
+        &target(),
+        VerificationPolicy::AllowUnsignedRelease,
+    )
+    .expect("explicit release policy");
+    assert_eq!(verified.profile, BundleProfile::UnsignedRelease);
+    assert_eq!(verified.signature_status, SignatureStatus::Unsigned);
+}
+
+#[test]
+fn profile_and_signature_status_must_agree() {
+    let fixture = create_fixture();
+    rewrite_manifest(&fixture, |manifest| {
+        manifest.profile = BundleProfile::UnsignedDevelopment;
+    });
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Signature)
+    ));
 }
 
 #[test]
@@ -611,6 +691,37 @@ fn command_reports_success_and_sanitized_failure() {
         .expect("run usage failure");
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("usage:"));
+}
+
+#[test]
+fn command_requires_explicit_unsigned_profile() {
+    let fixture = make_unsigned_fixture(BundleProfile::UnsignedDevelopment);
+    let fixture_config = config(&fixture);
+    let args = [
+        fixture.root.as_os_str(),
+        fixture.allowed.as_os_str(),
+        PRINCIPAL.as_ref(),
+        OsStr::new("/usr/bin/ssh-keygen"),
+        OsStr::new(&fixture_config.ssh_keygen_sha256),
+        OsStr::new("linux"),
+        OsStr::new("x86_64"),
+        OsStr::new("glibc"),
+        OsStr::new("2.39"),
+    ];
+    let output = Command::new(env!("CARGO_BIN_EXE_asb-bundle-verify"))
+        .args(args)
+        .output()
+        .expect("run default verifier command");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("signature"));
+
+    let output = Command::new(env!("CARGO_BIN_EXE_asb-bundle-verify"))
+        .args(args)
+        .args(["--profile", "unsigned-development"])
+        .output()
+        .expect("run explicit unsigned verifier command");
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("profile=UnsignedDevelopment"));
 }
 
 #[test]

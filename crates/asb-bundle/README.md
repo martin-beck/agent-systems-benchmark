@@ -1,13 +1,22 @@
 # ASB runtime bundle verification
 
-asb-bundle defines the signed version-1 manifest used by reproducible agent runtime bundles and
-verifies it without network access. The signature is an OpenSSH SSHSIG over the exact
+asb-bundle defines the version-1 manifest used by reproducible agent runtime bundles and
+verifies it without network access. Every manifest declares a `profile` and
+`signature_status`. The `signed` profile uses an OpenSSH SSHSIG over the exact
 manifest.json bytes in namespace asb-runtime-bundle-v1; trust is supplied explicitly as an
 allowed-signers file and principal. Verification never downloads keys, packages, SBOMs, or
 license data. The caller must also supply the expected SHA-256 of ssh-keygen, preventing an
 untrusted replacement executable from certifying arbitrary content. The verifier runs that
 trusted executable in a dedicated process group with a two-second monotonic deadline, bounded
 discarded output, and no inherited environment.
+
+`unsigned-development` and `unsigned-release` are explicit opt-in profiles for development or a
+tagged release when a detached release signature is unavailable. They still require the complete
+inventory, content digest, SPDX and CycloneDX hashes, target identity, and truthful
+`signature_status: unsigned` metadata. The default `asb-bundle-verify` command rejects both
+profiles; select one deliberately with `--profile unsigned-development` or
+`--profile unsigned-release`. Formal qualification and AR-1307/AR-1308 runners always use the
+default signature-required policy and reject unsigned inputs.
 
 The signed manifest binds the target OS, architecture, libc family/version, entrypoint, every
 regular payload file, exact safe permission mode, per-file license expression/evidence, SPDX 2.3

@@ -1,5 +1,7 @@
 {
   "schema_version": 1,
+  "profile": "signed",
+  "signature_status": "signed",
   "bundle_id": "example-agent",
   "bundle_version": "1.0.0",
   "target": {
