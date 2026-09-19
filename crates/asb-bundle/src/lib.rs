@@ -26,7 +26,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 /// Runtime-bundle manifest schema version supported by this crate.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 /// SSH signature namespace used only for ASB runtime bundles.
 pub const SIGNATURE_NAMESPACE: &str = "asb-runtime-bundle-v1";
 /// Version of the signed platform release-manifest contract.
@@ -85,7 +85,7 @@ pub enum VerificationPolicy {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeBundleManifest {
-    /// Manifest schema version; currently exactly one.
+    /// Manifest schema version; currently exactly two.
     #[schemars(schema_with = "schema_version")]
     pub schema_version: u32,
     /// Explicit publication profile; unsigned profiles are never implicit.

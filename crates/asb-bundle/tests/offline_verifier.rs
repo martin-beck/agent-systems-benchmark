@@ -201,7 +201,7 @@ fn create_fixture() -> Fixture {
     fs::write(root.join("spdx.json"), &spdx_bytes).expect("write SPDX");
     fs::write(root.join("cyclonedx.json"), &cyclonedx_bytes).expect("write CycloneDX");
     let manifest = RuntimeBundleManifest {
-        schema_version: 1,
+        schema_version: 2,
         profile: BundleProfile::Signed,
         signature_status: SignatureStatus::Signed,
         bundle_id: "fixture-agent".into(),
@@ -489,7 +489,7 @@ fn rejects_sbom_omission_and_license_disagreement() {
 #[test]
 fn rejects_manifest_version_bounds_paths_and_reserved_names() {
     for transform in [
-        (|manifest: &mut RuntimeBundleManifest| manifest.schema_version = 2)
+        (|manifest: &mut RuntimeBundleManifest| manifest.schema_version = 3)
             as fn(&mut RuntimeBundleManifest),
         |manifest| manifest.bundle_id.clear(),
         |manifest| manifest.content_sha256 = "A".repeat(64),

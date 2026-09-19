@@ -8,13 +8,13 @@ use serde_json::{Value, json};
 #[test]
 fn checked_schema_equals_rust_model() {
     let checked: Value =
-        serde_json::from_str(include_str!("../schema/v2/runtime-bundle.schema.json"))
+        serde_json::from_str(include_str!("../schema/v3/runtime-bundle.schema.json"))
             .expect("checked schema");
     let generated = serde_json::to_value(manifest_schema()).expect("generated schema");
     assert_eq!(checked, generated);
     assert_eq!(
         checked.pointer("/properties/schema_version/const"),
-        Some(&json!(1))
+        Some(&json!(2))
     );
     assert_eq!(
         checked.pointer("/additionalProperties"),
@@ -24,10 +24,10 @@ fn checked_schema_equals_rust_model() {
 
 #[test]
 fn public_fixture_matches_strict_rust_contract() {
-    let fixture = include_str!("../fixtures/v1/runtime-bundle.json");
+    let fixture = include_str!("../fixtures/v2/runtime-bundle.json");
     let manifest: RuntimeBundleManifest =
         serde_json::from_str(fixture).expect("fixture follows Rust contract");
-    assert_eq!(manifest.schema_version, 1);
+    assert_eq!(manifest.schema_version, 2);
     assert_eq!(manifest.artifacts.len(), 2);
     assert_eq!(manifest.content_sha256, content_digest(&manifest.artifacts));
 

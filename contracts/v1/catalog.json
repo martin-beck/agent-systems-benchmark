@@ -26,6 +26,7 @@
     {"id":"control.certificate-identity","schema":"crates/asb-control/schema/v1/certificate-identity.schema.json","fixtures":["crates/asb-control/fixtures/v1/certificate-identity.json"],"rust_test":"asb-control/schema_conformance"},
     {"id":"replay.cassette","schema":"crates/asb-replay/schema/v1/cassette.schema.json","fixtures":["crates/asb-replay/fixtures/v1/buffered.json","crates/asb-replay/fixtures/v1/events.json","crates/asb-replay/fixtures/v1/gemini-generate-content.json"],"rust_test":"asb-replay/schema_conformance"},
     {"id":"bundle.runtime-legacy","schema":"crates/asb-bundle/schema/v1/runtime-bundle.schema.json","fixtures":["crates/asb-bundle/fixtures/v1/runtime-bundle.json"],"rust_test":"asb-bundle/schema_conformance"},
+    {"id":"bundle.runtime-v2","schema":"crates/asb-bundle/schema/v3/runtime-bundle.schema.json","fixtures":["crates/asb-bundle/fixtures/v2/runtime-bundle.json"],"rust_test":"asb-bundle/schema_conformance"},
     {"id":"bundle.runtime","schema":"crates/asb-bundle/schema/v2/runtime-bundle.schema.json","fixtures":["crates/asb-bundle/fixtures/v1/runtime-bundle.json"],"rust_test":"asb-bundle/schema_conformance"},
     {"id":"workloads.validity","schema":"crates/asb-workloads/registry/v1/benchmark-validity.schema.json","fixtures":["crates/asb-workloads/registry/v1/original-workloads.json"],"rust_test":"asb-workloads/validity_registry"}
   ],

@@ -40,6 +40,10 @@
       "maxLength": 4096,
       "minLength": 1
     },
+    "profile": {
+      "description": "Explicit publication profile; unsigned profiles are never implicit.",
+      "$ref": "#/$defs/BundleProfile"
+    },
     "runtime_components": {
       "description": "Optional verified runtime helper payloads. Bundles that provide the\nloopback sandbox must declare both entries and their artifact roles.",
       "anyOf": [
@@ -53,9 +57,13 @@
       "default": null
     },
     "schema_version": {
-      "description": "Manifest schema version; currently exactly one.",
+      "description": "Manifest schema version; currently exactly two.",
       "type": "integer",
-      "const": 1
+      "const": 2
+    },
+    "signature_status": {
+      "description": "Truthful detached-signature state for this manifest.",
+      "$ref": "#/$defs/SignatureStatus"
     },
     "spdx": {
       "description": "SPDX JSON document and its signed content hash.",
@@ -69,6 +77,8 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "profile",
+    "signature_status",
     "bundle_id",
     "bundle_version",
     "target",
@@ -159,6 +169,26 @@
         }
       ]
     },
+    "BundleProfile": {
+      "description": "Explicit publication profile carried by every runtime-bundle manifest.\n\nUnsigned profiles are intentionally opt-in and are never accepted by the\ndefault verifier or by formal qualification paths.",
+      "oneOf": [
+        {
+          "description": "Production profile; the manifest must have a trusted detached signature.",
+          "type": "string",
+          "const": "signed"
+        },
+        {
+          "description": "Local development profile; integrity metadata remains mandatory.",
+          "type": "string",
+          "const": "unsigned-development"
+        },
+        {
+          "description": "Explicit tagged-release profile for environments without a release key.",
+          "type": "string",
+          "const": "unsigned-release"
+        }
+      ]
+    },
     "RuntimeComponents": {
       "description": "Paths of the signed helper payloads consumed by the sandbox launcher.",
       "type": "object",
@@ -239,6 +269,21 @@
       "required": [
         "path",
         "sha256"
+      ]
+    },
+    "SignatureStatus": {
+      "description": "Truthful signature state recorded in public bundle metadata.",
+      "oneOf": [
+        {
+          "description": "The detached manifest signature is present and verified.",
+          "type": "string",
+          "const": "signed"
+        },
+        {
+          "description": "No detached manifest signature is present.",
+          "type": "string",
+          "const": "unsigned"
+        }
       ]
     }
   }

@@ -100,7 +100,7 @@ def make_manifest(root: pathlib.Path, args: argparse.Namespace) -> None:
     inventory = artifacts(root)
     spdx_sha, cdx_sha = write_sboms(root, inventory)
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "profile": args.profile,
         "signature_status": "signed" if args.profile == "signed" else "unsigned",
         "bundle_id": args.bundle_id,
