@@ -1,6 +1,7 @@
 // Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Cross-repository conformance for the standalone asb-tui capability parser.
+#![allow(unexpected_cfgs)]
 
 use asb_cli::capabilities::{CapabilityResponse, MAX_CAPABILITY_RESPONSE_BYTES, capability_schema};
 use asb_control::{
@@ -10,6 +11,7 @@ use asb_control::{
 use serde_json::Value;
 use serde_json::json;
 use sha2::{Digest, Sha256};
+
 use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -163,7 +165,14 @@ fn isolated_asb_command_with_sink(sink: Option<&OsStr>) -> Result<Command, ()> {
 }
 
 fn isolated_asb_command() -> Command {
-    isolated_asb_command_with_sink(std::env::var_os("LLVM_PROFILE_FILE").as_deref())
+    let sink = std::env::var_os("LLVM_PROFILE_FILE").or_else(|| {
+        cfg!(coverage).then(|| {
+            workspace_root()
+                .join("target/asb-capability-%p-%m.profraw")
+                .into_os_string()
+        })
+    });
+    isolated_asb_command_with_sink(sink.as_deref())
         .expect("LLVM_PROFILE_FILE must name a validated absolute per-process profraw sink")
 }
 
@@ -426,7 +435,7 @@ fn artifact_scan_catches_both_llvm_default_filename_forms() {
 
 #[test]
 fn instrumented_canonical_and_failing_children_use_distinct_nondefault_profiles() {
-    let coverage_enabled = std::env::var_os("LLVM_PROFILE_FILE").is_some();
+    let coverage_enabled = cfg!(coverage) || std::env::var_os("LLVM_PROFILE_FILE").is_some();
     let directory = TestDirectory::new();
     let sink = directory.0.join("child-%p.profraw");
     let invocations = [
@@ -513,8 +522,10 @@ fn canonical_and_failing_children_are_parallel_safe_and_leave_checkout_clean() {
 
 #[test]
 fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
+    let profile = workspace_root().join("target/asb-capability-%p-%m.profraw");
     let output = Command::new(env!("CARGO_BIN_EXE_asb"))
         .args(["capabilities", "--format", "json"])
+        .env("LLVM_PROFILE_FILE", &profile)
         .env("ASB_SECRET_SENTINEL", "must-not-appear")
         .env("USER", "private-user")
         .output()
@@ -525,6 +536,7 @@ fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
 
     let help = Command::new(env!("CARGO_BIN_EXE_asb"))
         .arg("--help")
+        .env("LLVM_PROFILE_FILE", &profile)
         .output()
         .unwrap();
     assert!(
@@ -534,6 +546,7 @@ fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
     );
     let completion = Command::new(env!("CARGO_BIN_EXE_asb"))
         .args(["completion", "bash"])
+        .env("LLVM_PROFILE_FILE", &profile)
         .output()
         .unwrap();
     assert!(

@@ -121,8 +121,13 @@ fn run(arguments: &[String]) -> Output {
         .env("LANG", "C")
         .env("LC_ALL", "C")
         .args(arguments);
-    if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
-        command.env("LLVM_PROFILE_FILE", profile);
+    if std::env::var_os("LLVM_PROFILE_FILE").is_some() {
+        // Keep instrumented child profiles below target/. The default relative sink would
+        // otherwise leave default_*.profraw files in this checkout.
+        command.env(
+            "LLVM_PROFILE_FILE",
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/asb-workflow-%p-%m.profraw"),
+        );
     }
     command.output().unwrap()
 }
