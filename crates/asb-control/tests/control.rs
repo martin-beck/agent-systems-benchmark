@@ -75,6 +75,114 @@ fn recording_lifecycle_is_versioned_and_fail_closed() {
     assert!(invalid.validate(limits()).is_err());
 }
 
+#[test]
+fn provider_configuration_and_catalog_validation_covers_public_boundaries() {
+    let model = |model_id: &str| ProviderModel {
+        model_id: model_id.into(),
+        revision: "2026-01".into(),
+        availability: ProviderAvailability::Available,
+    };
+    let entry = |provider_id: &str| ProviderCatalogEntry {
+        provider_id: provider_id.into(),
+        display_name: format!("{provider_id}-provider"),
+        auth_methods: vec![
+            ProviderAuthMethod::CredentialReference,
+            ProviderAuthMethod::None,
+        ],
+        models: vec![model("model-a"), model("model-b")],
+        availability: ProviderAvailability::Available,
+    };
+    let mut catalog = ProviderCatalog {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(1),
+        catalog_sha256: String::new(),
+        providers: vec![entry("local"), entry("remote")],
+        refreshed: true,
+    };
+    catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+    catalog.validate().unwrap();
+    catalog.providers[0].models[1].model_id = "model-a".into();
+    assert_eq!(catalog.validate(), Err(ProtocolError::InvalidResponse));
+
+    let mut catalog = ProviderCatalog {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(1),
+        catalog_sha256: String::new(),
+        providers: vec![entry("remote"), entry("local")],
+        refreshed: false,
+    };
+    catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+    assert_eq!(catalog.validate(), Err(ProtocolError::InvalidResponse));
+    catalog
+        .providers
+        .sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
+    catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+    catalog.validate().unwrap();
+    catalog.catalog_sha256.replace_range(..1, "0");
+    assert_eq!(catalog.validate(), Err(ProtocolError::InvalidResponse));
+
+    let mut selection = ConfigurationApplyParams {
+        idempotency_key: "setup-1".into(),
+        expected_generation: Revision(1),
+        selection: ConfigurationSelection {
+            agent_ids: vec!["agent-a".into(), "agent-b".into()],
+            provider_id: "remote".into(),
+            model_id: "model-a".into(),
+            auth_method: ProviderAuthMethod::CredentialReference,
+            credential_reference_sha256: Some("a".repeat(64)),
+        },
+    };
+    selection.validate().unwrap();
+    selection.selection.credential_reference_sha256 = None;
+    assert_eq!(selection.validate(), Err(ProtocolError::InvalidResponse));
+    selection.selection.auth_method = ProviderAuthMethod::None;
+    selection.validate().unwrap();
+    selection.selection.credential_reference_sha256 = Some("a".repeat(64));
+    assert_eq!(selection.validate(), Err(ProtocolError::InvalidResponse));
+
+    let configured = ConfigurationSnapshot {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(1),
+        configured: true,
+        agent_ids: vec!["agent-a".into()],
+        provider_id: Some("remote".into()),
+        model_id: Some("model-a".into()),
+        auth_method: Some(ProviderAuthMethod::None),
+        credential_reference_sha256: None,
+    };
+    configured.validate().unwrap();
+    let empty = ConfigurationSnapshot {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(1),
+        configured: false,
+        agent_ids: Vec::new(),
+        provider_id: None,
+        model_id: None,
+        auth_method: None,
+        credential_reference_sha256: None,
+    };
+    empty.validate().unwrap();
+
+    let estimate = RecordingCampaignEstimate {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(1),
+        tuple_count: 2,
+        complete_coverage: false,
+        offline_ready: false,
+        unavailable_reason: Some("recording-required".into()),
+    };
+    estimate.validate().unwrap();
+    assert!(
+        RecordingCampaignEstimate {
+            offline_ready: true,
+            complete_coverage: false,
+            ..estimate
+        }
+        .validate()
+        .is_err()
+    );
+}
+
 fn lifecycle_binding() -> AgentLifecycleBinding {
     AgentLifecycleBinding {
         agent_id: "codex".into(),
