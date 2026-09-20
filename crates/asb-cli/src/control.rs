@@ -3428,6 +3428,53 @@ mod tests {
     }
 
     #[test]
+    fn provider_readiness_remains_unavailable_without_verified_probe() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let runner_instance_id = backend.runner_instance_id().to_owned();
+
+        let enroll = ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+            provider: "openai".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: "b".repeat(64),
+            idempotency_key: "readiness-enroll".into(),
+        });
+        backend.execute(&enroll, deadline()).unwrap();
+
+        // Enrollment is metadata-only. The returned lifecycle state is not
+        // provider authorization evidence.
+        let status = backend
+            .execute(
+                &ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                    provider: "openai".into(),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::AuthStatus(status) = status.result else {
+            panic!("auth status result");
+        };
+        assert_eq!(status.endpoint_identity_sha256, "a".repeat(64));
+        assert_eq!(status.credential_locator_sha256, "b".repeat(64));
+        assert_eq!(status.status, "active");
+
+        // A static catalog and enrolled metadata cannot be upgraded into a
+        // connectivity/authorization claim while the verified probe producer
+        // is absent.
+        let refresh = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Refresh,
+            runner_instance_id,
+            known_generation: None,
+        });
+        assert_eq!(
+            backend.execute(&refresh, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+    }
+
+    #[test]
     fn configuration_status_is_explicitly_unconfigured_and_generation_bound() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
