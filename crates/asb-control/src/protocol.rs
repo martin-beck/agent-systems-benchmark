@@ -34,6 +34,12 @@ pub const CONTROL_AUTH_V1: ControlVersion = ControlVersion { major: 1, minor: 6 
 pub const CONTROL_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 7 };
 /// Version of the additive recording-campaign lifecycle operations.
 pub const CONTROL_RECORDING_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 8 };
+/// Version of additive provider-profile registration and replacement.
+///
+/// This operation is included in the already negotiated v1.8 setup extension;
+/// no protocol renegotiation is required for clients that already understand
+/// provider setup operations.
+pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
 pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 8] = [
     CONTROL_V1,
@@ -231,6 +237,8 @@ pub enum ControlCall {
     ProviderCatalog(crate::ProviderCatalogRequest),
     /// Read the current privacy-safe setup projection.
     ConfigurationStatus(crate::ConfigurationStatusRequest),
+    /// Register or replace a provider profile without claiming authorization.
+    ProviderProfileUpsert(crate::ProviderProfileUpsertParams),
     /// Apply a complete idempotent setup selection.
     ConfigurationApply(crate::ConfigurationApplyParams),
     /// Estimate a bounded recording campaign without provider effects.
@@ -366,6 +374,7 @@ impl ControlCall {
             Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationApply(_) => CONTROL_PROVIDER_CATALOG_V1,
+            Self::ProviderProfileUpsert(_) => CONTROL_PROVIDER_REGISTRATION_V1,
             Self::RecordingCampaignEstimate(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::RecordingCampaignPlan(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::RecordingCampaignStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
@@ -1394,6 +1403,8 @@ pub enum ControlResult {
     AuthStatus(AuthStatusResponse),
     /// Authenticated provider/model catalog snapshot.
     ProviderCatalog(crate::ProviderCatalog),
+    /// Provider catalog returned after a generation-fenced profile update.
+    ProviderProfile(crate::ProviderCatalog),
     /// Privacy-safe current setup projection.
     Configuration(crate::ConfigurationSnapshot),
     /// Bounded recording/offline-readiness estimate.
@@ -1470,6 +1481,9 @@ impl BoundControlResult {
             ControlResult::ProviderCatalog(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::ProviderProfile(_) if version < CONTROL_PROVIDER_REGISTRATION_V1 => {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::Configuration(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
@@ -1517,6 +1531,7 @@ impl ControlResult {
             Self::Capabilities(_) => Ok(()),
             Self::AgentCatalog(value) => value.validate(),
             Self::ProviderCatalog(value) => value.validate(),
+            Self::ProviderProfile(value) => value.validate(),
             Self::Configuration(value) => value.validate(),
             Self::RecordingCampaignEstimate(value) => value.validate(),
             Self::RecordingCampaign(value) => value.validate(),
@@ -1662,6 +1677,10 @@ impl ControlResult {
                 | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
+                | (
+                    ControlCall::ProviderProfileUpsert(_),
+                    Self::ProviderProfile(_)
+                )
                 | (ControlCall::ConfigurationStatus(_), Self::Configuration(_))
                 | (ControlCall::ConfigurationApply(_), Self::Configuration(_))
                 | (
@@ -1743,6 +1762,11 @@ impl ControlResult {
                 catalog.runner_instance_id == request.runner_instance_id
                     && catalog.refreshed
                         == matches!(request.action, crate::ProviderCatalogAction::Refresh)
+            }
+            (ControlCall::ProviderProfileUpsert(request), Self::ProviderProfile(catalog)) => {
+                catalog.runner_instance_id == request.runner_instance_id
+                    && catalog.generation.0 > request.expected_generation.0
+                    && !catalog.refreshed
             }
             (ControlCall::ConfigurationStatus(request), Self::Configuration(snapshot)) => {
                 snapshot.runner_instance_id == request.runner_instance_id
@@ -2032,6 +2056,7 @@ pub fn validate_request(
             validate_idempotency_key(&params.idempotency_key)?;
         }
         ControlCall::ProviderCatalog(params) => params.validate()?,
+        ControlCall::ProviderProfileUpsert(params) => params.validate()?,
         ControlCall::ConfigurationStatus(params) => params.validate()?,
         ControlCall::ConfigurationApply(params) => params.validate()?,
         ControlCall::RecordingCampaignEstimate(params) => params.validate()?,

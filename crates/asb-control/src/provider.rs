@@ -17,6 +17,24 @@ const MAX_MODELS_PER_PROVIDER: usize = 64;
 const MAX_AUTH_METHODS: usize = 8;
 const MAX_CATALOG_STRING_BYTES: usize = 128;
 
+/// Idempotent provider-profile registration or replacement request.
+///
+/// Registration only stores public profile metadata. The submitted entry must
+/// remain unavailable until a separate authenticated probe establishes
+/// connectivity; callers cannot use this operation to manufacture readiness.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderProfileUpsertParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Catalog generation returned by the last status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Complete replacement provider profile and model list.
+    pub entry: ProviderCatalogEntry,
+}
+
 /// Read-only provider catalog operation requested by a frontend.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -705,6 +723,18 @@ impl ProviderCatalogRequest {
     }
 }
 
+impl ProviderProfileUpsertParams {
+    /// Validate a generation-fenced, credential-free profile registration.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_idempotency_key(&self.idempotency_key)?;
+        if self.expected_generation.0 == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        validate_identity(&self.runner_instance_id)?;
+        validate_provider_entry(&self.entry, true)
+    }
+}
+
 impl ProviderCatalog {
     /// Validate bounds, canonical ordering, and the authenticated digest.
     pub fn validate(&self) -> Result<(), ProtocolError> {
@@ -716,24 +746,13 @@ impl ProviderCatalog {
         let mut provider_ids = BTreeSet::new();
         let mut previous = None;
         for provider in &self.providers {
-            validate_catalog_string(&provider.provider_id)?;
-            validate_catalog_string(&provider.display_name)?;
+            validate_provider_entry(provider, false)?;
             if previous.is_some_and(|id: &str| id >= provider.provider_id.as_str())
                 || !provider_ids.insert(provider.provider_id.as_str())
-                || provider.auth_methods.is_empty()
-                || provider.auth_methods.len() > MAX_AUTH_METHODS
-                || provider.models.is_empty()
-                || provider.models.len() > MAX_MODELS_PER_PROVIDER
             {
                 return Err(ProtocolError::InvalidResponse);
             }
             previous = Some(provider.provider_id.as_str());
-            let mut methods = BTreeSet::new();
-            for method in &provider.auth_methods {
-                if !methods.insert(method) {
-                    return Err(ProtocolError::InvalidResponse);
-                }
-            }
             let mut models = BTreeSet::new();
             let mut prior_model = None;
             for model in &provider.models {
@@ -765,6 +784,49 @@ impl ProviderCatalog {
         let digest = Sha256::digest(bytes);
         Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
     }
+}
+
+fn validate_provider_entry(
+    provider: &ProviderCatalogEntry,
+    registration: bool,
+) -> Result<(), ProtocolError> {
+    validate_catalog_string(&provider.provider_id)?;
+    validate_catalog_string(&provider.display_name)?;
+    if provider.auth_methods.is_empty() || provider.auth_methods.len() > MAX_AUTH_METHODS {
+        return Err(ProtocolError::InvalidResponse);
+    }
+    let mut methods = BTreeSet::new();
+    for method in &provider.auth_methods {
+        if !methods.insert(method) {
+            return Err(ProtocolError::InvalidResponse);
+        }
+    }
+    if provider.models.is_empty() || provider.models.len() > MAX_MODELS_PER_PROVIDER {
+        return Err(ProtocolError::InvalidResponse);
+    }
+    if registration
+        && !matches!(&provider.availability, ProviderAvailability::Unavailable(reason) if reason == "authorization-required")
+    {
+        return Err(ProtocolError::InvalidResponse);
+    }
+    let mut models = BTreeSet::new();
+    let mut prior_model = None;
+    for model in &provider.models {
+        validate_catalog_string(&model.model_id)?;
+        validate_catalog_string(&model.revision)?;
+        if prior_model.is_some_and(|id: &str| id >= model.model_id.as_str())
+            || !models.insert(model.model_id.as_str())
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if registration
+            && !matches!(&model.availability, ProviderAvailability::Unavailable(reason) if reason == "authorization-required")
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        prior_model = Some(model.model_id.as_str());
+    }
+    Ok(())
 }
 
 fn validate_catalog_string(value: &str) -> Result<(), ProtocolError> {

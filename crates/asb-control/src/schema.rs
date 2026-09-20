@@ -319,15 +319,22 @@ fn remove_setup_variants(value: &mut Value) {
     for tag in [
         "configuration_status",
         "configuration_apply",
+        "provider_profile_upsert",
         "recording_campaign_estimate",
         "recording_campaign_plan",
         "recording_campaign_status",
         "configuration",
+        "provider_profile",
         "recording_campaign",
     ] {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
     }
+}
+
+fn remove_provider_registration_variants(value: &mut Value) {
+    remove_tagged_variant(value, "/oneOf", "provider_profile_upsert");
+    remove_tagged_variant(value, "/$defs/ControlResult/oneOf", "provider_profile");
 }
 
 fn remove_recording_lifecycle_variants(value: &mut Value) {
@@ -556,6 +563,7 @@ pub fn control_response_schema_v1_6() -> Schema {
 pub fn control_request_schema_v1_7() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_recording_lifecycle_variants(&mut value);
+    remove_provider_registration_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.7 request schema remains valid")
 }
@@ -566,6 +574,7 @@ pub fn control_response_schema_v1_7() -> Schema {
     settings_validation_invariant(&mut schema);
     let mut value = serde_json::to_value(schema).expect("v1.7 response schema serializes");
     remove_recording_lifecycle_variants(&mut value);
+    remove_provider_registration_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.7 response schema remains valid")
 }
@@ -577,6 +586,18 @@ pub fn control_request_schema_v1_8() -> Schema {
 
 /// Canonical response schema for control v1.8 recording lifecycle operations.
 pub fn control_response_schema_v1_8() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    schema
+}
+
+/// Canonical request schema for control v1.9 provider-profile registration.
+pub fn control_request_schema_v1_9() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for control v1.9 provider-profile registration.
+pub fn control_response_schema_v1_9() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema
