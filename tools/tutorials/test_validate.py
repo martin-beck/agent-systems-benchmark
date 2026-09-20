@@ -32,6 +32,9 @@ class TutorialValidatorTests(unittest.TestCase):
     def test_valid_contract(self):
         validate_document(document(["asb", "capabilities", "--format", "json"]), METADATA)
 
+    def test_initial_setup_tutorial_contract(self):
+        validate_document(load(ROOT / "initial-setup-v1.json"), METADATA)
+
     def test_unknown_option_fails(self):
         with self.assertRaisesRegex(ValidationError, "do not match"):
             validate_document(document(["asb", "capabilities", "--json"]), METADATA)
