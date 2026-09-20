@@ -3,8 +3,26 @@
   "executable": "asb",
   "commands": {
     "doctor": {"forms": [[]]},
+    "setup": {"forms": [
+      [],
+      ["--format=json"],
+      ["--provider-profile", "PATH", "--model", "PATH"],
+      ["--provider-profile", "PATH", "--model", "PATH", "--output", "PATH"]
+    ]},
     "capabilities": {"forms": [["--format", "json"]]},
     "provider-catalog": {"forms": [[]]},
+    "auth": {"operations": {
+      "enroll": ["--provider", "--endpoint-digest", "--credential-digest", "--idempotency-key"],
+      "status": ["--provider"],
+      "rotate": ["--provider", "--credential-digest", "--idempotency-key"],
+      "revoke": ["--provider", "--idempotency-key"]
+    }},
+    "provider-plan": {"forms": [[
+      "--catalog-sha256", "SHA256",
+      "--provider-profile", "PATH",
+      "--credential-reference-sha256", "SHA256",
+      "--agent", "AGENT"
+    ]]},
     "completion": {"forms": [["bash"]]},
     "plan": {"forms": [["PATH"], ["PATH", "--provider-selection", "PATH"]]},
     "run": {"forms": [["PATH"], ["PATH", "--provider-selection", "PATH"]]},
@@ -13,6 +31,7 @@
     "replay": {"forms": [["PATH", "SHA256", "AGENT"]]},
     "compare": {"min_args": 2},
     "report": {"min_args": 1},
+    "record-campaign": {"forms": [["PATH"]]},
     "tui": {"forms": [
       ["launch"], ["status"], ["doctor"], ["remove"],
       ["install"], ["install", "--offline"], ["install", "--dry-run"],

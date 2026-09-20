@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "initial-setup",
+  "title": "Initial ASB setup and first agent connection",
+  "steps": [
+    {
+      "id": "inspect-setup",
+      "command": ["asb", "setup"],
+      "expect": {"exit_code": 0, "stdout_shape": "setup-v1"},
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "inspect-capabilities",
+      "command": ["asb", "capabilities", "--format", "json"],
+      "expect": {"exit_code": 0, "stdout_shape": "capabilities-v1"},
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "inspect-provider-catalog",
+      "command": ["asb", "provider-catalog"],
+      "expect": {"exit_code": 0, "stdout_shape": "provider-catalog-v1"},
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "select-provider-and-model",
+      "command": [
+        "asb", "setup", "--provider-profile", "openai", "--model", "gpt-5.2",
+        "--output", "config.json"
+      ],
+      "expect": {"exit_code": 0, "stdout_shape": "setup-v1"},
+      "references": [{"path": "config.json", "kind": "output"}],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "check-authentication-reference",
+      "command": ["asb", "auth", "status", "--provider", "openai"],
+      "expect": {"exit_code": 0, "stdout_shape": "auth-v1"},
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "plan-first-agent",
+      "command": [
+        "asb", "provider-plan", "--catalog-sha256",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "--provider-profile", "openai", "--credential-reference-sha256",
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "--agent", "codex"
+      ],
+      "expect": {"exit_code": 0, "stdout_shape": "provider-plan-v1"},
+      "references": [{"path": "selection.json", "kind": "output"}],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "reconfigure-selection",
+      "command": [
+        "asb", "setup", "--provider-profile", "openai", "--model", "gpt-5.2",
+        "--output", "config-v2.json"
+      ],
+      "expect": {"exit_code": 0, "stdout_shape": "setup-v1"},
+      "references": [{"path": "config-v2.json", "kind": "output"}],
+      "network": "denied",
+      "credentials": "none"
+    }
+  ]
+}
