@@ -183,6 +183,45 @@ fn provider_configuration_and_catalog_validation_covers_public_boundaries() {
     );
 }
 
+#[test]
+fn provider_profile_upsert_is_generation_fenced_and_fail_closed() {
+    let entry = ProviderCatalogEntry {
+        provider_id: "custom-provider".into(),
+        display_name: "Custom-Provider".into(),
+        auth_methods: vec![ProviderAuthMethod::CredentialReference],
+        models: vec![ProviderModel {
+            model_id: "custom-model".into(),
+            revision: "catalog-1".into(),
+            availability: ProviderAvailability::Unavailable("authorization-required".into()),
+        }],
+        availability: ProviderAvailability::Unavailable("authorization-required".into()),
+    };
+    let params = ProviderProfileUpsertParams {
+        idempotency_key: "provider-upsert-1".into(),
+        expected_generation: Revision(4),
+        runner_instance_id: "runner-1".into(),
+        entry,
+    };
+    params.validate().unwrap();
+    let call = ControlCall::ProviderProfileUpsert(params.clone());
+    assert_eq!(call.minimum_version(), CONTROL_RECORDING_LIFECYCLE_V1);
+
+    let mut catalog = ProviderCatalog {
+        runner_instance_id: "runner-1".into(),
+        generation: Revision(5),
+        catalog_sha256: String::new(),
+        providers: vec![params.entry.clone()],
+        refreshed: false,
+    };
+    catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+    let result = ControlResult::ProviderProfile(catalog);
+    result.validate_for_call(&call, limits()).unwrap();
+
+    let mut forged = params;
+    forged.entry.availability = ProviderAvailability::Available;
+    assert_eq!(forged.validate(), Err(ProtocolError::InvalidResponse));
+}
+
 fn lifecycle_binding() -> AgentLifecycleBinding {
     AgentLifecycleBinding {
         agent_id: "codex".into(),

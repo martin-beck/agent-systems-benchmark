@@ -1577,6 +1577,12 @@ impl ControlBackend for RunnerBackend {
                 let snapshot = self.configuration_status(request)?;
                 self.bind(call, ControlResult::Configuration(snapshot))
             }
+            ControlCall::ProviderProfileUpsert(_) => {
+                // The durable provider registry is intentionally not inferred
+                // from the static catalog. Until its authenticated source and
+                // journal-backed mutation owner are installed, fail closed.
+                Err(BackendFailure::CapabilityUnavailable)
+            }
             ControlCall::ConfigurationApply(params) => {
                 self.configuration_apply(call, params, deadline)
             }
