@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 asb-agents = { version = "=0.1.0", path = "../asb-agents" }
+asb-bundle = { version = "=0.1.0", path = "../asb-bundle" }
 asb-analysis = { version = "=0.1.0", path = "../asb-analysis" }
 asb-control = { version = "=0.1.0", path = "../asb-control" }
 asb-metrics = { version = "=0.1.0", path = "../asb-metrics" }

@@ -3,6 +3,7 @@
 //! Persistent local runner service behind the typed frontend control boundary.
 
 use super::*;
+use asb_bundle::{VerifierConfig, verify_detached_document};
 use asb_control::{
     AgentAvailability, AgentCatalog, AgentCatalogAction, AgentCatalogEntry, AgentCatalogRequest,
     AgentTarget, AgentUnavailableReason, AnalysisSummary, ArtifactMetadata, ArtifactSensitivity,
@@ -21,6 +22,7 @@ use asb_runtime::provider_capture::{
     UnavailableProviderCapture,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::env;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::AtomicU64;
@@ -29,7 +31,123 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const CATALOG_VERSION: u16 = 1;
 const MAX_CONTROL_CONFIG_BYTES: u64 = 64 * 1024;
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
+const RELEASE_INDEX_SCHEMA_VERSION: u32 = 1;
+const RELEASE_INDEX_NAMESPACE: &str = "asb-agent-release-index-v1";
 static CATALOG_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct SignedAgentReleaseIndex {
+    schema_version: u32,
+    runner_instance_id: String,
+    target: AgentTarget,
+    agents: Vec<AgentCatalogEntry>,
+}
+
+fn signed_agent_release_index(
+    state_root: &Path,
+    runner_instance_id: &str,
+    generation: u64,
+) -> Result<Option<AgentCatalog>, BackendFailure> {
+    let index_path = state_root.join("agent-release-index.json");
+    let signature_path = state_root.join("agent-release-index.json.sig");
+    let index_meta = match fs::symlink_metadata(&index_path) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(BackendFailure::Rejected),
+    };
+    if index_meta.file_type().is_symlink()
+        || !index_meta.is_file()
+        || index_meta.len() == 0
+        || index_meta.len() > MAX_CATALOG_BYTES as u64
+    {
+        return Err(BackendFailure::Rejected);
+    }
+    let signature_meta =
+        fs::symlink_metadata(&signature_path).map_err(|_| BackendFailure::Rejected)?;
+    if signature_meta.file_type().is_symlink()
+        || !signature_meta.is_file()
+        || signature_meta.len() == 0
+        || signature_meta.len() > 1024 * 1024
+    {
+        return Err(BackendFailure::Rejected);
+    }
+    let verifier = release_index_verifier_from_env();
+    signed_agent_release_index_with_verifier(
+        state_root,
+        runner_instance_id,
+        generation,
+        verifier.as_ref(),
+    )
+}
+
+fn release_index_verifier_from_env() -> Option<VerifierConfig> {
+    let ssh_keygen = env::var_os("ASB_RELEASE_INDEX_SSH_KEYGEN")?;
+    let ssh_keygen_sha256 = env::var("ASB_RELEASE_INDEX_SSH_KEYGEN_SHA256").ok()?;
+    let allowed_signers = env::var_os("ASB_RELEASE_INDEX_ALLOWED_SIGNERS")?;
+    let principal = env::var("ASB_RELEASE_INDEX_PRINCIPAL").ok()?;
+    Some(VerifierConfig {
+        ssh_keygen: PathBuf::from(ssh_keygen),
+        ssh_keygen_sha256,
+        allowed_signers: PathBuf::from(allowed_signers),
+        principal,
+    })
+}
+
+fn signed_agent_release_index_with_verifier(
+    state_root: &Path,
+    runner_instance_id: &str,
+    generation: u64,
+    verifier: Option<&VerifierConfig>,
+) -> Result<Option<AgentCatalog>, BackendFailure> {
+    let Some(verifier) = verifier else {
+        return Ok(None);
+    };
+    let index_path = state_root.join("agent-release-index.json");
+    let signature_path = state_root.join("agent-release-index.json.sig");
+    let document = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&index_path)
+        .map_err(|_| BackendFailure::Rejected)?;
+    let mut parse_document = document.try_clone().map_err(|_| BackendFailure::Rejected)?;
+    verify_detached_document(document, &signature_path, verifier, RELEASE_INDEX_NAMESPACE)
+        .map_err(|_| BackendFailure::Rejected)?;
+    parse_document
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| BackendFailure::Rejected)?;
+    let mut bytes = Vec::new();
+    parse_document
+        .take(MAX_CATALOG_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| BackendFailure::Rejected)?;
+    if bytes.len() > MAX_CATALOG_BYTES {
+        return Err(BackendFailure::Rejected);
+    }
+    let source: SignedAgentReleaseIndex =
+        serde_json::from_slice(&bytes).map_err(|_| BackendFailure::Rejected)?;
+    if source.schema_version != RELEASE_INDEX_SCHEMA_VERSION
+        || source.runner_instance_id != runner_instance_id
+        || source.agents.is_empty()
+        || source.agents.len() > 32
+        || source.target != current_agent_target()
+    {
+        return Err(BackendFailure::Rejected);
+    }
+    let mut catalog = AgentCatalog {
+        runner_instance_id: runner_instance_id.to_owned(),
+        generation: Revision(generation),
+        catalog_sha256: String::new(),
+        target: source.target,
+        agents: source.agents,
+        refreshed: false,
+    };
+    catalog.catalog_sha256 = catalog
+        .computed_sha256()
+        .map_err(|_| BackendFailure::Rejected)?;
+    catalog.validate().map_err(|_| BackendFailure::Rejected)?;
+    Ok(Some(catalog))
+}
 
 fn open_artifact_beneath(
     result_root: &Path,
@@ -394,6 +512,13 @@ fn open_backend_with_capture(
             catalog.agent_catalog_generation,
             false,
         ));
+    }
+    if let Ok(Some(index)) = signed_agent_release_index(
+        &state_root,
+        &catalog.runner_instance_id,
+        catalog.agent_catalog_generation,
+    ) {
+        catalog.agent_catalog = Some(index);
     }
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
@@ -1632,16 +1757,7 @@ fn build_unavailable_agent_catalog(
     generation: u64,
     refreshed: bool,
 ) -> AgentCatalog {
-    let target = AgentTarget {
-        operating_system: if cfg!(target_os = "linux") {
-            "linux".into()
-        } else {
-            std::env::consts::OS.into()
-        },
-        architecture: std::env::consts::ARCH.into(),
-        libc: "glibc".into(),
-        libc_version: "unknown".into(),
-    };
+    let target = current_agent_target();
     let agents = [
         "aider",
         "codex",
@@ -1675,6 +1791,19 @@ fn build_unavailable_agent_catalog(
         .computed_sha256()
         .expect("authored unavailable catalog must hash");
     catalog
+}
+
+fn current_agent_target() -> AgentTarget {
+    AgentTarget {
+        operating_system: if cfg!(target_os = "linux") {
+            "linux".into()
+        } else {
+            std::env::consts::OS.into()
+        },
+        architecture: std::env::consts::ARCH.into(),
+        libc: "glibc".into(),
+        libc_version: "unknown".into(),
+    }
 }
 
 impl ControlBackend for RunnerBackend {
@@ -2948,7 +3077,14 @@ impl RunnerBackend {
             .0
             .checked_add(1)
             .ok_or(BackendFailure::NeedsReconciliation)?;
-        let next = build_unavailable_agent_catalog(&self.runner_instance_id, next_generation, true);
+        let next = signed_agent_release_index(
+            &self.state_root,
+            &self.runner_instance_id,
+            next_generation,
+        )?
+        .unwrap_or_else(|| {
+            build_unavailable_agent_catalog(&self.runner_instance_id, next_generation, true)
+        });
         let mut staged = state.clone();
         staged.agent_catalog_generation = next_generation;
         staged.agent_catalog = Some(AgentCatalog {
@@ -3104,6 +3240,7 @@ mod tests {
     use asb_control::{ControlServer, ControlSuccess, ProviderProfileUpsertParams};
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt, symlink};
+    use std::process::{Command, Stdio};
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -3632,6 +3769,129 @@ mod tests {
                     )
                 )
         }));
+    }
+
+    #[test]
+    fn signed_agent_release_index_promotes_only_verified_entries() {
+        let scratch = Scratch::new();
+        let root = scratch.0.join("release-index");
+        fs::create_dir_all(&root).unwrap();
+        let key = root.join("release-key");
+        let status = Command::new("/usr/bin/ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+            .arg(&key)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let public = Command::new("/usr/bin/ssh-keygen")
+            .args(["-y", "-f"])
+            .arg(&key)
+            .output()
+            .unwrap();
+        assert!(public.status.success());
+        let allowed = root.join("allowed_signers");
+        fs::write(
+            &allowed,
+            format!("release {}", String::from_utf8(public.stdout).unwrap()),
+        )
+        .unwrap();
+        let runner = "runner-release-index";
+        let target = current_agent_target();
+        let entry = AgentCatalogEntry {
+            agent_id: "codex".into(),
+            target: target.clone(),
+            package: Some(asb_control::AgentPackage {
+                package_id: "codex".into(),
+                version: "1.0.0".into(),
+                sha256: "a".repeat(64),
+                signature_sha256: "b".repeat(64),
+                signer: asb_control::AgentSigner {
+                    key_id: "release-key".into(),
+                    principal: "release".into(),
+                },
+            }),
+            provenance: Some(asb_control::AgentProvenance {
+                source_revision: "c".repeat(40),
+                manifest_sha256: "d".repeat(64),
+                sbom_sha256: "e".repeat(64),
+                license_ref: "mit".into(),
+            }),
+            capabilities: vec!["coding".into()],
+            availability: AgentAvailability::Available,
+        };
+        let index = SignedAgentReleaseIndex {
+            schema_version: RELEASE_INDEX_SCHEMA_VERSION,
+            runner_instance_id: runner.into(),
+            target,
+            agents: vec![entry],
+        };
+        let index_path = root.join("agent-release-index.json");
+        fs::write(&index_path, serde_json::to_vec(&index).unwrap()).unwrap();
+        let signature_path = root.join("agent-release-index.json.sig");
+        let input = fs::File::open(&index_path).unwrap();
+        let output = fs::File::create(&signature_path).unwrap();
+        let sign = Command::new("/usr/bin/ssh-keygen")
+            .args(["-Y", "sign", "-f"])
+            .arg(&key)
+            .args(["-n", RELEASE_INDEX_NAMESPACE])
+            .stdin(Stdio::from(input))
+            .stdout(Stdio::from(output))
+            .status()
+            .unwrap();
+        assert!(sign.success());
+        let keygen_sha256 = format!(
+            "{:x}",
+            Sha256::digest(fs::read("/usr/bin/ssh-keygen").unwrap())
+        );
+        verify_detached_document(
+            fs::File::open(&index_path).unwrap(),
+            &signature_path,
+            &VerifierConfig {
+                ssh_keygen: "/usr/bin/ssh-keygen".into(),
+                ssh_keygen_sha256: keygen_sha256.clone(),
+                allowed_signers: allowed.clone(),
+                principal: "release".into(),
+            },
+            RELEASE_INDEX_NAMESPACE,
+        )
+        .unwrap();
+        let parsed: SignedAgentReleaseIndex =
+            serde_json::from_slice(&fs::read(&index_path).unwrap()).unwrap();
+        assert_eq!(parsed.schema_version, RELEASE_INDEX_SCHEMA_VERSION);
+        assert_eq!(parsed.runner_instance_id, runner);
+        assert_eq!(parsed.target, current_agent_target());
+        let mut expected = AgentCatalog {
+            runner_instance_id: runner.into(),
+            generation: Revision(7),
+            catalog_sha256: String::new(),
+            target: parsed.target,
+            agents: parsed.agents,
+            refreshed: false,
+        };
+        expected.catalog_sha256 = expected.computed_sha256().unwrap();
+        assert!(
+            expected.validate().is_ok(),
+            "catalog validation: {:?}",
+            expected
+        );
+        let catalog = signed_agent_release_index_with_verifier(
+            &root,
+            runner,
+            7,
+            Some(&VerifierConfig {
+                ssh_keygen: "/usr/bin/ssh-keygen".into(),
+                ssh_keygen_sha256: keygen_sha256,
+                allowed_signers: allowed,
+                principal: "release".into(),
+            }),
+        )
+        .unwrap_or_else(|error| panic!("release index rejected: {error:?}"))
+        .unwrap();
+        assert_eq!(catalog.generation, Revision(7));
+        assert!(matches!(
+            catalog.agents[0].availability,
+            AgentAvailability::Available
+        ));
     }
 
     #[test]

@@ -418,6 +418,20 @@ pub fn verify_bundle(
     })
 }
 
+/// Verify a detached SSH signature over an already-open bounded document.
+///
+/// This is the common offline trust boundary for signed local metadata such as
+/// an agent release index. The caller remains responsible for bounding and
+/// validating the document schema after this cryptographic check.
+pub fn verify_detached_document(
+    document: File,
+    signature: &Path,
+    config: &VerifierConfig,
+    namespace: &str,
+) -> Result<(), VerifyError> {
+    verify_signature_with_namespace(document, signature, config, namespace)
+}
+
 fn validate_root(path: &Path) -> Result<PathBuf, VerifyError> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -723,6 +737,18 @@ fn verify_signature(
     signature: &Path,
     config: &VerifierConfig,
 ) -> Result<(), VerifyError> {
+    verify_signature_with_namespace(manifest, signature, config, SIGNATURE_NAMESPACE)
+}
+
+fn verify_signature_with_namespace(
+    manifest: File,
+    signature: &Path,
+    config: &VerifierConfig,
+    namespace: &str,
+) -> Result<(), VerifyError> {
+    if namespace.is_empty() || namespace.len() > 128 || !namespace.is_ascii() {
+        return Err(VerifyError::Signature);
+    }
     bounded_nonempty("principal", &config.principal)?;
     validate_hash(&config.ssh_keygen_sha256)?;
     let (_, ssh_keygen_sha256) =
@@ -749,7 +775,7 @@ fn verify_signature(
             OsStr::new("-I"),
             OsStr::new(&config.principal),
             OsStr::new("-n"),
-            OsStr::new(SIGNATURE_NAMESPACE),
+            OsStr::new(namespace),
             OsStr::new("-s"),
             signature.as_os_str(),
         ])
