@@ -10,7 +10,7 @@
         "value": {
           "runner_instance_id": "runner-1",
           "generation": 3,
-          "catalog_sha256": "62894f407bd441dae43524e271bc42d16ed5ed672edcc3e874aec230c1701986",
+          "catalog_sha256": "decf62e9642eace3ac2e03cfe04da24e44f3504f9f8e96e1ff9fa925b7d3e590",
           "target": {
             "operating_system": "linux",
             "architecture": "x86_64",
