@@ -726,7 +726,10 @@ mod tests {
         fs::remove_file(root.0.join("malformed-tool")).unwrap();
         root.assert_clean();
 
-        let public = std::env::temp_dir();
+        // Use the fixed public Linux temporary directory for this negative
+        // boundary. The test harness deliberately overrides TMPDIR with a
+        // private scratch root, which must remain accepted by the constructor.
+        let public = PathBuf::from("/tmp");
         assert_eq!(
             KernelDiagnostics::new(public, Duration::from_secs(1))
                 .err()
