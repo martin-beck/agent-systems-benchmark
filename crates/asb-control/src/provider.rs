@@ -33,6 +33,8 @@ pub struct ProviderProfileUpsertParams {
     pub runner_instance_id: String,
     /// Complete replacement provider profile and model list.
     pub entry: ProviderCatalogEntry,
+    /// Digest of the external credential reference, never the credential value.
+    pub credential_reference_sha256: Option<String>,
 }
 
 /// Read-only provider catalog operation requested by a frontend.
@@ -731,7 +733,18 @@ impl ProviderProfileUpsertParams {
             return Err(ProtocolError::InvalidResponse);
         }
         validate_identity(&self.runner_instance_id)?;
-        validate_provider_entry(&self.entry, true)
+        validate_provider_entry(&self.entry, true)?;
+        if let Some(digest) = &self.credential_reference_sha256 {
+            validate_digest(digest)?;
+            if !self
+                .entry
+                .auth_methods
+                .contains(&ProviderAuthMethod::CredentialReference)
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
+        }
+        Ok(())
     }
 }
 

@@ -201,6 +201,7 @@ fn provider_profile_upsert_is_generation_fenced_and_fail_closed() {
         expected_generation: Revision(4),
         runner_instance_id: "runner-1".into(),
         entry,
+        credential_reference_sha256: Some("b".repeat(64)),
     };
     params.validate().unwrap();
     let call = ControlCall::ProviderProfileUpsert(params.clone());

@@ -115,6 +115,7 @@ enum MutationTarget {
     Launch { run_id: String, attempt_id: String },
     Cancel { run_id: String, attempt_id: String },
     ConfigurationApply,
+    ProviderProfileUpsert { provider_id: String },
     RecordingCampaignPlan,
     RecordingCampaignLifecycle { campaign_id: String, action: String },
     AuthEnroll { provider: String },
@@ -146,6 +147,16 @@ struct Catalog {
     configuration: Option<ConfigurationRecord>,
     #[serde(default)]
     recording_campaign: Option<RecordingCampaignRecord>,
+    #[serde(default = "default_provider_generation")]
+    provider_generation: u64,
+    #[serde(default)]
+    provider_profiles: BTreeMap<String, ProviderCatalogEntry>,
+    #[serde(default)]
+    provider_credential_references: BTreeMap<String, String>,
+}
+
+fn default_provider_generation() -> u64 {
+    1
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -472,6 +483,9 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         auth: BTreeMap::new(),
         configuration: None,
         recording_campaign: None,
+        provider_generation: 1,
+        provider_profiles: BTreeMap::new(),
+        provider_credential_references: BTreeMap::new(),
     })
 }
 
@@ -485,6 +499,42 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         || catalog.revision.0 != catalog.events.last().map_or(0, |event| event.revision.0)
     {
         return Err(CliError::operation("control catalog is invalid"));
+    }
+    if catalog.provider_generation == 0
+        || catalog.provider_profiles.len() > 32
+        || catalog.provider_credential_references.len() > 32
+        || catalog
+            .provider_credential_references
+            .iter()
+            .any(|(provider, digest)| {
+                asb_control::validate_identity(provider).is_err()
+                    || asb_control::validate_digest(digest).is_err()
+            })
+    {
+        return Err(CliError::operation("control provider registry is invalid"));
+    }
+    for (provider_id, entry) in &catalog.provider_profiles {
+        if provider_id != &entry.provider_id
+            || !matches!(
+                entry.availability,
+                ProviderAvailability::Unavailable(ref reason) if reason == "authorization-required"
+            )
+        {
+            return Err(CliError::operation("control provider profile is invalid"));
+        }
+        let mut snapshot = ProviderCatalog {
+            runner_instance_id: catalog.runner_instance_id.clone(),
+            generation: Revision(catalog.provider_generation),
+            catalog_sha256: String::new(),
+            providers: vec![entry.clone()],
+            refreshed: false,
+        };
+        snapshot.catalog_sha256 = snapshot
+            .computed_sha256()
+            .map_err(|_| CliError::operation("control provider profile is invalid"))?;
+        snapshot
+            .validate()
+            .map_err(|_| CliError::operation("control provider profile is invalid"))?;
     }
     if let Some(configuration) = &catalog.configuration {
         let snapshot = ConfigurationSnapshot {
@@ -694,6 +744,11 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .map_err(|_| CliError::operation("control auth mutation target is invalid"))?;
             }
             MutationTarget::ConfigurationApply => {}
+            MutationTarget::ProviderProfileUpsert { provider_id } => {
+                asb_control::validate_identity(provider_id).map_err(|_| {
+                    CliError::operation("control provider mutation target is invalid")
+                })?;
+            }
             MutationTarget::RecordingCampaignPlan => {}
             MutationTarget::RecordingCampaignLifecycle {
                 campaign_id,
@@ -782,6 +837,16 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                             && snapshot.provider_id.as_deref()
                                 == Some(configuration.provider_id.as_str())
                     })
+                }
+                (
+                    MutationTarget::ProviderProfileUpsert { provider_id },
+                    ControlResult::ProviderProfile(snapshot),
+                ) => {
+                    snapshot.generation.0 == catalog.provider_generation
+                        && snapshot.providers.iter().any(|entry| {
+                            entry.provider_id == *provider_id
+                                && catalog.provider_profiles.get(provider_id) == Some(entry)
+                        })
                 }
                 (MutationTarget::RecordingCampaignPlan, ControlResult::RecordingCampaign(plan)) => {
                     catalog.recording_campaign.as_ref().is_some_and(|campaign| {
@@ -1061,6 +1126,7 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             | MutationTarget::AuthRotate { .. }
             | MutationTarget::AuthRevoke { .. }
             | MutationTarget::ConfigurationApply
+            | MutationTarget::ProviderProfileUpsert { .. }
             | MutationTarget::RecordingCampaignPlan
             | MutationTarget::RecordingCampaignLifecycle { .. } => {}
             MutationTarget::CreatePlan | MutationTarget::Repeat { .. } => {}
@@ -1577,11 +1643,8 @@ impl ControlBackend for RunnerBackend {
                 let snapshot = self.configuration_status(request)?;
                 self.bind(call, ControlResult::Configuration(snapshot))
             }
-            ControlCall::ProviderProfileUpsert(_) => {
-                // The durable provider registry is intentionally not inferred
-                // from the static catalog. Until its authenticated source and
-                // journal-backed mutation owner are installed, fail closed.
-                Err(BackendFailure::CapabilityUnavailable)
+            ControlCall::ProviderProfileUpsert(params) => {
+                self.provider_profile_upsert(call, params, deadline)
             }
             ControlCall::ConfigurationApply(params) => {
                 self.configuration_apply(call, params, deadline)
@@ -2791,9 +2854,7 @@ impl RunnerBackend {
             .catalog
             .lock()
             .map_err(|_| BackendFailure::NeedsReconciliation)?
-            .revision
-            .0
-            .max(1);
+            .provider_generation;
         if request
             .known_generation
             .is_some_and(|known| known.0 > generation)
@@ -2834,17 +2895,90 @@ impl RunnerBackend {
             ],
             refreshed: false,
         };
+        let custom = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .provider_profiles
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        catalog.providers.extend(custom);
+        catalog
+            .providers
+            .sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
         catalog.catalog_sha256 = catalog
             .computed_sha256()
             .map_err(|_| BackendFailure::Rejected)?;
         Ok(catalog)
+    }
+
+    fn provider_profile_upsert(
+        &self,
+        call: &ControlCall,
+        params: &asb_control::ProviderProfileUpsertParams,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        if params.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        params.validate().map_err(|_| BackendFailure::Rejected)?;
+        let runner_instance_id = self.runner_instance_id.clone();
+        let mut base_snapshot = self.provider_catalog(&ProviderCatalogRequest {
+            action: ProviderCatalogAction::Status,
+            runner_instance_id: runner_instance_id.clone(),
+            known_generation: None,
+        })?;
+        base_snapshot
+            .providers
+            .retain(|entry| entry.provider_id != params.entry.provider_id);
+        base_snapshot.providers.push(params.entry.clone());
+        base_snapshot
+            .providers
+            .sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
+        self.mutation(
+            call,
+            &params.idempotency_key,
+            MutationTarget::ProviderProfileUpsert {
+                provider_id: params.entry.provider_id.clone(),
+            },
+            deadline,
+            |catalog| {
+                if catalog.provider_generation != params.expected_generation.0 {
+                    return Err(BackendFailure::StaleIdentity);
+                }
+                let next_generation = catalog
+                    .provider_generation
+                    .checked_add(1)
+                    .ok_or(BackendFailure::Rejected)?;
+                catalog
+                    .provider_profiles
+                    .insert(params.entry.provider_id.clone(), params.entry.clone());
+                if let Some(digest) = &params.credential_reference_sha256 {
+                    catalog
+                        .provider_credential_references
+                        .insert(params.entry.provider_id.clone(), digest.clone());
+                } else {
+                    catalog
+                        .provider_credential_references
+                        .remove(&params.entry.provider_id);
+                }
+                catalog.provider_generation = next_generation;
+                let mut snapshot = base_snapshot.clone();
+                snapshot.generation = Revision(next_generation);
+                snapshot.catalog_sha256 = snapshot
+                    .computed_sha256()
+                    .map_err(|_| BackendFailure::Rejected)?;
+                Ok(ControlResult::ProviderProfile(snapshot))
+            },
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use asb_control::{ControlServer, ControlSuccess};
+    use asb_control::{ControlServer, ControlSuccess, ProviderProfileUpsertParams};
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt, symlink};
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -3431,6 +3565,71 @@ mod tests {
         );
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn provider_profile_upsert_persists_metadata_and_stays_unauthorized() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let runner_instance_id = backend.runner_instance_id().to_owned();
+        let entry = ProviderCatalogEntry {
+            provider_id: "custom".into(),
+            display_name: "Custom".into(),
+            auth_methods: vec![ProviderAuthMethod::CredentialReference],
+            models: vec![ProviderModel {
+                model_id: "custom-model".into(),
+                revision: "catalog-1".into(),
+                availability: ProviderAvailability::Unavailable("authorization-required".into()),
+            }],
+            availability: ProviderAvailability::Unavailable("authorization-required".into()),
+        };
+        let call = ControlCall::ProviderProfileUpsert(ProviderProfileUpsertParams {
+            idempotency_key: "profile-1".into(),
+            expected_generation: Revision(1),
+            runner_instance_id: runner_instance_id.clone(),
+            entry,
+            credential_reference_sha256: Some("c".repeat(64)),
+        });
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::ProviderProfile(snapshot) = &result.result else {
+            panic!("provider profile result");
+        };
+        assert_eq!(snapshot.generation, Revision(2));
+        let custom = snapshot
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == "custom")
+            .expect("custom profile");
+        assert!(matches!(
+            custom.availability,
+            ProviderAvailability::Unavailable(_)
+        ));
+        assert!(matches!(
+            custom.models[0].availability,
+            ProviderAvailability::Unavailable(_)
+        ));
+        let retry = backend.execute(&call, deadline()).unwrap();
+        assert_eq!(retry.request_sha256, result.request_sha256);
+
+        let stale = ControlCall::ProviderProfileUpsert(ProviderProfileUpsertParams {
+            idempotency_key: "profile-2".into(),
+            expected_generation: Revision(1),
+            runner_instance_id,
+            entry: custom.clone(),
+            credential_reference_sha256: Some("c".repeat(64)),
+        });
+        assert_eq!(
+            backend.execute(&stale, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let bytes = fs::read(state.join("control-catalog.json")).unwrap();
+        assert!(!String::from_utf8_lossy(&bytes).contains("api_key"));
+        assert!(!String::from_utf8_lossy(&bytes).contains("sk-"));
     }
 
     #[test]
