@@ -133,10 +133,10 @@ pub struct AgentCatalogEntry {
     pub agent_id: String,
     /// Exact compatible target.
     pub target: AgentTarget,
-    /// Pinned package identity.
-    pub package: AgentPackage,
-    /// Immutable source/runtime provenance.
-    pub provenance: AgentProvenance,
+    /// Pinned package identity when the artifact has been verified.
+    pub package: Option<AgentPackage>,
+    /// Immutable source/runtime provenance when the closure is complete.
+    pub provenance: Option<AgentProvenance>,
     /// Sorted capability identifiers supported by this package.
     pub capabilities: Vec<String>,
     /// Explicit selection decision and, when unavailable, its reason.
@@ -190,10 +190,43 @@ impl AgentCatalog {
             if entry.target != self.target {
                 return Err(ProtocolError::InvalidResponse);
             }
-            validate_package(&entry.package)?;
-            validate_provenance(&entry.provenance)?;
-            if entry.capabilities.is_empty() || entry.capabilities.len() > MAX_CAPABILITIES {
+            if entry.capabilities.len() > MAX_CAPABILITIES {
                 return Err(ProtocolError::InvalidResponse);
+            }
+            match entry.availability {
+                AgentAvailability::Available => {
+                    validate_package(
+                        entry
+                            .package
+                            .as_ref()
+                            .ok_or(ProtocolError::InvalidResponse)?,
+                    )?;
+                    validate_provenance(
+                        entry
+                            .provenance
+                            .as_ref()
+                            .ok_or(ProtocolError::InvalidResponse)?,
+                    )?;
+                    if entry.capabilities.is_empty() {
+                        return Err(ProtocolError::InvalidResponse);
+                    }
+                }
+                AgentAvailability::Unavailable(_) => {
+                    if let Some(package) = &entry.package {
+                        validate_package(package)?;
+                    }
+                    if let Some(provenance) = &entry.provenance {
+                        validate_provenance(provenance)?;
+                    }
+                    if entry.package.is_some() != entry.provenance.is_some()
+                        && entry.availability
+                            != AgentAvailability::Unavailable(
+                                AgentUnavailableReason::IncompleteProvenance,
+                            )
+                    {
+                        return Err(ProtocolError::InvalidResponse);
+                    }
+                }
             }
             let mut capabilities = BTreeSet::new();
             let mut prior_capability = None;
@@ -215,7 +248,7 @@ impl AgentCatalog {
 
     /// Compute the authenticated SHA-256 identity of this catalog snapshot.
     ///
-    /// The `catalog_sha256` member is deliberately excluded from the hashed
+    /// The `catalog_sha256` and response-only `refreshed` members are deliberately excluded from the hashed
     /// representation, preventing a self-referential digest. Callers should
     /// validate the rest of the catalog before accepting this identity.
     pub fn computed_sha256(&self) -> Result<String, ProtocolError> {
@@ -240,6 +273,7 @@ pub fn canonical_agent_catalog_bytes(catalog: &AgentCatalog) -> Result<Vec<u8>, 
         return Err(ProtocolError::InvalidResponse);
     };
     object.remove("catalog_sha256");
+    object.remove("refreshed");
     let canonical = canonicalize_json(value);
     serde_json::to_vec(&canonical).map_err(|_| ProtocolError::InvalidResponse)
 }
@@ -332,7 +366,7 @@ mod tests {
                 libc: "glibc".into(),
                 libc_version: "2.35".into(),
             },
-            package: AgentPackage {
+            package: Some(AgentPackage {
                 package_id: "agent-package".into(),
                 version: "1.2.3".into(),
                 sha256: "a".repeat(64),
@@ -341,13 +375,13 @@ mod tests {
                     key_id: "release-key-1".into(),
                     principal: "asb-release".into(),
                 },
-            },
-            provenance: AgentProvenance {
+            }),
+            provenance: Some(AgentProvenance {
                 source_revision: "c".repeat(40),
                 manifest_sha256: "d".repeat(64),
                 sbom_sha256: "e".repeat(64),
                 license_ref: "MIT".into(),
-            },
+            }),
             capabilities: vec!["chat".into(), "tools".into()],
             availability: AgentAvailability::Available,
         }
@@ -372,8 +406,8 @@ mod tests {
         validate_identity(&value.runner_instance_id).unwrap();
         validate_digest(&value.catalog_sha256).unwrap();
         validate_target(&value.target).unwrap();
-        validate_package(&value.agents[0].package).unwrap();
-        validate_provenance(&value.agents[0].provenance).unwrap();
+        validate_package(value.agents[0].package.as_ref().unwrap()).unwrap();
+        validate_provenance(value.agents[0].provenance.as_ref().unwrap()).unwrap();
         value.validate().unwrap();
         AgentCatalogRequest {
             action: AgentCatalogAction::Status,
@@ -395,15 +429,28 @@ mod tests {
         assert!(wrong_target.validate().is_err());
 
         let mut unsigned = catalog();
-        unsigned.agents[0].package.signature_sha256 = "0".into();
+        unsigned.agents[0]
+            .package
+            .as_mut()
+            .unwrap()
+            .signature_sha256 = "0".into();
         assert!(unsigned.validate().is_err());
 
         let mut invalid_signer = catalog();
-        invalid_signer.agents[0].package.signer.key_id = "key id".into();
+        invalid_signer.agents[0]
+            .package
+            .as_mut()
+            .unwrap()
+            .signer
+            .key_id = "key id".into();
         assert!(invalid_signer.validate().is_err());
 
         let mut incomplete_provenance = catalog();
-        incomplete_provenance.agents[0].provenance.sbom_sha256 = "0".into();
+        incomplete_provenance.agents[0]
+            .provenance
+            .as_mut()
+            .unwrap()
+            .sbom_sha256 = "0".into();
         assert!(incomplete_provenance.validate().is_err());
 
         let mut unsorted_capabilities = catalog();
@@ -412,12 +459,24 @@ mod tests {
     }
 
     #[test]
+    fn incomplete_unavailable_entry_is_valid_without_fabricated_metadata() {
+        let mut catalog = catalog();
+        catalog.agents[0].package = None;
+        catalog.agents[0].provenance = None;
+        catalog.agents[0].capabilities.clear();
+        catalog.agents[0].availability =
+            AgentAvailability::Unavailable(AgentUnavailableReason::IncompleteProvenance);
+        catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+        catalog.validate().unwrap();
+    }
+
+    #[test]
     fn canonical_digest_is_independent_of_object_member_order_and_excludes_itself() {
         let catalog = catalog();
         let bytes = canonical_agent_catalog_bytes(&catalog).unwrap();
         assert_eq!(
             catalog.computed_sha256().unwrap(),
-            "b7749d29dabbc7e8faf00d0f1c01b8c188fe5fef15f52d94f19145977b2b53b3"
+            "79a915ed55e0484fa75130ec1f2275fe12fc99221d1b14f7e3b05ba9efb6bf90"
         );
         assert!(!String::from_utf8(bytes).unwrap().contains("catalog_sha256"));
 

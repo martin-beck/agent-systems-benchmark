@@ -1,84 +1,71 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ControlResponse",
-  "description": "JSON-RPC terminal response.",
-  "oneOf": [
-    {
-      "description": "Successful typed response.",
-      "$ref": "#/$defs/ControlSuccessResponse"
-    },
-    {
-      "description": "Fixed privacy-safe failure response.",
-      "$ref": "#/$defs/ControlFailureResponse"
-    }
-  ],
   "$defs": {
     "AnalysisSummary": {
+      "additionalProperties": false,
       "description": "Privacy-safe aggregate analysis projection.",
-      "type": "object",
       "properties": {
         "analysis_sha256": {
           "description": "Digest of the canonical analysis result stored as a sensitive artifact.",
-          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$"
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
         },
         "run_count": {
           "description": "Number of runs included.",
-          "type": "integer",
           "format": "uint16",
           "maximum": 256,
-          "minimum": 1
+          "minimum": 1,
+          "type": "integer"
         }
       },
-      "additionalProperties": false,
       "required": [
         "run_count",
         "analysis_sha256"
-      ]
+      ],
+      "type": "object"
     },
     "ArtifactMetadata": {
+      "additionalProperties": false,
       "description": "Privacy-safe artifact metadata.",
-      "type": "object",
       "properties": {
         "sensitivity": {
-          "description": "Explicit sensitivity class.",
-          "$ref": "#/$defs/ArtifactSensitivity"
+          "$ref": "#/$defs/ArtifactSensitivity",
+          "description": "Explicit sensitivity class."
         },
         "sha256": {
           "description": "Content digest, never a host path.",
-          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$"
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
         },
         "size_bytes": {
           "description": "Byte length.",
-          "type": "integer",
           "format": "uint64",
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         }
       },
-      "additionalProperties": false,
       "required": [
         "sha256",
         "size_bytes",
         "sensitivity"
-      ]
+      ],
+      "type": "object"
     },
     "ArtifactSensitivity": {
       "description": "Artifact sensitivity is explicit and content is never embedded in summaries.",
       "oneOf": [
         {
+          "const": "public",
           "description": "Safe to expose through the ordinary control API.",
-          "type": "string",
-          "const": "public"
+          "type": "string"
         },
         {
+          "const": "sensitive",
           "description": "Requires a separate least-privilege content authorization.",
-          "type": "string",
-          "const": "sensitive"
+          "type": "string"
         }
       ]
     },
@@ -87,30 +74,30 @@
       "type": "string"
     },
     "BoundControlResult": {
+      "additionalProperties": false,
       "description": "Successful result bound to the complete canonical request.",
-      "type": "object",
       "properties": {
         "request_sha256": {
           "description": "SHA-256 of the canonical typed call.",
-          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$"
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
         },
         "result": {
-          "description": "Closed result body.",
-          "$ref": "#/$defs/ControlResult"
+          "$ref": "#/$defs/ControlResult",
+          "description": "Closed result body."
         }
       },
-      "additionalProperties": false,
       "required": [
         "request_sha256",
         "result"
-      ]
+      ],
+      "type": "object"
     },
     "Capabilities": {
+      "additionalProperties": false,
       "description": "Runner features exposed without embedding configuration or host details.",
-      "type": "object",
       "properties": {
         "analysis": {
           "description": "Multiple runs can be analysed.",
@@ -133,18 +120,18 @@
           "type": "boolean"
         }
       },
-      "additionalProperties": false,
       "required": [
         "validate_settings",
         "run_control",
         "repeat",
         "analysis",
         "events"
-      ]
+      ],
+      "type": "object"
     },
     "ControlEvent": {
+      "additionalProperties": false,
       "description": "Privacy-reviewed public runner event.",
-      "type": "object",
       "properties": {
         "attempt_id": {
           "description": "Related exact attempt when applicable.",
@@ -161,12 +148,12 @@
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "kind": {
-          "description": "Event kind from the stable public vocabulary.",
-          "$ref": "#/$defs/ControlEventKind"
+          "$ref": "#/$defs/ControlEventKind",
+          "description": "Event kind from the stable public vocabulary."
         },
         "revision": {
-          "description": "Durable contiguous revision.",
-          "$ref": "#/$defs/Revision"
+          "$ref": "#/$defs/Revision",
+          "description": "Durable contiguous revision."
         },
         "run_id": {
           "description": "Related run when applicable.",
@@ -183,471 +170,471 @@
           "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
-      "additionalProperties": false,
       "required": [
         "revision",
         "kind"
-      ]
+      ],
+      "type": "object"
     },
     "ControlEventKind": {
       "description": "Stable privacy-safe runner event vocabulary.",
       "oneOf": [
         {
+          "const": "runner_ready",
           "description": "Runner instance is ready after startup or recovery.",
-          "type": "string",
-          "const": "runner_ready"
+          "type": "string"
         },
         {
+          "const": "plan_created",
           "description": "A validated plan became durable.",
-          "type": "string",
-          "const": "plan_created"
+          "type": "string"
         },
         {
+          "const": "run_started",
           "description": "An exact execution attempt started.",
-          "type": "string",
-          "const": "run_started"
+          "type": "string"
         },
         {
+          "const": "run_updated",
           "description": "Durable public run state advanced.",
-          "type": "string",
-          "const": "run_updated"
+          "type": "string"
         },
         {
+          "const": "run_completed",
           "description": "Required run evidence became durable.",
-          "type": "string",
-          "const": "run_completed"
+          "type": "string"
         },
         {
+          "const": "run_failed",
           "description": "The run reached a durable failure.",
-          "type": "string",
-          "const": "run_failed"
+          "type": "string"
         },
         {
+          "const": "run_cancelled",
           "description": "Cancellation reached a durable terminal state.",
-          "type": "string",
-          "const": "run_cancelled"
+          "type": "string"
         },
         {
+          "const": "reconciliation_required",
           "description": "The runner requires reconciliation before another effect.",
-          "type": "string",
-          "const": "reconciliation_required"
+          "type": "string"
         }
       ]
     },
     "ControlFailureResponse": {
+      "additionalProperties": false,
       "description": "Closed failed response envelope.",
-      "type": "object",
       "properties": {
         "error": {
-          "description": "Fixed privacy-safe error.",
-          "$ref": "#/$defs/ControlRpcError"
+          "$ref": "#/$defs/ControlRpcError",
+          "description": "Fixed privacy-safe error."
         },
         "id": {
-          "description": "Matching request identity.",
-          "$ref": "#/$defs/RequestId"
+          "$ref": "#/$defs/RequestId",
+          "description": "Matching request identity."
         },
         "jsonrpc": {
+          "const": "2.0",
           "description": "Must equal `2.0`.",
-          "type": "string",
-          "const": "2.0"
+          "type": "string"
         }
       },
-      "additionalProperties": false,
       "required": [
         "jsonrpc",
         "id",
         "error"
-      ]
+      ],
+      "type": "object"
     },
     "ControlLimits": {
+      "additionalProperties": false,
       "description": "Negotiated per-connection bounds.",
-      "type": "object",
       "properties": {
         "max_frame_bytes": {
           "description": "Largest four-byte-length-prefixed JSON body.",
-          "type": "integer",
           "format": "uint32",
           "maximum": 1048576,
-          "minimum": 1
+          "minimum": 1,
+          "type": "integer"
         },
         "max_in_flight": {
           "description": "Largest number of admitted requests awaiting terminal responses.",
-          "type": "integer",
           "format": "uint16",
           "maximum": 64,
-          "minimum": 1
+          "minimum": 1,
+          "type": "integer"
         },
         "max_page_items": {
           "description": "Largest page a client may request.",
-          "type": "integer",
           "format": "uint16",
           "maximum": 256,
-          "minimum": 1
+          "minimum": 1,
+          "type": "integer"
         },
         "max_timeout_ms": {
           "description": "Longest request processing deadline measured from receipt.",
-          "type": "integer",
           "format": "uint64",
           "maximum": 300000,
-          "minimum": 1
+          "minimum": 1,
+          "type": "integer"
         }
       },
-      "additionalProperties": false,
       "required": [
         "max_frame_bytes",
         "max_timeout_ms",
         "max_page_items",
         "max_in_flight"
-      ]
+      ],
+      "type": "object"
     },
     "ControlResult": {
       "description": "Closed allowlist of successful results returned by runner backends.",
       "oneOf": [
         {
+          "additionalProperties": false,
           "description": "Runner feature availability.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "capabilities"
+              "const": "capabilities",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/Capabilities"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Settings validation outcome.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "settings_validation"
+              "const": "settings_validation",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/SettingsValidation"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Created or repeated immutable plan.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "plan"
+              "const": "plan",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/PlanReference"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Launch returned its durable run identity.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "launch"
+              "const": "launch",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/RunSummary"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Current durable run state.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "status"
+              "const": "status",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/RunSummary"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Cancellation or another mutation was durably accepted.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "acknowledged"
+              "const": "acknowledged",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/MutationAcknowledgement"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Recent run page.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "history"
+              "const": "history",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/Page"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Public event page.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "events"
+              "const": "events",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/Page2"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Aggregate analysis metadata.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "analysis"
+              "const": "analysis",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/AnalysisSummary"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Artifact metadata without content or host paths.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "artifact_metadata"
+              "const": "artifact_metadata",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/ArtifactMetadata"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         }
       ]
     },
     "ControlRpcError": {
+      "additionalProperties": false,
       "description": "Privacy-safe JSON-RPC error.",
-      "type": "object",
       "properties": {
         "code": {
           "description": "Stable machine-readable code.",
-          "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "type": "integer"
         },
         "message": {
           "description": "Bounded public diagnostic.",
           "type": "string"
         }
       },
-      "additionalProperties": false,
       "required": [
         "code",
         "message"
-      ]
+      ],
+      "type": "object"
     },
     "ControlSuccess": {
       "description": "Closed wire-visible success envelope.",
       "oneOf": [
         {
+          "additionalProperties": false,
           "description": "Initial protocol negotiation.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "negotiated"
+              "const": "negotiated",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/Negotiated"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Result of one post-negotiation operation.",
-          "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "const": "operation"
+              "const": "operation",
+              "type": "string"
             },
             "value": {
               "$ref": "#/$defs/BoundControlResult"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ]
+          ],
+          "type": "object"
         }
       ]
     },
     "ControlSuccessResponse": {
+      "additionalProperties": false,
       "description": "Closed successful response envelope.",
-      "type": "object",
       "properties": {
         "id": {
-          "description": "Matching request identity.",
-          "$ref": "#/$defs/RequestId"
+          "$ref": "#/$defs/RequestId",
+          "description": "Matching request identity."
         },
         "jsonrpc": {
+          "const": "2.0",
           "description": "Must equal `2.0`.",
-          "type": "string",
-          "const": "2.0"
+          "type": "string"
         },
         "result": {
-          "description": "Closed successful result.",
-          "$ref": "#/$defs/ControlSuccess"
+          "$ref": "#/$defs/ControlSuccess",
+          "description": "Closed successful result."
         }
       },
-      "additionalProperties": false,
       "required": [
         "jsonrpc",
         "id",
         "result"
-      ]
+      ],
+      "type": "object"
     },
     "ControlVersion": {
+      "additionalProperties": false,
       "description": "A major/minor protocol version.",
-      "type": "object",
       "properties": {
         "major": {
           "description": "Breaking protocol generation.",
-          "type": "integer",
           "format": "uint16",
           "maximum": 65535,
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "minor": {
           "description": "Backward-compatible feature generation.",
-          "type": "integer",
           "format": "uint16",
           "maximum": 65535,
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         }
       },
-      "additionalProperties": false,
       "required": [
         "major",
         "minor"
-      ]
+      ],
+      "type": "object"
     },
     "MutationAcknowledgement": {
+      "additionalProperties": false,
       "description": "Stable acknowledgement for an accepted durable mutation.",
-      "type": "object",
       "properties": {
         "accepted": {
+          "const": true,
           "description": "The mutation is durably accepted.",
-          "type": "boolean",
-          "const": true
+          "type": "boolean"
         }
       },
-      "additionalProperties": false,
       "required": [
         "accepted"
-      ]
+      ],
+      "type": "object"
     },
     "Negotiated": {
+      "additionalProperties": false,
       "description": "Negotiated connection result.",
-      "type": "object",
       "properties": {
         "latest_revision": {
-          "description": "Latest retained public event revision.",
-          "$ref": "#/$defs/Revision"
+          "$ref": "#/$defs/Revision",
+          "description": "Latest retained public event revision."
         },
         "limits": {
-          "description": "Effective bounds.",
-          "$ref": "#/$defs/ControlLimits"
+          "$ref": "#/$defs/ControlLimits",
+          "description": "Effective bounds."
         },
         "oldest_revision": {
-          "description": "Oldest retained public event revision.",
-          "$ref": "#/$defs/Revision"
+          "$ref": "#/$defs/Revision",
+          "description": "Oldest retained public event revision."
         },
         "runner_instance_id": {
           "description": "Stable runner instance identity.",
           "type": "string"
         },
         "version": {
-          "description": "Selected protocol version.",
-          "$ref": "#/$defs/ControlVersion"
+          "$ref": "#/$defs/ControlVersion",
+          "description": "Selected protocol version."
         }
       },
-      "additionalProperties": false,
       "required": [
         "version",
         "limits",
         "runner_instance_id",
         "oldest_revision",
         "latest_revision"
-      ]
+      ],
+      "type": "object"
     },
     "Page": {
+      "additionalProperties": false,
       "description": "Bounded event or history page.",
-      "type": "object",
       "properties": {
         "has_more": {
           "description": "Whether a later retained record exists.",
@@ -655,11 +642,11 @@
         },
         "items": {
           "description": "Ordered page records.",
-          "type": "array",
           "items": {
             "$ref": "#/$defs/RunSummary"
           },
-          "maxItems": 256
+          "maxItems": 256,
+          "type": "array"
         },
         "next": {
           "description": "Cursor representing the final returned record.",
@@ -673,15 +660,15 @@
           ]
         }
       },
-      "additionalProperties": false,
       "required": [
         "items",
         "has_more"
-      ]
+      ],
+      "type": "object"
     },
     "Page2": {
+      "additionalProperties": false,
       "description": "Bounded event or history page.",
-      "type": "object",
       "properties": {
         "has_more": {
           "description": "Whether a later retained record exists.",
@@ -689,11 +676,11 @@
         },
         "items": {
           "description": "Ordered page records.",
-          "type": "array",
           "items": {
             "$ref": "#/$defs/ControlEvent"
           },
-          "maxItems": 256
+          "maxItems": 256,
+          "type": "array"
         },
         "next": {
           "description": "Cursor representing the final returned record.",
@@ -707,137 +694,136 @@
           ]
         }
       },
-      "additionalProperties": false,
       "required": [
         "items",
         "has_more"
-      ]
+      ],
+      "type": "object"
     },
     "PlanReference": {
+      "additionalProperties": false,
       "description": "Durable immutable plan identity.",
-      "type": "object",
       "properties": {
         "plan_id": {
           "description": "Opaque stable plan identity.",
-          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$"
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
         },
         "plan_sha256": {
           "description": "SHA-256 of the canonical plan.",
-          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$"
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
         }
       },
-      "additionalProperties": false,
       "required": [
         "plan_id",
         "plan_sha256"
-      ]
+      ],
+      "type": "object"
     },
     "PublicRunState": {
       "description": "Public run lifecycle; absence is never encoded as a successful state.",
       "oneOf": [
         {
+          "const": "planned",
           "description": "Definition is durable but execution has not started.",
-          "type": "string",
-          "const": "planned"
+          "type": "string"
         },
         {
+          "const": "prepared",
           "description": "Inputs are prepared.",
-          "type": "string",
-          "const": "prepared"
+          "type": "string"
         },
         {
+          "const": "running",
           "description": "Execution is active.",
-          "type": "string",
-          "const": "running"
+          "type": "string"
         },
         {
+          "const": "collecting",
           "description": "Evidence collection is active.",
-          "type": "string",
-          "const": "collecting"
+          "type": "string"
         },
         {
+          "const": "completed",
           "description": "All required evidence is durable.",
-          "type": "string",
-          "const": "completed"
+          "type": "string"
         },
         {
+          "const": "failed",
           "description": "Execution or collection failed.",
-          "type": "string",
-          "const": "failed"
+          "type": "string"
         },
         {
+          "const": "cancelled",
           "description": "Cancellation reached a durable terminal state.",
-          "type": "string",
-          "const": "cancelled"
+          "type": "string"
         },
         {
+          "const": "needs_reconciliation",
           "description": "External effects require runner-side reconciliation.",
-          "type": "string",
-          "const": "needs_reconciliation"
+          "type": "string"
         }
       ]
     },
     "RequestId": {
       "description": "Numeric JSON-RPC request identity.",
-      "type": "integer",
       "format": "uint64",
-      "minimum": 0
+      "minimum": 0,
+      "type": "integer"
     },
     "Revision": {
       "description": "Opaque durable revision used to resume event streams.",
-      "type": "integer",
       "format": "uint64",
-      "minimum": 0
+      "minimum": 0,
+      "type": "integer"
     },
     "RunId": {
       "description": "Opaque stable run identity.",
       "type": "string"
     },
     "RunSummary": {
+      "additionalProperties": false,
       "description": "Privacy-reviewed run summary.",
-      "type": "object",
       "properties": {
         "attempt_id": {
-          "description": "Exact attempt identity.",
           "$ref": "#/$defs/AttemptId",
+          "description": "Exact attempt identity.",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "created_revision": {
-          "description": "Immutable revision at which this run first entered the journal.",
-          "$ref": "#/$defs/Revision"
+          "$ref": "#/$defs/Revision",
+          "description": "Immutable revision at which this run first entered the journal."
         },
         "plan_sha256": {
           "description": "Content digest of the immutable plan.",
-          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$"
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
         },
         "revision": {
-          "description": "Durable revision from which this summary was derived.",
-          "$ref": "#/$defs/Revision"
+          "$ref": "#/$defs/Revision",
+          "description": "Durable revision from which this summary was derived."
         },
         "run_id": {
-          "description": "Stable run identity.",
           "$ref": "#/$defs/RunId",
+          "description": "Stable run identity.",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "state": {
-          "description": "State derived from the authoritative journal.",
-          "$ref": "#/$defs/PublicRunState"
+          "$ref": "#/$defs/PublicRunState",
+          "description": "State derived from the authoritative journal."
         }
       },
-      "additionalProperties": false,
       "required": [
         "run_id",
         "attempt_id",
@@ -845,51 +831,35 @@
         "created_revision",
         "revision",
         "plan_sha256"
-      ]
+      ],
+      "type": "object"
     },
     "SettingsIssue": {
       "description": "Stable, non-sensitive settings diagnostic.",
       "oneOf": [
         {
+          "const": "invalid_format",
           "description": "The settings shape or syntax is invalid.",
-          "type": "string",
-          "const": "invalid_format"
+          "type": "string"
         },
         {
+          "const": "unsupported_capability",
           "description": "A requested capability is unavailable.",
-          "type": "string",
-          "const": "unsupported_capability"
+          "type": "string"
         },
         {
+          "const": "unverified_component",
           "description": "A referenced immutable component cannot be verified.",
-          "type": "string",
-          "const": "unverified_component"
+          "type": "string"
         },
         {
+          "const": "invalid_resource_bound",
           "description": "A configured resource bound is invalid.",
-          "type": "string",
-          "const": "invalid_resource_bound"
+          "type": "string"
         }
       ]
     },
     "SettingsValidation": {
-      "description": "Privacy-safe settings validation outcome.",
-      "type": "object",
-      "properties": {
-        "issues": {
-          "description": "Bounded stable issue vocabulary, without copied input values.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/SettingsIssue"
-          },
-          "maxItems": 256,
-          "uniqueItems": true
-        },
-        "valid": {
-          "description": "Whether plan creation may proceed.",
-          "type": "boolean"
-        }
-      },
       "additionalProperties": false,
       "allOf": [
         {
@@ -917,10 +887,40 @@
           ]
         }
       ],
+      "description": "Privacy-safe settings validation outcome.",
+      "properties": {
+        "issues": {
+          "description": "Bounded stable issue vocabulary, without copied input values.",
+          "items": {
+            "$ref": "#/$defs/SettingsIssue"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "valid": {
+          "description": "Whether plan creation may proceed.",
+          "type": "boolean"
+        }
+      },
       "required": [
         "valid",
         "issues"
-      ]
+      ],
+      "type": "object"
     }
-  }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "JSON-RPC terminal response.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ControlSuccessResponse",
+      "description": "Successful typed response."
+    },
+    {
+      "$ref": "#/$defs/ControlFailureResponse",
+      "description": "Fixed privacy-safe failure response."
+    }
+  ],
+  "title": "ControlResponse"
 }
