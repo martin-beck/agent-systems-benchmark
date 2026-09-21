@@ -206,16 +206,34 @@ fn invoke_registered_auth_helper(
     profile: &asb_protocol::ProviderProfileV1,
     deadline: RequestDeadline,
 ) -> Result<(), BackendFailure> {
-    if profile.credential.source != asb_protocol::CredentialSource::Helper
-        || profile.credential.reference_sha256.is_none()
-    {
-        return Err(BackendFailure::Rejected);
-    }
     let path = env::var_os(AUTH_HELPER_PATH_ENV).ok_or(BackendFailure::CapabilityUnavailable)?;
     let expected =
         env::var(AUTH_HELPER_SHA256_ENV).map_err(|_| BackendFailure::CapabilityUnavailable)?;
     let locator =
         env::var(AUTH_HELPER_LOCATOR_ENV).map_err(|_| BackendFailure::CapabilityUnavailable)?;
+    invoke_registered_auth_helper_with_registration(
+        provider,
+        profile,
+        deadline,
+        Path::new(&path),
+        &expected,
+        &locator,
+    )
+}
+
+fn invoke_registered_auth_helper_with_registration(
+    provider: &str,
+    profile: &asb_protocol::ProviderProfileV1,
+    deadline: RequestDeadline,
+    path: &Path,
+    expected: &str,
+    locator: &str,
+) -> Result<(), BackendFailure> {
+    if profile.credential.source != asb_protocol::CredentialSource::Helper
+        || profile.credential.reference_sha256.is_none()
+    {
+        return Err(BackendFailure::Rejected);
+    }
     if provider.is_empty() || locator.is_empty() {
         return Err(BackendFailure::Rejected);
     }
@@ -3325,6 +3343,11 @@ impl RunnerBackend {
 mod tests {
     use super::*;
     use asb_control::{ControlServer, ControlSuccess, ProviderProfileUpsertParams};
+    use asb_protocol::{
+        CredentialProvenance, CredentialSource, EndpointClass, EndpointProvenance,
+        PROVIDER_PROFILE_V1, ProviderKind, ProviderProfileV1, ProviderSettings,
+        ProviderTransportLimits,
+    };
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt, symlink};
     use std::process::{Command, Stdio};
@@ -5525,6 +5548,92 @@ mod tests {
         assert!(matches!(
             status.result,
             ControlResult::AuthStatus(ref value) if value.status == "revoked"
+        ));
+    }
+
+    #[test]
+    fn auth_helper_invocation_resolves_and_rejects_invalid_bindings() {
+        let scratch = Scratch::new();
+        let helper = scratch.0.join("auth-helper.sh");
+        let script = b"#!/bin/sh\ntest \"$1\" = \"--asb-credential-helper-v1\" || exit 8\nprintf '%s' '{\"version\":1,\"credential\":\"synthetic-value\"}'\n";
+        fs::write(&helper, script).unwrap();
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o700)).unwrap();
+        let executable_sha256 = format!("{:x}", Sha256::digest(script));
+        let locator = "provider.primary";
+        let mut reference = Sha256::new();
+        reference.update(b"asb-credential-reference-v1\0helper-v1\0");
+        reference.update(locator.as_bytes());
+        reference.update(b"\0");
+        reference.update(executable_sha256.as_bytes());
+        let reference_sha256 = format!("{:x}", reference.finalize());
+        let mut profile = ProviderProfileV1 {
+            version: PROVIDER_PROFILE_V1,
+            settings_sha256: String::new(),
+            provider: ProviderKind::OpenAi,
+            endpoint: EndpointProvenance {
+                class: EndpointClass::PublicService,
+                identity_sha256: "a".repeat(64),
+            },
+            model: "pinned-model".into(),
+            settings: ProviderSettings {
+                temperature_milli: None,
+                top_p_millionth: None,
+                seed: None,
+                max_output_tokens: None,
+                reasoning_effort: None,
+                additional_settings_sha256: None,
+            },
+            transport: ProviderTransportLimits {
+                max_request_bytes: 1024,
+                max_response_bytes: 1024,
+                connect_timeout_ms: 1000,
+                request_timeout_ms: 1000,
+                max_concurrent_requests: 1,
+            },
+            credential: CredentialProvenance {
+                source: CredentialSource::Helper,
+                reference_sha256: Some(reference_sha256),
+            },
+        };
+        profile.refresh_settings_sha256().unwrap();
+
+        assert!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &profile,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            )
+            .is_ok()
+        );
+
+        let mut wrong_source = profile.clone();
+        wrong_source.credential.source = CredentialSource::Environment;
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_source,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        let mut wrong_reference = profile;
+        wrong_reference.credential.reference_sha256 = Some("b".repeat(64));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
         ));
     }
 
