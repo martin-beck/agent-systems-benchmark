@@ -34,6 +34,11 @@ pub const CONTROL_AUTH_V1: ControlVersion = ControlVersion { major: 1, minor: 6 
 pub const CONTROL_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 7 };
 /// Version of the additive recording-campaign lifecycle operations.
 pub const CONTROL_RECORDING_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 8 };
+/// Version of runner-owned credential-helper invocation.
+pub const CONTROL_AUTH_HELPER_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 10,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -41,7 +46,7 @@ pub const CONTROL_RECORDING_LIFECYCLE_V1: ControlVersion = ControlVersion { majo
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 8] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 9] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -50,6 +55,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 8] = [
     CONTROL_AUTH_V1,
     CONTROL_PROVIDER_CATALOG_V1,
     CONTROL_RECORDING_LIFECYCLE_V1,
+    CONTROL_AUTH_HELPER_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -233,6 +239,8 @@ pub enum ControlCall {
     AuthRotate(AuthRotateParams),
     /// Revoke an enrollment.
     AuthRevoke(AuthRevokeParams),
+    /// Resolve one registered helper through the runner-owned sealed backend.
+    AuthHelperInvoke(AuthHelperInvokeParams),
     /// Read or refresh the authenticated provider/model catalog.
     ProviderCatalog(crate::ProviderCatalogRequest),
     /// Read the current privacy-safe setup projection.
@@ -339,6 +347,18 @@ pub struct AuthRotateParams {
     pub idempotency_key: String,
 }
 
+/// Request a runner-owned helper resolution without exposing a path or secret.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthHelperInvokeParams {
+    /// Provider identifier used for the durable receipt.
+    pub provider: String,
+    /// Complete credential-free profile to bind to the helper output.
+    pub profile: asb_protocol::ProviderProfileV1,
+    /// Retry-safe mutation key.
+    pub idempotency_key: String,
+}
+
 /// Credential-free public enrollment status returned by the control service.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -371,6 +391,7 @@ impl ControlCall {
             | Self::AuthStatus(_)
             | Self::AuthRotate(_)
             | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
+            Self::AuthHelperInvoke(_) => CONTROL_AUTH_HELPER_V1,
             Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationApply(_) => CONTROL_PROVIDER_CATALOG_V1,
@@ -1676,6 +1697,7 @@ impl ControlResult {
                 | (ControlCall::AuthRotate(_), Self::Acknowledged(_))
                 | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
+                | (ControlCall::AuthHelperInvoke(_), Self::AuthStatus(_))
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
                 | (
                     ControlCall::ProviderProfileUpsert(_),
@@ -2054,6 +2076,15 @@ pub fn validate_request(
             validate_identity(&params.provider)?;
             validate_digest(&params.credential_locator_sha256)?;
             validate_idempotency_key(&params.idempotency_key)?;
+        }
+        ControlCall::AuthHelperInvoke(params) => {
+            validate_identity(&params.provider)?;
+            validate_idempotency_key(&params.idempotency_key)?;
+            if params.profile.credential.source != asb_protocol::CredentialSource::Helper
+                || params.profile.credential.reference_sha256.is_none()
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
         }
         ControlCall::ProviderCatalog(params) => params.validate()?,
         ControlCall::ProviderProfileUpsert(params) => params.validate()?,

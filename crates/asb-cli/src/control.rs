@@ -3,6 +3,7 @@
 //! Persistent local runner service behind the typed frontend control boundary.
 
 use super::*;
+use asb_agents::auth_backend::CredentialBackend;
 use asb_bundle::{VerifierConfig, verify_detached_document};
 use asb_control::{
     AgentAvailability, AgentCatalog, AgentCatalogAction, AgentCatalogEntry, AgentCatalogRequest,
@@ -26,6 +27,7 @@ use std::env;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::AtomicU64;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const CATALOG_VERSION: u16 = 1;
@@ -33,6 +35,9 @@ const MAX_CONTROL_CONFIG_BYTES: u64 = 64 * 1024;
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 const RELEASE_INDEX_SCHEMA_VERSION: u32 = 1;
 const RELEASE_INDEX_NAMESPACE: &str = "asb-agent-release-index-v1";
+const AUTH_HELPER_PATH_ENV: &str = "ASB_AUTH_HELPER_EXECUTABLE";
+const AUTH_HELPER_SHA256_ENV: &str = "ASB_AUTH_HELPER_EXECUTABLE_SHA256";
+const AUTH_HELPER_LOCATOR_ENV: &str = "ASB_AUTH_HELPER_LOGICAL_LOCATOR";
 static CATALOG_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -196,6 +201,41 @@ fn digest_open_file(mut file: fs::File) -> Result<String, BackendFailure> {
     Ok(format!("{:x}", digest.finalize()))
 }
 
+fn invoke_registered_auth_helper(
+    provider: &str,
+    profile: &asb_protocol::ProviderProfileV1,
+    deadline: RequestDeadline,
+) -> Result<(), BackendFailure> {
+    if profile.credential.source != asb_protocol::CredentialSource::Helper
+        || profile.credential.reference_sha256.is_none()
+    {
+        return Err(BackendFailure::Rejected);
+    }
+    let path = env::var_os(AUTH_HELPER_PATH_ENV).ok_or(BackendFailure::CapabilityUnavailable)?;
+    let expected =
+        env::var(AUTH_HELPER_SHA256_ENV).map_err(|_| BackendFailure::CapabilityUnavailable)?;
+    let locator =
+        env::var(AUTH_HELPER_LOCATOR_ENV).map_err(|_| BackendFailure::CapabilityUnavailable)?;
+    if provider.is_empty() || locator.is_empty() {
+        return Err(BackendFailure::Rejected);
+    }
+    let executable = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .map_err(|_| BackendFailure::CapabilityUnavailable)?;
+    let backend = CredentialBackend::helper(executable.into(), &locator, &expected)
+        .map_err(|_| BackendFailure::Rejected)?;
+    let remaining = deadline
+        .remaining()
+        .map_err(|_| BackendFailure::NeedsReconciliation)?
+        .min(Duration::from_secs(30));
+    backend
+        .resolve(profile, remaining)
+        .map(|_| ())
+        .map_err(|_| BackendFailure::Rejected)
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ServiceConfig {
@@ -239,6 +279,7 @@ enum MutationTarget {
     RecordingCampaignPlan,
     RecordingCampaignLifecycle { campaign_id: String, action: String },
     AuthEnroll { provider: String },
+    AuthHelperInvoke { provider: String },
     AuthRotate { provider: String },
     AuthRevoke { provider: String },
 }
@@ -899,6 +940,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .map_err(|_| CliError::operation("control mutation target is invalid"))?;
             }
             MutationTarget::AuthEnroll { provider }
+            | MutationTarget::AuthHelperInvoke { provider }
             | MutationTarget::AuthRotate { provider }
             | MutationTarget::AuthRevoke { provider } => {
                 asb_control::validate_identity(provider)
@@ -984,6 +1026,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 }
                 (
                     MutationTarget::AuthEnroll { provider }
+                    | MutationTarget::AuthHelperInvoke { provider }
                     | MutationTarget::AuthRotate { provider }
                     | MutationTarget::AuthRevoke { provider },
                     ControlResult::Acknowledged(_),
@@ -1284,6 +1327,7 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
                 }
             }
             MutationTarget::AuthEnroll { .. }
+            | MutationTarget::AuthHelperInvoke { .. }
             | MutationTarget::AuthRotate { .. }
             | MutationTarget::AuthRevoke { .. }
             | MutationTarget::ConfigurationApply
@@ -2343,6 +2387,49 @@ impl ControlBackend for RunnerBackend {
                     );
                     Ok(ControlResult::Acknowledged(MutationAcknowledgement {
                         accepted: true,
+                    }))
+                },
+            ),
+            ControlCall::AuthHelperInvoke(params) => self.mutation(
+                call,
+                &params.idempotency_key,
+                MutationTarget::AuthHelperInvoke {
+                    provider: params.provider.clone(),
+                },
+                deadline,
+                |catalog| {
+                    invoke_registered_auth_helper(&params.provider, &params.profile, deadline)?;
+                    let endpoint = params.profile.endpoint.identity_sha256.clone();
+                    let credential = params
+                        .profile
+                        .credential
+                        .reference_sha256
+                        .clone()
+                        .ok_or(BackendFailure::Rejected)?;
+                    let generation = catalog
+                        .auth
+                        .get(&params.provider)
+                        .map_or(1, |record| record.generation.saturating_add(1));
+                    catalog.auth.insert(
+                        params.provider.clone(),
+                        AuthRecord {
+                            provider: params.provider.clone(),
+                            endpoint_identity_sha256: endpoint,
+                            credential_locator_sha256: credential,
+                            generation,
+                            status: "active".to_owned(),
+                        },
+                    );
+                    let record = catalog
+                        .auth
+                        .get(&params.provider)
+                        .ok_or(BackendFailure::NeedsReconciliation)?;
+                    Ok(ControlResult::AuthStatus(AuthStatusResponse {
+                        provider: record.provider.clone(),
+                        endpoint_identity_sha256: record.endpoint_identity_sha256.clone(),
+                        credential_locator_sha256: record.credential_locator_sha256.clone(),
+                        generation: record.generation,
+                        status: record.status.clone(),
                     }))
                 },
             ),

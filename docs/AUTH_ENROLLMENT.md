@@ -29,6 +29,17 @@ locator digest and a closed success/failure/cancel outcome. Missing helper
 registration, stale generations, path substitution, ambient environment,
 unexpected stdout/stderr and raw-key-shaped output all fail closed.
 
+The negotiated `control v1.10` `auth_helper_invoke` operation implements this
+handoff. The request carries only a provider identifier, a complete
+credential-free `ProviderProfileV1`, and an idempotency key. The runner reads a
+private allowlisted helper registration (`ASB_AUTH_HELPER_EXECUTABLE`, its
+content digest, and a logical locator), opens the executable with no-follow
+semantics, resolves it through `CredentialBackend::Helper`, and drops the
+resolved credential before returning a typed public auth receipt. Missing or
+invalid registration, profile/reference mismatch, helper timeout, malformed
+output, and deadline expiry are rejected without exposing helper paths or
+secret material.
+
 ## Runtime certificate chain boundary
 
 The control runtime accepts a certificate chain only when the enrollment authority
