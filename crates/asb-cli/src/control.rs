@@ -4,14 +4,16 @@
 
 use super::*;
 use asb_control::{
-    AnalysisSummary, ArtifactMetadata, ArtifactSensitivity, AuthStatusResponse, BackendFailure,
-    BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, ConfigurationSnapshot,
-    ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
-    ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
-    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference, ProviderAuthMethod,
-    ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogEntry,
-    ProviderCatalogRequest, ProviderModel, ProvisionedControlServer, PublicRunState,
-    RequestDeadline, Revision, RunId, RunSummary, SettingsIssue, SettingsValidation,
+    AgentAvailability, AgentCatalog, AgentCatalogAction, AgentCatalogEntry, AgentCatalogRequest,
+    AgentTarget, AgentUnavailableReason, AnalysisSummary, ArtifactMetadata, ArtifactSensitivity,
+    AuthStatusResponse, BackendFailure, BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1,
+    Capabilities, ConfigurationSnapshot, ConfigurationStatusRequest, ControlBackend, ControlCall,
+    ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
+    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
+    PlanReference, ProviderAuthMethod, ProviderAvailability, ProviderCatalog,
+    ProviderCatalogAction, ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel,
+    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
+    SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
@@ -1700,11 +1702,10 @@ impl ControlBackend for RunnerBackend {
                     RecordingLifecycleAction::OfflineDefault,
                     deadline,
                 ),
-            // Agent catalog population and package verification are deliberately
-            // not inferred from the runner's local state yet. Keep the new wire
-            // operation fail-closed until the authenticated catalog provider is
-            // integrated, rather than exposing an empty or unverifiable list.
-            ControlCall::AgentCatalog(_) => Err(BackendFailure::CapabilityUnavailable),
+            ControlCall::AgentCatalog(request) => {
+                let catalog = self.agent_catalog(request)?;
+                self.bind(call, ControlResult::AgentCatalog(catalog))
+            }
             ControlCall::ValidateSettings { settings } => {
                 let (issue, measurement_issue) =
                     match serde_json::from_value::<PlanFile>(settings.clone()) {
@@ -2837,6 +2838,65 @@ impl RunnerBackend {
         })
     }
 
+    fn agent_catalog(&self, request: &AgentCatalogRequest) -> Result<AgentCatalog, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let generation = 1_u64;
+        if request
+            .known_generation
+            .is_some_and(|known| known.0 > generation)
+        {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let target = AgentTarget {
+            operating_system: if cfg!(target_os = "linux") {
+                "linux".into()
+            } else {
+                std::env::consts::OS.into()
+            },
+            architecture: std::env::consts::ARCH.into(),
+            libc: "glibc".into(),
+            libc_version: "unknown".into(),
+        };
+        let agents = [
+            "aider",
+            "codex",
+            "gemini",
+            "goose",
+            "mini-swe",
+            "opencode",
+            "opendesk",
+            "openhands",
+            "qwen-code",
+        ]
+        .into_iter()
+        .map(|agent_id| AgentCatalogEntry {
+            agent_id: agent_id.into(),
+            target: target.clone(),
+            package: None,
+            provenance: None,
+            capabilities: Vec::new(),
+            availability: AgentAvailability::Unavailable(
+                AgentUnavailableReason::IncompleteProvenance,
+            ),
+        })
+        .collect();
+        let mut catalog = AgentCatalog {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(generation),
+            catalog_sha256: String::new(),
+            target,
+            agents,
+            refreshed: matches!(request.action, AgentCatalogAction::Refresh),
+        };
+        catalog.catalog_sha256 = catalog
+            .computed_sha256()
+            .map_err(|_| BackendFailure::Rejected)?;
+        catalog.validate().map_err(|_| BackendFailure::Rejected)?;
+        Ok(catalog)
+    }
+
     fn provider_catalog(
         &self,
         request: &ProviderCatalogRequest,
@@ -3480,7 +3540,7 @@ mod tests {
     }
 
     #[test]
-    fn agent_catalog_is_explicitly_unavailable_until_verified_provider_is_wired() {
+    fn agent_catalog_exposes_unavailable_inventory_without_fabricating_metadata() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
         prepare_root(&state).unwrap();
@@ -3490,10 +3550,25 @@ mod tests {
             runner_instance_id: backend.runner_instance_id().to_owned(),
             known_generation: None,
         });
-        assert_eq!(
-            backend.execute(&call, deadline()),
-            Err(BackendFailure::CapabilityUnavailable)
-        );
+        let result = backend.execute(&call, deadline()).unwrap();
+        result
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::AgentCatalog(catalog) = result.result else {
+            panic!("agent catalog result");
+        };
+        assert_eq!(catalog.agents.len(), 9);
+        assert!(catalog.agents.iter().all(|entry| {
+            entry.package.is_none()
+                && entry.provenance.is_none()
+                && entry.capabilities.is_empty()
+                && matches!(
+                    entry.availability,
+                    asb_control::AgentAvailability::Unavailable(
+                        asb_control::AgentUnavailableReason::IncompleteProvenance
+                    )
+                )
+        }));
     }
 
     #[test]
