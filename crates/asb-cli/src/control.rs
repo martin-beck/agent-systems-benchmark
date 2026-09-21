@@ -5635,6 +5635,50 @@ mod tests {
             ),
             Err(BackendFailure::Rejected)
         ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                "",
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &scratch.0.join("missing-helper"),
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &"0".repeat(64),
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
     }
 
     #[test]
