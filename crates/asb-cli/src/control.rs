@@ -242,7 +242,7 @@ fn invoke_registered_auth_helper_with_registration(
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)
         .map_err(|_| BackendFailure::CapabilityUnavailable)?;
-    let backend = CredentialBackend::helper(executable.into(), &locator, &expected)
+    let backend = CredentialBackend::helper(executable.into(), locator, expected)
         .map_err(|_| BackendFailure::Rejected)?;
     let remaining = deadline
         .remaining()
