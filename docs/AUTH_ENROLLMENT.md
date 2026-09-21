@@ -17,6 +17,18 @@ generation and resets status to `untested`, so a delayed probe cannot restore a
 stale credential. Revocation is terminal for the record. No environment,
 argument, control-frame or public-evidence fallback is performed.
 
+## Runner-owned control handoff
+
+The setup wizard must not execute a helper path itself. The AR-1324 control
+operation will accept only a typed, credential-free provider profile and an
+idempotency/generation binding. The runner resolves the provider's private
+allowlisted helper registration, invokes the sealed `HelperCredentialResolver`
+with bounded output and timeout, discards the resolved secret inside the
+backend boundary, and returns only the provider identity, endpoint digest,
+locator digest and a closed success/failure/cancel outcome. Missing helper
+registration, stale generations, path substitution, ambient environment,
+unexpected stdout/stderr and raw-key-shaped output all fail closed.
+
 ## Runtime certificate chain boundary
 
 The control runtime accepts a certificate chain only when the enrollment authority
