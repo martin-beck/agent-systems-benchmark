@@ -326,7 +326,7 @@ mod tests {
         ));
         assert!(matches!(
             ReplayTransportIssuer::bind(
-                std::env::temp_dir().join("asb-transport-arbitrary.sock"),
+                PathBuf::from("/tmp/asb-transport-arbitrary.sock"),
                 "valid".into()
             ),
             Err(ReplayTransportError::InvalidEnvelope)
