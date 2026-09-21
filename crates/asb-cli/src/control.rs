@@ -5622,6 +5622,11 @@ mod tests {
             ),
             Err(BackendFailure::Rejected)
         ));
+        let valid_profile = profile.clone();
+        assert!(matches!(
+            invoke_registered_auth_helper("openai", &valid_profile, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
         let mut wrong_reference = profile;
         wrong_reference.credential.reference_sha256 = Some("b".repeat(64));
         assert!(matches!(
@@ -5678,6 +5683,19 @@ mod tests {
                 locator,
             ),
             Err(BackendFailure::Rejected)
+        ));
+        let expired = RequestDeadline::start(1).unwrap();
+        thread::sleep(Duration::from_millis(2));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &valid_profile,
+                expired,
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::NeedsReconciliation)
         ));
     }
 
