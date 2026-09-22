@@ -17,7 +17,7 @@ use asb_agents::openai::OpenAiProfile;
 use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
-    RuntimeBundleIdentity, credential_target_for_agent,
+    RuntimeBundleIdentity, credential_target_for_provider_agent,
 };
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_metrics::LinuxCollector;
@@ -2985,7 +2985,11 @@ fn spawn_verified_agent(
                 )
                 .env(
                     provider_launch::CREDENTIAL_TARGET_ENV,
-                    credential_target_for_agent(&launch.input.adapter).ok_or_else(|| {
+                    credential_target_for_provider_agent(
+                        &launch.input.provider,
+                        &launch.input.adapter,
+                    )
+                    .ok_or_else(|| {
                         CliError::validation("provider adapter credential target is unsupported")
                     })?,
                 );
