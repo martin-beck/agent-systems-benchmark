@@ -4,6 +4,9 @@
 
 use crate::ollama::{OllamaAgent, OllamaApiMode, OllamaError, VerifiedOllamaProfile};
 use crate::openai::{OpenAiAgent, OpenAiApiMode, OpenAiProfile, OpenAiProfileError};
+use crate::openrouter::{
+    OpenRouterAgent, OpenRouterApiMode, OpenRouterProfile, OpenRouterProfileError,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -41,6 +44,8 @@ pub enum SelectedAgent {
 pub enum AllAgentsProviderKind {
     /// Pinned public OpenAI profile.
     OpenAi,
+    /// Pinned public OpenRouter profile.
+    OpenRouter,
     /// Pinned, locally verified Ollama profile.
     Ollama,
 }
@@ -194,6 +199,40 @@ pub fn resolve_openai_selection(
     preflight_openai_all(profile, &selection.agents)
 }
 
+/// Preflight one public OpenRouter profile for the complete selected set atomically.
+pub fn preflight_openrouter_all(
+    profile: &OpenRouterProfile,
+    selected: &[SelectedAgent],
+) -> Result<AllAgentsProviderPlan, AllAgentsProviderError> {
+    preflight(
+        selected,
+        profile.provider_profile().settings_sha256.as_str(),
+        |agent| {
+            profile
+                .translate(openrouter_agent(agent), profile.provider_profile())
+                .map(|route| match route.api_mode() {
+                    OpenRouterApiMode::ChatCompletions => EffectiveApiMode::ChatCompletions,
+                    OpenRouterApiMode::Responses => EffectiveApiMode::Responses,
+                })
+                .map_err(|error| match error {
+                    OpenRouterProfileError::UnsupportedAgent(_) => {
+                        PreflightFailure::UnsupportedRoute
+                    }
+                    _ => PreflightFailure::ProfileMismatch,
+                })
+        },
+    )
+}
+
+/// Resolve a versioned OpenRouter selection without permitting mixed profiles.
+pub fn resolve_openrouter_selection(
+    selection: &AllAgentsProviderSelection,
+    profile: &OpenRouterProfile,
+) -> Result<AllAgentsProviderPlan, AllAgentsProviderError> {
+    validate_selection(selection, AllAgentsProviderKind::OpenRouter)?;
+    preflight_openrouter_all(profile, &selection.agents)
+}
+
 /// Preflight one already verified Ollama profile for the complete selected set atomically.
 pub fn preflight_ollama_all(
     profile: &VerifiedOllamaProfile,
@@ -319,6 +358,20 @@ const fn ollama_agent(agent: SelectedAgent) -> OllamaAgent {
     }
 }
 
+const fn openrouter_agent(agent: SelectedAgent) -> OpenRouterAgent {
+    match agent {
+        SelectedAgent::OpenCode => OpenRouterAgent::OpenCode,
+        SelectedAgent::OpenDesk => OpenRouterAgent::OpenDesk,
+        SelectedAgent::Aider => OpenRouterAgent::Aider,
+        SelectedAgent::Codex => OpenRouterAgent::Codex,
+        SelectedAgent::Gemini => OpenRouterAgent::Gemini,
+        SelectedAgent::QwenCode => OpenRouterAgent::QwenCode,
+        SelectedAgent::Goose => OpenRouterAgent::Goose,
+        SelectedAgent::MiniSwe => OpenRouterAgent::MiniSwe,
+        SelectedAgent::OpenHands => OpenRouterAgent::OpenHands,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,6 +480,44 @@ mod tests {
         let mut serialized = serde_json::to_value(&selection).unwrap();
         serialized["per_agent_overrides"] = serde_json::json!({"codex": "other"});
         assert!(serde_json::from_value::<AllAgentsProviderSelection>(serialized).is_err());
+    }
+
+    #[test]
+    fn openrouter_selection_uses_the_same_atomic_boundary() {
+        let profile = crate::openrouter::OpenRouterProfile::new("a".repeat(64)).unwrap();
+        let selection = AllAgentsProviderSelection {
+            schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+            provider: AllAgentsProviderKind::OpenRouter,
+            agents: COMPATIBLE.to_vec(),
+        };
+        let plan = resolve_openrouter_selection(&selection, &profile).unwrap();
+        assert_eq!(plan.effective().len(), COMPATIBLE.len());
+        assert!(
+            plan.effective()
+                .iter()
+                .all(|item| item.profile_sha256 == plan.profile_sha256())
+        );
+        assert_eq!(
+            plan.effective()
+                .iter()
+                .find(|item| item.agent == SelectedAgent::Codex)
+                .unwrap()
+                .api_mode,
+            EffectiveApiMode::Responses
+        );
+
+        let mut mixed = selection.clone();
+        mixed.provider = AllAgentsProviderKind::OpenAi;
+        assert_eq!(
+            resolve_openrouter_selection(&mixed, &profile),
+            Err(AllAgentsProviderError::WrongProvider)
+        );
+        let mut incompatible = selection.clone();
+        incompatible.agents.push(SelectedAgent::Gemini);
+        assert!(matches!(
+            resolve_openrouter_selection(&incompatible, &profile),
+            Err(AllAgentsProviderError::Incompatible(_))
+        ));
     }
 
     #[test]
