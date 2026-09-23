@@ -386,6 +386,10 @@ impl LiveProviderNamespaceHandoff {
     pub fn generation(&self) -> &str {
         &self.generation
     }
+    /// Absolute expiry fence for this launch capability.
+    pub fn deadline_unix_ms(&self) -> u64 {
+        self.deadline_unix_ms
+    }
     /// Namespace identity bound by the runtime.
     pub fn namespace(&self) -> &NamespaceIdentity {
         &self.namespace
@@ -682,7 +686,12 @@ mod tests {
             1_000,
         )
         .unwrap();
-        x.capability_sha256.replace_range(..1, "0");
+        let replacement = if x.capability_sha256.starts_with('0') {
+            "1"
+        } else {
+            "0"
+        };
+        x.capability_sha256.replace_range(..1, replacement);
         assert_eq!(
             x.validate_runtime_observed_namespace(2_000),
             Err(LiveNamespaceError::NamespaceMismatch)

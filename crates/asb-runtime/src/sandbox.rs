@@ -510,6 +510,31 @@ impl SandboxBackend {
         })
     }
 
+    /// Attest a live launch only after the runtime has bound its complete
+    /// namespace/relay capability. The returned token is opaque to the CLI.
+    pub fn attest_live_launch(
+        &self,
+        input: &SandboxLaunchInput,
+        lease: &ResourceLease,
+        now_unix_ms: u64,
+    ) -> Result<crate::launch_factory::RuntimeLaunchToken, SandboxError> {
+        if input.live_provider_handoff().is_none()
+            || input.spec().network_policy() != NetworkPolicy::Deny
+        {
+            return Err(SandboxError::LiveHandoff);
+        }
+        self.probe()?;
+        Ok(crate::launch_factory::RuntimeLaunchToken {
+            nonce: (std::process::id() as u128) << 64
+                | PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed) as u128,
+            binding_digest: crate::launch_factory::live_launch_binding_digest(
+                input,
+                lease,
+                now_unix_ms,
+            ),
+        })
+    }
+
     /// Spawn while retaining a matching benchmark CPU lease.
     pub fn spawn(
         &self,
