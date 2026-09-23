@@ -1447,6 +1447,20 @@ mod tests {
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
     use std::time::{Duration, Instant};
 
+    #[test]
+    fn openrouter_egress_allowance_is_explicit_and_never_silent() {
+        assert!(
+            KNOWN_MINI_SWE_EGRESS.contains(&"openrouter.ai"),
+            "openrouter.ai must remain an explicit known-egress allowance"
+        );
+        assert!(no_proxy_scope_includes("openrouter.ai", "openrouter.ai"));
+        assert!(no_proxy_scope_includes(
+            "openrouter.ai",
+            "api.openrouter.ai"
+        ));
+        assert!(!no_proxy_scope_includes("api.openai.com", "openrouter.ai"));
+    }
+
     const MAX_PROC_STAT_BYTES: u64 = 4096;
     const MAX_PID_EVIDENCE_BYTES: u64 = 32;
     const MAX_PID_LIST_EVIDENCE_BYTES: u64 = 128;

@@ -705,6 +705,20 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
     use std::time::Duration;
 
+    #[test]
+    fn openrouter_egress_allowance_is_explicit_and_never_silent() {
+        assert!(
+            KNOWN_AIDER_EGRESS.contains(&"openrouter.ai"),
+            "openrouter.ai must remain an explicit known-egress allowance"
+        );
+        assert!(no_proxy_scope_includes("openrouter.ai", "openrouter.ai"));
+        assert!(no_proxy_scope_includes(
+            "openrouter.ai",
+            "api.openrouter.ai"
+        ));
+        assert!(!no_proxy_scope_includes("api.openai.com", "openrouter.ai"));
+    }
+
     struct Scratch(PathBuf);
 
     impl Scratch {

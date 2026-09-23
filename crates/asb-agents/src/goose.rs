@@ -57,7 +57,7 @@ const MAX_CONTENT_ITEMS_PER_MESSAGE: usize = 4_096;
 const MAX_TOOL_NAME_BYTES: usize = 256;
 const O_NOFOLLOW_CLOEXEC: i32 = 0x000a_0000;
 const CLOSED_PROXY: &str = "http://127.0.0.1:9";
-const KNOWN_GOOSE_EGRESS: &[&str] = &["us.i.posthog.com"];
+const KNOWN_GOOSE_EGRESS: &[&str] = &["openrouter.ai", "us.i.posthog.com"];
 const FAILURE_CODE: i32 = -32_100;
 
 /// Content-pinned Goose artifact understood by this adapter.
@@ -1272,6 +1272,20 @@ mod tests {
                 Err(AdapterError::InvalidMaxTurns)
             ));
         }
+    }
+
+    #[test]
+    fn openrouter_egress_allowance_is_explicit_and_never_silent() {
+        assert!(
+            KNOWN_GOOSE_EGRESS.contains(&"openrouter.ai"),
+            "openrouter.ai must remain an explicit known-egress allowance"
+        );
+        assert!(no_proxy_scope_includes("openrouter.ai", "openrouter.ai"));
+        assert!(no_proxy_scope_includes(
+            "openrouter.ai",
+            "api.openrouter.ai"
+        ));
+        assert!(!no_proxy_scope_includes("api.openai.com", "openrouter.ai"));
     }
 
     #[test]

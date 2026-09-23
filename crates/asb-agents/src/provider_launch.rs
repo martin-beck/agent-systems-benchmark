@@ -300,7 +300,7 @@ impl ProviderLaunchProjection {
 
     /// Environment target owned by the selected adapter for credential injection.
     pub fn credential_target(&self) -> &'static str {
-        credential_target_for_agent(&self.agent)
+        credential_target_for_provider_agent(&self.provider, &self.agent)
             .expect("adapter projections are constructed only for known agents")
     }
 
@@ -428,6 +428,26 @@ pub fn credential_target_for_agent(agent: &str) -> Option<&'static str> {
         "opencode" | "aider" | "qwen_code" | "goose" | "mini_swe" | "openhands" => {
             Some("OPENAI_API_KEY")
         }
+        _ => None,
+    }
+}
+
+/// Resolve the OpenRouter credential target; every compatible agent resolves to
+/// `OPENROUTER_API_KEY`, including codex and opendesk which use provider-specific
+/// targets on the public OpenAI profile.
+pub fn openrouter_credential_target_for_agent(agent: &str) -> Option<&'static str> {
+    match agent {
+        "opencode" | "opendesk" | "aider" | "codex" | "qwen_code" | "goose" | "mini_swe"
+        | "openhands" => Some(crate::openrouter::OPENROUTER_API_KEY_ENV),
+        _ => None,
+    }
+}
+
+/// Resolve the adapter-owned credential target for one provider family.
+pub fn credential_target_for_provider_agent(provider: &str, agent: &str) -> Option<&'static str> {
+    match provider {
+        "openrouter" => openrouter_credential_target_for_agent(agent),
+        "openai" => credential_target_for_agent(agent),
         _ => None,
     }
 }
@@ -591,5 +611,72 @@ mod tests {
         .unwrap();
         record.validate().unwrap();
         assert_eq!(record.launch_sha256.len(), 64);
+    }
+
+    #[test]
+    fn openrouter_projection_maps_every_compatible_agent_to_openrouter_api_key() {
+        let profile = crate::openrouter::OpenRouterProfile::new("a".repeat(64)).unwrap();
+        for agent in [
+            SelectedAgent::OpenCode,
+            SelectedAgent::OpenDesk,
+            SelectedAgent::Aider,
+            SelectedAgent::Codex,
+            SelectedAgent::QwenCode,
+            SelectedAgent::Goose,
+            SelectedAgent::MiniSwe,
+            SelectedAgent::OpenHands,
+        ] {
+            let projection = ProviderLaunchProjection::openrouter(&profile, agent).unwrap();
+            assert_eq!(projection.provider(), "openrouter");
+            assert_eq!(
+                projection.credential_target(),
+                crate::openrouter::OPENROUTER_API_KEY_ENV
+            );
+            assert_eq!(
+                projection.settings_sha256(),
+                profile.provider_profile().settings_sha256
+            );
+            assert_eq!(projection.model(), crate::openrouter::OPENROUTER_MODEL);
+        }
+        assert_eq!(
+            ProviderLaunchProjection::openrouter(&profile, SelectedAgent::Gemini),
+            Err(ProviderLaunchError::UnsupportedAdapter)
+        );
+    }
+
+    #[test]
+    fn credential_target_is_provider_aware_and_closed() {
+        assert_eq!(
+            credential_target_for_provider_agent("openrouter", "codex"),
+            Some(crate::openrouter::OPENROUTER_API_KEY_ENV)
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("openrouter", "opendesk"),
+            Some(crate::openrouter::OPENROUTER_API_KEY_ENV)
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("openrouter", "aider"),
+            Some(crate::openrouter::OPENROUTER_API_KEY_ENV)
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("openrouter", "gemini"),
+            None
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("openrouter", "unknown"),
+            None
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("openai", "codex"),
+            Some("CODEX_API_KEY")
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("openai", "aider"),
+            Some("OPENAI_API_KEY")
+        );
+        assert_eq!(
+            credential_target_for_provider_agent("ollama", "codex"),
+            None
+        );
     }
 }
