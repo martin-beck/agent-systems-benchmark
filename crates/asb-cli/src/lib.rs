@@ -254,8 +254,9 @@ fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
             asb_control::SUPPORTED_CONTROL_VERSIONS,
         )
         .map_err(|_| CliError::operation("auth control service connection failed"))?;
+        let timeout_ms = client.negotiated().limits.max_timeout_ms;
         let response = client
-            .call(request.call, 300_000)
+            .call(request.call, timeout_ms)
             .map_err(|_| CliError::operation("auth control service request failed"))?;
         return write_json(stdout, &response).map(|()| 0);
     }
