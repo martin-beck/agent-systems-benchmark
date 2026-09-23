@@ -2549,22 +2549,6 @@ fn execute_with_config(
     )
 }
 
-fn execute_with_config_at(
-    path: &Path,
-    sweep: bool,
-    output: &mut dyn Write,
-    progress: &mut dyn Write,
-    store: &ConfigStore,
-) -> Result<u8, CliError> {
-    execute_inner_from_source(
-        path,
-        SelectionSource::Config(store),
-        sweep,
-        output,
-        progress,
-    )
-}
-
 fn execute_inner(
     path: &Path,
     selection_path: Option<&Path>,
@@ -4663,8 +4647,14 @@ mod tests {
         fs::set_permissions(store.path(), fs::Permissions::from_mode(0o600)).unwrap();
         assert!(plan_with_config_at(&plan_path, &mut Vec::new(), &store).is_err());
         assert!(
-            execute_with_config_at(&plan_path, false, &mut Vec::new(), &mut Vec::new(), &store,)
-                .is_err()
+            execute_inner_from_source(
+                &plan_path,
+                SelectionSource::Config(&store),
+                false,
+                &mut Vec::new(),
+                &mut Vec::new(),
+            )
+            .is_err()
         );
     }
 
