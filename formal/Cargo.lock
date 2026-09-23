@@ -99,6 +99,8 @@ dependencies = [
  "asb-control",
  "asb-core",
  "rustix",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 
