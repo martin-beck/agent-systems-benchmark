@@ -4,6 +4,8 @@
 
 /// Runtime-issued authority for strict-replay launch inputs.
 pub mod launch_factory;
+/// Runtime-issued namespace-bound capability for explicit live provider launches.
+pub mod live_namespace;
 /// A per-launch, authenticated loopback-to-Unix relay for strict replay.
 pub mod loopback_sidecar;
 pub mod provider_capture;
