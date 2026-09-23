@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
+use crate::credential_injection::{CredentialInjection, CredentialInjectionError};
 use crate::live_namespace::{LiveLaunchGate, LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::relay::{RelayError, ReplayRelayHandoff};
+use crate::sandbox_credential::{
+    SandboxCredentialBinding, SandboxCredentialChannel, SandboxCredentialError,
+};
 use crate::supervisor::SupervisorPlan;
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
 use std::collections::BTreeMap;
@@ -434,6 +438,11 @@ pub struct SandboxBackend {
     live_launch_gate: Option<ToolPin>,
 }
 
+struct LaunchCapabilities {
+    live_provider: Option<(LiveProviderNamespaceHandoff, NamespaceIdentity)>,
+    credential_channel: Option<SandboxCredentialChannel>,
+}
+
 impl SandboxBackend {
     /// Configure Bubblewrap and systemd-run pins.
     pub fn new(
@@ -543,7 +552,17 @@ impl SandboxBackend {
         limits: ProcessLimits,
     ) -> Result<SandboxProcess, SandboxError> {
         let (unit, nonce) = new_scope_identity()?;
-        self.spawn_with_identity(spec, lease, limits, unit, nonce, None)
+        self.spawn_with_identity(
+            spec,
+            lease,
+            limits,
+            unit,
+            nonce,
+            LaunchCapabilities {
+                live_provider: None,
+                credential_channel: None,
+            },
+        )
     }
 
     /// Spawn a validated adapter launch under the denied-network sandbox.
@@ -562,7 +581,45 @@ impl SandboxBackend {
             input.limits,
             unit,
             nonce,
-            input.live_provider,
+            LaunchCapabilities {
+                live_provider: input.live_provider,
+                credential_channel: None,
+            },
+        )
+    }
+
+    /// Spawn one denied-network launch with a runtime-owned credential channel.
+    /// The binding is created by the runtime selection service; callers cannot
+    /// manufacture a provider target/reference authority independently.
+    pub fn spawn_launch_with_credential(
+        &self,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        binding: &SandboxCredentialBinding,
+        injection: Box<dyn CredentialInjection>,
+    ) -> Result<SandboxProcess, SandboxError> {
+        if input.spec.network_policy() != NetworkPolicy::Deny {
+            return Err(SandboxError::NetworkPolicy);
+        }
+        let binding = binding
+            .revalidated()
+            .map_err(SandboxError::CredentialChannel)?;
+        let mut channel =
+            SandboxCredentialChannel::new(&binding).map_err(SandboxError::CredentialChannel)?;
+        injection
+            .inject(&mut channel)
+            .map_err(SandboxError::CredentialInjection)?;
+        let (unit, nonce) = new_scope_identity()?;
+        self.spawn_with_identity(
+            input.spec,
+            lease,
+            input.limits,
+            unit,
+            nonce,
+            LaunchCapabilities {
+                live_provider: input.live_provider,
+                credential_channel: Some(channel),
+            },
         )
     }
 
@@ -573,8 +630,12 @@ impl SandboxBackend {
         limits: ProcessLimits,
         unit: String,
         nonce: String,
-        live_provider: Option<(LiveProviderNamespaceHandoff, NamespaceIdentity)>,
+        capabilities: LaunchCapabilities,
     ) -> Result<SandboxProcess, SandboxError> {
+        let LaunchCapabilities {
+            live_provider,
+            credential_channel,
+        } = capabilities;
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
         }
@@ -700,6 +761,11 @@ impl SandboxBackend {
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
+        if let Some(channel) = credential_channel.as_ref() {
+            channel
+                .append_bwrap_args(&mut command)
+                .map_err(SandboxError::CredentialChannel)?;
+        }
         if live_provider.is_none() {
             if let Some(plan) = &spec.supervisor {
                 let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
@@ -715,6 +781,7 @@ impl SandboxBackend {
             }
         }
         let mut process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
+        drop(credential_channel);
         // Bubblewrap has now created the child network namespace.  The
         // identity supplied by a caller is only launch metadata; it is not an
         // attestation.  Re-observe /proc/<pid>/ns/net at this boundary and
@@ -1263,6 +1330,10 @@ pub enum SandboxError {
     LeaseMismatch,
     /// A runtime-issued live provider handoff failed validation.
     LiveHandoff,
+    /// A sealed child credential channel failed validation or setup.
+    CredentialChannel(SandboxCredentialError),
+    /// An adapter rejected the runtime-owned credential channel.
+    CredentialInjection(CredentialInjectionError),
 }
 
 impl fmt::Display for ConfigError {
@@ -1287,8 +1358,10 @@ impl std::error::Error for SandboxError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::credential_injection::{CredentialInjection, CredentialInjectionError};
     use crate::live_namespace::LiveProviderNamespaceHandoff;
     use crate::provider_egress::{ProviderEgressHandoff, ProviderEgressPolicy};
+    use crate::sandbox_credential::SandboxCredentialBinding;
     use std::os::unix::net::UnixListener;
 
     static FAKE_TOOL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -1787,6 +1860,146 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    struct FailingInjection;
+
+    impl CredentialInjection for FailingInjection {
+        fn inject(
+            self: Box<Self>,
+            _channel: &mut crate::sandbox_credential::SandboxCredentialChannel,
+        ) -> Result<(), CredentialInjectionError> {
+            Err(CredentialInjectionError::InjectionFailed)
+        }
+    }
+
+    struct SuccessfulInjection;
+
+    impl CredentialInjection for SuccessfulInjection {
+        fn inject(
+            self: Box<Self>,
+            channel: &mut crate::sandbox_credential::SandboxCredentialChannel,
+        ) -> Result<(), CredentialInjectionError> {
+            channel
+                .write_and_seal(b"provider-secret".to_vec())
+                .map_err(CredentialInjectionError::Channel)
+        }
+    }
+
+    #[test]
+    fn credential_launch_rejects_injection_before_spawn() {
+        let root = scratch("credential-launch");
+        fs::create_dir_all(root.join("leases")).unwrap();
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin);
+        let binding = SandboxCredentialBinding::new("a".repeat(64), "TARGET").unwrap();
+        let deny_spec = SandboxSpec::new(
+            root.as_ref(),
+            PathBuf::new(),
+            "/bin/true".into(),
+            vec![],
+            BTreeMap::new(),
+            test_resources(),
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let deny_lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let deny_input = SandboxLaunchInput {
+            spec: deny_spec,
+            limits: probe_limits(),
+            replay_handoff: None,
+            live_provider: None,
+        };
+        assert!(matches!(
+            backend.spawn_launch_with_credential(
+                deny_input,
+                deny_lease,
+                &binding,
+                Box::new(FailingInjection),
+            ),
+            Err(SandboxError::CredentialInjection(
+                CredentialInjectionError::InjectionFailed
+            ))
+        ));
+    }
+
+    #[test]
+    fn credential_launch_seals_before_tool_probe() {
+        let root = scratch("credential-launch-success");
+        fs::create_dir_all(root.join("leases")).unwrap();
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin);
+        let spec = SandboxSpec::new(
+            root.as_ref(),
+            PathBuf::new(),
+            "/bin/true".into(),
+            vec![],
+            BTreeMap::new(),
+            test_resources(),
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let input = SandboxLaunchInput {
+            spec,
+            limits: probe_limits(),
+            replay_handoff: None,
+            live_provider: None,
+        };
+        let binding = SandboxCredentialBinding::new("b".repeat(64), "TARGET").unwrap();
+        assert!(matches!(
+            backend.spawn_launch_with_credential(
+                input,
+                lease,
+                &binding,
+                Box::new(SuccessfulInjection),
+            ),
+            Err(SandboxError::ToolVersion { .. })
+        ));
+    }
+
+    #[test]
+    fn launch_metadata_accessors_and_backend_probe_are_bounded() {
+        let root = workspace();
+        let spec = SandboxSpec::new(
+            root.as_ref(),
+            PathBuf::new(),
+            "/bin/true".into(),
+            vec!["--version".into()],
+            BTreeMap::from([("VISIBLE".into(), "value".into())]),
+            test_resources(),
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        assert_eq!(spec.network_policy(), NetworkPolicy::Deny);
+        assert_eq!(spec.program(), "/bin/true");
+        assert_eq!(spec.arguments(), &["--version"]);
+        assert_eq!(spec.environment()["VISIBLE"], "value");
+        assert!(spec.supervisor().is_none());
+        let input = SandboxLaunchInput::new(spec, probe_limits()).unwrap();
+        assert_eq!(input.spec().program(), "/bin/true");
+        assert_eq!(input.limits().timeout(), probe_limits().timeout());
+        assert!(input.replay_handoff().is_none());
+        assert!(input.live_provider_handoff().is_none());
+
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin.clone())
+            .with_live_launch_gate(pin);
+        assert!(backend.live_launch_gate.is_some());
+        assert!(matches!(
+            backend.probe(),
+            Err(SandboxError::ToolVersion { .. })
+        ));
+    }
+
     #[test]
     fn leases_exclude_benchmark_and_ci_overlap() {
         let fixture = ScratchPath::create("lease-overlap");
@@ -2202,7 +2415,10 @@ mod tests {
                 probe_limits(),
                 unit.clone(),
                 "different-owner-nonce".into(),
-                None,
+                LaunchCapabilities {
+                    live_provider: None,
+                    credential_channel: None,
+                },
             ),
             Err(SandboxError::ScopeOwnership { .. })
         ));
