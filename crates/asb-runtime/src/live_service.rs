@@ -2,8 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned, fail-closed inputs for live-provider acquisition.
 
+use crate::launch_factory::{
+    LaunchAuthorityError, LiveLaunchFactory, LiveProviderAttempt, RuntimeLaunchToken,
+};
+use crate::live_namespace::NamespaceIdentity;
+use crate::live_relay::LiveProviderRelay;
 use crate::provider_egress::{ProviderEgressAllowlist, ProviderEgressTarget};
 use crate::sandbox::{CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease};
+use crate::sandbox::{SandboxBackend, SandboxLaunchInput};
 use std::path::{Path, PathBuf};
 
 /// Validated references accepted by the production live acquisition service.
@@ -29,6 +35,24 @@ pub struct LiveProviderRuntimeSelection {
     route_sha256: String,
     credential_ref_sha256: String,
     network_policy: NetworkPolicy,
+}
+
+/// Runtime-attested values handed to the single composition boundary.
+pub struct LiveProviderRuntimeAuthority {
+    /// Runtime-issued launch token.
+    pub token: RuntimeLaunchToken,
+    /// Denied-network launch input bound to the attempt.
+    pub input: SandboxLaunchInput,
+    /// Exclusive benchmark lease.
+    pub lease: ResourceLease,
+    /// Pinned sandbox backend.
+    pub backend: SandboxBackend,
+    /// Namespace identity observed by the runtime.
+    pub namespace: NamespaceIdentity,
+    /// Monotonic wall-clock fence for handoff validation.
+    pub now_unix_ms: u64,
+    /// Runtime-bound authenticated relay.
+    pub relay: LiveProviderRelay,
 }
 
 /// Fail-closed validation failures before authority acquisition.
@@ -87,6 +111,26 @@ impl LiveProviderRuntimeConfig {
     /// Reserve the benchmark resources for exactly one runtime attempt.
     pub fn acquire_lease(&self) -> Result<ResourceLease, LeaseError> {
         ResourceLease::acquire(&self.lease_root, LeaseClass::Benchmark, self.cpus.clone())
+    }
+
+    /// Compose one opaque attempt from authority objects produced by the
+    /// runtime's attested backend/namespace/relay boundary.
+    ///
+    /// This is intentionally the only composition point: CLI code cannot
+    /// assemble or replace any of these values.
+    pub fn compose_attempt(
+        &self,
+        authority: LiveProviderRuntimeAuthority,
+    ) -> Result<LiveProviderAttempt, LaunchAuthorityError> {
+        LiveLaunchFactory::acquire(
+            authority.token,
+            authority.input,
+            authority.lease,
+            authority.backend,
+            authority.namespace,
+            authority.now_unix_ms,
+            authority.relay,
+        )
     }
 
     /// Return the runtime-owned lease root.
