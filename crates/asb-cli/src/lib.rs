@@ -58,7 +58,7 @@ use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const OUTPUT_SCHEMA_VERSION: u16 = 1;
 const LEGACY_PLAN_SCHEMA_VERSION: u16 = 1;
@@ -3298,18 +3298,24 @@ fn spawn_verified_agent(
         let mut attempt = live_attempt.ok_or_else(|| {
             CliError::validation("live provider requires a runtime-issued attempt")
         })?;
-        return attempt
+        let process = attempt
             .spawn()
-            .map(|process| {
-                (
-                    AgentProcess::Live {
-                        process,
-                        _attempt: attempt,
-                    },
-                    0,
-                )
-            })
-            .map_err(|_| CliError::operation("runtime live-provider spawn failed"));
+            .map_err(|_| CliError::operation("runtime live-provider spawn failed"))?;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| CliError::operation("runtime clock is unavailable"))?
+            .as_millis() as u64;
+        let relay_worker = attempt
+            .start_relay(now)
+            .map_err(|_| CliError::operation("runtime live relay cannot start"))?;
+        return Ok((
+            AgentProcess::Live {
+                process,
+                _attempt: attempt,
+                relay_worker: Some(relay_worker),
+            },
+            0,
+        ));
     }
     if let Some(launch) = launch {
         launch
@@ -3385,6 +3391,8 @@ enum AgentProcess {
     Live {
         process: SandboxProcess,
         _attempt: LiveProviderAttempt,
+        relay_worker:
+            Option<std::thread::JoinHandle<Result<(), asb_runtime::live_relay::LiveRelayError>>>,
     },
 }
 
@@ -3410,9 +3418,20 @@ impl AgentProcess {
             Self::Direct(process) => process
                 .cancel()
                 .map_err(|_| CliError::operation("agent process cannot be cancelled")),
-            Self::Live { process, .. } => process
-                .cancel()
-                .map_err(|_| CliError::operation("agent process cannot be cancelled")),
+            Self::Live {
+                process,
+                _attempt,
+                relay_worker,
+            } => {
+                _attempt.revoke();
+                process
+                    .cancel()
+                    .map_err(|_| CliError::operation("agent process cannot be cancelled"))?;
+                if let Some(worker) = relay_worker.take() {
+                    let _ = worker.join();
+                }
+                Ok(())
+            }
         }
     }
     fn wait(&mut self) -> Result<asb_runtime::ProcessOutput, CliError> {
@@ -3421,9 +3440,20 @@ impl AgentProcess {
                 .wait()
                 .cloned()
                 .map_err(|_| CliError::operation("agent process did not yield terminal evidence")),
-            Self::Live { process, .. } => process
-                .wait()
-                .map_err(|_| CliError::operation("agent process did not yield terminal evidence")),
+            Self::Live {
+                process,
+                _attempt,
+                relay_worker,
+            } => {
+                let result = process.wait().map_err(|_| {
+                    CliError::operation("agent process did not yield terminal evidence")
+                });
+                _attempt.revoke();
+                if let Some(worker) = relay_worker.take() {
+                    let _ = worker.join();
+                }
+                result
+            }
         }
     }
 }

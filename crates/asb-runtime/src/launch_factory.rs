@@ -289,6 +289,16 @@ impl LiveLaunchContext {
 }
 
 impl LiveProviderAttempt {
+    /// Start the bounded authenticated relay worker for this attempt.
+    pub fn start_relay(
+        &mut self,
+        now_unix_ms: u64,
+    ) -> Result<std::thread::JoinHandle<Result<(), crate::live_relay::LiveRelayError>>, SandboxError>
+    {
+        let mut relay = self.relay.take().ok_or(SandboxError::LiveHandoff)?;
+        Ok(std::thread::spawn(move || relay.serve_once(now_unix_ms)))
+    }
+
     /// Consume the runtime-issued context exactly once for spawning.
     pub fn spawn(&mut self) -> Result<crate::sandbox::SandboxProcess, SandboxError> {
         self.context
