@@ -9,9 +9,81 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
+use std::net::{IpAddr, SocketAddr};
 
 const MAX_ENDPOINT_BYTES: usize = 512;
 const MAX_HOST_BYTES: usize = 128;
+
+/// A concrete provider destination; DNS names are never accepted by the
+/// network-capable backend.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ProviderEgressTarget(SocketAddr);
+
+impl ProviderEgressTarget {
+    /// Validate a public, concrete TCP destination.
+    pub fn new(address: SocketAddr) -> Result<Self, ProviderEgressError> {
+        if address.port() == 0 || !is_public_address(address.ip()) {
+            return Err(ProviderEgressError::InvalidTarget);
+        }
+        Ok(Self(address))
+    }
+    /// Exact destination address.
+    pub fn address(self) -> SocketAddr {
+        self.0
+    }
+}
+
+/// Bounded immutable provider destination allowlist.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProviderEgressAllowlist {
+    targets: Vec<ProviderEgressTarget>,
+}
+
+impl ProviderEgressAllowlist {
+    /// Maximum destinations admitted to one relay policy.
+    pub const MAX_TARGETS: usize = 32;
+    /// Construct a sorted, duplicate-free allowlist.
+    pub fn new(mut targets: Vec<ProviderEgressTarget>) -> Result<Self, ProviderEgressError> {
+        targets.sort_unstable();
+        if targets.is_empty()
+            || targets.len() > Self::MAX_TARGETS
+            || targets.windows(2).any(|pair| pair[0] == pair[1])
+        {
+            return Err(ProviderEgressError::InvalidAllowlist);
+        }
+        Ok(Self { targets })
+    }
+    /// Exact target membership; no DNS, subnet, or wildcard matching.
+    pub fn permits(&self, address: SocketAddr) -> bool {
+        self.targets
+            .binary_search_by_key(&address, |target| target.0)
+            .is_ok()
+    }
+    /// Validated concrete targets in canonical order.
+    pub fn targets(&self) -> &[ProviderEgressTarget] {
+        &self.targets
+    }
+}
+
+fn is_public_address(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(value) => {
+            !value.is_unspecified()
+                && !value.is_loopback()
+                && !value.is_private()
+                && !value.is_link_local()
+                && !value.is_multicast()
+                && !value.is_broadcast()
+        }
+        IpAddr::V6(value) => {
+            !value.is_unspecified()
+                && !value.is_loopback()
+                && !value.is_unique_local()
+                && !value.is_unicast_link_local()
+                && !value.is_multicast()
+        }
+    }
+}
 
 /// Exact endpoint identity allowed for one live provider launch.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -182,6 +254,10 @@ pub enum ProviderEgressError {
     UnsupportedScheme,
     /// The backend has not issued an authenticated handoff.
     MissingHandoff,
+    /// Concrete destination or allowlist was invalid.
+    InvalidTarget,
+    /// Destination allowlist was empty, oversized, or duplicated.
+    InvalidAllowlist,
 }
 
 impl fmt::Display for ProviderEgressError {
@@ -190,6 +266,8 @@ impl fmt::Display for ProviderEgressError {
             Self::InvalidIdentity => "provider egress identity is invalid",
             Self::UnsupportedScheme => "provider egress requires HTTPS",
             Self::MissingHandoff => "provider egress handoff is missing",
+            Self::InvalidTarget => "provider egress target is invalid",
+            Self::InvalidAllowlist => "provider egress allowlist is invalid",
         })
     }
 }
@@ -248,5 +326,22 @@ mod tests {
             ProviderEgressAuthorization::authorize(&policy, &handoff, 101, "g-1", "route-1")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn concrete_allowlist_is_public_exact_and_bounded() {
+        let first = ProviderEgressTarget::new("198.51.100.10:443".parse().unwrap()).unwrap();
+        let second = ProviderEgressTarget::new("198.51.100.11:443".parse().unwrap()).unwrap();
+        let policy = ProviderEgressAllowlist::new(vec![second, first]).unwrap();
+        assert_eq!(policy.targets(), &[first, second]);
+        assert!(policy.permits(first.address()));
+        assert!(!policy.permits("198.51.100.10:8443".parse().unwrap()));
+        assert!(ProviderEgressAllowlist::new(vec![first, first]).is_err());
+        for address in ["127.0.0.1:443", "10.0.0.1:443", "[::1]:443"] {
+            assert_eq!(
+                ProviderEgressTarget::new(address.parse().unwrap()),
+                Err(ProviderEgressError::InvalidTarget)
+            );
+        }
     }
 }
