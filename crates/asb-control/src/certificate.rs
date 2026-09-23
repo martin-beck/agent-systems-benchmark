@@ -119,6 +119,41 @@ pub struct RuntimeAuthorityEnrollmentV1 {
     pub expires_at_unix_ms: u64,
 }
 
+/// Durable public certificate-chain enrollment materialized by the
+/// control/runtime authority. Certificate and private-key bytes never cross
+/// this boundary; identities are validated metadata only.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthenticatedChainEnrollmentV1 {
+    /// Record schema version.
+    pub schema_version: u16,
+    /// Ordered leaf-to-root public certificate identities.
+    pub chain: Vec<CertificateIdentityV1>,
+    /// Digest binding the enrolled subject to the authenticated transport.
+    pub pairing_fingerprint_sha256: String,
+    /// Monotonic enrollment generation.
+    pub generation: u64,
+}
+
+impl AuthenticatedChainEnrollmentV1 {
+    /// Validate the durable enrollment against the runtime-owned authority.
+    pub fn issue_chain(
+        &self,
+        authority: &CertificateAuthorityV1,
+        now: u64,
+    ) -> Result<IssuedCertificateChainV1, CertificateError> {
+        if self.schema_version != 1
+            || self.generation != authority.generation
+            || self.chain.is_empty()
+            || self.chain.len() > MAX_CHAIN_LENGTH
+            || !is_digest(&self.pairing_fingerprint_sha256)
+        {
+            return Err(CertificateError::InvalidEnrollment);
+        }
+        authority.validate_metadata(&self.chain, &self.pairing_fingerprint_sha256, now)
+    }
+}
+
 impl RuntimeAuthorityEnrollmentV1 {
     /// Validate this durable record against an authenticated chain and issue
     /// the bounded receipt consumed by the runtime bridge.
@@ -477,6 +512,9 @@ pub enum CertificateError {
     /// Runtime receipt fields are malformed or exceed their validity bound.
     #[error("runtime enrollment receipt is invalid")]
     InvalidReceipt,
+    /// Durable chain enrollment fields are malformed or untrusted.
+    #[error("authenticated chain enrollment is invalid")]
+    InvalidEnrollment,
 }
 
 fn is_digest(value: &str) -> bool {
@@ -942,5 +980,44 @@ mod tests {
             "secret": "must-not-cross-boundary"
         });
         assert!(serde_json::from_value::<RuntimeAuthorityEnrollmentV1>(value).is_err());
+    }
+
+    #[test]
+    fn authenticated_chain_enrollment_binds_generation_and_pairing() {
+        let authority = CertificateAuthorityV1::new("a".repeat(64), 7).unwrap();
+        let chain = vec![identity(&"c".repeat(64), &"a".repeat(64), &"d".repeat(64))];
+        let enrollment = AuthenticatedChainEnrollmentV1 {
+            schema_version: 1,
+            chain: chain.clone(),
+            pairing_fingerprint_sha256: "c".repeat(64),
+            generation: 7,
+        };
+        let issued = enrollment.issue_chain(&authority, 1_000).unwrap();
+        assert_eq!(issued.identity(), &chain[0]);
+
+        let mut wrong_generation = enrollment.clone();
+        wrong_generation.generation = 8;
+        assert_eq!(
+            wrong_generation.issue_chain(&authority, 1_000),
+            Err(CertificateError::InvalidEnrollment)
+        );
+        let mut wrong_pairing = enrollment;
+        wrong_pairing.pairing_fingerprint_sha256 = "e".repeat(64);
+        assert_eq!(
+            wrong_pairing.issue_chain(&authority, 1_000),
+            Err(CertificateError::PairingMismatch)
+        );
+    }
+
+    #[test]
+    fn authenticated_chain_enrollment_rejects_unknown_fields() {
+        let value = serde_json::json!({
+            "schema_version": 1,
+            "chain": [],
+            "pairing_fingerprint_sha256": "a".repeat(64),
+            "generation": 1,
+            "private_key": "must-not-cross-boundary"
+        });
+        assert!(serde_json::from_value::<AuthenticatedChainEnrollmentV1>(value).is_err());
     }
 }
