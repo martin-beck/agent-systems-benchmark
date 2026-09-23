@@ -13,7 +13,6 @@ use asb_agents::all_agents_provider::{
     AllAgentsProviderSelection, EffectiveApiMode, SelectedAgent, resolve_openai_selection,
     resolve_openrouter_selection,
 };
-use asb_agents::credential::EnvironmentCredentialResolver;
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::provider_launch::{
@@ -3235,6 +3234,11 @@ fn spawn_verified_agent(
     launch: Option<&ProviderLaunchRecord>,
     live_provider: bool,
 ) -> Result<(RunningProcess, u8), CliError> {
+    if live_provider {
+        return Err(CliError::validation(
+            "live provider runtime boundary is unavailable",
+        ));
+    }
     if let Some(launch) = launch {
         launch
             .validate()
@@ -3292,38 +3296,6 @@ fn spawn_verified_agent(
                     &launch.input.credential.reference_sha256,
                 )
                 .env(provider_launch::CREDENTIAL_TARGET_ENV, credential_target);
-            if live_provider {
-                let resolver =
-                    EnvironmentCredentialResolver::new(credential_target).map_err(|_| {
-                        CliError::validation("live provider credential target is invalid")
-                    })?;
-                let credential = match launch.input.provider.as_str() {
-                    "openrouter" => {
-                        let profile = OpenRouterProfile::new(
-                            launch.input.credential.reference_sha256.clone(),
-                        )
-                        .map_err(|_| {
-                            CliError::validation("live provider credential identity is invalid")
-                        })?;
-                        resolver.resolve_environment(profile.provider_profile())
-                    }
-                    "openai" => {
-                        let profile =
-                            OpenAiProfile::new(launch.input.credential.reference_sha256.clone())
-                                .map_err(|_| {
-                                    CliError::validation(
-                                        "live provider credential identity is invalid",
-                                    )
-                                })?;
-                        resolver.resolve_environment(profile.provider_profile())
-                    }
-                    _ => return Err(CliError::validation("live provider is unsupported")),
-                }
-                .map_err(|_| CliError::validation("live provider credential is unavailable"))?;
-                credential.with_value(|value| {
-                    command.env(credential_target, value);
-                });
-            }
         }
         match RunningProcess::spawn(command, limits) {
             Ok(process) => return Ok((process, retry)),
