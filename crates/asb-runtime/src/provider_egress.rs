@@ -9,12 +9,13 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
-use std::io::{Read, Write};
-use std::net::{IpAddr, SocketAddr};
+use std::io::{self, Read, Write};
+use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 
 const MAX_ENDPOINT_BYTES: usize = 512;
 const MAX_HOST_BYTES: usize = 128;
+const MAX_FORWARD_BYTES: usize = 16 * 1024 * 1024;
 
 /// A concrete provider destination; DNS names are never accepted by the
 /// network-capable backend.
@@ -32,6 +33,11 @@ impl ProviderEgressTarget {
     /// Exact destination address.
     pub fn address(self) -> SocketAddr {
         self.0
+    }
+
+    #[cfg(test)]
+    fn test_only(address: SocketAddr) -> Self {
+        Self(address)
     }
 }
 
@@ -247,85 +253,105 @@ impl ProviderEgressAuthorization {
     }
 }
 
-/// Bounded runtime-owned provider relay primitive.
+/// Runtime-owned connector for one authorized provider destination.
+///
+/// This is intentionally a transport primitive, not a sandbox policy. The
+/// caller must already have an isolated child and a separate authenticated
+/// loopback handoff. The relay connects to the exact allowlisted socket
+/// address; it never performs DNS, follows redirects, or accepts a URL from
+/// the child.
+#[derive(Clone, Debug)]
 pub struct ProviderEgressRelay {
-    authorization: ProviderEgressAuthorization,
+    endpoint_sha256: String,
     allowlist: ProviderEgressAllowlist,
-    connect_timeout: Duration,
-    max_request_bytes: usize,
-    max_response_bytes: usize,
+    io_timeout: Duration,
+    max_forward_bytes: usize,
 }
 
 impl ProviderEgressRelay {
-    /// Construct a relay only from an authenticated launch and concrete targets.
+    /// Build a bounded relay bound to one validated endpoint policy.
     pub fn new(
-        authorization: ProviderEgressAuthorization,
+        policy: &ProviderEgressPolicy,
         allowlist: ProviderEgressAllowlist,
-        connect_timeout: Duration,
-        max_request_bytes: usize,
-        max_response_bytes: usize,
+        io_timeout: Duration,
+        max_forward_bytes: usize,
     ) -> Result<Self, ProviderEgressError> {
-        if connect_timeout.is_zero()
-            || connect_timeout > Duration::from_secs(30)
-            || max_request_bytes == 0
-            || max_request_bytes > 16 * 1024 * 1024
-            || max_response_bytes == 0
-            || max_response_bytes > 16 * 1024 * 1024
-        {
-            return Err(ProviderEgressError::InvalidRelayBounds);
+        if io_timeout.is_zero() || max_forward_bytes == 0 || max_forward_bytes > MAX_FORWARD_BYTES {
+            return Err(ProviderEgressError::InvalidBounds);
         }
         Ok(Self {
-            authorization,
+            endpoint_sha256: policy.endpoint_sha256.clone(),
             allowlist,
-            connect_timeout,
-            max_request_bytes,
-            max_response_bytes,
+            io_timeout,
+            max_forward_bytes,
         })
     }
 
-    /// Perform one bounded byte relay to the exact allowlisted target.
-    /// TLS framing belongs to the caller; this primitive never follows
-    /// redirects or resolves names and never exposes credentials in errors.
-    pub fn round_trip(
+    /// Connect to one exact allowlisted address after validating the launch
+    /// authorization and absolute deadline. The returned stream is bounded by
+    /// the configured socket timeout; callers must use `forward_bounded` for
+    /// byte accounting.
+    pub fn connect(
         &self,
-        target: SocketAddr,
-        request: &[u8],
+        authorization: &ProviderEgressAuthorization,
+        target: ProviderEgressTarget,
         deadline: Instant,
-    ) -> Result<Vec<u8>, ProviderEgressError> {
-        if !self.allowlist.permits(target) || request.len() > self.max_request_bytes {
-            return Err(ProviderEgressError::TargetDenied);
+    ) -> Result<TcpStream, ProviderEgressError> {
+        if authorization.endpoint_sha256 != self.endpoint_sha256
+            || !self.allowlist.permits(target.address())
+        {
+            return Err(ProviderEgressError::UnauthorizedTarget);
         }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return Err(ProviderEgressError::DeadlineExceeded);
-        }
-        let timeout = remaining.min(self.connect_timeout);
-        let mut stream = std::net::TcpStream::connect_timeout(&target, timeout)
-            .map_err(|_| ProviderEgressError::TransportDenied)?;
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .ok_or(ProviderEgressError::DeadlineExceeded)?;
+        let timeout = self.io_timeout.min(remaining);
+        let stream = TcpStream::connect_timeout(&target.address(), timeout)
+            .map_err(ProviderEgressError::Connect)?;
         stream
             .set_read_timeout(Some(timeout))
-            .map_err(|_| ProviderEgressError::TransportDenied)?;
+            .map_err(ProviderEgressError::Connect)?;
         stream
             .set_write_timeout(Some(timeout))
-            .map_err(|_| ProviderEgressError::TransportDenied)?;
-        stream
-            .write_all(request)
-            .map_err(|_| ProviderEgressError::TransportDenied)?;
-        let mut response = Vec::new();
-        stream
-            .take((self.max_response_bytes + 1) as u64)
-            .read_to_end(&mut response)
-            .map_err(|_| ProviderEgressError::TransportDenied)?;
-        if response.len() > self.max_response_bytes {
-            return Err(ProviderEgressError::ResponseTooLarge);
+            .map_err(ProviderEgressError::Connect)?;
+        Ok(stream)
+    }
+
+    /// Copy one bounded half of a relay stream. A full-duplex relay must call
+    /// this independently for each direction and account for both results.
+    pub fn forward_bounded<R: Read, W: Write>(
+        &self,
+        reader: &mut R,
+        writer: &mut W,
+        deadline: Instant,
+    ) -> Result<usize, ProviderEgressError> {
+        let mut buffer = [0_u8; 16 * 1024];
+        let mut total = 0;
+        loop {
+            if Instant::now() >= deadline {
+                return Err(ProviderEgressError::DeadlineExceeded);
+            }
+            let remaining = self.max_forward_bytes - total;
+            if remaining == 0 {
+                return Err(ProviderEgressError::ByteLimitExceeded);
+            }
+            let read_size = buffer.len().min(remaining);
+            let count = reader
+                .read(&mut buffer[..read_size])
+                .map_err(ProviderEgressError::Io)?;
+            if count == 0 {
+                return Ok(total);
+            }
+            writer
+                .write_all(&buffer[..count])
+                .map_err(ProviderEgressError::Io)?;
+            total += count;
         }
-        let _ = &self.authorization;
-        Ok(response)
     }
 }
 
 /// Why a live provider egress request was rejected.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum ProviderEgressError {
     /// Endpoint identity or host was malformed.
     InvalidIdentity,
@@ -337,16 +363,18 @@ pub enum ProviderEgressError {
     InvalidTarget,
     /// Destination allowlist was empty, oversized, or duplicated.
     InvalidAllowlist,
-    /// Relay bounds were zero or exceeded hard limits.
-    InvalidRelayBounds,
-    /// Target was not in the authenticated allowlist or request was oversized.
-    TargetDenied,
-    /// Relay deadline elapsed before transport completion.
+    /// Relay timeout or byte bound was zero or exceeded.
+    InvalidBounds,
+    /// Authorization or exact destination did not match the relay policy.
+    UnauthorizedTarget,
+    /// Relay deadline elapsed before the operation completed.
     DeadlineExceeded,
-    /// Underlying transport was unavailable or timed out.
-    TransportDenied,
-    /// Response exceeded the authenticated byte budget.
-    ResponseTooLarge,
+    /// Provider TCP connection failed.
+    Connect(io::Error),
+    /// Relay I/O failed.
+    Io(io::Error),
+    /// Forwarded bytes exceeded the per-direction relay budget.
+    ByteLimitExceeded,
 }
 
 impl fmt::Display for ProviderEgressError {
@@ -357,20 +385,46 @@ impl fmt::Display for ProviderEgressError {
             Self::MissingHandoff => "provider egress handoff is missing",
             Self::InvalidTarget => "provider egress target is invalid",
             Self::InvalidAllowlist => "provider egress allowlist is invalid",
-            Self::InvalidRelayBounds => "provider egress relay bounds are invalid",
-            Self::TargetDenied => "provider egress target is denied",
-            Self::DeadlineExceeded => "provider egress deadline exceeded",
-            Self::TransportDenied => "provider egress transport denied",
-            Self::ResponseTooLarge => "provider egress response is too large",
+            Self::InvalidBounds => "provider egress relay bounds are invalid",
+            Self::UnauthorizedTarget => "provider egress target is unauthorized",
+            Self::DeadlineExceeded => "provider egress relay deadline exceeded",
+            Self::Connect(_) => "provider egress connection failed",
+            Self::Io(_) => "provider egress relay I/O failed",
+            Self::ByteLimitExceeded => "provider egress relay byte limit exceeded",
         })
     }
 }
 
 impl std::error::Error for ProviderEgressError {}
 
+impl PartialEq for ProviderEgressError {
+    fn eq(&self, other: &Self) -> bool {
+        use ProviderEgressError::*;
+        matches!(
+            (self, other),
+            (InvalidIdentity, InvalidIdentity)
+                | (UnsupportedScheme, UnsupportedScheme)
+                | (MissingHandoff, MissingHandoff)
+                | (InvalidTarget, InvalidTarget)
+                | (InvalidAllowlist, InvalidAllowlist)
+                | (InvalidBounds, InvalidBounds)
+                | (UnauthorizedTarget, UnauthorizedTarget)
+                | (DeadlineExceeded, DeadlineExceeded)
+                | (Connect(_), Connect(_))
+                | (Io(_), Io(_))
+                | (ByteLimitExceeded, ByteLimitExceeded)
+        )
+    }
+}
+
+impl Eq for ProviderEgressError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
+    use std::net::TcpListener;
+    use std::thread;
 
     #[test]
     fn policy_binds_exact_https_host_without_secret_material() {
@@ -440,47 +494,91 @@ mod tests {
     }
 
     #[test]
-    fn relay_denies_unlisted_target_expired_deadline_and_bad_bounds() {
+    fn relay_connects_only_authorized_exact_target_and_bounds_forwarding() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
         let policy =
             ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
         let handoff = ProviderEgressHandoff::issue_bound(&policy, "g-1", "route-1", u64::MAX);
-        let auth =
+        let authorization =
             ProviderEgressAuthorization::authorize(&policy, &handoff, 0, "g-1", "route-1").unwrap();
-        let target = ProviderEgressTarget::new("198.51.100.10:443".parse().unwrap()).unwrap();
+        let target = ProviderEgressTarget::test_only(address);
+        let allowlist = ProviderEgressAllowlist::new(vec![target]).unwrap();
+        let relay =
+            ProviderEgressRelay::new(&policy, allowlist, Duration::from_secs(1), 8).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 4];
+            stream.read_exact(&mut request).unwrap();
+            assert_eq!(&request, b"ping");
+            stream.write_all(b"pong").unwrap();
+        });
+        let mut stream = relay
+            .connect(
+                &authorization,
+                target,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .unwrap();
+        stream.write_all(b"ping").unwrap();
+        let mut response = Vec::new();
+        relay
+            .forward_bounded(
+                &mut stream,
+                &mut response,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .unwrap();
+        assert_eq!(response, b"pong");
+        worker.join().unwrap();
+        let mut oversized = Cursor::new(b"123456789".to_vec());
+        assert_eq!(
+            relay.forward_bounded(
+                &mut oversized,
+                &mut Vec::new(),
+                Instant::now() + Duration::from_secs(1)
+            ),
+            Err(ProviderEgressError::ByteLimitExceeded)
+        );
+    }
+
+    #[test]
+    fn relay_rejects_wrong_authorization_and_expired_deadline() {
+        let address = ProviderEgressTarget::test_only("127.0.0.1:1".parse().unwrap());
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let other =
+            ProviderEgressPolicy::new("https://api.openai.com/v1", "api.openai.com").unwrap();
+        let auth = ProviderEgressAuthorization::authorize(
+            &other,
+            &ProviderEgressHandoff::issue(&other),
+            0,
+            "generation-1",
+            "route-1",
+        )
+        .unwrap();
         let relay = ProviderEgressRelay::new(
-            auth,
-            ProviderEgressAllowlist::new(vec![target]).unwrap(),
+            &policy,
+            ProviderEgressAllowlist::new(vec![address]).unwrap(),
             Duration::from_secs(1),
-            1024,
             1024,
         )
         .unwrap();
-        assert_eq!(
-            relay.round_trip(
-                "198.51.100.11:443".parse().unwrap(),
-                b"x",
-                Instant::now() + Duration::from_secs(1)
-            ),
-            Err(ProviderEgressError::TargetDenied)
-        );
-        assert_eq!(
-            relay.round_trip(
-                target.address(),
-                b"x",
-                Instant::now() - Duration::from_secs(1)
-            ),
+        assert!(matches!(
+            relay.connect(&auth, address, Instant::now() + Duration::from_secs(1)),
+            Err(ProviderEgressError::UnauthorizedTarget)
+        ));
+        let auth = ProviderEgressAuthorization::authorize(
+            &policy,
+            &ProviderEgressHandoff::issue(&policy),
+            0,
+            "generation-1",
+            "route-1",
+        )
+        .unwrap();
+        assert!(matches!(
+            relay.connect(&auth, address, Instant::now()),
             Err(ProviderEgressError::DeadlineExceeded)
-        );
-        assert!(
-            ProviderEgressRelay::new(
-                ProviderEgressAuthorization::authorize(&policy, &handoff, 0, "g-1", "route-1")
-                    .unwrap(),
-                ProviderEgressAllowlist::new(vec![target]).unwrap(),
-                Duration::ZERO,
-                1024,
-                1024,
-            )
-            .is_err()
-        );
+        ));
     }
 }
