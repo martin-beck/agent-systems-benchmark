@@ -590,4 +590,30 @@ mod tests {
         assert!(!relay_root.join("asb-live-generation-1-1.sock").exists());
         let _ = std::fs::remove_dir_all(relay_root);
     }
+
+    #[test]
+    fn provisioner_rejects_deadline_overflow_before_authority() {
+        let (provisioner, relay_root) = provisioner();
+        let input = launch_input(&relay_root);
+        let limits = input.limits();
+        assert!(matches!(
+            provisioner.acquire(1, input, limits, &"c".repeat(64), u64::MAX),
+            Err(LiveProviderProvisionError::InvalidConfiguration)
+        ));
+        assert!(!relay_root.join("asb-live-generation-1-1.sock").exists());
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn provisioner_does_not_issue_authority_when_backend_attestation_fails() {
+        let (provisioner, relay_root) = provisioner();
+        let input = launch_input(&relay_root);
+        let limits = input.limits();
+        assert!(matches!(
+            provisioner.acquire(1, input, limits, &"c".repeat(64), 100),
+            Err(LiveProviderProvisionError::BackendUnavailable)
+        ));
+        assert!(!relay_root.join("asb-live-generation-1-1.sock").exists());
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
 }
