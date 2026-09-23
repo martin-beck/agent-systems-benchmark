@@ -1358,8 +1358,10 @@ impl std::error::Error for SandboxError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::credential_injection::{CredentialInjection, CredentialInjectionError};
     use crate::live_namespace::LiveProviderNamespaceHandoff;
     use crate::provider_egress::{ProviderEgressHandoff, ProviderEgressPolicy};
+    use crate::sandbox_credential::SandboxCredentialBinding;
     use std::os::unix::net::UnixListener;
 
     static FAKE_TOOL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -1856,6 +1858,59 @@ mod tests {
         ));
         assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    struct FailingInjection;
+
+    impl CredentialInjection for FailingInjection {
+        fn inject(
+            self: Box<Self>,
+            _channel: &mut crate::sandbox_credential::SandboxCredentialChannel,
+        ) -> Result<(), CredentialInjectionError> {
+            Err(CredentialInjectionError::InjectionFailed)
+        }
+    }
+
+    #[test]
+    fn credential_launch_rejects_injection_before_spawn() {
+        let root = scratch("credential-launch");
+        fs::create_dir_all(root.join("leases")).unwrap();
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin);
+        let binding = SandboxCredentialBinding::new("a".repeat(64), "TARGET").unwrap();
+        let deny_spec = SandboxSpec::new(
+            root.as_ref(),
+            PathBuf::new(),
+            "/bin/true".into(),
+            vec![],
+            BTreeMap::new(),
+            test_resources(),
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let deny_lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let deny_input = SandboxLaunchInput {
+            spec: deny_spec,
+            limits: probe_limits(),
+            replay_handoff: None,
+            live_provider: None,
+        };
+        assert!(matches!(
+            backend.spawn_launch_with_credential(
+                deny_input,
+                deny_lease,
+                &binding,
+                Box::new(FailingInjection),
+            ),
+            Err(SandboxError::CredentialInjection(
+                CredentialInjectionError::InjectionFailed
+            ))
+        ));
     }
 
     #[test]
