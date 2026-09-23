@@ -17,6 +17,10 @@ use thiserror::Error;
 
 /// Current on-disk configuration schema.
 pub const CONFIG_SCHEMA_VERSION: u16 = 1;
+/// Exact dated free-model snapshot accepted by the user configuration.
+pub const OPENROUTER_MODEL_SNAPSHOT: &str = "deepseek/deepseek-chat-v3-0324:free@2026-09-22";
+/// Configuration schema for the pinned OpenRouter free-model enrollment.
+pub const OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION: u16 = 1;
 /// Maximum serialized configuration size.
 pub const MAX_CONFIG_BYTES: usize = 256 * 1024;
 const MAX_NAME_BYTES: usize = 128;
@@ -38,6 +42,112 @@ pub struct AuthEnrollment {
     pub generation: u64,
     /// Public lifecycle status.
     pub status: AuthEnrollmentStatus,
+}
+
+/// Credential-free, dated OpenRouter free-model selection.
+///
+/// This record deliberately stores only public model/endpoint identity and a
+/// digest of the environment-variable locator.  The API key itself is
+/// resolved by the runtime from [`credential_environment`]; it is never
+/// accepted by this crate or serialized into the configuration file.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenRouterFreeModelConfig {
+    /// Selection schema version.
+    pub schema_version: u16,
+    /// Provider family, fixed to `openrouter`.
+    pub provider: String,
+    /// Exact model identifier sent to the provider.
+    pub model: String,
+    /// Exact dated model snapshot (`model@YYYY-MM-DD`).
+    pub model_snapshot: String,
+    /// Date on which the model snapshot was pinned.
+    pub model_snapshot_date: String,
+    /// Digest of the exact public endpoint URL.
+    pub endpoint_identity_sha256: String,
+    /// Environment channel used by the runtime credential resolver.
+    pub credential_environment: String,
+    /// Digest-only credential locator.
+    pub credential: CredentialReference,
+    /// Auth lifecycle record bound to this selection.
+    pub enrollment: AuthEnrollment,
+}
+
+impl OpenRouterFreeModelConfig {
+    /// Validate the complete selection and all enrollment bindings.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION {
+            return Err(ConfigError::UnsupportedVersion(self.schema_version));
+        }
+        if self.provider != "openrouter" {
+            return Err(ConfigError::InvalidValue("openrouter provider".into()));
+        }
+        validate_text(&self.model, "openrouter model")?;
+        validate_text(&self.model_snapshot, "openrouter model snapshot")?;
+        if self.model_snapshot != format!("{}@{}", self.model, self.model_snapshot_date) {
+            return Err(ConfigError::InvalidValue(
+                "openrouter model snapshot".into(),
+            ));
+        }
+        validate_date(&self.model_snapshot_date)?;
+        validate_sha256(&self.endpoint_identity_sha256, "endpoint identity")?;
+        if self.credential_environment != "OPENROUTER_API_KEY" {
+            return Err(ConfigError::InvalidValue(
+                "openrouter credential environment".into(),
+            ));
+        }
+        self.credential.validate()?;
+        if self.credential.kind != CredentialReferenceKind::Environment
+            || self.credential.locator_sha256 != sha256_hex(self.credential_environment.as_bytes())
+        {
+            return Err(ConfigError::InvalidValue(
+                "openrouter credential reference".into(),
+            ));
+        }
+        if self.enrollment.schema_version != CONFIG_SCHEMA_VERSION
+            || self.enrollment.provider != self.provider
+            || self.enrollment.credential != self.credential
+            || self.enrollment.endpoint_identity_sha256 != self.endpoint_identity_sha256
+            || self.enrollment.generation == 0
+            || self.enrollment.status != AuthEnrollmentStatus::Active
+        {
+            return Err(ConfigError::InvalidValue("openrouter enrollment".into()));
+        }
+        Ok(())
+    }
+
+    /// Construct a validated environment-backed enrollment without a secret.
+    pub fn enroll(
+        model: String,
+        model_snapshot_date: String,
+        endpoint_identity_sha256: String,
+        generation: u64,
+    ) -> Result<Self, ConfigError> {
+        let credential = CredentialReference {
+            kind: CredentialReferenceKind::Environment,
+            locator_sha256: sha256_hex(b"OPENROUTER_API_KEY"),
+        };
+        let config = Self {
+            schema_version: OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION,
+            provider: "openrouter".into(),
+            model: model.clone(),
+            model_snapshot: format!("{model}@{model_snapshot_date}"),
+            model_snapshot_date,
+            endpoint_identity_sha256: endpoint_identity_sha256.clone(),
+            credential_environment: "OPENROUTER_API_KEY".into(),
+            credential: credential.clone(),
+            enrollment: AuthEnrollment {
+                schema_version: CONFIG_SCHEMA_VERSION,
+                provider: "openrouter".into(),
+                credential,
+                endpoint_identity_sha256,
+                generation,
+                status: AuthEnrollmentStatus::Active,
+            },
+        };
+        config.validate()?;
+        Ok(config)
+    }
 }
 
 /// Public enrollment lifecycle status.
@@ -213,6 +323,9 @@ pub struct Configuration {
     pub defaults: Defaults,
     /// Per-agent overrides.
     pub agent_overrides: BTreeMap<String, AgentOverride>,
+    /// Optional pinned OpenRouter free-model selection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openrouter_free_model: Option<OpenRouterFreeModelConfig>,
 }
 
 /// Bounded, credential-free provider/model discovery record.
@@ -600,6 +713,7 @@ impl Configuration {
             profiles: BTreeMap::new(),
             defaults: built_in_defaults(),
             agent_overrides: BTreeMap::new(),
+            openrouter_free_model: None,
         }
     }
 
@@ -666,6 +780,9 @@ impl Configuration {
             {
                 return Err(ConfigError::UnknownReference(connection.clone()));
             }
+        }
+        if let Some(selection) = &self.openrouter_free_model {
+            selection.validate()?;
         }
         Ok(())
     }
@@ -1016,6 +1133,25 @@ fn validate_sha256(value: &str, field: &'static str) -> Result<(), ConfigError> 
     Ok(())
 }
 
+fn validate_date(value: &str) -> Result<(), ConfigError> {
+    if value.len() != 10
+        || !value.bytes().enumerate().all(|(index, byte)| {
+            if index == 4 || index == 7 {
+                byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+    {
+        return Err(ConfigError::InvalidValue("model snapshot date".into()));
+    }
+    Ok(())
+}
+
+fn sha256_hex(value: &[u8]) -> String {
+    format!("{:x}", sha2::Sha256::digest(value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1069,6 +1205,7 @@ mod tests {
                 repetitions: 2,
             },
             agent_overrides: BTreeMap::new(),
+            openrouter_free_model: None,
         }
     }
 
@@ -1079,6 +1216,44 @@ mod tests {
         store.save(&sample()).unwrap();
         assert_eq!(store.load().unwrap(), Some(sample()));
         let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn openrouter_free_model_enrollment_is_credential_free_and_pinned() {
+        let selection = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        let encoded = serde_json::to_string(&selection).unwrap();
+        assert!(!encoded.contains("secret"));
+        assert!(!encoded.contains("OPENROUTER_API_KEY="));
+        assert!(encoded.contains("OPENROUTER_API_KEY"));
+        assert_eq!(selection.enrollment.credential, selection.credential);
+    }
+
+    #[test]
+    fn openrouter_free_model_rejects_stale_or_credential_bearing_records() {
+        let mut selection = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        selection.model_snapshot_date = "2026-09-23".into();
+        assert!(selection.validate().is_err());
+        let mut selection = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        selection.credential_environment = "OPENROUTER_API_KEY=secret".into();
+        assert!(selection.validate().is_err());
     }
     #[test]
     fn secret_shaped_values_rejected() {
@@ -1096,6 +1271,62 @@ mod tests {
         assert!(matches!(store.load(), Err(ConfigError::Corrupt(_))));
         assert_eq!(fs::read(&path).unwrap(), b"{");
         let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn openrouter_enrollment_is_credential_free_and_bound() {
+        let config = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        let encoded = serde_json::to_string(&config).unwrap();
+        assert!(encoded.contains("OPENROUTER_API_KEY"));
+        assert!(!encoded.contains("secret"));
+        assert!(encoded.contains(&config.credential.locator_sha256));
+        assert_eq!(config.enrollment.credential, config.credential);
+        assert_eq!(config.enrollment.endpoint_identity_sha256, "a".repeat(64));
+    }
+
+    #[test]
+    fn openrouter_enrollment_rejects_stale_or_mixed_identity() {
+        let mut config = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "b".repeat(64),
+            7,
+        )
+        .unwrap();
+        config.model_snapshot_date = "2026-09-23".into();
+        assert!(config.validate().is_err());
+
+        let mut config = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "c".repeat(64),
+            7,
+        )
+        .unwrap();
+        config.enrollment.generation = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn configuration_round_trip_preserves_openrouter_selection() {
+        let mut configuration = sample();
+        configuration.openrouter_free_model = Some(
+            OpenRouterFreeModelConfig::enroll(
+                "deepseek/deepseek-chat-v3-0324:free".into(),
+                "2026-09-22".into(),
+                "d".repeat(64),
+                1,
+            )
+            .unwrap(),
+        );
+        let encoded = serde_json::to_vec(&configuration).unwrap();
+        assert_eq!(decode(&encoded).unwrap(), configuration);
     }
     #[test]
     fn precedence_is_explicit() {

@@ -26,6 +26,24 @@ credential reference); `openai` selects the pinned OpenAI profile. A stale
 catalog, duplicate agent, unsupported adapter, or mismatched experiment fails
 before result/work roots or processes are created.
 
+## Per-user OpenRouter configuration
+
+Persist the pinned dated free-model selection and credential-free
+`OPENROUTER_API_KEY` environment reference, then use it without repeating the
+digest on every command:
+
+```sh
+asb config openrouter
+asb provider-plan --catalog-sha256 CATALOG_SHA256 --use-config --agent codex > selection.json
+asb plan /absolute/path/EXPERIMENT.toml --use-config
+asb run /absolute/path/EXPERIMENT.toml --use-config
+asb sweep /absolute/path/EXPERIMENT.toml --use-config
+```
+
+Only public model/endpoint identities and digests are persisted. Missing,
+stale, altered, or credential-bearing configuration is rejected before any
+provider contact.
+
 ## TUI route
 
 Populate `MultiAgentCatalog` from the runner, then:
