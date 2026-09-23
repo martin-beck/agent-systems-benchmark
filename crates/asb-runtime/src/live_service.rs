@@ -12,7 +12,7 @@ use crate::provider_egress::{
 };
 use crate::sandbox::{
     CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease, SandboxBackend,
-    SandboxLaunchInput,
+    SandboxLaunchInput, ToolPin,
 };
 use std::path::{Path, PathBuf};
 
@@ -71,6 +71,94 @@ impl LiveProviderRuntimeService {
         selection: &LiveProviderRuntimeSelection,
     ) -> Result<Box<dyn CredentialInjection>, LiveProviderResolveError> {
         resolver.resolve_credential(selection)
+    }
+}
+
+/// Runtime-owned enrollment used to construct the live provisioner.
+///
+/// This type is crate-private on purpose: CLI callers cannot provide a policy,
+/// allowlist, tool pin, or filesystem root. The control/runtime layer creates
+/// it only after loading the enrolled installation record.
+#[derive(Debug)]
+#[allow(dead_code)] // AR-1349 consumes the bootstrap handle when CLI wiring lands.
+pub(crate) struct LiveProviderBootstrapSpec {
+    config: LiveProviderRuntimeConfig,
+    policy: ProviderEgressPolicy,
+    allowlist: ProviderEgressAllowlist,
+    relay_root: PathBuf,
+    tools: [ToolPin; 5],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(dead_code)] // Bootstrap failures remain private until the runtime caller is wired.
+pub(crate) enum LiveProviderBootstrapError {
+    Enrollment,
+    RelayRoot,
+    Backend,
+}
+
+#[allow(dead_code)]
+impl LiveProviderBootstrapSpec {
+    /// Build an enrolled bootstrap record from already validated runtime data.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_enrollment(
+        config: LiveProviderRuntimeConfig,
+        policy: ProviderEgressPolicy,
+        allowlist: ProviderEgressAllowlist,
+        relay_root: &Path,
+        bubblewrap: ToolPin,
+        systemd_run: ToolPin,
+        systemctl: ToolPin,
+        taskset: ToolPin,
+        live_launch_gate: ToolPin,
+    ) -> Result<Self, LiveProviderBootstrapError> {
+        let canonical =
+            std::fs::canonicalize(relay_root).map_err(|_| LiveProviderBootstrapError::RelayRoot)?;
+        let metadata =
+            std::fs::metadata(&canonical).map_err(|_| LiveProviderBootstrapError::RelayRoot)?;
+        if !metadata.is_dir() || canonical != relay_root {
+            return Err(LiveProviderBootstrapError::RelayRoot);
+        }
+        if policy.endpoint().is_empty()
+            || !allowlist.permits(config.target().address())
+            || config.generation().is_empty()
+        {
+            return Err(LiveProviderBootstrapError::Enrollment);
+        }
+        Ok(Self {
+            config,
+            policy,
+            allowlist,
+            relay_root: canonical,
+            tools: [
+                bubblewrap,
+                systemd_run,
+                systemctl,
+                taskset,
+                live_launch_gate,
+            ],
+        })
+    }
+
+    /// Consume the enrollment and return only the opaque provisioner handle.
+    pub(crate) fn provisioner(self) -> Result<LiveProviderProvisioner, LiveProviderBootstrapError> {
+        let [
+            bubblewrap,
+            systemd_run,
+            systemctl,
+            taskset,
+            live_launch_gate,
+        ] = self.tools;
+        let backend = SandboxBackend::new(bubblewrap, systemd_run, systemctl, taskset)
+            .with_live_launch_gate(live_launch_gate);
+        LiveProviderProvisioner::new(
+            self.config,
+            self.policy,
+            self.allowlist,
+            backend,
+            &self.relay_root,
+        )
+        .map_err(|_| LiveProviderBootstrapError::Backend)
     }
 }
 
@@ -387,6 +475,42 @@ mod tests {
         )
     }
 
+    fn bootstrap_spec() -> (LiveProviderBootstrapSpec, PathBuf) {
+        let lease_root = root();
+        let relay_root = root();
+        let selected = target();
+        let allowlist = ProviderEgressAllowlist::new(vec![selected]).unwrap();
+        let config = LiveProviderRuntimeConfig::new(
+            &lease_root,
+            &allowlist,
+            selection(
+                selected,
+                "generation-1",
+                "a".repeat(64),
+                "b".repeat(64),
+                NetworkPolicy::Deny,
+            ),
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let pin = |path: &str| ToolPin::new(path.into(), "test".into()).unwrap();
+        let spec = LiveProviderBootstrapSpec::from_enrollment(
+            config,
+            policy,
+            allowlist,
+            &relay_root,
+            pin("/bin/true"),
+            pin("/bin/true"),
+            pin("/bin/true"),
+            pin("/bin/true"),
+            pin("/bin/true"),
+        )
+        .unwrap();
+        (spec, relay_root)
+    }
+
     fn launch_input(root: &Path) -> SandboxLaunchInput {
         let workspace = root.join("workspace");
         std::fs::create_dir_all(&workspace).unwrap();
@@ -414,6 +538,38 @@ mod tests {
             .unwrap(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn bootstrap_returns_only_runtime_owned_provisioner() {
+        let (spec, relay_root) = bootstrap_spec();
+        let provisioner = spec.provisioner().unwrap();
+        assert_eq!(provisioner.config.generation(), "generation-1");
+        assert_eq!(provisioner.policy.host(), "openrouter.ai");
+        assert_eq!(provisioner.relay_root, relay_root);
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn bootstrap_rejects_symlinked_relay_root_before_backend_creation() {
+        let (spec, relay_root) = bootstrap_spec();
+        let linked = root().join("relay-link");
+        std::os::unix::fs::symlink(&relay_root, &linked).unwrap();
+        let error = LiveProviderBootstrapSpec::from_enrollment(
+            spec.config,
+            spec.policy,
+            spec.allowlist,
+            &linked,
+            spec.tools[0].clone(),
+            spec.tools[1].clone(),
+            spec.tools[2].clone(),
+            spec.tools[3].clone(),
+            spec.tools[4].clone(),
+        )
+        .unwrap_err();
+        assert_eq!(error, LiveProviderBootstrapError::RelayRoot);
+        let _ = std::fs::remove_file(linked);
+        let _ = std::fs::remove_dir_all(relay_root);
     }
 
     struct TestResolver {
