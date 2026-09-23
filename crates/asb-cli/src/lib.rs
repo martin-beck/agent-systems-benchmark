@@ -9,10 +9,12 @@ mod tui;
 pub mod tui_handoff;
 
 use asb_agents::all_agents_provider::{
-    ALL_AGENTS_PROVIDER_SELECTION_V1, AllAgentsProviderKind, AllAgentsProviderSelection,
-    EffectiveApiMode, SelectedAgent, resolve_openai_selection,
+    ALL_AGENTS_PROVIDER_SELECTION_V1, AllAgentsProviderKind, AllAgentsProviderPlan,
+    AllAgentsProviderSelection, EffectiveApiMode, SelectedAgent, resolve_openai_selection,
+    resolve_openrouter_selection,
 };
 use asb_agents::openai::OpenAiProfile;
+use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
     RuntimeBundleIdentity, credential_target_for_agent,
@@ -288,7 +290,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb record-campaign MANIFEST.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
@@ -808,7 +810,7 @@ struct ProviderCatalogOutput {
     catalog_version: u16,
     catalog_sha256: String,
     agents: &'static [&'static str],
-    profiles: [ProviderCatalogEntry; 2],
+    profiles: [ProviderCatalogEntry; 3],
 }
 
 #[derive(Serialize)]
@@ -842,6 +844,8 @@ fn provider_catalog_digest() -> String {
     }
     digest.update(b"openai\0");
     digest.update(asb_agents::openai::OPENAI_MODEL.as_bytes());
+    digest.update(b"\0environment\0selectable\0openrouter\0");
+    digest.update(asb_agents::openrouter::OPENROUTER_MODEL.as_bytes());
     digest.update(b"\0environment\0selectable\0ollama\0");
     digest.update(asb_agents::ollama::OLLAMA_MODEL.as_bytes());
     digest.update(b"\0none\0requires-verified-daemon\0");
@@ -862,6 +866,13 @@ fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
                 ProviderCatalogEntry {
                     id: "openai",
                     model: asb_agents::openai::OPENAI_MODEL,
+                    credential_source: "environment",
+                    selectable: true,
+                    unavailable_reason: None,
+                },
+                ProviderCatalogEntry {
+                    id: "openrouter",
+                    model: asb_agents::openrouter::OPENROUTER_MODEL,
                     credential_source: "environment",
                     selectable: true,
                     unavailable_reason: None,
@@ -946,21 +957,8 @@ fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError
             "provider profile is advertised but unavailable without verified daemon evidence",
         ));
     }
-    if provider != "openai" {
-        return Err(CliError::validation("unknown provider profile"));
-    }
-    let credential_reference_sha256 = credential_reference_sha256
-        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
-    let profile = OpenAiProfile::new(credential_reference_sha256)
-        .map_err(|_| CliError::validation("credential reference identity is invalid"))?;
-    let selection = AllAgentsProviderSelection {
-        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
-        provider: AllAgentsProviderKind::OpenAi,
-        agents,
-    };
-    let plan = resolve_openai_selection(&selection, &profile).map_err(|_| {
-        CliError::validation("provider profile is incompatible with selected agents")
-    })?;
+    let (provider_kind, plan, model) =
+        provider_plan_for(provider, agents, credential_reference_sha256)?;
     let effective = plan
         .effective()
         .iter()
@@ -972,7 +970,7 @@ fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError
         .collect::<Vec<_>>();
     let canonical_selection = AllAgentsProviderSelection {
         schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
-        provider: AllAgentsProviderKind::OpenAi,
+        provider: provider_kind,
         agents: effective
             .iter()
             .map(|item| parse_agent(&item.agent))
@@ -989,14 +987,59 @@ fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError
             dry_run: true,
             catalog_sha256: expected_catalog,
             selection_sha256,
-            provider_profile: "openai".to_owned(),
+            provider_profile: provider.to_owned(),
             provider_profile_sha256: plan.profile_sha256().to_owned(),
-            model: asb_agents::openai::OPENAI_MODEL.to_owned(),
+            model: model.to_owned(),
             credential_source: "environment".to_owned(),
-            credential_reference_sha256: credential_reference_sha256.to_owned(),
+            credential_reference_sha256: credential_reference_sha256
+                .expect("provider profile resolution validated the credential reference identity")
+                .to_owned(),
             effective,
         },
     )
+}
+
+fn provider_plan_for(
+    provider: &str,
+    agents: Vec<SelectedAgent>,
+    credential_reference_sha256: Option<&str>,
+) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, &'static str), CliError> {
+    let provider_kind = match provider {
+        "openai" => AllAgentsProviderKind::OpenAi,
+        "openrouter" => AllAgentsProviderKind::OpenRouter,
+        _ => return Err(CliError::validation("unknown provider profile")),
+    };
+    let credential_reference_sha256 = credential_reference_sha256
+        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
+    let selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: provider_kind,
+        agents,
+    };
+    let (plan, model) = match selection.provider {
+        AllAgentsProviderKind::OpenAi => {
+            let profile = OpenAiProfile::new(credential_reference_sha256)
+                .map_err(|_| CliError::validation("credential reference identity is invalid"))?;
+            let plan = resolve_openai_selection(&selection, &profile).map_err(|_| {
+                CliError::validation("provider profile is incompatible with selected agents")
+            })?;
+            (plan, asb_agents::openai::OPENAI_MODEL)
+        }
+        AllAgentsProviderKind::OpenRouter => {
+            let profile = OpenRouterProfile::new(credential_reference_sha256)
+                .map_err(|_| CliError::validation("credential reference identity is invalid"))?;
+            let plan = resolve_openrouter_selection(&selection, &profile).map_err(|_| {
+                CliError::validation("provider profile is incompatible with selected agents")
+            })?;
+            (plan, asb_agents::openrouter::OPENROUTER_MODEL)
+        }
+        AllAgentsProviderKind::Ollama => {
+            return Err(CliError::validation(
+                "provider profile is advertised but unavailable without verified daemon evidence",
+            ));
+        }
+    };
+    Ok((selection.provider, plan, model))
 }
 
 fn provider_selection_digest(
@@ -1298,8 +1341,6 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         || value.command != "provider-plan"
         || !value.dry_run
         || value.catalog_sha256 != provider_catalog_digest()
-        || value.provider_profile != "openai"
-        || value.model != asb_agents::openai::OPENAI_MODEL
         || value.credential_source != "environment"
         || !valid_sha256(&value.credential_reference_sha256)
         || !valid_sha256(&value.provider_profile_sha256)
@@ -1315,15 +1356,58 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         .iter()
         .map(|item| parse_agent(&item.agent))
         .collect::<Result<Vec<_>, _>>()?;
-    let verification_profile = OpenAiProfile::new(&value.credential_reference_sha256)
-        .map_err(|_| CliError::operation("provider verifier profile cannot be created"))?;
-    let selection = AllAgentsProviderSelection {
-        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
-        provider: AllAgentsProviderKind::OpenAi,
-        agents,
+    let (provider_kind, expected) = match value.provider_profile.as_str() {
+        "openai" => {
+            if value.model != asb_agents::openai::OPENAI_MODEL {
+                return Err(CliError::validation(
+                    "provider selection identity is invalid",
+                ));
+            }
+            let verification_profile = OpenAiProfile::new(&value.credential_reference_sha256)
+                .map_err(|_| CliError::operation("provider verifier profile cannot be created"))?;
+            let selection = AllAgentsProviderSelection {
+                schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+                provider: AllAgentsProviderKind::OpenAi,
+                agents,
+            };
+            let expected = resolve_openai_selection(&selection, &verification_profile)
+                .map_err(|_| CliError::validation("provider selection is incompatible"))?;
+            (AllAgentsProviderKind::OpenAi, expected)
+        }
+        "openrouter" => {
+            if value.model != asb_agents::openrouter::OPENROUTER_MODEL {
+                return Err(CliError::validation(
+                    "provider selection identity is invalid",
+                ));
+            }
+            let verification_profile = OpenRouterProfile::new(&value.credential_reference_sha256)
+                .map_err(|_| {
+                CliError::operation("provider verifier profile cannot be created")
+            })?;
+            let selection = AllAgentsProviderSelection {
+                schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+                provider: AllAgentsProviderKind::OpenRouter,
+                agents,
+            };
+            let expected = resolve_openrouter_selection(&selection, &verification_profile)
+                .map_err(|_| CliError::validation("provider selection is incompatible"))?;
+            (AllAgentsProviderKind::OpenRouter, expected)
+        }
+        _ => {
+            return Err(CliError::validation(
+                "provider selection identity is invalid",
+            ));
+        }
     };
-    let expected = resolve_openai_selection(&selection, &verification_profile)
-        .map_err(|_| CliError::validation("provider selection is incompatible"))?;
+    let canonical_selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: provider_kind,
+        agents: value
+            .effective
+            .iter()
+            .map(|item| parse_agent(&item.agent))
+            .collect::<Result<Vec<_>, _>>()?,
+    };
     if expected.profile_sha256() != value.provider_profile_sha256
         || value
             .effective
@@ -1334,8 +1418,11 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
                     || actual.api_mode != expected.api_mode
                     || actual.profile_sha256 != expected.profile_sha256
             })
-        || provider_selection_digest(&value.catalog_sha256, &selection, &value.effective)?
-            != value.selection_sha256
+        || provider_selection_digest(
+            &value.catalog_sha256,
+            &canonical_selection,
+            &value.effective,
+        )? != value.selection_sha256
     {
         return Err(CliError::validation(
             "provider selection content address is invalid",
@@ -1384,16 +1471,39 @@ fn build_provider_launch(
             CliError::validation("provider selection does not include the launched agent")
         })?;
     let selected_agent = parse_agent(&selected.agent)?;
-    let profile = OpenAiProfile::new(&selection.credential_reference_sha256)
-        .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
-    let projection = ProviderLaunchProjection::openai(&profile, selected_agent)
-        .map_err(|_| CliError::validation("selected adapter has no exact provider route"))?;
+    let (projection, endpoint_sha256) = match selection.provider_profile.as_str() {
+        "openai" => {
+            let profile = OpenAiProfile::new(&selection.credential_reference_sha256)
+                .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
+            let projection =
+                ProviderLaunchProjection::openai(&profile, selected_agent).map_err(|_| {
+                    CliError::validation("selected adapter has no exact provider route")
+                })?;
+            (
+                projection,
+                profile.provider_profile().endpoint.identity_sha256.clone(),
+            )
+        }
+        "openrouter" => {
+            let profile = OpenRouterProfile::new(&selection.credential_reference_sha256)
+                .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
+            let projection = ProviderLaunchProjection::openrouter(&profile, selected_agent)
+                .map_err(|_| {
+                    CliError::validation("selected adapter has no exact provider route")
+                })?;
+            (
+                projection,
+                profile.provider_profile().endpoint.identity_sha256.clone(),
+            )
+        }
+        _ => return Err(CliError::validation("provider selection is incompatible")),
+    };
     let input = ProviderLaunchV1 {
         schema_version: asb_agents::provider_launch::PROVIDER_LAUNCH_V1,
         catalog_sha256: selection.catalog_sha256.clone(),
         selection_sha256: selection.selection_sha256.clone(),
         provider_profile_sha256: selection.provider_profile_sha256.clone(),
-        endpoint_sha256: profile.provider_profile().endpoint.identity_sha256.clone(),
+        endpoint_sha256,
         agent: selected.agent.clone(),
         adapter: selected.agent.clone(),
         api_mode: projection.api_mode(),
@@ -3996,7 +4106,7 @@ mod tests {
         let path = root.join("fixture-agent");
         fs::write(
             &path,
-            b"#!/bin/sh\ntest ! -e ../.asb-private/prompt || exit 97\nif [ \"${ASB_PROVIDER_LAUNCH_V1:-}\" = 1 ]; then\n  test \"${ASB_PROVIDER_LAUNCH_SHA256:-}\" != \"\" || exit 98\n  test \"${ASB_PROVIDER:-}\" = openai || exit 99\n  test \"${ASB_PROVIDER_MODEL:-}\" != \"\" || exit 100\n  test \"${ASB_PROVIDER_PROFILE_SHA256:-}\" != \"\" || exit 101\n  test \"${ASB_PROVIDER_CREDENTIAL_TARGET:-}\" = CODEX_API_KEY || exit 102\nfi\nprintf '%s\\n' 'def parse_line(line):' '    if line.endswith(\"\\r\"):' '        line = line[:-1]' '    return line' > parser.py\n",
+            b"#!/bin/sh\ntest ! -e ../.asb-private/prompt || exit 97\nif [ \"${ASB_PROVIDER_LAUNCH_V1:-}\" = 1 ]; then\n  test \"${ASB_PROVIDER_LAUNCH_SHA256:-}\" != \"\" || exit 98\n  test \"${ASB_PROVIDER:-}\" = openai || test \"${ASB_PROVIDER:-}\" = openrouter || exit 99\n  test \"${ASB_PROVIDER_MODEL:-}\" != \"\" || exit 100\n  test \"${ASB_PROVIDER_PROFILE_SHA256:-}\" != \"\" || exit 101\n  test \"${ASB_PROVIDER_CREDENTIAL_TARGET:-}\" = CODEX_API_KEY || test \"${ASB_PROVIDER_CREDENTIAL_TARGET:-}\" = OPENROUTER_API_KEY || exit 102\nfi\nprintf '%s\\n' 'def parse_line(line):' '    if line.endswith(\"\\r\"):' '        line = line[:-1]' '    return line' > parser.py\n",
         )
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
@@ -4211,13 +4321,13 @@ mod tests {
         assert!(error.to_string().len() < 1024);
     }
 
-    fn provider_args(catalog: &str, agents: &[&str]) -> Vec<OsString> {
+    fn provider_args(catalog: &str, provider: &str, agents: &[&str]) -> Vec<OsString> {
         let mut args = vec![
             "provider-plan".into(),
             "--catalog-sha256".into(),
             catalog.into(),
             "--provider-profile".into(),
-            "openai".into(),
+            provider.into(),
             "--credential-reference-sha256".into(),
             "a".repeat(64).into(),
         ];
@@ -4248,8 +4358,13 @@ mod tests {
         (exit, serde_json::from_slice(&output).unwrap())
     }
 
-    fn provider_selection_fixture(root: &Path, name: &str, agents: &[&str]) -> (PathBuf, Value) {
-        let args = provider_args(&provider_catalog_digest(), agents);
+    fn provider_selection_fixture(
+        root: &Path,
+        name: &str,
+        provider: &str,
+        agents: &[&str],
+    ) -> (PathBuf, Value) {
+        let args = provider_args(&provider_catalog_digest(), provider, agents);
         let mut output = Vec::new();
         let mut diagnostic = Vec::new();
         assert_eq!(run(&args, &mut output, &mut diagnostic), 0);
@@ -4261,9 +4376,23 @@ mod tests {
     }
 
     fn bind_openai_selection(plan: &mut PlanFile, selection: &Value, agent: &str) {
+        bind_provider_selection(plan, selection, agent, "openai");
+    }
+
+    fn bind_provider_selection(
+        plan: &mut PlanFile,
+        selection: &Value,
+        agent: &str,
+        provider: &str,
+    ) {
+        let model = match provider {
+            "openai" => asb_agents::openai::OPENAI_MODEL,
+            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
+            _ => unreachable!("unsupported test provider"),
+        };
         plan.experiment.agent.implementation = agent.to_owned();
-        plan.experiment.model.provider = "openai".to_owned();
-        plan.experiment.model.model = asb_agents::openai::OPENAI_MODEL.to_owned();
+        plan.experiment.model.provider = provider.to_owned();
+        plan.experiment.model.model = model.to_owned();
         plan.experiment.model.settings.additional_settings_sha256 = Some(
             selection["provider_profile_sha256"]
                 .as_str()
@@ -4280,12 +4409,14 @@ mod tests {
         assert_eq!(catalog["catalog_version"], PROVIDER_CATALOG_VERSION);
         assert_eq!(catalog["profiles"][0]["id"], "openai");
         assert_eq!(catalog["profiles"][0]["selectable"], true);
-        assert_eq!(catalog["profiles"][1]["id"], "ollama");
-        assert_eq!(catalog["profiles"][1]["selectable"], false);
+        assert_eq!(catalog["profiles"][1]["id"], "openrouter");
+        assert_eq!(catalog["profiles"][1]["selectable"], true);
+        assert_eq!(catalog["profiles"][2]["id"], "ollama");
+        assert_eq!(catalog["profiles"][2]["selectable"], false);
         let catalog_sha256 = catalog["catalog_sha256"].as_str().unwrap();
         assert_eq!(catalog_sha256.len(), 64);
 
-        let args = provider_args(catalog_sha256, &["codex", "opendesk"]);
+        let args = provider_args(catalog_sha256, "openai", &["codex", "opendesk"]);
         let (exit, plan) = run_json(&args);
         assert_eq!(exit, 0);
         assert_eq!(plan["command"], "provider-plan");
@@ -4314,6 +4445,160 @@ mod tests {
     }
 
     #[test]
+    fn openrouter_catalog_and_plan_are_stable_secret_free_and_canonical() {
+        let (exit, catalog) = run_json(&["provider-catalog".into()]);
+        assert_eq!(exit, 0);
+        assert_eq!(catalog["profiles"][1]["id"], "openrouter");
+        assert_eq!(catalog["profiles"][1]["selectable"], true);
+        assert_eq!(
+            catalog["profiles"][1]["model"],
+            asb_agents::openrouter::OPENROUTER_MODEL
+        );
+        let catalog_sha256 = catalog["catalog_sha256"].as_str().unwrap();
+
+        let args = provider_args(catalog_sha256, "openrouter", &["codex", "opendesk"]);
+        let (exit, plan) = run_json(&args);
+        assert_eq!(exit, 0);
+        assert_eq!(plan["command"], "provider-plan");
+        assert_eq!(plan["dry_run"], true);
+        assert_eq!(plan["catalog_sha256"], catalog_sha256);
+        assert_eq!(plan["provider_profile"], "openrouter");
+        assert_eq!(plan["model"], asb_agents::openrouter::OPENROUTER_MODEL);
+        assert_eq!(plan["credential_source"], "environment");
+        assert_eq!(plan["credential_reference_sha256"], "a".repeat(64));
+        assert_eq!(plan["effective"][0]["agent"], "opendesk");
+        assert_eq!(plan["effective"][0]["api_mode"], "chat_completions");
+        assert_eq!(plan["effective"][1]["agent"], "codex");
+        assert_eq!(plan["effective"][1]["api_mode"], "responses");
+        assert!(
+            plan["effective"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["profile_sha256"] == plan["provider_profile_sha256"])
+        );
+        assert_eq!(plan["selection_sha256"].as_str().unwrap().len(), 64);
+        let encoded = serde_json::to_string(&plan).unwrap();
+        assert!(!encoded.contains("api_key"));
+        assert!(!encoded.contains("authorization"));
+        assert_eq!(run_json(&args), (exit, plan));
+    }
+
+    #[test]
+    fn openrouter_selection_drives_plan_and_run_with_exact_binding() {
+        let scratch = Scratch::new("openrouter-consumption");
+        let (selection_path, selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "openrouter-run");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+
+        let selection_arg = selection_path.as_os_str().to_owned();
+        let plan_arg = plan_path.as_os_str().to_owned();
+        let (exit, rendered) = run_json(&[
+            "plan".into(),
+            plan_arg.clone(),
+            "--provider-selection".into(),
+            selection_arg.clone(),
+        ]);
+        assert_eq!(exit, 0, "plan failed: {rendered}");
+        assert_eq!(
+            rendered["provider_selection_sha256"],
+            selection["selection_sha256"]
+        );
+        assert_eq!(rendered["provider_profile"], "openrouter");
+        assert_eq!(
+            rendered["provider_model"],
+            asb_agents::openrouter::OPENROUTER_MODEL
+        );
+
+        let (exit, executed) = run_json_with_progress(&[
+            "run".into(),
+            plan_arg,
+            "--provider-selection".into(),
+            selection_arg,
+        ]);
+        assert_eq!(exit, 0, "run failed: {executed}");
+        assert_eq!(executed["run_ids"][0], "openrouter-run");
+        assert_eq!(
+            executed["provider_launch_sha256"].as_str().unwrap().len(),
+            64
+        );
+        assert!(plan.result_root.join("runs/openrouter-run").is_dir());
+    }
+
+    #[test]
+    fn openrouter_plan_rejects_mixed_agents_and_missing_credential_reference() {
+        let catalog = provider_catalog_digest();
+        for agents in [
+            Vec::<&str>::new(),
+            vec!["codex", "codex"],
+            vec!["codex", "gemini"],
+        ] {
+            let (exit, error) = run_json(&provider_args(&catalog, "openrouter", &agents));
+            assert_eq!(exit, 3);
+            assert_eq!(
+                error["error"]["message"],
+                "provider profile is incompatible with selected agents"
+            );
+        }
+
+        let mut missing_credential = provider_args(&catalog, "openrouter", &["codex"]);
+        missing_credential.splice(5..7, []);
+        let (exit, error) = run_json(&missing_credential);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "credential reference identity is absent"
+        );
+    }
+
+    #[test]
+    fn openrouter_selection_rejects_tampered_model_and_experiment_mismatch() {
+        let scratch = Scratch::new("openrouter-negative");
+        let (selection_path, mut selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "openrouter-negative");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let plan_arg = plan_path.as_os_str().to_owned();
+
+        selection["model"] = Value::String(asb_agents::openai::OPENAI_MODEL.to_owned());
+        fs::write(&selection_path, serde_json::to_vec(&selection).unwrap()).unwrap();
+        let (exit, error) = run_json(&[
+            "plan".into(),
+            plan_arg.clone(),
+            "--provider-selection".into(),
+            selection_path.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "provider selection identity is invalid"
+        );
+        assert!(!plan.result_root.exists());
+
+        let (_, clean) =
+            provider_selection_fixture(&scratch.0, "clean.json", "openrouter", &["codex"]);
+        fs::write(&selection_path, serde_json::to_vec(&clean).unwrap()).unwrap();
+        plan.experiment.model.model = asb_agents::openai::OPENAI_MODEL.to_owned();
+        plan.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let (exit, error) = run_json(&[
+            "plan".into(),
+            plan_arg,
+            "--provider-selection".into(),
+            selection_path.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 3);
+        assert_eq!(
+            error["error"]["message"],
+            "provider selection does not match the experiment identity"
+        );
+        assert!(!plan.result_root.exists());
+    }
+
+    #[test]
     fn provider_plan_rejects_stale_unknown_duplicate_and_incompatible_input() {
         let catalog = provider_catalog_digest();
         for (agents, expected_message) in [
@@ -4330,12 +4615,12 @@ mod tests {
                 "provider profile is incompatible with selected agents",
             ),
         ] {
-            let (exit, error) = run_json(&provider_args(&catalog, &agents));
+            let (exit, error) = run_json(&provider_args(&catalog, "openai", &agents));
             assert_eq!(exit, 3);
             assert_eq!(error["error"]["message"], expected_message);
         }
 
-        let mut stale = provider_args(&"0".repeat(64), &["codex"]);
+        let mut stale = provider_args(&"0".repeat(64), "openai", &["codex"]);
         let (exit, error) = run_json(&stale);
         assert_eq!(exit, 3);
         assert_eq!(
@@ -4348,7 +4633,7 @@ mod tests {
         assert_eq!(exit, 3);
         assert_eq!(error["error"]["message"], "unknown provider profile");
 
-        let mut unavailable = provider_args(&catalog, &["codex"]);
+        let mut unavailable = provider_args(&catalog, "openai", &["codex"]);
         unavailable[4] = "ollama".into();
         let (exit, error) = run_json(&unavailable);
         assert_eq!(exit, 3);
@@ -4357,7 +4642,7 @@ mod tests {
             "provider profile is advertised but unavailable without verified daemon evidence"
         );
 
-        let mut unknown_agent = provider_args(&catalog, &["codex"]);
+        let mut unknown_agent = provider_args(&catalog, "openai", &["codex"]);
         unknown_agent.extend(["--agent".into(), "not-an-agent".into()]);
         let (exit, error) = run_json(&unknown_agent);
         assert_eq!(exit, 3);
@@ -4369,7 +4654,7 @@ mod tests {
         let scratch = Scratch::new("provider-plan");
         let before = fs::read_dir(&scratch.0).unwrap().count();
         let catalog = provider_catalog_digest();
-        let mut too_many = provider_args(&catalog, &AGENT_IDS);
+        let mut too_many = provider_args(&catalog, "openai", &AGENT_IDS);
         too_many.extend(["--agent".into(), "codex".into()]);
         let (exit, error) = run_json(&too_many);
         assert_eq!(exit, 3);
@@ -4378,7 +4663,7 @@ mod tests {
             "selected agent set exceeds its bound"
         );
 
-        let mut repeated = provider_args(&catalog, &["codex"]);
+        let mut repeated = provider_args(&catalog, "openai", &["codex"]);
         repeated.extend(["--provider-profile".into(), "openai".into()]);
         let (exit, error) = run_json(&repeated);
         assert_eq!(exit, 2);
@@ -4387,7 +4672,7 @@ mod tests {
             "provider-plan option was supplied more than once"
         );
 
-        let mut missing_value = provider_args(&catalog, &["codex"]);
+        let mut missing_value = provider_args(&catalog, "openai", &["codex"]);
         missing_value.push("--agent".into());
         let (exit, error) = run_json(&missing_value);
         assert_eq!(exit, 2);
@@ -4401,8 +4686,12 @@ mod tests {
     #[test]
     fn provider_selection_manifest_drives_plan_run_sweep_compare_and_report() {
         let scratch = Scratch::new("provider-consumption");
-        let (selection_path, selection) =
-            provider_selection_fixture(&scratch.0, "selection.json", &["codex", "opendesk"]);
+        let (selection_path, selection) = provider_selection_fixture(
+            &scratch.0,
+            "selection.json",
+            "openai",
+            &["codex", "opendesk"],
+        );
         let (plan_path, mut plan) = plan_fixture(&scratch.0, "provider-run");
         bind_openai_selection(&mut plan, &selection, "codex");
         fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
@@ -4452,7 +4741,7 @@ mod tests {
         assert_eq!(executed["run_ids"][0], "provider-run");
 
         let (alternate_path, alternate) =
-            provider_selection_fixture(&scratch.0, "alternate.json", &["codex", "aider"]);
+            provider_selection_fixture(&scratch.0, "alternate.json", "openai", &["codex", "aider"]);
         let alternate_plan_path = scratch.0.join("alternate.toml");
         plan.run_id = "provider-alternate".to_owned();
         plan.result_root = scratch.0.join("alternate-results");
@@ -4496,8 +4785,12 @@ mod tests {
     #[test]
     fn provider_selection_import_fails_closed_before_run_effects() {
         let scratch = Scratch::new("provider-import-negative");
-        let (selection_path, mut selection) =
-            provider_selection_fixture(&scratch.0, "selection.json", &["codex", "opendesk"]);
+        let (selection_path, mut selection) = provider_selection_fixture(
+            &scratch.0,
+            "selection.json",
+            "openai",
+            &["codex", "opendesk"],
+        );
         let (plan_path, mut plan) = plan_fixture(&scratch.0, "provider-negative");
         bind_openai_selection(&mut plan, &selection, "codex");
         fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
@@ -4517,7 +4810,7 @@ mod tests {
         assert!(!plan.result_root.exists());
 
         let (_, clean) =
-            provider_selection_fixture(&scratch.0, "clean.json", &["codex", "opendesk"]);
+            provider_selection_fixture(&scratch.0, "clean.json", "openai", &["codex", "opendesk"]);
         fs::write(&selection_path, serde_json::to_vec(&clean).unwrap()).unwrap();
         plan.experiment.agent.implementation = "aider".to_owned();
         plan.experiment.refresh_content_address().unwrap();
