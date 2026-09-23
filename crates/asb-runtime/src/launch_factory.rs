@@ -68,6 +68,17 @@ pub struct LiveLaunchContext {
 /// Runtime factory for validated live-provider relay launches.
 pub struct LiveLaunchFactory;
 
+/// Runtime-owned, one-attempt live-provider capability.
+///
+/// This is the only value a frontend needs to pass to a live attempt.  It
+/// keeps the launch context and relay lifecycle together so cancellation,
+/// failed spawn, and normal teardown all revoke the capability.  Callers
+/// cannot construct one from an endpoint, namespace, or credential.
+pub struct LiveProviderAttempt {
+    context: Option<LiveLaunchContext>,
+    relay: Option<crate::live_relay::LiveProviderRelay>,
+}
+
 /// Opaque proof that the runtime performed its launch-boundary attestation.
 #[derive(Debug)]
 pub struct RuntimeLaunchToken {
@@ -204,6 +215,26 @@ impl LiveLaunchFactory {
             namespace,
         })
     }
+
+    /// Atomically acquire the one-shot context consumed by a single attempt.
+    ///
+    /// The authority is consumed immediately; dropping the returned attempt
+    /// revokes the namespace capability and tears down the relay.
+    pub fn acquire(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        backend: SandboxBackend,
+        namespace: NamespaceIdentity,
+        now_unix_ms: u64,
+        relay: crate::live_relay::LiveProviderRelay,
+    ) -> Result<LiveProviderAttempt, LaunchAuthorityError> {
+        let authority = Self::issue(token, input, lease, backend, namespace, now_unix_ms)?;
+        Ok(LiveProviderAttempt {
+            context: Some(authority.consume()),
+            relay: Some(relay),
+        })
+    }
 }
 
 impl LiveLaunchAuthority {
@@ -254,6 +285,38 @@ impl LiveLaunchContext {
     /// Absolute expiry fence for this launch capability.
     pub fn deadline_unix_ms(&self) -> u64 {
         self.handoff.deadline_unix_ms()
+    }
+}
+
+impl LiveProviderAttempt {
+    /// Consume the runtime-issued context exactly once for spawning.
+    pub fn spawn(&mut self) -> Result<crate::sandbox::SandboxProcess, SandboxError> {
+        self.context
+            .take()
+            .ok_or(SandboxError::LiveHandoff)?
+            .spawn()
+    }
+
+    /// Relay owned by this attempt, for the runtime's authenticated accept
+    /// loop.  It is never writable by the CLI.
+    pub fn relay(&mut self) -> Option<&mut crate::live_relay::LiveProviderRelay> {
+        self.relay.as_mut()
+    }
+
+    /// Revoke before cancellation or an early spawn failure.
+    pub fn revoke(&self) {
+        if let Some(context) = &self.context {
+            context.revoke();
+        }
+        if let Some(relay) = &self.relay {
+            relay.revoke();
+        }
+    }
+}
+
+impl Drop for LiveProviderAttempt {
+    fn drop(&mut self) {
+        self.revoke();
     }
 }
 
