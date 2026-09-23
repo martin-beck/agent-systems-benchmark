@@ -1741,6 +1741,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn config_store_rejects_permissions_size_symlinks_and_invalid_paths() {
         use std::os::unix::fs::symlink;
