@@ -1,5 +1,8 @@
 # ASB agent adapters
 
+OpenRouter's pinned free-model boundary is qualified by the credential-free
+hostile matrix in [OPENROUTER_CONFORMANCE.md](OPENROUTER_CONFORMANCE.md).
+
 The OpenCode adapter runs an exact, hash-pinned OpenCode executable through
 `opencode run --format json --pure`. It copies the prompt into a mode-0600 file,
 unlinks that file before writing any prompt bytes, rewinds the still-open descriptor,
