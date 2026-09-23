@@ -5,6 +5,7 @@
 use crate::live_namespace::{LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 /// A launch authority that can only be issued by the runtime factory.
 ///
@@ -67,6 +68,57 @@ pub struct LiveLaunchContext {
 
 /// Runtime factory for validated live-provider relay launches.
 pub struct LiveLaunchFactory;
+
+/// Runtime-owned, one-attempt live-provider capability.
+///
+/// This is the only value a frontend needs to pass to a live attempt.  It
+/// keeps the launch context and relay lifecycle together so cancellation,
+/// failed spawn, and normal teardown all revoke the capability.  Callers
+/// cannot construct one from an endpoint, namespace, or credential.
+pub struct LiveProviderAttempt {
+    context: Option<LiveLaunchContext>,
+    relay: Option<crate::live_relay::LiveProviderRelay>,
+}
+
+/// Runtime-owned source of one fresh live-provider capability per scheduler
+/// attempt. The callback is invoked only by the execution boundary; callers
+/// cannot construct or inspect the capability it returns.
+#[derive(Clone)]
+pub struct LiveProviderAttemptFactory {
+    acquire:
+        Arc<dyn Fn(u32, bool) -> Result<LiveProviderAttempt, LaunchAuthorityError> + Send + Sync>,
+}
+
+impl std::fmt::Debug for LiveProviderAttemptFactory {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderAttemptFactory(..)")
+    }
+}
+
+impl LiveProviderAttemptFactory {
+    /// Bind a runtime acquisition callback. The callback receives the
+    /// scheduler input identity and warmup marker for this attempt.
+    pub fn from_fn<F>(acquire: F) -> Self
+    where
+        F: Fn(u32, bool) -> Result<LiveProviderAttempt, LaunchAuthorityError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self {
+            acquire: Arc::new(acquire),
+        }
+    }
+
+    /// Acquire one capability for one scheduler attempt.
+    pub fn acquire(
+        &self,
+        input_id: u32,
+        warmup: bool,
+    ) -> Result<LiveProviderAttempt, LaunchAuthorityError> {
+        (self.acquire)(input_id, warmup)
+    }
+}
 
 /// Opaque proof that the runtime performed its launch-boundary attestation.
 #[derive(Debug)]
@@ -204,6 +256,26 @@ impl LiveLaunchFactory {
             namespace,
         })
     }
+
+    /// Atomically acquire the one-shot context consumed by a single attempt.
+    ///
+    /// The authority is consumed immediately; dropping the returned attempt
+    /// revokes the namespace capability and tears down the relay.
+    pub fn acquire(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        backend: SandboxBackend,
+        namespace: NamespaceIdentity,
+        now_unix_ms: u64,
+        relay: crate::live_relay::LiveProviderRelay,
+    ) -> Result<LiveProviderAttempt, LaunchAuthorityError> {
+        let authority = Self::issue(token, input, lease, backend, namespace, now_unix_ms)?;
+        Ok(LiveProviderAttempt {
+            context: Some(authority.consume()),
+            relay: Some(relay),
+        })
+    }
 }
 
 impl LiveLaunchAuthority {
@@ -254,6 +326,48 @@ impl LiveLaunchContext {
     /// Absolute expiry fence for this launch capability.
     pub fn deadline_unix_ms(&self) -> u64 {
         self.handoff.deadline_unix_ms()
+    }
+}
+
+impl LiveProviderAttempt {
+    /// Start the bounded authenticated relay worker for this attempt.
+    pub fn start_relay(
+        &mut self,
+        now_unix_ms: u64,
+    ) -> Result<std::thread::JoinHandle<Result<(), crate::live_relay::LiveRelayError>>, SandboxError>
+    {
+        let mut relay = self.relay.take().ok_or(SandboxError::LiveHandoff)?;
+        Ok(std::thread::spawn(move || relay.serve_once(now_unix_ms)))
+    }
+
+    /// Consume the runtime-issued context exactly once for spawning.
+    pub fn spawn(&mut self) -> Result<crate::sandbox::SandboxProcess, SandboxError> {
+        self.context
+            .take()
+            .ok_or(SandboxError::LiveHandoff)?
+            .spawn()
+    }
+
+    /// Relay owned by this attempt, for the runtime's authenticated accept
+    /// loop.  It is never writable by the CLI.
+    pub fn relay(&mut self) -> Option<&mut crate::live_relay::LiveProviderRelay> {
+        self.relay.as_mut()
+    }
+
+    /// Revoke before cancellation or an early spawn failure.
+    pub fn revoke(&self) {
+        if let Some(context) = &self.context {
+            context.revoke();
+        }
+        if let Some(relay) = &self.relay {
+            relay.revoke();
+        }
+    }
+}
+
+impl Drop for LiveProviderAttempt {
+    fn drop(&mut self) {
+        self.revoke();
     }
 }
 
@@ -545,7 +659,22 @@ mod tests {
         assert_eq!(context.route_sha256(), "a".repeat(64));
         assert_eq!(context.adapter_sha256(), "b".repeat(64));
         assert_eq!(context.credential_ref_sha256(), "c".repeat(64));
+        assert_eq!(context.namespace().as_str(), "net:[123]");
+        assert_eq!(context.deadline_unix_ms(), 2_000);
+        assert_eq!(context.route_sha256(), "a".repeat(64));
         context.revoke();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn live_context_consumes_spawn_inputs_once_and_rejects_reuse() {
+        let (input, lease, namespace, root) = live_fixture();
+        let token = RuntimeLaunchToken::test_only(live_launch_binding_digest(&input, &lease, 100));
+        let authority =
+            LiveLaunchFactory::issue(token, input, lease, test_backend(), namespace, 100).unwrap();
+        let mut context = authority.consume();
+        assert!(context.spawn().is_err());
+        assert!(context.spawn().is_err());
         let _ = fs::remove_dir_all(root);
     }
 
@@ -688,13 +817,36 @@ mod tests {
     #[test]
     fn authority_consumption_preserves_attested_identities() {
         let (authority, _file, root) = fixture();
-        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let mut context = authority.consume_for(&"e".repeat(64)).unwrap();
         assert_eq!(context.generation(), "generation-1");
         assert_eq!(context.route_digest(), "d".repeat(64));
         assert_eq!(context.sidecar_digest(), "a".repeat(64));
         assert_eq!(context.adapter_digest(), "b".repeat(64));
         assert_eq!(context.supervisor_digest(), Some("c".repeat(64).as_str()));
+        assert_eq!(context.input().spec().network_policy(), NetworkPolicy::Deny);
+        assert_eq!(context.lease().class(), LeaseClass::Benchmark);
+        assert!(context.issue_operation().is_ok());
+        assert!(matches!(
+            context.issue_operation(),
+            Err(crate::ReplayOperationError::AlreadyIssued)
+        ));
         drop(context);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn replay_factory_retains_runtime_backend_and_factory_debug_is_opaque() {
+        let (authority, _file, root) =
+            fixture_with_token(Some(test_backend()), |input, lease, cassette| {
+                RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette))
+            })
+            .unwrap();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        assert!(context.backend.is_some());
+        let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        });
+        assert_eq!(format!("{factory:?}"), "LiveProviderAttemptFactory(..)");
         let _ = fs::remove_dir_all(root);
     }
 

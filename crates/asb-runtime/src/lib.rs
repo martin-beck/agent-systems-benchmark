@@ -6,6 +6,8 @@
 pub mod launch_factory;
 /// Runtime-issued namespace-bound capability for explicit live provider launches.
 pub mod live_namespace;
+/// Runtime-owned authenticated live-provider relay listener.
+pub mod live_relay;
 /// A per-launch, authenticated loopback-to-Unix relay for strict replay.
 pub mod loopback_sidecar;
 pub mod provider_capture;

@@ -38,7 +38,7 @@ impl ProviderEgressTarget {
     }
 
     #[cfg(test)]
-    fn test_only(address: SocketAddr) -> Self {
+    pub(crate) fn test_only(address: SocketAddr) -> Self {
         Self(address)
     }
 }
@@ -278,7 +278,6 @@ pub struct ProviderEgressRelay {
     generation: String,
     route_sha256: String,
     io_timeout: Duration,
-    #[cfg(test)]
     max_forward_bytes: usize,
 }
 
@@ -301,7 +300,6 @@ impl ProviderEgressRelay {
             generation: generation.into(),
             route_sha256: route_sha256.into(),
             io_timeout,
-            #[cfg(test)]
             max_forward_bytes,
         })
     }
@@ -341,6 +339,9 @@ impl ProviderEgressRelay {
             .map_err(ProviderEgressError::Connect)?;
         stream
             .set_write_timeout(Some(timeout))
+            .map_err(ProviderEgressError::Connect)?;
+        stream
+            .set_nonblocking(false)
             .map_err(ProviderEgressError::Connect)?;
         Ok(stream)
     }
@@ -387,9 +388,25 @@ impl ProviderEgressRelay {
             stream
                 .set_write_timeout(Some(remaining_time))
                 .map_err(ProviderEgressError::Io)?;
-            writer
-                .write_all(&buffer[..count])
-                .map_err(ProviderEgressError::Io)?;
+            let mut written = 0;
+            while written < count {
+                if Instant::now() >= deadline {
+                    return Err(ProviderEgressError::DeadlineExceeded);
+                }
+                match writer.write(&buffer[written..count]) {
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(error) => return Err(ProviderEgressError::Io(error)),
+                    Ok(0) => {
+                        return Err(ProviderEgressError::Io(io::Error::new(
+                            io::ErrorKind::WriteZero,
+                            "relay write",
+                        )));
+                    }
+                    Ok(size) => written += size,
+                }
+            }
             total += count;
         }
     }
@@ -397,8 +414,7 @@ impl ProviderEgressRelay {
     /// Copy one bounded half of an in-memory/test I/O stream. Production
     /// callers must use [`Self::forward_bounded`] so socket deadlines are
     /// refreshed for every blocking operation.
-    #[cfg(test)]
-    fn forward_bounded_io<R: std::io::Read, W: std::io::Write>(
+    pub(crate) fn forward_bounded_io<R: std::io::Read, W: std::io::Write>(
         &self,
         reader: &mut R,
         writer: &mut W,
@@ -421,17 +437,48 @@ impl ProviderEgressRelay {
                 };
             }
             let read_size = buffer.len().min(remaining);
-            let count = reader
-                .read(&mut buffer[..read_size])
-                .map_err(ProviderEgressError::Io)?;
+            let count = match reader.read(&mut buffer[..read_size]) {
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                Err(error) => return Err(ProviderEgressError::Io(error)),
+                Ok(count) => count,
+            };
             if count == 0 {
                 return Ok(total);
             }
-            writer
-                .write_all(&buffer[..count])
-                .map_err(ProviderEgressError::Io)?;
+            let mut written = 0;
+            while written < count {
+                if Instant::now() >= deadline {
+                    return Err(ProviderEgressError::DeadlineExceeded);
+                }
+                match writer.write(&buffer[written..count]) {
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(error) => return Err(ProviderEgressError::Io(error)),
+                    Ok(0) => {
+                        return Err(ProviderEgressError::Io(io::Error::new(
+                            io::ErrorKind::WriteZero,
+                            "relay write",
+                        )));
+                    }
+                    Ok(size) => written += size,
+                }
+            }
             total += count;
         }
+    }
+
+    /// Copy one bounded socket half while enforcing the absolute deadline.
+    pub(crate) fn forward_bounded_socket<R: std::io::Read, W: std::io::Write>(
+        &self,
+        reader: &mut R,
+        writer: &mut W,
+        deadline: Instant,
+    ) -> Result<usize, ProviderEgressError> {
+        self.forward_bounded_io(reader, writer, deadline)
     }
 }
 
@@ -547,6 +594,10 @@ mod tests {
         let auth = ProviderEgressAuthorization::authorize(&policy, &handoff, 99, "g-1", "route-1")
             .unwrap();
         assert_eq!(auth.endpoint_sha256(), policy.endpoint_sha256());
+        assert_eq!(auth.generation(), "g-1");
+        assert_eq!(auth.deadline_unix_ms(), 100);
+        assert_eq!(handoff.generation(), "g-1");
+        assert_eq!(handoff.deadline_unix_ms(), 100);
         assert!(
             ProviderEgressAuthorization::authorize(&policy, &handoff, 99, "g-2", "route-1")
                 .is_err()
