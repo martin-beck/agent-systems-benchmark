@@ -1967,6 +1967,40 @@ mod tests {
     }
 
     #[test]
+    fn launch_metadata_accessors_and_backend_probe_are_bounded() {
+        let root = workspace();
+        let spec = SandboxSpec::new(
+            root.as_ref(),
+            PathBuf::new(),
+            "/bin/true".into(),
+            vec!["--version".into()],
+            BTreeMap::from([("VISIBLE".into(), "value".into())]),
+            test_resources(),
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        assert_eq!(spec.network_policy(), NetworkPolicy::Deny);
+        assert_eq!(spec.program(), "/bin/true");
+        assert_eq!(spec.arguments(), &["--version"]);
+        assert_eq!(spec.environment()["VISIBLE"], "value");
+        assert!(spec.supervisor().is_none());
+        let input = SandboxLaunchInput::new(spec, probe_limits()).unwrap();
+        assert_eq!(input.spec().program(), "/bin/true");
+        assert_eq!(input.limits().timeout(), probe_limits().timeout());
+        assert!(input.replay_handoff().is_none());
+        assert!(input.live_provider_handoff().is_none());
+
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin.clone())
+            .with_live_launch_gate(pin);
+        assert!(backend.live_launch_gate.is_some());
+        assert!(matches!(
+            backend.probe(),
+            Err(SandboxError::ToolVersion { .. })
+        ));
+    }
+
+    #[test]
     fn leases_exclude_benchmark_and_ci_overlap() {
         let fixture = ScratchPath::create("lease-overlap");
         let root = fixture.as_ref();
