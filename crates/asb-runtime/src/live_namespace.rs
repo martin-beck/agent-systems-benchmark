@@ -582,6 +582,10 @@ mod tests {
         assert_eq!(x.descendant_policy(), DescendantEgressPolicy::DenyDirect);
         assert!(x.child_handoff(&n, 2_000).is_ok());
         assert_eq!(x.credential_ref_sha256(), "c".repeat(64));
+        assert!(x.relay_socket().ends_with("relay.sock"));
+        assert_eq!(x.namespace(), &n);
+        assert_eq!(x.generation(), "g-1");
+        assert_eq!(x.deadline_unix_ms(), 9_000);
     }
     #[test]
     fn rejects_namespace_expiry_and_revocation() {

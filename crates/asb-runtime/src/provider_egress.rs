@@ -594,6 +594,10 @@ mod tests {
         let auth = ProviderEgressAuthorization::authorize(&policy, &handoff, 99, "g-1", "route-1")
             .unwrap();
         assert_eq!(auth.endpoint_sha256(), policy.endpoint_sha256());
+        assert_eq!(auth.generation(), "g-1");
+        assert_eq!(auth.deadline_unix_ms(), 100);
+        assert_eq!(handoff.generation(), "g-1");
+        assert_eq!(handoff.deadline_unix_ms(), 100);
         assert!(
             ProviderEgressAuthorization::authorize(&policy, &handoff, 99, "g-2", "route-1")
                 .is_err()
