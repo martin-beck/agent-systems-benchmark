@@ -2805,6 +2805,7 @@ fn run_point(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_point_with_selection(
     store: Arc<AtomicStore>,
     plan: &PlanFile,
@@ -3386,6 +3387,7 @@ fn spawn_verified_agent(
     unreachable!("the bounded retry loop returns on its final iteration")
 }
 
+#[allow(clippy::large_enum_variant)]
 enum AgentProcess {
     Direct(RunningProcess),
     Live {
