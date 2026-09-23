@@ -183,6 +183,7 @@ dependencies = [
  "asb-core",
  "asb-replay",
  "rustix",
+ "serde",
  "serde_json",
  "sha2",
 ]

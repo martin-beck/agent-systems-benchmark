@@ -10,11 +10,12 @@ repository.workspace = true
 asb-core = { version = "=0.1.0", path = "../asb-core" }
 asb-control = { version = "=0.1.0", path = "../asb-control" }
 rustix = { version = "=1.1.4", features = ["fs", "process"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.143", features = ["raw_value"] }
 sha2 = "=0.10.9"
 
 [dev-dependencies]
 asb-replay = { version = "=0.1.0", path = "../asb-replay" }
-serde_json = "=1.0.143"
 
 [lints]
 workspace = true
