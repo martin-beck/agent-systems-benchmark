@@ -5609,6 +5609,7 @@ mod tests {
             .is_ok()
         );
 
+        let valid_profile = profile.clone();
         let mut wrong_source = profile.clone();
         wrong_source.credential.source = CredentialSource::Environment;
         assert!(matches!(
@@ -5622,7 +5623,19 @@ mod tests {
             ),
             Err(BackendFailure::Rejected)
         ));
-        let valid_profile = profile.clone();
+        let mut missing_reference = valid_profile.clone();
+        missing_reference.credential.reference_sha256 = None;
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &missing_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
         assert!(matches!(
             invoke_registered_auth_helper("openai", &valid_profile, deadline()),
             Err(BackendFailure::CapabilityUnavailable)
@@ -5680,6 +5693,24 @@ mod tests {
                 deadline(),
                 &helper,
                 &"0".repeat(64),
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        let malformed = scratch.0.join("malformed-helper.sh");
+        let malformed_script = b"#!/bin/sh
+printf '%s' 'not-json'
+";
+        fs::write(&malformed, malformed_script).unwrap();
+        fs::set_permissions(&malformed, fs::Permissions::from_mode(0o700)).unwrap();
+        let malformed_sha256 = format!("{:x}", Sha256::digest(malformed_script));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &valid_profile,
+                deadline(),
+                &malformed,
+                &malformed_sha256,
                 locator,
             ),
             Err(BackendFailure::Rejected)
