@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
+use crate::live_namespace::{LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::relay::{RelayError, ReplayRelayHandoff};
 use crate::supervisor::SupervisorPlan;
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
@@ -346,11 +347,12 @@ impl SandboxSpec {
 /// The specification and process limits are constructed before this value is
 /// handed to the backend; the backend still rechecks the network invariant at
 /// the launch boundary.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SandboxLaunchInput {
     spec: SandboxSpec,
     limits: ProcessLimits,
     replay_handoff: Option<ReplayRelayHandoff>,
+    live_provider: Option<(LiveProviderNamespaceHandoff, NamespaceIdentity)>,
 }
 
 impl SandboxLaunchInput {
@@ -363,6 +365,7 @@ impl SandboxLaunchInput {
             spec,
             limits,
             replay_handoff: None,
+            live_provider: None,
         })
     }
 
@@ -386,6 +389,30 @@ impl SandboxLaunchInput {
     /// Return the authenticated relay metadata, if configured.
     pub fn replay_handoff(&self) -> Option<&ReplayRelayHandoff> {
         self.replay_handoff.as_ref()
+    }
+
+    /// Attach a runtime-issued live provider capability without changing the
+    /// denied network policy. The capability is revalidated at spawn.
+    pub fn with_live_provider_handoff(
+        mut self,
+        handoff: LiveProviderNamespaceHandoff,
+        namespace: NamespaceIdentity,
+        now_unix_ms: u64,
+    ) -> Result<Self, SandboxError> {
+        handoff
+            .validate(&namespace, now_unix_ms)
+            .map_err(|_| SandboxError::LiveHandoff)?;
+        self.live_provider = Some((handoff, namespace));
+        Ok(self)
+    }
+
+    /// Runtime-owned live provider capability, when explicitly attached.
+    pub fn live_provider_handoff(
+        &self,
+    ) -> Option<(&LiveProviderNamespaceHandoff, &NamespaceIdentity)> {
+        self.live_provider
+            .as_ref()
+            .map(|(handoff, namespace)| (handoff, namespace))
     }
 }
 
@@ -483,7 +510,7 @@ impl SandboxBackend {
         limits: ProcessLimits,
     ) -> Result<SandboxProcess, SandboxError> {
         let (unit, nonce) = new_scope_identity()?;
-        self.spawn_with_identity(spec, lease, limits, unit, nonce)
+        self.spawn_with_identity(spec, lease, limits, unit, nonce, None)
     }
 
     /// Spawn a validated adapter launch under the denied-network sandbox.
@@ -495,7 +522,15 @@ impl SandboxBackend {
         if input.spec.network_policy() != NetworkPolicy::Deny {
             return Err(SandboxError::NetworkPolicy);
         }
-        self.spawn(input.spec, lease, input.limits)
+        let (unit, nonce) = new_scope_identity()?;
+        self.spawn_with_identity(
+            input.spec,
+            lease,
+            input.limits,
+            unit,
+            nonce,
+            input.live_provider,
+        )
     }
 
     fn spawn_with_identity(
@@ -505,6 +540,7 @@ impl SandboxBackend {
         limits: ProcessLimits,
         unit: String,
         nonce: String,
+        live_provider: Option<(LiveProviderNamespaceHandoff, NamespaceIdentity)>,
     ) -> Result<SandboxProcess, SandboxError> {
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
@@ -538,6 +574,23 @@ impl SandboxBackend {
             .args(["--setenv", "HOME", "/workspace"])
             .args(["--setenv", "TMPDIR", "/tmp"])
             .args(["--setenv", "ASB_SCOPE_NONCE", &nonce]);
+        if let Some((handoff, namespace)) = &live_provider {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| SandboxError::LiveHandoff)?
+                .as_millis() as u64;
+            let child = handoff
+                .child_handoff(namespace, now)
+                .map_err(|_| SandboxError::LiveHandoff)?;
+            command
+                .arg("--bind")
+                .arg(handoff.relay_socket())
+                .arg(child.endpoint())
+                .args(["--setenv", "ASB_LIVE_PROVIDER_RELAY"])
+                .arg(child.endpoint())
+                .args(["--setenv", "ASB_LIVE_PROVIDER_CAPABILITY_SHA256"])
+                .arg(child.capability_sha256());
+        }
         const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
         const SUPERVISOR_TARGET: &str = "/tmp/asb-replay-supervisor";
         const SIDECAR_TARGET: &str = "/tmp/asb-replay-sidecar";
@@ -1091,6 +1144,8 @@ pub enum SandboxError {
     },
     /// Lease class or CPUs did not match.
     LeaseMismatch,
+    /// A runtime-issued live provider handoff failed validation.
+    LiveHandoff,
 }
 
 impl fmt::Display for ConfigError {
@@ -1115,6 +1170,9 @@ impl std::error::Error for SandboxError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::live_namespace::LiveProviderNamespaceHandoff;
+    use crate::provider_egress::{ProviderEgressHandoff, ProviderEgressPolicy};
+    use std::os::unix::net::UnixListener;
 
     static FAKE_TOOL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     static SCRATCH_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -1273,6 +1331,61 @@ mod tests {
         assert!(Resources::new(1, MAX_TASKS + 1, 100, CpuSet::new(vec![0]).unwrap()).is_err());
         assert!(Resources::new(1, 1, MAX_CPU_PERCENT + 1, CpuSet::new(vec![0]).unwrap()).is_err());
         assert!(CpuSet::new(vec![MAX_CPUS as u32]).is_err());
+    }
+
+    #[test]
+    fn live_handoff_is_explicit_and_namespace_bound() {
+        let root = scratch("live-handoff");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let socket = root.join("relay.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).unwrap();
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let provider = ProviderEgressHandoff::issue_bound(&policy, "g-1", "a".repeat(64), 9_000);
+        let namespace = NamespaceIdentity::new("net:[123]").unwrap();
+        let live = LiveProviderNamespaceHandoff::issue(
+            &policy,
+            &provider,
+            namespace.clone(),
+            "g-1",
+            "a".repeat(64),
+            "b".repeat(64),
+            "c".repeat(64),
+            socket,
+            root.join("child.sock"),
+            8_000,
+            1_000,
+        )
+        .unwrap();
+        let spec = spec_with(
+            PathBuf::from("."),
+            "/usr/bin/true",
+            vec![],
+            BTreeMap::new(),
+            "live",
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let input = SandboxLaunchInput::new(spec, ProcessLimits::default()).unwrap();
+        let admitted = input
+            .clone()
+            .with_live_provider_handoff(live.clone(), namespace.clone(), 2_000)
+            .unwrap();
+        assert_eq!(admitted.spec().network_policy(), NetworkPolicy::Deny);
+        assert!(admitted.live_provider_handoff().is_some());
+        assert!(
+            input
+                .with_live_provider_handoff(
+                    live,
+                    NamespaceIdentity::new("net:[124]").unwrap(),
+                    2_000,
+                )
+                .is_err()
+        );
+        drop(listener);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -1972,6 +2085,7 @@ mod tests {
                 probe_limits(),
                 unit.clone(),
                 "different-owner-nonce".into(),
+                None,
             ),
             Err(SandboxError::ScopeOwnership { .. })
         ));

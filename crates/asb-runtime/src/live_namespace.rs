@@ -212,6 +212,10 @@ impl LiveProviderNamespaceHandoff {
     pub fn credential_ref_sha256(&self) -> &str {
         &self.credential_ref_sha256
     }
+    /// Host-side relay socket.
+    pub fn relay_socket(&self) -> &Path {
+        &self.relay_socket
+    }
     /// Capability digest.
     pub fn capability_sha256(&self) -> &str {
         &self.capability_sha256
