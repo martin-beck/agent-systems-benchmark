@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
+use crate::live_namespace::{LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
 use sha2::{Digest, Sha256};
 
@@ -39,6 +40,33 @@ pub struct ReplayLaunchContext {
 
 /// Runtime-owned factory for validated replay launch authority.
 pub struct ReplayLaunchFactory;
+
+/// Runtime-owned authority for one explicitly admitted live-provider launch.
+///
+/// This type deliberately contains no endpoint, namespace, or credential
+/// constructor. Those identities arrive only through the attested handoff
+/// issued by the runtime egress and namespace boundaries.
+#[derive(Debug)]
+pub struct LiveLaunchAuthority {
+    input: SandboxLaunchInput,
+    lease: ResourceLease,
+    backend: SandboxBackend,
+    handoff: LiveProviderNamespaceHandoff,
+    namespace: NamespaceIdentity,
+}
+
+/// Opaque, one-shot live launch context owned by the runtime.
+#[derive(Debug)]
+pub struct LiveLaunchContext {
+    input: Option<SandboxLaunchInput>,
+    lease: Option<ResourceLease>,
+    backend: SandboxBackend,
+    handoff: LiveProviderNamespaceHandoff,
+    namespace: NamespaceIdentity,
+}
+
+/// Runtime factory for validated live-provider relay launches.
+pub struct LiveLaunchFactory;
 
 /// Opaque proof that the runtime performed its launch-boundary attestation.
 #[derive(Debug)]
@@ -140,6 +168,123 @@ impl ReplayLaunchFactory {
             backend,
         })
     }
+}
+
+impl LiveLaunchFactory {
+    /// Issue authority only after runtime attestation and handoff validation.
+    pub fn issue(
+        token: RuntimeLaunchToken,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        backend: SandboxBackend,
+        namespace: NamespaceIdentity,
+        now_unix_ms: u64,
+    ) -> Result<LiveLaunchAuthority, LaunchAuthorityError> {
+        if token.nonce == 0 || lease.class() != LeaseClass::Benchmark {
+            return Err(LaunchAuthorityError::InvalidLaunchInput);
+        }
+        if input.spec().network_policy() != crate::sandbox::NetworkPolicy::Deny {
+            return Err(LaunchAuthorityError::InvalidLaunchInput);
+        }
+        let (handoff, bound_namespace) = input
+            .live_provider_handoff()
+            .ok_or(LaunchAuthorityError::InvalidLaunchInput)?;
+        let handoff = handoff.clone();
+        if bound_namespace != &namespace
+            || handoff.validate(&namespace, now_unix_ms).is_err()
+            || token.binding_digest != live_launch_binding_digest(&input, &lease, now_unix_ms)
+        {
+            return Err(LaunchAuthorityError::IdentityMismatch);
+        }
+        Ok(LiveLaunchAuthority {
+            input,
+            lease,
+            backend,
+            handoff,
+            namespace,
+        })
+    }
+}
+
+impl LiveLaunchAuthority {
+    /// Consume the authority exactly once.
+    pub fn consume(self) -> LiveLaunchContext {
+        LiveLaunchContext {
+            input: Some(self.input),
+            lease: Some(self.lease),
+            backend: self.backend,
+            handoff: self.handoff,
+            namespace: self.namespace,
+        }
+    }
+}
+
+impl LiveLaunchContext {
+    /// Spawn through the retained runtime backend. The CLI cannot substitute
+    /// an endpoint, namespace, lease, or sandbox tool after issuance.
+    pub fn spawn(&mut self) -> Result<crate::sandbox::SandboxProcess, SandboxError> {
+        let input = self.input.take().ok_or(SandboxError::LiveHandoff)?;
+        let lease = self.lease.take().ok_or(SandboxError::LiveHandoff)?;
+        self.backend.spawn_launch(input, lease)
+    }
+
+    /// Revoke the relay capability before cancellation or teardown.
+    pub fn revoke(&self) {
+        self.handoff.revoke();
+    }
+
+    /// Runtime-observed namespace bound to this launch.
+    pub fn namespace(&self) -> &NamespaceIdentity {
+        &self.namespace
+    }
+
+    /// Adapter route identity, credential-reference digest, and expiry are
+    /// exposed only as opaque metadata for evidence; no secret is retained.
+    pub fn route_sha256(&self) -> &str {
+        self.handoff.route_sha256()
+    }
+    /// Adapter executable identity digest.
+    pub fn adapter_sha256(&self) -> &str {
+        self.handoff.adapter_sha256()
+    }
+    /// Credential reference digest; no credential material is retained.
+    pub fn credential_ref_sha256(&self) -> &str {
+        self.handoff.credential_ref_sha256()
+    }
+    /// Absolute expiry fence for this launch capability.
+    pub fn deadline_unix_ms(&self) -> u64 {
+        self.handoff.deadline_unix_ms()
+    }
+}
+
+/// Digest used by the runtime attestation and factory; callers cannot choose
+/// individual endpoint or credential fields independently.
+pub(crate) fn live_launch_binding_digest(
+    input: &SandboxLaunchInput,
+    lease: &ResourceLease,
+    now_unix_ms: u64,
+) -> String {
+    let (handoff, namespace) = input
+        .live_provider_handoff()
+        .expect("live binding requires an attached handoff");
+    let mut hasher = Sha256::new();
+    for field in [
+        handoff.policy_sha256(),
+        handoff.generation(),
+        handoff.route_sha256(),
+        handoff.adapter_sha256(),
+        handoff.credential_ref_sha256(),
+        handoff.relay_socket().to_string_lossy().as_ref(),
+        handoff.capability_sha256(),
+        namespace.as_str(),
+        &now_unix_ms.to_string(),
+        &format!("{:?}", lease.cpus()),
+        input.spec().program(),
+    ] {
+        hasher.update((field.len() as u64).to_le_bytes());
+        hasher.update(field.as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
 }
 
 /// Hash the complete runtime launch context so an attestation cannot be
@@ -295,17 +440,124 @@ mod tests {
     use crate::supervisor::{PinnedCommand, SupervisorPlan};
     use std::collections::BTreeMap;
     use std::fs;
+    use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+    fn test_backend() -> SandboxBackend {
+        let pin = |path: &str| ToolPin::new(PathBuf::from(path), "test".into()).unwrap();
+        SandboxBackend::new(
+            pin("/bin/true"),
+            pin("/bin/true"),
+            pin("/bin/true"),
+            pin("/bin/true"),
+        )
+    }
+
+    fn live_fixture() -> (
+        SandboxLaunchInput,
+        ResourceLease,
+        NamespaceIdentity,
+        PathBuf,
+    ) {
+        let root = std::env::temp_dir().join(format!(
+            "asb-live-factory-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let workspace = root.join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        let relay_path = root.join("relay.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&relay_path).unwrap();
+        fs::set_permissions(&relay_path, fs::Permissions::from_mode(0o600)).unwrap();
+        std::mem::forget(listener);
+        let policy = crate::provider_egress::ProviderEgressPolicy::new(
+            "https://openrouter.ai/api/v1",
+            "openrouter.ai",
+        )
+        .unwrap();
+        let namespace = NamespaceIdentity::new("net:[123]").unwrap();
+        let handoff = crate::provider_egress::ProviderEgressHandoff::issue_bound(
+            &policy,
+            "generation-1",
+            "a".repeat(64),
+            2_000,
+        );
+        let live = LiveProviderNamespaceHandoff::issue(
+            &policy,
+            &handoff,
+            namespace.clone(),
+            "generation-1",
+            "a".repeat(64),
+            "b".repeat(64),
+            "c".repeat(64),
+            relay_path,
+            PathBuf::from("/tmp/provider-relay.sock"),
+            2_000,
+            100,
+        )
+        .unwrap();
+        let resources =
+            Resources::new(64 * 1024 * 1024, 16, 100, CpuSet::new(vec![0]).unwrap()).unwrap();
+        let spec = SandboxSpec::new(
+            &workspace,
+            PathBuf::from("."),
+            "/bin/true".into(),
+            vec![],
+            BTreeMap::new(),
+            resources,
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let input = SandboxLaunchInput::new(spec, ProcessLimits::default())
+            .unwrap()
+            .with_live_provider_handoff(live, namespace.clone(), 100)
+            .unwrap();
+        let leases = root.join("leases");
+        fs::create_dir_all(&leases).unwrap();
+        let lease = ResourceLease::acquire(
+            &leases,
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        (input, lease, namespace, root)
+    }
+
     fn fixture() -> (ReplayLaunchAuthority, fs::File, std::path::PathBuf) {
         fixture_with_token(None, |input, lease, cassette_sha256| {
             RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette_sha256))
         })
         .unwrap()
+    }
+
+    #[test]
+    fn live_factory_issues_opaque_context_from_attested_handoff() {
+        let (input, lease, namespace, root) = live_fixture();
+        let token = RuntimeLaunchToken::test_only(live_launch_binding_digest(&input, &lease, 100));
+        let authority =
+            LiveLaunchFactory::issue(token, input, lease, test_backend(), namespace, 100).unwrap();
+        let context = authority.consume();
+        assert_eq!(context.route_sha256(), "a".repeat(64));
+        assert_eq!(context.adapter_sha256(), "b".repeat(64));
+        assert_eq!(context.credential_ref_sha256(), "c".repeat(64));
+        context.revoke();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn live_factory_rejects_expired_or_copied_attestation() {
+        let (input, lease, namespace, root) = live_fixture();
+        let token = RuntimeLaunchToken::test_only(live_launch_binding_digest(&input, &lease, 100));
+        assert!(matches!(
+            LiveLaunchFactory::issue(token, input, lease, test_backend(), namespace, 2_000),
+            Err(LaunchAuthorityError::IdentityMismatch)
+        ));
+        let _ = fs::remove_dir_all(root);
     }
 
     fn qualified_backend() -> Option<SandboxBackend> {

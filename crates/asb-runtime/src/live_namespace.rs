@@ -386,6 +386,10 @@ impl LiveProviderNamespaceHandoff {
     pub fn generation(&self) -> &str {
         &self.generation
     }
+    /// Absolute expiry fence for this launch capability.
+    pub fn deadline_unix_ms(&self) -> u64 {
+        self.deadline_unix_ms
+    }
     /// Namespace identity bound by the runtime.
     pub fn namespace(&self) -> &NamespaceIdentity {
         &self.namespace
