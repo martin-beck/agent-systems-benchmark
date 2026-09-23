@@ -93,6 +93,26 @@ pub struct LiveProviderRelay {
     consumed: bool,
 }
 
+struct SocketPathCleanup(Option<PathBuf>);
+
+impl SocketPathCleanup {
+    fn new(path: PathBuf) -> Self {
+        Self(Some(path))
+    }
+
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for SocketPathCleanup {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
 impl LiveProviderRelay {
     /// Bind a private relay below `root` using the runtime-selected target.
     #[allow(clippy::too_many_arguments)]
@@ -127,12 +147,12 @@ impl LiveProviderRelay {
         let root = fs::canonicalize(root)?;
         let socket = root.join(format!("asb-live-{generation}.sock"));
         let listener = UnixListener::bind(&socket)?;
+        let mut socket_cleanup = SocketPathCleanup::new(socket.clone());
         // Accept is deliberately non-blocking so cancellation and the finite
         // relay deadline also cover a child that never connects.
         listener.set_nonblocking(true)?;
         fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))?;
         if let Err(error) = namespace_handoff.validate(&namespace, now_unix_ms) {
-            let _ = fs::remove_file(&socket);
             return Err(LiveRelayError::Handoff(error));
         }
         let deadline = Instant::now()
@@ -146,6 +166,7 @@ impl LiveProviderRelay {
             io_timeout,
             max_forward_bytes,
         )?;
+        socket_cleanup.disarm();
         Ok(Self {
             listener,
             socket,
@@ -302,10 +323,18 @@ mod tests {
         root
     }
 
-    fn relay_with_timeout(
-        io_timeout: Duration,
-        selected_target: Option<ProviderEgressTarget>,
-    ) -> (LiveProviderRelay, PathBuf) {
+    struct RelayInputs {
+        root: PathBuf,
+        policy: ProviderEgressPolicy,
+        egress: ProviderEgressHandoff,
+        handoff: LiveProviderNamespaceHandoff,
+        namespace: NamespaceIdentity,
+        allowlist: ProviderEgressAllowlist,
+        target: ProviderEgressTarget,
+        now_unix_ms: u64,
+    }
+
+    fn relay_inputs(selected_target: Option<ProviderEgressTarget>) -> RelayInputs {
         let root = root();
         let now_unix_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -339,26 +368,112 @@ mod tests {
             ProviderEgressTarget::test_only("198.51.100.10:443".parse().unwrap())
         });
         let allowlist = ProviderEgressAllowlist::new(vec![target]).unwrap();
-        let relay = LiveProviderRelay::bind(
-            &root,
-            &policy,
-            &egress,
+        RelayInputs {
+            root,
+            policy,
+            egress,
             handoff,
             namespace,
             allowlist,
             target,
+            now_unix_ms,
+        }
+    }
+
+    fn relay_with_timeout(
+        io_timeout: Duration,
+        selected_target: Option<ProviderEgressTarget>,
+    ) -> (LiveProviderRelay, PathBuf) {
+        let inputs = relay_inputs(selected_target);
+        let relay = LiveProviderRelay::bind(
+            &inputs.root,
+            &inputs.policy,
+            &inputs.egress,
+            inputs.handoff,
+            inputs.namespace,
+            inputs.allowlist,
+            inputs.target,
             "generation-1",
             "a".repeat(64),
             io_timeout,
             4096,
-            now_unix_ms,
+            inputs.now_unix_ms,
         )
         .unwrap();
-        (relay, root)
+        (relay, inputs.root)
     }
 
     fn relay() -> (LiveProviderRelay, PathBuf) {
         relay_with_timeout(Duration::from_secs(1), None)
+    }
+
+    #[test]
+    fn namespace_constructor_error_removes_socket() {
+        let inputs = relay_inputs(None);
+        let socket = inputs.root.join("asb-live-generation-1.sock");
+        let revoked = inputs.handoff.clone();
+        revoked.revoke();
+        assert!(matches!(
+            LiveProviderRelay::bind(
+                &inputs.root,
+                &inputs.policy,
+                &inputs.egress,
+                revoked,
+                inputs.namespace.clone(),
+                inputs.allowlist.clone(),
+                inputs.target,
+                "generation-1",
+                "a".repeat(64),
+                Duration::from_secs(1),
+                4096,
+                inputs.now_unix_ms,
+            ),
+            Err(LiveRelayError::Handoff(_))
+        ));
+        assert!(!socket.exists());
+        let _ = fs::remove_dir_all(inputs.root);
+    }
+
+    #[test]
+    fn connector_constructor_error_removes_socket_and_allows_reuse() {
+        let inputs = relay_inputs(None);
+        let socket = inputs.root.join("asb-live-generation-1.sock");
+        assert!(matches!(
+            LiveProviderRelay::bind(
+                &inputs.root,
+                &inputs.policy,
+                &inputs.egress,
+                inputs.handoff.clone(),
+                inputs.namespace.clone(),
+                inputs.allowlist.clone(),
+                inputs.target,
+                "generation-1",
+                "a".repeat(64),
+                Duration::from_secs(1),
+                0,
+                inputs.now_unix_ms,
+            ),
+            Err(LiveRelayError::Egress(_))
+        ));
+        assert!(!socket.exists());
+        let relay = LiveProviderRelay::bind(
+            &inputs.root,
+            &inputs.policy,
+            &inputs.egress,
+            inputs.handoff,
+            inputs.namespace,
+            inputs.allowlist,
+            inputs.target,
+            "generation-1",
+            "a".repeat(64),
+            Duration::from_secs(1),
+            4096,
+            inputs.now_unix_ms,
+        )
+        .unwrap();
+        assert!(socket.exists());
+        drop(relay);
+        let _ = fs::remove_dir_all(inputs.root);
     }
 
     #[test]
