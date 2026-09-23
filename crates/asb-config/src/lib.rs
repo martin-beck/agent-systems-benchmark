@@ -1260,6 +1260,37 @@ mod tests {
         selection.credential_environment = "OPENROUTER_API_KEY=secret".into();
         assert!(selection.validate().is_err());
     }
+
+    #[test]
+    fn openrouter_free_model_rejects_every_identity_and_enrollment_drift() {
+        let base = || {
+            OpenRouterFreeModelConfig::enroll(
+                "deepseek/deepseek-chat-v3-0324:free".into(),
+                "2026-09-22".into(),
+                "a".repeat(64),
+                1,
+            )
+            .unwrap()
+        };
+        let mutations: [fn(&mut OpenRouterFreeModelConfig); 11] = [
+            |value: &mut OpenRouterFreeModelConfig| value.schema_version = 2,
+            |value| value.provider = "openai".into(),
+            |value| value.model.clear(),
+            |value| value.model_snapshot.clear(),
+            |value| value.model_snapshot_date = "2026-09-23".into(),
+            |value| value.endpoint_identity_sha256 = "bad".into(),
+            |value| value.credential_environment = "CODEX_API_KEY".into(),
+            |value| value.credential.kind = CredentialReferenceKind::Helper,
+            |value| value.enrollment.provider = "openai".into(),
+            |value| value.enrollment.generation = 0,
+            |value| value.enrollment.status = AuthEnrollmentStatus::Revoked,
+        ];
+        for mutate in mutations {
+            let mut value = base();
+            mutate(&mut value);
+            assert!(value.validate().is_err());
+        }
+    }
     #[test]
     fn secret_shaped_values_rejected() {
         let mut config = sample();
