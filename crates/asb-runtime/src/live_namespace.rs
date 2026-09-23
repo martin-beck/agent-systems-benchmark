@@ -648,6 +648,15 @@ mod tests {
     }
 
     #[test]
+    fn launch_gate_rejects_invalid_release_digest_before_accepting() {
+        let gate = LiveLaunchGate::bind("g-invalid").unwrap();
+        assert_eq!(
+            gate.release("copied-capability"),
+            Err(LiveNamespaceError::InvalidDigest)
+        );
+    }
+
+    #[test]
     fn runtime_observation_rejects_missing_pid() {
         assert_eq!(
             NamespaceIdentity::for_pid(0),
