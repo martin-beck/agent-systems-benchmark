@@ -990,6 +990,16 @@ struct EffectiveCliAgent {
 }
 
 fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let store = ConfigStore::from_environment()
+        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    provider_plan_at(args, output, &store)
+}
+
+fn provider_plan_at(
+    args: &[String],
+    output: &mut dyn Write,
+    store: &ConfigStore,
+) -> Result<(), CliError> {
     let mut catalog_sha256 = None;
     let mut provider = None;
     let mut credential_reference_sha256 = None;
@@ -1037,7 +1047,9 @@ fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError
             "provider catalog identity is stale or absent",
         ));
     }
-    let config = use_config.then(load_openrouter_config).transpose()?;
+    let config = use_config
+        .then(|| load_openrouter_config_at(store))
+        .transpose()?;
     let provider = provider
         .or_else(|| config.as_ref().map(|_| "openrouter"))
         .ok_or_else(|| CliError::validation("provider profile is absent"))?;
@@ -4546,6 +4558,52 @@ mod tests {
         )
         .unwrap();
         assert!(provider_plan_from_selection(&valid, "unknown-agent").is_err());
+    }
+
+    #[test]
+    fn provider_plan_config_dispatch_covers_valid_duplicate_and_mismatch_options() {
+        let scratch = Scratch::new("provider-plan-config");
+        let store = ConfigStore::new(scratch.0.join("config.json"));
+        configure_openrouter_at(&store, &mut Vec::new()).unwrap();
+        let selection = load_openrouter_config_at(&store).unwrap();
+        let catalog = provider_catalog_digest();
+        let valid = vec![
+            "--use-config".into(),
+            "--catalog-sha256".into(),
+            catalog.clone(),
+            "--agent".into(),
+            "codex".into(),
+        ];
+        let mut output = Vec::new();
+        provider_plan_at(&valid, &mut output, &store).unwrap();
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["provider_profile"], "openrouter");
+        assert_eq!(value["model"], asb_agents::openrouter::OPENROUTER_MODEL);
+
+        let duplicate = vec![
+            "--use-config".into(),
+            "--use-config".into(),
+            "--catalog-sha256".into(),
+            catalog.clone(),
+        ];
+        assert!(provider_plan_at(&duplicate, &mut Vec::new(), &store).is_err());
+        let mismatch = vec![
+            "--use-config".into(),
+            "--catalog-sha256".into(),
+            catalog.clone(),
+            "--provider-profile".into(),
+            "openai".into(),
+        ];
+        assert!(provider_plan_at(&mismatch, &mut Vec::new(), &store).is_err());
+        let credential_mismatch = vec![
+            "--use-config".into(),
+            "--catalog-sha256".into(),
+            catalog,
+            "--credential-reference-sha256".into(),
+            "a".repeat(64),
+        ];
+        assert!(provider_plan_at(&credential_mismatch, &mut Vec::new(), &store).is_err());
+        assert_eq!(selection.provider, "openrouter");
     }
 
     #[test]
