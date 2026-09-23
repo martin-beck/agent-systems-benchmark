@@ -15,8 +15,12 @@ use crate::sandbox::{
     SandboxLaunchInput, ToolPin,
 };
 use asb_control::IssuedCertificateChainV1;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// Validated references accepted by the production live acquisition service.
 ///
@@ -83,6 +87,192 @@ pub struct LiveProviderControlClaims {
 pub struct LiveProviderControlAttestation {
     chain_sha256: String,
     claims: LiveProviderControlClaims,
+}
+
+const MAX_ENROLLMENT_RECORD_BYTES: usize = 16 * 1024;
+#[allow(dead_code)] // Used by the runtime/control bridge and validation.
+const ENROLLMENT_RECORD_SCHEMA_VERSION: u16 = 1;
+
+/// Bounded, secret-free enrollment transport emitted by the authenticated
+/// control/runtime bridge. Private roots are represented by digests only.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LiveProviderEnrollmentRecordV1 {
+    schema_version: u16,
+    chain_sha256: String,
+    provider: String,
+    endpoint_identity_sha256: String,
+    credential_ref_sha256: String,
+    generation: u64,
+    target: SocketAddr,
+    tool_bundle_sha256: String,
+    lease_root_sha256: String,
+    relay_root_sha256: String,
+    issued_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+    nonce_sha256: String,
+}
+
+/// Errors from bounded enrollment-record transport and freshness validation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveProviderEnrollmentRecordError {
+    /// The record exceeds the bounded transport size.
+    TooLarge,
+    /// The JSON record is malformed or contains unknown fields.
+    Malformed,
+    /// The record schema version is unsupported.
+    UnsupportedSchema,
+    /// The record is expired, not yet valid, or has an invalid interval.
+    Freshness,
+    /// The record does not match the authenticated control attestation.
+    AttestationMismatch,
+    /// A digest or identity field is invalid.
+    InvalidIdentity,
+    /// The record was already consumed by this runtime ledger.
+    Replay,
+}
+
+impl LiveProviderEnrollmentRecordV1 {
+    /// Encode the record with a hard byte ceiling and no secret material.
+    pub fn encode(&self) -> Result<Vec<u8>, LiveProviderEnrollmentRecordError> {
+        let encoded =
+            serde_json::to_vec(self).map_err(|_| LiveProviderEnrollmentRecordError::Malformed)?;
+        if encoded.len() > MAX_ENROLLMENT_RECORD_BYTES {
+            return Err(LiveProviderEnrollmentRecordError::TooLarge);
+        }
+        Ok(encoded)
+    }
+
+    /// Decode a bounded record, rejecting oversized or unknown input.
+    pub fn decode(bytes: &[u8]) -> Result<Self, LiveProviderEnrollmentRecordError> {
+        if bytes.len() > MAX_ENROLLMENT_RECORD_BYTES {
+            return Err(LiveProviderEnrollmentRecordError::TooLarge);
+        }
+        serde_json::from_slice(bytes).map_err(|_| LiveProviderEnrollmentRecordError::Malformed)
+    }
+
+    /// Validate this record against an authenticated control attestation.
+    #[allow(dead_code)] // Called by the runtime/control bridge and ledger.
+    pub(crate) fn validate_against(
+        &self,
+        attestation: &LiveProviderControlAttestation,
+        now_unix_ms: u64,
+    ) -> Result<(), LiveProviderEnrollmentRecordError> {
+        if self.schema_version != ENROLLMENT_RECORD_SCHEMA_VERSION {
+            return Err(LiveProviderEnrollmentRecordError::UnsupportedSchema);
+        }
+        if self.issued_at_unix_ms > self.expires_at_unix_ms
+            || now_unix_ms < self.issued_at_unix_ms
+            || now_unix_ms > self.expires_at_unix_ms
+            || self.expires_at_unix_ms - self.issued_at_unix_ms > 15 * 60 * 1000
+        {
+            return Err(LiveProviderEnrollmentRecordError::Freshness);
+        }
+        let claims = attestation.claims();
+        if self.chain_sha256 != attestation.chain_sha256()
+            || self.provider != claims.provider
+            || self.endpoint_identity_sha256 != claims.endpoint_identity_sha256
+            || self.credential_ref_sha256 != claims.credential_ref_sha256
+            || self.generation != claims.generation
+            || self.target != claims.target
+            || self.tool_bundle_sha256 != claims.tool_bundle_sha256
+            || self.lease_root_sha256 != claims.lease_root_sha256
+            || self.relay_root_sha256 != claims.relay_root_sha256
+        {
+            return Err(LiveProviderEnrollmentRecordError::AttestationMismatch);
+        }
+        if !valid_digest(&self.chain_sha256)
+            || !valid_digest(&self.endpoint_identity_sha256)
+            || !valid_digest(&self.credential_ref_sha256)
+            || !valid_digest(&self.tool_bundle_sha256)
+            || !valid_digest(&self.lease_root_sha256)
+            || !valid_digest(&self.relay_root_sha256)
+            || !valid_digest(&self.nonce_sha256)
+            || self.provider.is_empty()
+            || self.generation == 0
+        {
+            return Err(LiveProviderEnrollmentRecordError::InvalidIdentity);
+        }
+        if self.nonce_sha256 != expected_nonce(attestation) {
+            return Err(LiveProviderEnrollmentRecordError::AttestationMismatch);
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)] // Called by the runtime replay ledger.
+    fn id_sha256(&self) -> Result<String, LiveProviderEnrollmentRecordError> {
+        let encoded = self.encode()?;
+        Ok(format!("{:x}", Sha256::digest(encoded)))
+    }
+
+    #[cfg(test)]
+    fn from_attestation(
+        attestation: &LiveProviderControlAttestation,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+    ) -> Self {
+        let claims = attestation.claims();
+        Self {
+            schema_version: ENROLLMENT_RECORD_SCHEMA_VERSION,
+            chain_sha256: attestation.chain_sha256().to_owned(),
+            provider: claims.provider.clone(),
+            endpoint_identity_sha256: claims.endpoint_identity_sha256.clone(),
+            credential_ref_sha256: claims.credential_ref_sha256.clone(),
+            generation: claims.generation,
+            target: claims.target,
+            tool_bundle_sha256: claims.tool_bundle_sha256.clone(),
+            lease_root_sha256: claims.lease_root_sha256.clone(),
+            relay_root_sha256: claims.relay_root_sha256.clone(),
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+            nonce_sha256: expected_nonce(attestation),
+        }
+    }
+}
+
+#[allow(dead_code)] // Used by control-issued record construction.
+fn expected_nonce(attestation: &LiveProviderControlAttestation) -> String {
+    let claims = attestation.claims();
+    let mut digest = Sha256::new();
+    digest.update(attestation.chain_sha256().as_bytes());
+    digest.update(claims.provider.as_bytes());
+    digest.update(claims.generation.to_le_bytes());
+    digest.update(claims.target.to_string().as_bytes());
+    format!("{:x}", digest.finalize())
+}
+
+/// Runtime-owned replay ledger for one-way enrollment record consumption.
+#[derive(Debug, Default)]
+pub struct LiveProviderEnrollmentLedger {
+    consumed: Mutex<BTreeSet<String>>,
+}
+
+impl LiveProviderEnrollmentLedger {
+    /// Create an empty bounded enrollment ledger.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Validate and consume one record exactly once for this runtime instance.
+    #[allow(dead_code)] // Called by the runtime-owned record ingestion path.
+    pub(crate) fn consume(
+        &self,
+        record: &LiveProviderEnrollmentRecordV1,
+        attestation: &LiveProviderControlAttestation,
+        now_unix_ms: u64,
+    ) -> Result<(), LiveProviderEnrollmentRecordError> {
+        record.validate_against(attestation, now_unix_ms)?;
+        let id = record.id_sha256()?;
+        let mut consumed = self
+            .consumed
+            .lock()
+            .map_err(|_| LiveProviderEnrollmentRecordError::Replay)?;
+        if !consumed.insert(id) {
+            return Err(LiveProviderEnrollmentRecordError::Replay);
+        }
+        Ok(())
+    }
 }
 
 impl LiveProviderControlClaims {
@@ -222,6 +412,40 @@ impl LiveProviderRuntimeService {
         handle
             .provisioner
             .acquire(attempt_id, input, limits, adapter_sha256, now_unix_ms)
+    }
+
+    /// Consume an authenticated record inside the runtime-owned bridge and
+    /// mint the opaque handle only after replay and freshness checks pass.
+    /// The bootstrap specification is crate-private so CLI callers cannot
+    /// provide policy, tools, roots, or backend authority.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // Consumed by the authenticated run/sweep bridge.
+    pub(crate) fn acquire_from_record(
+        &self,
+        ledger: &LiveProviderEnrollmentLedger,
+        record: &LiveProviderEnrollmentRecordV1,
+        attestation: &LiveProviderControlAttestation,
+        bootstrap: LiveProviderBootstrapSpec,
+        attempt_id: u32,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderAttempt, LiveProviderProvisionError> {
+        ledger
+            .consume(record, attestation, now_unix_ms)
+            .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?;
+        let handle = bootstrap
+            .provisioner()
+            .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?;
+        self.acquire(
+            &handle,
+            attempt_id,
+            input,
+            limits,
+            adapter_sha256,
+            now_unix_ms,
+        )
     }
 
     /// Resolve the adapter-owned credential without exposing bytes or authority.
@@ -1008,5 +1232,85 @@ mod tests {
         let attestation = LiveProviderControlAttestation::from_control(&issued, claims).unwrap();
         assert_eq!(attestation.claims().generation, 7);
         assert_eq!(attestation.chain_sha256().len(), 64);
+    }
+
+    fn attested_record() -> LiveProviderControlAttestation {
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let identity = CertificateIdentityV1 {
+            schema_version: 1,
+            subject_sha256: "c".repeat(64),
+            issuer_sha256: "d".repeat(64),
+            certificate_sha256: "e".repeat(64),
+            trust_anchor_sha256: format!("{:x}", Sha256::digest([1, 2, 3])),
+            generation: 7,
+            not_before: 900,
+            not_after: 1_100,
+            role: "operator".into(),
+            endpoint_identity_sha256: "b".repeat(64),
+        };
+        let issued = authority
+            .issue_metadata(&[identity], &"c".repeat(64), 1_000)
+            .unwrap();
+        let claims = LiveProviderControlClaims::new(
+            "openrouter".into(),
+            "b".repeat(64),
+            "f".repeat(64),
+            7,
+            "203.0.113.10:443".parse().unwrap(),
+            "1".repeat(64),
+            "2".repeat(64),
+            "3".repeat(64),
+        )
+        .unwrap();
+        LiveProviderControlAttestation::from_control(&issued, claims).unwrap()
+    }
+
+    #[test]
+    fn enrollment_record_round_trips_and_binds_control_authority() {
+        let attestation = attested_record();
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        let encoded = record.encode().unwrap();
+        let decoded = LiveProviderEnrollmentRecordV1::decode(&encoded).unwrap();
+        decoded.validate_against(&attestation, 1_500).unwrap();
+        assert!(!String::from_utf8(encoded).unwrap().contains("/"));
+    }
+
+    #[test]
+    fn enrollment_record_rejects_forgery_unknown_fields_and_stale_time() {
+        let attestation = attested_record();
+        let mut record =
+            LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        record.target = "203.0.113.11:443".parse().unwrap();
+        assert_eq!(
+            record.validate_against(&attestation, 1_500),
+            Err(LiveProviderEnrollmentRecordError::AttestationMismatch)
+        );
+        let stale = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 1_100);
+        assert_eq!(
+            stale.validate_against(&attestation, 1_101),
+            Err(LiveProviderEnrollmentRecordError::Freshness)
+        );
+        let encoded = br#"{"schema_version":1,"unknown":true}"#;
+        assert_eq!(
+            LiveProviderEnrollmentRecordV1::decode(encoded),
+            Err(LiveProviderEnrollmentRecordError::Malformed)
+        );
+    }
+
+    #[test]
+    fn enrollment_ledger_rejects_replayed_record() {
+        let attestation = attested_record();
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        let ledger = LiveProviderEnrollmentLedger::new();
+        ledger.consume(&record, &attestation, 1_500).unwrap();
+        assert_eq!(
+            ledger.consume(&record, &attestation, 1_500),
+            Err(LiveProviderEnrollmentRecordError::Replay)
+        );
     }
 }
