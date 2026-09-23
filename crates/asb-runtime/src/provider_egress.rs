@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const MAX_ENDPOINT_BYTES: usize = 512;
 const MAX_HOST_BYTES: usize = 128;
@@ -84,7 +84,10 @@ fn is_public_address(address: IpAddr) -> bool {
                 && !value.is_broadcast()
         }
         IpAddr::V6(value) => {
-            !value.is_unspecified()
+            value
+                .to_ipv4()
+                .is_none_or(|mapped| is_public_address(IpAddr::V4(mapped)))
+                && !value.is_unspecified()
                 && !value.is_loopback()
                 && !value.is_unique_local()
                 && !value.is_unicast_link_local()
@@ -213,6 +216,7 @@ pub struct ProviderEgressAuthorization {
     endpoint_sha256: String,
     generation: String,
     route_sha256: String,
+    deadline_unix_ms: u64,
 }
 
 impl ProviderEgressAuthorization {
@@ -236,6 +240,7 @@ impl ProviderEgressAuthorization {
             endpoint_sha256: policy.endpoint_sha256.clone(),
             generation: generation.to_owned(),
             route_sha256: route_sha256.to_owned(),
+            deadline_unix_ms: handoff.deadline_unix_ms,
         })
     }
 
@@ -251,6 +256,10 @@ impl ProviderEgressAuthorization {
     pub fn route_sha256(&self) -> &str {
         &self.route_sha256
     }
+    /// Absolute handoff expiry fence.
+    pub fn deadline_unix_ms(&self) -> u64 {
+        self.deadline_unix_ms
+    }
 }
 
 /// Runtime-owned connector for one authorized provider destination.
@@ -264,6 +273,8 @@ impl ProviderEgressAuthorization {
 pub struct ProviderEgressRelay {
     endpoint_sha256: String,
     allowlist: ProviderEgressAllowlist,
+    generation: String,
+    route_sha256: String,
     io_timeout: Duration,
     max_forward_bytes: usize,
 }
@@ -273,6 +284,8 @@ impl ProviderEgressRelay {
     pub fn new(
         policy: &ProviderEgressPolicy,
         allowlist: ProviderEgressAllowlist,
+        generation: impl Into<String>,
+        route_sha256: impl Into<String>,
         io_timeout: Duration,
         max_forward_bytes: usize,
     ) -> Result<Self, ProviderEgressError> {
@@ -282,6 +295,8 @@ impl ProviderEgressRelay {
         Ok(Self {
             endpoint_sha256: policy.endpoint_sha256.clone(),
             allowlist,
+            generation: generation.into(),
+            route_sha256: route_sha256.into(),
             io_timeout,
             max_forward_bytes,
         })
@@ -297,7 +312,14 @@ impl ProviderEgressRelay {
         target: ProviderEgressTarget,
         deadline: Instant,
     ) -> Result<TcpStream, ProviderEgressError> {
+        let now_unix_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| ProviderEgressError::DeadlineExceeded)?
+            .as_millis() as u64;
         if authorization.endpoint_sha256 != self.endpoint_sha256
+            || authorization.generation != self.generation
+            || authorization.route_sha256 != self.route_sha256
+            || now_unix_ms > authorization.deadline_unix_ms
             || !self.allowlist.permits(target.address())
         {
             return Err(ProviderEgressError::UnauthorizedTarget);
@@ -317,9 +339,59 @@ impl ProviderEgressRelay {
         Ok(stream)
     }
 
-    /// Copy one bounded half of a relay stream. A full-duplex relay must call
-    /// this independently for each direction and account for both results.
-    pub fn forward_bounded<R: Read, W: Write>(
+    /// Copy one bounded half of a runtime TCP relay stream. Socket deadlines
+    /// are refreshed before every blocking operation, so the absolute
+    /// deadline is enforced independently of the initial connect timeout.
+    pub fn forward_bounded<W: Write>(
+        &self,
+        stream: &mut TcpStream,
+        writer: &mut W,
+        deadline: Instant,
+    ) -> Result<usize, ProviderEgressError> {
+        let mut buffer = [0_u8; 16 * 1024];
+        let mut total = 0;
+        loop {
+            let remaining_time = deadline
+                .checked_duration_since(Instant::now())
+                .ok_or(ProviderEgressError::DeadlineExceeded)?;
+            stream
+                .set_read_timeout(Some(remaining_time))
+                .map_err(ProviderEgressError::Io)?;
+            let remaining = self.max_forward_bytes - total;
+            if remaining == 0 {
+                let mut extra = [0_u8; 1];
+                let count = stream.read(&mut extra).map_err(ProviderEgressError::Io)?;
+                return if count == 0 {
+                    Ok(total)
+                } else {
+                    Err(ProviderEgressError::ByteLimitExceeded)
+                };
+            }
+            let read_size = buffer.len().min(remaining);
+            let count = stream
+                .read(&mut buffer[..read_size])
+                .map_err(ProviderEgressError::Io)?;
+            if count == 0 {
+                return Ok(total);
+            }
+            let remaining_time = deadline
+                .checked_duration_since(Instant::now())
+                .ok_or(ProviderEgressError::DeadlineExceeded)?;
+            stream
+                .set_write_timeout(Some(remaining_time))
+                .map_err(ProviderEgressError::Io)?;
+            writer
+                .write_all(&buffer[..count])
+                .map_err(ProviderEgressError::Io)?;
+            total += count;
+        }
+    }
+
+    /// Copy one bounded half of an in-memory/test I/O stream. Production
+    /// callers must use [`Self::forward_bounded`] so socket deadlines are
+    /// refreshed for every blocking operation.
+    #[cfg(test)]
+    fn forward_bounded_io<R: Read, W: Write>(
         &self,
         reader: &mut R,
         writer: &mut W,
@@ -491,7 +563,13 @@ mod tests {
         assert!(policy.permits(first.address()));
         assert!(!policy.permits("198.51.100.10:8443".parse().unwrap()));
         assert!(ProviderEgressAllowlist::new(vec![first, first]).is_err());
-        for address in ["127.0.0.1:443", "10.0.0.1:443", "[::1]:443"] {
+        for address in [
+            "127.0.0.1:443",
+            "10.0.0.1:443",
+            "[::1]:443",
+            "[::ffff:127.0.0.1]:443",
+            "[::ffff:10.0.0.1]:443",
+        ] {
             assert_eq!(
                 ProviderEgressTarget::new(address.parse().unwrap()),
                 Err(ProviderEgressError::InvalidTarget)
@@ -510,8 +588,15 @@ mod tests {
             ProviderEgressAuthorization::authorize(&policy, &handoff, 0, "g-1", "route-1").unwrap();
         let target = ProviderEgressTarget::test_only(address);
         let allowlist = ProviderEgressAllowlist::new(vec![target]).unwrap();
-        let relay =
-            ProviderEgressRelay::new(&policy, allowlist, Duration::from_secs(1), 8).unwrap();
+        let relay = ProviderEgressRelay::new(
+            &policy,
+            allowlist,
+            "g-1",
+            "route-1",
+            Duration::from_secs(1),
+            8,
+        )
+        .unwrap();
         let worker = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = [0; 4];
@@ -540,7 +625,7 @@ mod tests {
         let mut exact = Cursor::new(b"12345678".to_vec());
         assert_eq!(
             relay
-                .forward_bounded(
+                .forward_bounded_io(
                     &mut exact,
                     &mut Vec::new(),
                     Instant::now() + Duration::from_secs(1)
@@ -550,7 +635,7 @@ mod tests {
         );
         let mut oversized = Cursor::new(b"123456789".to_vec());
         assert_eq!(
-            relay.forward_bounded(
+            relay.forward_bounded_io(
                 &mut oversized,
                 &mut Vec::new(),
                 Instant::now() + Duration::from_secs(1)
@@ -577,12 +662,30 @@ mod tests {
         let relay = ProviderEgressRelay::new(
             &policy,
             ProviderEgressAllowlist::new(vec![address]).unwrap(),
+            "generation-1",
+            "route-1",
             Duration::from_secs(1),
             1024,
         )
         .unwrap();
         assert!(matches!(
             relay.connect(&auth, address, Instant::now() + Duration::from_secs(1)),
+            Err(ProviderEgressError::UnauthorizedTarget)
+        ));
+        let stale_auth = ProviderEgressAuthorization::authorize(
+            &policy,
+            &ProviderEgressHandoff::issue_bound(&policy, "generation-2", "route-1", u64::MAX),
+            0,
+            "generation-2",
+            "route-1",
+        )
+        .unwrap();
+        assert!(matches!(
+            relay.connect(
+                &stale_auth,
+                address,
+                Instant::now() + Duration::from_secs(1)
+            ),
             Err(ProviderEgressError::UnauthorizedTarget)
         ));
         let auth = ProviderEgressAuthorization::authorize(

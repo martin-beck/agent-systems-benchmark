@@ -325,12 +325,6 @@ impl ResolvedCredential {
         Ok(Self { bytes })
     }
 
-    /// Apply the resolved value to one private child-process construction
-    /// boundary without exposing it through public evidence or serialization.
-    pub fn with_value<T>(&self, apply: impl FnOnce(&OsStr) -> T) -> T {
-        apply(OsStr::from_bytes(&self.bytes))
-    }
-
     /// Spawn a child with an otherwise empty environment and one credential target.
     ///
     /// The credential is never placed in arguments, output, or an ASB evidence type.
