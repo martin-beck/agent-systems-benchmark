@@ -117,8 +117,9 @@ impl LiveProviderRelay {
     /// Bind a relay and issue its namespace handoff while the real listener
     /// is held open. This avoids placeholder sockets and the associated
     /// authority race in runtime-owned provisioning.
+    #[allow(dead_code)] // Consumed by the downstream runtime acquisition coordinator.
     #[allow(clippy::too_many_arguments)]
-    pub fn bind_runtime(
+    pub(crate) fn bind_runtime(
         root: &Path,
         policy: &ProviderEgressPolicy,
         egress_handoff: &ProviderEgressHandoff,
