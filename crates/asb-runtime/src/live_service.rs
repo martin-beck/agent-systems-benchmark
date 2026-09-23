@@ -215,10 +215,10 @@ mod tests {
     impl CredentialInjection for OpaqueCredential {
         fn inject(
             self: Box<Self>,
-            input: crate::sandbox::SandboxLaunchInput,
-        ) -> Result<crate::sandbox::SandboxLaunchInput, CredentialInjectionError> {
+            _channel: &mut crate::sandbox_credential::SandboxCredentialChannel,
+        ) -> Result<(), CredentialInjectionError> {
             drop(self);
-            Ok(input)
+            Ok(())
         }
     }
 
