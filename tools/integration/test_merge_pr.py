@@ -193,6 +193,38 @@ class MergeIntegrityTests(unittest.TestCase):
                     command(fixture.repository, *args, check=False).returncode, 0
                 )
 
+    def test_rejects_remote_target_advanced_after_review(self) -> None:
+        """A reviewed base must still be the protected target at admission."""
+        with tempfile.TemporaryDirectory(prefix="asb-merge-stale-target-") as raw:
+            fixture = Fixture(Path(raw))
+            command(
+                fixture.repository,
+                "git",
+                "checkout",
+                "-qb",
+                "advanced-target",
+                fixture.base,
+            )
+            (fixture.repository / "target-advance").write_text(
+                "protected target advanced\n", encoding="utf-8"
+            )
+            fixture.commit("advance protected target")
+            command(
+                fixture.repository,
+                "git",
+                "push",
+                "-q",
+                "origin",
+                "HEAD:refs/heads/main",
+            )
+            command(fixture.repository, "git", "checkout", "-q", "main")
+
+            result = command(
+                fixture.repository, *fixture.merge_command(), check=False
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("remote target no longer equals the approved base", result.stderr)
+
     def test_rejects_unsigned_or_non_dco_feature_commit(self) -> None:
         for signed, dco in ((False, True), (True, False)):
             with (
