@@ -38,7 +38,7 @@ impl ProviderEgressTarget {
     }
 
     #[cfg(test)]
-    fn test_only(address: SocketAddr) -> Self {
+    pub(crate) fn test_only(address: SocketAddr) -> Self {
         Self(address)
     }
 }
