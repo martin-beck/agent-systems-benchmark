@@ -63,6 +63,20 @@ pub trait LiveProviderResolver: Send {
 /// Runtime entrypoint for resolver composition before authority acquisition.
 pub struct LiveProviderRuntimeService;
 
+/// Cross-crate enrollment source. Implementations may be supplied by the
+/// runtime/control layer, but can return only an opaque runtime-minted handle.
+pub trait LiveProviderEnrollment: Send + Sync {
+    /// Return one enrolled runtime handle or a bounded failure.
+    fn enroll(&self) -> Result<LiveProviderRuntimeHandle, LiveProviderEnrollmentError>;
+}
+
+/// Enrollment failures intentionally contain no paths, output, or secrets.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveProviderEnrollmentError {
+    /// The installed enrollment is absent, stale, or invalid.
+    Unavailable,
+}
+
 /// Opaque runtime-owned handle minted only by the private bootstrap path.
 /// Callers can pass it back to the service but cannot construct or inspect
 /// policy, backend, relay-root, namespace, lease, or credential authority.
@@ -77,6 +91,29 @@ impl std::fmt::Debug for LiveProviderRuntimeHandle {
 }
 
 impl LiveProviderRuntimeService {
+    /// Acquire through a runtime-owned enrollment source and opaque handle.
+    pub fn acquire_from_enrollment(
+        &self,
+        enrollment: &dyn LiveProviderEnrollment,
+        attempt_id: u32,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderAttempt, LiveProviderProvisionError> {
+        let handle = enrollment
+            .enroll()
+            .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?;
+        self.acquire(
+            &handle,
+            attempt_id,
+            input,
+            limits,
+            adapter_sha256,
+            now_unix_ms,
+        )
+    }
+
     /// Consume the opaque runtime handle for one scheduler attempt.
     pub fn acquire(
         &self,
