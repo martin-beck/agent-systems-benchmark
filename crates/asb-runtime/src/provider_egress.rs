@@ -9,7 +9,9 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io;
+#[cfg(test)]
+use std::io::Read;
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -211,7 +213,7 @@ impl ProviderEgressHandoff {
 }
 
 /// Runtime-owned authorization result for one provider request.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ProviderEgressAuthorization {
     endpoint_sha256: String,
     generation: String,
@@ -232,7 +234,7 @@ impl ProviderEgressAuthorization {
             != format!("{:x}", Sha256::digest(policy.endpoint_sha256.as_bytes()))
             || handoff.generation != generation
             || handoff.route_sha256 != route_sha256
-            || now_unix_ms > handoff.deadline_unix_ms
+            || now_unix_ms >= handoff.deadline_unix_ms
         {
             return Err(ProviderEgressError::MissingHandoff);
         }
@@ -276,6 +278,7 @@ pub struct ProviderEgressRelay {
     generation: String,
     route_sha256: String,
     io_timeout: Duration,
+    #[cfg(test)]
     max_forward_bytes: usize,
 }
 
@@ -298,6 +301,7 @@ impl ProviderEgressRelay {
             generation: generation.into(),
             route_sha256: route_sha256.into(),
             io_timeout,
+            #[cfg(test)]
             max_forward_bytes,
         })
     }
@@ -308,7 +312,7 @@ impl ProviderEgressRelay {
     /// byte accounting.
     pub fn connect(
         &self,
-        authorization: &ProviderEgressAuthorization,
+        authorization: ProviderEgressAuthorization,
         target: ProviderEgressTarget,
         deadline: Instant,
     ) -> Result<TcpStream, ProviderEgressError> {
@@ -316,10 +320,10 @@ impl ProviderEgressRelay {
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ProviderEgressError::DeadlineExceeded)?
             .as_millis() as u64;
-        if authorization.endpoint_sha256 != self.endpoint_sha256
+        if now_unix_ms >= authorization.deadline_unix_ms
+            || authorization.endpoint_sha256 != self.endpoint_sha256
             || authorization.generation != self.generation
             || authorization.route_sha256 != self.route_sha256
-            || now_unix_ms > authorization.deadline_unix_ms
             || !self.allowlist.permits(target.address())
         {
             return Err(ProviderEgressError::UnauthorizedTarget);
@@ -327,7 +331,9 @@ impl ProviderEgressRelay {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or(ProviderEgressError::DeadlineExceeded)?;
-        let timeout = self.io_timeout.min(remaining);
+        let handoff_remaining =
+            Duration::from_millis(authorization.deadline_unix_ms.saturating_sub(now_unix_ms));
+        let timeout = self.io_timeout.min(remaining).min(handoff_remaining);
         let stream = TcpStream::connect_timeout(&target.address(), timeout)
             .map_err(ProviderEgressError::Connect)?;
         stream
@@ -342,7 +348,8 @@ impl ProviderEgressRelay {
     /// Copy one bounded half of a runtime TCP relay stream. Socket deadlines
     /// are refreshed before every blocking operation, so the absolute
     /// deadline is enforced independently of the initial connect timeout.
-    pub fn forward_bounded<W: Write>(
+    #[cfg(test)]
+    fn forward_bounded<W: std::io::Write>(
         &self,
         stream: &mut TcpStream,
         writer: &mut W,
@@ -391,7 +398,7 @@ impl ProviderEgressRelay {
     /// callers must use [`Self::forward_bounded`] so socket deadlines are
     /// refreshed for every blocking operation.
     #[cfg(test)]
-    fn forward_bounded_io<R: Read, W: Write>(
+    fn forward_bounded_io<R: std::io::Read, W: std::io::Write>(
         &self,
         reader: &mut R,
         writer: &mut W,
@@ -500,7 +507,7 @@ impl Eq for ProviderEgressError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use std::io::{Cursor, Read, Write};
     use std::net::TcpListener;
     use std::thread;
 
@@ -606,7 +613,7 @@ mod tests {
         });
         let mut stream = relay
             .connect(
-                &authorization,
+                authorization,
                 target,
                 Instant::now() + Duration::from_secs(1),
             )
@@ -669,7 +676,7 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(
-            relay.connect(&auth, address, Instant::now() + Duration::from_secs(1)),
+            relay.connect(auth, address, Instant::now() + Duration::from_secs(1)),
             Err(ProviderEgressError::UnauthorizedTarget)
         ));
         let stale_auth = ProviderEgressAuthorization::authorize(
@@ -681,11 +688,7 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(
-            relay.connect(
-                &stale_auth,
-                address,
-                Instant::now() + Duration::from_secs(1)
-            ),
+            relay.connect(stale_auth, address, Instant::now() + Duration::from_secs(1)),
             Err(ProviderEgressError::UnauthorizedTarget)
         ));
         let auth = ProviderEgressAuthorization::authorize(
@@ -697,7 +700,7 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(
-            relay.connect(&auth, address, Instant::now()),
+            relay.connect(auth, address, Instant::now()),
             Err(ProviderEgressError::DeadlineExceeded)
         ));
     }
