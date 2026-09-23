@@ -52,7 +52,14 @@ impl LiveLaunchGate {
     }
 
     /// Release one waiting child after the runtime has attested its namespace.
-    pub fn release(self) -> Result<(), LiveNamespaceError> {
+    pub fn release(self, capability_sha256: &str) -> Result<(), LiveNamespaceError> {
+        if capability_sha256.len() != 64
+            || !capability_sha256
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err(LiveNamespaceError::InvalidDigest);
+        }
         let deadline = Instant::now() + Duration::from_secs(2);
         let (mut stream, _) = loop {
             match self.listener.accept() {
@@ -68,6 +75,8 @@ impl LiveLaunchGate {
         };
         stream
             .write_all(RELEASE)
+            .and_then(|_| stream.write_all(capability_sha256.as_bytes()))
+            .and_then(|_| stream.write_all(b"\n"))
             .map_err(|_| LiveNamespaceError::GateUnavailable)
     }
 }
@@ -282,6 +291,31 @@ impl LiveProviderNamespaceHandoff {
         self.validate(&observed, now)?;
         Ok(observed)
     }
+    /// Rebind a metadata-validated handoff to the namespace observed for the
+    /// actual gated child. The caller cannot choose this identity.
+    pub fn rebind_runtime_namespace(
+        &self,
+        child_pid: u32,
+        now: u64,
+    ) -> Result<(Self, ChildRelayHandoff), LiveNamespaceError> {
+        self.validate_metadata(now)?;
+        let observed = NamespaceIdentity::for_pid(child_pid)?;
+        let mut rebound = self.clone();
+        rebound.namespace = observed;
+        rebound.capability_sha256 = cap(
+            &rebound.namespace,
+            &rebound.policy_sha256,
+            &rebound.generation,
+            &rebound.route_sha256,
+            &rebound.adapter_sha256,
+            &rebound.credential_ref_sha256,
+            &rebound.relay_socket,
+            &rebound.child_endpoint,
+            rebound.deadline_unix_ms,
+        );
+        let child = rebound.child_handoff(&rebound.namespace, now)?;
+        Ok((rebound, child))
+    }
     /// Derive a child handoff only after observing the actual child namespace.
     pub fn child_handoff_runtime(
         &self,
@@ -306,6 +340,32 @@ impl LiveProviderNamespaceHandoff {
             deadline_unix_ms: self.deadline_unix_ms,
         })
     }
+    fn validate_metadata(&self, now: u64) -> Result<(), LiveNamespaceError> {
+        if self.version != LIVE_NAMESPACE_HANDOFF_VERSION
+            || self.capability_sha256
+                != cap(
+                    &self.namespace,
+                    &self.policy_sha256,
+                    &self.generation,
+                    &self.route_sha256,
+                    &self.adapter_sha256,
+                    &self.credential_ref_sha256,
+                    &self.relay_socket,
+                    &self.child_endpoint,
+                    self.deadline_unix_ms,
+                )
+        {
+            return Err(LiveNamespaceError::NamespaceMismatch);
+        }
+        if self.revoked.load(Ordering::Acquire) {
+            return Err(LiveNamespaceError::Revoked);
+        }
+        if now >= self.deadline_unix_ms {
+            return Err(LiveNamespaceError::Expired);
+        }
+        socket(&self.relay_socket)?;
+        endpoint(&self.child_endpoint)
+    }
     /// Revoke on cancellation or namespace teardown.
     pub fn revoke(&self) {
         self.revoked.store(true, Ordering::Release);
@@ -325,6 +385,10 @@ impl LiveProviderNamespaceHandoff {
     /// Launch generation fence.
     pub fn generation(&self) -> &str {
         &self.generation
+    }
+    /// Namespace identity bound by the runtime.
+    pub fn namespace(&self) -> &NamespaceIdentity {
+        &self.namespace
     }
     /// Adapter digest.
     pub fn adapter_sha256(&self) -> &str {
@@ -561,17 +625,25 @@ mod tests {
             };
             let mut marker = [0; RELEASE.len()];
             stream.read_exact(&mut marker).unwrap();
-            marker
+            let mut digest = [0; 65];
+            stream.read_exact(&mut digest).unwrap();
+            (marker, digest)
         });
-        gate.release().unwrap();
-        assert_eq!(client.join().unwrap(), RELEASE);
+        gate.release(&"a".repeat(64)).unwrap();
+        let (marker, digest) = client.join().unwrap();
+        assert_eq!(marker, RELEASE);
+        assert_eq!(&digest[..64], b"a".repeat(64).as_slice());
+        assert_eq!(digest[64], b'\n');
     }
 
     #[test]
     fn launch_gate_fails_closed_without_child_connection() {
         let gate = LiveLaunchGate::bind("g-no-child").unwrap();
         let path = gate.path().to_owned();
-        assert_eq!(gate.release(), Err(LiveNamespaceError::GateUnavailable));
+        assert_eq!(
+            gate.release(&"a".repeat(64)),
+            Err(LiveNamespaceError::GateUnavailable)
+        );
         assert!(!path.exists());
     }
 
@@ -605,6 +677,23 @@ mod tests {
         assert_eq!(
             x.validate_runtime_observed_namespace(2_000),
             Err(LiveNamespaceError::NamespaceMismatch)
+        );
+    }
+
+    #[test]
+    fn runtime_rebind_uses_observed_pid_not_parent_metadata() {
+        let (x, _namespace, _d) = issued();
+        let original = x.capability_sha256().to_owned();
+        let (rebound, child) = x
+            .rebind_runtime_namespace(std::process::id(), 2_000)
+            .unwrap();
+        assert_eq!(rebound.namespace(), &NamespaceIdentity::current().unwrap());
+        assert_eq!(child.capability_sha256(), rebound.capability_sha256());
+        assert_ne!(child.capability_sha256(), original);
+        assert!(
+            rebound
+                .validate(&NamespaceIdentity::current().unwrap(), 2_000)
+                .is_ok()
         );
     }
 }

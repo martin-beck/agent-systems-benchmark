@@ -43,11 +43,34 @@ fn run(args: Vec<String>) -> Result<(), String> {
     if marker != RELEASE {
         return Err("attestation release marker was invalid".into());
     }
-    let status = Command::new(command)
+    let mut capability = String::new();
+    let mut bytes = [0; 65];
+    stream
+        .read_exact(&mut bytes)
+        .map_err(|_| "capability release was not received")?;
+    capability.push_str(
+        std::str::from_utf8(&bytes[..64])
+            .map_err(|_| "capability release was not valid UTF-8")?
+            .trim(),
+    );
+    if bytes[64] != b'\n' {
+        return Err("capability release terminator was invalid".into());
+    }
+    if capability.len() != 64
+        || !capability
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err("capability release digest was invalid".into());
+    }
+    let mut adapter = Command::new(command);
+    adapter
+        .env("ASB_LIVE_PROVIDER_CAPABILITY_SHA256", capability)
         .args(&args[separator + 2..])
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    let status = adapter
         .status()
         .map_err(|_| "adapter could not be started")?;
     std::process::exit(status.code().unwrap_or(1));

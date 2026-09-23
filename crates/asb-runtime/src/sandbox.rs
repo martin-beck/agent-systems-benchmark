@@ -399,12 +399,8 @@ impl SandboxLaunchInput {
         namespace: NamespaceIdentity,
         now_unix_ms: u64,
     ) -> Result<Self, SandboxError> {
-        let observed = NamespaceIdentity::current().map_err(|_| SandboxError::LiveHandoff)?;
-        if observed != namespace {
-            return Err(SandboxError::LiveHandoff);
-        }
         handoff
-            .validate_runtime_observed_namespace(now_unix_ms)
+            .validate(&namespace, now_unix_ms)
             .map_err(|_| SandboxError::LiveHandoff)?;
         self.live_provider = Some((handoff, namespace));
         Ok(self)
@@ -615,9 +611,7 @@ impl SandboxBackend {
                 .arg(handoff.relay_socket())
                 .arg(child.endpoint())
                 .args(["--setenv", "ASB_LIVE_PROVIDER_RELAY"])
-                .arg(child.endpoint())
-                .args(["--setenv", "ASB_LIVE_PROVIDER_CAPABILITY_SHA256"])
-                .arg(child.capability_sha256());
+                .arg(child.endpoint());
             let gate = self
                 .live_launch_gate
                 .as_ref()
@@ -706,16 +700,19 @@ impl SandboxBackend {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(|_| SandboxError::LiveHandoff)?
                 .as_millis() as u64;
-            if handoff.child_handoff_runtime(process.pid(), now).is_err() {
-                let _ = process.cancel();
-                let _ = process.wait();
-                lease.quarantine();
-                return Err(SandboxError::LiveHandoff);
-            }
+            let (_rebound, child) = match handoff.rebind_runtime_namespace(process.pid(), now) {
+                Ok(value) => value,
+                Err(_) => {
+                    let _ = process.cancel();
+                    let _ = process.wait();
+                    lease.quarantine();
+                    return Err(SandboxError::LiveHandoff);
+                }
+            };
             if live_gate
                 .take()
                 .ok_or(SandboxError::LiveHandoff)?
-                .release()
+                .release(child.capability_sha256())
                 .is_err()
             {
                 let _ = process.cancel();
