@@ -63,7 +63,35 @@ pub trait LiveProviderResolver: Send {
 /// Runtime entrypoint for resolver composition before authority acquisition.
 pub struct LiveProviderRuntimeService;
 
+/// Opaque runtime-owned handle minted only by the private bootstrap path.
+/// Callers can pass it back to the service but cannot construct or inspect
+/// policy, backend, relay-root, namespace, lease, or credential authority.
+pub struct LiveProviderRuntimeHandle {
+    provisioner: LiveProviderProvisioner,
+}
+
+impl std::fmt::Debug for LiveProviderRuntimeHandle {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderRuntimeHandle(..)")
+    }
+}
+
 impl LiveProviderRuntimeService {
+    /// Consume the opaque runtime handle for one scheduler attempt.
+    pub fn acquire(
+        &self,
+        handle: &LiveProviderRuntimeHandle,
+        attempt_id: u32,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderAttempt, LiveProviderProvisionError> {
+        handle
+            .provisioner
+            .acquire(attempt_id, input, limits, adapter_sha256, now_unix_ms)
+    }
+
     /// Resolve the adapter-owned credential without exposing bytes or authority.
     pub fn resolve_credential(
         &self,
@@ -141,7 +169,9 @@ impl LiveProviderBootstrapSpec {
     }
 
     /// Consume the enrollment and return only the opaque provisioner handle.
-    pub(crate) fn provisioner(self) -> Result<LiveProviderProvisioner, LiveProviderBootstrapError> {
+    pub(crate) fn provisioner(
+        self,
+    ) -> Result<LiveProviderRuntimeHandle, LiveProviderBootstrapError> {
         let [
             bubblewrap,
             systemd_run,
@@ -158,6 +188,7 @@ impl LiveProviderBootstrapSpec {
             backend,
             &self.relay_root,
         )
+        .map(|provisioner| LiveProviderRuntimeHandle { provisioner })
         .map_err(|_| LiveProviderBootstrapError::Backend)
     }
 }
@@ -544,9 +575,9 @@ mod tests {
     fn bootstrap_returns_only_runtime_owned_provisioner() {
         let (spec, relay_root) = bootstrap_spec();
         let provisioner = spec.provisioner().unwrap();
-        assert_eq!(provisioner.config.generation(), "generation-1");
-        assert_eq!(provisioner.policy.host(), "openrouter.ai");
-        assert_eq!(provisioner.relay_root, relay_root);
+        assert_eq!(provisioner.provisioner.config.generation(), "generation-1");
+        assert_eq!(provisioner.provisioner.policy.host(), "openrouter.ai");
+        assert_eq!(provisioner.provisioner.relay_root, relay_root);
         let _ = std::fs::remove_dir_all(relay_root);
     }
 
