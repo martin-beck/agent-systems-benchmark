@@ -237,6 +237,29 @@ impl LiveProviderRelay {
         self.consumed = true;
         Ok((stream, tcp))
     }
+
+    /// Serve one authenticated child connection with bounded bidirectional
+    /// forwarding. Both halves share the absolute relay deadline.
+    pub fn serve_once(&mut self, now_unix_ms: u64) -> Result<(), LiveRelayError> {
+        let (mut child, provider) = self.accept_and_connect(now_unix_ms)?;
+        let deadline = self.deadline;
+        let reverse = provider.try_clone()?;
+        let mut child_to_provider = child.try_clone()?;
+        let mut provider_to_child = reverse;
+        let connector = &self.connector;
+        std::thread::scope(|scope| {
+            let forward = scope.spawn(|| {
+                let mut provider = provider;
+                connector.forward_bounded_socket(&mut provider, &mut child_to_provider, deadline)
+            });
+            let reverse =
+                connector.forward_bounded_socket(&mut provider_to_child, &mut child, deadline);
+            let forward = forward.join().map_err(|_| LiveRelayError::InvalidRequest)?;
+            forward.map_err(LiveRelayError::from)?;
+            reverse.map_err(LiveRelayError::from)?;
+            Ok(())
+        })
+    }
     /// Revoke and remove the relay on cancellation or teardown.
     pub fn revoke(&self) {
         self.handoff.revoke();

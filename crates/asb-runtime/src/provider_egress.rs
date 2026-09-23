@@ -12,6 +12,8 @@ use std::fmt;
 use std::io;
 #[cfg(test)]
 use std::io::Read;
+#[cfg(test)]
+use std::io::Read;
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -278,7 +280,6 @@ pub struct ProviderEgressRelay {
     generation: String,
     route_sha256: String,
     io_timeout: Duration,
-    #[cfg(test)]
     max_forward_bytes: usize,
 }
 
@@ -301,7 +302,6 @@ impl ProviderEgressRelay {
             generation: generation.into(),
             route_sha256: route_sha256.into(),
             io_timeout,
-            #[cfg(test)]
             max_forward_bytes,
         })
     }
@@ -397,8 +397,7 @@ impl ProviderEgressRelay {
     /// Copy one bounded half of an in-memory/test I/O stream. Production
     /// callers must use [`Self::forward_bounded`] so socket deadlines are
     /// refreshed for every blocking operation.
-    #[cfg(test)]
-    fn forward_bounded_io<R: std::io::Read, W: std::io::Write>(
+    pub(crate) fn forward_bounded_io<R: std::io::Read, W: std::io::Write>(
         &self,
         reader: &mut R,
         writer: &mut W,
@@ -432,6 +431,16 @@ impl ProviderEgressRelay {
                 .map_err(ProviderEgressError::Io)?;
             total += count;
         }
+    }
+
+    /// Copy one bounded socket half while enforcing the absolute deadline.
+    pub(crate) fn forward_bounded_socket<R: std::io::Read, W: std::io::Write>(
+        &self,
+        reader: &mut R,
+        writer: &mut W,
+        deadline: Instant,
+    ) -> Result<usize, ProviderEgressError> {
+        self.forward_bounded_io(reader, writer, deadline)
     }
 }
 
