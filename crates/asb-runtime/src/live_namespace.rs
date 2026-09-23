@@ -686,7 +686,12 @@ mod tests {
             1_000,
         )
         .unwrap();
-        x.capability_sha256.replace_range(..1, "0");
+        let replacement = if x.capability_sha256.starts_with('0') {
+            "1"
+        } else {
+            "0"
+        };
+        x.capability_sha256.replace_range(..1, replacement);
         assert_eq!(
             x.validate_runtime_observed_namespace(2_000),
             Err(LiveNamespaceError::NamespaceMismatch)
