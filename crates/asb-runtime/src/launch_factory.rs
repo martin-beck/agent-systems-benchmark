@@ -5,6 +5,7 @@
 use crate::live_namespace::{LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 /// A launch authority that can only be issued by the runtime factory.
 ///
@@ -77,6 +78,46 @@ pub struct LiveLaunchFactory;
 pub struct LiveProviderAttempt {
     context: Option<LiveLaunchContext>,
     relay: Option<crate::live_relay::LiveProviderRelay>,
+}
+
+/// Runtime-owned source of one fresh live-provider capability per scheduler
+/// attempt. The callback is invoked only by the execution boundary; callers
+/// cannot construct or inspect the capability it returns.
+#[derive(Clone)]
+pub struct LiveProviderAttemptFactory {
+    acquire:
+        Arc<dyn Fn(u32, bool) -> Result<LiveProviderAttempt, LaunchAuthorityError> + Send + Sync>,
+}
+
+impl std::fmt::Debug for LiveProviderAttemptFactory {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderAttemptFactory(..)")
+    }
+}
+
+impl LiveProviderAttemptFactory {
+    /// Bind a runtime acquisition callback. The callback receives the
+    /// scheduler input identity and warmup marker for this attempt.
+    pub fn from_fn<F>(acquire: F) -> Self
+    where
+        F: Fn(u32, bool) -> Result<LiveProviderAttempt, LaunchAuthorityError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self {
+            acquire: Arc::new(acquire),
+        }
+    }
+
+    /// Acquire one capability for one scheduler attempt.
+    pub fn acquire(
+        &self,
+        input_id: u32,
+        warmup: bool,
+    ) -> Result<LiveProviderAttempt, LaunchAuthorityError> {
+        (self.acquire)(input_id, warmup)
+    }
 }
 
 /// Opaque proof that the runtime performed its launch-boundary attestation.

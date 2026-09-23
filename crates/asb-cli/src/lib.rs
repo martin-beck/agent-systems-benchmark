@@ -31,7 +31,9 @@ use asb_replay::{
     CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
     SourceChoice, seal_recording,
 };
-use asb_runtime::launch_factory::{LiveProviderAttempt, ReplayLaunchAuthority};
+use asb_runtime::launch_factory::{
+    LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, ReplayLaunchAuthority,
+};
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
@@ -137,7 +139,38 @@ pub fn run_with_live_provider_attempt(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    match dispatch(args, stdout, stderr, None, Some(attempt)) {
+    let attempt = Arc::new(Mutex::new(Some(attempt)));
+    let factory = LiveProviderAttemptFactory::from_fn(move |_, _| {
+        attempt
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+            .ok_or(LaunchAuthorityError::InvalidLaunchInput)
+    });
+    match dispatch(args, stdout, stderr, None, Some(factory)) {
+        Ok(exit_code) => exit_code,
+        Err(error) => {
+            let envelope = ErrorEnvelope {
+                schema_version: OUTPUT_SCHEMA_VERSION,
+                ok: false,
+                command: command_name(args),
+                error,
+            };
+            let _ = write_json(stdout, &envelope);
+            envelope.error.exit_code
+        }
+    }
+}
+
+/// Execute one live-provider run or sweep using a runtime-owned factory that
+/// issues one opaque capability for each admitted scheduler attempt.
+pub fn run_with_live_provider_factory(
+    args: &[OsString],
+    factory: LiveProviderAttemptFactory,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    match dispatch(args, stdout, stderr, None, Some(factory)) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -157,7 +190,7 @@ fn dispatch(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     mut replay_authority: Option<ReplayLaunchAuthority>,
-    live_attempt: Option<LiveProviderAttempt>,
+    live_factory: Option<LiveProviderAttemptFactory>,
 ) -> Result<u8, CliError> {
     let words = unicode_args(args)?;
     match words.as_slice() {
@@ -210,7 +243,7 @@ fn dispatch(
             execute_with_config(Path::new(path), false, false, stdout, stderr)
         }
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
-            execute(Path::new(path), false, true, live_attempt, stdout, stderr)
+            execute(Path::new(path), false, true, live_factory, stdout, stderr)
         }
         [command, path] if command == "sweep" => {
             execute(Path::new(path), true, false, None, stdout, stderr)
@@ -231,7 +264,7 @@ fn dispatch(
             execute_with_config(Path::new(path), true, false, stdout, stderr)
         }
         [command, path, flag] if command == "sweep" && flag == "--live-provider" => {
-            execute(Path::new(path), true, true, live_attempt, stdout, stderr)
+            execute(Path::new(path), true, true, live_factory, stdout, stderr)
         }
         [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
@@ -2566,7 +2599,7 @@ fn execute(
     path: &Path,
     sweep: bool,
     live_provider: bool,
-    live_attempt: Option<LiveProviderAttempt>,
+    live_factory: Option<LiveProviderAttemptFactory>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2575,7 +2608,7 @@ fn execute(
         None,
         sweep,
         live_provider,
-        live_attempt,
+        live_factory,
         output,
         progress,
     )
@@ -2625,7 +2658,7 @@ fn execute_inner(
     selection_path: Option<&Path>,
     sweep: bool,
     live_provider: bool,
-    live_attempt: Option<LiveProviderAttempt>,
+    live_factory: Option<LiveProviderAttemptFactory>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2634,7 +2667,7 @@ fn execute_inner(
         SelectionSource::Path(selection_path),
         sweep,
         live_provider,
-        live_attempt,
+        live_factory,
         output,
         progress,
     )
@@ -2650,7 +2683,7 @@ fn execute_inner_from_source(
     source: SelectionSource<'_>,
     sweep: bool,
     live_provider: bool,
-    mut live_attempt: Option<LiveProviderAttempt>,
+    live_factory: Option<LiveProviderAttemptFactory>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2668,9 +2701,9 @@ fn execute_inner_from_source(
             "--live-provider requires an explicit provider selection",
         ));
     }
-    if live_provider && (sweep || plan.point.measured != 1 || plan.point.warmups != 0) {
+    if live_provider && live_factory.is_none() {
         return Err(CliError::validation(
-            "live provider requires one runtime-issued context per attempt; use a runtime attempt factory",
+            "live provider requires a runtime-issued attempt factory",
         ));
     }
     if plan.experiment.controls.replay.mode == asb_protocol::ReplayMode::Replay {
@@ -2716,7 +2749,6 @@ fn execute_inner_from_source(
             plan.run_id.clone()
         };
         let _ = writeln!(progress, "starting {run_id}");
-        let attempt = live_attempt.take();
         let point = run_point_with_selection(
             Arc::clone(&store),
             &plan,
@@ -2725,7 +2757,7 @@ fn execute_inner_from_source(
             selection.as_ref(),
             Arc::clone(&cancelled),
             live_provider,
-            attempt,
+            live_factory.clone(),
         )?;
         if provider_launch_sha256.is_none() {
             provider_launch_sha256 = selection.as_ref().map(|value| {
@@ -2819,7 +2851,7 @@ fn run_point_with_selection(
     selection: Option<&ProviderPlanOutput>,
     cancelled: Arc<AtomicBool>,
     live_provider: bool,
-    live_attempt: Option<LiveProviderAttempt>,
+    live_factory: Option<LiveProviderAttemptFactory>,
 ) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
@@ -2885,17 +2917,24 @@ fn run_point_with_selection(
     let summaries_for_attempt = Arc::clone(&summaries);
     let failures_for_attempt = Arc::clone(&attempt_failures);
     let cancelled_for_attempt = Arc::clone(&cancelled);
-    let live_attempt = Arc::new(Mutex::new(live_attempt));
+    let live_factory = live_factory.map(Arc::new);
     let point_plan = plan.point.build(concurrency)?;
     let result =
         Scheduler::new(SystemClock::start()).run_with_context(point_plan, move |context| {
             if cancelled_for_attempt.load(Ordering::SeqCst) {
                 return AttemptOutcome::Cancelled;
             }
-            let attempt = live_attempt
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .take();
+            let attempt = if live_provider {
+                let Some(factory) = live_factory.as_ref() else {
+                    return AttemptOutcome::InfrastructureFailure;
+                };
+                match factory.acquire(context.input_id(), context.is_warmup()) {
+                    Ok(attempt) => Some(attempt),
+                    Err(_) => return AttemptOutcome::InfrastructureFailure,
+                }
+            } else {
+                None
+            };
             let summary = run_attempt(
                 &plan_owned,
                 &work_root,
