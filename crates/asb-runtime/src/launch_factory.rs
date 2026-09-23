@@ -813,6 +813,22 @@ mod tests {
     }
 
     #[test]
+    fn replay_factory_retains_runtime_backend_and_factory_debug_is_opaque() {
+        let (authority, _file, root) =
+            fixture_with_token(Some(test_backend()), |input, lease, cassette| {
+                RuntimeLaunchToken::test_only(launch_binding_digest(input, lease, cassette))
+            })
+            .unwrap();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        assert!(context.backend.is_some());
+        let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        });
+        assert_eq!(format!("{factory:?}"), "LiveProviderAttemptFactory(..)");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn issuance_rejects_missing_runtime_handoff() {
         let root = std::env::temp_dir().join(format!("asb-launch-missing-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
