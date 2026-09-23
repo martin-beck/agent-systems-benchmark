@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
-use crate::live_namespace::{LiveProviderNamespaceHandoff, NamespaceIdentity};
+use crate::live_namespace::{LiveLaunchGate, LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::relay::{RelayError, ReplayRelayHandoff};
 use crate::supervisor::SupervisorPlan;
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
@@ -399,8 +399,12 @@ impl SandboxLaunchInput {
         namespace: NamespaceIdentity,
         now_unix_ms: u64,
     ) -> Result<Self, SandboxError> {
+        let observed = NamespaceIdentity::current().map_err(|_| SandboxError::LiveHandoff)?;
+        if observed != namespace {
+            return Err(SandboxError::LiveHandoff);
+        }
         handoff
-            .validate(&namespace, now_unix_ms)
+            .validate_runtime_observed_namespace(now_unix_ms)
             .map_err(|_| SandboxError::LiveHandoff)?;
         self.live_provider = Some((handoff, namespace));
         Ok(self)
@@ -431,6 +435,7 @@ pub struct SandboxBackend {
     systemd_run: ToolPin,
     systemctl: ToolPin,
     taskset: ToolPin,
+    live_launch_gate: Option<ToolPin>,
 }
 
 impl SandboxBackend {
@@ -446,7 +451,14 @@ impl SandboxBackend {
             systemd_run,
             systemctl,
             taskset,
+            live_launch_gate: None,
         }
+    }
+
+    /// Configure the pinned runtime-owned pre-effect live launch gate.
+    pub fn with_live_launch_gate(mut self, gate: ToolPin) -> Self {
+        self.live_launch_gate = Some(gate);
+        self
     }
 
     /// Prove executable identity and disposable delegated isolation.
@@ -546,6 +558,22 @@ impl SandboxBackend {
             return Err(SandboxError::LeaseMismatch);
         }
         self.probe()?;
+        let mut live_gate = if live_provider.is_some() {
+            self.live_launch_gate
+                .as_ref()
+                .ok_or(SandboxError::LiveHandoff)?;
+            Some(
+                LiveLaunchGate::bind(
+                    live_provider
+                        .as_ref()
+                        .map(|(handoff, _)| handoff.generation())
+                        .ok_or(SandboxError::LiveHandoff)?,
+                )
+                .map_err(|_| SandboxError::LiveHandoff)?,
+            )
+        } else {
+            None
+        };
         let mut command = pinned_command(&self.systemd_run);
         command.env("ASB_SCOPE_NONCE", &nonce);
         add_scope(
@@ -590,12 +618,41 @@ impl SandboxBackend {
                 .arg(child.endpoint())
                 .args(["--setenv", "ASB_LIVE_PROVIDER_CAPABILITY_SHA256"])
                 .arg(child.capability_sha256());
+            let gate = self
+                .live_launch_gate
+                .as_ref()
+                .ok_or(SandboxError::LiveHandoff)?;
+            let gate_socket = live_gate.as_ref().ok_or(SandboxError::LiveHandoff)?;
+            command
+                .arg("--ro-bind")
+                .arg(&gate.path)
+                .arg("/tmp/asb-live-launch-gate")
+                .arg("--bind")
+                .arg(gate_socket.path())
+                .arg("/tmp/asb-live-launch-gate.sock");
         }
         const RELAY_TARGET: &str = "/tmp/asb-replay-relay.sock";
         const SUPERVISOR_TARGET: &str = "/tmp/asb-replay-supervisor";
         const SIDECAR_TARGET: &str = "/tmp/asb-replay-sidecar";
         const ADAPTER_TARGET: &str = "/tmp/asb-replay-adapter";
-        if let Some(plan) = &spec.supervisor {
+        if live_provider.is_some() {
+            command.arg("--").arg("/tmp/asb-live-launch-gate").args([
+                "--socket",
+                "/tmp/asb-live-launch-gate.sock",
+                "--",
+            ]);
+            if let Some(plan) = &spec.supervisor {
+                let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
+                command.arg(SUPERVISOR_TARGET).args(supervisor.arguments());
+                command.args(plan.arguments_for_namespace(
+                    Path::new(RELAY_TARGET),
+                    Path::new(SIDECAR_TARGET),
+                    Path::new(ADAPTER_TARGET),
+                ));
+            } else {
+                command.arg(&spec.program).args(&spec.arguments);
+            }
+        } else if let Some(plan) = &spec.supervisor {
             if plan.supervisor().is_none() {
                 return Err(SandboxError::DelegationRejected);
             }
@@ -624,19 +681,49 @@ impl SandboxBackend {
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
-        if let Some(plan) = &spec.supervisor {
-            let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
-            command.arg("--").arg(SUPERVISOR_TARGET);
-            command.args(supervisor.arguments());
-            command.args(plan.arguments_for_namespace(
-                Path::new(RELAY_TARGET),
-                Path::new(SIDECAR_TARGET),
-                Path::new(ADAPTER_TARGET),
-            ));
-        } else {
-            command.arg("--").arg(&spec.program).args(&spec.arguments);
+        if !live_provider.is_some() {
+            if let Some(plan) = &spec.supervisor {
+                let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
+                command.arg("--").arg(SUPERVISOR_TARGET);
+                command.args(supervisor.arguments());
+                command.args(plan.arguments_for_namespace(
+                    Path::new(RELAY_TARGET),
+                    Path::new(SIDECAR_TARGET),
+                    Path::new(ADAPTER_TARGET),
+                ));
+            } else {
+                command.arg("--").arg(&spec.program).args(&spec.arguments);
+            }
         }
         let mut process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
+        // Bubblewrap has now created the child network namespace.  The
+        // identity supplied by a caller is only launch metadata; it is not an
+        // attestation.  Re-observe /proc/<pid>/ns/net at this boundary and
+        // tear down the whole process group on any mismatch or unavailable
+        // observation before the launch can be used for provider traffic.
+        if let Some((handoff, _caller_namespace)) = &live_provider {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| SandboxError::LiveHandoff)?
+                .as_millis() as u64;
+            if handoff.child_handoff_runtime(process.pid(), now).is_err() {
+                let _ = process.cancel();
+                let _ = process.wait();
+                lease.quarantine();
+                return Err(SandboxError::LiveHandoff);
+            }
+            if live_gate
+                .take()
+                .ok_or(SandboxError::LiveHandoff)?
+                .release()
+                .is_err()
+            {
+                let _ = process.cancel();
+                let _ = process.wait();
+                lease.quarantine();
+                return Err(SandboxError::LiveHandoff);
+            }
+        }
         let scope_cleanup_required = match await_scope_ownership(
             &mut process,
             &self.systemctl,
@@ -1344,7 +1431,7 @@ mod tests {
         let policy =
             ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
         let provider = ProviderEgressHandoff::issue_bound(&policy, "g-1", "a".repeat(64), 9_000);
-        let namespace = NamespaceIdentity::new("net:[123]").unwrap();
+        let namespace = NamespaceIdentity::current().unwrap();
         let live = LiveProviderNamespaceHandoff::issue(
             &policy,
             &provider,
