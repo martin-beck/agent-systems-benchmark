@@ -9,11 +9,7 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
-use std::io;
-#[cfg(test)]
-use std::io::Read;
-#[cfg(test)]
-use std::io::Read;
+use std::io::{self, Read};
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -342,14 +338,16 @@ impl ProviderEgressRelay {
         stream
             .set_write_timeout(Some(timeout))
             .map_err(ProviderEgressError::Connect)?;
+        stream
+            .set_nonblocking(false)
+            .map_err(ProviderEgressError::Connect)?;
         Ok(stream)
     }
 
     /// Copy one bounded half of a runtime TCP relay stream. Socket deadlines
     /// are refreshed before every blocking operation, so the absolute
     /// deadline is enforced independently of the initial connect timeout.
-    #[cfg(test)]
-    fn forward_bounded<W: std::io::Write>(
+    pub(crate) fn forward_bounded<W: std::io::Write>(
         &self,
         stream: &mut TcpStream,
         writer: &mut W,

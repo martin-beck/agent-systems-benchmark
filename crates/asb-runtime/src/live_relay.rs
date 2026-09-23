@@ -191,6 +191,7 @@ impl LiveProviderRelay {
                 Err(error) => return Err(error.into()),
             }
         };
+        stream.set_nonblocking(false)?;
         let remaining = self
             .deadline
             .checked_duration_since(Instant::now())
@@ -250,7 +251,7 @@ impl LiveProviderRelay {
         std::thread::scope(|scope| {
             let forward = scope.spawn(|| {
                 let mut provider = provider;
-                connector.forward_bounded_socket(&mut provider, &mut child_to_provider, deadline)
+                connector.forward_bounded(&mut provider, &mut child_to_provider, deadline)
             });
             let reverse =
                 connector.forward_bounded_socket(&mut provider_to_child, &mut child, deadline);
@@ -275,6 +276,7 @@ impl Drop for LiveProviderRelay {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::os::unix::net::UnixStream;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::thread;
@@ -463,15 +465,26 @@ mod tests {
         let (mut relay, root) = relay_with_timeout(Duration::from_secs(1), Some(target));
         let capability = relay.capability_sha256.clone();
         let generation = relay.generation.clone();
-        let peer = UnixStream::connect(relay.socket()).unwrap();
+        let socket = relay.socket().to_owned();
         let worker = thread::spawn(move || {
-            let mut peer = peer;
+            let mut peer = UnixStream::connect(socket).unwrap();
             let request = format!("ASB-LIVE/1 {generation} {capability}\n");
             std::io::Write::write_all(&mut peer, request.as_bytes()).unwrap();
+            peer.write_all(b"child->provider").unwrap();
+            let mut response = [0_u8; 15];
+            std::io::Read::read_exact(&mut peer, &mut response).unwrap();
+            assert_eq!(&response, b"provider->child");
         });
-        let (_child, _provider) = relay.accept_and_connect(2_000).unwrap();
-        let (_provider_peer, _) = tcp_listener.accept().unwrap();
+        let provider_worker = thread::spawn(move || {
+            let (mut provider, _) = tcp_listener.accept().unwrap();
+            let mut request = [0_u8; 15];
+            std::io::Read::read_exact(&mut provider, &mut request).unwrap();
+            assert_eq!(&request, b"child->provider");
+            provider.write_all(b"provider->child").unwrap();
+        });
+        relay.serve_once(2_000).unwrap();
         worker.join().unwrap();
+        provider_worker.join().unwrap();
         drop(relay);
         let _ = fs::remove_dir_all(root);
     }
