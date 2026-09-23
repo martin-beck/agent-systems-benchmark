@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned, fail-closed inputs for live-provider acquisition.
 
+use crate::credential_injection::{CredentialInjection, CredentialInjectionError};
 use crate::provider_egress::{ProviderEgressAllowlist, ProviderEgressTarget};
 use crate::sandbox::{CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease};
 use std::path::{Path, PathBuf};
@@ -29,6 +30,39 @@ pub struct LiveProviderRuntimeSelection {
     route_sha256: String,
     credential_ref_sha256: String,
     network_policy: NetworkPolicy,
+}
+
+/// Failure while an adapter resolves the final opaque credential capability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveProviderResolveError {
+    /// The selected credential reference is unavailable or stale.
+    CredentialUnavailable,
+    /// The adapter could not create a safe final-boundary capability.
+    CredentialInjection(CredentialInjectionError),
+}
+
+/// Cross-crate resolver seam. It accepts only public selection metadata and
+/// returns an opaque final-boundary capability; it cannot provide authority.
+pub trait LiveProviderResolver: Send {
+    /// Resolve one credential capability for one runtime-selected attempt.
+    fn resolve_credential(
+        &mut self,
+        selection: &LiveProviderRuntimeSelection,
+    ) -> Result<Box<dyn CredentialInjection>, LiveProviderResolveError>;
+}
+
+/// Runtime entrypoint for resolver composition before authority acquisition.
+pub struct LiveProviderRuntimeService;
+
+impl LiveProviderRuntimeService {
+    /// Resolve the adapter-owned credential without exposing bytes or authority.
+    pub fn resolve_credential(
+        &self,
+        resolver: &mut dyn LiveProviderResolver,
+        selection: &LiveProviderRuntimeSelection,
+    ) -> Result<Box<dyn CredentialInjection>, LiveProviderResolveError> {
+        resolver.resolve_credential(selection)
+    }
 }
 
 /// Fail-closed validation failures before authority acquisition.
@@ -172,6 +206,35 @@ mod tests {
         }
     }
 
+    struct TestResolver {
+        fail: bool,
+    }
+
+    struct OpaqueCredential;
+
+    impl CredentialInjection for OpaqueCredential {
+        fn inject(
+            self: Box<Self>,
+            input: crate::sandbox::SandboxLaunchInput,
+        ) -> Result<crate::sandbox::SandboxLaunchInput, CredentialInjectionError> {
+            drop(self);
+            Ok(input)
+        }
+    }
+
+    impl LiveProviderResolver for TestResolver {
+        fn resolve_credential(
+            &mut self,
+            _selection: &LiveProviderRuntimeSelection,
+        ) -> Result<Box<dyn CredentialInjection>, LiveProviderResolveError> {
+            if self.fail {
+                Err(LiveProviderResolveError::CredentialUnavailable)
+            } else {
+                Ok(Box::new(OpaqueCredential))
+            }
+        }
+    }
+
     #[test]
     fn validates_public_references_and_reserves_one_benchmark_lease() {
         let config = config();
@@ -187,6 +250,25 @@ mod tests {
         ));
         drop(lease);
         let _ = std::fs::remove_dir_all(config.lease_root());
+    }
+
+    #[test]
+    fn resolver_seam_returns_only_opaque_capability_and_fails_closed() {
+        let service = LiveProviderRuntimeService;
+        let selected = selection(
+            target(),
+            "generation-1",
+            "a".repeat(64),
+            "b".repeat(64),
+            NetworkPolicy::Deny,
+        );
+        let mut resolver = TestResolver { fail: false };
+        assert!(service.resolve_credential(&mut resolver, &selected).is_ok());
+        let mut failing = TestResolver { fail: true };
+        assert!(matches!(
+            service.resolve_credential(&mut failing, &selected),
+            Err(LiveProviderResolveError::CredentialUnavailable)
+        ));
     }
 
     #[test]
