@@ -1871,6 +1871,19 @@ mod tests {
         }
     }
 
+    struct SuccessfulInjection;
+
+    impl CredentialInjection for SuccessfulInjection {
+        fn inject(
+            self: Box<Self>,
+            channel: &mut crate::sandbox_credential::SandboxCredentialChannel,
+        ) -> Result<(), CredentialInjectionError> {
+            channel
+                .write_and_seal(b"provider-secret".to_vec())
+                .map_err(CredentialInjectionError::Channel)
+        }
+    }
+
     #[test]
     fn credential_launch_rejects_injection_before_spawn() {
         let root = scratch("credential-launch");
@@ -1910,6 +1923,46 @@ mod tests {
             Err(SandboxError::CredentialInjection(
                 CredentialInjectionError::InjectionFailed
             ))
+        ));
+    }
+
+    #[test]
+    fn credential_launch_seals_before_tool_probe() {
+        let root = scratch("credential-launch-success");
+        fs::create_dir_all(root.join("leases")).unwrap();
+        let pin = ToolPin::new(PathBuf::from("/bin/true"), "unused".into()).unwrap();
+        let backend = SandboxBackend::new(pin.clone(), pin.clone(), pin.clone(), pin);
+        let spec = SandboxSpec::new(
+            root.as_ref(),
+            PathBuf::new(),
+            "/bin/true".into(),
+            vec![],
+            BTreeMap::new(),
+            test_resources(),
+            NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let lease = ResourceLease::acquire(
+            &root.join("leases"),
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let input = SandboxLaunchInput {
+            spec,
+            limits: probe_limits(),
+            replay_handoff: None,
+            live_provider: None,
+        };
+        let binding = SandboxCredentialBinding::new("b".repeat(64), "TARGET").unwrap();
+        assert!(matches!(
+            backend.spawn_launch_with_credential(
+                input,
+                lease,
+                &binding,
+                Box::new(SuccessfulInjection),
+            ),
+            Err(SandboxError::ToolVersion { .. })
         ));
     }
 
