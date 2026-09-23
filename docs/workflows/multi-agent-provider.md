@@ -10,7 +10,7 @@ the immutable selection identity.
 ```sh
 asb provider-catalog > catalog.json
 asb provider-plan --catalog-sha256 CATALOG_SHA256 \
-  --provider-profile openai \
+  --provider-profile openai|openrouter \
   --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
 asb plan /absolute/path/EXPERIMENT.toml --provider-selection selection.json
@@ -19,9 +19,12 @@ asb run /absolute/path/EXPERIMENT.toml --provider-selection selection.json
 
 Use the catalog digest returned by the same `provider-catalog` observation.
 `codex` and `opendesk` are only an example: the catalog is authoritative for
-the current compatible set. A stale catalog, duplicate agent, unsupported
-adapter, or mismatched experiment fails before result/work roots or processes
-are created.
+the current compatible set. `openrouter` selects the pinned credential-free
+OpenRouter profile (same free model for every compatible adapter, routed
+through the OpenRouter public API with `OPENROUTER_API_KEY` as the environment
+credential reference); `openai` selects the pinned OpenAI profile. A stale
+catalog, duplicate agent, unsupported adapter, or mismatched experiment fails
+before result/work roots or processes are created.
 
 ## TUI route
 
@@ -43,6 +46,6 @@ do not describe those as one shared-provider run.
 
 Only a logical credential reference digest is transported. Credential values do
 not belong in TOML, JSON selection files, argv, environment, logs, or reports.
-OpenAI selection is supported when its preflight evidence is present; Ollama is
-advertised only when its local-daemon evidence is verified. Unsupported
-combinations remain unavailable rather than being guessed.
+OpenAI and OpenRouter selections are supported when their preflight evidence is
+present; Ollama is advertised only when its local-daemon evidence is verified.
+Unsupported combinations remain unavailable rather than being guessed.

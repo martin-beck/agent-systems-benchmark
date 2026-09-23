@@ -4,6 +4,7 @@
 
 use crate::all_agents_provider::{EffectiveApiMode, SelectedAgent};
 use crate::openai::{OpenAiAgent, OpenAiProfile};
+use crate::openrouter::{OpenRouterAgent, OpenRouterProfile};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -204,9 +205,9 @@ impl ProviderLaunchV1 {
         ] {
             if value.is_empty()
                 || value.len() > MAX_ID_BYTES
-                || !value
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'/'))
+                || !value.bytes().all(|b| {
+                    b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'/' | b':')
+                })
             {
                 return Err(ProviderLaunchError::InvalidIdentity(name));
             }
@@ -330,6 +331,52 @@ impl ProviderLaunchProjection {
             agent: agent_id(agent).to_owned(),
             adapter: agent_id(agent).to_owned(),
             provider: "openai".to_owned(),
+            model: route.model().to_owned(),
+            api_mode,
+            settings_sha256: profile.provider_profile().settings_sha256.clone(),
+            credential: CredentialResolverIdentity {
+                kind: CredentialResolverKind::Environment,
+                reference_sha256: profile
+                    .provider_profile()
+                    .credential
+                    .reference_sha256
+                    .clone()
+                    .ok_or(ProviderLaunchError::InvalidDigest(
+                        "credential.reference_sha256",
+                    ))?,
+            },
+        })
+    }
+
+    /// Construct an exact projection from the pinned OpenRouter adapter translation.
+    pub fn openrouter(
+        profile: &OpenRouterProfile,
+        agent: SelectedAgent,
+    ) -> Result<Self, ProviderLaunchError> {
+        let openrouter_agent = match agent {
+            SelectedAgent::OpenCode => OpenRouterAgent::OpenCode,
+            SelectedAgent::OpenDesk => OpenRouterAgent::OpenDesk,
+            SelectedAgent::Aider => OpenRouterAgent::Aider,
+            SelectedAgent::Codex => OpenRouterAgent::Codex,
+            SelectedAgent::Gemini => OpenRouterAgent::Gemini,
+            SelectedAgent::QwenCode => OpenRouterAgent::QwenCode,
+            SelectedAgent::Goose => OpenRouterAgent::Goose,
+            SelectedAgent::MiniSwe => OpenRouterAgent::MiniSwe,
+            SelectedAgent::OpenHands => OpenRouterAgent::OpenHands,
+        };
+        let route = profile
+            .translate(openrouter_agent, profile.provider_profile())
+            .map_err(|_| ProviderLaunchError::UnsupportedAdapter)?;
+        let api_mode = match route.api_mode() {
+            crate::openrouter::OpenRouterApiMode::ChatCompletions => {
+                EffectiveApiMode::ChatCompletions
+            }
+            crate::openrouter::OpenRouterApiMode::Responses => EffectiveApiMode::Responses,
+        };
+        Ok(Self {
+            agent: agent_id(agent).to_owned(),
+            adapter: agent_id(agent).to_owned(),
+            provider: "openrouter".to_owned(),
             model: route.model().to_owned(),
             api_mode,
             settings_sha256: profile.provider_profile().settings_sha256.clone(),
@@ -499,5 +546,50 @@ mod tests {
         .unwrap();
         assert!(!json.contains("Bearer"));
         assert!(!json.contains("secret"));
+    }
+
+    #[test]
+    fn openrouter_launch_projection_binds_the_pinned_free_model() {
+        let profile = crate::openrouter::OpenRouterProfile::new("a".repeat(64)).unwrap();
+        let projection =
+            ProviderLaunchProjection::openrouter(&profile, SelectedAgent::Codex).unwrap();
+        assert_eq!(projection.provider(), "openrouter");
+        assert_eq!(projection.model(), crate::openrouter::OPENROUTER_MODEL);
+        assert_eq!(projection.agent(), "codex");
+        assert_eq!(projection.api_mode(), EffectiveApiMode::Responses);
+        let record = ProviderLaunchRecord::bind(
+            ProviderLaunchV1 {
+                schema_version: PROVIDER_LAUNCH_V1,
+                catalog_sha256: "a".repeat(64),
+                selection_sha256: "b".repeat(64),
+                provider_profile_sha256: "c".repeat(64),
+                endpoint_sha256: profile.provider_profile().endpoint.identity_sha256.clone(),
+                agent: "codex".into(),
+                adapter: "codex".into(),
+                api_mode: projection.api_mode(),
+                provider: projection.provider().to_owned(),
+                model: projection.model().to_owned(),
+                settings_sha256: projection.settings_sha256().to_owned(),
+                runtime: RuntimeBundleIdentity {
+                    bundle_sha256: "e".repeat(64),
+                    executable_sha256: "f".repeat(64),
+                },
+                credential: projection.credential().clone(),
+                workload_sha256: "2".repeat(64),
+                run_id: "run-1".into(),
+                attempt_id: "run-1-attempt".into(),
+                policy: LaunchPolicy {
+                    max_stdout_bytes: 1,
+                    max_stderr_bytes: 1,
+                    timeout_ms: 1,
+                    max_environment_entries: 1,
+                    max_argv_entries: 1,
+                },
+            },
+            &projection,
+        )
+        .unwrap();
+        record.validate().unwrap();
+        assert_eq!(record.launch_sha256.len(), 64);
     }
 }
