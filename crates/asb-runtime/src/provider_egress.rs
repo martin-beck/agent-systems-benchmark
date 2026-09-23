@@ -334,9 +334,7 @@ impl ProviderEgressRelay {
             let remaining = self.max_forward_bytes - total;
             if remaining == 0 {
                 let mut extra = [0_u8; 1];
-                let count = reader
-                    .read(&mut extra)
-                    .map_err(ProviderEgressError::Io)?;
+                let count = reader.read(&mut extra).map_err(ProviderEgressError::Io)?;
                 return if count == 0 {
                     Ok(total)
                 } else {
