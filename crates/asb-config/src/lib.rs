@@ -1531,4 +1531,266 @@ mod tests {
             .insert("secret".into(), "nope".into());
         assert!(serde_json::from_value::<AuthEnrollment>(value).is_err());
     }
+
+    #[test]
+    fn provider_registry_lifecycle_and_protocol_filters_are_fail_closed() {
+        let mut registry = ProviderRegistryV1 {
+            schema_version: 1,
+            connections: BTreeMap::new(),
+            models: BTreeMap::new(),
+        };
+        let connection = RegistryConnectionV1 {
+            provider: "openrouter".into(),
+            protocol: "openai_compatible".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: Some("b".repeat(64)),
+        };
+        registry
+            .add_connection("remote".into(), connection.clone())
+            .unwrap();
+        assert!(
+            registry
+                .add_connection("remote".into(), connection)
+                .is_err()
+        );
+        assert!(
+            registry
+                .add_connection(
+                    "".into(),
+                    RegistryConnectionV1 {
+                        provider: "openrouter".into(),
+                        protocol: "openai_compatible".into(),
+                        endpoint_identity_sha256: "a".repeat(64),
+                        credential_locator_sha256: None,
+                    }
+                )
+                .is_err()
+        );
+        registry
+            .parse_model_catalog("remote", 3, br#"{"models":[{"id":"free"}]}"#)
+            .unwrap();
+        assert_eq!(
+            registry
+                .compatible_models("remote", "openrouter", "openai_compatible")
+                .len(),
+            1
+        );
+        assert!(
+            registry
+                .compatible_models("remote", "openai", "openai_compatible")
+                .is_empty()
+        );
+        assert!(
+            registry
+                .compatible_models("missing", "openrouter", "openai_compatible")
+                .is_empty()
+        );
+        assert!(registry.replace_models("remote", 0, Vec::new()).is_err());
+        assert!(registry.replace_models("missing", 1, Vec::new()).is_err());
+        assert!(
+            registry
+                .replace_models(
+                    "remote",
+                    4,
+                    vec![RegistryModelV1 {
+                        id: "stale".into(),
+                        qualification_sha256: sha256_hex(b"stale"),
+                        discovered_at_generation: 3,
+                    }]
+                )
+                .is_err()
+        );
+        assert!(
+            registry
+                .replace_models(
+                    "remote",
+                    4,
+                    vec![
+                        RegistryModelV1 {
+                            id: "same".into(),
+                            qualification_sha256: sha256_hex(b"same"),
+                            discovered_at_generation: 4
+                        },
+                        RegistryModelV1 {
+                            id: "same".into(),
+                            qualification_sha256: sha256_hex(b"same"),
+                            discovered_at_generation: 4
+                        },
+                    ]
+                )
+                .is_err()
+        );
+        registry.remove_connection("remote").unwrap();
+        assert!(registry.remove_connection("remote").is_err());
+    }
+
+    #[test]
+    fn provider_registry_rejects_invalid_identity_and_catalog_shapes() {
+        let mut registry = ProviderRegistryV1 {
+            schema_version: 1,
+            connections: BTreeMap::from([(
+                "one".into(),
+                RegistryConnectionV1 {
+                    provider: "openai".into(),
+                    protocol: "openai_chat".into(),
+                    endpoint_identity_sha256: "a".repeat(64),
+                    credential_locator_sha256: None,
+                },
+            )]),
+            models: BTreeMap::new(),
+        };
+        assert!(registry.parse_model_catalog("one", 1, b"").is_err());
+        assert!(registry.parse_model_catalog("one", 1, b"not-json").is_err());
+        assert!(
+            registry
+                .parse_model_catalog("one", 1, br#"{"models":[{"id":"x"}],"extra":true}"#)
+                .is_err()
+        );
+        assert!(
+            registry
+                .parse_model_catalog("missing", 1, br#"{"models":[]}"#)
+                .is_err()
+        );
+        let mut bad = registry.clone();
+        bad.schema_version = 2;
+        assert!(bad.validate().is_err());
+        bad.schema_version = 1;
+        bad.connections.get_mut("one").unwrap().protocol = "unknown".into();
+        assert!(bad.validate().is_err());
+        bad.connections.get_mut("one").unwrap().protocol = "openai_chat".into();
+        bad.connections
+            .get_mut("one")
+            .unwrap()
+            .endpoint_identity_sha256 = "bad".into();
+        assert!(bad.validate().is_err());
+        assert!(registry.parse_gemini_model_catalog("one", 1, b"").is_err());
+        assert!(
+            registry
+                .parse_ollama_model_catalog("one", 1, br#"{"models":[]}"#)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn configuration_validation_and_resolution_cover_override_boundaries() {
+        assert!(Configuration::empty().validate().is_ok());
+        let mut config = sample();
+        config.defaults.agents.clear();
+        config.defaults.measures.clear();
+        config.agent_overrides.insert(
+            "codex".into(),
+            AgentOverride {
+                measures: Some(vec!["quality".into()]),
+                repetitions: Some(4),
+                enabled: Some(false),
+                ..Default::default()
+            },
+        );
+        let resolved = config.resolve_defaults(Some("codex"), None).unwrap();
+        assert_eq!(resolved.agents.origin, ValueOrigin::BuiltIn);
+        assert_eq!(resolved.measures.origin, ValueOrigin::Agent);
+        assert_eq!(resolved.repetitions.value, 4);
+        let run = RunOverride {
+            agents: Some(vec!["codex".into()]),
+            measures: Some(vec!["tokens".into()]),
+            repetitions: Some(5),
+        };
+        let resolved = config.resolve_defaults(Some("codex"), Some(&run)).unwrap();
+        assert_eq!(resolved.agents.origin, ValueOrigin::Run);
+        assert_eq!(resolved.measures.origin, ValueOrigin::Run);
+        assert_eq!(resolved.repetitions.value, 5);
+        assert!(
+            config
+                .resolve_defaults(
+                    None,
+                    Some(&RunOverride {
+                        repetitions: Some(0),
+                        ..Default::default()
+                    })
+                )
+                .is_err()
+        );
+        assert!(
+            config
+                .resolve_defaults(
+                    None,
+                    Some(&RunOverride {
+                        agents: Some(vec!["x".into(), "x".into()]),
+                        ..Default::default()
+                    })
+                )
+                .is_err()
+        );
+        let mutations: [fn(&mut Configuration); 6] = [
+            |c: &mut Configuration| c.schema_version = 2,
+            |c| c.agents.get_mut("codex").unwrap().profile = "missing".into(),
+            |c| c.connections.get_mut("local").unwrap().max_in_flight = 0,
+            |c| c.profiles.get_mut("default").unwrap().endpoint = "https://u:p@host".into(),
+            |c| {
+                c.agent_overrides
+                    .insert("missing".into(), AgentOverride::default());
+            },
+            |c| {
+                c.agent_overrides.get_mut("codex").unwrap().repetitions = Some(0);
+            },
+        ];
+        for mutation in mutations {
+            let mut candidate = config.clone();
+            mutation(&mut candidate);
+            assert!(candidate.validate().is_err());
+        }
+    }
+
+    #[test]
+    fn config_store_rejects_permissions_size_symlinks_and_invalid_paths() {
+        use std::os::unix::fs::symlink;
+        let root = temp_path();
+        let path = root.join("config.json");
+        let store = ConfigStore::new(&path);
+        assert_eq!(store.path(), path.as_path());
+        assert_eq!(store.load().unwrap(), None);
+        store.save(&sample()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(store.load().is_err());
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::write(&path, vec![b'x'; MAX_CONFIG_BYTES + 1]).unwrap();
+        assert!(matches!(
+            store.load(),
+            Err(ConfigError::TooLarge("configuration"))
+        ));
+        fs::remove_file(&path).unwrap();
+        let target = root.join("target");
+        fs::write(&target, b"target").unwrap();
+        symlink(&target, &path).unwrap();
+        assert!(store.load().is_err());
+        fs::remove_file(&path).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        let no_parent = ConfigStore::new(PathBuf::new());
+        assert!(matches!(
+            no_parent.save(&sample()),
+            Err(ConfigError::InvalidValue(_))
+        ));
+    }
+
+    #[test]
+    fn decode_and_profile_validation_reject_bounds_and_duplicates() {
+        assert!(matches!(
+            decode(&vec![b'x'; MAX_CONFIG_BYTES + 1]),
+            Err(ConfigError::TooLarge("configuration"))
+        ));
+        assert!(matches!(decode(b"[]"), Err(ConfigError::Corrupt(_))));
+        let config = sample();
+        assert!(apply_profile_to_agents(&config, "default", &[]).is_err());
+        let duplicate = vec!["codex".into(), "codex".into()];
+        assert!(apply_profile_to_agents(&config, "default", &duplicate).is_err());
+        let mut invalid = config.clone();
+        invalid.defaults.measures = vec!["latency".into(), "latency".into()];
+        assert!(invalid.validate().is_err());
+        invalid.defaults.measures = (0..257).map(|i| format!("m{i}")).collect();
+        assert!(invalid.validate().is_err());
+        assert!(
+            OpenRouterFreeModelConfig::enroll("bad".into(), "2026-9-2".into(), "a".repeat(64), 1)
+                .is_err()
+        );
+    }
 }
