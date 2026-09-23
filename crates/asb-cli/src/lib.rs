@@ -3428,7 +3428,10 @@ impl AgentProcess {
                     .cancel()
                     .map_err(|_| CliError::operation("agent process cannot be cancelled"))?;
                 if let Some(worker) = relay_worker.take() {
-                    let _ = worker.join();
+                    worker
+                        .join()
+                        .map_err(|_| CliError::operation("live relay worker panicked"))?
+                        .map_err(|_| CliError::operation("live relay forwarding failed"))?;
                 }
                 Ok(())
             }
@@ -3450,7 +3453,10 @@ impl AgentProcess {
                 });
                 _attempt.revoke();
                 if let Some(worker) = relay_worker.take() {
-                    let _ = worker.join();
+                    worker
+                        .join()
+                        .map_err(|_| CliError::operation("live relay worker panicked"))?
+                        .map_err(|_| CliError::operation("live relay forwarding failed"))?;
                 }
                 result
             }
