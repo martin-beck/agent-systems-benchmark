@@ -114,6 +114,91 @@ impl Drop for SocketPathCleanup {
 }
 
 impl LiveProviderRelay {
+    /// Bind a relay and issue its namespace handoff while the real listener
+    /// is held open. This avoids placeholder sockets and the associated
+    /// authority race in runtime-owned provisioning.
+    #[allow(clippy::too_many_arguments)]
+    pub fn bind_runtime(
+        root: &Path,
+        policy: &ProviderEgressPolicy,
+        egress_handoff: &ProviderEgressHandoff,
+        namespace: NamespaceIdentity,
+        allowlist: ProviderEgressAllowlist,
+        target: ProviderEgressTarget,
+        generation: impl Into<String>,
+        route_sha256: impl Into<String>,
+        adapter_sha256: impl Into<String>,
+        credential_ref_sha256: impl Into<String>,
+        child_endpoint: PathBuf,
+        io_timeout: Duration,
+        max_forward_bytes: usize,
+        now_unix_ms: u64,
+    ) -> Result<(Self, LiveProviderNamespaceHandoff), LiveRelayError> {
+        let generation = generation.into();
+        let route_sha256 = route_sha256.into();
+        let authorization = ProviderEgressAuthorization::authorize(
+            policy,
+            egress_handoff,
+            now_unix_ms,
+            &generation,
+            &route_sha256,
+        )?;
+        if !allowlist.permits(target.address()) || !root.is_absolute() || !root.is_dir() {
+            return Err(LiveRelayError::InvalidRequest);
+        }
+        let root = fs::canonicalize(root)?;
+        let socket = root.join(format!("asb-live-{generation}.sock"));
+        let listener = UnixListener::bind(&socket)?;
+        let mut socket_cleanup = SocketPathCleanup::new(socket.clone());
+        listener.set_nonblocking(true)?;
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))?;
+        let handoff = LiveProviderNamespaceHandoff::issue(
+            policy,
+            egress_handoff,
+            namespace.clone(),
+            &generation,
+            &route_sha256,
+            adapter_sha256,
+            credential_ref_sha256,
+            socket.clone(),
+            child_endpoint,
+            now_unix_ms
+                .checked_add(io_timeout.as_millis() as u64)
+                .ok_or(LiveRelayError::InvalidRequest)?,
+            now_unix_ms,
+        )
+        .map_err(LiveRelayError::Handoff)?;
+        let deadline = Instant::now()
+            .checked_add(io_timeout)
+            .ok_or(LiveRelayError::InvalidRequest)?;
+        let connector = ProviderEgressRelay::new(
+            policy,
+            allowlist,
+            generation.clone(),
+            authorization.route_sha256().to_owned(),
+            io_timeout,
+            max_forward_bytes,
+        )?;
+        socket_cleanup.disarm();
+        let exported_handoff = handoff.clone();
+        Ok((
+            Self {
+                listener,
+                socket,
+                generation,
+                capability_sha256: handoff.capability_sha256().to_owned(),
+                namespace,
+                handoff,
+                authorization: Some(authorization),
+                connector,
+                target,
+                deadline,
+                consumed: false,
+            },
+            exported_handoff,
+        ))
+    }
+
     /// Bind a private relay below `root` using the runtime-selected target.
     #[allow(clippy::too_many_arguments)]
     pub fn bind(
@@ -405,6 +490,49 @@ mod tests {
 
     fn relay() -> (LiveProviderRelay, PathBuf) {
         relay_with_timeout(Duration::from_secs(1), None)
+    }
+
+    #[test]
+    fn runtime_bind_issues_handoff_while_real_socket_is_held() {
+        let root = root();
+        let now_unix_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let egress = ProviderEgressHandoff::issue_bound(
+            &policy,
+            "generation-runtime",
+            "a".repeat(64),
+            u64::MAX,
+        );
+        let namespace = NamespaceIdentity::current().unwrap();
+        let target = ProviderEgressTarget::test_only("198.51.100.10:443".parse().unwrap());
+        let allowlist = ProviderEgressAllowlist::new(vec![target]).unwrap();
+        let (relay, handoff) = LiveProviderRelay::bind_runtime(
+            &root,
+            &policy,
+            &egress,
+            namespace.clone(),
+            allowlist,
+            target,
+            "generation-runtime",
+            "a".repeat(64),
+            "b".repeat(64),
+            "c".repeat(64),
+            root.join("child.sock"),
+            Duration::from_secs(1),
+            4096,
+            now_unix_ms,
+        )
+        .unwrap();
+        assert!(relay.socket().exists());
+        assert!(handoff.validate(&namespace, now_unix_ms).is_ok());
+        let socket = relay.socket().to_owned();
+        drop(relay);
+        assert!(!socket.exists());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
