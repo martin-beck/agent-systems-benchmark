@@ -37,7 +37,7 @@ pub struct SandboxCredentialBinding {
 impl SandboxCredentialBinding {
     /// Validate a credential reference and adapter-owned target before launch.
     /// This value carries metadata only; it does not grant launch authority.
-    pub fn new(
+    pub(crate) fn new(
         reference_sha256: impl Into<String>,
         target: impl Into<String>,
     ) -> Result<Self, SandboxCredentialError> {
@@ -53,6 +53,10 @@ impl SandboxCredentialBinding {
             reference_sha256,
             target,
         })
+    }
+
+    pub(crate) fn revalidated(&self) -> Result<Self, SandboxCredentialError> {
+        Self::new(self.reference_sha256.clone(), self.target.clone())
     }
 }
 

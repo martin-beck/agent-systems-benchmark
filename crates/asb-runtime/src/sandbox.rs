@@ -601,8 +601,11 @@ impl SandboxBackend {
         if input.spec.network_policy() != NetworkPolicy::Deny {
             return Err(SandboxError::NetworkPolicy);
         }
+        let binding = binding
+            .revalidated()
+            .map_err(SandboxError::CredentialChannel)?;
         let mut channel =
-            SandboxCredentialChannel::new(binding).map_err(SandboxError::CredentialChannel)?;
+            SandboxCredentialChannel::new(&binding).map_err(SandboxError::CredentialChannel)?;
         injection
             .inject(&mut channel)
             .map_err(SandboxError::CredentialInjection)?;
