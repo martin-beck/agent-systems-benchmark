@@ -75,6 +75,7 @@ dependencies = [
  "asb-agents",
  "asb-analysis",
  "asb-bundle",
+ "asb-config",
  "asb-control",
  "asb-metrics",
  "asb-protocol",

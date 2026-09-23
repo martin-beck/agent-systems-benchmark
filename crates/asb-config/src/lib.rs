@@ -17,6 +17,10 @@ use thiserror::Error;
 
 /// Current on-disk configuration schema.
 pub const CONFIG_SCHEMA_VERSION: u16 = 1;
+/// Exact dated free-model snapshot accepted by the user configuration.
+pub const OPENROUTER_MODEL_SNAPSHOT: &str = "deepseek/deepseek-chat-v3-0324:free@2026-09-22";
+/// Configuration schema for the pinned OpenRouter free-model enrollment.
+pub const OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION: u16 = 1;
 /// Maximum serialized configuration size.
 pub const MAX_CONFIG_BYTES: usize = 256 * 1024;
 const MAX_NAME_BYTES: usize = 128;
@@ -38,6 +42,117 @@ pub struct AuthEnrollment {
     pub generation: u64,
     /// Public lifecycle status.
     pub status: AuthEnrollmentStatus,
+}
+
+/// Credential-free, dated OpenRouter free-model selection.
+///
+/// This record deliberately stores only public model/endpoint identity and a
+/// digest of the environment-variable locator.  The API key itself is
+/// resolved by the runtime from the `OPENROUTER_API_KEY` environment channel; it is never
+/// accepted by this crate or serialized into the configuration file.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenRouterFreeModelConfig {
+    /// Selection schema version.
+    pub schema_version: u16,
+    /// Provider family, fixed to `openrouter`.
+    pub provider: String,
+    /// Exact model identifier sent to the provider.
+    pub model: String,
+    /// Exact dated model snapshot (`model@YYYY-MM-DD`).
+    pub model_snapshot: String,
+    /// Date on which the model snapshot was pinned.
+    pub model_snapshot_date: String,
+    /// Digest of the exact public endpoint URL.
+    pub endpoint_identity_sha256: String,
+    /// Environment channel used by the runtime credential resolver.
+    pub credential_environment: String,
+    /// Digest-only credential locator.
+    pub credential: CredentialReference,
+    /// Auth lifecycle record bound to this selection.
+    pub enrollment: AuthEnrollment,
+}
+
+impl OpenRouterFreeModelConfig {
+    /// Validate the complete selection and all enrollment bindings.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION {
+            return Err(ConfigError::UnsupportedVersion(self.schema_version));
+        }
+        if self.provider != "openrouter" {
+            return Err(ConfigError::InvalidValue("openrouter provider".into()));
+        }
+        validate_text(&self.model, "openrouter model")?;
+        validate_text(&self.model_snapshot, "openrouter model snapshot")?;
+        if self.model_snapshot != format!("{}@{}", self.model, self.model_snapshot_date) {
+            return Err(ConfigError::InvalidValue(
+                "openrouter model snapshot".into(),
+            ));
+        }
+        if self.model_snapshot != OPENROUTER_MODEL_SNAPSHOT {
+            return Err(ConfigError::InvalidValue(
+                "openrouter model is not the pinned free model".into(),
+            ));
+        }
+        validate_date(&self.model_snapshot_date)?;
+        validate_sha256(&self.endpoint_identity_sha256, "endpoint identity")?;
+        if self.credential_environment != "OPENROUTER_API_KEY" {
+            return Err(ConfigError::InvalidValue(
+                "openrouter credential environment".into(),
+            ));
+        }
+        self.credential.validate()?;
+        if self.credential.kind != CredentialReferenceKind::Environment
+            || self.credential.locator_sha256 != sha256_hex(self.credential_environment.as_bytes())
+        {
+            return Err(ConfigError::InvalidValue(
+                "openrouter credential reference".into(),
+            ));
+        }
+        if self.enrollment.schema_version != CONFIG_SCHEMA_VERSION
+            || self.enrollment.provider != self.provider
+            || self.enrollment.credential != self.credential
+            || self.enrollment.endpoint_identity_sha256 != self.endpoint_identity_sha256
+            || self.enrollment.generation == 0
+            || self.enrollment.status != AuthEnrollmentStatus::Active
+        {
+            return Err(ConfigError::InvalidValue("openrouter enrollment".into()));
+        }
+        Ok(())
+    }
+
+    /// Construct a validated environment-backed enrollment without a secret.
+    pub fn enroll(
+        model: String,
+        model_snapshot_date: String,
+        endpoint_identity_sha256: String,
+        generation: u64,
+    ) -> Result<Self, ConfigError> {
+        let credential = CredentialReference {
+            kind: CredentialReferenceKind::Environment,
+            locator_sha256: sha256_hex(b"OPENROUTER_API_KEY"),
+        };
+        let config = Self {
+            schema_version: OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION,
+            provider: "openrouter".into(),
+            model: model.clone(),
+            model_snapshot: format!("{model}@{model_snapshot_date}"),
+            model_snapshot_date,
+            endpoint_identity_sha256: endpoint_identity_sha256.clone(),
+            credential_environment: "OPENROUTER_API_KEY".into(),
+            credential: credential.clone(),
+            enrollment: AuthEnrollment {
+                schema_version: CONFIG_SCHEMA_VERSION,
+                provider: "openrouter".into(),
+                credential,
+                endpoint_identity_sha256,
+                generation,
+                status: AuthEnrollmentStatus::Active,
+            },
+        };
+        config.validate()?;
+        Ok(config)
+    }
 }
 
 /// Public enrollment lifecycle status.
@@ -213,6 +328,9 @@ pub struct Configuration {
     pub defaults: Defaults,
     /// Per-agent overrides.
     pub agent_overrides: BTreeMap<String, AgentOverride>,
+    /// Optional pinned OpenRouter free-model selection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openrouter_free_model: Option<OpenRouterFreeModelConfig>,
 }
 
 /// Bounded, credential-free provider/model discovery record.
@@ -600,6 +718,7 @@ impl Configuration {
             profiles: BTreeMap::new(),
             defaults: built_in_defaults(),
             agent_overrides: BTreeMap::new(),
+            openrouter_free_model: None,
         }
     }
 
@@ -666,6 +785,9 @@ impl Configuration {
             {
                 return Err(ConfigError::UnknownReference(connection.clone()));
             }
+        }
+        if let Some(selection) = &self.openrouter_free_model {
+            selection.validate()?;
         }
         Ok(())
     }
@@ -1016,6 +1138,25 @@ fn validate_sha256(value: &str, field: &'static str) -> Result<(), ConfigError> 
     Ok(())
 }
 
+fn validate_date(value: &str) -> Result<(), ConfigError> {
+    if value.len() != 10
+        || !value.bytes().enumerate().all(|(index, byte)| {
+            if index == 4 || index == 7 {
+                byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+    {
+        return Err(ConfigError::InvalidValue("model snapshot date".into()));
+    }
+    Ok(())
+}
+
+fn sha256_hex(value: &[u8]) -> String {
+    format!("{:x}", sha2::Sha256::digest(value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1069,6 +1210,7 @@ mod tests {
                 repetitions: 2,
             },
             agent_overrides: BTreeMap::new(),
+            openrouter_free_model: None,
         }
     }
 
@@ -1079,6 +1221,75 @@ mod tests {
         store.save(&sample()).unwrap();
         assert_eq!(store.load().unwrap(), Some(sample()));
         let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn openrouter_free_model_enrollment_is_credential_free_and_pinned() {
+        let selection = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        let encoded = serde_json::to_string(&selection).unwrap();
+        assert!(!encoded.contains("secret"));
+        assert!(!encoded.contains("OPENROUTER_API_KEY="));
+        assert!(encoded.contains("OPENROUTER_API_KEY"));
+        assert_eq!(selection.enrollment.credential, selection.credential);
+    }
+
+    #[test]
+    fn openrouter_free_model_rejects_stale_or_credential_bearing_records() {
+        let mut selection = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        selection.model_snapshot_date = "2026-09-23".into();
+        assert!(selection.validate().is_err());
+        let mut selection = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        selection.credential_environment = "OPENROUTER_API_KEY=secret".into();
+        assert!(selection.validate().is_err());
+    }
+
+    #[test]
+    fn openrouter_free_model_rejects_every_identity_and_enrollment_drift() {
+        let base = || {
+            OpenRouterFreeModelConfig::enroll(
+                "deepseek/deepseek-chat-v3-0324:free".into(),
+                "2026-09-22".into(),
+                "a".repeat(64),
+                1,
+            )
+            .unwrap()
+        };
+        let mutations: [fn(&mut OpenRouterFreeModelConfig); 11] = [
+            |value: &mut OpenRouterFreeModelConfig| value.schema_version = 2,
+            |value| value.provider = "openai".into(),
+            |value| value.model.clear(),
+            |value| value.model_snapshot.clear(),
+            |value| value.model_snapshot_date = "2026-09-23".into(),
+            |value| value.endpoint_identity_sha256 = "bad".into(),
+            |value| value.credential_environment = "CODEX_API_KEY".into(),
+            |value| value.credential.kind = CredentialReferenceKind::Helper,
+            |value| value.enrollment.provider = "openai".into(),
+            |value| value.enrollment.generation = 0,
+            |value| value.enrollment.status = AuthEnrollmentStatus::Revoked,
+        ];
+        for mutate in mutations {
+            let mut value = base();
+            mutate(&mut value);
+            assert!(value.validate().is_err());
+        }
     }
     #[test]
     fn secret_shaped_values_rejected() {
@@ -1096,6 +1307,62 @@ mod tests {
         assert!(matches!(store.load(), Err(ConfigError::Corrupt(_))));
         assert_eq!(fs::read(&path).unwrap(), b"{");
         let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn openrouter_enrollment_is_credential_free_and_bound() {
+        let config = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        let encoded = serde_json::to_string(&config).unwrap();
+        assert!(encoded.contains("OPENROUTER_API_KEY"));
+        assert!(!encoded.contains("secret"));
+        assert!(encoded.contains(&config.credential.locator_sha256));
+        assert_eq!(config.enrollment.credential, config.credential);
+        assert_eq!(config.enrollment.endpoint_identity_sha256, "a".repeat(64));
+    }
+
+    #[test]
+    fn openrouter_enrollment_rejects_stale_or_mixed_identity() {
+        let mut config = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "b".repeat(64),
+            7,
+        )
+        .unwrap();
+        config.model_snapshot_date = "2026-09-23".into();
+        assert!(config.validate().is_err());
+
+        let mut config = OpenRouterFreeModelConfig::enroll(
+            "deepseek/deepseek-chat-v3-0324:free".into(),
+            "2026-09-22".into(),
+            "c".repeat(64),
+            7,
+        )
+        .unwrap();
+        config.enrollment.generation = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn configuration_round_trip_preserves_openrouter_selection() {
+        let mut configuration = sample();
+        configuration.openrouter_free_model = Some(
+            OpenRouterFreeModelConfig::enroll(
+                "deepseek/deepseek-chat-v3-0324:free".into(),
+                "2026-09-22".into(),
+                "d".repeat(64),
+                1,
+            )
+            .unwrap(),
+        );
+        let encoded = serde_json::to_vec(&configuration).unwrap();
+        assert_eq!(decode(&encoded).unwrap(), configuration);
     }
     #[test]
     fn precedence_is_explicit() {
@@ -1263,5 +1530,268 @@ mod tests {
             .unwrap()
             .insert("secret".into(), "nope".into());
         assert!(serde_json::from_value::<AuthEnrollment>(value).is_err());
+    }
+
+    #[test]
+    fn provider_registry_lifecycle_and_protocol_filters_are_fail_closed() {
+        let mut registry = ProviderRegistryV1 {
+            schema_version: 1,
+            connections: BTreeMap::new(),
+            models: BTreeMap::new(),
+        };
+        let connection = RegistryConnectionV1 {
+            provider: "openrouter".into(),
+            protocol: "openai_compatible".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: Some("b".repeat(64)),
+        };
+        registry
+            .add_connection("remote".into(), connection.clone())
+            .unwrap();
+        assert!(
+            registry
+                .add_connection("remote".into(), connection)
+                .is_err()
+        );
+        assert!(
+            registry
+                .add_connection(
+                    "".into(),
+                    RegistryConnectionV1 {
+                        provider: "openrouter".into(),
+                        protocol: "openai_compatible".into(),
+                        endpoint_identity_sha256: "a".repeat(64),
+                        credential_locator_sha256: None,
+                    }
+                )
+                .is_err()
+        );
+        registry
+            .parse_model_catalog("remote", 3, br#"{"models":[{"id":"free"}]}"#)
+            .unwrap();
+        assert_eq!(
+            registry
+                .compatible_models("remote", "openrouter", "openai_compatible")
+                .len(),
+            1
+        );
+        assert!(
+            registry
+                .compatible_models("remote", "openai", "openai_compatible")
+                .is_empty()
+        );
+        assert!(
+            registry
+                .compatible_models("missing", "openrouter", "openai_compatible")
+                .is_empty()
+        );
+        assert!(registry.replace_models("remote", 0, Vec::new()).is_err());
+        assert!(registry.replace_models("missing", 1, Vec::new()).is_err());
+        assert!(
+            registry
+                .replace_models(
+                    "remote",
+                    4,
+                    vec![RegistryModelV1 {
+                        id: "stale".into(),
+                        qualification_sha256: sha256_hex(b"stale"),
+                        discovered_at_generation: 3,
+                    }]
+                )
+                .is_err()
+        );
+        assert!(
+            registry
+                .replace_models(
+                    "remote",
+                    4,
+                    vec![
+                        RegistryModelV1 {
+                            id: "same".into(),
+                            qualification_sha256: sha256_hex(b"same"),
+                            discovered_at_generation: 4
+                        },
+                        RegistryModelV1 {
+                            id: "same".into(),
+                            qualification_sha256: sha256_hex(b"same"),
+                            discovered_at_generation: 4
+                        },
+                    ]
+                )
+                .is_err()
+        );
+        registry.remove_connection("remote").unwrap();
+        assert!(registry.remove_connection("remote").is_err());
+    }
+
+    #[test]
+    fn provider_registry_rejects_invalid_identity_and_catalog_shapes() {
+        let mut registry = ProviderRegistryV1 {
+            schema_version: 1,
+            connections: BTreeMap::from([(
+                "one".into(),
+                RegistryConnectionV1 {
+                    provider: "openai".into(),
+                    protocol: "openai_chat".into(),
+                    endpoint_identity_sha256: "a".repeat(64),
+                    credential_locator_sha256: None,
+                },
+            )]),
+            models: BTreeMap::new(),
+        };
+        assert!(registry.parse_model_catalog("one", 1, b"").is_err());
+        assert!(registry.parse_model_catalog("one", 1, b"not-json").is_err());
+        assert!(
+            registry
+                .parse_model_catalog("one", 1, br#"{"models":[{"id":"x"}],"extra":true}"#)
+                .is_err()
+        );
+        assert!(
+            registry
+                .parse_model_catalog("missing", 1, br#"{"models":[]}"#)
+                .is_err()
+        );
+        let mut bad = registry.clone();
+        bad.schema_version = 2;
+        assert!(bad.validate().is_err());
+        bad.schema_version = 1;
+        bad.connections.get_mut("one").unwrap().protocol = "unknown".into();
+        assert!(bad.validate().is_err());
+        bad.connections.get_mut("one").unwrap().protocol = "openai_chat".into();
+        bad.connections
+            .get_mut("one")
+            .unwrap()
+            .endpoint_identity_sha256 = "bad".into();
+        assert!(bad.validate().is_err());
+        assert!(registry.parse_gemini_model_catalog("one", 1, b"").is_err());
+        assert!(
+            registry
+                .parse_ollama_model_catalog("one", 1, br#"{"models":[]}"#)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn configuration_validation_and_resolution_cover_override_boundaries() {
+        assert!(Configuration::empty().validate().is_ok());
+        let mut config = sample();
+        config.defaults.agents.clear();
+        config.defaults.measures.clear();
+        config.agent_overrides.insert(
+            "codex".into(),
+            AgentOverride {
+                measures: Some(vec!["quality".into()]),
+                repetitions: Some(4),
+                enabled: Some(false),
+                ..Default::default()
+            },
+        );
+        let resolved = config.resolve_defaults(Some("codex"), None).unwrap();
+        assert_eq!(resolved.agents.origin, ValueOrigin::BuiltIn);
+        assert_eq!(resolved.measures.origin, ValueOrigin::Agent);
+        assert_eq!(resolved.repetitions.value, 4);
+        let run = RunOverride {
+            agents: Some(vec!["codex".into()]),
+            measures: Some(vec!["tokens".into()]),
+            repetitions: Some(5),
+        };
+        let resolved = config.resolve_defaults(Some("codex"), Some(&run)).unwrap();
+        assert_eq!(resolved.agents.origin, ValueOrigin::Run);
+        assert_eq!(resolved.measures.origin, ValueOrigin::Run);
+        assert_eq!(resolved.repetitions.value, 5);
+        assert!(
+            config
+                .resolve_defaults(
+                    None,
+                    Some(&RunOverride {
+                        repetitions: Some(0),
+                        ..Default::default()
+                    })
+                )
+                .is_err()
+        );
+        assert!(
+            config
+                .resolve_defaults(
+                    None,
+                    Some(&RunOverride {
+                        agents: Some(vec!["x".into(), "x".into()]),
+                        ..Default::default()
+                    })
+                )
+                .is_err()
+        );
+        let mutations: [fn(&mut Configuration); 6] = [
+            |c: &mut Configuration| c.schema_version = 2,
+            |c| c.agents.get_mut("codex").unwrap().profile = "missing".into(),
+            |c| c.connections.get_mut("local").unwrap().max_in_flight = 0,
+            |c| c.profiles.get_mut("default").unwrap().endpoint = "https://u:p@host".into(),
+            |c| {
+                c.agent_overrides
+                    .insert("missing".into(), AgentOverride::default());
+            },
+            |c| {
+                c.agent_overrides.get_mut("codex").unwrap().repetitions = Some(0);
+            },
+        ];
+        for mutation in mutations {
+            let mut candidate = config.clone();
+            mutation(&mut candidate);
+            assert!(candidate.validate().is_err());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_store_rejects_permissions_size_symlinks_and_invalid_paths() {
+        use std::os::unix::fs::symlink;
+        let root = temp_path();
+        let path = root.join("config.json");
+        let store = ConfigStore::new(&path);
+        assert_eq!(store.path(), path.as_path());
+        assert_eq!(store.load().unwrap(), None);
+        store.save(&sample()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(store.load().is_err());
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::write(&path, vec![b'x'; MAX_CONFIG_BYTES + 1]).unwrap();
+        assert!(matches!(
+            store.load(),
+            Err(ConfigError::TooLarge("configuration"))
+        ));
+        fs::remove_file(&path).unwrap();
+        let target = root.join("target");
+        fs::write(&target, b"target").unwrap();
+        symlink(&target, &path).unwrap();
+        assert!(store.load().is_err());
+        fs::remove_file(&path).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        let no_parent = ConfigStore::new(PathBuf::new());
+        assert!(matches!(
+            no_parent.save(&sample()),
+            Err(ConfigError::InvalidValue(_))
+        ));
+    }
+
+    #[test]
+    fn decode_and_profile_validation_reject_bounds_and_duplicates() {
+        assert!(matches!(
+            decode(&vec![b'x'; MAX_CONFIG_BYTES + 1]),
+            Err(ConfigError::TooLarge("configuration"))
+        ));
+        assert!(matches!(decode(b"[]"), Err(ConfigError::Corrupt(_))));
+        let config = sample();
+        assert!(apply_profile_to_agents(&config, "default", &[]).is_err());
+        let duplicate = vec!["codex".into(), "codex".into()];
+        assert!(apply_profile_to_agents(&config, "default", &duplicate).is_err());
+        let mut invalid = config.clone();
+        invalid.defaults.measures = vec!["latency".into(), "latency".into()];
+        assert!(invalid.validate().is_err());
+        invalid.defaults.measures = (0..257).map(|i| format!("m{i}")).collect();
+        assert!(invalid.validate().is_err());
+        assert!(
+            OpenRouterFreeModelConfig::enroll("bad".into(), "2026-9-2".into(), "a".repeat(64), 1)
+                .is_err()
+        );
     }
 }
