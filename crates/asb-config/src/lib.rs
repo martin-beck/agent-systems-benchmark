@@ -48,7 +48,7 @@ pub struct AuthEnrollment {
 ///
 /// This record deliberately stores only public model/endpoint identity and a
 /// digest of the environment-variable locator.  The API key itself is
-/// resolved by the runtime from [`credential_environment`]; it is never
+/// resolved by the runtime from the `OPENROUTER_API_KEY` environment channel; it is never
 /// accepted by this crate or serialized into the configuration file.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -87,6 +87,11 @@ impl OpenRouterFreeModelConfig {
         if self.model_snapshot != format!("{}@{}", self.model, self.model_snapshot_date) {
             return Err(ConfigError::InvalidValue(
                 "openrouter model snapshot".into(),
+            ));
+        }
+        if self.model_snapshot != OPENROUTER_MODEL_SNAPSHOT {
+            return Err(ConfigError::InvalidValue(
+                "openrouter model is not the pinned free model".into(),
             ));
         }
         validate_date(&self.model_snapshot_date)?;
