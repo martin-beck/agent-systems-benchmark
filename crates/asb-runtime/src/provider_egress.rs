@@ -9,7 +9,9 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
+use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr};
+use std::time::{Duration, Instant};
 
 const MAX_ENDPOINT_BYTES: usize = 512;
 const MAX_HOST_BYTES: usize = 128;
@@ -245,6 +247,83 @@ impl ProviderEgressAuthorization {
     }
 }
 
+/// Bounded runtime-owned provider relay primitive.
+pub struct ProviderEgressRelay {
+    authorization: ProviderEgressAuthorization,
+    allowlist: ProviderEgressAllowlist,
+    connect_timeout: Duration,
+    max_request_bytes: usize,
+    max_response_bytes: usize,
+}
+
+impl ProviderEgressRelay {
+    /// Construct a relay only from an authenticated launch and concrete targets.
+    pub fn new(
+        authorization: ProviderEgressAuthorization,
+        allowlist: ProviderEgressAllowlist,
+        connect_timeout: Duration,
+        max_request_bytes: usize,
+        max_response_bytes: usize,
+    ) -> Result<Self, ProviderEgressError> {
+        if connect_timeout.is_zero()
+            || connect_timeout > Duration::from_secs(30)
+            || max_request_bytes == 0
+            || max_request_bytes > 16 * 1024 * 1024
+            || max_response_bytes == 0
+            || max_response_bytes > 16 * 1024 * 1024
+        {
+            return Err(ProviderEgressError::InvalidRelayBounds);
+        }
+        Ok(Self {
+            authorization,
+            allowlist,
+            connect_timeout,
+            max_request_bytes,
+            max_response_bytes,
+        })
+    }
+
+    /// Perform one bounded byte relay to the exact allowlisted target.
+    /// TLS framing belongs to the caller; this primitive never follows
+    /// redirects or resolves names and never exposes credentials in errors.
+    pub fn round_trip(
+        &self,
+        target: SocketAddr,
+        request: &[u8],
+        deadline: Instant,
+    ) -> Result<Vec<u8>, ProviderEgressError> {
+        if !self.allowlist.permits(target) || request.len() > self.max_request_bytes {
+            return Err(ProviderEgressError::TargetDenied);
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(ProviderEgressError::DeadlineExceeded);
+        }
+        let timeout = remaining.min(self.connect_timeout);
+        let mut stream = std::net::TcpStream::connect_timeout(&target, timeout)
+            .map_err(|_| ProviderEgressError::TransportDenied)?;
+        stream
+            .set_read_timeout(Some(timeout))
+            .map_err(|_| ProviderEgressError::TransportDenied)?;
+        stream
+            .set_write_timeout(Some(timeout))
+            .map_err(|_| ProviderEgressError::TransportDenied)?;
+        stream
+            .write_all(request)
+            .map_err(|_| ProviderEgressError::TransportDenied)?;
+        let mut response = Vec::new();
+        stream
+            .take((self.max_response_bytes + 1) as u64)
+            .read_to_end(&mut response)
+            .map_err(|_| ProviderEgressError::TransportDenied)?;
+        if response.len() > self.max_response_bytes {
+            return Err(ProviderEgressError::ResponseTooLarge);
+        }
+        let _ = &self.authorization;
+        Ok(response)
+    }
+}
+
 /// Why a live provider egress request was rejected.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProviderEgressError {
@@ -258,6 +337,16 @@ pub enum ProviderEgressError {
     InvalidTarget,
     /// Destination allowlist was empty, oversized, or duplicated.
     InvalidAllowlist,
+    /// Relay bounds were zero or exceeded hard limits.
+    InvalidRelayBounds,
+    /// Target was not in the authenticated allowlist or request was oversized.
+    TargetDenied,
+    /// Relay deadline elapsed before transport completion.
+    DeadlineExceeded,
+    /// Underlying transport was unavailable or timed out.
+    TransportDenied,
+    /// Response exceeded the authenticated byte budget.
+    ResponseTooLarge,
 }
 
 impl fmt::Display for ProviderEgressError {
@@ -268,6 +357,11 @@ impl fmt::Display for ProviderEgressError {
             Self::MissingHandoff => "provider egress handoff is missing",
             Self::InvalidTarget => "provider egress target is invalid",
             Self::InvalidAllowlist => "provider egress allowlist is invalid",
+            Self::InvalidRelayBounds => "provider egress relay bounds are invalid",
+            Self::TargetDenied => "provider egress target is denied",
+            Self::DeadlineExceeded => "provider egress deadline exceeded",
+            Self::TransportDenied => "provider egress transport denied",
+            Self::ResponseTooLarge => "provider egress response is too large",
         })
     }
 }
@@ -343,5 +437,50 @@ mod tests {
                 Err(ProviderEgressError::InvalidTarget)
             );
         }
+    }
+
+    #[test]
+    fn relay_denies_unlisted_target_expired_deadline_and_bad_bounds() {
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let handoff = ProviderEgressHandoff::issue_bound(&policy, "g-1", "route-1", u64::MAX);
+        let auth =
+            ProviderEgressAuthorization::authorize(&policy, &handoff, 0, "g-1", "route-1").unwrap();
+        let target = ProviderEgressTarget::new("198.51.100.10:443".parse().unwrap()).unwrap();
+        let relay = ProviderEgressRelay::new(
+            auth,
+            ProviderEgressAllowlist::new(vec![target]).unwrap(),
+            Duration::from_secs(1),
+            1024,
+            1024,
+        )
+        .unwrap();
+        assert_eq!(
+            relay.round_trip(
+                "198.51.100.11:443".parse().unwrap(),
+                b"x",
+                Instant::now() + Duration::from_secs(1)
+            ),
+            Err(ProviderEgressError::TargetDenied)
+        );
+        assert_eq!(
+            relay.round_trip(
+                target.address(),
+                b"x",
+                Instant::now() - Duration::from_secs(1)
+            ),
+            Err(ProviderEgressError::DeadlineExceeded)
+        );
+        assert!(
+            ProviderEgressRelay::new(
+                ProviderEgressAuthorization::authorize(&policy, &handoff, 0, "g-1", "route-1")
+                    .unwrap(),
+                ProviderEgressAllowlist::new(vec![target]).unwrap(),
+                Duration::ZERO,
+                1024,
+                1024,
+            )
+            .is_err()
+        );
     }
 }
