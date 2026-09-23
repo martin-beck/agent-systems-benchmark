@@ -329,6 +329,8 @@ impl OpenRouterProfile {
                 "reasoning",
                 "api_key",
                 "authorization",
+                "openai_api_key",
+                "credential",
             ]
             .iter()
             .any(|field| object.contains_key(*field))
