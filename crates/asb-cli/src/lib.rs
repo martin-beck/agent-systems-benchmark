@@ -921,6 +921,10 @@ struct ConfigOutput {
 fn configure_openrouter(output: &mut dyn Write) -> Result<(), CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    configure_openrouter_at(&store, output)
+}
+
+fn configure_openrouter_at(store: &ConfigStore, output: &mut dyn Write) -> Result<(), CliError> {
     let mut config = store
         .load()
         .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
@@ -1102,6 +1106,10 @@ fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError
 fn load_openrouter_config() -> Result<OpenRouterFreeModelConfig, CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    load_openrouter_config_at(&store)
+}
+
+fn load_openrouter_config_at(store: &ConfigStore) -> Result<OpenRouterFreeModelConfig, CliError> {
     let config = store
         .load()
         .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
@@ -1125,6 +1133,13 @@ fn load_openrouter_config() -> Result<OpenRouterFreeModelConfig, CliError> {
 
 fn provider_plan_from_config(agent: &str) -> Result<ProviderPlanOutput, CliError> {
     let config = load_openrouter_config()?;
+    provider_plan_from_selection(&config, agent)
+}
+
+fn provider_plan_from_selection(
+    config: &OpenRouterFreeModelConfig,
+    agent: &str,
+) -> Result<ProviderPlanOutput, CliError> {
     let selected = vec![parse_agent(agent)?];
     let credential = config.credential.locator_sha256.as_str();
     let (provider_kind, plan, model) = provider_plan_for("openrouter", selected, Some(credential))?;
@@ -4479,6 +4494,58 @@ mod tests {
         assert_eq!(persisted["mode"], "commit");
         assert_eq!(persisted["provider_profile"], "openai");
         assert_eq!(persisted["model"], "gpt-4o-mini");
+    }
+
+    #[test]
+    fn openrouter_config_enrollment_loads_and_plans_without_a_secret() {
+        let scratch = Scratch::new("openrouter-config");
+        let store = ConfigStore::new(scratch.0.join("config.json"));
+        let mut output = Vec::new();
+        configure_openrouter_at(&store, &mut output).unwrap();
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(result["command"], "config-openrouter");
+        assert_eq!(result["credential_environment"], "OPENROUTER_API_KEY");
+        assert!(!String::from_utf8_lossy(&fs::read(store.path()).unwrap()).contains("secret"));
+        let loaded = load_openrouter_config_at(&store).unwrap();
+        assert_eq!(loaded.enrollment.generation, 1);
+        let plan = provider_plan_from_selection(&loaded, "codex").unwrap();
+        assert_eq!(plan.provider_profile, "openrouter");
+        assert_eq!(plan.model, asb_agents::openrouter::OPENROUTER_MODEL);
+        let mut second = Vec::new();
+        configure_openrouter_at(&store, &mut second).unwrap();
+        assert_eq!(
+            load_openrouter_config_at(&store)
+                .unwrap()
+                .enrollment
+                .generation,
+            2
+        );
+    }
+
+    #[test]
+    fn openrouter_config_load_rejects_absent_stale_and_unknown_agents() {
+        let scratch = Scratch::new("openrouter-config-negative");
+        let store = ConfigStore::new(scratch.0.join("config.json"));
+        assert!(load_openrouter_config_at(&store).is_err());
+        let mut output = Vec::new();
+        configure_openrouter_at(&store, &mut output).unwrap();
+        let mut config = store.load().unwrap().unwrap();
+        config
+            .openrouter_free_model
+            .as_mut()
+            .unwrap()
+            .endpoint_identity_sha256 = "e".repeat(64);
+        fs::write(store.path(), serde_json::to_vec(&config).unwrap()).unwrap();
+        fs::set_permissions(store.path(), fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(load_openrouter_config_at(&store).is_err());
+        let valid = OpenRouterFreeModelConfig::enroll(
+            asb_agents::openrouter::OPENROUTER_MODEL.into(),
+            asb_agents::openrouter::OPENROUTER_MODEL_SNAPSHOT_DATE.into(),
+            "f".repeat(64),
+            1,
+        )
+        .unwrap();
+        assert!(provider_plan_from_selection(&valid, "unknown-agent").is_err());
     }
 
     #[test]
