@@ -135,6 +135,63 @@ pub struct AuthenticatedChainEnrollmentV1 {
     pub generation: u64,
 }
 
+/// Bounded request for one runtime receipt from the enrolled control source.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeReceiptRequestV1 {
+    /// Request schema version.
+    pub schema_version: u16,
+    /// Provider identity bound to the enrolled authority.
+    pub provider: String,
+    /// Expected monotonic enrollment generation.
+    pub generation: u64,
+    /// Caller nonce used to prevent response confusion and replay.
+    pub request_nonce_sha256: String,
+}
+
+impl RuntimeReceiptRequestV1 {
+    /// Validate the request before control/backend work.
+    pub fn validate(&self) -> Result<(), CertificateError> {
+        if self.schema_version != 1
+            || self.provider.is_empty()
+            || self.provider.len() > 64
+            || self.generation == 0
+            || !is_digest(&self.request_nonce_sha256)
+        {
+            return Err(CertificateError::InvalidReceiptRequest);
+        }
+        Ok(())
+    }
+}
+
+/// Secret-free response bound to one validated receipt request.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeReceiptResponseV1 {
+    /// Response schema version.
+    pub schema_version: u16,
+    /// Request nonce copied only after exact request validation.
+    pub request_nonce_sha256: String,
+    /// Authenticated runtime receipt.
+    pub receipt: RuntimeEnrollmentReceiptV1,
+}
+
+impl RuntimeReceiptResponseV1 {
+    /// Validate response binding without exposing certificate or credential bytes.
+    pub fn validate_for(&self, request: &RuntimeReceiptRequestV1) -> Result<(), CertificateError> {
+        request.validate()?;
+        if self.schema_version != 1 || self.request_nonce_sha256 != request.request_nonce_sha256 {
+            return Err(CertificateError::InvalidReceiptResponse);
+        }
+        if self.receipt.provider != request.provider
+            || self.receipt.generation != request.generation
+        {
+            return Err(CertificateError::InvalidReceiptResponse);
+        }
+        Ok(())
+    }
+}
+
 impl AuthenticatedChainEnrollmentV1 {
     /// Validate the durable enrollment against the runtime-owned authority.
     pub fn issue_chain(
@@ -515,6 +572,12 @@ pub enum CertificateError {
     /// Durable chain enrollment fields are malformed or untrusted.
     #[error("authenticated chain enrollment is invalid")]
     InvalidEnrollment,
+    /// Runtime receipt request fields are malformed or unbounded.
+    #[error("runtime receipt request is invalid")]
+    InvalidReceiptRequest,
+    /// Runtime receipt response is not bound to the request.
+    #[error("runtime receipt response is invalid")]
+    InvalidReceiptResponse,
 }
 
 fn is_digest(value: &str) -> bool {
@@ -1019,5 +1082,65 @@ mod tests {
             "private_key": "must-not-cross-boundary"
         });
         assert!(serde_json::from_value::<AuthenticatedChainEnrollmentV1>(value).is_err());
+    }
+
+    #[test]
+    fn runtime_receipt_contract_binds_request_and_rejects_replay_shape() {
+        let request = RuntimeReceiptRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 7,
+            request_nonce_sha256: "a".repeat(64),
+        };
+        let response = RuntimeReceiptResponseV1 {
+            schema_version: 1,
+            request_nonce_sha256: request.request_nonce_sha256.clone(),
+            receipt: RuntimeEnrollmentReceiptV1 {
+                schema_version: 1,
+                chain_sha256: "b".repeat(64),
+                provider: "openrouter".into(),
+                endpoint_identity_sha256: "c".repeat(64),
+                credential_ref_sha256: "d".repeat(64),
+                generation: 7,
+                target: "203.0.113.10:443".into(),
+                tool_bundle_sha256: "e".repeat(64),
+                lease_root_sha256: "f".repeat(64),
+                relay_root_sha256: "0".repeat(64),
+                issued_at_unix_ms: 1,
+                expires_at_unix_ms: 2,
+                nonce_sha256: "1".repeat(64),
+            },
+        };
+        assert!(response.validate_for(&request).is_ok());
+        let mut tampered = response;
+        tampered.request_nonce_sha256 = "2".repeat(64);
+        assert_eq!(
+            tampered.validate_for(&request),
+            Err(CertificateError::InvalidReceiptResponse)
+        );
+    }
+
+    #[test]
+    fn runtime_receipt_request_rejects_unknown_and_unbounded_inputs() {
+        let mut request = RuntimeReceiptRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 1,
+            request_nonce_sha256: "a".repeat(64),
+        };
+        assert!(request.validate().is_ok());
+        request.provider = "x".repeat(65);
+        assert_eq!(
+            request.validate(),
+            Err(CertificateError::InvalidReceiptRequest)
+        );
+        let value = serde_json::json!({
+            "schema_version": 1,
+            "provider": "openrouter",
+            "generation": 1,
+            "request_nonce_sha256": "a".repeat(64),
+            "endpoint": "must-not-be-cli-authority"
+        });
+        assert!(serde_json::from_value::<RuntimeReceiptRequestV1>(value).is_err());
     }
 }
