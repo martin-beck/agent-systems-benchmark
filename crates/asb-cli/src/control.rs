@@ -206,11 +206,27 @@ fn invoke_registered_auth_helper(
     profile: &asb_protocol::ProviderProfileV1,
     deadline: RequestDeadline,
 ) -> Result<(), BackendFailure> {
-    let path = env::var_os(AUTH_HELPER_PATH_ENV).ok_or(BackendFailure::CapabilityUnavailable)?;
-    let expected =
-        env::var(AUTH_HELPER_SHA256_ENV).map_err(|_| BackendFailure::CapabilityUnavailable)?;
-    let locator =
-        env::var(AUTH_HELPER_LOCATOR_ENV).map_err(|_| BackendFailure::CapabilityUnavailable)?;
+    invoke_registered_auth_helper_from_values(
+        provider,
+        profile,
+        deadline,
+        env::var_os(AUTH_HELPER_PATH_ENV),
+        env::var(AUTH_HELPER_SHA256_ENV).ok(),
+        env::var(AUTH_HELPER_LOCATOR_ENV).ok(),
+    )
+}
+
+fn invoke_registered_auth_helper_from_values(
+    provider: &str,
+    profile: &asb_protocol::ProviderProfileV1,
+    deadline: RequestDeadline,
+    path: Option<std::ffi::OsString>,
+    expected: Option<String>,
+    locator: Option<String>,
+) -> Result<(), BackendFailure> {
+    let path = path.ok_or(BackendFailure::CapabilityUnavailable)?;
+    let expected = expected.ok_or(BackendFailure::CapabilityUnavailable)?;
+    let locator = locator.ok_or(BackendFailure::CapabilityUnavailable)?;
     invoke_registered_auth_helper_with_registration(
         provider,
         profile,
@@ -5624,6 +5640,50 @@ mod tests {
             )
             .is_ok()
         );
+        assert!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                Some(helper.clone().into_os_string()),
+                Some(executable_sha256.clone()),
+                Some(locator.to_owned()),
+            )
+            .is_ok()
+        );
+        assert!(matches!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                None,
+                Some(executable_sha256.clone()),
+                Some(locator.to_owned()),
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                Some(helper.clone().into_os_string()),
+                None,
+                Some(locator.to_owned()),
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                Some(helper.clone().into_os_string()),
+                Some(executable_sha256.clone()),
+                None,
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
 
         let valid_profile = profile.clone();
         let mut wrong_source = profile.clone();
