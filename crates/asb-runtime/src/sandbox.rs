@@ -681,7 +681,7 @@ impl SandboxBackend {
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
-        if !live_provider.is_some() {
+        if live_provider.is_none() {
             if let Some(plan) = &spec.supervisor {
                 let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
                 command.arg("--").arg(SUPERVISOR_TARGET);
