@@ -333,7 +333,15 @@ impl ProviderEgressRelay {
             }
             let remaining = self.max_forward_bytes - total;
             if remaining == 0 {
-                return Err(ProviderEgressError::ByteLimitExceeded);
+                let mut extra = [0_u8; 1];
+                let count = reader
+                    .read(&mut extra)
+                    .map_err(ProviderEgressError::Io)?;
+                return if count == 0 {
+                    Ok(total)
+                } else {
+                    Err(ProviderEgressError::ByteLimitExceeded)
+                };
             }
             let read_size = buffer.len().min(remaining);
             let count = reader
@@ -531,6 +539,17 @@ mod tests {
             .unwrap();
         assert_eq!(response, b"pong");
         worker.join().unwrap();
+        let mut exact = Cursor::new(b"12345678".to_vec());
+        assert_eq!(
+            relay
+                .forward_bounded(
+                    &mut exact,
+                    &mut Vec::new(),
+                    Instant::now() + Duration::from_secs(1)
+                )
+                .unwrap(),
+            8
+        );
         let mut oversized = Cursor::new(b"123456789".to_vec());
         assert_eq!(
             relay.forward_bounded(
