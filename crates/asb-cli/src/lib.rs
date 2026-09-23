@@ -1115,12 +1115,6 @@ fn provider_plan_at(
     )
 }
 
-fn load_openrouter_config() -> Result<OpenRouterFreeModelConfig, CliError> {
-    let store = ConfigStore::from_environment()
-        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
-    load_openrouter_config_at(&store)
-}
-
 fn load_openrouter_config_at(store: &ConfigStore) -> Result<OpenRouterFreeModelConfig, CliError> {
     let config = store
         .load()
@@ -1141,11 +1135,6 @@ fn load_openrouter_config_at(store: &ConfigStore) -> Result<OpenRouterFreeModelC
         ));
     }
     Ok(selection)
-}
-
-fn provider_plan_from_config(agent: &str) -> Result<ProviderPlanOutput, CliError> {
-    let config = load_openrouter_config()?;
-    provider_plan_from_selection(&config, agent)
 }
 
 fn provider_plan_from_selection(
@@ -1424,8 +1413,18 @@ fn plan_with_selection(
 }
 
 fn plan_with_config(path: &Path, output: &mut dyn Write) -> Result<(), CliError> {
+    let store = ConfigStore::from_environment()
+        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    plan_with_config_at(path, output, &store)
+}
+
+fn plan_with_config_at(
+    path: &Path,
+    output: &mut dyn Write,
+    store: &ConfigStore,
+) -> Result<(), CliError> {
     let plan = load_and_validate(path)?;
-    let selection = selection_for_plan(&plan)?;
+    let selection = selection_for_plan_at(&plan, store)?;
     validate_selection_binding(&plan, &selection)?;
     render_plan_values(&plan, Some(&selection), output)
 }
@@ -1483,8 +1482,12 @@ fn render_plan_values(
     )
 }
 
-fn selection_for_plan(plan: &PlanFile) -> Result<ProviderPlanOutput, CliError> {
-    provider_plan_from_config(&plan.experiment.agent.implementation)
+fn selection_for_plan_at(
+    plan: &PlanFile,
+    store: &ConfigStore,
+) -> Result<ProviderPlanOutput, CliError> {
+    let config = load_openrouter_config_at(store)?;
+    provider_plan_from_selection(&config, &plan.experiment.agent.implementation)
 }
 
 fn load_plan_and_selection(
@@ -2535,7 +2538,31 @@ fn execute_with_config(
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    execute_inner_from_source(path, SelectionSource::Config, sweep, output, progress)
+    let store = ConfigStore::from_environment()
+        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    execute_inner_from_source(
+        path,
+        SelectionSource::Config(&store),
+        sweep,
+        output,
+        progress,
+    )
+}
+
+fn execute_with_config_at(
+    path: &Path,
+    sweep: bool,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    store: &ConfigStore,
+) -> Result<u8, CliError> {
+    execute_inner_from_source(
+        path,
+        SelectionSource::Config(store),
+        sweep,
+        output,
+        progress,
+    )
 }
 
 fn execute_inner(
@@ -2556,7 +2583,7 @@ fn execute_inner(
 
 enum SelectionSource<'a> {
     Path(Option<&'a Path>),
-    Config,
+    Config(&'a ConfigStore),
 }
 
 fn execute_inner_from_source(
@@ -2568,9 +2595,9 @@ fn execute_inner_from_source(
 ) -> Result<u8, CliError> {
     let (plan, selection) = match source {
         SelectionSource::Path(selection_path) => load_plan_and_selection(path, selection_path)?,
-        SelectionSource::Config => {
+        SelectionSource::Config(store) => {
             let plan = load_and_validate(path)?;
-            let selection = provider_plan_from_config(&plan.experiment.agent.implementation)?;
+            let selection = selection_for_plan_at(&plan, store)?;
             validate_selection_binding(&plan, &selection)?;
             (plan, Some(selection))
         }
@@ -4604,6 +4631,41 @@ mod tests {
         ];
         assert!(provider_plan_at(&credential_mismatch, &mut Vec::new(), &store).is_err());
         assert_eq!(selection.provider, "openrouter");
+    }
+
+    #[test]
+    fn plan_and_run_config_sources_bind_selection_before_execution() {
+        let scratch = Scratch::new("plan-config-source");
+        let store = ConfigStore::new(scratch.0.join("config.json"));
+        configure_openrouter_at(&store, &mut Vec::new()).unwrap();
+        let (plan_path, mut fixture) = plan_fixture(&scratch.0, "config-source");
+        fixture.experiment.agent.implementation = "codex".into();
+        let configured = load_openrouter_config_at(&store).unwrap();
+        let configured_plan = provider_plan_from_selection(&configured, "codex").unwrap();
+        fixture.experiment.model.provider = "openrouter".into();
+        fixture.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        fixture.experiment.model.settings.additional_settings_sha256 =
+            Some(configured_plan.provider_profile_sha256.clone());
+        fixture.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&fixture).unwrap()).unwrap();
+        let mut planned = Vec::new();
+        plan_with_config_at(&plan_path, &mut planned, &store).unwrap();
+        let plan: Value = serde_json::from_slice(&planned).unwrap();
+        assert_eq!(plan["provider_profile"], "openrouter");
+        assert_eq!(
+            plan["provider_model"],
+            asb_agents::openrouter::OPENROUTER_MODEL
+        );
+
+        let mut stale = store.load().unwrap().unwrap();
+        stale.openrouter_free_model.as_mut().unwrap().model = "stale-model".into();
+        fs::write(store.path(), serde_json::to_vec(&stale).unwrap()).unwrap();
+        fs::set_permissions(store.path(), fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(plan_with_config_at(&plan_path, &mut Vec::new(), &store).is_err());
+        assert!(
+            execute_with_config_at(&plan_path, false, &mut Vec::new(), &mut Vec::new(), &store,)
+                .is_err()
+        );
     }
 
     #[test]
