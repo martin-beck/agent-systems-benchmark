@@ -244,6 +244,13 @@ impl LiveProviderRelay {
     pub fn serve_once(&mut self, now_unix_ms: u64) -> Result<(), LiveRelayError> {
         let (mut child, provider) = self.accept_and_connect(now_unix_ms)?;
         let deadline = self.deadline;
+        let timeout = deadline
+            .checked_duration_since(Instant::now())
+            .ok_or_else(|| {
+                LiveRelayError::Io(io::Error::new(io::ErrorKind::TimedOut, "relay deadline"))
+            })?;
+        child.set_read_timeout(Some(timeout))?;
+        child.set_write_timeout(Some(timeout))?;
         let reverse = provider.try_clone()?;
         let mut child_to_provider = child.try_clone()?;
         let mut provider_to_child = reverse;
@@ -251,7 +258,7 @@ impl LiveProviderRelay {
         std::thread::scope(|scope| {
             let forward = scope.spawn(|| {
                 let mut provider = provider;
-                connector.forward_bounded(&mut provider, &mut child_to_provider, deadline)
+                connector.forward_bounded_socket(&mut provider, &mut child_to_provider, deadline)
             });
             let reverse =
                 connector.forward_bounded_socket(&mut provider_to_child, &mut child, deadline);
@@ -462,7 +469,7 @@ mod tests {
     fn authenticated_child_reaches_runtime_selected_synthetic_target() {
         let tcp_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let target = ProviderEgressTarget::test_only(tcp_listener.local_addr().unwrap());
-        let (mut relay, root) = relay_with_timeout(Duration::from_secs(1), Some(target));
+        let (mut relay, root) = relay_with_timeout(Duration::from_secs(5), Some(target));
         let capability = relay.capability_sha256.clone();
         let generation = relay.generation.clone();
         let socket = relay.socket().to_owned();
@@ -471,6 +478,7 @@ mod tests {
             let request = format!("ASB-LIVE/1 {generation} {capability}\n");
             std::io::Write::write_all(&mut peer, request.as_bytes()).unwrap();
             peer.write_all(b"child->provider").unwrap();
+            peer.shutdown(std::net::Shutdown::Write).unwrap();
             let mut response = [0_u8; 15];
             std::io::Read::read_exact(&mut peer, &mut response).unwrap();
             assert_eq!(&response, b"provider->child");

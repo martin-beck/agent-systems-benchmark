@@ -9,7 +9,9 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
-use std::io::{self, Read};
+use std::io;
+#[cfg(test)]
+use std::io::Read;
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -347,7 +349,8 @@ impl ProviderEgressRelay {
     /// Copy one bounded half of a runtime TCP relay stream. Socket deadlines
     /// are refreshed before every blocking operation, so the absolute
     /// deadline is enforced independently of the initial connect timeout.
-    pub(crate) fn forward_bounded<W: std::io::Write>(
+    #[cfg(test)]
+    fn forward_bounded<W: std::io::Write>(
         &self,
         stream: &mut TcpStream,
         writer: &mut W,
@@ -385,9 +388,25 @@ impl ProviderEgressRelay {
             stream
                 .set_write_timeout(Some(remaining_time))
                 .map_err(ProviderEgressError::Io)?;
-            writer
-                .write_all(&buffer[..count])
-                .map_err(ProviderEgressError::Io)?;
+            let mut written = 0;
+            while written < count {
+                if Instant::now() >= deadline {
+                    return Err(ProviderEgressError::DeadlineExceeded);
+                }
+                match writer.write(&buffer[written..count]) {
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(error) => return Err(ProviderEgressError::Io(error)),
+                    Ok(0) => {
+                        return Err(ProviderEgressError::Io(io::Error::new(
+                            io::ErrorKind::WriteZero,
+                            "relay write",
+                        )));
+                    }
+                    Ok(size) => written += size,
+                }
+            }
             total += count;
         }
     }
@@ -418,9 +437,14 @@ impl ProviderEgressRelay {
                 };
             }
             let read_size = buffer.len().min(remaining);
-            let count = reader
-                .read(&mut buffer[..read_size])
-                .map_err(ProviderEgressError::Io)?;
+            let count = match reader.read(&mut buffer[..read_size]) {
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                Err(error) => return Err(ProviderEgressError::Io(error)),
+                Ok(count) => count,
+            };
             if count == 0 {
                 return Ok(total);
             }
