@@ -11,6 +11,8 @@ pub mod launch_factory;
 pub mod live_namespace;
 /// Runtime-owned authenticated live-provider relay listener.
 pub mod live_relay;
+/// Runtime-owned live-provider acquisition input and lease boundary.
+pub mod live_service;
 /// A per-launch, authenticated loopback-to-Unix relay for strict replay.
 pub mod loopback_sidecar;
 pub mod provider_capture;

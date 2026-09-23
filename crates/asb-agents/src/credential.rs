@@ -3,6 +3,8 @@
 //! Bounded credential-reference resolution and isolated process injection.
 
 use asb_protocol::{CredentialSource, ProviderProfileV1};
+use asb_runtime::credential_injection::{CredentialInjection, CredentialInjectionError};
+use asb_runtime::sandbox_credential::SandboxCredentialChannel;
 use asb_runtime::{ProcessError, ProcessLimits, RunningProcess, Termination};
 use rustix::fs::{
     MemfdFlags, Mode, SealFlags, fchmod, fcntl_add_seals, fcntl_get_seals, memfd_create,
@@ -365,6 +367,17 @@ impl ResolvedCredential {
         Self {
             bytes: value.to_vec(),
         }
+    }
+}
+
+impl CredentialInjection for ResolvedCredential {
+    fn inject(
+        self: Box<Self>,
+        channel: &mut SandboxCredentialChannel,
+    ) -> Result<(), CredentialInjectionError> {
+        channel
+            .write_and_seal(self.into_transport_bytes())
+            .map_err(CredentialInjectionError::Channel)
     }
 }
 
