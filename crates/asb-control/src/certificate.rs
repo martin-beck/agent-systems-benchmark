@@ -165,6 +165,36 @@ impl CertificateAuthorityV1 {
         })
     }
 
+    /// Issue a credential-free authorization from an already authenticated
+    /// certificate identity chain.  The caller must use [`Self::issue_der`]
+    /// when certificate bytes are available; this metadata-only form is for
+    /// the local control/runtime handoff, where bytes must never cross the
+    /// boundary.
+    pub fn issue_metadata(
+        &self,
+        chain: &[CertificateIdentityV1],
+        pairing_fingerprint_sha256: &str,
+        now: u64,
+    ) -> Result<IssuedCertificateChainV1, CertificateError> {
+        let issued = self.validate_metadata(chain, pairing_fingerprint_sha256, now)?;
+        if self
+            .revoked_generations
+            .lock()
+            .map_err(|_| CertificateError::RevocationStateUnavailable)?
+            .contains(&self.generation)
+        {
+            return Err(CertificateError::RevokedGeneration);
+        }
+        let endpoint = self
+            .endpoint_identity_sha256
+            .as_deref()
+            .ok_or(CertificateError::EndpointBindingUnavailable)?;
+        if issued.identity.endpoint_identity_sha256 != endpoint {
+            return Err(CertificateError::EndpointBindingMismatch);
+        }
+        Ok(issued)
+    }
+
     /// Validate an actual DER chain to the pinned trust anchor before issuing authorization.
     pub fn issue_der(
         &self,
@@ -399,6 +429,33 @@ mod tests {
             .unwrap();
         assert_eq!(issued.identity().subject_sha256, "c".repeat(64));
         assert_eq!(issued.chain_sha256().len(), 64);
+    }
+
+    #[test]
+    fn metadata_issue_binds_endpoint_and_revocation() {
+        let authority = CertificateAuthorityV1::new("a".repeat(64), 7).unwrap();
+        let chain = vec![identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64))];
+        assert_eq!(
+            authority.issue_metadata(&chain, &"c".repeat(64), 1_000),
+            Err(CertificateError::EndpointBindingUnavailable)
+        );
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut chain = chain;
+        chain[0].trust_anchor_sha256 = digest_bytes(&[1, 2, 3]);
+        let issued = authority
+            .issue_metadata(&chain, &"c".repeat(64), 1_000)
+            .unwrap();
+        assert_eq!(issued.identity().endpoint_identity_sha256, "b".repeat(64));
+        authority.revoke_generation(7).unwrap();
+        assert_eq!(
+            authority.issue_metadata(&chain, &"c".repeat(64), 1_000),
+            Err(CertificateError::RevokedGeneration)
+        );
     }
 
     #[test]
