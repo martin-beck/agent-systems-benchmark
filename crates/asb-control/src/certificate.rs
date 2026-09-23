@@ -432,6 +432,33 @@ mod tests {
     }
 
     #[test]
+    fn metadata_issue_binds_endpoint_and_revocation() {
+        let authority = CertificateAuthorityV1::new("a".repeat(64), 7).unwrap();
+        let chain = vec![identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64))];
+        assert_eq!(
+            authority.issue_metadata(&chain, &"c".repeat(64), 1_000),
+            Err(CertificateError::EndpointBindingUnavailable)
+        );
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut chain = chain;
+        chain[0].trust_anchor_sha256 = digest_bytes(&[1, 2, 3]);
+        let issued = authority
+            .issue_metadata(&chain, &"c".repeat(64), 1_000)
+            .unwrap();
+        assert_eq!(issued.identity().endpoint_identity_sha256, "b".repeat(64));
+        authority.revoke_generation(7).unwrap();
+        assert_eq!(
+            authority.issue_metadata(&chain, &"c".repeat(64), 1_000),
+            Err(CertificateError::RevokedGeneration)
+        );
+    }
+
+    #[test]
     fn rejects_wrong_pairing_anchor_issuer_and_expiry() {
         let authority = CertificateAuthorityV1::new("a".repeat(64), 7).unwrap();
         let chain = vec![identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64))];

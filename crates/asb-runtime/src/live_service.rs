@@ -552,6 +552,8 @@ fn valid_digest(value: &str) -> bool {
 mod tests {
     use super::*;
     use crate::sandbox::{Resources, SandboxSpec, ToolPin};
+    use asb_control::{CertificateAuthorityV1, CertificateIdentityV1};
+    use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
     use std::net::SocketAddr;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -967,5 +969,44 @@ mod tests {
             ),
             Err(LiveProviderEnrollmentError::Unavailable)
         );
+    }
+
+    #[test]
+    fn control_attestation_binds_issued_operator_identity() {
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let identity = CertificateIdentityV1 {
+            schema_version: 1,
+            subject_sha256: "c".repeat(64),
+            issuer_sha256: "d".repeat(64),
+            certificate_sha256: "e".repeat(64),
+            trust_anchor_sha256: format!("{:x}", Sha256::digest([1, 2, 3])),
+            generation: 7,
+            not_before: 900,
+            not_after: 1_100,
+            role: "operator".into(),
+            endpoint_identity_sha256: "b".repeat(64),
+        };
+        let issued = authority
+            .issue_metadata(&[identity], &"c".repeat(64), 1_000)
+            .unwrap();
+        let claims = LiveProviderControlClaims::new(
+            "openrouter".into(),
+            "b".repeat(64),
+            "f".repeat(64),
+            7,
+            "203.0.113.10:443".parse().unwrap(),
+            "1".repeat(64),
+            "2".repeat(64),
+            "3".repeat(64),
+        )
+        .unwrap();
+        let attestation = LiveProviderControlAttestation::from_control(&issued, claims).unwrap();
+        assert_eq!(attestation.claims().generation, 7);
+        assert_eq!(attestation.chain_sha256().len(), 64);
     }
 }
