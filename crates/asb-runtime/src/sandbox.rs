@@ -1016,6 +1016,14 @@ pub struct SandboxProcess {
 }
 
 impl SandboxProcess {
+    /// Child PID observed by the runtime.
+    pub fn pid(&self) -> u32 {
+        self.process.pid()
+    }
+    /// Whether the child leader has exited.
+    pub fn leader_has_exited(&self) -> Result<bool, SandboxError> {
+        self.process.leader_has_exited().map_err(SandboxError::Run)
+    }
     /// Systemd scope name without suffix.
     pub fn unit(&self) -> &str {
         &self.unit

@@ -31,7 +31,8 @@ use asb_replay::{
     CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
     SourceChoice, seal_recording,
 };
-use asb_runtime::launch_factory::ReplayLaunchAuthority;
+use asb_runtime::launch_factory::{LiveProviderAttempt, ReplayLaunchAuthority};
+use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
     StopReason, SystemClock, capacity_order, highest_confirmed_capacity,
@@ -84,7 +85,7 @@ pub fn entry(args: Vec<OsString>) -> ExitCode {
 
 /// Execute one CLI request with injected output streams.
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
-    match dispatch(args, stdout, stderr, None) {
+    match dispatch(args, stdout, stderr, None, None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -111,7 +112,7 @@ pub fn run_with_replay_authority(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    match dispatch(args, stdout, stderr, Some(authority)) {
+    match dispatch(args, stdout, stderr, Some(authority), None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -128,11 +129,35 @@ pub fn run_with_replay_authority(
     }
 }
 
+/// Execute one live-provider run or sweep with a runtime-issued opaque attempt.
+/// The CLI cannot construct this capability or select its endpoint.
+pub fn run_with_live_provider_attempt(
+    args: &[OsString],
+    attempt: LiveProviderAttempt,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    match dispatch(args, stdout, stderr, None, Some(attempt)) {
+        Ok(exit_code) => exit_code,
+        Err(error) => {
+            let envelope = ErrorEnvelope {
+                schema_version: OUTPUT_SCHEMA_VERSION,
+                ok: false,
+                command: command_name(args),
+                error,
+            };
+            let _ = write_json(stdout, &envelope);
+            envelope.error.exit_code
+        }
+    }
+}
+
 fn dispatch(
     args: &[OsString],
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     mut replay_authority: Option<ReplayLaunchAuthority>,
+    live_attempt: Option<LiveProviderAttempt>,
 ) -> Result<u8, CliError> {
     let words = unicode_args(args)?;
     match words.as_slice() {
@@ -169,7 +194,7 @@ fn dispatch(
             plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
         }
         [command, path] if command == "run" => {
-            execute(Path::new(path), false, false, stdout, stderr)
+            execute(Path::new(path), false, false, None, stdout, stderr)
         }
         [command, path, flag, selection] if command == "run" && flag == "--provider-selection" => {
             execute_with_selection(
@@ -185,10 +210,10 @@ fn dispatch(
             execute_with_config(Path::new(path), false, false, stdout, stderr)
         }
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
-            execute(Path::new(path), false, true, stdout, stderr)
+            execute(Path::new(path), false, true, live_attempt, stdout, stderr)
         }
         [command, path] if command == "sweep" => {
-            execute(Path::new(path), true, false, stdout, stderr)
+            execute(Path::new(path), true, false, None, stdout, stderr)
         }
         [command, path, flag, selection]
             if command == "sweep" && flag == "--provider-selection" =>
@@ -206,7 +231,7 @@ fn dispatch(
             execute_with_config(Path::new(path), true, false, stdout, stderr)
         }
         [command, path, flag] if command == "sweep" && flag == "--live-provider" => {
-            execute(Path::new(path), true, true, stdout, stderr)
+            execute(Path::new(path), true, true, live_attempt, stdout, stderr)
         }
         [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
@@ -2541,10 +2566,19 @@ fn execute(
     path: &Path,
     sweep: bool,
     live_provider: bool,
+    live_attempt: Option<LiveProviderAttempt>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    execute_inner(path, None, sweep, live_provider, output, progress)
+    execute_inner(
+        path,
+        None,
+        sweep,
+        live_provider,
+        live_attempt,
+        output,
+        progress,
+    )
 }
 
 fn execute_with_selection(
@@ -2560,6 +2594,7 @@ fn execute_with_selection(
         Some(selection_path),
         sweep,
         live_provider,
+        None,
         output,
         progress,
     )
@@ -2579,6 +2614,7 @@ fn execute_with_config(
         SelectionSource::Config(&store),
         sweep,
         live_provider,
+        None,
         output,
         progress,
     )
@@ -2589,6 +2625,7 @@ fn execute_inner(
     selection_path: Option<&Path>,
     sweep: bool,
     live_provider: bool,
+    live_attempt: Option<LiveProviderAttempt>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2597,6 +2634,7 @@ fn execute_inner(
         SelectionSource::Path(selection_path),
         sweep,
         live_provider,
+        live_attempt,
         output,
         progress,
     )
@@ -2612,6 +2650,7 @@ fn execute_inner_from_source(
     source: SelectionSource<'_>,
     sweep: bool,
     live_provider: bool,
+    mut live_attempt: Option<LiveProviderAttempt>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2672,6 +2711,7 @@ fn execute_inner_from_source(
             plan.run_id.clone()
         };
         let _ = writeln!(progress, "starting {run_id}");
+        let attempt = live_attempt.take();
         let point = run_point_with_selection(
             Arc::clone(&store),
             &plan,
@@ -2680,6 +2720,7 @@ fn execute_inner_from_source(
             selection.as_ref(),
             Arc::clone(&cancelled),
             live_provider,
+            attempt,
         )?;
         if provider_launch_sha256.is_none() {
             provider_launch_sha256 = selection.as_ref().map(|value| {
@@ -2752,7 +2793,16 @@ fn run_point(
     concurrency: u32,
     cancelled: Arc<AtomicBool>,
 ) -> Result<PointOutput, CliError> {
-    run_point_with_selection(store, plan, run_id, concurrency, None, cancelled, false)
+    run_point_with_selection(
+        store,
+        plan,
+        run_id,
+        concurrency,
+        None,
+        cancelled,
+        false,
+        None,
+    )
 }
 
 fn run_point_with_selection(
@@ -2763,6 +2813,7 @@ fn run_point_with_selection(
     selection: Option<&ProviderPlanOutput>,
     cancelled: Arc<AtomicBool>,
     live_provider: bool,
+    live_attempt: Option<LiveProviderAttempt>,
 ) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
@@ -2828,12 +2879,17 @@ fn run_point_with_selection(
     let summaries_for_attempt = Arc::clone(&summaries);
     let failures_for_attempt = Arc::clone(&attempt_failures);
     let cancelled_for_attempt = Arc::clone(&cancelled);
+    let live_attempt = Arc::new(Mutex::new(live_attempt));
     let point_plan = plan.point.build(concurrency)?;
     let result =
         Scheduler::new(SystemClock::start()).run_with_context(point_plan, move |context| {
             if cancelled_for_attempt.load(Ordering::SeqCst) {
                 return AttemptOutcome::Cancelled;
             }
+            let attempt = live_attempt
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .take();
             let summary = run_attempt(
                 &plan_owned,
                 &work_root,
@@ -2844,6 +2900,7 @@ fn run_point_with_selection(
                 &measurement_selection_owned,
                 Arc::clone(&cancelled_for_attempt),
                 live_provider,
+                attempt,
             );
             let outcome = match summary.as_ref() {
                 Ok(None) => AttemptOutcome::Cancelled,
@@ -3012,6 +3069,7 @@ fn run_attempt(
     measurement_selection: &MeasurementSelectionV1,
     cancelled: Arc<AtomicBool>,
     live_provider: bool,
+    live_attempt: Option<LiveProviderAttempt>,
 ) -> Result<Option<AttemptSummary>, CliError> {
     if cancelled.load(Ordering::SeqCst) {
         return Ok(None);
@@ -3067,6 +3125,7 @@ fn run_attempt(
         limits,
         launch,
         live_provider,
+        live_attempt,
     )?;
     let collector = LinuxCollector::host();
     let selected_ids = measurement_selection
@@ -3233,11 +3292,24 @@ fn spawn_verified_agent(
     limits: ProcessLimits,
     launch: Option<&ProviderLaunchRecord>,
     live_provider: bool,
-) -> Result<(RunningProcess, u8), CliError> {
+    live_attempt: Option<LiveProviderAttempt>,
+) -> Result<(AgentProcess, u8), CliError> {
     if live_provider {
-        return Err(CliError::validation(
-            "live provider runtime boundary is unavailable",
-        ));
+        let mut attempt = live_attempt.ok_or_else(|| {
+            CliError::validation("live provider requires a runtime-issued attempt")
+        })?;
+        return attempt
+            .spawn()
+            .map(|process| {
+                (
+                    AgentProcess::Live {
+                        process,
+                        _attempt: attempt,
+                    },
+                    0,
+                )
+            })
+            .map_err(|_| CliError::operation("runtime live-provider spawn failed"));
     }
     if let Some(launch) = launch {
         launch
@@ -3298,7 +3370,7 @@ fn spawn_verified_agent(
                 .env(provider_launch::CREDENTIAL_TARGET_ENV, credential_target);
         }
         match RunningProcess::spawn(command, limits) {
-            Ok(process) => return Ok((process, retry)),
+            Ok(process) => return Ok((AgentProcess::Direct(process), retry)),
             Err(ProcessError::Spawn(error)) if should_retry_busy(error.raw_os_error(), retry) => {
                 thread::sleep(Duration::from_millis(1));
             }
@@ -3306,6 +3378,54 @@ fn spawn_verified_agent(
         }
     }
     unreachable!("the bounded retry loop returns on its final iteration")
+}
+
+enum AgentProcess {
+    Direct(RunningProcess),
+    Live {
+        process: SandboxProcess,
+        _attempt: LiveProviderAttempt,
+    },
+}
+
+impl AgentProcess {
+    fn pid(&self) -> u32 {
+        match self {
+            Self::Direct(process) => process.pid(),
+            Self::Live { process, .. } => process.pid(),
+        }
+    }
+    fn leader_has_exited(&self) -> Result<bool, CliError> {
+        match self {
+            Self::Direct(process) => process
+                .leader_has_exited()
+                .map_err(|_| CliError::operation("agent process cannot be observed")),
+            Self::Live { process, .. } => process
+                .leader_has_exited()
+                .map_err(|_| CliError::operation("agent process cannot be observed")),
+        }
+    }
+    fn cancel(&mut self) -> Result<(), CliError> {
+        match self {
+            Self::Direct(process) => process
+                .cancel()
+                .map_err(|_| CliError::operation("agent process cannot be cancelled")),
+            Self::Live { process, .. } => process
+                .cancel()
+                .map_err(|_| CliError::operation("agent process cannot be cancelled")),
+        }
+    }
+    fn wait(&mut self) -> Result<asb_runtime::ProcessOutput, CliError> {
+        match self {
+            Self::Direct(process) => process
+                .wait()
+                .cloned()
+                .map_err(|_| CliError::operation("agent process did not yield terminal evidence")),
+            Self::Live { process, .. } => process
+                .wait()
+                .map_err(|_| CliError::operation("agent process did not yield terminal evidence")),
+        }
+    }
 }
 
 fn should_retry_busy(raw_os_error: Option<i32>, retries_completed: u8) -> bool {
@@ -4702,6 +4822,7 @@ mod tests {
                 SelectionSource::Config(&store),
                 false,
                 false,
+                None,
                 &mut Vec::new(),
                 &mut Vec::new(),
             )
@@ -4718,6 +4839,7 @@ mod tests {
             SelectionSource::Path(None),
             false,
             true,
+            None,
             &mut Vec::new(),
             &mut Vec::new(),
         )
@@ -5612,6 +5734,7 @@ mod tests {
             plan.measurement_selection.as_ref().unwrap(),
             Arc::new(AtomicBool::new(false)),
             false,
+            None,
         )
         .unwrap()
         .unwrap();
@@ -5642,6 +5765,7 @@ mod tests {
             plan.measurement_selection.as_ref().unwrap(),
             Arc::new(AtomicBool::new(false)),
             false,
+            None,
         )
         .unwrap_err();
         assert_eq!(error.message, "agent executable changed after validation");
