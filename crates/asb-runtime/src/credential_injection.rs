@@ -27,20 +27,45 @@ pub trait CredentialInjection: Send {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sandbox_credential::SandboxCredentialBinding;
 
-    struct TestInjection;
+    struct TestInjection(Result<(), CredentialInjectionError>);
     impl CredentialInjection for TestInjection {
         fn inject(
             self: Box<Self>,
             _channel: &mut SandboxCredentialChannel,
         ) -> Result<(), CredentialInjectionError> {
-            drop(self);
-            Ok(())
+            self.0
         }
     }
 
     #[test]
     fn capability_is_consumed_without_runtime_bytes() {
-        let _ = Box::new(TestInjection);
+        let binding = SandboxCredentialBinding::new("a".repeat(64), "TARGET").unwrap();
+        let mut channel = SandboxCredentialChannel::new(&binding).unwrap();
+        assert!(Box::new(TestInjection(Ok(()))).inject(&mut channel).is_ok());
+        assert_eq!(
+            Box::new(TestInjection(Err(
+                CredentialInjectionError::ReferenceMismatch
+            )))
+            .inject(&mut channel),
+            Err(CredentialInjectionError::ReferenceMismatch)
+        );
+        assert_eq!(
+            Box::new(TestInjection(Err(
+                CredentialInjectionError::InjectionFailed
+            )))
+            .inject(&mut channel),
+            Err(CredentialInjectionError::InjectionFailed)
+        );
+        assert_eq!(
+            Box::new(TestInjection(Err(CredentialInjectionError::Channel(
+                SandboxCredentialError::InvalidValue,
+            ))))
+            .inject(&mut channel),
+            Err(CredentialInjectionError::Channel(
+                SandboxCredentialError::InvalidValue,
+            ))
+        );
     }
 }

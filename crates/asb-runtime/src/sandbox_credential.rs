@@ -187,6 +187,44 @@ mod tests {
             channel.write_and_seal(Vec::new()),
             Err(SandboxCredentialError::InvalidValue)
         );
+        assert_eq!(
+            channel.write_and_seal(vec![b'\n']),
+            Err(SandboxCredentialError::InvalidValue)
+        );
+        assert_eq!(
+            channel.write_and_seal(vec![b'x'; MAX_CREDENTIAL_BYTES + 1]),
+            Err(SandboxCredentialError::InvalidValue)
+        );
+        let mut command = Command::new("/bin/true");
+        assert_eq!(
+            channel.append_bwrap_args(&mut command),
+            Err(SandboxCredentialError::AlreadyConsumed)
+        );
+        assert!(SandboxCredentialBinding::new("a".repeat(64), "A").is_ok());
+        assert!(SandboxCredentialBinding::new("A".repeat(64), "A").is_err());
+        assert!(SandboxCredentialBinding::new("g".repeat(64), "A").is_err());
+        assert!(SandboxCredentialBinding::new("a".repeat(64), "").is_err());
+        assert!(SandboxCredentialBinding::new("a".repeat(64), "a").is_err());
+        assert!(SandboxCredentialBinding::new("a".repeat(64), "1A").is_err());
+        assert!(SandboxCredentialBinding::new("a".repeat(64), "A".repeat(129)).is_err());
+    }
+
+    #[test]
+    fn channel_is_one_shot_and_debug_is_metadata_only() {
+        let binding = SandboxCredentialBinding::new("c".repeat(64), "TARGET").unwrap();
+        let rebound = binding.revalidated().unwrap();
+        let mut channel = SandboxCredentialChannel::new(&rebound).unwrap();
+        let debug = format!("{channel:?}");
+        assert!(debug.contains("TARGET"));
+        assert!(debug.contains("filled: false"));
+        channel.write_and_seal(b"value".to_vec()).unwrap();
+        assert_eq!(
+            channel.write_and_seal(b"again".to_vec()),
+            Err(SandboxCredentialError::AlreadyConsumed)
+        );
+        let mut command = Command::new("/bin/true");
+        channel.append_bwrap_args(&mut command).unwrap();
+        assert!(command.get_args().any(|arg| arg == "--args"));
     }
 
     #[test]
