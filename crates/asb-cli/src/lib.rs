@@ -1417,7 +1417,7 @@ fn render_plan_values(
     selection: Option<&ProviderPlanOutput>,
     output: &mut dyn Write,
 ) -> Result<(), CliError> {
-    let measurement_selection = effective_measurement_selection(&plan)?;
+    let measurement_selection = effective_measurement_selection(plan)?;
     write_json(
         output,
         &PlanOutput {
