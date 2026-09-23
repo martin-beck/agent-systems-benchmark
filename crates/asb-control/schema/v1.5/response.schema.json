@@ -1,60 +1,73 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ControlResponse",
+  "description": "JSON-RPC terminal response.",
+  "oneOf": [
+    {
+      "description": "Successful typed response.",
+      "$ref": "#/$defs/ControlSuccessResponse"
+    },
+    {
+      "description": "Fixed privacy-safe failure response.",
+      "$ref": "#/$defs/ControlFailureResponse"
+    }
+  ],
   "$defs": {
     "AgentAvailability": {
       "description": "Availability projection for one catalog entry.",
       "oneOf": [
         {
-          "additionalProperties": false,
           "description": "The pinned artifact can be selected by a subsequent operation.",
+          "type": "object",
           "properties": {
             "status": {
-              "const": "available",
-              "type": "string"
+              "type": "string",
+              "const": "available"
             }
           },
+          "additionalProperties": false,
           "required": [
             "status"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "The entry is visible for explanation but must not be selected.",
+          "type": "object",
           "properties": {
             "reason": {
               "$ref": "#/$defs/AgentUnavailableReason"
             },
             "status": {
-              "const": "unavailable",
-              "type": "string"
+              "type": "string",
+              "const": "unavailable"
             }
           },
+          "additionalProperties": false,
           "required": [
             "status",
             "reason"
-          ],
-          "type": "object"
+          ]
         }
       ]
     },
     "AgentCatalog": {
-      "additionalProperties": false,
       "description": "Authenticated, target-bound catalog snapshot returned by the runner.",
+      "type": "object",
       "properties": {
         "agents": {
           "description": "Complete sorted catalog, including unavailable entries.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/AgentCatalogEntry"
-          },
-          "type": "array"
+          }
         },
         "catalog_sha256": {
           "description": "SHA-256 over the canonical catalog snapshot.",
           "type": "string"
         },
         "generation": {
-          "$ref": "#/$defs/Revision",
-          "description": "Monotonic catalog generation."
+          "description": "Monotonic catalog generation.",
+          "$ref": "#/$defs/Revision"
         },
         "refreshed": {
           "description": "True only when this response performed a refresh.",
@@ -65,10 +78,11 @@
           "type": "string"
         },
         "target": {
-          "$ref": "#/$defs/AgentTarget",
-          "description": "Target for which every entry was evaluated."
+          "description": "Target for which every entry was evaluated.",
+          "$ref": "#/$defs/AgentTarget"
         }
       },
+      "additionalProperties": false,
       "required": [
         "runner_instance_id",
         "generation",
@@ -76,27 +90,26 @@
         "target",
         "agents",
         "refreshed"
-      ],
-      "type": "object"
+      ]
     },
     "AgentCatalogEntry": {
-      "additionalProperties": false,
       "description": "One stable agent entry. It is safe to expose and contains no credentials.",
+      "type": "object",
       "properties": {
         "agent_id": {
           "description": "Stable canonical adapter identifier.",
           "type": "string"
         },
         "availability": {
-          "$ref": "#/$defs/AgentAvailability",
-          "description": "Explicit selection decision and, when unavailable, its reason."
+          "description": "Explicit selection decision and, when unavailable, its reason.",
+          "$ref": "#/$defs/AgentAvailability"
         },
         "capabilities": {
           "description": "Sorted capability identifiers supported by this package.",
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "package": {
           "description": "Pinned package identity when the artifact has been verified.",
@@ -121,21 +134,21 @@
           ]
         },
         "target": {
-          "$ref": "#/$defs/AgentTarget",
-          "description": "Exact compatible target."
+          "description": "Exact compatible target.",
+          "$ref": "#/$defs/AgentTarget"
         }
       },
+      "additionalProperties": false,
       "required": [
         "agent_id",
         "target",
         "capabilities",
         "availability"
-      ],
-      "type": "object"
+      ]
     },
     "AgentLifecycleBinding": {
-      "additionalProperties": false,
       "description": "Common identity binding required by every lifecycle mutation.",
+      "type": "object",
       "properties": {
         "agent_id": {
           "description": "Stable agent identity from the authenticated catalog.",
@@ -150,60 +163,60 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "agent_id",
         "runner_instance_id",
         "catalog_sha256"
-      ],
-      "type": "object"
+      ]
     },
     "AgentLifecycleFailure": {
       "description": "Closed public reason for a failed lifecycle operation.",
       "oneOf": [
         {
-          "const": "stale_catalog",
           "description": "The catalog generation is no longer current.",
-          "type": "string"
+          "type": "string",
+          "const": "stale_catalog"
         },
         {
-          "const": "unauthenticated_catalog",
           "description": "The selected package is not authenticated by the catalog.",
-          "type": "string"
+          "type": "string",
+          "const": "unauthenticated_catalog"
         },
         {
-          "const": "verification_failed",
           "description": "Package digest, signature, SBOM, license, or provenance failed.",
-          "type": "string"
+          "type": "string",
+          "const": "verification_failed"
         },
         {
-          "const": "incompatible_target",
           "description": "The package target is incompatible with this runner.",
-          "type": "string"
+          "type": "string",
+          "const": "incompatible_target"
         },
         {
-          "const": "self_test_failed",
           "description": "A self-test failed before activation.",
-          "type": "string"
+          "type": "string",
+          "const": "self_test_failed"
         },
         {
-          "const": "busy",
           "description": "Another operation currently owns the agent.",
-          "type": "string"
+          "type": "string",
+          "const": "busy"
         },
         {
-          "const": "needs_reconciliation",
           "description": "An interruption requires reconciliation before retrying.",
-          "type": "string"
+          "type": "string",
+          "const": "needs_reconciliation"
         }
       ]
     },
     "AgentLifecycleResponse": {
-      "additionalProperties": false,
       "description": "Durable lifecycle result with bounded progress and explicit failure state.",
+      "type": "object",
       "properties": {
         "binding": {
-          "$ref": "#/$defs/AgentLifecycleBinding",
-          "description": "Catalog and runner identity binding."
+          "description": "Catalog and runner identity binding.",
+          "$ref": "#/$defs/AgentLifecycleBinding"
         },
         "failure": {
           "description": "Explicit failure reason when state is failed.",
@@ -217,8 +230,8 @@
           ]
         },
         "generation": {
-          "$ref": "#/$defs/Revision",
-          "description": "Monotonic operation generation."
+          "description": "Monotonic operation generation.",
+          "$ref": "#/$defs/Revision"
         },
         "operation_id": {
           "description": "Durable operation identity.",
@@ -226,63 +239,63 @@
         },
         "progress_percent": {
           "description": "Bounded progress indicator; terminal states must be 0 or 100 as specified below.",
+          "type": "integer",
           "format": "uint8",
           "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         },
         "state": {
-          "$ref": "#/$defs/AgentLifecycleState",
-          "description": "Current durable state."
+          "description": "Current durable state.",
+          "$ref": "#/$defs/AgentLifecycleState"
         }
       },
+      "additionalProperties": false,
       "required": [
         "binding",
         "operation_id",
         "state",
         "generation",
         "progress_percent"
-      ],
-      "type": "object"
+      ]
     },
     "AgentLifecycleState": {
       "description": "Lifecycle operation state exposed to a frontend.",
       "oneOf": [
         {
-          "const": "pending",
           "description": "Verification and extraction have not started.",
-          "type": "string"
+          "type": "string",
+          "const": "pending"
         },
         {
-          "const": "staging",
           "description": "The package is being staged and verified.",
-          "type": "string"
+          "type": "string",
+          "const": "staging"
         },
         {
-          "const": "active",
           "description": "The package is atomically active and passed its self-test.",
-          "type": "string"
+          "type": "string",
+          "const": "active"
         },
         {
-          "const": "cancelled",
           "description": "The operation was explicitly cancelled.",
-          "type": "string"
+          "type": "string",
+          "const": "cancelled"
         },
         {
-          "const": "failed",
           "description": "Verification or self-test failed; no partial activation is exposed.",
-          "type": "string"
+          "type": "string",
+          "const": "failed"
         },
         {
-          "const": "removed",
           "description": "The agent was removed from the active set.",
-          "type": "string"
+          "type": "string",
+          "const": "removed"
         }
       ]
     },
     "AgentPackage": {
-      "additionalProperties": false,
       "description": "Signed package identity exposed by the catalog.",
+      "type": "object",
       "properties": {
         "package_id": {
           "description": "Stable package identity, not a filesystem path or URL.",
@@ -290,36 +303,36 @@
         },
         "sha256": {
           "description": "SHA-256 of the package bytes.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         },
         "signature_sha256": {
           "description": "SHA-256 of the detached signature bytes.",
           "type": "string"
         },
         "signer": {
-          "$ref": "#/$defs/AgentSigner",
-          "description": "Public signing-key identity, never the key material itself."
+          "description": "Public signing-key identity, never the key material itself.",
+          "$ref": "#/$defs/AgentSigner"
         },
         "version": {
           "description": "Exact package version.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "package_id",
         "version",
         "sha256",
         "signature_sha256",
         "signer"
-      ],
-      "type": "object"
+      ]
     },
     "AgentProvenance": {
-      "additionalProperties": false,
       "description": "Immutable source and runtime provenance for one package.",
+      "type": "object",
       "properties": {
         "license_ref": {
           "description": "SPDX license identifier or expression for the package.",
@@ -338,17 +351,17 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "source_revision",
         "manifest_sha256",
         "sbom_sha256",
         "license_ref"
-      ],
-      "type": "object"
+      ]
     },
     "AgentSigner": {
-      "additionalProperties": false,
       "description": "Public identity of the key and principal that signed the package.",
+      "type": "object",
       "properties": {
         "key_id": {
           "description": "Stable operator-provisioned key identity.",
@@ -359,15 +372,15 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "key_id",
         "principal"
-      ],
-      "type": "object"
+      ]
     },
     "AgentTarget": {
-      "additionalProperties": false,
       "description": "Exact target constraints for one agent package.",
+      "type": "object",
       "properties": {
         "architecture": {
           "description": "CPU architecture identity.",
@@ -386,46 +399,46 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "operating_system",
         "architecture",
         "libc",
         "libc_version"
-      ],
-      "type": "object"
+      ]
     },
     "AgentUnavailableReason": {
       "description": "Explicit reason an agent cannot currently be selected.",
       "oneOf": [
         {
-          "const": "incompatible_target",
           "description": "No compatible package exists for the current target.",
-          "type": "string"
+          "type": "string",
+          "const": "incompatible_target"
         },
         {
-          "const": "incomplete_provenance",
           "description": "Package or dependency closure is not complete.",
-          "type": "string"
+          "type": "string",
+          "const": "incomplete_provenance"
         },
         {
-          "const": "unverified_artifact",
           "description": "Package signature or digest could not be verified.",
-          "type": "string"
+          "type": "string",
+          "const": "unverified_artifact"
         },
         {
-          "const": "missing_capability",
           "description": "Required local capability is absent.",
-          "type": "string"
+          "type": "string",
+          "const": "missing_capability"
         },
         {
-          "const": "stale_catalog",
           "description": "Catalog data is older than its freshness bound.",
-          "type": "string"
+          "type": "string",
+          "const": "stale_catalog"
         },
         {
-          "const": "policy_denied",
           "description": "The agent is not permitted by runner policy.",
-          "type": "string"
+          "type": "string",
+          "const": "policy_denied"
         }
       ]
     },
@@ -433,88 +446,88 @@
       "description": "Metric aggregation semantics.",
       "oneOf": [
         {
-          "const": "gauge",
           "description": "Point-in-time gauge.",
-          "type": "string"
+          "type": "string",
+          "const": "gauge"
         },
         {
-          "const": "counter",
           "description": "Monotonic cumulative counter.",
-          "type": "string"
+          "type": "string",
+          "const": "counter"
         },
         {
-          "const": "distribution",
           "description": "Sample distribution.",
-          "type": "string"
+          "type": "string",
+          "const": "distribution"
         }
       ]
     },
     "AnalysisSummary": {
-      "additionalProperties": false,
       "description": "Privacy-safe aggregate analysis projection.",
+      "type": "object",
       "properties": {
         "analysis_sha256": {
           "description": "Digest of the canonical analysis result stored as a sensitive artifact.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         },
         "run_count": {
           "description": "Number of runs included.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 256,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "run_count",
         "analysis_sha256"
-      ],
-      "type": "object"
+      ]
     },
     "ArtifactMetadata": {
-      "additionalProperties": false,
       "description": "Privacy-safe artifact metadata.",
+      "type": "object",
       "properties": {
         "sensitivity": {
-          "$ref": "#/$defs/ArtifactSensitivity",
-          "description": "Explicit sensitivity class."
+          "description": "Explicit sensitivity class.",
+          "$ref": "#/$defs/ArtifactSensitivity"
         },
         "sha256": {
           "description": "Content digest, never a host path.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         },
         "size_bytes": {
           "description": "Byte length.",
+          "type": "integer",
           "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         }
       },
+      "additionalProperties": false,
       "required": [
         "sha256",
         "size_bytes",
         "sensitivity"
-      ],
-      "type": "object"
+      ]
     },
     "ArtifactSensitivity": {
       "description": "Artifact sensitivity is explicit and content is never embedded in summaries.",
       "oneOf": [
         {
-          "const": "public",
           "description": "Safe to expose through the ordinary control API.",
-          "type": "string"
+          "type": "string",
+          "const": "public"
         },
         {
-          "const": "sensitive",
           "description": "Requires a separate least-privilege content authorization.",
-          "type": "string"
+          "type": "string",
+          "const": "sensitive"
         }
       ]
     },
@@ -523,30 +536,30 @@
       "type": "string"
     },
     "BoundControlResult": {
-      "additionalProperties": false,
       "description": "Successful result bound to the complete canonical request.",
+      "type": "object",
       "properties": {
         "request_sha256": {
           "description": "SHA-256 of the canonical typed call.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         },
         "result": {
-          "$ref": "#/$defs/ControlResult",
-          "description": "Closed result body."
+          "description": "Closed result body.",
+          "$ref": "#/$defs/ControlResult"
         }
       },
+      "additionalProperties": false,
       "required": [
         "request_sha256",
         "result"
-      ],
-      "type": "object"
+      ]
     },
     "Capabilities": {
-      "additionalProperties": false,
       "description": "Runner features exposed without embedding configuration or host details.",
+      "type": "object",
       "properties": {
         "analysis": {
           "description": "Multiple runs can be analysed.",
@@ -569,18 +582,18 @@
           "type": "boolean"
         }
       },
+      "additionalProperties": false,
       "required": [
         "validate_settings",
         "run_control",
         "repeat",
         "analysis",
         "events"
-      ],
-      "type": "object"
+      ]
     },
     "ControlEvent": {
-      "additionalProperties": false,
       "description": "Privacy-reviewed public runner event.",
+      "type": "object",
       "properties": {
         "attempt_id": {
           "description": "Related exact attempt when applicable.",
@@ -597,12 +610,12 @@
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "kind": {
-          "$ref": "#/$defs/ControlEventKind",
-          "description": "Event kind from the stable public vocabulary."
+          "description": "Event kind from the stable public vocabulary.",
+          "$ref": "#/$defs/ControlEventKind"
         },
         "revision": {
-          "$ref": "#/$defs/Revision",
-          "description": "Durable contiguous revision."
+          "description": "Durable contiguous revision.",
+          "$ref": "#/$defs/Revision"
         },
         "run_id": {
           "description": "Related run when applicable.",
@@ -619,489 +632,489 @@
           "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "revision",
         "kind"
-      ],
-      "type": "object"
+      ]
     },
     "ControlEventKind": {
       "description": "Stable privacy-safe runner event vocabulary.",
       "oneOf": [
         {
-          "const": "runner_ready",
           "description": "Runner instance is ready after startup or recovery.",
-          "type": "string"
+          "type": "string",
+          "const": "runner_ready"
         },
         {
-          "const": "plan_created",
           "description": "A validated plan became durable.",
-          "type": "string"
+          "type": "string",
+          "const": "plan_created"
         },
         {
-          "const": "run_started",
           "description": "An exact execution attempt started.",
-          "type": "string"
+          "type": "string",
+          "const": "run_started"
         },
         {
-          "const": "run_updated",
           "description": "Durable public run state advanced.",
-          "type": "string"
+          "type": "string",
+          "const": "run_updated"
         },
         {
-          "const": "run_completed",
           "description": "Required run evidence became durable.",
-          "type": "string"
+          "type": "string",
+          "const": "run_completed"
         },
         {
-          "const": "run_failed",
           "description": "The run reached a durable failure.",
-          "type": "string"
+          "type": "string",
+          "const": "run_failed"
         },
         {
-          "const": "run_cancelled",
           "description": "Cancellation reached a durable terminal state.",
-          "type": "string"
+          "type": "string",
+          "const": "run_cancelled"
         },
         {
-          "const": "reconciliation_required",
           "description": "The runner requires reconciliation before another effect.",
-          "type": "string"
+          "type": "string",
+          "const": "reconciliation_required"
         }
       ]
     },
     "ControlFailureResponse": {
-      "additionalProperties": false,
       "description": "Closed failed response envelope.",
+      "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/ControlRpcError",
-          "description": "Fixed privacy-safe error."
+          "description": "Fixed privacy-safe error.",
+          "$ref": "#/$defs/ControlRpcError"
         },
         "id": {
-          "$ref": "#/$defs/RequestId",
-          "description": "Matching request identity."
+          "description": "Matching request identity.",
+          "$ref": "#/$defs/RequestId"
         },
         "jsonrpc": {
-          "const": "2.0",
           "description": "Must equal `2.0`.",
-          "type": "string"
+          "type": "string",
+          "const": "2.0"
         }
       },
+      "additionalProperties": false,
       "required": [
         "jsonrpc",
         "id",
         "error"
-      ],
-      "type": "object"
+      ]
     },
     "ControlLimits": {
-      "additionalProperties": false,
       "description": "Negotiated per-connection bounds.",
+      "type": "object",
       "properties": {
         "max_frame_bytes": {
           "description": "Largest four-byte-length-prefixed JSON body.",
+          "type": "integer",
           "format": "uint32",
           "maximum": 1048576,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "max_in_flight": {
           "description": "Largest number of admitted requests awaiting terminal responses.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 64,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "max_page_items": {
           "description": "Largest page a client may request.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 256,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "max_timeout_ms": {
           "description": "Longest request processing deadline measured from receipt.",
+          "type": "integer",
           "format": "uint64",
           "maximum": 300000,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "max_frame_bytes",
         "max_timeout_ms",
         "max_page_items",
         "max_in_flight"
-      ],
-      "type": "object"
+      ]
     },
     "ControlMeasurementCatalog": {
-      "$ref": "#/$defs/MeasurementCatalogV1",
-      "description": "A catalog decoded only through the bounded AR-1013 constructor."
+      "description": "A catalog decoded only through the bounded AR-1013 constructor.",
+      "$ref": "#/$defs/MeasurementCatalogV1"
     },
     "ControlResult": {
       "description": "Closed allowlist of successful results returned by runner backends.",
       "oneOf": [
         {
-          "additionalProperties": false,
           "description": "Runner feature availability.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "capabilities",
-              "type": "string"
+              "type": "string",
+              "const": "capabilities"
             },
             "value": {
               "$ref": "#/$defs/Capabilities"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Durable verified-agent lifecycle projection.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "agent_lifecycle",
-              "type": "string"
+              "type": "string",
+              "const": "agent_lifecycle"
             },
             "value": {
               "$ref": "#/$defs/AgentLifecycleResponse"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Authenticated, target-bound local-agent catalog snapshot.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "agent_catalog",
-              "type": "string"
+              "type": "string",
+              "const": "agent_catalog"
             },
             "value": {
               "$ref": "#/$defs/AgentCatalog"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Immutable selectable-measurement catalog.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "measurement_catalog",
-              "type": "string"
+              "type": "string",
+              "const": "measurement_catalog"
             },
             "value": {
               "$ref": "#/$defs/MeasurementCatalogPublication"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Settings validation outcome.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "settings_validation",
-              "type": "string"
+              "type": "string",
+              "const": "settings_validation"
             },
             "value": {
               "$ref": "#/$defs/SettingsValidation"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Created or repeated immutable plan.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "plan",
-              "type": "string"
+              "type": "string",
+              "const": "plan"
             },
             "value": {
               "$ref": "#/$defs/PlanReference"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Launch returned its durable run identity.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "launch",
-              "type": "string"
+              "type": "string",
+              "const": "launch"
             },
             "value": {
               "$ref": "#/$defs/RunSummary"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Current durable run state.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "status",
-              "type": "string"
+              "type": "string",
+              "const": "status"
             },
             "value": {
               "$ref": "#/$defs/RunSummary"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Cancellation or another mutation was durably accepted.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "acknowledged",
-              "type": "string"
+              "type": "string",
+              "const": "acknowledged"
             },
             "value": {
               "$ref": "#/$defs/MutationAcknowledgement"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Recent run page.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "history",
-              "type": "string"
+              "type": "string",
+              "const": "history"
             },
             "value": {
               "$ref": "#/$defs/Page"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Public event page.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "events",
-              "type": "string"
+              "type": "string",
+              "const": "events"
             },
             "value": {
               "$ref": "#/$defs/Page2"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Aggregate analysis metadata.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "analysis",
-              "type": "string"
+              "type": "string",
+              "const": "analysis"
             },
             "value": {
               "$ref": "#/$defs/AnalysisSummary"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Artifact metadata without content or host paths.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "artifact_metadata",
-              "type": "string"
+              "type": "string",
+              "const": "artifact_metadata"
             },
             "value": {
               "$ref": "#/$defs/ArtifactMetadata"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         }
       ]
     },
     "ControlRpcError": {
-      "additionalProperties": false,
       "description": "Privacy-safe JSON-RPC error.",
+      "type": "object",
       "properties": {
         "code": {
           "description": "Stable machine-readable code.",
-          "format": "int32",
-          "type": "integer"
+          "type": "integer",
+          "format": "int32"
         },
         "message": {
           "description": "Bounded public diagnostic.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "code",
         "message"
-      ],
-      "type": "object"
+      ]
     },
     "ControlSuccess": {
       "description": "Closed wire-visible success envelope.",
       "oneOf": [
         {
-          "additionalProperties": false,
           "description": "Initial protocol negotiation.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "negotiated",
-              "type": "string"
+              "type": "string",
+              "const": "negotiated"
             },
             "value": {
               "$ref": "#/$defs/Negotiated"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
           "description": "Result of one post-negotiation operation.",
+          "type": "object",
           "properties": {
             "kind": {
-              "const": "operation",
-              "type": "string"
+              "type": "string",
+              "const": "operation"
             },
             "value": {
               "$ref": "#/$defs/BoundControlResult"
             }
           },
+          "additionalProperties": false,
           "required": [
             "kind",
             "value"
-          ],
-          "type": "object"
+          ]
         }
       ]
     },
     "ControlSuccessResponse": {
-      "additionalProperties": false,
       "description": "Closed successful response envelope.",
+      "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/$defs/RequestId",
-          "description": "Matching request identity."
+          "description": "Matching request identity.",
+          "$ref": "#/$defs/RequestId"
         },
         "jsonrpc": {
-          "const": "2.0",
           "description": "Must equal `2.0`.",
-          "type": "string"
+          "type": "string",
+          "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/ControlSuccess",
-          "description": "Closed successful result."
+          "description": "Closed successful result.",
+          "$ref": "#/$defs/ControlSuccess"
         }
       },
+      "additionalProperties": false,
       "required": [
         "jsonrpc",
         "id",
         "result"
-      ],
-      "type": "object"
+      ]
     },
     "ControlVersion": {
-      "additionalProperties": false,
       "description": "A major/minor protocol version.",
+      "type": "object",
       "properties": {
         "major": {
           "description": "Breaking protocol generation.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         },
         "minor": {
           "description": "Backward-compatible feature generation.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         }
       },
+      "additionalProperties": false,
       "required": [
         "major",
         "minor"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementArchitecture": {
       "description": "Supported machine architecture.",
       "oneOf": [
         {
-          "const": "x86_64",
           "description": "64-bit x86.",
-          "type": "string"
+          "type": "string",
+          "const": "x86_64"
         },
         {
-          "const": "aarch64",
           "description": "64-bit Arm.",
-          "type": "string"
+          "type": "string",
+          "const": "aarch64"
         }
       ]
     },
@@ -1109,13 +1122,33 @@
       "description": "Explicit freshness semantics for a published measurement catalog.",
       "oneOf": [
         {
-          "const": "content_addressed",
           "description": "The publication is immutable and freshness is established by its content digest.",
-          "type": "string"
+          "type": "string",
+          "const": "content_addressed"
         }
       ]
     },
     "MeasurementCatalogPublication": {
+      "description": "Versioned, bounded publication returned by `measurement_catalog`.",
+      "type": "object",
+      "properties": {
+        "catalog": {
+          "description": "Canonical AR-1013 catalog and its content digest.",
+          "$ref": "#/$defs/ControlMeasurementCatalog"
+        },
+        "freshness": {
+          "description": "How consumers determine whether this immutable catalog changed.",
+          "$ref": "#/$defs/MeasurementCatalogFreshness"
+        },
+        "source": {
+          "description": "Closed authority that produced the catalog.",
+          "$ref": "#/$defs/MeasurementCatalogPublicationSource"
+        },
+        "version": {
+          "description": "Additive control extension version defining this result.",
+          "$ref": "#/$defs/ControlVersion"
+        }
+      },
       "additionalProperties": false,
       "allOf": [
         {
@@ -1133,178 +1166,159 @@
           }
         }
       ],
-      "description": "Versioned, bounded publication returned by `measurement_catalog`.",
-      "properties": {
-        "catalog": {
-          "$ref": "#/$defs/ControlMeasurementCatalog",
-          "description": "Canonical AR-1013 catalog and its content digest."
-        },
-        "freshness": {
-          "$ref": "#/$defs/MeasurementCatalogFreshness",
-          "description": "How consumers determine whether this immutable catalog changed."
-        },
-        "source": {
-          "$ref": "#/$defs/MeasurementCatalogPublicationSource",
-          "description": "Closed authority that produced the catalog."
-        },
-        "version": {
-          "$ref": "#/$defs/ControlVersion",
-          "description": "Additive control extension version defining this result."
-        }
-      },
       "required": [
         "version",
         "freshness",
         "source",
         "catalog"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementCatalogPublicationSource": {
       "description": "Closed provenance for the catalog exposed by the runner.",
       "oneOf": [
         {
-          "const": "built_in_collectors",
           "description": "The catalog is compiled from ASB's qualified built-in collector inventory.",
-          "type": "string"
+          "type": "string",
+          "const": "built_in_collectors"
         }
       ]
     },
     "MeasurementCatalogV1": {
-      "additionalProperties": false,
       "description": "Authoritative v1 catalog with a deterministic content address.\n\nDirect generic deserialization is intentionally unavailable; untrusted bytes must use the\nbounded constructors.\n\n```compile_fail\nuse asb_protocol::MeasurementCatalogV1;\nlet _: MeasurementCatalogV1 = serde_json::from_str(\"{}\").unwrap();\n```",
+      "type": "object",
       "properties": {
         "catalog_sha256": {
           "description": "SHA-256 of the canonical catalog contents excluding this field.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         },
         "groups": {
           "description": "Stable groups in enum order.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MeasurementGroup"
           },
-          "maxItems": 7,
-          "type": "array"
+          "maxItems": 7
         },
         "measurements": {
           "description": "Stable definitions in ascending ID order.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MeasurementDefinition"
           },
-          "maxItems": 128,
-          "type": "array"
+          "maxItems": 128
         },
         "schema_version": {
           "description": "Closed schema generation; exactly 1.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 1,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "schema_version",
         "catalog_sha256",
         "groups",
         "measurements"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementDefinition": {
-      "additionalProperties": false,
       "description": "One selectable, renderer-independent measurement definition.",
+      "type": "object",
       "properties": {
         "aggregation": {
-          "$ref": "#/$defs/Aggregation",
-          "description": "Aggregation semantics."
+          "description": "Aggregation semantics.",
+          "$ref": "#/$defs/Aggregation"
         },
         "description": {
           "description": "Public evidence meaning, containing no runtime or host material.",
+          "type": "string",
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[ -?A-~]+$",
-          "type": "string"
+          "pattern": "^[ -?A-~]+$"
         },
         "evidence_limits": {
           "description": "Explicit interpretation limits.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MeasurementEvidenceLimit"
           },
           "maxItems": 8,
-          "minItems": 1,
-          "type": "array"
+          "minItems": 1
         },
         "group": {
-          "$ref": "#/$defs/MeasurementGroupId",
-          "description": "Semantic group identity."
+          "description": "Semantic group identity.",
+          "$ref": "#/$defs/MeasurementGroupId"
         },
         "id": {
           "description": "Stable dotted identifier.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 3,
-          "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$",
-          "type": "string"
+          "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$"
         },
         "live": {
-          "$ref": "#/$defs/MeasurementModeSupport",
-          "description": "Live-provider execution support."
+          "description": "Live-provider execution support.",
+          "$ref": "#/$defs/MeasurementModeSupport"
         },
         "name": {
           "description": "Short public name, unique under ASCII case folding.",
+          "type": "string",
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[ -?A-~]+$",
-          "type": "string"
+          "pattern": "^[ -?A-~]+$"
         },
         "overhead": {
-          "$ref": "#/$defs/MeasurementOverhead",
-          "description": "Collection overhead contract."
+          "description": "Collection overhead contract.",
+          "$ref": "#/$defs/MeasurementOverhead"
         },
         "platforms": {
           "description": "Explicit platform constraints.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MeasurementPlatform"
           },
           "maxItems": 8,
-          "minItems": 1,
-          "type": "array"
+          "minItems": 1
         },
         "provenance": {
-          "$ref": "#/$defs/MeasurementProvenance",
-          "description": "Source and qualification."
+          "description": "Source and qualification.",
+          "$ref": "#/$defs/MeasurementProvenance"
         },
         "quantity": {
-          "$ref": "#/$defs/MeasurementQuantity",
-          "description": "Quantity used to validate the unit."
+          "description": "Quantity used to validate the unit.",
+          "$ref": "#/$defs/MeasurementQuantity"
         },
         "replay": {
-          "$ref": "#/$defs/MeasurementModeSupport",
-          "description": "Recorded-response replay execution support."
+          "description": "Recorded-response replay execution support.",
+          "$ref": "#/$defs/MeasurementModeSupport"
         },
         "resolution_ns": {
           "description": "Nominal runtime descriptor resolution in nanoseconds; zero means unspecified.",
+          "type": "integer",
           "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         },
         "scope": {
-          "$ref": "#/$defs/MeasurementScope",
-          "description": "Ownership scope."
+          "description": "Ownership scope.",
+          "$ref": "#/$defs/MeasurementScope"
         },
         "source_identity": {
-          "$ref": "#/$defs/MeasurementSourceIdentity",
-          "description": "Closed identity mapping exactly to the runtime descriptor source string."
+          "description": "Closed identity mapping exactly to the runtime descriptor source string.",
+          "$ref": "#/$defs/MeasurementSourceIdentity"
         },
         "unit": {
           "description": "Exact UCUM-style unit.",
+          "type": "string",
           "maxLength": 32,
-          "minLength": 1,
-          "type": "string"
+          "minLength": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "id",
         "name",
@@ -1322,101 +1336,100 @@
         "replay",
         "platforms",
         "evidence_limits"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementEvidenceLimit": {
       "description": "Closed limits on valid interpretation.",
       "oneOf": [
         {
-          "const": "missing_is_unavailable",
           "description": "Missing evidence remains unavailable and is never zero-filled.",
-          "type": "string"
+          "type": "string",
+          "const": "missing_is_unavailable"
         },
         {
-          "const": "not_causal",
           "description": "A counter does not by itself establish causation.",
-          "type": "string"
+          "type": "string",
+          "const": "not_causal"
         },
         {
-          "const": "requires_comparable_experiment",
           "description": "Values are comparable only under compatible experiment provenance.",
-          "type": "string"
+          "type": "string",
+          "const": "requires_comparable_experiment"
         },
         {
-          "const": "collector_overhead_recorded",
           "description": "Collection elapsed time must accompany the samples.",
-          "type": "string"
+          "type": "string",
+          "const": "collector_overhead_recorded"
         }
       ]
     },
     "MeasurementGroup": {
-      "additionalProperties": false,
       "description": "One stable semantic group and its bounded public explanation.",
+      "type": "object",
       "properties": {
         "description": {
           "description": "Public semantic boundary for the group.",
+          "type": "string",
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[ -?A-~]+$",
-          "type": "string"
+          "pattern": "^[ -?A-~]+$"
         },
         "id": {
-          "$ref": "#/$defs/MeasurementGroupId",
-          "description": "Stable machine identity."
+          "description": "Stable machine identity.",
+          "$ref": "#/$defs/MeasurementGroupId"
         },
         "label": {
           "description": "Short public display-independent label.",
+          "type": "string",
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[ -?A-~]+$",
-          "type": "string"
+          "pattern": "^[ -?A-~]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "id",
         "label",
         "description"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementGroupId": {
       "description": "Stable semantic group identifiers. Their serialized names are public API.",
       "oneOf": [
         {
-          "const": "system_resources",
           "description": "CPU, memory, storage, and network resource consumption.",
-          "type": "string"
+          "type": "string",
+          "const": "system_resources"
         },
         {
-          "const": "scheduling_contention",
           "description": "Scheduling pressure, throttling, and explicitly non-causal contention evidence.",
-          "type": "string"
+          "type": "string",
+          "const": "scheduling_contention"
         },
         {
-          "const": "latency",
           "description": "Queue, readiness, first-response, and completion latency.",
-          "type": "string"
+          "type": "string",
+          "const": "latency"
         },
         {
-          "const": "quality_reliability",
           "description": "Independent correctness and reliability outcomes.",
-          "type": "string"
+          "type": "string",
+          "const": "quality_reliability"
         },
         {
-          "const": "fairness",
           "description": "Per-agent and mixed-workload fairness evidence.",
-          "type": "string"
+          "type": "string",
+          "const": "fairness"
         },
         {
-          "const": "cost",
           "description": "Provider-reported or explicitly unavailable cost evidence.",
-          "type": "string"
+          "type": "string",
+          "const": "cost"
         },
         {
-          "const": "provenance",
           "description": "Harness, collector, replay, and experiment provenance evidence.",
-          "type": "string"
+          "type": "string",
+          "const": "provenance"
         }
       ]
     },
@@ -1425,34 +1438,34 @@
       "oneOf": [
         {
           "description": "The authoritative implementation can attempt this measurement.",
+          "type": "object",
           "properties": {
             "status": {
-              "const": "supported",
-              "type": "string"
+              "type": "string",
+              "const": "supported"
             }
           },
           "required": [
             "status"
-          ],
-          "type": "object"
+          ]
         },
         {
           "description": "No value may be inferred; the reason is closed and explicit.",
+          "type": "object",
           "properties": {
             "reason": {
-              "$ref": "#/$defs/MeasurementUnavailableReason",
-              "description": "Why the value is unavailable."
+              "description": "Why the value is unavailable.",
+              "$ref": "#/$defs/MeasurementUnavailableReason"
             },
             "status": {
-              "const": "unsupported",
-              "type": "string"
+              "type": "string",
+              "const": "unsupported"
             }
           },
           "required": [
             "status",
             "reason"
-          ],
-          "type": "object"
+          ]
         }
       ]
     },
@@ -1460,133 +1473,133 @@
       "description": "Supported operating-system family.",
       "oneOf": [
         {
-          "const": "linux",
           "description": "Linux userspace and kernel interfaces.",
-          "type": "string"
+          "type": "string",
+          "const": "linux"
         }
       ]
     },
     "MeasurementOverhead": {
-      "additionalProperties": false,
       "description": "Static collection-overhead boundary.",
+      "type": "object",
       "properties": {
         "class": {
-          "$ref": "#/$defs/MeasurementOverheadClass",
-          "description": "Reviewed qualitative class."
+          "description": "Reviewed qualitative class.",
+          "$ref": "#/$defs/MeasurementOverheadClass"
         },
         "minimum_interval_ns": {
           "description": "Smallest supported interval between samples.",
+          "type": "integer",
           "format": "uint64",
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "requires_privilege": {
           "description": "Whether collection requires elevated privilege.",
           "type": "boolean"
         }
       },
+      "additionalProperties": false,
       "required": [
         "class",
         "minimum_interval_ns",
         "requires_privilege"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementOverheadClass": {
       "description": "Qualitative collection overhead class with an explicit interval floor.",
       "oneOf": [
         {
-          "const": "low",
           "description": "Direct bounded counter reads; actual elapsed overhead remains recorded per collection.",
-          "type": "string"
+          "type": "string",
+          "const": "low"
         },
         {
-          "const": "material",
           "description": "Additional sampling or processing with a material perturbation risk.",
-          "type": "string"
+          "type": "string",
+          "const": "material"
         }
       ]
     },
     "MeasurementPlatform": {
-      "additionalProperties": false,
       "description": "Closed platform constraint for a measurement definition.",
+      "type": "object",
       "properties": {
         "architectures": {
           "description": "Architectures with implemented portable parsing.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MeasurementArchitecture"
           },
           "maxItems": 8,
-          "minItems": 1,
-          "type": "array"
+          "minItems": 1
         },
         "operating_system": {
-          "$ref": "#/$defs/MeasurementOperatingSystem",
-          "description": "Required operating-system family."
+          "description": "Required operating-system family.",
+          "$ref": "#/$defs/MeasurementOperatingSystem"
         },
         "required_features": {
           "description": "Required kernel/userspace interfaces.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MeasurementPlatformFeature"
           },
           "maxItems": 8,
-          "minItems": 1,
-          "type": "array"
+          "minItems": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "operating_system",
         "architectures",
         "required_features"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementPlatformFeature": {
       "description": "Required platform facility.",
       "oneOf": [
         {
-          "const": "procfs",
           "description": "A mounted, readable Linux procfs.",
-          "type": "string"
+          "type": "string",
+          "const": "procfs"
         },
         {
-          "const": "cgroup_v2",
           "description": "A delegated, readable unified cgroup-v2 hierarchy.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2"
         }
       ]
     },
     "MeasurementProvenance": {
-      "additionalProperties": false,
       "description": "Closed provenance for one definition.",
+      "type": "object",
       "properties": {
         "qualification": {
-          "$ref": "#/$defs/MeasurementQualification",
-          "description": "Current evidence qualification."
+          "description": "Current evidence qualification.",
+          "$ref": "#/$defs/MeasurementQualification"
         },
         "source": {
-          "$ref": "#/$defs/MeasurementSource",
-          "description": "Authoritative component/source class."
+          "description": "Authoritative component/source class.",
+          "$ref": "#/$defs/MeasurementSource"
         }
       },
+      "additionalProperties": false,
       "required": [
         "source",
         "qualification"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementQualification": {
       "description": "Evidence qualification attached to a measurement source.",
       "oneOf": [
         {
-          "const": "implemented",
           "description": "Directly implemented and contract-tested by ASB.",
-          "type": "string"
+          "type": "string",
+          "const": "implemented"
         },
         {
-          "const": "unqualified",
           "description": "Defined but not yet supported by an authoritative implementation.",
-          "type": "string"
+          "type": "string",
+          "const": "unqualified"
         }
       ]
     },
@@ -1594,34 +1607,34 @@
       "description": "Physical or logical quantity represented by a measurement.",
       "oneOf": [
         {
-          "const": "time",
           "description": "Duration or cumulative CPU/pressure time.",
-          "type": "string"
+          "type": "string",
+          "const": "time"
         },
         {
-          "const": "bytes",
           "description": "Byte count or instantaneous byte quantity.",
-          "type": "string"
+          "type": "string",
+          "const": "bytes"
         },
         {
-          "const": "count",
           "description": "Discrete event count.",
-          "type": "string"
+          "type": "string",
+          "const": "count"
         },
         {
-          "const": "ratio",
           "description": "Dimensionless ratio.",
-          "type": "string"
+          "type": "string",
+          "const": "ratio"
         },
         {
-          "const": "score",
           "description": "Independently defined normalized score.",
-          "type": "string"
+          "type": "string",
+          "const": "score"
         },
         {
-          "const": "currency",
           "description": "Monetary value with separately bound currency provenance.",
-          "type": "string"
+          "type": "string",
+          "const": "currency"
         }
       ]
     },
@@ -1629,24 +1642,24 @@
       "description": "Measurement ownership scope.",
       "oneOf": [
         {
-          "const": "process",
           "description": "One operating-system process.",
-          "type": "string"
+          "type": "string",
+          "const": "process"
         },
         {
-          "const": "cgroup",
           "description": "One delegated cgroup-v2 subtree.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup"
         },
         {
-          "const": "attempt",
           "description": "One complete benchmark attempt.",
-          "type": "string"
+          "type": "string",
+          "const": "attempt"
         },
         {
-          "const": "run",
           "description": "One complete run or comparison set.",
-          "type": "string"
+          "type": "string",
+          "const": "run"
         }
       ]
     },
@@ -1654,156 +1667,156 @@
       "description": "Stable machine-readable reason that a measurement selection is invalid.",
       "oneOf": [
         {
-          "const": "unsupported_schema_version",
           "description": "Selection schema generation is unknown.",
-          "type": "string"
+          "type": "string",
+          "const": "unsupported_schema_version"
         },
         {
-          "const": "catalog_generation_mismatch",
           "description": "Catalog schema generation does not match the exact catalog.",
-          "type": "string"
+          "type": "string",
+          "const": "catalog_generation_mismatch"
         },
         {
-          "const": "catalog_digest_mismatch",
           "description": "Catalog content address is malformed or stale.",
-          "type": "string"
+          "type": "string",
+          "const": "catalog_digest_mismatch"
         },
         {
-          "const": "selection_digest_mismatch",
           "description": "Selection content address is malformed or stale.",
-          "type": "string"
+          "type": "string",
+          "const": "selection_digest_mismatch"
         },
         {
-          "const": "too_many_measurements",
           "description": "Too many identities were supplied.",
-          "type": "string"
+          "type": "string",
+          "const": "too_many_measurements"
         },
         {
-          "const": "non_canonical_order",
           "description": "Stable identities are not in strictly ascending canonical order.",
-          "type": "string"
+          "type": "string",
+          "const": "non_canonical_order"
         },
         {
-          "const": "duplicate_id",
           "description": "A stable identity occurs more than once.",
-          "type": "string"
+          "type": "string",
+          "const": "duplicate_id"
         },
         {
-          "const": "unknown_id",
           "description": "A stable identity does not exist in the bound catalog.",
-          "type": "string"
+          "type": "string",
+          "const": "unknown_id"
         },
         {
-          "const": "source_unqualified",
           "description": "A definition has not been qualified by an authoritative collector.",
-          "type": "string"
+          "type": "string",
+          "const": "source_unqualified"
         },
         {
-          "const": "mode_unsupported",
           "description": "The selected execution mode is unsupported.",
-          "type": "string"
+          "type": "string",
+          "const": "mode_unsupported"
         },
         {
-          "const": "platform_unsupported",
           "description": "The target platform cannot provide the definition.",
-          "type": "string"
+          "type": "string",
+          "const": "platform_unsupported"
         },
         {
-          "const": "permission_required",
           "description": "Required privilege is absent.",
-          "type": "string"
+          "type": "string",
+          "const": "permission_required"
         },
         {
-          "const": "target_scope_unavailable",
           "description": "The runner has no authoritative target for this scope.",
-          "type": "string"
+          "type": "string",
+          "const": "target_scope_unavailable"
         },
         {
-          "const": "invalid_cadence",
           "description": "Empty and non-empty selections disagree with cadence presence.",
-          "type": "string"
+          "type": "string",
+          "const": "invalid_cadence"
         },
         {
-          "const": "cadence_too_fast",
           "description": "Sampling cadence is faster than a selected definition permits.",
-          "type": "string"
+          "type": "string",
+          "const": "cadence_too_fast"
         },
         {
-          "const": "cadence_capacity_exceeded",
           "description": "Sampling cadence exceeds the fixed public bound.",
-          "type": "string"
+          "type": "string",
+          "const": "cadence_capacity_exceeded"
         },
         {
-          "const": "wire_too_large",
           "description": "Untrusted encoded input exceeded the fixed transport ceiling.",
-          "type": "string"
+          "type": "string",
+          "const": "wire_too_large"
         },
         {
-          "const": "invalid_wire",
           "description": "Untrusted encoded input is not a valid closed selection shape.",
-          "type": "string"
+          "type": "string",
+          "const": "invalid_wire"
         },
         {
-          "const": "serialization",
           "description": "Canonical serialization unexpectedly failed.",
-          "type": "string"
+          "type": "string",
+          "const": "serialization"
         }
       ]
     },
     "MeasurementSettingsIssue": {
-      "additionalProperties": false,
       "description": "Exact privacy-safe measurement selection diagnostic returned only by control v1.3.",
+      "type": "object",
       "properties": {
         "id": {
           "description": "Catalog-owned identity for an ID-specific failure; never copied for an unknown ID.",
-          "maxLength": 256,
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "maxLength": 256
         },
         "reason": {
-          "$ref": "#/$defs/MeasurementSelectionReason",
-          "description": "Stable semantic failure reason."
+          "description": "Stable semantic failure reason.",
+          "$ref": "#/$defs/MeasurementSelectionReason"
         }
       },
+      "additionalProperties": false,
       "required": [
         "reason"
-      ],
-      "type": "object"
+      ]
     },
     "MeasurementSource": {
       "description": "Closed source vocabulary; no host path or caller string enters the catalog.",
       "oneOf": [
         {
-          "const": "asb_metrics_procfs",
           "description": "Linux procfs counters read by `asb-metrics`.",
-          "type": "string"
+          "type": "string",
+          "const": "asb_metrics_procfs"
         },
         {
-          "const": "asb_metrics_cgroup_v2",
           "description": "Linux cgroup-v2 counters read by `asb-metrics`.",
-          "type": "string"
+          "type": "string",
+          "const": "asb_metrics_cgroup_v2"
         },
         {
-          "const": "asb_runner_journal",
           "description": "Durable ASB runner journal evidence.",
-          "type": "string"
+          "type": "string",
+          "const": "asb_runner_journal"
         },
         {
-          "const": "independent_grader",
           "description": "Independently versioned grader output.",
-          "type": "string"
+          "type": "string",
+          "const": "independent_grader"
         },
         {
-          "const": "provider_usage",
           "description": "Provider-reported usage with explicit absence semantics.",
-          "type": "string"
+          "type": "string",
+          "const": "provider_usage"
         },
         {
-          "const": "optional_csb",
           "description": "Optional CSB-derived evidence that is not baseline-qualified.",
-          "type": "string"
+          "type": "string",
+          "const": "optional_csb"
         }
       ]
     },
@@ -1811,54 +1824,54 @@
       "description": "Closed, path-free identity for an exact runtime descriptor source.",
       "oneOf": [
         {
-          "const": "procfs_process_stat",
           "description": "Process counters from procfs stat.",
-          "type": "string"
+          "type": "string",
+          "const": "procfs_process_stat"
         },
         {
-          "const": "procfs_process_io",
           "description": "Process counters from procfs IO.",
-          "type": "string"
+          "type": "string",
+          "const": "procfs_process_io"
         },
         {
-          "const": "cgroup_v2_cpu_stat",
           "description": "Cgroup-v2 CPU statistics.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_cpu_stat"
         },
         {
-          "const": "cgroup_v2_memory_current",
           "description": "Cgroup-v2 current memory.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_memory_current"
         },
         {
-          "const": "cgroup_v2_memory_peak",
           "description": "Cgroup-v2 peak memory.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_memory_peak"
         },
         {
-          "const": "cgroup_v2_memory_stat",
           "description": "Cgroup-v2 memory statistics.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_memory_stat"
         },
         {
-          "const": "cgroup_v2_io_stat",
           "description": "Cgroup-v2 IO statistics.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_io_stat"
         },
         {
-          "const": "cgroup_v2_cpu_pressure",
           "description": "Cgroup-v2 CPU pressure.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_cpu_pressure"
         },
         {
-          "const": "cgroup_v2_memory_pressure",
           "description": "Cgroup-v2 memory pressure.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_memory_pressure"
         },
         {
-          "const": "cgroup_v2_io_pressure",
           "description": "Cgroup-v2 IO pressure.",
-          "type": "string"
+          "type": "string",
+          "const": "cgroup_v2_io_pressure"
         }
       ]
     },
@@ -1866,79 +1879,79 @@
       "description": "Why one execution mode cannot provide a measurement.",
       "oneOf": [
         {
-          "const": "not_qualified",
           "description": "No qualified collector implements this definition.",
-          "type": "string"
+          "type": "string",
+          "const": "not_qualified"
         },
         {
-          "const": "platform_unsupported",
           "description": "The execution platform cannot expose the required evidence.",
-          "type": "string"
+          "type": "string",
+          "const": "platform_unsupported"
         },
         {
-          "const": "permission_required",
           "description": "Required permissions were not granted.",
-          "type": "string"
+          "type": "string",
+          "const": "permission_required"
         },
         {
-          "const": "not_applicable",
           "description": "The measurement does not have meaning in this mode.",
-          "type": "string"
+          "type": "string",
+          "const": "not_applicable"
         }
       ]
     },
     "MutationAcknowledgement": {
-      "additionalProperties": false,
       "description": "Stable acknowledgement for an accepted durable mutation.",
+      "type": "object",
       "properties": {
         "accepted": {
-          "const": true,
           "description": "The mutation is durably accepted.",
-          "type": "boolean"
+          "type": "boolean",
+          "const": true
         }
       },
+      "additionalProperties": false,
       "required": [
         "accepted"
-      ],
-      "type": "object"
+      ]
     },
     "Negotiated": {
-      "additionalProperties": false,
       "description": "Negotiated connection result.",
+      "type": "object",
       "properties": {
         "latest_revision": {
-          "$ref": "#/$defs/Revision",
-          "description": "Latest retained public event revision."
+          "description": "Latest retained public event revision.",
+          "$ref": "#/$defs/Revision"
         },
         "limits": {
-          "$ref": "#/$defs/ControlLimits",
-          "description": "Effective bounds."
+          "description": "Effective bounds.",
+          "$ref": "#/$defs/ControlLimits"
         },
         "oldest_revision": {
-          "$ref": "#/$defs/Revision",
-          "description": "Oldest retained public event revision."
+          "description": "Oldest retained public event revision.",
+          "$ref": "#/$defs/Revision"
         },
         "runner_instance_id": {
           "description": "Stable runner instance identity.",
           "type": "string"
         },
         "version": {
-          "$ref": "#/$defs/ControlVersion",
-          "description": "Selected protocol version."
+          "description": "Selected protocol version.",
+          "$ref": "#/$defs/ControlVersion"
         }
       },
+      "additionalProperties": false,
       "required": [
         "version",
         "limits",
         "runner_instance_id",
         "oldest_revision",
         "latest_revision"
-      ],
-      "type": "object"
+      ]
     },
     "Page": {
-      "additionalProperties": false,
       "description": "Bounded event or history page.",
+      "type": "object",
       "properties": {
         "has_more": {
           "description": "Whether a later retained record exists.",
@@ -1946,11 +1959,11 @@
         },
         "items": {
           "description": "Ordered page records.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/RunSummary"
           },
-          "maxItems": 256,
-          "type": "array"
+          "maxItems": 256
         },
         "next": {
           "description": "Cursor representing the final returned record.",
@@ -1964,15 +1977,15 @@
           ]
         }
       },
+      "additionalProperties": false,
       "required": [
         "items",
         "has_more"
-      ],
-      "type": "object"
+      ]
     },
     "Page2": {
-      "additionalProperties": false,
       "description": "Bounded event or history page.",
+      "type": "object",
       "properties": {
         "has_more": {
           "description": "Whether a later retained record exists.",
@@ -1980,11 +1993,11 @@
         },
         "items": {
           "description": "Ordered page records.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ControlEvent"
           },
-          "maxItems": 256,
-          "type": "array"
+          "maxItems": 256
         },
         "next": {
           "description": "Cursor representing the final returned record.",
@@ -1998,136 +2011,137 @@
           ]
         }
       },
+      "additionalProperties": false,
       "required": [
         "items",
         "has_more"
-      ],
-      "type": "object"
+      ]
     },
     "PlanReference": {
-      "additionalProperties": false,
       "description": "Durable immutable plan identity.",
+      "type": "object",
       "properties": {
         "plan_id": {
           "description": "Opaque stable plan identity.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "plan_sha256": {
           "description": "SHA-256 of the canonical plan.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "plan_id",
         "plan_sha256"
-      ],
-      "type": "object"
+      ]
     },
     "PublicRunState": {
       "description": "Public run lifecycle; absence is never encoded as a successful state.",
       "oneOf": [
         {
-          "const": "planned",
           "description": "Definition is durable but execution has not started.",
-          "type": "string"
+          "type": "string",
+          "const": "planned"
         },
         {
-          "const": "prepared",
           "description": "Inputs are prepared.",
-          "type": "string"
+          "type": "string",
+          "const": "prepared"
         },
         {
-          "const": "running",
           "description": "Execution is active.",
-          "type": "string"
+          "type": "string",
+          "const": "running"
         },
         {
-          "const": "collecting",
           "description": "Evidence collection is active.",
-          "type": "string"
+          "type": "string",
+          "const": "collecting"
         },
         {
-          "const": "completed",
           "description": "All required evidence is durable.",
-          "type": "string"
+          "type": "string",
+          "const": "completed"
         },
         {
-          "const": "failed",
           "description": "Execution or collection failed.",
-          "type": "string"
+          "type": "string",
+          "const": "failed"
         },
         {
-          "const": "cancelled",
           "description": "Cancellation reached a durable terminal state.",
-          "type": "string"
+          "type": "string",
+          "const": "cancelled"
         },
         {
-          "const": "needs_reconciliation",
           "description": "External effects require runner-side reconciliation.",
-          "type": "string"
+          "type": "string",
+          "const": "needs_reconciliation"
         }
       ]
     },
     "RequestId": {
       "description": "Numeric JSON-RPC request identity.",
+      "type": "integer",
       "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
+      "minimum": 0
     },
     "Revision": {
       "description": "Opaque durable revision used to resume event streams.",
+      "type": "integer",
       "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
+      "minimum": 0
     },
     "RunId": {
       "description": "Opaque stable run identity.",
       "type": "string"
     },
     "RunSummary": {
-      "additionalProperties": false,
       "description": "Privacy-reviewed run summary.",
+      "type": "object",
       "properties": {
         "attempt_id": {
-          "$ref": "#/$defs/AttemptId",
           "description": "Exact attempt identity.",
+          "$ref": "#/$defs/AttemptId",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "created_revision": {
-          "$ref": "#/$defs/Revision",
-          "description": "Immutable revision at which this run first entered the journal."
+          "description": "Immutable revision at which this run first entered the journal.",
+          "$ref": "#/$defs/Revision"
         },
         "plan_sha256": {
           "description": "Content digest of the immutable plan.",
+          "type": "string",
           "maxLength": 64,
           "minLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "pattern": "^[0-9a-f]{64}$"
         },
         "revision": {
-          "$ref": "#/$defs/Revision",
-          "description": "Durable revision from which this summary was derived."
+          "description": "Durable revision from which this summary was derived.",
+          "$ref": "#/$defs/Revision"
         },
         "run_id": {
-          "$ref": "#/$defs/RunId",
           "description": "Stable run identity.",
+          "$ref": "#/$defs/RunId",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "state": {
-          "$ref": "#/$defs/PublicRunState",
-          "description": "State derived from the authoritative journal."
+          "description": "State derived from the authoritative journal.",
+          "$ref": "#/$defs/PublicRunState"
         }
       },
+      "additionalProperties": false,
       "required": [
         "run_id",
         "attempt_id",
@@ -2135,156 +2149,124 @@
         "created_revision",
         "revision",
         "plan_sha256"
-      ],
-      "type": "object"
+      ]
     },
     "SettingsIssue": {
       "description": "Stable, non-sensitive settings diagnostic.",
       "oneOf": [
         {
-          "const": "invalid_format",
           "description": "The settings shape or syntax is invalid.",
-          "type": "string"
+          "type": "string",
+          "const": "invalid_format"
         },
         {
-          "const": "unsupported_capability",
           "description": "A requested capability is unavailable.",
-          "type": "string"
+          "type": "string",
+          "const": "unsupported_capability"
         },
         {
-          "const": "unverified_component",
           "description": "A referenced immutable component cannot be verified.",
-          "type": "string"
+          "type": "string",
+          "const": "unverified_component"
         },
         {
-          "const": "invalid_resource_bound",
           "description": "A configured resource bound is invalid.",
-          "type": "string"
+          "type": "string",
+          "const": "invalid_resource_bound"
         },
         {
-          "const": "measurement_unsupported_schema_version",
           "description": "The measurement selection schema generation is unsupported.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_unsupported_schema_version"
         },
         {
-          "const": "measurement_catalog_generation_mismatch",
           "description": "The measurement catalog generation does not match.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_catalog_generation_mismatch"
         },
         {
-          "const": "measurement_catalog_digest_mismatch",
           "description": "The measurement catalog content address is stale or malformed.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_catalog_digest_mismatch"
         },
         {
-          "const": "measurement_selection_digest_mismatch",
           "description": "The measurement selection content address is stale or malformed.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_selection_digest_mismatch"
         },
         {
-          "const": "measurement_too_many",
           "description": "The measurement selection exceeds its identity bound.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_too_many"
         },
         {
-          "const": "measurement_non_canonical_order",
           "description": "Measurement identities are not in canonical order.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_non_canonical_order"
         },
         {
-          "const": "measurement_duplicate_id",
           "description": "A measurement identity occurs more than once.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_duplicate_id"
         },
         {
-          "const": "measurement_unknown_id",
           "description": "A measurement identity is unknown.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_unknown_id"
         },
         {
-          "const": "measurement_source_unqualified",
           "description": "A selected measurement source is not qualified.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_source_unqualified"
         },
         {
-          "const": "measurement_mode_unsupported",
           "description": "A selected measurement does not support the execution mode.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_mode_unsupported"
         },
         {
-          "const": "measurement_platform_unsupported",
           "description": "A selected measurement is not supported on the target platform.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_platform_unsupported"
         },
         {
-          "const": "measurement_permission_required",
           "description": "A selected measurement requires unavailable permission.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_permission_required"
         },
         {
-          "const": "measurement_target_scope_unavailable",
           "description": "The runner has no authoritative target for a selected measurement.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_target_scope_unavailable"
         },
         {
-          "const": "measurement_invalid_cadence",
           "description": "Measurement cadence presence is inconsistent with the selected set.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_invalid_cadence"
         },
         {
-          "const": "measurement_cadence_too_fast",
           "description": "A selected measurement does not support the requested cadence.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_cadence_too_fast"
         },
         {
-          "const": "measurement_cadence_capacity_exceeded",
           "description": "The requested measurement schedule exceeds its fixed capacity.",
-          "type": "string"
+          "type": "string",
+          "const": "measurement_cadence_capacity_exceeded"
         }
       ]
     },
     "SettingsValidation": {
-      "additionalProperties": false,
-      "allOf": [
-        {
-          "oneOf": [
-            {
-              "not": {
-                "required": [
-                  "measurement_issue"
-                ]
-              },
-              "properties": {
-                "issues": {
-                  "maxItems": 0
-                },
-                "valid": {
-                  "const": true
-                }
-              }
-            },
-            {
-              "properties": {
-                "issues": {
-                  "minItems": 1
-                },
-                "valid": {
-                  "const": false
-                }
-              }
-            }
-          ]
-        }
-      ],
       "description": "Privacy-safe settings validation outcome.",
+      "type": "object",
       "properties": {
         "issues": {
           "description": "Bounded stable issue vocabulary, without copied input values.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/SettingsIssue"
           },
           "maxItems": 256,
-          "type": "array",
           "uniqueItems": true
         },
         "measurement_issue": {
@@ -2303,24 +2285,42 @@
           "type": "boolean"
         }
       },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "issues": {
+                  "maxItems": 0
+                },
+                "valid": {
+                  "const": true
+                }
+              },
+              "not": {
+                "required": [
+                  "measurement_issue"
+                ]
+              }
+            },
+            {
+              "properties": {
+                "issues": {
+                  "minItems": 1
+                },
+                "valid": {
+                  "const": false
+                }
+              }
+            }
+          ]
+        }
+      ],
       "required": [
         "valid",
         "issues"
-      ],
-      "type": "object"
+      ]
     }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "JSON-RPC terminal response.",
-  "oneOf": [
-    {
-      "$ref": "#/$defs/ControlSuccessResponse",
-      "description": "Successful typed response."
-    },
-    {
-      "$ref": "#/$defs/ControlFailureResponse",
-      "description": "Fixed privacy-safe failure response."
-    }
-  ],
-  "title": "ControlResponse"
+  }
 }

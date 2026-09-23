@@ -3,6 +3,7 @@
 //! Persistent local runner service behind the typed frontend control boundary.
 
 use super::*;
+use asb_agents::auth_backend::CredentialBackend;
 use asb_bundle::{VerifierConfig, verify_detached_document};
 use asb_control::{
     AgentAvailability, AgentCatalog, AgentCatalogAction, AgentCatalogEntry, AgentCatalogRequest,
@@ -26,6 +27,7 @@ use std::env;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::AtomicU64;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const CATALOG_VERSION: u16 = 1;
@@ -33,6 +35,9 @@ const MAX_CONTROL_CONFIG_BYTES: u64 = 64 * 1024;
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 const RELEASE_INDEX_SCHEMA_VERSION: u32 = 1;
 const RELEASE_INDEX_NAMESPACE: &str = "asb-agent-release-index-v1";
+const AUTH_HELPER_PATH_ENV: &str = "ASB_AUTH_HELPER_EXECUTABLE";
+const AUTH_HELPER_SHA256_ENV: &str = "ASB_AUTH_HELPER_EXECUTABLE_SHA256";
+const AUTH_HELPER_LOCATOR_ENV: &str = "ASB_AUTH_HELPER_LOGICAL_LOCATOR";
 static CATALOG_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -196,6 +201,75 @@ fn digest_open_file(mut file: fs::File) -> Result<String, BackendFailure> {
     Ok(format!("{:x}", digest.finalize()))
 }
 
+fn invoke_registered_auth_helper(
+    provider: &str,
+    profile: &asb_protocol::ProviderProfileV1,
+    deadline: RequestDeadline,
+) -> Result<(), BackendFailure> {
+    invoke_registered_auth_helper_from_values(
+        provider,
+        profile,
+        deadline,
+        env::var_os(AUTH_HELPER_PATH_ENV),
+        env::var(AUTH_HELPER_SHA256_ENV).ok(),
+        env::var(AUTH_HELPER_LOCATOR_ENV).ok(),
+    )
+}
+
+fn invoke_registered_auth_helper_from_values(
+    provider: &str,
+    profile: &asb_protocol::ProviderProfileV1,
+    deadline: RequestDeadline,
+    path: Option<std::ffi::OsString>,
+    expected: Option<String>,
+    locator: Option<String>,
+) -> Result<(), BackendFailure> {
+    let path = path.ok_or(BackendFailure::CapabilityUnavailable)?;
+    let expected = expected.ok_or(BackendFailure::CapabilityUnavailable)?;
+    let locator = locator.ok_or(BackendFailure::CapabilityUnavailable)?;
+    invoke_registered_auth_helper_with_registration(
+        provider,
+        profile,
+        deadline,
+        Path::new(&path),
+        &expected,
+        &locator,
+    )
+}
+
+fn invoke_registered_auth_helper_with_registration(
+    provider: &str,
+    profile: &asb_protocol::ProviderProfileV1,
+    deadline: RequestDeadline,
+    path: &Path,
+    expected: &str,
+    locator: &str,
+) -> Result<(), BackendFailure> {
+    if profile.credential.source != asb_protocol::CredentialSource::Helper
+        || profile.credential.reference_sha256.is_none()
+    {
+        return Err(BackendFailure::Rejected);
+    }
+    if provider.is_empty() || locator.is_empty() {
+        return Err(BackendFailure::Rejected);
+    }
+    let executable = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .map_err(|_| BackendFailure::CapabilityUnavailable)?;
+    let backend = CredentialBackend::helper(executable.into(), locator, expected)
+        .map_err(|_| BackendFailure::Rejected)?;
+    let remaining = deadline
+        .remaining()
+        .map_err(|_| BackendFailure::NeedsReconciliation)?
+        .min(Duration::from_secs(30));
+    backend
+        .resolve(profile, remaining)
+        .map(|_| ())
+        .map_err(|_| BackendFailure::Rejected)
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ServiceConfig {
@@ -239,6 +313,7 @@ enum MutationTarget {
     RecordingCampaignPlan,
     RecordingCampaignLifecycle { campaign_id: String, action: String },
     AuthEnroll { provider: String },
+    AuthHelperInvoke { provider: String },
     AuthRotate { provider: String },
     AuthRevoke { provider: String },
 }
@@ -899,6 +974,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .map_err(|_| CliError::operation("control mutation target is invalid"))?;
             }
             MutationTarget::AuthEnroll { provider }
+            | MutationTarget::AuthHelperInvoke { provider }
             | MutationTarget::AuthRotate { provider }
             | MutationTarget::AuthRevoke { provider } => {
                 asb_control::validate_identity(provider)
@@ -984,6 +1060,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 }
                 (
                     MutationTarget::AuthEnroll { provider }
+                    | MutationTarget::AuthHelperInvoke { provider }
                     | MutationTarget::AuthRotate { provider }
                     | MutationTarget::AuthRevoke { provider },
                     ControlResult::Acknowledged(_),
@@ -1284,6 +1361,7 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
                 }
             }
             MutationTarget::AuthEnroll { .. }
+            | MutationTarget::AuthHelperInvoke { .. }
             | MutationTarget::AuthRotate { .. }
             | MutationTarget::AuthRevoke { .. }
             | MutationTarget::ConfigurationApply
@@ -2346,6 +2424,49 @@ impl ControlBackend for RunnerBackend {
                     }))
                 },
             ),
+            ControlCall::AuthHelperInvoke(params) => self.mutation(
+                call,
+                &params.idempotency_key,
+                MutationTarget::AuthHelperInvoke {
+                    provider: params.provider.clone(),
+                },
+                deadline,
+                |catalog| {
+                    invoke_registered_auth_helper(&params.provider, &params.profile, deadline)?;
+                    let endpoint = params.profile.endpoint.identity_sha256.clone();
+                    let credential = params
+                        .profile
+                        .credential
+                        .reference_sha256
+                        .clone()
+                        .ok_or(BackendFailure::Rejected)?;
+                    let generation = catalog
+                        .auth
+                        .get(&params.provider)
+                        .map_or(1, |record| record.generation.saturating_add(1));
+                    catalog.auth.insert(
+                        params.provider.clone(),
+                        AuthRecord {
+                            provider: params.provider.clone(),
+                            endpoint_identity_sha256: endpoint,
+                            credential_locator_sha256: credential,
+                            generation,
+                            status: "active".to_owned(),
+                        },
+                    );
+                    let record = catalog
+                        .auth
+                        .get(&params.provider)
+                        .ok_or(BackendFailure::NeedsReconciliation)?;
+                    Ok(ControlResult::AuthStatus(AuthStatusResponse {
+                        provider: record.provider.clone(),
+                        endpoint_identity_sha256: record.endpoint_identity_sha256.clone(),
+                        credential_locator_sha256: record.credential_locator_sha256.clone(),
+                        generation: record.generation,
+                        status: record.status.clone(),
+                    }))
+                },
+            ),
             ControlCall::AuthStatus(params) => {
                 let catalog = self
                     .catalog
@@ -3238,6 +3359,11 @@ impl RunnerBackend {
 mod tests {
     use super::*;
     use asb_control::{ControlServer, ControlSuccess, ProviderProfileUpsertParams};
+    use asb_protocol::{
+        CredentialProvenance, CredentialSource, EndpointClass, EndpointProvenance,
+        PROVIDER_PROFILE_V1, ProviderKind, ProviderProfileV1, ProviderSettings,
+        ProviderTransportLimits,
+    };
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt, symlink};
     use std::process::{Command, Stdio};
@@ -3925,7 +4051,15 @@ mod tests {
         assert_ne!(refreshed.catalog_sha256, first.catalog_sha256);
         drop(backend);
 
-        let restarted = open_backend(state).unwrap();
+        let restarted = (0..50)
+            .find_map(|_| match open_backend(state.clone()) {
+                Ok(backend) => Some(backend),
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(10));
+                    None
+                }
+            })
+            .expect("control state lock should be released after backend drop");
         let restarted_result = restarted.execute(&status, deadline()).unwrap();
         let ControlResult::AgentCatalog(restarted_catalog) = restarted_result.result else {
             panic!("restarted agent catalog result");
@@ -4946,7 +5080,15 @@ mod tests {
             commit_catalog(&backend.state_root, &catalog).unwrap();
         }
         drop(backend);
-        let recovered = open_backend(state).unwrap();
+        let recovered = (0..50)
+            .find_map(|_| match open_backend(state.clone()) {
+                Ok(backend) => Some(backend),
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(10));
+                    None
+                }
+            })
+            .expect("control state lock should be released after backend drop");
         let campaign = recovered
             .catalog
             .lock()
@@ -5438,6 +5580,229 @@ mod tests {
         assert!(matches!(
             status.result,
             ControlResult::AuthStatus(ref value) if value.status == "revoked"
+        ));
+    }
+
+    #[test]
+    fn auth_helper_invocation_resolves_and_rejects_invalid_bindings() {
+        let scratch = Scratch::new();
+        let helper = scratch.0.join("auth-helper.sh");
+        let script = b"#!/bin/sh\ntest \"$1\" = \"--asb-credential-helper-v1\" || exit 8\nprintf '%s' '{\"version\":1,\"credential\":\"synthetic-value\"}'\n";
+        fs::write(&helper, script).unwrap();
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o700)).unwrap();
+        let executable_sha256 = format!("{:x}", Sha256::digest(script));
+        let locator = "provider.primary";
+        let mut reference = Sha256::new();
+        reference.update(b"asb-credential-reference-v1\0helper-v1\0");
+        reference.update(locator.as_bytes());
+        reference.update(b"\0");
+        reference.update(executable_sha256.as_bytes());
+        let reference_sha256 = format!("{:x}", reference.finalize());
+        let mut profile = ProviderProfileV1 {
+            version: PROVIDER_PROFILE_V1,
+            settings_sha256: String::new(),
+            provider: ProviderKind::OpenAi,
+            endpoint: EndpointProvenance {
+                class: EndpointClass::PublicService,
+                identity_sha256: "a".repeat(64),
+            },
+            model: "pinned-model".into(),
+            settings: ProviderSettings {
+                temperature_milli: None,
+                top_p_millionth: None,
+                seed: None,
+                max_output_tokens: None,
+                reasoning_effort: None,
+                additional_settings_sha256: None,
+            },
+            transport: ProviderTransportLimits {
+                max_request_bytes: 1024,
+                max_response_bytes: 1024,
+                connect_timeout_ms: 1000,
+                request_timeout_ms: 1000,
+                max_concurrent_requests: 1,
+            },
+            credential: CredentialProvenance {
+                source: CredentialSource::Helper,
+                reference_sha256: Some(reference_sha256),
+            },
+        };
+        profile.refresh_settings_sha256().unwrap();
+
+        assert!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &profile,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            )
+            .is_ok()
+        );
+        assert!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                Some(helper.clone().into_os_string()),
+                Some(executable_sha256.clone()),
+                Some(locator.to_owned()),
+            )
+            .is_ok()
+        );
+        assert!(matches!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                None,
+                Some(executable_sha256.clone()),
+                Some(locator.to_owned()),
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                Some(helper.clone().into_os_string()),
+                None,
+                Some(locator.to_owned()),
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_from_values(
+                "openai",
+                &profile,
+                deadline(),
+                Some(helper.clone().into_os_string()),
+                Some(executable_sha256.clone()),
+                None,
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+
+        let valid_profile = profile.clone();
+        let mut wrong_source = profile.clone();
+        wrong_source.credential.source = CredentialSource::Environment;
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_source,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        let mut missing_reference = valid_profile.clone();
+        missing_reference.credential.reference_sha256 = None;
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &missing_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper("openai", &valid_profile, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        let mut wrong_reference = profile;
+        wrong_reference.credential.reference_sha256 = Some("b".repeat(64));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &executable_sha256,
+                "",
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &scratch.0.join("missing-helper"),
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &wrong_reference,
+                deadline(),
+                &helper,
+                &"0".repeat(64),
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        let malformed = scratch.0.join("malformed-helper.sh");
+        let malformed_script = b"#!/bin/sh
+printf '%s' 'not-json'
+";
+        fs::write(&malformed, malformed_script).unwrap();
+        fs::set_permissions(&malformed, fs::Permissions::from_mode(0o700)).unwrap();
+        let malformed_sha256 = format!("{:x}", Sha256::digest(malformed_script));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &valid_profile,
+                deadline(),
+                &malformed,
+                &malformed_sha256,
+                locator,
+            ),
+            Err(BackendFailure::Rejected)
+        ));
+        let expired = RequestDeadline::start(1).unwrap();
+        thread::sleep(Duration::from_millis(2));
+        assert!(matches!(
+            invoke_registered_auth_helper_with_registration(
+                "openai",
+                &valid_profile,
+                expired,
+                &helper,
+                &executable_sha256,
+                locator,
+            ),
+            Err(BackendFailure::NeedsReconciliation)
         ));
     }
 

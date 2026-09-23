@@ -18,6 +18,8 @@ use std::io::{self, Read, Seek, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(test)]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
@@ -30,6 +32,8 @@ pub const UPSTREAM_TREE: &str = "850dd602d64b8d19560e63c2d9a4d44c48db82f4";
 /// SHA-256 of the universal OpenHands SDK 1.17.0 wheel.
 pub const SDK_WHEEL_SHA256: &str =
     "3b771e72209453871c3036a562cf33e9ad9642a54bd48edb44f89915ac54709d";
+#[cfg(test)]
+static TEST_ROOT_NONCE: AtomicU64 = AtomicU64::new(0);
 /// SHA-256 of the independently downloaded upstream source archive.
 pub const UPSTREAM_ARCHIVE_SHA256: &str =
     "2434fe9ef7de2e7ab8e6ca5b771ec82e9a6737d8d091a2ded16b5d23c02da2a7";
@@ -1126,8 +1130,9 @@ mod tests {
 
     #[test]
     fn evidence_parser_rejects_duplicate_and_unknown_fields() {
+        let sequence = TEST_ROOT_NONCE.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
-            "asb-openhands-evidence-{}-{}",
+            "asb-openhands-evidence-{}-{}-{sequence}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -1159,8 +1164,9 @@ mod tests {
 
     #[test]
     fn environment_digest_rejects_symlinks_and_copies_regular_content() {
+        let sequence = TEST_ROOT_NONCE.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
-            "asb-openhands-tree-{}-{}",
+            "asb-openhands-tree-{}-{}-{sequence}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -1184,8 +1190,9 @@ mod tests {
 
     #[test]
     fn cancellation_reaps_and_cleans_private_state() {
+        let sequence = TEST_ROOT_NONCE.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
-            "asb-openhands-cancel-{}-{}",
+            "asb-openhands-cancel-{}-{}-{sequence}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)

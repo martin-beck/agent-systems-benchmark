@@ -76,6 +76,37 @@ fn recording_lifecycle_is_versioned_and_fail_closed() {
 }
 
 #[test]
+fn auth_helper_invoke_is_versioned_and_requires_helper_profile() {
+    let call = ControlCall::AuthHelperInvoke(AuthHelperInvokeParams {
+        provider: "openai".into(),
+        profile: serde_json::from_value(serde_json::json!({
+            "version": {"major": 1, "minor": 0},
+            "settings_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "open_ai",
+            "endpoint": {"class": "public_service", "identity_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+            "model": "model",
+            "settings": {"temperature_milli": null, "top_p_millionth": null, "seed": null, "max_output_tokens": null, "reasoning_effort": null, "additional_settings_sha256": null},
+            "transport": {"max_request_bytes": 1, "max_response_bytes": 1, "connect_timeout_ms": 1, "request_timeout_ms": 1, "max_concurrent_requests": 1},
+            "credential": {"source": "helper", "reference_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+        })).unwrap(),
+        idempotency_key: "helper-1".into(),
+    });
+    assert_eq!(call.minimum_version(), CONTROL_AUTH_HELPER_V1);
+    assert!(
+        validate_request(
+            &ControlRequest {
+                jsonrpc: JSONRPC_VERSION.into(),
+                id: RequestId(1),
+                timeout_ms: 100,
+                call,
+            },
+            limits()
+        )
+        .is_ok()
+    );
+}
+
+#[test]
 fn provider_configuration_and_catalog_validation_covers_public_boundaries() {
     let model = |model_id: &str| ProviderModel {
         model_id: model_id.into(),

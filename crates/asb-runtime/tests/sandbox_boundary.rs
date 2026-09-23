@@ -908,7 +908,9 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
 
 #[test]
 fn authenticated_replay_boundary_rejects_stale_malformed_duplicate_and_mismatch() {
-    let root = test_root("authenticated-negative-boundary");
+    // Keep the Unix socket path below SUN_LEN even when coverage places the
+    // target directory under a long hosted-runner checkout path.
+    let root = test_root("auth-neg");
     let mut relay = ReplayRelay::bind(&root, "negative-generation").unwrap();
     let relay_path = relay.socket_path().to_owned();
 

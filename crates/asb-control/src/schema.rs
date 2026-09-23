@@ -297,6 +297,7 @@ fn remove_lifecycle_variants(value: &mut Value) {
         "auth_status",
         "auth_rotate",
         "auth_revoke",
+        "auth_helper_invoke",
     ] {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
@@ -304,7 +305,13 @@ fn remove_lifecycle_variants(value: &mut Value) {
 }
 
 fn remove_auth_variants(value: &mut Value) {
-    for tag in ["auth_enroll", "auth_status", "auth_rotate", "auth_revoke"] {
+    for tag in [
+        "auth_enroll",
+        "auth_status",
+        "auth_rotate",
+        "auth_revoke",
+        "auth_helper_invoke",
+    ] {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
     }

@@ -18,6 +18,8 @@ use std::io::{self, Read, Seek, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(test)]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
@@ -31,6 +33,8 @@ pub const UPSTREAM_TREE: &str = "665df42f5761252b83d9a30e1b82f76f1f17f828";
 pub const WHEEL_SHA256: &str = "a35463c553ac825c7773b03cfa69cd44958e3af20155dcc5711fdf9e4c67cd54";
 /// SHA-256 of the independently downloaded PyPI source distribution.
 pub const SDIST_SHA256: &str = "0532c8193a763409fa52bb2b5a5d7ac9052dcb1c2cae43945b14b1b7f6ba869a";
+#[cfg(test)]
+static TEST_SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
 /// SHA-256 of the natively exercised CPython 3.12 Linux x86_64 runtime.
 pub const TESTED_PYTHON_LINUX_X86_64_SHA256: &str =
     "1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118";
@@ -2340,9 +2344,10 @@ mod boundary_tests {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
+            let sequence = TEST_SCRATCH_NONCE.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
-                "asb-mini_swe-{label}-{}-{nonce}",
-                std::process::id()
+                "asb-mini_swe-{label}-{}-{nonce}-{sequence}",
+                std::process::id(),
             ));
             fs::create_dir_all(&path).unwrap();
             Self(path)

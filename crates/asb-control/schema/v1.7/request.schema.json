@@ -1,54 +1,629 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ControlRequest",
+  "description": "JSON-RPC request accepted from a frontend.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Unique outstanding request identity on this connection.",
+      "$ref": "#/$defs/RequestId"
+    },
+    "jsonrpc": {
+      "description": "Must equal `2.0`.",
+      "type": "string",
+      "const": "2.0"
+    },
+    "timeout_ms": {
+      "description": "Deadline relative to server receipt.",
+      "type": "integer",
+      "format": "uint64",
+      "maximum": 300000,
+      "minimum": 1
+    }
+  },
+  "oneOf": [
+    {
+      "description": "Negotiate protocol version and resource bounds.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "negotiate"
+        },
+        "params": {
+          "$ref": "#/$defs/NegotiateParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Obtain runner and transport capabilities.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "capabilities"
+        }
+      },
+      "required": [
+        "method"
+      ]
+    },
+    {
+      "description": "Read or refresh the authenticated local-agent catalog.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "agent_catalog"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentCatalogRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Stage, verify, activate, inspect, cancel, retry, or remove an agent.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "agent_install"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentInstallRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read durable status for an agent lifecycle operation.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "agent_status"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentStatusRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Cancel an in-progress agent lifecycle operation.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "agent_cancel"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentCancelRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Retry a failed or reconciled agent lifecycle operation.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "agent_retry"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentRetryRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Remove an active agent installation.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "agent_remove"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentRemoveRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Enroll a credential reference for a provider.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_enroll"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthEnrollParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read public enrollment status.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_status"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthStatusParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Rotate an enrolled credential reference.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_rotate"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthRotateParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Revoke an enrollment.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_revoke"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthRevokeParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Resolve one registered helper through the runner-owned sealed backend.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "auth_helper_invoke"
+        },
+        "params": {
+          "$ref": "#/$defs/AuthHelperInvokeParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read or refresh the authenticated provider/model catalog.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "provider_catalog"
+        },
+        "params": {
+          "$ref": "#/$defs/ProviderCatalogRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read the current privacy-safe setup projection.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "configuration_status"
+        },
+        "params": {
+          "$ref": "#/$defs/ConfigurationStatusRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Apply a complete idempotent setup selection.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "configuration_apply"
+        },
+        "params": {
+          "$ref": "#/$defs/ConfigurationApplyParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Estimate a bounded recording campaign without provider effects.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_estimate"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignEstimateRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Persist an exact bounded recording campaign plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_plan"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignPlanParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read the last durable recording campaign plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_status"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignStatusRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Obtain the immutable catalog of selectable measurements.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "measurement_catalog"
+        }
+      },
+      "required": [
+        "method"
+      ]
+    },
+    {
+      "description": "Validate settings without creating durable run state.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "validate_settings"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "settings": {
+              "description": "Candidate settings document."
+            }
+          },
+          "required": [
+            "settings"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Validate and durably create a content-pinned plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "create_plan"
+        },
+        "params": {
+          "$ref": "#/$defs/MutationParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Launch one previously created plan.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "launch"
+        },
+        "params": {
+          "$ref": "#/$defs/LaunchParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Read authoritative current run state.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "status"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "description": "Durable run to inspect.",
+              "$ref": "#/$defs/RunId"
+            }
+          },
+          "required": [
+            "run_id"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Request cancellation of an exact attempt.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "params": {
+          "$ref": "#/$defs/CancelParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Page through recent durable runs.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "history"
+        },
+        "params": {
+          "$ref": "#/$defs/PageParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Create a new plan from a completed run.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "repeat"
+        },
+        "params": {
+          "$ref": "#/$defs/RepeatParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Analyze a bounded set of durable runs.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "analyze"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_ids": {
+              "description": "Bounded set of durable runs to compare.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RunId"
+              }
+            }
+          },
+          "required": [
+            "run_ids"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Resume public runner events after a durable revision.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "events"
+        },
+        "params": {
+          "$ref": "#/$defs/PageParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Obtain metadata for one sensitive artifact; content needs separate authorization.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "artifact_metadata"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "digest": {
+              "description": "Exact content digest from the runner journal.",
+              "type": "string"
+            },
+            "run_id": {
+              "description": "Durable run owning the artifact reference.",
+              "$ref": "#/$defs/RunId"
+            }
+          },
+          "required": [
+            "run_id",
+            "digest"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    }
+  ],
+  "required": [
+    "jsonrpc",
+    "id",
+    "timeout_ms"
+  ],
+  "unevaluatedProperties": false,
   "$defs": {
     "AgentCancelRequest": {
-      "additionalProperties": false,
       "description": "Request to cancel an in-progress install/retry operation.",
+      "type": "object",
       "properties": {
         "binding": {
-          "$ref": "#/$defs/AgentLifecycleBinding",
-          "description": "Catalog and runner identity binding."
+          "description": "Catalog and runner identity binding.",
+          "$ref": "#/$defs/AgentLifecycleBinding"
         },
         "idempotency_key": {
           "description": "Retry-safe mutation key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "operation_id": {
           "description": "Exact operation to cancel.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "binding",
         "operation_id",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "AgentCatalogAction": {
       "description": "Read-only catalog operation requested by a frontend.",
       "oneOf": [
         {
-          "const": "status",
           "description": "Return the current verified snapshot without external effects.",
-          "type": "string"
+          "type": "string",
+          "const": "status"
         },
         {
-          "const": "refresh",
           "description": "Refresh the snapshot from locally configured, authorized sources.",
-          "type": "string"
+          "type": "string",
+          "const": "refresh"
         }
       ]
     },
     "AgentCatalogRequest": {
-      "additionalProperties": false,
       "description": "Request for a runner-generation-bound catalog operation.",
+      "type": "object",
       "properties": {
         "action": {
-          "$ref": "#/$defs/AgentCatalogAction",
-          "description": "Operation to perform."
+          "description": "Operation to perform.",
+          "$ref": "#/$defs/AgentCatalogAction"
         },
         "known_generation": {
           "description": "Last catalog generation observed by the frontend, if any.",
@@ -66,42 +641,42 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "action",
         "runner_instance_id"
-      ],
-      "type": "object"
+      ]
     },
     "AgentInstallRequest": {
-      "additionalProperties": false,
       "description": "Request to stage, verify, self-test, and atomically activate one agent.",
+      "type": "object",
       "properties": {
         "binding": {
-          "$ref": "#/$defs/AgentLifecycleBinding",
-          "description": "Catalog and runner identity binding."
+          "description": "Catalog and runner identity binding.",
+          "$ref": "#/$defs/AgentLifecycleBinding"
         },
         "catalog_generation": {
-          "$ref": "#/$defs/Revision",
-          "description": "Catalog generation that authorized this selection."
+          "description": "Catalog generation that authorized this selection.",
+          "$ref": "#/$defs/Revision"
         },
         "idempotency_key": {
           "description": "Retry-safe mutation key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "binding",
         "catalog_generation",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "AgentLifecycleBinding": {
-      "additionalProperties": false,
       "description": "Common identity binding required by every lifecycle mutation.",
+      "type": "object",
       "properties": {
         "agent_id": {
           "description": "Stable agent identity from the authenticated catalog.",
@@ -116,69 +691,69 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "agent_id",
         "runner_instance_id",
         "catalog_sha256"
-      ],
-      "type": "object"
+      ]
     },
     "AgentRemoveRequest": {
-      "additionalProperties": false,
       "description": "Request to remove one active agent after durable status checks.",
+      "type": "object",
       "properties": {
         "binding": {
-          "$ref": "#/$defs/AgentLifecycleBinding",
-          "description": "Catalog and runner identity binding."
+          "description": "Catalog and runner identity binding.",
+          "$ref": "#/$defs/AgentLifecycleBinding"
         },
         "idempotency_key": {
           "description": "Retry-safe mutation key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "binding",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "AgentRetryRequest": {
-      "additionalProperties": false,
       "description": "Request to retry a failed or reconciled operation.",
+      "type": "object",
       "properties": {
         "binding": {
-          "$ref": "#/$defs/AgentLifecycleBinding",
-          "description": "Catalog and runner identity binding."
+          "description": "Catalog and runner identity binding.",
+          "$ref": "#/$defs/AgentLifecycleBinding"
         },
         "idempotency_key": {
           "description": "Retry-safe mutation key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "operation_id": {
           "description": "Exact operation to retry.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "binding",
         "operation_id",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "AgentStatusRequest": {
-      "additionalProperties": false,
       "description": "Request for durable status of an agent or operation.",
+      "type": "object",
       "properties": {
         "binding": {
-          "$ref": "#/$defs/AgentLifecycleBinding",
-          "description": "Catalog and runner identity binding."
+          "description": "Catalog and runner identity binding.",
+          "$ref": "#/$defs/AgentLifecycleBinding"
         },
         "operation_id": {
           "description": "Specific lifecycle operation, or none for the current agent status.",
@@ -188,18 +763,18 @@
           ]
         }
       },
+      "additionalProperties": false,
       "required": [
         "binding"
-      ],
-      "type": "object"
+      ]
     },
     "AttemptId": {
       "description": "Opaque stable execution-attempt identity.",
       "type": "string"
     },
     "AuthEnrollParams": {
-      "additionalProperties": false,
       "description": "Credential-free authenticated enrollment metadata.",
+      "type": "object",
       "properties": {
         "credential_locator_sha256": {
           "description": "Credential resolver reference digest.",
@@ -211,49 +786,76 @@
         },
         "idempotency_key": {
           "description": "Idempotency key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "provider": {
           "description": "Provider identifier.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "provider",
         "endpoint_identity_sha256",
         "credential_locator_sha256",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
-    "AuthRevokeParams": {
-      "additionalProperties": false,
-      "description": "Idempotent credential enrollment revocation request.",
+    "AuthHelperInvokeParams": {
+      "description": "Request a runner-owned helper resolution without exposing a path or secret.",
+      "type": "object",
       "properties": {
         "idempotency_key": {
           "description": "Retry-safe mutation key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "profile": {
+          "description": "Complete credential-free profile to bind to the helper output.",
+          "$ref": "#/$defs/ProviderProfileV1"
+        },
+        "provider": {
+          "description": "Provider identifier used for the durable receipt.",
           "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "profile",
+        "idempotency_key"
+      ]
+    },
+    "AuthRevokeParams": {
+      "description": "Idempotent credential enrollment revocation request.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "Retry-safe mutation key.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "provider": {
           "description": "Provider identifier.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "provider",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "AuthRotateParams": {
-      "additionalProperties": false,
       "description": "Credential-free rotation request.",
+      "type": "object",
       "properties": {
         "credential_locator_sha256": {
           "description": "New credential resolver reference digest.",
@@ -261,111 +863,111 @@
         },
         "idempotency_key": {
           "description": "Idempotency key.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "provider": {
           "description": "Provider identifier.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "provider",
         "credential_locator_sha256",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "AuthStatusParams": {
-      "additionalProperties": false,
       "description": "Public enrollment lookup key.",
+      "type": "object",
       "properties": {
         "provider": {
           "description": "Provider identifier.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "provider"
-      ],
-      "type": "object"
+      ]
     },
     "CancelParams": {
-      "additionalProperties": false,
       "description": "Causally fenced cancellation input.",
+      "type": "object",
       "properties": {
         "attempt_id": {
-          "$ref": "#/$defs/AttemptId",
           "description": "Exact attempt expected by the frontend.",
+          "$ref": "#/$defs/AttemptId",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "idempotency_key": {
           "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "run_id": {
-          "$ref": "#/$defs/RunId",
           "description": "Run to cancel.",
+          "$ref": "#/$defs/RunId",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "run_id",
         "attempt_id",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "ConfigurationApplyParams": {
-      "additionalProperties": false,
       "description": "Idempotent setup mutation submitted by an independent frontend.",
+      "type": "object",
       "properties": {
         "expected_generation": {
-          "$ref": "#/$defs/Revision",
-          "description": "Generation returned by the last status read."
+          "description": "Generation returned by the last status read.",
+          "$ref": "#/$defs/Revision"
         },
         "idempotency_key": {
           "description": "Retry-safe mutation identity.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "selection": {
-          "$ref": "#/$defs/ConfigurationSelection",
-          "description": "Complete replacement selection; partial updates are not accepted."
+          "description": "Complete replacement selection; partial updates are not accepted.",
+          "$ref": "#/$defs/ConfigurationSelection"
         }
       },
+      "additionalProperties": false,
       "required": [
         "idempotency_key",
         "expected_generation",
         "selection"
-      ],
-      "type": "object"
+      ]
     },
     "ConfigurationSelection": {
-      "additionalProperties": false,
       "description": "Provider/model/auth selection stored by the runner without secret values.",
+      "type": "object",
       "properties": {
         "agent_ids": {
           "description": "Selected agents, sorted by canonical ID.",
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "auth_method": {
-          "$ref": "#/$defs/ProviderAuthMethod",
-          "description": "Authentication route selected by the user."
+          "description": "Authentication route selected by the user.",
+          "$ref": "#/$defs/ProviderAuthMethod"
         },
         "credential_reference_sha256": {
           "description": "Digest of an external credential reference, never its value.",
@@ -383,166 +985,263 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "agent_ids",
         "provider_id",
         "model_id",
         "auth_method"
-      ],
-      "type": "object"
+      ]
     },
     "ConfigurationStatusRequest": {
-      "additionalProperties": false,
       "description": "Read-only request for the runner's current setup state.",
+      "type": "object",
       "properties": {
         "runner_instance_id": {
           "description": "Runner identity received during protocol negotiation.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "runner_instance_id"
-      ],
-      "type": "object"
+      ]
     },
     "ControlLimits": {
-      "additionalProperties": false,
       "description": "Negotiated per-connection bounds.",
+      "type": "object",
       "properties": {
         "max_frame_bytes": {
           "description": "Largest four-byte-length-prefixed JSON body.",
+          "type": "integer",
           "format": "uint32",
           "maximum": 1048576,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "max_in_flight": {
           "description": "Largest number of admitted requests awaiting terminal responses.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 64,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "max_page_items": {
           "description": "Largest page a client may request.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 256,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
         "max_timeout_ms": {
           "description": "Longest request processing deadline measured from receipt.",
+          "type": "integer",
           "format": "uint64",
           "maximum": 300000,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "max_frame_bytes",
         "max_timeout_ms",
         "max_page_items",
         "max_in_flight"
-      ],
-      "type": "object"
+      ]
     },
     "ControlVersion": {
-      "additionalProperties": false,
       "description": "A major/minor protocol version.",
+      "type": "object",
       "properties": {
         "major": {
           "description": "Breaking protocol generation.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         },
         "minor": {
           "description": "Backward-compatible feature generation.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         }
       },
+      "additionalProperties": false,
       "required": [
         "major",
         "minor"
-      ],
-      "type": "object"
+      ]
+    },
+    "CredentialProvenance": {
+      "description": "Credential provenance without secret values, names, or paths.",
+      "type": "object",
+      "properties": {
+        "reference_sha256": {
+          "description": "Digest of the stable lookup reference, absent only for no credential.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source": {
+          "description": "Lookup mechanism used at the adapter boundary.",
+          "$ref": "#/$defs/CredentialSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "reference_sha256"
+      ]
+    },
+    "CredentialSource": {
+      "description": "Credential lookup mechanism without its value or lookup identifier.",
+      "oneOf": [
+        {
+          "description": "No credential is used.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "The process environment supplies the credential.",
+          "type": "string",
+          "const": "environment"
+        },
+        {
+          "description": "An inherited file descriptor supplies the credential.",
+          "type": "string",
+          "const": "file_descriptor"
+        },
+        {
+          "description": "A helper supplies the credential at execution time.",
+          "type": "string",
+          "const": "helper"
+        }
+      ]
+    },
+    "EndpointClass": {
+      "description": "Network placement without a URL, hostname, or private path.",
+      "oneOf": [
+        {
+          "description": "Provider-operated public service.",
+          "type": "string",
+          "const": "public_service"
+        },
+        {
+          "description": "Loopback endpoint in the attempt environment.",
+          "type": "string",
+          "const": "loopback"
+        },
+        {
+          "description": "Private-network endpoint outside loopback.",
+          "type": "string",
+          "const": "private_network"
+        },
+        {
+          "description": "Local replay endpoint backed by pinned evidence.",
+          "type": "string",
+          "const": "replay"
+        }
+      ]
+    },
+    "EndpointProvenance": {
+      "description": "Endpoint provenance without serializing its URL or authority.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Network placement of the endpoint.",
+          "$ref": "#/$defs/EndpointClass"
+        },
+        "identity_sha256": {
+          "description": "Digest of canonical scheme, authority, and base path.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "identity_sha256"
+      ]
     },
     "LaunchParams": {
-      "additionalProperties": false,
       "description": "Idempotent launch input.",
+      "type": "object",
       "properties": {
         "idempotency_key": {
           "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "plan_id": {
           "description": "Previously created durable plan identity.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "idempotency_key",
         "plan_id"
-      ],
-      "type": "object"
+      ]
     },
     "MutationParams": {
-      "additionalProperties": false,
       "description": "Generic idempotent mutation input.",
+      "type": "object",
       "properties": {
         "definition": {
           "description": "Content-pinned validated definition."
         },
         "idempotency_key": {
           "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "idempotency_key",
         "definition"
-      ],
-      "type": "object"
+      ]
     },
     "NegotiateParams": {
-      "additionalProperties": false,
       "description": "Initial negotiation offer.",
+      "type": "object",
       "properties": {
         "limits": {
-          "$ref": "#/$defs/ControlLimits",
-          "description": "Client-side bounds."
+          "description": "Client-side bounds.",
+          "$ref": "#/$defs/ControlLimits"
         },
         "versions": {
           "description": "Versions supported by the client.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ControlVersion"
           },
-          "type": "array",
           "uniqueItems": true
         }
       },
+      "additionalProperties": false,
       "required": [
         "versions",
         "limits"
-      ],
-      "type": "object"
+      ]
     },
     "PageParams": {
-      "additionalProperties": false,
       "description": "Bounded cursor page request.",
+      "type": "object",
       "properties": {
         "after": {
           "description": "Last revision already durably observed, or none for the retained beginning.",
@@ -557,34 +1256,34 @@
         },
         "limit": {
           "description": "Maximum requested records.",
+          "type": "integer",
           "format": "uint16",
           "maximum": 256,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         }
       },
+      "additionalProperties": false,
       "required": [
         "limit"
-      ],
-      "type": "object"
+      ]
     },
     "ProviderAuthMethod": {
       "description": "Authentication method supported by a provider profile.",
       "oneOf": [
         {
-          "const": "credential_reference",
           "description": "Resolve a credential from an environment or OS credential helper.",
-          "type": "string"
+          "type": "string",
+          "const": "credential_reference"
         },
         {
-          "const": "local_daemon",
           "description": "Use an explicitly provisioned local daemon without a secret in ASB.",
-          "type": "string"
+          "type": "string",
+          "const": "local_daemon"
         },
         {
-          "const": "none",
           "description": "Provider requires no credential.",
-          "type": "string"
+          "type": "string",
+          "const": "none"
         }
       ]
     },
@@ -592,24 +1291,24 @@
       "description": "Read-only provider catalog operation requested by a frontend.",
       "oneOf": [
         {
-          "const": "status",
           "description": "Return the current verified snapshot without external effects.",
-          "type": "string"
+          "type": "string",
+          "const": "status"
         },
         {
-          "const": "refresh",
           "description": "Refresh provider discovery and connectivity status.",
-          "type": "string"
+          "type": "string",
+          "const": "refresh"
         }
       ]
     },
     "ProviderCatalogRequest": {
-      "additionalProperties": false,
       "description": "Request for a runner-generation-bound provider catalog operation.",
+      "type": "object",
       "properties": {
         "action": {
-          "$ref": "#/$defs/ProviderCatalogAction",
-          "description": "Operation to perform."
+          "description": "Operation to perform.",
+          "$ref": "#/$defs/ProviderCatalogAction"
         },
         "known_generation": {
           "description": "Last catalog generation observed by the frontend, if any.",
@@ -627,22 +1326,314 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "action",
         "runner_instance_id"
+      ]
+    },
+    "ProviderKind": {
+      "description": "Provider API family without account or endpoint identity.",
+      "oneOf": [
+        {
+          "description": "OpenAI's public API.",
+          "type": "string",
+          "const": "open_ai"
+        },
+        {
+          "description": "A separately operated OpenAI-compatible API.",
+          "type": "string",
+          "const": "open_ai_compatible"
+        },
+        {
+          "description": "Anthropic's public API.",
+          "type": "string",
+          "const": "anthropic"
+        },
+        {
+          "description": "A local or remote Ollama API.",
+          "type": "string",
+          "const": "ollama"
+        }
+      ]
+    },
+    "ProviderProfileV1": {
+      "description": "Complete v1 credential-free provider configuration.",
+      "type": "object",
+      "properties": {
+        "credential": {
+          "description": "Credential lookup provenance without a value.",
+          "$ref": "#/$defs/CredentialProvenance"
+        },
+        "endpoint": {
+          "description": "Redacted endpoint identity and placement.",
+          "$ref": "#/$defs/EndpointProvenance"
+        },
+        "model": {
+          "description": "Exact provider model identifier.",
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
+        },
+        "provider": {
+          "description": "Provider API family.",
+          "$ref": "#/$defs/ProviderKind"
+        },
+        "settings": {
+          "description": "Explicit inference values and omissions.",
+          "$ref": "#/$defs/ProviderSettings"
+        },
+        "settings_sha256": {
+          "description": "Canonical digest of every credential-free field.",
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "transport": {
+          "description": "Exact transport bounds.",
+          "$ref": "#/$defs/ProviderTransportLimits"
+        },
+        "version": {
+          "description": "Contract generation.",
+          "$ref": "#/$defs/ProviderProfileVersion"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "properties": {
+            "version": {
+              "properties": {
+                "major": {
+                  "const": 1
+                },
+                "minor": {
+                  "const": 0
+                }
+              },
+              "required": [
+                "major",
+                "minor"
+              ]
+            }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "credential": {
+                  "properties": {
+                    "reference_sha256": {
+                      "type": "null"
+                    },
+                    "source": {
+                      "const": "none"
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "reference_sha256"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "credential": {
+                  "properties": {
+                    "reference_sha256": {
+                      "type": "string",
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "source": {
+                      "enum": [
+                        "environment",
+                        "file_descriptor",
+                        "helper"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "reference_sha256"
+                  ]
+                }
+              }
+            }
+          ]
+        }
       ],
-      "type": "object"
+      "required": [
+        "version",
+        "settings_sha256",
+        "provider",
+        "endpoint",
+        "model",
+        "settings",
+        "transport",
+        "credential"
+      ]
+    },
+    "ProviderProfileVersion": {
+      "description": "A major/minor provider-profile contract generation.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "description": "Breaking contract generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "description": "Backward-compatible contract generation.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "ProviderSettings": {
+      "description": "Explicit inference settings; absence requires proven omission.",
+      "type": "object",
+      "properties": {
+        "additional_settings_sha256": {
+          "description": "Digest of the canonical credential-free provider-specific remainder.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "max_output_tokens": {
+          "description": "Requested maximum output tokens.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 1
+        },
+        "reasoning_effort": {
+          "description": "Provider-independent reasoning-effort name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1024,
+          "minLength": 1
+        },
+        "seed": {
+          "description": "Deterministic provider seed.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "temperature_milli": {
+          "description": "Temperature multiplied by 1,000.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 2000,
+          "minimum": 0
+        },
+        "top_p_millionth": {
+          "description": "Top-p multiplied by 1,000,000.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "maximum": 1000000,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "temperature_milli",
+        "top_p_millionth",
+        "seed",
+        "max_output_tokens",
+        "reasoning_effort",
+        "additional_settings_sha256"
+      ]
+    },
+    "ProviderTransportLimits": {
+      "description": "Transport limits that an adapter must preserve exactly.",
+      "type": "object",
+      "properties": {
+        "connect_timeout_ms": {
+          "description": "Monotonic connection timeout.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 3600000,
+          "minimum": 1
+        },
+        "max_concurrent_requests": {
+          "description": "Maximum concurrent provider requests.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 1024,
+          "minimum": 1
+        },
+        "max_request_bytes": {
+          "description": "Maximum serialized request body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 16777216,
+          "minimum": 1
+        },
+        "max_response_bytes": {
+          "description": "Maximum serialized response body.",
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 16777216,
+          "minimum": 1
+        },
+        "request_timeout_ms": {
+          "description": "Monotonic end-to-end request timeout.",
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 3600000,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_request_bytes",
+        "max_response_bytes",
+        "connect_timeout_ms",
+        "request_timeout_ms",
+        "max_concurrent_requests"
+      ]
     },
     "RecordingCampaignEstimateRequest": {
-      "additionalProperties": false,
       "description": "Read-only bounded recording-campaign estimate request.",
+      "type": "object",
       "properties": {
         "agent_ids": {
           "description": "Selected agent IDs.",
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "model_id": {
           "description": "Model selected for the campaign.",
@@ -658,42 +1649,42 @@
         },
         "workload_ids": {
           "description": "Selected workload IDs.",
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
       },
+      "additionalProperties": false,
       "required": [
         "runner_instance_id",
         "provider_id",
         "model_id",
         "agent_ids",
         "workload_ids"
-      ],
-      "type": "object"
+      ]
     },
     "RecordingCampaignPlanParams": {
-      "additionalProperties": false,
       "description": "Idempotent request to persist an exact recording matrix for later execution.",
+      "type": "object",
       "properties": {
         "agent_ids": {
           "description": "Selected agent IDs.",
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "expected_generation": {
-          "$ref": "#/$defs/Revision",
-          "description": "Setup generation returned by the last configuration status read."
+          "description": "Setup generation returned by the last configuration status read.",
+          "$ref": "#/$defs/Revision"
         },
         "idempotency_key": {
           "description": "Retry-safe mutation identity.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "model_id": {
           "description": "Model selected for the campaign.",
@@ -709,12 +1700,13 @@
         },
         "workload_ids": {
           "description": "Selected workload IDs.",
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
       },
+      "additionalProperties": false,
       "required": [
         "idempotency_key",
         "expected_generation",
@@ -723,621 +1715,62 @@
         "model_id",
         "agent_ids",
         "workload_ids"
-      ],
-      "type": "object"
+      ]
     },
     "RecordingCampaignStatusRequest": {
-      "additionalProperties": false,
       "description": "Read-only request for the last durable recording campaign plan.",
+      "type": "object",
       "properties": {
         "runner_instance_id": {
           "description": "Runner identity received during negotiation.",
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "runner_instance_id"
-      ],
-      "type": "object"
+      ]
     },
     "RepeatParams": {
-      "additionalProperties": false,
       "description": "Repetition input bound to an immutable source run.",
+      "type": "object",
       "properties": {
         "idempotency_key": {
           "description": "Opaque key retained by the runner to make retries safe.",
+          "type": "string",
           "maxLength": 128,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:-]+$",
-          "type": "string"
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "run_id": {
-          "$ref": "#/$defs/RunId",
           "description": "Immutable source run.",
+          "$ref": "#/$defs/RunId",
           "maxLength": 128,
           "minLength": 1,
           "pattern": "^[A-Za-z0-9._:-]+$"
         }
       },
+      "additionalProperties": false,
       "required": [
         "run_id",
         "idempotency_key"
-      ],
-      "type": "object"
+      ]
     },
     "RequestId": {
       "description": "Numeric JSON-RPC request identity.",
+      "type": "integer",
       "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
+      "minimum": 0
     },
     "Revision": {
       "description": "Opaque durable revision used to resume event streams.",
+      "type": "integer",
       "format": "uint64",
-      "minimum": 0,
-      "type": "integer"
+      "minimum": 0
     },
     "RunId": {
       "description": "Opaque stable run identity.",
       "type": "string"
     }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "JSON-RPC request accepted from a frontend.",
-  "oneOf": [
-    {
-      "description": "Negotiate protocol version and resource bounds.",
-      "properties": {
-        "method": {
-          "const": "negotiate",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/NegotiateParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Obtain runner and transport capabilities.",
-      "properties": {
-        "method": {
-          "const": "capabilities",
-          "type": "string"
-        }
-      },
-      "required": [
-        "method"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read or refresh the authenticated local-agent catalog.",
-      "properties": {
-        "method": {
-          "const": "agent_catalog",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AgentCatalogRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Stage, verify, activate, inspect, cancel, retry, or remove an agent.",
-      "properties": {
-        "method": {
-          "const": "agent_install",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AgentInstallRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read durable status for an agent lifecycle operation.",
-      "properties": {
-        "method": {
-          "const": "agent_status",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AgentStatusRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Cancel an in-progress agent lifecycle operation.",
-      "properties": {
-        "method": {
-          "const": "agent_cancel",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AgentCancelRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Retry a failed or reconciled agent lifecycle operation.",
-      "properties": {
-        "method": {
-          "const": "agent_retry",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AgentRetryRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Remove an active agent installation.",
-      "properties": {
-        "method": {
-          "const": "agent_remove",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AgentRemoveRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Enroll a credential reference for a provider.",
-      "properties": {
-        "method": {
-          "const": "auth_enroll",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AuthEnrollParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read public enrollment status.",
-      "properties": {
-        "method": {
-          "const": "auth_status",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AuthStatusParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Rotate an enrolled credential reference.",
-      "properties": {
-        "method": {
-          "const": "auth_rotate",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AuthRotateParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Revoke an enrollment.",
-      "properties": {
-        "method": {
-          "const": "auth_revoke",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/AuthRevokeParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read or refresh the authenticated provider/model catalog.",
-      "properties": {
-        "method": {
-          "const": "provider_catalog",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/ProviderCatalogRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read the current privacy-safe setup projection.",
-      "properties": {
-        "method": {
-          "const": "configuration_status",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/ConfigurationStatusRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Apply a complete idempotent setup selection.",
-      "properties": {
-        "method": {
-          "const": "configuration_apply",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/ConfigurationApplyParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Estimate a bounded recording campaign without provider effects.",
-      "properties": {
-        "method": {
-          "const": "recording_campaign_estimate",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/RecordingCampaignEstimateRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Persist an exact bounded recording campaign plan.",
-      "properties": {
-        "method": {
-          "const": "recording_campaign_plan",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/RecordingCampaignPlanParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read the last durable recording campaign plan.",
-      "properties": {
-        "method": {
-          "const": "recording_campaign_status",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/RecordingCampaignStatusRequest"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Obtain the immutable catalog of selectable measurements.",
-      "properties": {
-        "method": {
-          "const": "measurement_catalog",
-          "type": "string"
-        }
-      },
-      "required": [
-        "method"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Validate settings without creating durable run state.",
-      "properties": {
-        "method": {
-          "const": "validate_settings",
-          "type": "string"
-        },
-        "params": {
-          "properties": {
-            "settings": {
-              "description": "Candidate settings document."
-            }
-          },
-          "required": [
-            "settings"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Validate and durably create a content-pinned plan.",
-      "properties": {
-        "method": {
-          "const": "create_plan",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/MutationParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Launch one previously created plan.",
-      "properties": {
-        "method": {
-          "const": "launch",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/LaunchParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Read authoritative current run state.",
-      "properties": {
-        "method": {
-          "const": "status",
-          "type": "string"
-        },
-        "params": {
-          "properties": {
-            "run_id": {
-              "$ref": "#/$defs/RunId",
-              "description": "Durable run to inspect."
-            }
-          },
-          "required": [
-            "run_id"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Request cancellation of an exact attempt.",
-      "properties": {
-        "method": {
-          "const": "cancel",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/CancelParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Page through recent durable runs.",
-      "properties": {
-        "method": {
-          "const": "history",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PageParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Create a new plan from a completed run.",
-      "properties": {
-        "method": {
-          "const": "repeat",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/RepeatParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Analyze a bounded set of durable runs.",
-      "properties": {
-        "method": {
-          "const": "analyze",
-          "type": "string"
-        },
-        "params": {
-          "properties": {
-            "run_ids": {
-              "description": "Bounded set of durable runs to compare.",
-              "items": {
-                "$ref": "#/$defs/RunId"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "run_ids"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Resume public runner events after a durable revision.",
-      "properties": {
-        "method": {
-          "const": "events",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PageParams"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    },
-    {
-      "description": "Obtain metadata for one sensitive artifact; content needs separate authorization.",
-      "properties": {
-        "method": {
-          "const": "artifact_metadata",
-          "type": "string"
-        },
-        "params": {
-          "properties": {
-            "digest": {
-              "description": "Exact content digest from the runner journal.",
-              "type": "string"
-            },
-            "run_id": {
-              "$ref": "#/$defs/RunId",
-              "description": "Durable run owning the artifact reference."
-            }
-          },
-          "required": [
-            "run_id",
-            "digest"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ],
-      "type": "object"
-    }
-  ],
-  "properties": {
-    "id": {
-      "$ref": "#/$defs/RequestId",
-      "description": "Unique outstanding request identity on this connection."
-    },
-    "jsonrpc": {
-      "const": "2.0",
-      "description": "Must equal `2.0`.",
-      "type": "string"
-    },
-    "timeout_ms": {
-      "description": "Deadline relative to server receipt.",
-      "format": "uint64",
-      "maximum": 300000,
-      "minimum": 1,
-      "type": "integer"
-    }
-  },
-  "required": [
-    "jsonrpc",
-    "id",
-    "timeout_ms"
-  ],
-  "title": "ControlRequest",
-  "type": "object",
-  "unevaluatedProperties": false
+  }
 }
