@@ -659,7 +659,22 @@ mod tests {
         assert_eq!(context.route_sha256(), "a".repeat(64));
         assert_eq!(context.adapter_sha256(), "b".repeat(64));
         assert_eq!(context.credential_ref_sha256(), "c".repeat(64));
+        assert_eq!(context.namespace().as_str(), "net:[123]");
+        assert_eq!(context.deadline_unix_ms(), 2_000);
+        assert_eq!(context.route_sha256(), "a".repeat(64));
         context.revoke();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn live_context_consumes_spawn_inputs_once_and_rejects_reuse() {
+        let (input, lease, namespace, root) = live_fixture();
+        let token = RuntimeLaunchToken::test_only(live_launch_binding_digest(&input, &lease, 100));
+        let authority =
+            LiveLaunchFactory::issue(token, input, lease, test_backend(), namespace, 100).unwrap();
+        let mut context = authority.consume();
+        assert!(context.spawn().is_err());
+        assert!(context.spawn().is_err());
         let _ = fs::remove_dir_all(root);
     }
 
