@@ -107,8 +107,9 @@ pub enum LiveProviderProvisionError {
 
 impl LiveProviderProvisioner {
     /// Construct a service from runtime-owned policy and pinned backend data.
+    #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         config: LiveProviderRuntimeConfig,
         policy: ProviderEgressPolicy,
         allowlist: ProviderEgressAllowlist,
@@ -133,7 +134,8 @@ impl LiveProviderProvisioner {
 
     /// Acquire one opaque attempt, binding every authority to the runtime's
     /// observed namespace and to the scheduler attempt identity.
-    pub fn acquire(
+    #[allow(dead_code)]
+    pub(crate) fn acquire(
         &self,
         attempt_id: u32,
         input: SandboxLaunchInput,
