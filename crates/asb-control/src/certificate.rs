@@ -86,6 +86,81 @@ pub struct RuntimeEnrollmentReceiptV1 {
     pub nonce_sha256: String,
 }
 
+/// Durable, secret-free runtime authority enrollment materialized by control.
+///
+/// This record contains only public target data and immutable digests. It is
+/// validated against an authenticated certificate chain before a runtime
+/// receipt is issued; callers cannot use it to provide credential bytes or
+/// private filesystem authority.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeAuthorityEnrollmentV1 {
+    /// Record schema version.
+    pub schema_version: u16,
+    /// Authenticated certificate-chain digest.
+    pub chain_sha256: String,
+    /// Enrolled provider identity.
+    pub provider: String,
+    /// Credential resolver reference digest.
+    pub credential_ref_sha256: String,
+    /// Concrete public provider target selected by control.
+    pub target: String,
+    /// Pinned runtime tool bundle digest.
+    pub tool_bundle_sha256: String,
+    /// Runtime lease-root digest.
+    pub lease_root_sha256: String,
+    /// Runtime relay-root digest.
+    pub relay_root_sha256: String,
+    /// Monotonic certificate generation.
+    pub generation: u64,
+    /// Inclusive validity start in Unix milliseconds.
+    pub issued_at_unix_ms: u64,
+    /// Exclusive validity end in Unix milliseconds.
+    pub expires_at_unix_ms: u64,
+}
+
+impl RuntimeAuthorityEnrollmentV1 {
+    /// Validate this durable record against an authenticated chain and issue
+    /// the bounded receipt consumed by the runtime bridge.
+    pub fn issue_receipt(
+        &self,
+        chain: &IssuedCertificateChainV1,
+    ) -> Result<RuntimeEnrollmentReceiptV1, CertificateError> {
+        let identity = chain.identity();
+        if self.schema_version != 1
+            || self.chain_sha256 != chain.chain_sha256()
+            || self.generation != identity.generation
+            || self.issued_at_unix_ms > self.expires_at_unix_ms
+            || self
+                .expires_at_unix_ms
+                .saturating_sub(self.issued_at_unix_ms)
+                > 15 * 60 * 1000
+            || !is_digest(&self.chain_sha256)
+            || !is_digest(&self.credential_ref_sha256)
+            || !is_digest(&self.tool_bundle_sha256)
+            || !is_digest(&self.lease_root_sha256)
+            || !is_digest(&self.relay_root_sha256)
+            || self.provider.is_empty()
+            || !valid_public_target(&self.target)
+        {
+            return Err(CertificateError::InvalidReceipt);
+        }
+        if identity.endpoint_identity_sha256.is_empty() {
+            return Err(CertificateError::EndpointBindingUnavailable);
+        }
+        chain.issue_runtime_receipt(
+            self.provider.clone(),
+            self.credential_ref_sha256.clone(),
+            self.target.clone(),
+            self.tool_bundle_sha256.clone(),
+            self.lease_root_sha256.clone(),
+            self.relay_root_sha256.clone(),
+            self.issued_at_unix_ms,
+            self.expires_at_unix_ms,
+        )
+    }
+}
+
 impl IssuedCertificateChainV1 {
     /// Validated identity metadata.
     #[must_use]
@@ -805,5 +880,67 @@ mod tests {
             ),
             Err(CertificateError::InvalidReceipt)
         );
+    }
+
+    #[test]
+    fn authority_enrollment_issues_only_against_matching_chain() {
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut identity = identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64));
+        identity.trust_anchor_sha256 = digest_bytes(&[1, 2, 3]);
+        identity.endpoint_identity_sha256 = "b".repeat(64);
+        let chain = authority
+            .issue_metadata(&[identity], &"c".repeat(64), 1_000)
+            .unwrap();
+        let enrollment = RuntimeAuthorityEnrollmentV1 {
+            schema_version: 1,
+            chain_sha256: chain.chain_sha256().to_owned(),
+            provider: "openrouter".into(),
+            credential_ref_sha256: "f".repeat(64),
+            target: "203.0.113.10:443".into(),
+            tool_bundle_sha256: "1".repeat(64),
+            lease_root_sha256: "2".repeat(64),
+            relay_root_sha256: "3".repeat(64),
+            generation: 7,
+            issued_at_unix_ms: 1_000,
+            expires_at_unix_ms: 2_000,
+        };
+        let receipt = enrollment.issue_receipt(&chain).unwrap();
+        assert_eq!(receipt.provider, "openrouter");
+        let mut tampered = enrollment.clone();
+        tampered.chain_sha256 = "a".repeat(64);
+        assert_eq!(
+            tampered.issue_receipt(&chain),
+            Err(CertificateError::InvalidReceipt)
+        );
+        let mut private_target = enrollment;
+        private_target.target = "127.0.0.1:443".into();
+        assert_eq!(
+            private_target.issue_receipt(&chain),
+            Err(CertificateError::InvalidReceipt)
+        );
+    }
+
+    #[test]
+    fn authority_enrollment_rejects_unknown_fields() {
+        let value = serde_json::json!({
+            "schema_version": 1,
+            "chain_sha256": "a".repeat(64),
+            "provider": "openrouter",
+            "credential_ref_sha256": "b".repeat(64),
+            "target": "203.0.113.10:443",
+            "tool_bundle_sha256": "c".repeat(64),
+            "lease_root_sha256": "d".repeat(64),
+            "relay_root_sha256": "e".repeat(64),
+            "generation": 1,
+            "issued_at_unix_ms": 1,
+            "expires_at_unix_ms": 2,
+            "secret": "must-not-cross-boundary"
+        });
+        assert!(serde_json::from_value::<RuntimeAuthorityEnrollmentV1>(value).is_err());
     }
 }
