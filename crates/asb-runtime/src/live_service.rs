@@ -21,6 +21,16 @@ pub struct LiveProviderRuntimeConfig {
     cpus: CpuSet,
 }
 
+/// Immutable provider-selection references supplied by the runtime planner.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LiveProviderRuntimeSelection {
+    target: ProviderEgressTarget,
+    generation: String,
+    route_sha256: String,
+    credential_ref_sha256: String,
+    network_policy: NetworkPolicy,
+}
+
 /// Fail-closed validation failures before authority acquisition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LiveProviderRuntimeConfigError {
@@ -43,40 +53,33 @@ impl LiveProviderRuntimeConfig {
     pub fn new(
         lease_root: &Path,
         allowlist: &ProviderEgressAllowlist,
-        target: ProviderEgressTarget,
-        generation: impl Into<String>,
-        route_sha256: impl Into<String>,
-        credential_ref_sha256: impl Into<String>,
-        network_policy: NetworkPolicy,
+        selection: LiveProviderRuntimeSelection,
         cpus: CpuSet,
     ) -> Result<Self, LiveProviderRuntimeConfigError> {
-        if network_policy != NetworkPolicy::Deny {
+        if selection.network_policy != NetworkPolicy::Deny {
             return Err(LiveProviderRuntimeConfigError::NetworkPolicy);
         }
         if !lease_root.is_absolute() || !lease_root.is_dir() {
             return Err(LiveProviderRuntimeConfigError::InvalidLeaseRoot);
         }
-        if !allowlist.permits(target.address()) {
+        if !allowlist.permits(selection.target.address()) {
             return Err(LiveProviderRuntimeConfigError::TargetNotAllowed);
         }
-        let generation = generation.into();
-        if generation.is_empty() || generation.len() > 128 {
+        if selection.generation.is_empty() || selection.generation.len() > 128 {
             return Err(LiveProviderRuntimeConfigError::InvalidGeneration);
         }
-        let route_sha256 = route_sha256.into();
-        if !valid_digest(&route_sha256) {
+        if !valid_digest(&selection.route_sha256) {
             return Err(LiveProviderRuntimeConfigError::InvalidRouteDigest);
         }
-        let credential_ref_sha256 = credential_ref_sha256.into();
-        if !valid_digest(&credential_ref_sha256) {
+        if !valid_digest(&selection.credential_ref_sha256) {
             return Err(LiveProviderRuntimeConfigError::InvalidCredentialReference);
         }
         Ok(Self {
             lease_root: lease_root.to_owned(),
-            target,
-            generation,
-            route_sha256,
-            credential_ref_sha256,
+            target: selection.target,
+            generation: selection.generation,
+            route_sha256: selection.route_sha256,
+            credential_ref_sha256: selection.credential_ref_sha256,
             cpus,
         })
     }
@@ -141,14 +144,32 @@ mod tests {
         LiveProviderRuntimeConfig::new(
             &root(),
             &allowlist,
-            target(),
-            "generation-1",
-            "a".repeat(64),
-            "b".repeat(64),
-            NetworkPolicy::Deny,
+            selection(
+                target(),
+                "generation-1",
+                "a".repeat(64),
+                "b".repeat(64),
+                NetworkPolicy::Deny,
+            ),
             CpuSet::new(vec![0]).unwrap(),
         )
         .unwrap()
+    }
+
+    fn selection(
+        target: ProviderEgressTarget,
+        generation: &str,
+        route_sha256: String,
+        credential_ref_sha256: String,
+        network_policy: NetworkPolicy,
+    ) -> LiveProviderRuntimeSelection {
+        LiveProviderRuntimeSelection {
+            target,
+            generation: generation.into(),
+            route_sha256,
+            credential_ref_sha256,
+            network_policy,
+        }
     }
 
     #[test]
@@ -177,11 +198,13 @@ mod tests {
             LiveProviderRuntimeConfig::new(
                 &root,
                 &allowlist,
-                other,
-                "generation-1",
-                "a".repeat(64),
-                "b".repeat(64),
-                NetworkPolicy::Deny,
+                selection(
+                    other,
+                    "generation-1",
+                    "a".repeat(64),
+                    "b".repeat(64),
+                    NetworkPolicy::Deny
+                ),
                 CpuSet::new(vec![0]).unwrap()
             ),
             Err(LiveProviderRuntimeConfigError::TargetNotAllowed)
@@ -190,11 +213,13 @@ mod tests {
             LiveProviderRuntimeConfig::new(
                 &root,
                 &allowlist,
-                target(),
-                "generation-1",
-                "a".repeat(64),
-                "b".repeat(64),
-                NetworkPolicy::Host,
+                selection(
+                    target(),
+                    "generation-1",
+                    "a".repeat(64),
+                    "b".repeat(64),
+                    NetworkPolicy::Host
+                ),
                 CpuSet::new(vec![0]).unwrap()
             ),
             Err(LiveProviderRuntimeConfigError::NetworkPolicy)
@@ -203,11 +228,13 @@ mod tests {
             LiveProviderRuntimeConfig::new(
                 &root,
                 &allowlist,
-                target(),
-                "",
-                "a".repeat(64),
-                "b".repeat(64),
-                NetworkPolicy::Deny,
+                selection(
+                    target(),
+                    "",
+                    "a".repeat(64),
+                    "b".repeat(64),
+                    NetworkPolicy::Deny
+                ),
                 CpuSet::new(vec![0]).unwrap()
             ),
             Err(LiveProviderRuntimeConfigError::InvalidGeneration)
@@ -216,11 +243,13 @@ mod tests {
             LiveProviderRuntimeConfig::new(
                 &root,
                 &allowlist,
-                target(),
-                "generation-1",
-                "A".repeat(64),
-                "b".repeat(64),
-                NetworkPolicy::Deny,
+                selection(
+                    target(),
+                    "generation-1",
+                    "A".repeat(64),
+                    "b".repeat(64),
+                    NetworkPolicy::Deny
+                ),
                 CpuSet::new(vec![0]).unwrap()
             ),
             Err(LiveProviderRuntimeConfigError::InvalidRouteDigest)
@@ -229,11 +258,13 @@ mod tests {
             LiveProviderRuntimeConfig::new(
                 &root,
                 &allowlist,
-                target(),
-                "generation-1",
-                "a".repeat(64),
-                "not-a-digest",
-                NetworkPolicy::Deny,
+                selection(
+                    target(),
+                    "generation-1",
+                    "a".repeat(64),
+                    "not-a-digest".into(),
+                    NetworkPolicy::Deny
+                ),
                 CpuSet::new(vec![0]).unwrap()
             ),
             Err(LiveProviderRuntimeConfigError::InvalidCredentialReference)
