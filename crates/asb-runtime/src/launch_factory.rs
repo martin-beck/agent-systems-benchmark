@@ -802,12 +802,19 @@ mod tests {
     #[test]
     fn authority_consumption_preserves_attested_identities() {
         let (authority, _file, root) = fixture();
-        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let mut context = authority.consume_for(&"e".repeat(64)).unwrap();
         assert_eq!(context.generation(), "generation-1");
         assert_eq!(context.route_digest(), "d".repeat(64));
         assert_eq!(context.sidecar_digest(), "a".repeat(64));
         assert_eq!(context.adapter_digest(), "b".repeat(64));
         assert_eq!(context.supervisor_digest(), Some("c".repeat(64).as_str()));
+        assert_eq!(context.input().spec().network_policy(), NetworkPolicy::Deny);
+        assert_eq!(context.lease().class(), LeaseClass::Benchmark);
+        assert!(context.issue_operation().is_ok());
+        assert!(matches!(
+            context.issue_operation(),
+            Err(crate::ReplayOperationError::AlreadyIssued)
+        ));
         drop(context);
         let _ = fs::remove_dir_all(root);
     }
