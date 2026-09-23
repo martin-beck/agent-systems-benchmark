@@ -264,6 +264,7 @@ fn endpoint(p: &Path) -> Result<(), LiveNamespaceError> {
         Ok(())
     }
 }
+#[allow(clippy::too_many_arguments)]
 fn cap(
     n: &NamespaceIdentity,
     p: &str,
