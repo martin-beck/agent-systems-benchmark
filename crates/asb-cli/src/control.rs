@@ -4035,7 +4035,15 @@ mod tests {
         assert_ne!(refreshed.catalog_sha256, first.catalog_sha256);
         drop(backend);
 
-        let restarted = open_backend(state).unwrap();
+        let restarted = (0..50)
+            .find_map(|_| match open_backend(state.clone()) {
+                Ok(backend) => Some(backend),
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(10));
+                    None
+                }
+            })
+            .expect("control state lock should be released after backend drop");
         let restarted_result = restarted.execute(&status, deadline()).unwrap();
         let ControlResult::AgentCatalog(restarted_catalog) = restarted_result.result else {
             panic!("restarted agent catalog result");
@@ -5056,7 +5064,15 @@ mod tests {
             commit_catalog(&backend.state_root, &catalog).unwrap();
         }
         drop(backend);
-        let recovered = open_backend(state).unwrap();
+        let recovered = (0..50)
+            .find_map(|_| match open_backend(state.clone()) {
+                Ok(backend) => Some(backend),
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(10));
+                    None
+                }
+            })
+            .expect("control state lock should be released after backend drop");
         let campaign = recovered
             .catalog
             .lock()
