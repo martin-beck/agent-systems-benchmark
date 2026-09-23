@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 asb-core = { version = "=0.1.0", path = "../asb-core" }
+asb-control = { version = "=0.1.0", path = "../asb-control" }
 rustix = { version = "=1.1.4", features = ["fs", "process"] }
 sha2 = "=0.10.9"
 

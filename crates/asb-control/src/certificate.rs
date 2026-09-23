@@ -165,6 +165,36 @@ impl CertificateAuthorityV1 {
         })
     }
 
+    /// Issue a credential-free authorization from an already authenticated
+    /// certificate identity chain.  The caller must use [`Self::issue_der`]
+    /// when certificate bytes are available; this metadata-only form is for
+    /// the local control/runtime handoff, where bytes must never cross the
+    /// boundary.
+    pub fn issue_metadata(
+        &self,
+        chain: &[CertificateIdentityV1],
+        pairing_fingerprint_sha256: &str,
+        now: u64,
+    ) -> Result<IssuedCertificateChainV1, CertificateError> {
+        let issued = self.validate_metadata(chain, pairing_fingerprint_sha256, now)?;
+        if self
+            .revoked_generations
+            .lock()
+            .map_err(|_| CertificateError::RevocationStateUnavailable)?
+            .contains(&self.generation)
+        {
+            return Err(CertificateError::RevokedGeneration);
+        }
+        let endpoint = self
+            .endpoint_identity_sha256
+            .as_deref()
+            .ok_or(CertificateError::EndpointBindingUnavailable)?;
+        if issued.identity.endpoint_identity_sha256 != endpoint {
+            return Err(CertificateError::EndpointBindingMismatch);
+        }
+        Ok(issued)
+    }
+
     /// Validate an actual DER chain to the pinned trust anchor before issuing authorization.
     pub fn issue_der(
         &self,

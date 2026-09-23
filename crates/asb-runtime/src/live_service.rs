@@ -14,6 +14,8 @@ use crate::sandbox::{
     CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease, SandboxBackend,
     SandboxLaunchInput, ToolPin,
 };
+use asb_control::IssuedCertificateChainV1;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 /// Validated references accepted by the production live acquisition service.
@@ -62,6 +64,99 @@ pub trait LiveProviderResolver: Send {
 
 /// Runtime entrypoint for resolver composition before authority acquisition.
 pub struct LiveProviderRuntimeService;
+
+/// Secret-free claims authenticated by the control certificate chain.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LiveProviderControlClaims {
+    provider: String,
+    endpoint_identity_sha256: String,
+    credential_ref_sha256: String,
+    generation: u64,
+    target: SocketAddr,
+    tool_bundle_sha256: String,
+    lease_root_sha256: String,
+    relay_root_sha256: String,
+}
+
+/// Runtime-only result of authenticated control enrollment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LiveProviderControlAttestation {
+    chain_sha256: String,
+    claims: LiveProviderControlClaims,
+}
+
+impl LiveProviderControlClaims {
+    /// Construct bounded, secret-free claims for the runtime handoff.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // Consumed by the authenticated control bridge in AR-1355.
+    pub(crate) fn new(
+        provider: String,
+        endpoint_identity_sha256: String,
+        credential_ref_sha256: String,
+        generation: u64,
+        target: SocketAddr,
+        tool_bundle_sha256: String,
+        lease_root_sha256: String,
+        relay_root_sha256: String,
+    ) -> Result<Self, LiveProviderEnrollmentError> {
+        if provider.is_empty()
+            || generation == 0
+            || !valid_digest(&endpoint_identity_sha256)
+            || !valid_digest(&credential_ref_sha256)
+            || !valid_digest(&tool_bundle_sha256)
+            || !valid_digest(&lease_root_sha256)
+            || !valid_digest(&relay_root_sha256)
+        {
+            return Err(LiveProviderEnrollmentError::Unavailable);
+        }
+        ProviderEgressTarget::new(target).map_err(|_| LiveProviderEnrollmentError::Unavailable)?;
+        Ok(Self {
+            provider,
+            endpoint_identity_sha256,
+            credential_ref_sha256,
+            generation,
+            target,
+            tool_bundle_sha256,
+            lease_root_sha256,
+            relay_root_sha256,
+        })
+    }
+}
+
+impl LiveProviderControlAttestation {
+    /// Bind claims to a certificate chain already authenticated by control.
+    #[allow(dead_code)] // Consumed by the authenticated control bridge in AR-1355.
+    pub(crate) fn from_control(
+        chain: &IssuedCertificateChainV1,
+        claims: LiveProviderControlClaims,
+    ) -> Result<Self, LiveProviderEnrollmentError> {
+        let identity = chain.identity();
+        if identity.endpoint_identity_sha256 != claims.endpoint_identity_sha256
+            || identity.generation != claims.generation
+            || !matches!(identity.role.as_str(), "operator" | "administrator")
+        {
+            return Err(LiveProviderEnrollmentError::Unavailable);
+        }
+        Ok(Self {
+            chain_sha256: chain.chain_sha256().to_owned(),
+            claims,
+        })
+    }
+
+    /// Return the authenticated chain identity without secret material.
+    #[must_use]
+    #[allow(dead_code)] // Consumed by the authenticated control bridge in AR-1355.
+    pub(crate) fn chain_sha256(&self) -> &str {
+        &self.chain_sha256
+    }
+
+    /// Return the bounded claims for runtime-owned provisioning.
+    #[must_use]
+    #[allow(dead_code)] // Consumed by the authenticated control bridge in AR-1355.
+    pub(crate) fn claims(&self) -> &LiveProviderControlClaims {
+        &self.claims
+    }
+}
 
 /// Cross-crate enrollment source. Implementations may be supplied by the
 /// runtime/control layer, but can return only an opaque runtime-minted handle.
@@ -838,5 +933,39 @@ mod tests {
         ));
         assert!(!relay_root.join("asb-live-generation-1-1.sock").exists());
         let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn control_claims_reject_invalid_identity_without_authority() {
+        assert_eq!(
+            LiveProviderControlClaims::new(
+                "openrouter".into(),
+                "not-a-digest".into(),
+                "b".repeat(64),
+                1,
+                "203.0.113.10:443".parse().unwrap(),
+                "c".repeat(64),
+                "d".repeat(64),
+                "e".repeat(64),
+            ),
+            Err(LiveProviderEnrollmentError::Unavailable)
+        );
+    }
+
+    #[test]
+    fn control_claims_reject_private_target_without_authority() {
+        assert_eq!(
+            LiveProviderControlClaims::new(
+                "openrouter".into(),
+                "a".repeat(64),
+                "b".repeat(64),
+                1,
+                "10.0.0.10:443".parse().unwrap(),
+                "c".repeat(64),
+                "d".repeat(64),
+                "e".repeat(64),
+            ),
+            Err(LiveProviderEnrollmentError::Unavailable)
+        );
     }
 }
