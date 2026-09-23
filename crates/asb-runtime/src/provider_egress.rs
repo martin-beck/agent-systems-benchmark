@@ -448,9 +448,25 @@ impl ProviderEgressRelay {
             if count == 0 {
                 return Ok(total);
             }
-            writer
-                .write_all(&buffer[..count])
-                .map_err(ProviderEgressError::Io)?;
+            let mut written = 0;
+            while written < count {
+                if Instant::now() >= deadline {
+                    return Err(ProviderEgressError::DeadlineExceeded);
+                }
+                match writer.write(&buffer[written..count]) {
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(error) => return Err(ProviderEgressError::Io(error)),
+                    Ok(0) => {
+                        return Err(ProviderEgressError::Io(io::Error::new(
+                            io::ErrorKind::WriteZero,
+                            "relay write",
+                        )));
+                    }
+                    Ok(size) => written += size,
+                }
+            }
             total += count;
         }
     }
