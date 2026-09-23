@@ -14,7 +14,7 @@ use crate::sandbox::{
     CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease, SandboxBackend,
     SandboxLaunchInput, ToolPin,
 };
-use asb_control::IssuedCertificateChainV1;
+use asb_control::{IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -205,8 +205,7 @@ impl LiveProviderEnrollmentRecordV1 {
         Ok(format!("{:x}", Sha256::digest(encoded)))
     }
 
-    #[cfg(test)]
-    fn from_attestation(
+    pub(crate) fn from_attestation(
         attestation: &LiveProviderControlAttestation,
         issued_at_unix_ms: u64,
         expires_at_unix_ms: u64,
@@ -227,6 +226,70 @@ impl LiveProviderEnrollmentRecordV1 {
             expires_at_unix_ms,
             nonce_sha256: expected_nonce(attestation),
         }
+    }
+}
+
+/// Runtime-owned bridge from an authenticated control receipt to a bounded
+/// enrollment record. The CLI receives no certificate authority or private
+/// bootstrap inputs through this boundary.
+#[derive(Debug, Default)]
+pub struct LiveProviderRuntimeBridge {
+    ledger: LiveProviderEnrollmentLedger,
+}
+
+impl LiveProviderRuntimeBridge {
+    /// Create an empty bridge with one-shot replay protection.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Validate a control-issued receipt against its opaque authenticated chain
+    /// and consume it exactly once in the runtime ledger.
+    pub fn ingest_control_receipt(
+        &self,
+        receipt: &RuntimeEnrollmentReceiptV1,
+        chain: &IssuedCertificateChainV1,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderEnrollmentRecordV1, LiveProviderEnrollmentRecordError> {
+        if receipt.schema_version != ENROLLMENT_RECORD_SCHEMA_VERSION
+            || receipt.chain_sha256 != chain.chain_sha256()
+        {
+            return Err(LiveProviderEnrollmentRecordError::AttestationMismatch);
+        }
+        let target = receipt
+            .target
+            .parse()
+            .map_err(|_| LiveProviderEnrollmentRecordError::InvalidIdentity)?;
+        let identity = chain.identity();
+        if receipt.endpoint_identity_sha256 != identity.endpoint_identity_sha256
+            || receipt.generation != identity.generation
+        {
+            return Err(LiveProviderEnrollmentRecordError::AttestationMismatch);
+        }
+        let claims = LiveProviderControlClaims::new(
+            receipt.provider.clone(),
+            receipt.endpoint_identity_sha256.clone(),
+            receipt.credential_ref_sha256.clone(),
+            receipt.generation,
+            target,
+            receipt.tool_bundle_sha256.clone(),
+            receipt.lease_root_sha256.clone(),
+            receipt.relay_root_sha256.clone(),
+        )
+        .map_err(|_| LiveProviderEnrollmentRecordError::InvalidIdentity)?;
+        let attestation = LiveProviderControlAttestation::from_control(chain, claims)
+            .map_err(|_| LiveProviderEnrollmentRecordError::AttestationMismatch)?;
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(
+            &attestation,
+            receipt.issued_at_unix_ms,
+            receipt.expires_at_unix_ms,
+        );
+        if record.nonce_sha256 != receipt.nonce_sha256 {
+            return Err(LiveProviderEnrollmentRecordError::AttestationMismatch);
+        }
+        self.ledger.consume(&record, &attestation, now_unix_ms)?;
+        Ok(record)
     }
 }
 
@@ -1268,6 +1331,70 @@ mod tests {
         )
         .unwrap();
         LiveProviderControlAttestation::from_control(&issued, claims).unwrap()
+    }
+
+    fn control_receipt() -> (IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1) {
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut identity = CertificateIdentityV1 {
+            schema_version: 1,
+            subject_sha256: "c".repeat(64),
+            issuer_sha256: "d".repeat(64),
+            certificate_sha256: "e".repeat(64),
+            trust_anchor_sha256: format!("{:x}", Sha256::digest([1, 2, 3])),
+            generation: 7,
+            not_before: 900,
+            not_after: 1_100,
+            role: "operator".into(),
+            endpoint_identity_sha256: "b".repeat(64),
+        };
+        identity.endpoint_identity_sha256 = "b".repeat(64);
+        let issued = authority
+            .issue_metadata(&[identity], &"c".repeat(64), 1_000)
+            .unwrap();
+        let receipt = issued
+            .issue_runtime_receipt(
+                "openrouter".into(),
+                "f".repeat(64),
+                "203.0.113.10:443".into(),
+                "1".repeat(64),
+                "2".repeat(64),
+                "3".repeat(64),
+                1_000,
+                2_000,
+            )
+            .unwrap();
+        (issued, receipt)
+    }
+
+    #[test]
+    fn runtime_bridge_ingests_control_receipt_once_without_private_paths() {
+        let (chain, receipt) = control_receipt();
+        let bridge = LiveProviderRuntimeBridge::new();
+        let record = bridge
+            .ingest_control_receipt(&receipt, &chain, 1_500)
+            .unwrap();
+        let encoded = String::from_utf8(record.encode().unwrap()).unwrap();
+        assert!(!encoded.contains('/'));
+        assert!(matches!(
+            bridge.ingest_control_receipt(&receipt, &chain, 1_500),
+            Err(LiveProviderEnrollmentRecordError::Replay)
+        ));
+    }
+
+    #[test]
+    fn runtime_bridge_rejects_tampered_receipt_before_authority() {
+        let (chain, mut receipt) = control_receipt();
+        receipt.target = "203.0.113.11:443".into();
+        let bridge = LiveProviderRuntimeBridge::new();
+        assert!(matches!(
+            bridge.ingest_control_receipt(&receipt, &chain, 1_500),
+            Err(LiveProviderEnrollmentRecordError::AttestationMismatch)
+        ));
     }
 
     #[test]
