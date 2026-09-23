@@ -3,6 +3,7 @@
 //! Versioned, credential-free certificate-chain authorization boundary.
 
 use std::collections::BTreeSet;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use rustls::RootCertStore;
@@ -52,6 +53,39 @@ pub struct IssuedCertificateChainV1 {
     chain_sha256: String,
 }
 
+/// Secret-free runtime enrollment receipt issued only after certificate-chain
+/// validation. Filesystem roots and credentials are represented by digests.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeEnrollmentReceiptV1 {
+    /// Receipt schema version.
+    pub schema_version: u16,
+    /// Authenticated certificate-chain digest.
+    pub chain_sha256: String,
+    /// Enrolled provider identity.
+    pub provider: String,
+    /// Endpoint identity digest.
+    pub endpoint_identity_sha256: String,
+    /// Credential resolver reference digest.
+    pub credential_ref_sha256: String,
+    /// Monotonic enrollment generation.
+    pub generation: u64,
+    /// Concrete public provider target selected by control.
+    pub target: String,
+    /// Pinned runtime tool bundle digest.
+    pub tool_bundle_sha256: String,
+    /// Runtime lease-root digest.
+    pub lease_root_sha256: String,
+    /// Runtime relay-root digest.
+    pub relay_root_sha256: String,
+    /// Bounded validity interval.
+    pub issued_at_unix_ms: u64,
+    /// Exclusive validity end.
+    pub expires_at_unix_ms: u64,
+    /// Nonce bound to the authenticated chain and generation.
+    pub nonce_sha256: String,
+}
+
 impl IssuedCertificateChainV1 {
     /// Validated identity metadata.
     #[must_use]
@@ -63,6 +97,53 @@ impl IssuedCertificateChainV1 {
     #[must_use]
     pub fn chain_sha256(&self) -> &str {
         &self.chain_sha256
+    }
+
+    /// Issue a secret-free runtime receipt bound to this validated chain.
+    #[allow(clippy::too_many_arguments)]
+    pub fn issue_runtime_receipt(
+        &self,
+        provider: String,
+        credential_ref_sha256: String,
+        target: String,
+        tool_bundle_sha256: String,
+        lease_root_sha256: String,
+        relay_root_sha256: String,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+    ) -> Result<RuntimeEnrollmentReceiptV1, CertificateError> {
+        if provider.is_empty()
+            || !is_digest(&credential_ref_sha256)
+            || !is_digest(&tool_bundle_sha256)
+            || !is_digest(&lease_root_sha256)
+            || !is_digest(&relay_root_sha256)
+            || !valid_public_target(&target)
+            || issued_at_unix_ms > expires_at_unix_ms
+            || expires_at_unix_ms - issued_at_unix_ms > 15 * 60 * 1000
+        {
+            return Err(CertificateError::InvalidReceipt);
+        }
+        let identity = self.identity();
+        let mut digest = Sha256::new();
+        digest.update(self.chain_sha256.as_bytes());
+        digest.update(provider.as_bytes());
+        digest.update(identity.generation.to_le_bytes());
+        digest.update(target.as_bytes());
+        Ok(RuntimeEnrollmentReceiptV1 {
+            schema_version: 1,
+            chain_sha256: self.chain_sha256.clone(),
+            provider,
+            endpoint_identity_sha256: identity.endpoint_identity_sha256.clone(),
+            credential_ref_sha256,
+            generation: identity.generation,
+            target,
+            tool_bundle_sha256,
+            lease_root_sha256,
+            relay_root_sha256,
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+            nonce_sha256: format!("{:x}", digest.finalize()),
+        })
     }
 }
 
@@ -318,6 +399,29 @@ pub enum CertificateError {
     /// Revocation state could not be read or updated safely.
     #[error("certificate revocation state is unavailable")]
     RevocationStateUnavailable,
+    /// Runtime receipt fields are malformed or exceed their validity bound.
+    #[error("runtime enrollment receipt is invalid")]
+    InvalidReceipt,
+}
+
+fn is_digest(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn valid_public_target(value: &str) -> bool {
+    let Ok(address) = value.parse::<SocketAddr>() else {
+        return false;
+    };
+    match address {
+        SocketAddr::V4(address) => {
+            let ip = address.ip();
+            !ip.is_loopback() && !ip.is_private() && !ip.is_link_local() && !ip.is_unspecified()
+        }
+        SocketAddr::V6(address) => {
+            let ip = address.ip();
+            !ip.is_loopback() && !ip.is_unspecified() && !ip.is_unique_local()
+        }
+    }
 }
 
 fn validate_generation(generation: u64) -> Result<u64, CertificateError> {
@@ -644,6 +748,62 @@ mod tests {
         assert_eq!(
             schema["properties"]["role"]["enum"],
             serde_json::json!(["observer", "operator", "administrator"])
+        );
+    }
+
+    #[test]
+    fn runtime_receipt_binds_chain_and_rejects_private_or_unbounded_targets() {
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut identity = identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64));
+        identity.trust_anchor_sha256 = digest_bytes(&[1, 2, 3]);
+        identity.endpoint_identity_sha256 = "b".repeat(64);
+        let issued = authority
+            .issue_metadata(&[identity], &"c".repeat(64), 1_000)
+            .unwrap();
+        let receipt = issued
+            .issue_runtime_receipt(
+                "openrouter".into(),
+                "f".repeat(64),
+                "203.0.113.10:443".into(),
+                "1".repeat(64),
+                "2".repeat(64),
+                "3".repeat(64),
+                1_000,
+                2_000,
+            )
+            .unwrap();
+        assert_eq!(receipt.schema_version, 1);
+        assert!(!serde_json::to_string(&receipt).unwrap().contains('/'));
+        assert_eq!(
+            issued.issue_runtime_receipt(
+                "openrouter".into(),
+                "f".repeat(64),
+                "10.0.0.10:443".into(),
+                "1".repeat(64),
+                "2".repeat(64),
+                "3".repeat(64),
+                1_000,
+                2_000,
+            ),
+            Err(CertificateError::InvalidReceipt)
+        );
+        assert_eq!(
+            issued.issue_runtime_receipt(
+                "openrouter".into(),
+                "f".repeat(64),
+                "203.0.113.10:443".into(),
+                "1".repeat(64),
+                "2".repeat(64),
+                "3".repeat(64),
+                1_000,
+                1_000 + 15 * 60 * 1000 + 1,
+            ),
+            Err(CertificateError::InvalidReceipt)
         );
     }
 }
