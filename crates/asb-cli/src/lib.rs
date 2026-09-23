@@ -4934,6 +4934,30 @@ mod tests {
     }
 
     #[test]
+    fn live_factory_is_invoked_once_for_each_scheduler_attempt() {
+        let _scratch = Scratch::new("live-factory-attempts");
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let observed = Arc::clone(&calls);
+        let factory = LiveProviderAttemptFactory::from_fn(move |input_id, warmup| {
+            observed
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push((input_id, warmup));
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        });
+        assert!(factory.acquire(0, true).is_err());
+        assert!(factory.acquire(0, false).is_err());
+        assert!(factory.acquire(1, false).is_err());
+        let calls = calls
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(calls.len(), 3);
+        assert!(calls.contains(&(0, true)));
+        assert!(calls.contains(&(0, false)));
+        assert!(calls.contains(&(1, false)));
+    }
+
+    #[test]
     fn setup_rejects_cross_provider_model_without_contacting_provider() {
         let args: Vec<OsString> = [
             "setup",
