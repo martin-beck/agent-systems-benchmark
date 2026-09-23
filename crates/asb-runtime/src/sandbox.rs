@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: MIT
 //! Rootless Bubblewrap isolation backed by delegated systemd cgroup scopes.
 
+use crate::credential_injection::{CredentialInjection, CredentialInjectionError};
 use crate::live_namespace::{LiveLaunchGate, LiveProviderNamespaceHandoff, NamespaceIdentity};
 use crate::relay::{RelayError, ReplayRelayHandoff};
+use crate::sandbox_credential::{
+    SandboxCredentialBinding, SandboxCredentialChannel, SandboxCredentialError,
+};
 use crate::supervisor::SupervisorPlan;
 use crate::{ProcessError, ProcessLifecycle, ProcessLimits, ProcessOutput, RunningProcess};
 use std::collections::BTreeMap;
@@ -434,6 +438,11 @@ pub struct SandboxBackend {
     live_launch_gate: Option<ToolPin>,
 }
 
+struct LaunchCapabilities {
+    live_provider: Option<(LiveProviderNamespaceHandoff, NamespaceIdentity)>,
+    credential_channel: Option<SandboxCredentialChannel>,
+}
+
 impl SandboxBackend {
     /// Configure Bubblewrap and systemd-run pins.
     pub fn new(
@@ -543,7 +552,17 @@ impl SandboxBackend {
         limits: ProcessLimits,
     ) -> Result<SandboxProcess, SandboxError> {
         let (unit, nonce) = new_scope_identity()?;
-        self.spawn_with_identity(spec, lease, limits, unit, nonce, None)
+        self.spawn_with_identity(
+            spec,
+            lease,
+            limits,
+            unit,
+            nonce,
+            LaunchCapabilities {
+                live_provider: None,
+                credential_channel: None,
+            },
+        )
     }
 
     /// Spawn a validated adapter launch under the denied-network sandbox.
@@ -562,7 +581,42 @@ impl SandboxBackend {
             input.limits,
             unit,
             nonce,
-            input.live_provider,
+            LaunchCapabilities {
+                live_provider: input.live_provider,
+                credential_channel: None,
+            },
+        )
+    }
+
+    /// Spawn one denied-network launch with a runtime-owned credential channel.
+    /// The binding is created by the runtime selection service; callers cannot
+    /// manufacture a provider target/reference authority independently.
+    pub fn spawn_launch_with_credential(
+        &self,
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        binding: &SandboxCredentialBinding,
+        injection: Box<dyn CredentialInjection>,
+    ) -> Result<SandboxProcess, SandboxError> {
+        if input.spec.network_policy() != NetworkPolicy::Deny {
+            return Err(SandboxError::NetworkPolicy);
+        }
+        let mut channel =
+            SandboxCredentialChannel::new(binding).map_err(SandboxError::CredentialChannel)?;
+        injection
+            .inject(&mut channel)
+            .map_err(SandboxError::CredentialInjection)?;
+        let (unit, nonce) = new_scope_identity()?;
+        self.spawn_with_identity(
+            input.spec,
+            lease,
+            input.limits,
+            unit,
+            nonce,
+            LaunchCapabilities {
+                live_provider: input.live_provider,
+                credential_channel: Some(channel),
+            },
         )
     }
 
@@ -573,8 +627,12 @@ impl SandboxBackend {
         limits: ProcessLimits,
         unit: String,
         nonce: String,
-        live_provider: Option<(LiveProviderNamespaceHandoff, NamespaceIdentity)>,
+        capabilities: LaunchCapabilities,
     ) -> Result<SandboxProcess, SandboxError> {
+        let LaunchCapabilities {
+            live_provider,
+            credential_channel,
+        } = capabilities;
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
         }
@@ -700,6 +758,11 @@ impl SandboxBackend {
         for (key, value) in &spec.environment {
             command.args(["--setenv", key, value]);
         }
+        if let Some(channel) = credential_channel.as_ref() {
+            channel
+                .append_bwrap_args(&mut command)
+                .map_err(SandboxError::CredentialChannel)?;
+        }
         if live_provider.is_none() {
             if let Some(plan) = &spec.supervisor {
                 let supervisor = plan.supervisor().ok_or(SandboxError::DelegationRejected)?;
@@ -715,6 +778,7 @@ impl SandboxBackend {
             }
         }
         let mut process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
+        drop(credential_channel);
         // Bubblewrap has now created the child network namespace.  The
         // identity supplied by a caller is only launch metadata; it is not an
         // attestation.  Re-observe /proc/<pid>/ns/net at this boundary and
@@ -1263,6 +1327,10 @@ pub enum SandboxError {
     LeaseMismatch,
     /// A runtime-issued live provider handoff failed validation.
     LiveHandoff,
+    /// A sealed child credential channel failed validation or setup.
+    CredentialChannel(SandboxCredentialError),
+    /// An adapter rejected the runtime-owned credential channel.
+    CredentialInjection(CredentialInjectionError),
 }
 
 impl fmt::Display for ConfigError {
@@ -2202,7 +2270,10 @@ mod tests {
                 probe_limits(),
                 unit.clone(),
                 "different-owner-nonce".into(),
-                None,
+                LaunchCapabilities {
+                    live_provider: None,
+                    credential_channel: None,
+                },
             ),
             Err(SandboxError::ScopeOwnership { .. })
         ));

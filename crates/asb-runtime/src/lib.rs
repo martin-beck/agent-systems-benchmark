@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Opaque cross-crate credential injection at the final launch boundary.
+pub mod credential_injection;
+
 /// Runtime-issued authority for strict-replay launch inputs.
 pub mod launch_factory;
 /// Runtime-issued namespace-bound capability for explicit live provider launches.
@@ -17,6 +20,8 @@ pub mod provider_egress;
 pub mod relay;
 /// Rootless namespace isolation and dedicated resource leases.
 pub mod sandbox;
+/// Runtime-owned sealed descriptor delivery into a sandbox child.
+pub mod sandbox_credential;
 /// Bounded closed-loop and open-loop experiment scheduling.
 pub mod scheduler;
 pub use asb_core::replay_transport::ReplayTransportError;
