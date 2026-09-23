@@ -489,6 +489,7 @@ mod tests {
             std::io::Read::read_exact(&mut provider, &mut request).unwrap();
             assert_eq!(&request, b"child->provider");
             provider.write_all(b"provider->child").unwrap();
+            provider.shutdown(std::net::Shutdown::Write).unwrap();
         });
         relay.serve_once(2_000).unwrap();
         worker.join().unwrap();
