@@ -80,7 +80,6 @@ impl LiveProviderRuntimeService {
 /// sandbox backend and relay root. Callers provide only an already validated
 /// launch input and an adapter identity; they cannot provide a namespace,
 /// handoff, lease, token, relay or credential bytes.
-#[allow(dead_code)] // The downstream AR-1349 coordinator consumes this seam.
 pub struct LiveProviderProvisioner {
     config: LiveProviderRuntimeConfig,
     policy: ProviderEgressPolicy,
@@ -108,9 +107,8 @@ pub enum LiveProviderProvisionError {
 
 impl LiveProviderProvisioner {
     /// Construct a service from runtime-owned policy and pinned backend data.
-    #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
+    pub fn new(
         config: LiveProviderRuntimeConfig,
         policy: ProviderEgressPolicy,
         allowlist: ProviderEgressAllowlist,
@@ -135,8 +133,7 @@ impl LiveProviderProvisioner {
 
     /// Acquire one opaque attempt, binding every authority to the runtime's
     /// observed namespace and to the scheduler attempt identity.
-    #[allow(dead_code)] // The downstream AR-1349 coordinator consumes this seam.
-    pub(crate) fn acquire(
+    pub fn acquire(
         &self,
         attempt_id: u32,
         input: SandboxLaunchInput,
