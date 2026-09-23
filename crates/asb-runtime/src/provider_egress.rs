@@ -3,7 +3,7 @@
 //! Fail-closed identity contract for live provider egress.
 //!
 //! This contract deliberately does not weaken the offline sandbox. A future
-//! runtime backend must present a validated [`ProviderEgressHandoff`] before
+//! runtime backend must present a validated [`provider_egress::ProviderEgressHandoff`] before
 //! creating a network-capable launch; callers cannot derive one from a digest
 //! or endpoint string alone.
 
