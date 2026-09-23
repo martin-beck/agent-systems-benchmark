@@ -13,6 +13,7 @@ use asb_agents::all_agents_provider::{
     AllAgentsProviderSelection, EffectiveApiMode, SelectedAgent, resolve_openai_selection,
     resolve_openrouter_selection,
 };
+use asb_agents::credential::EnvironmentCredentialResolver;
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::provider_launch::{
@@ -168,21 +169,45 @@ fn dispatch(
         [command, path, flag, selection] if command == "plan" && flag == "--provider-selection" => {
             plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
         }
-        [command, path] if command == "run" => execute(Path::new(path), false, stdout, stderr),
+        [command, path] if command == "run" => {
+            execute(Path::new(path), false, false, stdout, stderr)
+        }
         [command, path, flag, selection] if command == "run" && flag == "--provider-selection" => {
-            execute_with_selection(Path::new(path), Path::new(selection), false, stdout, stderr)
+            execute_with_selection(
+                Path::new(path),
+                Path::new(selection),
+                false,
+                false,
+                stdout,
+                stderr,
+            )
         }
         [command, path, flag] if command == "run" && flag == "--use-config" => {
-            execute_with_config(Path::new(path), false, stdout, stderr)
+            execute_with_config(Path::new(path), false, false, stdout, stderr)
         }
-        [command, path] if command == "sweep" => execute(Path::new(path), true, stdout, stderr),
+        [command, path, flag] if command == "run" && flag == "--live-provider" => {
+            execute(Path::new(path), false, true, stdout, stderr)
+        }
+        [command, path] if command == "sweep" => {
+            execute(Path::new(path), true, false, stdout, stderr)
+        }
         [command, path, flag, selection]
             if command == "sweep" && flag == "--provider-selection" =>
         {
-            execute_with_selection(Path::new(path), Path::new(selection), true, stdout, stderr)
+            execute_with_selection(
+                Path::new(path),
+                Path::new(selection),
+                true,
+                false,
+                stdout,
+                stderr,
+            )
         }
         [command, path, flag] if command == "sweep" && flag == "--use-config" => {
-            execute_with_config(Path::new(path), true, stdout, stderr)
+            execute_with_config(Path::new(path), true, false, stdout, stderr)
+        }
+        [command, path, flag] if command == "sweep" && flag == "--live-provider" => {
+            execute(Path::new(path), true, true, stdout, stderr)
         }
         [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
@@ -2516,25 +2541,35 @@ struct ExecuteOutput {
 fn execute(
     path: &Path,
     sweep: bool,
+    live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    execute_inner(path, None, sweep, output, progress)
+    execute_inner(path, None, sweep, live_provider, output, progress)
 }
 
 fn execute_with_selection(
     path: &Path,
     selection_path: &Path,
     sweep: bool,
+    live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    execute_inner(path, Some(selection_path), sweep, output, progress)
+    execute_inner(
+        path,
+        Some(selection_path),
+        sweep,
+        live_provider,
+        output,
+        progress,
+    )
 }
 
 fn execute_with_config(
     path: &Path,
     sweep: bool,
+    live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2544,6 +2579,7 @@ fn execute_with_config(
         path,
         SelectionSource::Config(&store),
         sweep,
+        live_provider,
         output,
         progress,
     )
@@ -2553,6 +2589,7 @@ fn execute_inner(
     path: &Path,
     selection_path: Option<&Path>,
     sweep: bool,
+    live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2560,6 +2597,7 @@ fn execute_inner(
         path,
         SelectionSource::Path(selection_path),
         sweep,
+        live_provider,
         output,
         progress,
     )
@@ -2574,6 +2612,7 @@ fn execute_inner_from_source(
     path: &Path,
     source: SelectionSource<'_>,
     sweep: bool,
+    live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2586,6 +2625,11 @@ fn execute_inner_from_source(
             (plan, Some(selection))
         }
     };
+    if live_provider && selection.is_none() {
+        return Err(CliError::validation(
+            "--live-provider requires an explicit provider selection",
+        ));
+    }
     if plan.experiment.controls.replay.mode == asb_protocol::ReplayMode::Replay {
         return Err(CliError::validation(
             "run cannot use a replay plan without an explicit strict cassette execution",
@@ -2636,6 +2680,7 @@ fn execute_inner_from_source(
             concurrency,
             selection.as_ref(),
             Arc::clone(&cancelled),
+            live_provider,
         )?;
         if provider_launch_sha256.is_none() {
             provider_launch_sha256 = selection.as_ref().map(|value| {
@@ -2708,7 +2753,7 @@ fn run_point(
     concurrency: u32,
     cancelled: Arc<AtomicBool>,
 ) -> Result<PointOutput, CliError> {
-    run_point_with_selection(store, plan, run_id, concurrency, None, cancelled)
+    run_point_with_selection(store, plan, run_id, concurrency, None, cancelled, false)
 }
 
 fn run_point_with_selection(
@@ -2718,6 +2763,7 @@ fn run_point_with_selection(
     concurrency: u32,
     selection: Option<&ProviderPlanOutput>,
     cancelled: Arc<AtomicBool>,
+    live_provider: bool,
 ) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
@@ -2798,6 +2844,7 @@ fn run_point_with_selection(
                 launch_owned.as_ref(),
                 &measurement_selection_owned,
                 Arc::clone(&cancelled_for_attempt),
+                live_provider,
             );
             let outcome = match summary.as_ref() {
                 Ok(None) => AttemptOutcome::Cancelled,
@@ -2965,6 +3012,7 @@ fn run_attempt(
     launch: Option<&ProviderLaunchRecord>,
     measurement_selection: &MeasurementSelectionV1,
     cancelled: Arc<AtomicBool>,
+    live_provider: bool,
 ) -> Result<Option<AttemptSummary>, CliError> {
     if cancelled.load(Ordering::SeqCst) {
         return Ok(None);
@@ -3019,6 +3067,7 @@ fn run_attempt(
         &prompt,
         limits,
         launch,
+        live_provider,
     )?;
     let collector = LinuxCollector::host();
     let selected_ids = measurement_selection
@@ -3184,6 +3233,7 @@ fn spawn_verified_agent(
     prompt: &fs::File,
     limits: ProcessLimits,
     launch: Option<&ProviderLaunchRecord>,
+    live_provider: bool,
 ) -> Result<(RunningProcess, u8), CliError> {
     if let Some(launch) = launch {
         launch
@@ -3210,6 +3260,11 @@ fn spawn_verified_agent(
             .env("ASB_BATCH_PROTOCOL", "batch-stdio-v1")
             .stdin(Stdio::from(stdin));
         if let Some(launch) = launch {
+            let credential_target =
+                credential_target_for_provider_agent(&launch.input.provider, &launch.input.adapter)
+                    .ok_or_else(|| {
+                        CliError::validation("provider adapter credential target is unsupported")
+                    })?;
             command
                 .env(provider_launch::LAUNCH_VERSION_ENV, "1")
                 .env(provider_launch::LAUNCH_DIGEST_ENV, &launch.launch_sha256)
@@ -3236,16 +3291,39 @@ fn spawn_verified_agent(
                     provider_launch::CREDENTIAL_REFERENCE_ENV,
                     &launch.input.credential.reference_sha256,
                 )
-                .env(
-                    provider_launch::CREDENTIAL_TARGET_ENV,
-                    credential_target_for_provider_agent(
-                        &launch.input.provider,
-                        &launch.input.adapter,
-                    )
-                    .ok_or_else(|| {
-                        CliError::validation("provider adapter credential target is unsupported")
-                    })?,
-                );
+                .env(provider_launch::CREDENTIAL_TARGET_ENV, credential_target);
+            if live_provider {
+                let resolver =
+                    EnvironmentCredentialResolver::new(credential_target).map_err(|_| {
+                        CliError::validation("live provider credential target is invalid")
+                    })?;
+                let credential = match launch.input.provider.as_str() {
+                    "openrouter" => {
+                        let profile = OpenRouterProfile::new(
+                            launch.input.credential.reference_sha256.clone(),
+                        )
+                        .map_err(|_| {
+                            CliError::validation("live provider credential identity is invalid")
+                        })?;
+                        resolver.resolve_environment(profile.provider_profile())
+                    }
+                    "openai" => {
+                        let profile =
+                            OpenAiProfile::new(launch.input.credential.reference_sha256.clone())
+                                .map_err(|_| {
+                                    CliError::validation(
+                                        "live provider credential identity is invalid",
+                                    )
+                                })?;
+                        resolver.resolve_environment(profile.provider_profile())
+                    }
+                    _ => return Err(CliError::validation("live provider is unsupported")),
+                }
+                .map_err(|_| CliError::validation("live provider credential is unavailable"))?;
+                credential.with_value(|value| {
+                    command.env(credential_target, value);
+                });
+            }
         }
         match RunningProcess::spawn(command, limits) {
             Ok(process) => return Ok((process, retry)),
@@ -4651,11 +4729,32 @@ mod tests {
                 &plan_path,
                 SelectionSource::Config(&store),
                 false,
+                false,
                 &mut Vec::new(),
                 &mut Vec::new(),
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn live_provider_requires_explicit_selection_before_any_run_effect() {
+        let scratch = Scratch::new("live-provider-gate");
+        let (plan_path, _) = plan_fixture(&scratch.0, "live-gate");
+        let error = execute_inner_from_source(
+            &plan_path,
+            SelectionSource::Path(None),
+            false,
+            true,
+            &mut Vec::new(),
+            &mut Vec::new(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.message,
+            "--live-provider requires an explicit provider selection"
+        );
+        assert!(!scratch.0.join("results").exists());
     }
 
     #[test]
@@ -5540,6 +5639,7 @@ mod tests {
             None,
             plan.measurement_selection.as_ref().unwrap(),
             Arc::new(AtomicBool::new(false)),
+            false,
         )
         .unwrap()
         .unwrap();
@@ -5569,6 +5669,7 @@ mod tests {
             None,
             plan.measurement_selection.as_ref().unwrap(),
             Arc::new(AtomicBool::new(false)),
+            false,
         )
         .unwrap_err();
         assert_eq!(error.message, "agent executable changed after validation");
