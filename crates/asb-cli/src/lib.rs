@@ -2668,6 +2668,11 @@ fn execute_inner_from_source(
             "--live-provider requires an explicit provider selection",
         ));
     }
+    if live_provider && (sweep || plan.point.measured != 1 || plan.point.warmups != 0) {
+        return Err(CliError::validation(
+            "live provider requires one runtime-issued context per attempt; use a runtime attempt factory",
+        ));
+    }
     if plan.experiment.controls.replay.mode == asb_protocol::ReplayMode::Replay {
         return Err(CliError::validation(
             "run cannot use a replay plan without an explicit strict cassette execution",
