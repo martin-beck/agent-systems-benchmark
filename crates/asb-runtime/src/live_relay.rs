@@ -261,7 +261,7 @@ impl LiveProviderRelay {
                 connector.forward_bounded_socket(&mut provider, &mut child_to_provider, deadline)
             });
             let reverse =
-                connector.forward_bounded_socket(&mut provider_to_child, &mut child, deadline);
+                connector.forward_bounded_socket(&mut child, &mut provider_to_child, deadline);
             let forward = forward.join().map_err(|_| LiveRelayError::InvalidRequest)?;
             forward.map_err(LiveRelayError::from)?;
             reverse.map_err(LiveRelayError::from)?;
