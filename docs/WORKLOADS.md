@@ -109,6 +109,15 @@ result digests. It is suitable for offline contract and CLI development only;
 it never promotes an official evaluator, dataset, native-platform cell, or
 leaderboard result to qualified evidence.
 
+Interactive families have an additional fixture-only adapter. `agentbench`
+models resettable stateful environments; `tau-bench` validates bounded tool
+calls and simulated-user turns and reports repeated-trial pass@k/pass^k
+outcomes; and `agentdojo` keeps useful completion separate from safety-policy
+violations. All three bind an exact task revision and local scorer revision,
+reject stale revisions, unsafe tools, malformed users, reset leakage, and
+scorer drift before producing content-free evidence. `fixture_only` catalog
+selection never invokes an upstream evaluator or provider.
+
 ## CLI catalog dispatch
 
 The CLI plan, stored-run validation, and execution paths resolve workload IDs

@@ -62,6 +62,7 @@ def entry(record, *, ident=None, builtin=False):
         "commit", record["source"].get("revision", record.get("version", "unknown"))
     )
     methodology = record.get("selection") == "methodology-only"
+    interactive_fixture = record["id"] in {"agentbench", "tau-bench", "agentdojo"}
     return {
         "id": record["id"],
         "kind": "methodology" if methodology else "literature",
@@ -70,10 +71,16 @@ def entry(record, *, ident=None, builtin=False):
         "license": record["source"].get("license", "NOASSERTION"),
         "evaluator": record["evaluator"].get("entrypoint", "unqualified"),
         "adaptation": "fixture-only",
-        "platform": record.get("platforms", {}).get("linux-x86_64", "unsupported"),
-        "availability": "unavailable"
-        if methodology or record["evaluator"]["provenance"].get("status") != "qualified"
-        else "available",
+        "platform": "linux-x86_64:fixture-only"
+        if interactive_fixture
+        else record.get("platforms", {}).get("linux-x86_64", "unsupported"),
+        "availability": "fixture_only"
+        if interactive_fixture
+        else (
+            "unavailable"
+            if methodology or record["evaluator"]["provenance"].get("status") != "qualified"
+            else "available"
+        ),
         "evidence": record["evaluator"]["provenance"].get("status", "missing"),
     }
 
