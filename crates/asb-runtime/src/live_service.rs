@@ -221,6 +221,103 @@ pub enum LocalProviderMockError {
     CredentialMismatch,
     /// The bounded request body exceeded the local fixture budget.
     RequestTooLarge,
+    /// The scheduler cancelled this mock attempt before dispatch.
+    Cancelled,
+}
+
+/// Runtime-owned local mock backend. It is deliberately separate from
+/// [`LiveProviderAttempt`] so a deterministic fixture cannot be mistaken for
+/// production provider authority.
+pub struct LocalProviderMockBackend {
+    authority: LocalProviderAuthority,
+}
+
+impl std::fmt::Debug for LocalProviderMockBackend {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LocalProviderMockBackend(..)")
+    }
+}
+
+impl LocalProviderMockBackend {
+    /// Provision one ephemeral runtime-owned local mock backend.
+    pub fn provision() -> Result<Self, LocalProviderAuthorityError> {
+        Ok(Self {
+            authority: LocalProviderAuthorityProvisioner::provision()?,
+        })
+    }
+
+    /// Admit one scheduler attempt under the backend's generation fence.
+    pub fn issue_attempt(
+        &self,
+        attempt_id: u32,
+    ) -> Result<LocalProviderMockAttempt<'_>, LocalProviderMockError> {
+        if attempt_id == 0 || !self.authority.is_active() {
+            return Err(if attempt_id == 0 {
+                LocalProviderMockError::InvalidAttempt
+            } else {
+                LocalProviderMockError::Inactive
+            });
+        }
+        Ok(LocalProviderMockAttempt {
+            authority: &self.authority,
+            attempt_id,
+            cancelled: false,
+        })
+    }
+
+    /// Revoke all outstanding attempts and tear down the mock authority.
+    pub fn revoke(&self) {
+        self.authority.revoke();
+    }
+}
+
+/// One bounded local mock scheduler attempt. This type has no conversion to
+/// or constructor for the production [`LiveProviderAttempt`] capability.
+pub struct LocalProviderMockAttempt<'a> {
+    authority: &'a LocalProviderAuthority,
+    attempt_id: u32,
+    cancelled: bool,
+}
+
+impl std::fmt::Debug for LocalProviderMockAttempt<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("LocalProviderMockAttempt")
+            .field("attempt_id", &self.attempt_id)
+            .field("cancelled", &self.cancelled)
+            .finish()
+    }
+}
+
+impl LocalProviderMockAttempt<'_> {
+    /// Scheduler identity assigned at admission.
+    #[must_use]
+    pub const fn attempt_id(&self) -> u32 {
+        self.attempt_id
+    }
+
+    /// Cancel this attempt before a request is dispatched.
+    pub fn cancel(&mut self) {
+        self.cancelled = true;
+    }
+
+    /// Dispatch one deterministic bounded request through the local mock.
+    pub fn execute(
+        &self,
+        model: &str,
+        credential_reference_sha256: &str,
+        request: &[u8],
+    ) -> Result<LocalProviderMockResponse, LocalProviderMockError> {
+        if self.cancelled {
+            return Err(LocalProviderMockError::Cancelled);
+        }
+        self.authority.execute_mock_request(
+            self.attempt_id,
+            model,
+            credential_reference_sha256,
+            request,
+        )
+    }
 }
 
 /// Fixed runtime-owned local authority provisioner. Its zero-argument API is
@@ -2333,6 +2430,39 @@ mod tests {
             ProviderEgressTarget::new(authority.target()),
             Err(crate::provider_egress::ProviderEgressError::InvalidTarget)
         );
+    }
+
+    #[test]
+    fn local_mock_backend_binds_attempts_and_cancellation_without_live_authority() {
+        let backend = LocalProviderMockBackend::provision().unwrap();
+        let credential = LOCAL_PROVIDER_CREDENTIAL_SHA256;
+        let mut attempt = backend.issue_attempt(7).unwrap();
+        assert_eq!(attempt.attempt_id(), 7);
+        let response = attempt
+            .execute(LOCAL_PROVIDER_MODEL, credential, b"{}")
+            .unwrap();
+        assert_eq!(response.attempt_id(), 7);
+        attempt.cancel();
+        assert_eq!(
+            attempt.execute(LOCAL_PROVIDER_MODEL, credential, b"{}"),
+            Err(LocalProviderMockError::Cancelled)
+        );
+        backend.revoke();
+        assert!(matches!(
+            backend.issue_attempt(8),
+            Err(LocalProviderMockError::Inactive)
+        ));
+        let debug = format!("{backend:?} {attempt:?}");
+        assert!(!debug.contains(credential));
+    }
+
+    #[test]
+    fn local_mock_backend_rejects_zero_attempt_before_effect() {
+        let backend = LocalProviderMockBackend::provision().unwrap();
+        assert!(matches!(
+            backend.issue_attempt(0),
+            Err(LocalProviderMockError::InvalidAttempt)
+        ));
     }
 
     #[test]
