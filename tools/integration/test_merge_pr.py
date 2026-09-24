@@ -350,7 +350,10 @@ class MergeIntegrityTests(unittest.TestCase):
             )
 
     def test_fails_closed_on_pr_or_target_drift_during_push(self) -> None:
-        for mode, drift in (("pr-drift", None), ("target-race", "head")):
+        for mode, drift in (
+            ("pr-drift", None),
+            ("target-race", "head"),
+        ):
             with (
                 self.subTest(mode=mode),
                 tempfile.TemporaryDirectory(prefix="asb-merge-atomic-") as raw,
@@ -365,6 +368,27 @@ class MergeIntegrityTests(unittest.TestCase):
                 )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertLess(len(result.stderr), 256)
+
+    def test_main_post_merge_workflows_queue_exact_pushes(self) -> None:
+        """A later main push must not cancel evidence for an earlier merge."""
+        workflows = (
+            "quality.yml",
+            "verify.yml",
+            "formal.yml",
+            "fault-assurance.yml",
+            "emulated-aarch64.yml",
+            "license-headers.yml",
+            "native-platforms.yml",
+        )
+        required = (
+            "  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}"
+        )
+        for workflow in workflows:
+            with self.subTest(workflow=workflow):
+                text = (ROOT / ".github/workflows" / workflow).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(required, text)
 
     def test_diagnostics_are_bounded_generic_and_private(self) -> None:
         with tempfile.TemporaryDirectory(prefix="asb-merge-private-") as raw:

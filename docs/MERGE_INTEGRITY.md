@@ -21,11 +21,18 @@ The command refuses a dirty tree, stale target or pull-request ref, non-descenda
 tree, missing DCO, untrusted signature, or a signer principal that differs from the matching
 author, committer, and DCO identity. It uses `git commit-tree -S` to create a signed, DCO-trailered
 no-fast-forward merge with parents exactly `BASE_OID HEAD_OID` and tree exactly `TREE_OID`.
-Publication reads the target and pull-request refs together immediately before and after the push
-and uses an exact `--force-with-lease`. A transport error is not proof of failure: if the post-error
-read shows the exact merge, it records acceptance; unchanged or divergent state fails closed and
-requires a new invocation after reconciliation. Diagnostics are bounded and generic and never
-copy Git, transport, user, machine, path, or credential text.
+Immediately before publication, the integration command rechecks the target and pull-request refs,
+the reviewed topic tree and ancestry, and the constructed merge's exact parents, tree, signature
+and DCO. It then reads the target and pull-request refs together again and uses an exact
+`--force-with-lease` for the protected target. A transport error is not proof of failure: if the
+post-error read shows the exact merge, it records acceptance; unchanged or divergent state fails
+closed and requires a new invocation after reconciliation. Diagnostics are bounded and generic and
+never copy Git, transport, user, machine, path, or credential text.
+
+Every required post-merge workflow keeps its normal cancellation behavior for pull-request and
+manual runs, but never cancels a `push` run on protected `main`. The workflow concurrency groups
+therefore queue concurrent main pushes and preserve each immutable merge SHA's exact evidence;
+later main activity cannot silently cancel the earlier merge's assurance run.
 
 Repository administrators disable every GitHub web merge mode after reviewing the change:
 

@@ -171,6 +171,16 @@ def verify_range(root: Path, base: str, head: str) -> None:
         verify_commit(root, revision)
 
 
+def verify_merge_shape(root: Path, merge: str, base: str, head: str, tree: str) -> None:
+    """Recheck the immutable merge object immediately before publication."""
+    parents = run(root, "git", "show", "-s", "--format=%P", merge).split()
+    if parents != [base, head]:
+        raise ValueError("constructed merge has unexpected parents before publication")
+    if run(root, "git", "rev-parse", f"{merge}^{{tree}}") != tree:
+        raise ValueError("constructed merge changed the approved tree before publication")
+    verify_commit(root, merge)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -236,12 +246,7 @@ def main() -> int:
                 input_text=message,
             ),
         )
-        parents = run(root, "git", "show", "-s", "--format=%P", merge).split()
-        if parents != [base, head]:
-            raise ValueError("constructed merge has unexpected parents")
-        if run(root, "git", "rev-parse", f"{merge}^{{tree}}") != tree:
-            raise ValueError("constructed merge changed the approved tree")
-        verify_commit(root, merge)
+        verify_merge_shape(root, merge, base, head, tree)
         run(
             root,
             "python3",
@@ -264,6 +269,11 @@ def main() -> int:
                 raise ValueError("remote target changed before publication")
             if before[args.pr_ref] != head:
                 raise ValueError("remote pull-request head changed before publication")
+            if run(root, "git", "rev-parse", f"{head}^{{tree}}") != tree:
+                raise ValueError("reviewed pull-request tree changed before publication")
+            if run(root, "git", "merge-base", base, head) != base:
+                raise ValueError("reviewed pull-request parent topology changed before publication")
+            verify_merge_shape(root, merge, base, head, tree)
             push = bounded_command(
                 root,
                 "git",
