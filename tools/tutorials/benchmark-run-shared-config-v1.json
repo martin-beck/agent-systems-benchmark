@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "benchmark-run-shared-config",
+  "title": "Run one benchmark with shared agent configuration",
+  "steps": [
+    {
+      "id": "select-agents",
+      "command": [
+        "asb", "provider-plan", "--catalog-sha256",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "--provider-profile", "synthetic", "--credential-reference-sha256",
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "--agent", "codex", "--agent", "opendesk"
+      ],
+      "expect": {"exit_code": 0, "stdout_shape": "provider-plan-v1"},
+      "references": [{"path": "benchmark-selection.json", "kind": "output"}],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "validate-run-plan",
+      "command": [
+        "asb", "plan", "benchmark-experiment.toml",
+        "--provider-selection", "benchmark-selection.json"
+      ],
+      "expect": {"exit_code": 0, "stdout_shape": "plan-v1"},
+      "references": [
+        {"path": "benchmark-experiment.toml", "kind": "input"},
+        {"path": "benchmark-selection.json", "kind": "input"}
+      ],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "run-one-benchmark",
+      "command": [
+        "asb", "run", "benchmark-experiment.toml",
+        "--provider-selection", "benchmark-selection.json"
+      ],
+      "expect": {"exit_code": 0, "stdout_shape": "run-v1"},
+      "references": [
+        {"path": "benchmark-experiment.toml", "kind": "input"},
+        {"path": "benchmark-selection.json", "kind": "input"},
+        {"path": "results/runs/synthetic-run", "kind": "output"}
+      ],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "inspect-terminal-result",
+      "command": ["asb", "report", "results/runs/synthetic-run"],
+      "expect": {"exit_code": 0, "stdout_shape": "report-v1"},
+      "references": [
+        {"path": "results/runs/synthetic-run", "kind": "output"},
+        {"path": "fixtures/v1/benchmark-run-result-positive.json", "kind": "fixture"}
+      ],
+      "network": "denied",
+      "credentials": "none"
+    }
+  ]
+}

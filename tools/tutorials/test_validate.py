@@ -38,10 +38,29 @@ class TutorialValidatorTests(unittest.TestCase):
     def test_benchmark_readiness_tutorial_contract(self):
         validate_document(load(ROOT / "benchmark-readiness-v1.json"), METADATA)
 
+    def test_benchmark_run_shared_config_tutorial_contract(self):
+        validate_document(load(ROOT / "benchmark-run-shared-config-v1.json"), METADATA)
+
+    def test_shared_config_requires_all_agents_before_run(self):
+        tutorial = load(ROOT / "benchmark-run-shared-config-v1.json")
+        self.assertEqual(tutorial["steps"][0]["command"][-4:], ["--agent", "codex", "--agent", "opendesk"])
+        self.assertEqual(tutorial["steps"][2]["command"][1], "run")
+
     def test_benchmark_readiness_positive_fixture(self):
         validate_document(
             load(ROOT / "fixtures/v1/benchmark-readiness-positive.json"), METADATA
         )
+
+    def test_benchmark_result_fixtures_are_bounded_and_secret_free(self):
+        for name, expected_state in [
+            ("benchmark-run-result-positive.json", "completed"),
+            ("benchmark-run-result-atomic-failure.json", "failed"),
+        ]:
+            result = load(ROOT / "fixtures/v1" / name)
+            self.assertEqual(result["schema_version"], 1)
+            self.assertEqual(result["terminal_state"], expected_state)
+            self.assertLessEqual(result["artifacts"]["max_bytes"], 65536)
+            self.assertNotIn("secret", json.dumps(result).lower())
 
     def test_benchmark_readiness_negative_fixtures_fail_closed(self):
         for name, message in [

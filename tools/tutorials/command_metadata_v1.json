@@ -23,6 +23,11 @@
       "--provider-profile", "PATH",
       "--credential-reference-sha256", "SHA256",
       "--agent", "AGENT"
+    ], [
+      "--catalog-sha256", "SHA256",
+      "--provider-profile", "PATH",
+      "--credential-reference-sha256", "SHA256",
+      "--agent", "AGENT", "--agent", "AGENT"
     ]]},
     "completion": {"forms": [["bash"]]},
     "plan": {"forms": [["PATH"], ["PATH", "--provider-selection", "PATH"]]},
