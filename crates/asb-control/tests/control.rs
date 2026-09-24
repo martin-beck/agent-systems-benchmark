@@ -107,6 +107,52 @@ fn auth_helper_invoke_is_versioned_and_requires_helper_profile() {
 }
 
 #[test]
+fn runtime_receipt_operation_binds_nonce_provider_and_generation() {
+    let call = ControlCall::RuntimeReceipt(RuntimeReceiptRequestV1 {
+        schema_version: 1,
+        provider: "openrouter".into(),
+        generation: 7,
+        request_nonce_sha256: "a".repeat(64),
+    });
+    assert_eq!(call.minimum_version(), CONTROL_RUNTIME_RECEIPT_V1);
+    let response = ControlResult::RuntimeReceipt(RuntimeReceiptResponseV1 {
+        schema_version: 1,
+        request_nonce_sha256: "a".repeat(64),
+        receipt: RuntimeEnrollmentReceiptV1 {
+            schema_version: 1,
+            chain_sha256: "b".repeat(64),
+            provider: "openrouter".into(),
+            endpoint_identity_sha256: "c".repeat(64),
+            credential_ref_sha256: "d".repeat(64),
+            generation: 7,
+            target: "203.0.113.10:443".into(),
+            tool_bundle_sha256: "e".repeat(64),
+            lease_root_sha256: "f".repeat(64),
+            relay_root_sha256: "1".repeat(64),
+            issued_at_unix_ms: 1_000,
+            expires_at_unix_ms: 2_000,
+            nonce_sha256: "2".repeat(64),
+        },
+    });
+    let bound = BoundControlResult::new(&call, response).unwrap();
+    bound.validate_for_call(&call, limits()).unwrap();
+    let mut tampered = bound.result.clone();
+    if let ControlResult::RuntimeReceipt(value) = &mut tampered {
+        value.request_nonce_sha256 = "3".repeat(64);
+    }
+    assert!(tampered.validate_for_call(&call, limits()).is_err());
+    let mut wrong_generation = call.clone();
+    if let ControlCall::RuntimeReceipt(request) = &mut wrong_generation {
+        request.generation = 8;
+    }
+    assert!(
+        bound
+            .validate_for_call(&wrong_generation, limits())
+            .is_err()
+    );
+}
+
+#[test]
 fn provider_configuration_and_catalog_validation_covers_public_boundaries() {
     let model = |model_id: &str| ProviderModel {
         model_id: model_id.into(),

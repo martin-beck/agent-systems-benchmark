@@ -454,6 +454,24 @@
           ]
         },
         {
+          "description": "Authenticated runtime-bound receipt response.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "runtime_receipt"
+            },
+            "value": {
+              "$ref": "#/$defs/RuntimeReceiptResponseV1"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
           "description": "Recent run page.",
           "type": "object",
           "properties": {
@@ -1562,6 +1580,116 @@
         "created_revision",
         "revision",
         "plan_sha256"
+      ]
+    },
+    "RuntimeEnrollmentReceiptV1": {
+      "description": "Secret-free runtime enrollment receipt issued only after certificate-chain\nvalidation. Filesystem roots and credentials are represented by digests.",
+      "type": "object",
+      "properties": {
+        "chain_sha256": {
+          "description": "Authenticated certificate-chain digest.",
+          "type": "string"
+        },
+        "credential_ref_sha256": {
+          "description": "Credential resolver reference digest.",
+          "type": "string"
+        },
+        "endpoint_identity_sha256": {
+          "description": "Endpoint identity digest.",
+          "type": "string"
+        },
+        "expires_at_unix_ms": {
+          "description": "Exclusive validity end.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "generation": {
+          "description": "Monotonic enrollment generation.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "issued_at_unix_ms": {
+          "description": "Bounded validity interval.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "lease_root_sha256": {
+          "description": "Runtime lease-root digest.",
+          "type": "string"
+        },
+        "nonce_sha256": {
+          "description": "Nonce bound to the authenticated chain and generation.",
+          "type": "string"
+        },
+        "provider": {
+          "description": "Enrolled provider identity.",
+          "type": "string"
+        },
+        "relay_root_sha256": {
+          "description": "Runtime relay-root digest.",
+          "type": "string"
+        },
+        "schema_version": {
+          "description": "Receipt schema version.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "target": {
+          "description": "Concrete public provider target selected by control.",
+          "type": "string"
+        },
+        "tool_bundle_sha256": {
+          "description": "Pinned runtime tool bundle digest.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "chain_sha256",
+        "provider",
+        "endpoint_identity_sha256",
+        "credential_ref_sha256",
+        "generation",
+        "target",
+        "tool_bundle_sha256",
+        "lease_root_sha256",
+        "relay_root_sha256",
+        "issued_at_unix_ms",
+        "expires_at_unix_ms",
+        "nonce_sha256"
+      ]
+    },
+    "RuntimeReceiptResponseV1": {
+      "description": "Secret-free response bound to one validated receipt request.",
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "description": "Authenticated runtime receipt.",
+          "$ref": "#/$defs/RuntimeEnrollmentReceiptV1"
+        },
+        "request_nonce_sha256": {
+          "description": "Request nonce copied only after exact request validation.",
+          "type": "string"
+        },
+        "schema_version": {
+          "description": "Response schema version.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "request_nonce_sha256",
+        "receipt"
       ]
     },
     "SettingsIssue": {

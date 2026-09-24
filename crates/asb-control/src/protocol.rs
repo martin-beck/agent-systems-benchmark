@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::{RuntimeReceiptRequestV1, RuntimeReceiptResponseV1};
 use asb_protocol::{
     MAX_MEASUREMENT_CATALOG_WIRE_BYTES, MeasurementCatalogV1, MeasurementSelectionReason,
     baseline_measurement_catalog,
@@ -39,6 +40,8 @@ pub const CONTROL_AUTH_HELPER_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 10,
 };
+/// Version of the authenticated runtime receipt source operation.
+pub const CONTROL_RUNTIME_RECEIPT_V1: ControlVersion = CONTROL_AUTH_HELPER_V1;
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -241,6 +244,8 @@ pub enum ControlCall {
     AuthRevoke(AuthRevokeParams),
     /// Resolve one registered helper through the runner-owned sealed backend.
     AuthHelperInvoke(AuthHelperInvokeParams),
+    /// Issue one runtime-bound receipt from runner-owned authority material.
+    RuntimeReceipt(RuntimeReceiptRequestV1),
     /// Read or refresh the authenticated provider/model catalog.
     ProviderCatalog(crate::ProviderCatalogRequest),
     /// Read the current privacy-safe setup projection.
@@ -392,6 +397,7 @@ impl ControlCall {
             | Self::AuthRotate(_)
             | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
             Self::AuthHelperInvoke(_) => CONTROL_AUTH_HELPER_V1,
+            Self::RuntimeReceipt(_) => CONTROL_RUNTIME_RECEIPT_V1,
             Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationApply(_) => CONTROL_PROVIDER_CATALOG_V1,
@@ -1422,6 +1428,8 @@ pub enum ControlResult {
     Acknowledged(MutationAcknowledgement),
     /// Public credential enrollment status.
     AuthStatus(AuthStatusResponse),
+    /// Authenticated runtime-bound receipt response.
+    RuntimeReceipt(RuntimeReceiptResponseV1),
     /// Authenticated provider/model catalog snapshot.
     ProviderCatalog(crate::ProviderCatalog),
     /// Provider catalog returned after a generation-fenced profile update.
@@ -1578,6 +1586,19 @@ impl ControlResult {
                 }
                 Ok(())
             }
+            Self::RuntimeReceipt(value) => {
+                if value.schema_version != 1
+                    || value.request_nonce_sha256.len() != 64
+                    || !value
+                        .request_nonce_sha256
+                        .bytes()
+                        .all(|byte: u8| byte.is_ascii_hexdigit())
+                {
+                    Err(ProtocolError::InvalidResponse)
+                } else {
+                    Ok(())
+                }
+            }
             Self::SettingsValidation(value) => {
                 if value.issues.len() > usize::from(limits.validate()?.max_page_items) {
                     Err(ProtocolError::UnsafePublicValue)
@@ -1698,6 +1719,7 @@ impl ControlResult {
                 | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
                 | (ControlCall::AuthHelperInvoke(_), Self::AuthStatus(_))
+                | (ControlCall::RuntimeReceipt(_), Self::RuntimeReceipt(_))
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
                 | (
                     ControlCall::ProviderProfileUpsert(_),
@@ -1897,6 +1919,9 @@ impl ControlResult {
             (ControlCall::Analyze { run_ids }, Self::Analysis(result)) => {
                 usize::from(result.run_count) == run_ids.len()
             }
+            (ControlCall::RuntimeReceipt(request), Self::RuntimeReceipt(response)) => {
+                response.validate_for(request).is_ok()
+            }
             _ => true,
         };
         if causally_matches {
@@ -2086,6 +2111,9 @@ pub fn validate_request(
                 return Err(ProtocolError::InvalidResponse);
             }
         }
+        ControlCall::RuntimeReceipt(params) => params
+            .validate()
+            .map_err(|_| ProtocolError::InvalidResponse)?,
         ControlCall::ProviderCatalog(params) => params.validate()?,
         ControlCall::ProviderProfileUpsert(params) => params.validate()?,
         ControlCall::ConfigurationStatus(params) => params.validate()?,
