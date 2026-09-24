@@ -104,3 +104,10 @@ literature IDs use only the bounded offline local fixture and deterministic
 mock scorer. Methodology-only records such as AgentOps, HELM, and AI Agents
 That Matter are rejected before plan or workspace effects; they are references,
 not executable workloads. Unknown and malformed identities fail closed.
+
+Repository-repair and terminal-system entries expose stable capability tags,
+their pinned dataset/task revision, and declared attempt budget in the catalog.
+These fields are descriptive provenance: they do not qualify an upstream
+evaluator. Local fixture execution remains the only offline development path;
+external or native qualification must be supplied separately and matching
+evidence is required before a plan can claim an official score.

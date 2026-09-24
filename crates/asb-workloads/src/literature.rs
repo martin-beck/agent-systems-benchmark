@@ -104,10 +104,16 @@ pub struct WorkloadCatalogEntry {
     pub source: String,
     /// Immutable source revision.
     pub source_revision: String,
+    /// Immutable dataset/task revision or the explicit split identity.
+    pub dataset_revision: String,
     /// Source/task license expression.
     pub license: String,
     /// Evaluator identity, or `unqualified` when absent.
     pub evaluator: String,
+    /// Stable capability labels used by plan/report consumers.
+    pub capability_tags: BTreeSet<String>,
+    /// Maximum attempts declared by the upstream boundary.
+    pub attempt_budget: u32,
     /// Adaptation status (never inferred as semantic parity).
     pub adaptation: String,
     /// Current platform evidence label.
@@ -158,8 +164,11 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             kind: CatalogKind::Builtin,
             source: "builtin".into(),
             source_revision: "asb-original-v1".into(),
+            dataset_revision: "asb-original-v1".into(),
             license: "MIT".into(),
             evaluator: "asb-original-oracle-v1".into(),
+            capability_tags: BTreeSet::from(["repository-repair".into()]),
+            attempt_budget: 1,
             adaptation: "none".into(),
             platform: "linux-x86_64:native-tested".into(),
             availability: "available".into(),
@@ -180,6 +189,11 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
         let evaluator = record["evaluator"]["entrypoint"]
             .as_str()
             .unwrap_or("unqualified");
+        let dataset_revision = record["dataset"]["revision"]
+            .as_str()
+            .or_else(|| record["dataset"]["split"].as_str())
+            .unwrap_or("not-applicable");
+        let attempt_budget = record["attempt_budget"].as_u64().unwrap_or(0) as u32;
         let provenance = record["evaluator"]["provenance"]["status"]
             .as_str()
             .unwrap_or("missing");
@@ -205,11 +219,14 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             kind,
             source: "literature".into(),
             source_revision: source_revision.into(),
+            dataset_revision: dataset_revision.into(),
             license: record["source"]["license"]
                 .as_str()
                 .unwrap_or("NOASSERTION")
                 .into(),
             evaluator: evaluator.into(),
+            capability_tags: capability_tags(id),
+            attempt_budget,
             adaptation: "fixture-only".into(),
             platform: platform.into(),
             availability: if unavailable {
@@ -262,8 +279,11 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             kind: CatalogKind::Literature,
             source: "literature".into(),
             source_revision: revision.into(),
+            dataset_revision: "split-alias".into(),
             license: license.into(),
             evaluator: evaluator.into(),
+            capability_tags: capability_tags(id),
+            attempt_budget: 1,
             adaptation: "split-alias".into(),
             platform: "planned".into(),
             availability: "unavailable".into(),
@@ -275,6 +295,19 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
     }
     entries.sort_by(|a, b| a.id.cmp(&b.id));
     entries
+}
+
+fn capability_tags(id: &str) -> BTreeSet<String> {
+    let tag = match family(id) {
+        LiteratureFamily::RepositoryRepair => "repository-repair",
+        LiteratureFamily::TerminalSystem => "terminal-workflow",
+        LiteratureFamily::CodeGeneration => "code-generation",
+        LiteratureFamily::SystemsPerformance => "systems-performance",
+        LiteratureFamily::StatefulToolUse => "stateful-tool-use",
+        LiteratureFamily::HarnessBoundary => "harness-boundary",
+        LiteratureFamily::UnsupportedCandidate => "unsupported",
+    };
+    BTreeSet::from([tag.into()])
 }
 
 fn digest_identity(id: &str, revision: &str, evaluator: &str) -> String {
@@ -1123,7 +1156,12 @@ mod tests {
         let literature_count = literature.len();
         for entry in literature {
             assert!(!entry.source_revision.is_empty());
+            assert!(!entry.dataset_revision.is_empty());
+            assert!(!entry.capability_tags.is_empty());
             assert!(!entry.identity_digest.is_empty());
+            if entry.kind == CatalogKind::Methodology {
+                assert_eq!(entry.attempt_budget, 0);
+            }
         }
         assert_eq!(first.len(), FIXTURE_IDS.len() + literature_count);
     }
