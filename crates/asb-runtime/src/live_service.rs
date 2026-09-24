@@ -4,7 +4,9 @@
 
 use crate::ProcessLimits;
 use crate::credential_injection::{CredentialInjection, CredentialInjectionError};
-use crate::launch_factory::{LaunchAuthorityError, LiveLaunchFactory, LiveProviderAttempt};
+use crate::launch_factory::{
+    LaunchAuthorityError, LiveLaunchFactory, LiveProviderAttempt, LiveProviderAttemptFactory,
+};
 use crate::live_namespace::NamespaceIdentity;
 use crate::live_relay::LiveProviderRelay;
 use crate::provider_egress::{
@@ -24,6 +26,7 @@ use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Runtime-owned store for one authenticated certificate chain.
 ///
@@ -143,6 +146,23 @@ pub trait LiveProviderResolver: Send {
 
 /// Runtime entrypoint for resolver composition before authority acquisition.
 pub struct LiveProviderRuntimeService;
+
+/// Runtime-owned scheduler composition for live provider attempts.
+///
+/// The scheduler owns the opaque provisioner handle and the validated launch
+/// input. A frontend receives only the resulting factory, so it cannot supply
+/// a provider, lease, relay, namespace, credential, or backend authority per
+/// attempt. Each factory invocation creates a fresh attempt and binds its
+/// scheduler identity at the runtime boundary.
+pub struct LiveProviderRuntimeScheduler {
+    factory: LiveProviderAttemptFactory,
+}
+
+impl std::fmt::Debug for LiveProviderRuntimeScheduler {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderRuntimeScheduler(..)")
+    }
+}
 
 /// Secret-free claims authenticated by the control certificate chain.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -643,6 +663,54 @@ impl LiveProviderRuntimeService {
     }
 }
 
+impl LiveProviderRuntimeScheduler {
+    /// Compose a scheduler factory from a runtime-issued opaque handle.
+    ///
+    /// `input`, `limits`, and `adapter_sha256` are validated runtime values;
+    /// this constructor rejects malformed adapter identities and non-denied
+    /// network policy before exposing a factory to a frontend.
+    pub fn new(
+        handle: LiveProviderRuntimeHandle,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+    ) -> Result<Self, LiveProviderProvisionError> {
+        if input.spec().network_policy() != NetworkPolicy::Deny
+            || input.limits() != limits
+            || !valid_digest(adapter_sha256)
+        {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
+        let adapter_sha256 = adapter_sha256.to_owned();
+        let service = LiveProviderRuntimeService;
+        let factory = LiveProviderAttemptFactory::from_fn(move |attempt_id, _warmup| {
+            let now_unix_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| LaunchAuthorityError::InvalidLaunchInput)?
+                .as_millis()
+                .try_into()
+                .map_err(|_| LaunchAuthorityError::InvalidLaunchInput)?;
+            service
+                .acquire(
+                    &handle,
+                    attempt_id,
+                    input.clone(),
+                    limits,
+                    &adapter_sha256,
+                    now_unix_ms,
+                )
+                .map_err(|_| LaunchAuthorityError::InvalidLaunchInput)
+        });
+        Ok(Self { factory })
+    }
+
+    /// Return the opaque per-attempt factory for a run or sweep scheduler.
+    #[must_use]
+    pub fn into_factory(self) -> LiveProviderAttemptFactory {
+        self.factory
+    }
+}
+
 /// Runtime-owned enrollment used to construct the live provisioner.
 ///
 /// This type is crate-private on purpose: CLI callers cannot provide a policy,
@@ -1121,6 +1189,65 @@ mod tests {
         assert_eq!(provisioner.provisioner.config.generation(), "generation-1");
         assert_eq!(provisioner.provisioner.policy.host(), "openrouter.ai");
         assert_eq!(provisioner.provisioner.relay_root, relay_root);
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn scheduler_composition_rejects_unbound_or_mismatched_inputs() {
+        let (spec, relay_root) = bootstrap_spec();
+        let handle = spec.provisioner().unwrap();
+        let input = launch_input(&root());
+        let limits = input.limits();
+        assert_eq!(
+            LiveProviderRuntimeScheduler::new(handle, input.clone(), limits, "not-a-digest",)
+                .unwrap_err(),
+            LiveProviderProvisionError::InvalidConfiguration
+        );
+
+        let (spec, _) = bootstrap_spec();
+        let handle = spec.provisioner().unwrap();
+        let different_limits = ProcessLimits::new(
+            4096,
+            4096,
+            Duration::from_secs(2),
+            Duration::from_millis(100),
+            Duration::from_millis(5),
+        )
+        .unwrap();
+        assert_eq!(
+            LiveProviderRuntimeScheduler::new(handle, input, different_limits, &"c".repeat(64),)
+                .unwrap_err(),
+            LiveProviderProvisionError::InvalidConfiguration
+        );
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn scheduler_composition_mints_a_frontend_factory_only_from_runtime_state() {
+        let (spec, relay_root) = bootstrap_spec();
+        let handle = spec.provisioner().unwrap();
+        let input_root = root();
+        let input = launch_input(&input_root);
+        let scheduler = LiveProviderRuntimeScheduler::new(
+            handle,
+            input,
+            ProcessLimits::new(
+                4096,
+                4096,
+                Duration::from_secs(1),
+                Duration::from_millis(100),
+                Duration::from_millis(5),
+            )
+            .unwrap(),
+            &"d".repeat(64),
+        )
+        .unwrap();
+        let factory = scheduler.into_factory();
+        assert!(matches!(
+            factory.acquire(0, false),
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        ));
+        let _ = std::fs::remove_dir_all(input_root);
         let _ = std::fs::remove_dir_all(relay_root);
     }
 
