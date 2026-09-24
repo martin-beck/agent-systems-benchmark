@@ -68,6 +68,10 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --locked --workspace --no-deps
+      - name: Workload catalog parity
+        run: |
+          python3 tools/quality/generate_workload_catalog.py
+          python3 tools/quality/check_workload_catalog_parity.py <(cargo run --locked -q -p asb-cli -- workload-catalog)
       - name: Release build and CLI
         run: |
           cargo build --locked --workspace --release

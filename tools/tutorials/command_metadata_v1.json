@@ -11,6 +11,7 @@
     ]},
     "capabilities": {"forms": [["--format", "json"]]},
     "provider-catalog": {"forms": [[]]},
+    "workload-catalog": {"forms": [[]]},
     "auth": {"operations": {
       "enroll": ["--provider", "--endpoint-digest", "--credential-digest", "--idempotency-key"],
       "status": ["--provider"],

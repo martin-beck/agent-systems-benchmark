@@ -46,8 +46,8 @@ use asb_store::{
     RunManifest, StoreLimits,
 };
 use asb_workloads::{
-    OriginalWorkloads, PreparedWorkloadChoice, WorkloadEvaluation, describe_workload,
-    prepare_workload,
+    CatalogKind, OriginalWorkloads, PreparedWorkloadChoice, WorkloadEvaluation, describe_workload,
+    prepare_workload, workload_catalog,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -239,6 +239,7 @@ fn dispatch(
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
             configure_openrouter(stdout).map(|()| 0)
         }
@@ -395,6 +396,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
         Some("provider-catalog") => "provider-catalog",
+        Some("workload-catalog") => "workload-catalog",
         Some("config") => "config",
         Some("auth") => "auth",
         Some("provider-plan") => "provider-plan",
@@ -524,7 +526,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup capabilities provider-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui --help --version' asb"
+        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -974,6 +976,39 @@ fn provider_catalog_digest() -> String {
     digest.update(asb_agents::ollama::OLLAMA_MODEL.as_bytes());
     digest.update(b"\0none\0requires-verified-daemon\0");
     format!("{:x}", digest.finalize())
+}
+
+fn workload_catalog_output(output: &mut dyn Write) -> Result<(), CliError> {
+    let entries = workload_catalog()
+        .into_iter()
+        .map(|entry| {
+            json!({
+                "id": entry.id,
+                "kind": match entry.kind {
+                    CatalogKind::Builtin => "builtin",
+                    CatalogKind::Literature => "literature",
+                    CatalogKind::Methodology => "methodology",
+                },
+                "source": entry.source,
+                "source_revision": entry.source_revision,
+                "license": entry.license,
+                "evaluator": entry.evaluator,
+                "adaptation": entry.adaptation,
+                "platform": entry.platform,
+                "availability": entry.availability,
+                "evidence": entry.evidence,
+            })
+        })
+        .collect::<Vec<_>>();
+    write_json(
+        output,
+        &json!({
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "ok": true,
+            "command": "workload-catalog",
+            "entries": entries,
+        }),
+    )
 }
 
 fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
@@ -5147,6 +5182,24 @@ mod tests {
     }
 
     #[test]
+    fn workload_catalog_is_stable_and_marks_methodology_unavailable() {
+        let (exit, catalog) = run_json(&["workload-catalog".into()]);
+        assert_eq!(exit, 0);
+        assert_eq!(catalog["command"], "workload-catalog");
+        let entries = catalog["entries"].as_array().unwrap();
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry["id"] == "original.bug-fix")
+        );
+        for id in ["harbor", "inspect-ai", "hal", "agentops"] {
+            let entry = entries.iter().find(|entry| entry["id"] == id).unwrap();
+            assert_eq!(entry["kind"], "methodology");
+            assert_eq!(entry["availability"], "unavailable");
+        }
+    }
+
+    #[test]
     fn provider_catalog_and_multi_agent_plan_are_stable_and_secret_free() {
         let (exit, catalog) = run_json(&["provider-catalog".into()]);
         assert_eq!(exit, 0);
@@ -5643,9 +5696,9 @@ mod tests {
             0
         );
         let completion = String::from_utf8(output).unwrap();
-        assert!(
-            completion.contains("provider-catalog provider-plan plan run sweep compare report")
-        );
+        assert!(completion.contains(
+            "provider-catalog workload-catalog provider-plan plan run sweep compare report"
+        ));
         assert!(!completion.contains('\u{1b}'));
         assert_eq!(run_json(&["completion".into(), "zsh".into()]).0, 2);
     }
