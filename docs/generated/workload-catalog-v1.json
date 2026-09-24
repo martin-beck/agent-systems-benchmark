@@ -26,8 +26,8 @@
       "evaluator": "agentdojo evaluator",
       "capability_tags": [
         "interactive",
-        "tool-use",
-        "safety-policy"
+        "safety-policy",
+        "tool-use"
       ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",
@@ -372,7 +372,7 @@
       "license": "MIT",
       "evaluator": "swebench.harness@02e7a74",
       "capability_tags": [
-        "code-generation"
+        "repository-repair"
       ],
       "adaptation": "split-alias",
       "platform": "linux-x86_64:fixture-only",
@@ -402,7 +402,7 @@
       "license": "MIT",
       "evaluator": "swebench.harness@02e7a74",
       "capability_tags": [
-        "code-generation"
+        "repository-repair"
       ],
       "adaptation": "split-alias",
       "platform": "linux-x86_64:fixture-only",
@@ -417,7 +417,7 @@
       "license": "Apache-2.0",
       "evaluator": "swefficiency eval",
       "capability_tags": [
-        "unsupported"
+        "systems-performance"
       ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",
@@ -478,9 +478,9 @@
       "evaluator": "tau_bench evaluator",
       "capability_tags": [
         "interactive",
-        "tool-use",
+        "pass-k-reliability",
         "simulated-user",
-        "pass-k-reliability"
+        "tool-use"
       ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",

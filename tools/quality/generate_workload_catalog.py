@@ -48,16 +48,16 @@ def capability_tags(workload_id):
     if workload_id == "agentbench":
         return ["interactive", "stateful-environment"]
     if workload_id == "tau-bench":
-        return ["interactive", "tool-use", "simulated-user", "pass-k-reliability"]
+        return ["interactive", "pass-k-reliability", "simulated-user", "tool-use"]
     if workload_id == "agentdojo":
-        return ["interactive", "tool-use", "safety-policy"]
+        return ["interactive", "safety-policy", "tool-use"]
     families = {
         "repository-repair": {
             "swe-bench", "swe-bench-lite", "swe-bench-verified", "swe-bench-pro",
             "swe-rebench", "swe-lancer",
         },
         "terminal-workflow": {"terminal-bench"},
-        "systems-performance": {"swe-perf", "swe-efficiency", "core-bench"},
+        "systems-performance": {"swe-perf", "swe-fficiency", "core-bench"},
         "code-generation": {
             "aider-polyglot", "bigcodebench", "evalplus", "humaneval-plus",
             "mbpp-plus", "livecodebench",
@@ -128,7 +128,11 @@ def inventory():
                 "source_revision": revision,
                 "license": license,
                 "evaluator": evaluator,
-                "capability_tags": ["code-generation"],
+                "capability_tags": [
+                    "repository-repair"
+                    if ident in {"swe-bench-lite", "swe-bench-verified"}
+                    else "code-generation"
+                ],
                 "adaptation": "split-alias",
                 "platform": "linux-x86_64:fixture-only",
                 "availability": "fixture_only",
