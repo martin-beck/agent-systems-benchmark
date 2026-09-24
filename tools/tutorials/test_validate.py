@@ -53,6 +53,10 @@ class TutorialValidatorTests(unittest.TestCase):
     def test_result_comparison_keeps_report_and_compare_order(self):
         tutorial = load(ROOT / "result-comparison-v1.json")
         self.assertEqual(
+            [step["id"] for step in tutorial["steps"]],
+            ["report-codex", "report-gemini", "compare-compatible-runs"],
+        )
+        self.assertEqual(
             [step["command"][1] for step in tutorial["steps"]],
             ["report", "report", "compare"],
         )

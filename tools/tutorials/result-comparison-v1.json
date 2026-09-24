@@ -15,7 +15,7 @@
       "credentials": "none"
     },
     {
-      "id": "report-opendesk",
+      "id": "report-gemini",
       "command": ["asb", "report", "results/runs/gemini-run"],
       "expect": {"exit_code": 0, "stdout_shape": "report-v1"},
       "references": [
