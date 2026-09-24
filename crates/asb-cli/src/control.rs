@@ -15,8 +15,8 @@ use asb_control::{
     MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference, ProviderAuthMethod,
     ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogEntry,
     ProviderCatalogRequest, ProviderModel, ProvisionedControlServer, PublicRunState,
-    RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1, SettingsIssue,
-    SettingsValidation,
+    RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1,
+    RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
@@ -2577,6 +2577,32 @@ impl ControlBackend for RunnerBackend {
                         credential_locator_sha256: record.credential_locator_sha256.clone(),
                         generation: record.generation,
                         status: record.status.clone(),
+                    }),
+                )
+            }
+            ControlCall::RuntimeReceipt(params) => {
+                let catalog = self
+                    .catalog
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+                let record = catalog
+                    .runtime_authorities
+                    .get(&params.provider)
+                    .ok_or(BackendFailure::CapabilityUnavailable)?;
+                if params.generation != record.enrollment.generation {
+                    return Err(BackendFailure::StaleIdentity);
+                }
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_err(|_| BackendFailure::Rejected)?
+                    .as_secs();
+                let receipt = record.issue_receipt(now)?;
+                self.bind(
+                    call,
+                    ControlResult::RuntimeReceipt(RuntimeReceiptResponseV1 {
+                        schema_version: 1,
+                        request_nonce_sha256: params.request_nonce_sha256.clone(),
+                        receipt,
                     }),
                 )
             }
@@ -5341,6 +5367,24 @@ mod tests {
                 Err(BackendFailure::CapabilityUnavailable)
             );
         }
+    }
+
+    #[test]
+    fn runtime_receipt_source_fails_closed_without_injected_authority() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::RuntimeReceipt(asb_control::RuntimeReceiptRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 1,
+            request_nonce_sha256: "a".repeat(64),
+        });
+        assert_eq!(
+            backend.execute(&call, deadline()),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
     }
 
     #[test]
