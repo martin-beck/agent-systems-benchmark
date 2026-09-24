@@ -12,6 +12,25 @@ Validate a tutorial offline with:
 python3 tools/tutorials/validate.py tools/tutorials/example-v1.json
 ```
 
+CI discovers every versioned contract under `tools/tutorials/`, validates it
+against the checked-in command grammar, and checks that each contract is
+documented. Run the repository-wide freshness gate with:
+
+```sh
+python3 tools/tutorials/check_freshness.py
+```
+
+This gate only reads bounded JSON and Markdown files. It never invokes `asb`,
+starts a provider, opens a network connection, or requires a home-directory
+configuration. Diagnostics are emitted in sorted path order so a stale command
+or option has a stable, reviewable failure.
+
+The versioned contracts are [initial setup](../tools/tutorials/initial-setup-v1.json),
+[benchmark readiness](../tools/tutorials/benchmark-readiness-v1.json),
+[shared-config run](../tools/tutorials/benchmark-run-shared-config-v1.json),
+[result comparison](../tools/tutorials/result-comparison-v1.json), and the
+[minimal example](../tools/tutorials/example-v1.json).
+
 Each step has an `id`, an argument-array `command`, and an `expect` object. Steps must declare
 `network: "denied"` and `credentials: "none"`; omitted values use those safe defaults. References
 are repository-relative and bounded. Unknown fields, commands, options, reordered options,

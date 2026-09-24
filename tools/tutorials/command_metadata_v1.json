@@ -43,12 +43,6 @@
       ["install"], ["install", "--offline"], ["install", "--dry-run"],
       ["install", "--launch"], ["upgrade"], ["upgrade", "--offline"],
       ["upgrade", "--dry-run"], ["upgrade", "--launch"]
-    ]},
-    "auth": {"operations": {
-      "enroll": ["--provider", "--endpoint-digest", "--credential-digest", "--idempotency-key"],
-      "status": ["--provider"],
-      "rotate": ["--provider", "--credential-digest", "--idempotency-key"],
-      "revoke": ["--provider", "--idempotency-key"]
-    }}
+    ]}
   }
 }
