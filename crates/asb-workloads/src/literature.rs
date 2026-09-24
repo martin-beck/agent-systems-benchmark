@@ -106,6 +106,14 @@ pub struct WorkloadCatalogEntry {
     pub source_revision: String,
     /// Immutable dataset/task revision or the explicit split identity.
     pub dataset_revision: String,
+    /// Metric boundary, kept separate from ordinary repository scores.
+    pub metric_kind: String,
+    /// Immutable split or evaluation-window identity.
+    pub evaluation_window: String,
+    /// Contamination cutoff identity or explicit requirement.
+    pub contamination_cutoff: String,
+    /// Upstream archive evidence state.
+    pub archive_status: String,
     /// Source/task license expression.
     pub license: String,
     /// Evaluator identity, or `unqualified` when absent.
@@ -165,6 +173,10 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             source: "builtin".into(),
             source_revision: "asb-original-v1".into(),
             dataset_revision: "asb-original-v1".into(),
+            metric_kind: "protected-tests".into(),
+            evaluation_window: "asb-original-v1".into(),
+            contamination_cutoff: "not-applicable".into(),
+            archive_status: "repository-owned".into(),
             license: "MIT".into(),
             evaluator: "asb-original-oracle-v1".into(),
             capability_tags: BTreeSet::from(["repository-repair".into()]),
@@ -193,6 +205,12 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             .as_str()
             .or_else(|| record["dataset"]["split"].as_str())
             .unwrap_or("not-applicable");
+        let metric_kind = metric_kind(id);
+        let evaluation_window = evaluation_window(id, dataset_revision);
+        let contamination_cutoff = contamination_cutoff(id);
+        let archive_status = record["source"]["archive_status"]
+            .as_str()
+            .unwrap_or("unverified");
         let attempt_budget = record["attempt_budget"].as_u64().unwrap_or(0) as u32;
         let provenance = record["evaluator"]["provenance"]["status"]
             .as_str()
@@ -220,6 +238,10 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             source: "literature".into(),
             source_revision: source_revision.into(),
             dataset_revision: dataset_revision.into(),
+            metric_kind: metric_kind.into(),
+            evaluation_window,
+            contamination_cutoff: contamination_cutoff.into(),
+            archive_status: archive_status.into(),
             license: record["source"]["license"]
                 .as_str()
                 .unwrap_or("NOASSERTION")
@@ -280,6 +302,10 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             source: "literature".into(),
             source_revision: revision.into(),
             dataset_revision: "split-alias".into(),
+            metric_kind: metric_kind(id).into(),
+            evaluation_window: "split-alias".into(),
+            contamination_cutoff: contamination_cutoff(id).into(),
+            archive_status: "unverified".into(),
             license: license.into(),
             evaluator: evaluator.into(),
             capability_tags: capability_tags(id),
@@ -308,6 +334,32 @@ fn capability_tags(id: &str) -> BTreeSet<String> {
         LiteratureFamily::UnsupportedCandidate => "unsupported",
     };
     BTreeSet::from([tag.into()])
+}
+
+fn metric_kind(id: &str) -> &'static str {
+    match id {
+        "swe-perf" | "swe-fficiency" => "paired-performance",
+        "core-bench" => "computational-reproducibility",
+        "swe-rebench" => "refreshed-repository-repair",
+        "swe-lancer" | "swe-bench-pro" => "long-horizon-repository-repair",
+        _ => "task-correctness",
+    }
+}
+
+fn evaluation_window(id: &str, dataset_revision: &str) -> String {
+    match id {
+        "swe-rebench" => "window-89cdfbab".into(),
+        "swe-lancer" => "archived-pinned-window".into(),
+        _ => dataset_revision.into(),
+    }
+}
+
+fn contamination_cutoff(id: &str) -> &'static str {
+    match id {
+        "swe-rebench" => "required-before-each-window",
+        "swe-lancer" => "unavailable",
+        _ => "not-recorded",
+    }
 }
 
 fn digest_identity(id: &str, revision: &str, evaluator: &str) -> String {
@@ -1285,6 +1337,10 @@ mod tests {
             assert!(!entry.source_revision.is_empty());
             assert!(!entry.dataset_revision.is_empty());
             assert!(!entry.capability_tags.is_empty());
+            assert!(!entry.metric_kind.is_empty());
+            assert!(!entry.evaluation_window.is_empty());
+            assert!(!entry.contamination_cutoff.is_empty());
+            assert!(!entry.archive_status.is_empty());
             assert!(!entry.identity_digest.is_empty());
             if entry.kind == CatalogKind::Methodology {
                 assert_eq!(entry.attempt_budget, 0);
@@ -1300,6 +1356,15 @@ mod tests {
         assert_eq!(agentops.kind, CatalogKind::Methodology);
         assert_eq!(agentops.availability_kind, CatalogAvailability::Unavailable);
         assert_eq!(agentops.evidence_kind, CatalogEvidence::Planned);
+        let rebench = catalog
+            .iter()
+            .find(|entry| entry.id == "swe-rebench")
+            .unwrap();
+        assert_eq!(rebench.metric_kind, "refreshed-repository-repair");
+        assert_eq!(rebench.evaluation_window, "window-89cdfbab");
+        assert_eq!(rebench.contamination_cutoff, "required-before-each-window");
+        let perf = catalog.iter().find(|entry| entry.id == "swe-perf").unwrap();
+        assert_eq!(perf.metric_kind, "paired-performance");
         for id in ["harbor", "inspect-ai", "hal"] {
             let entry = catalog.iter().find(|entry| entry.id == id).unwrap();
             assert_eq!(entry.kind, CatalogKind::Methodology);

@@ -124,3 +124,9 @@ These fields are descriptive provenance: they do not qualify an upstream
 evaluator. Local fixture execution remains the only offline development path;
 external or native qualification must be supplied separately and matching
 evidence is required before a plan can claim an official score.
+
+Long-horizon and performance entries additionally expose metric kind, immutable
+evaluation window, contamination-cutoff state, and source archive status. A
+refreshed suite without a pinned window/cutoff remains unavailable; paired
+performance, uncertainty, hardware-control, and correctness evidence are not
+collapsed into repository-repair scores.
