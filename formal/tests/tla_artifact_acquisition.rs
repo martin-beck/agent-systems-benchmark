@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::Write;
 #[cfg(unix)]
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
@@ -98,18 +99,30 @@ fn fixture_runner(scratch: &Scratch) -> (PathBuf, Vec<u8>) {
             "mock-build \"$build_cache\" \"$built\"",
         );
     let runner = scratch.0.join("runner.sh");
-    fs::write(&runner, source).expect("write fixture runner");
-    fs::set_permissions(&runner, fs::Permissions::from_mode(0o700))
-        .expect("make runner executable");
+    write_executable(&runner, source.as_bytes());
     (runner, bytes)
+}
+
+fn write_executable(path: &Path, contents: &[u8]) {
+    let temporary = path.with_extension("tmp");
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .expect("create executable staging file");
+    file.write_all(contents).expect("write executable staging file");
+    file.sync_all().expect("sync executable staging file");
+    fs::set_permissions(&temporary, fs::Permissions::from_mode(0o700))
+        .expect("make executable staging file executable");
+    fs::rename(temporary, path).expect("publish executable atomically");
 }
 
 fn mock_tools(scratch: &Scratch) -> PathBuf {
     let bin = scratch.0.join("bin");
     fs::create_dir(&bin).expect("create mock bin");
-    fs::write(
-        bin.join("docker"),
-        r#"#!/bin/sh
+    write_executable(
+        &bin.join("docker"),
+        br#"#!/bin/sh
 case "$1 $2" in
   "info ") exit 0 ;;
   "image inspect")
@@ -120,11 +133,10 @@ case "$1 $2" in
 esac
 exit 98
 "#,
-    )
-    .expect("write docker mock");
-    fs::write(
-        bin.join("mock-build"),
-        r#"#!/bin/sh
+    );
+    write_executable(
+        &bin.join("mock-build"),
+        br#"#!/bin/sh
 sleep "${MOCK_BUILD_DELAY:-0}"
 if [ "${MOCK_SWAP_ORIGINAL:-0}" = 1 ]; then
   rm -f -- "$MOCK_ORIGINAL_CACHE/tlaplus-b123b226.tar.gz"
@@ -137,11 +149,10 @@ if [ "${MOCK_CURL_MODE:-ok}" = output-race ]; then
 fi
 printf %s 'bounded deterministic TLA fixture' >"$2"
 "#,
-    )
-    .expect("write build mock");
-    fs::write(
-        bin.join("curl"),
-        r#"#!/bin/sh
+    );
+    write_executable(
+        &bin.join("curl"),
+        br#"#!/bin/sh
 output=
 url=
 max_filesize=
@@ -181,17 +192,13 @@ case "${MOCK_CURL_MODE:-ok}" in
   *) printf %s "$url" ;;
 esac
 "#,
-    )
-    .expect("write curl mock");
-    for program in ["docker", "mock-build", "curl"] {
-        fs::set_permissions(bin.join(program), fs::Permissions::from_mode(0o700))
-            .expect("make mock executable");
-    }
+    );
     bin
 }
 
 fn run_offline(runner: &Path, root: &Path, scratch: &Path) -> std::process::Output {
-    Command::new(runner)
+    Command::new("/bin/bash")
+        .arg(runner)
         .args([root, scratch])
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
@@ -199,6 +206,30 @@ fn run_offline(runner: &Path, root: &Path, scratch: &Path) -> std::process::Outp
         .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
         .output()
         .expect("run offline acquisition")
+}
+
+fn run_script(
+    runner: &Path,
+    cache: &Path,
+    output_root: &Path,
+    path: &str,
+    curl_mode: Option<&str>,
+    final_output: Option<&Path>,
+) -> std::process::Output {
+    let mut command = Command::new("/bin/bash");
+    command
+        .arg(runner)
+        .args([cache, output_root])
+        .env_clear()
+        .env("PATH", path)
+        .env("ASB_FORMAL_ACQUIRE_ONLY", "1");
+    if let Some(mode) = curl_mode {
+        command.env("MOCK_CURL_MODE", mode);
+    }
+    if let Some(output) = final_output {
+        command.env("MOCK_FINAL_OUTPUT", output);
+    }
+    command.output().expect("run fixture script")
 }
 
 fn cache_path(root: &Path) -> PathBuf {
@@ -323,13 +354,7 @@ fn bounded_online_build_and_verified_cache_reuse_succeed() {
     fs::create_dir(&cache).expect("create cache");
     fs::set_permissions(&cache, fs::Permissions::from_mode(0o700)).expect("make cache private");
     let path = format!("{}:/usr/bin:/bin", bin.display());
-    let first = Command::new(&runner)
-        .args([&cache, &scratch.0.join("first")])
-        .env_clear()
-        .env("PATH", &path)
-        .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
-        .output()
-        .expect("run online build");
+    let first = run_script(&runner, &cache, &scratch.0.join("first"), &path, None, None);
     assert!(
         first.status.success(),
         "{}",
@@ -339,19 +364,35 @@ fn bounded_online_build_and_verified_cache_reuse_succeed() {
         fs::read(cache_path(&cache)).expect("read built cache"),
         bytes
     );
-    let second = Command::new(&runner)
-        .args([&cache, &scratch.0.join("second")])
-        .env_clear()
-        .env("PATH", &path)
-        .env("MOCK_CURL_MODE", "sentinel")
-        .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
-        .output()
-        .expect("reuse online cache");
+    let second = run_script(
+        &runner,
+        &cache,
+        &scratch.0.join("second"),
+        &path,
+        Some("sentinel"),
+        None,
+    );
     assert!(
         second.status.success(),
         "{}",
         String::from_utf8_lossy(&second.stderr)
     );
+
+    for iteration in 0..32 {
+        let output = run_script(
+            &runner,
+            &cache,
+            &scratch.0.join(format!("stress-{iteration}")),
+            &path,
+            Some("sentinel"),
+            None,
+        );
+        assert!(
+            output.status.success(),
+            "stress iteration {iteration}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]
@@ -389,15 +430,14 @@ fn bounded_online_acquisition_faults_do_not_promote() {
             fs::hard_link(&other, source_cache.join("tlaplus-b123b226.tar.gz"))
                 .expect("create archive hardlink");
         }
-        let output = Command::new(runner)
-            .args([&cache, &scratch.0.join("run")])
-            .env_clear()
-            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
-            .env("MOCK_CURL_MODE", name)
-            .env("MOCK_FINAL_OUTPUT", cache_path(&cache))
-            .env("ASB_FORMAL_ACQUIRE_ONLY", "1")
-            .output()
-            .expect("run online fault");
+        let output = run_script(
+            &runner,
+            &cache,
+            &scratch.0.join("run"),
+            &format!("{}:/usr/bin:/bin", bin.display()),
+            Some(name),
+            Some(&cache_path(&cache)),
+        );
         assert!(!output.status.success(), "online fault accepted: {name}");
         if name == "transfer-ceiling" {
             let stderr = String::from_utf8_lossy(&output.stderr);
