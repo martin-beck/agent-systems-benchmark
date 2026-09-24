@@ -910,7 +910,7 @@ impl LiteratureAdapter {
         hasher.update(b"asb-literature-descriptor-v1\0");
         hasher.update(id.as_bytes());
         hasher.update(revision.as_bytes());
-        let status = if family == LiteratureFamily::UnsupportedCandidate {
+        let status = if family == LiteratureFamily::UnsupportedCandidate || methodology_only(id) {
             AdapterStatus::Unsupported
         } else {
             AdapterStatus::FixtureOnly
@@ -1033,6 +1033,13 @@ fn family(id: &str) -> LiteratureFamily {
         "hal" => LiteratureFamily::HarnessBoundary,
         _ => LiteratureFamily::UnsupportedCandidate,
     }
+}
+
+/// Methodology and observability references are documentation-only.  They
+/// must remain visible in the registry, but never acquire an executable local
+/// fixture or enter a plan.
+fn methodology_only(id: &str) -> bool {
+    matches!(id, "harbor" | "inspect-ai" | "hal")
 }
 
 fn provenance(id: &str) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -1234,9 +1241,17 @@ mod tests {
         ))
     }
     #[test]
-    fn every_documented_family_has_a_local_fixture_and_official_score_is_unavailable() {
+    fn every_executable_family_has_a_local_fixture_and_official_score_is_unavailable() {
         for id in LITERATURE_WORKLOAD_IDS {
             let descriptor = LiteratureAdapter::describe(id).unwrap();
+            if methodology_only(id) {
+                assert_eq!(descriptor.status, AdapterStatus::Unsupported);
+                assert!(matches!(
+                    LiteratureAdapter::prepare(id, root(id)),
+                    Err(LiteratureError::Unsupported)
+                ));
+                continue;
+            }
             assert_eq!(descriptor.status, AdapterStatus::FixtureOnly);
             let root = root(id);
             let prepared = LiteratureAdapter::prepare(id, &root).unwrap();
@@ -1251,6 +1266,32 @@ mod tests {
                 Evaluation::LocalMock { passed: false }
             );
             prepared.cleanup().unwrap();
+        }
+    }
+
+    #[test]
+    fn every_executable_family_completes_deterministic_mock_lifecycle() {
+        for id in LITERATURE_WORKLOAD_IDS {
+            if methodology_only(id) {
+                continue;
+            }
+            let first_root = root(&format!("cross-product-{id}"));
+            let second_root = root(&format!("cross-product-repeat-{id}"));
+            let first = LiteratureAdapter::prepare(id, &first_root).unwrap();
+            let second = LiteratureAdapter::prepare(id, &second_root).unwrap();
+            let first_result = first.run_local_mock().unwrap();
+            let second_result = second.run_local_mock().unwrap();
+            assert_eq!(first_result, second_result, "non-deterministic mock: {id}");
+            assert_eq!(first_result.workload_id(), id);
+            assert_eq!(first_result.adaptation(), "asb-literature-local-fixture-v1");
+            assert_eq!(first_result.result_sha256().len(), 64);
+            first.reset().unwrap();
+            assert_eq!(
+                first.evaluate_local_mock().unwrap(),
+                Evaluation::LocalMock { passed: false }
+            );
+            first.cleanup().unwrap();
+            second.cleanup().unwrap();
         }
     }
 
@@ -1403,7 +1444,14 @@ mod tests {
         assert_eq!(rebench.contamination_cutoff, "required-before-each-window");
         let perf = catalog.iter().find(|entry| entry.id == "swe-perf").unwrap();
         assert_eq!(perf.metric_kind, "paired-performance");
-        for id in ["harbor", "inspect-ai", "hal"] {
+        for id in [
+            "agentops",
+            "ai-agents-that-matter",
+            "hal",
+            "harbor",
+            "helm",
+            "inspect-ai",
+        ] {
             let entry = catalog.iter().find(|entry| entry.id == id).unwrap();
             assert_eq!(entry.kind, CatalogKind::Methodology);
             assert_eq!(entry.availability_kind, CatalogAvailability::Unavailable);
@@ -1576,16 +1624,22 @@ mod tests {
         fs::remove_file(target).unwrap();
     }
     #[test]
-    fn unknown_ids_are_not_executable_and_harnesses_have_local_contracts() {
+    fn unknown_ids_and_methodology_references_are_not_executable() {
         assert_eq!(
             LiteratureAdapter::describe("not-a-workload")
                 .unwrap_err()
                 .to_string(),
             "unknown literature workload"
         );
-        let root = root("hal");
-        let prepared = LiteratureAdapter::prepare("hal", &root).unwrap();
-        assert_eq!(prepared.run_local_mock().unwrap().workload_id(), "hal");
-        prepared.cleanup().unwrap();
+        for id in ["harbor", "inspect-ai", "hal"] {
+            assert_eq!(
+                LiteratureAdapter::describe(id).unwrap().status,
+                AdapterStatus::Unsupported
+            );
+            assert!(matches!(
+                LiteratureAdapter::prepare(id, root(id)),
+                Err(LiteratureError::Unsupported)
+            ));
+        }
     }
 }
