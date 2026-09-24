@@ -622,6 +622,14 @@ fn open_backend_with_capture(
         .map_err(|_| CliError::operation("control state root is already owned"))?;
     let mut catalog = load_or_create_catalog(&state_root)?;
     reconcile_catalog(&mut catalog)?;
+    // Re-validate persisted authority material against the runner-owned
+    // enrollment on every restart.  This prevents a copied or stale catalog
+    // from becoming an authority source merely because its JSON is well formed.
+    let persisted_authorities = std::mem::take(&mut catalog.runtime_authorities);
+    for (provider, record) in persisted_authorities {
+        RunnerBackend::install_runtime_authority(&mut catalog, &provider, record)
+            .map_err(|_| CliError::operation("runtime authority recovery was rejected"))?;
+    }
     if catalog.agent_catalog.is_none() {
         catalog.agent_catalog = Some(build_unavailable_agent_catalog(
             &catalog.runner_instance_id,
@@ -1463,6 +1471,44 @@ fn observed_state(plan: &PlanFile, run_id: &str, prior: PublicRunState) -> Publi
 }
 
 impl RunnerBackend {
+    /// Install authority material received from the runtime-owned control
+    /// bridge.  This is deliberately private: frontends cannot construct or
+    /// replace authority records, and the record is accepted only when it is
+    /// bound to the active credential enrollment already owned by the runner.
+    fn install_runtime_authority(
+        catalog: &mut Catalog,
+        provider: &str,
+        record: RuntimeAuthorityRecord,
+    ) -> Result<(), BackendFailure> {
+        if record.provider != provider || record.enrollment.provider != provider {
+            return Err(BackendFailure::Rejected);
+        }
+        let enrollment = catalog.auth.get(provider).ok_or(BackendFailure::Rejected)?;
+        if enrollment.status != "active"
+            || enrollment.endpoint_identity_sha256 != record.endpoint_identity_sha256
+            || record.enrollment.credential_ref_sha256 != enrollment.credential_locator_sha256
+            || record.enrollment.generation != enrollment.generation
+        {
+            return Err(BackendFailure::Rejected);
+        }
+        record
+            .chain
+            .issue_chain(
+                &CertificateAuthorityV1::with_trust_anchor_digest_and_endpoint(
+                    record.trust_anchor_sha256.clone(),
+                    record.chain.generation,
+                    record.endpoint_identity_sha256.clone(),
+                )
+                .map_err(|_| BackendFailure::Rejected)?,
+                record.enrollment.issued_at_unix_ms / 1_000,
+            )
+            .map_err(|_| BackendFailure::Rejected)?;
+        catalog
+            .runtime_authorities
+            .insert(provider.to_owned(), record);
+        Ok(())
+    }
+
     fn bind(
         &self,
         call: &ControlCall,
@@ -3405,7 +3451,9 @@ impl RunnerBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use asb_control::{ControlServer, ControlSuccess, ProviderProfileUpsertParams};
+    use asb_control::{
+        CertificateIdentityV1, ControlServer, ControlSuccess, ProviderProfileUpsertParams,
+    };
     use asb_protocol::{
         CredentialProvenance, CredentialSource, EndpointClass, EndpointProvenance,
         PROVIDER_PROFILE_V1, ProviderKind, ProviderProfileV1, ProviderSettings,
@@ -3447,6 +3495,74 @@ mod tests {
         assert_eq!(record.issue_receipt(1_500), Err(BackendFailure::Rejected));
         let encoded = serde_json::to_string(&record).unwrap();
         assert!(!encoded.contains("/tmp"));
+    }
+
+    #[test]
+    fn runtime_authority_injection_binds_active_enrollment_and_rejects_revocation() {
+        let mut scratch = Scratch::new();
+        let mut catalog = load_or_create_catalog(&scratch).unwrap();
+        catalog.auth.insert(
+            "openrouter".into(),
+            AuthRecord {
+                provider: "openrouter".into(),
+                endpoint_identity_sha256: "b".repeat(64),
+                credential_locator_sha256: "e".repeat(64),
+                generation: 1,
+                status: "active".into(),
+            },
+        );
+        let chain = AuthenticatedChainEnrollmentV1 {
+            schema_version: 1,
+            chain: vec![CertificateIdentityV1 {
+                schema_version: 1,
+                subject_sha256: "c".repeat(64),
+                issuer_sha256: "d".repeat(64),
+                certificate_sha256: "d".repeat(64),
+                trust_anchor_sha256: "a".repeat(64),
+                generation: 1,
+                not_before: 1,
+                not_after: 2_000,
+                role: "operator".into(),
+                endpoint_identity_sha256: "b".repeat(64),
+            }],
+            pairing_fingerprint_sha256: "c".repeat(64),
+            generation: 1,
+        };
+        let authority = CertificateAuthorityV1::with_trust_anchor_digest_and_endpoint(
+            "a".repeat(64),
+            1,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let issued = chain.issue_chain(&authority, 1).unwrap();
+        let record = RuntimeAuthorityRecord {
+            provider: "openrouter".into(),
+            trust_anchor_sha256: "a".repeat(64),
+            endpoint_identity_sha256: "b".repeat(64),
+            chain,
+            enrollment: RuntimeAuthorityEnrollmentV1 {
+                schema_version: 1,
+                chain_sha256: issued.chain_sha256().into(),
+                provider: "openrouter".into(),
+                credential_ref_sha256: "e".repeat(64),
+                target: "203.0.113.10:443".into(),
+                tool_bundle_sha256: "f".repeat(64),
+                lease_root_sha256: "1".repeat(64),
+                relay_root_sha256: "2".repeat(64),
+                generation: 1,
+                issued_at_unix_ms: 1_000,
+                expires_at_unix_ms: 2_000,
+            },
+        };
+        RunnerBackend::install_runtime_authority(&mut catalog, "openrouter", record.clone())
+            .unwrap();
+        assert!(catalog.runtime_authorities.contains_key("openrouter"));
+        catalog.auth.get_mut("openrouter").unwrap().status = "revoked".into();
+        assert_eq!(
+            RunnerBackend::install_runtime_authority(&mut catalog, "openrouter", record),
+            Err(BackendFailure::Rejected)
+        );
+        scratch.cleanup_with_hook(|| {});
     }
 
     struct FixtureProviderCapture {
