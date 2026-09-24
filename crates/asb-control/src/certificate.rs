@@ -294,8 +294,12 @@ impl IssuedCertificateChainV1 {
         let mut digest = Sha256::new();
         digest.update(self.chain_sha256.as_bytes());
         digest.update(provider.as_bytes());
+        digest.update(credential_ref_sha256.as_bytes());
         digest.update(identity.generation.to_le_bytes());
         digest.update(target.as_bytes());
+        digest.update(tool_bundle_sha256.as_bytes());
+        digest.update(lease_root_sha256.as_bytes());
+        digest.update(relay_root_sha256.as_bytes());
         Ok(RuntimeEnrollmentReceiptV1 {
             schema_version: 1,
             chain_sha256: self.chain_sha256.clone(),
