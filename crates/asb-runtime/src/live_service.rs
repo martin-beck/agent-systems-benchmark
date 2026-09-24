@@ -359,6 +359,47 @@ impl LiveProviderRuntimeAuthorityProfile {
     pub fn generation(&self) -> u64 {
         self.attestation.claims.generation
     }
+
+    /// Consume runtime-owned enrolled material and mint the opaque live
+    /// handle. This boundary is crate-private so a CLI cannot provide policy,
+    /// roots, tools, or backend authority.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // Consumed by the authenticated runtime/control caller.
+    pub(crate) fn materialize_handle(
+        self,
+        config: LiveProviderRuntimeConfig,
+        policy: ProviderEgressPolicy,
+        allowlist: ProviderEgressAllowlist,
+        relay_root: &Path,
+        bubblewrap: ToolPin,
+        systemd_run: ToolPin,
+        systemctl: ToolPin,
+        taskset: ToolPin,
+        live_launch_gate: ToolPin,
+    ) -> Result<LiveProviderRuntimeHandle, LiveProviderProvisionError> {
+        let claims = self.attestation.claims();
+        if self.record.target != config.target().address()
+            || self.record.generation != claims.generation
+            || self.record.credential_ref_sha256 != config.credential_ref_sha256()
+            || self.record.provider.is_empty()
+        {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
+        LiveProviderBootstrapSpec::from_enrollment(
+            config,
+            policy,
+            allowlist,
+            relay_root,
+            bubblewrap,
+            systemd_run,
+            systemctl,
+            taskset,
+            live_launch_gate,
+        )
+        .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?
+        .provisioner()
+        .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)
+    }
 }
 
 impl LiveProviderRuntimeBridge {
@@ -1693,6 +1734,79 @@ mod tests {
         assert!(matches!(
             bridge.materialize_profile(&record, &attestation, 1_500),
             Err(LiveProviderEnrollmentRecordError::Replay)
+        ));
+    }
+
+    #[test]
+    fn authority_profile_mints_handle_only_for_matching_runtime_material() {
+        let attestation = attested_record();
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        let bridge = LiveProviderRuntimeBridge::new();
+        let profile = bridge
+            .materialize_profile(&record, &attestation, 1_500)
+            .unwrap();
+        let root = root();
+        let selected = ProviderEgressTarget::test_only("203.0.113.10:443".parse().unwrap());
+        let allowlist = ProviderEgressAllowlist::new(vec![selected]).unwrap();
+        let config = LiveProviderRuntimeConfig::new(
+            &root,
+            &allowlist,
+            selection(
+                selected,
+                "7",
+                "1".repeat(64),
+                "f".repeat(64),
+                NetworkPolicy::Deny,
+            ),
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let pin = |path: &str| ToolPin::new(path.into(), "test".into()).unwrap();
+        let handle = profile
+            .materialize_handle(
+                config,
+                policy,
+                allowlist,
+                &root,
+                pin("/bin/true"),
+                pin("/bin/true"),
+                pin("/bin/true"),
+                pin("/bin/true"),
+                pin("/bin/true"),
+            )
+            .unwrap();
+        assert!(format!("{handle:?}").contains("LiveProviderRuntimeHandle(..)"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn authority_profile_rejects_mismatched_target_before_bootstrap() {
+        let attestation = attested_record();
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        let bridge = LiveProviderRuntimeBridge::new();
+        let profile = bridge
+            .materialize_profile(&record, &attestation, 1_500)
+            .unwrap();
+        let config = config();
+        let allowlist = ProviderEgressAllowlist::new(vec![target()]).unwrap();
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let pin = |path: &str| ToolPin::new(path.into(), "test".into()).unwrap();
+        assert!(matches!(
+            profile.materialize_handle(
+                config,
+                policy,
+                allowlist,
+                &root(),
+                pin("/bin/true"),
+                pin("/bin/true"),
+                pin("/bin/true"),
+                pin("/bin/true"),
+                pin("/bin/true"),
+            ),
+            Err(LiveProviderProvisionError::InvalidConfiguration)
         ));
     }
 
