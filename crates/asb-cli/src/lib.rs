@@ -34,7 +34,7 @@ use asb_replay::{
 use asb_runtime::launch_factory::{
     LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, ReplayLaunchAuthority,
 };
-use asb_runtime::live_service::LiveProviderRuntimeScheduler;
+use asb_runtime::live_service::{LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler};
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
@@ -197,6 +197,18 @@ pub fn run_with_runtime_live_provider_scheduler(
     stderr: &mut dyn Write,
 ) -> u8 {
     run_with_live_provider_factory(args, scheduler.into_factory(), stdout, stderr)
+}
+
+/// Execute a live-provider run or sweep from the runtime-owned authenticated
+/// dispatch source. The CLI receives no provider, credential, policy, relay,
+/// namespace, tool, or launch authority inputs.
+pub fn run_with_runtime_live_provider_source(
+    args: &[OsString],
+    source: LiveProviderRuntimeDispatchSource,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    run_with_runtime_live_provider_scheduler(args, source.into_scheduler(), stdout, stderr)
 }
 
 fn dispatch(
