@@ -27,7 +27,7 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
         "alloy_sha256 = \"6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d\"",
         "alloy_bytes = 21062377",
         "java_version = \"17.0.20+8\"",
-        "setup_java_action_commit = \"dded0888837ed1f317902acf8a20df0ad188d165\"",
+        "setup_java_action_commit = \"de7274f081f381c8f8158605e0321c36c376e2e6\"",
     ] {
         assert!(PINS.contains(required), "missing pin: {required}");
     }
@@ -60,7 +60,7 @@ fn workflow_and_manifest_use_the_reviewed_exact_pins() {
     assert!(WORKFLOW.contains("toolchain install 1.93.0"));
     assert!(WORKFLOW.contains("runner: [ubuntu-24.04]"));
     assert!(!WORKFLOW.contains("ubuntu-24.04-arm"));
-    assert!(WORKFLOW.contains("actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165"));
+    assert!(WORKFLOW.contains("actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6"));
     assert!(WORKFLOW.contains("java-version: \"17.0.20+8\""));
     assert!(WORKFLOW.contains("formal/run_temporal_models.sh"));
 }

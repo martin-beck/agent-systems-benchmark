@@ -22,4 +22,4 @@ alloy_bytes = 21062377
 alloy_license = "upstream-declared MIT"
 java_distribution = "temurin"
 java_version = "17.0.20+8"
-setup_java_action_commit = "dded0888837ed1f317902acf8a20df0ad188d165"
+setup_java_action_commit = "de7274f081f381c8f8158605e0321c36c376e2e6"

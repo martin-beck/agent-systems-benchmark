@@ -40,7 +40,7 @@ ALLOY_MODULE = re.compile(
     r"^module (?P<name>[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z][A-Za-z0-9_]*)*)$"
 )
 OPTIONAL_ARTIFACT_ACTION = (
-    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 )
 PROTECTED_CONDITION = (
     "github.repository == 'martin-beck/agent-systems-benchmark' "
@@ -238,7 +238,7 @@ def validate_workflows(manifest: dict[str, object]) -> None:
                 "      - name: Publish optional quality evidence\n"
                 "        id: optional_evidence_upload\n"
                 "        continue-on-error: true\n"
-                f"        uses: {OPTIONAL_ARTIFACT_ACTION} # v4.6.2\n"
+                f"        uses: {OPTIONAL_ARTIFACT_ACTION} # v7.0.1\n"
             )
             if (
                 required_optional not in text
