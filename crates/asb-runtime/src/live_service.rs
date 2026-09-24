@@ -24,8 +24,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Runtime-owned store for one authenticated certificate chain.
@@ -146,6 +150,136 @@ pub trait LiveProviderResolver: Send {
 
 /// Runtime entrypoint for resolver composition before authority acquisition.
 pub struct LiveProviderRuntimeService;
+
+static LOCAL_PROVIDER_GENERATION: AtomicU64 = AtomicU64::new(0);
+static LOCAL_PROVIDER_ACTIVE_GENERATION: AtomicU64 = AtomicU64::new(0);
+const LOCAL_PROVIDER_CREDENTIAL_SHA256: &str =
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const LOCAL_PROVIDER_TOOL_SHA256: &str =
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+/// Runtime-owned deterministic loopback authority for offline development and
+/// CI. It contains only private in-memory capability markers and ephemeral
+/// roots; no caller-supplied endpoint, credential, policy, or tool is accepted.
+pub struct LocalProviderAuthority {
+    generation: u64,
+    lease_root: PathBuf,
+    relay_root: PathBuf,
+    credential: LocalProviderCredentialCapability,
+    teardown: Arc<AtomicU64>,
+}
+
+impl std::fmt::Debug for LocalProviderAuthority {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LocalProviderAuthority(..)")
+    }
+}
+
+/// Opaque in-memory credential capability for the deterministic local mock.
+#[derive(Debug)]
+pub struct LocalProviderCredentialCapability {
+    reference_sha256: String,
+}
+
+/// Fixed runtime-owned local authority provisioner. Its zero-argument API is
+/// deliberate: CLI/config/environment callers cannot provide authority.
+pub struct LocalProviderAuthorityProvisioner;
+
+/// Fail-closed errors while provisioning the local authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalProviderAuthorityError {
+    /// The runtime could not create or secure ephemeral private roots.
+    Unavailable,
+}
+
+impl LocalProviderAuthorityProvisioner {
+    /// Provision one deterministic loopback authority without external I/O.
+    pub fn provision() -> Result<LocalProviderAuthority, LocalProviderAuthorityError> {
+        let generation = LOCAL_PROVIDER_GENERATION
+            .fetch_add(1, Ordering::SeqCst)
+            .checked_add(1)
+            .ok_or(LocalProviderAuthorityError::Unavailable)?;
+        let base = std::env::temp_dir().join(format!(
+            "asb-local-provider-{}-{generation}",
+            std::process::id()
+        ));
+        let lease_root = base.join("leases");
+        let relay_root = base.join("relay");
+        std::fs::create_dir(&base)
+            .and_then(|_| std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o700)))
+            .and_then(|_| std::fs::create_dir(&lease_root))
+            .and_then(|_| std::fs::create_dir(&relay_root))
+            .and_then(|_| {
+                std::fs::set_permissions(&lease_root, std::fs::Permissions::from_mode(0o700))
+            })
+            .and_then(|_| {
+                std::fs::set_permissions(&relay_root, std::fs::Permissions::from_mode(0o700))
+            })
+            .map_err(|_| LocalProviderAuthorityError::Unavailable)?;
+        LOCAL_PROVIDER_ACTIVE_GENERATION.store(generation, Ordering::SeqCst);
+        Ok(LocalProviderAuthority {
+            generation,
+            lease_root,
+            relay_root,
+            credential: LocalProviderCredentialCapability {
+                reference_sha256: LOCAL_PROVIDER_CREDENTIAL_SHA256.to_owned(),
+            },
+            teardown: Arc::new(AtomicU64::new(generation)),
+        })
+    }
+}
+
+impl LocalProviderAuthority {
+    /// Stable local provider identity; no endpoint or path is exposed.
+    #[must_use]
+    pub fn provider(&self) -> &'static str {
+        "local-deterministic-mock"
+    }
+
+    /// Runtime generation fencing identity.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Loopback-only target identity for the local mock.
+    #[must_use]
+    pub fn target(&self) -> SocketAddr {
+        SocketAddr::from(([127, 0, 0, 1], 4000))
+    }
+
+    /// Digest reference for the opaque in-memory credential marker.
+    #[must_use]
+    pub fn credential_reference_sha256(&self) -> &str {
+        &self.credential.reference_sha256
+    }
+
+    /// Fixed digest identity for the pinned deterministic mock tool bundle.
+    #[must_use]
+    pub fn tool_bundle_sha256(&self) -> &'static str {
+        LOCAL_PROVIDER_TOOL_SHA256
+    }
+
+    /// Return whether this authority generation remains usable.
+    #[must_use]
+    pub fn is_active(&self) -> bool {
+        self.teardown.load(Ordering::Acquire) == self.generation
+            && LOCAL_PROVIDER_ACTIVE_GENERATION.load(Ordering::Acquire) == self.generation
+    }
+
+    /// Fence this authority before cancellation or teardown.
+    pub fn revoke(&self) {
+        self.teardown.store(0, Ordering::Release);
+    }
+}
+
+impl Drop for LocalProviderAuthority {
+    fn drop(&mut self) {
+        self.revoke();
+        let _ = std::fs::remove_dir_all(self.lease_root.parent().unwrap_or(&self.lease_root));
+        let _ = std::fs::remove_dir_all(&self.relay_root);
+    }
+}
 
 /// Runtime-owned scheduler composition for live provider attempts.
 ///
@@ -1993,6 +2127,73 @@ mod tests {
             bridge.ingest_control_receipt(&receipt, &chain, 1_500),
             Err(LiveProviderEnrollmentRecordError::AttestationMismatch)
         ));
+    }
+
+    #[test]
+    fn local_authority_is_runtime_owned_loopback_and_private() {
+        let authority = LocalProviderAuthorityProvisioner::provision().unwrap();
+        assert_eq!(authority.provider(), "local-deterministic-mock");
+        assert_eq!(authority.target().ip(), std::net::Ipv4Addr::LOCALHOST);
+        assert_eq!(authority.target().port(), 4_000);
+        assert_eq!(authority.credential_reference_sha256().len(), 64);
+        assert_eq!(authority.tool_bundle_sha256().len(), 64);
+        assert_eq!(
+            authority.credential_reference_sha256(),
+            LOCAL_PROVIDER_CREDENTIAL_SHA256
+        );
+        assert_eq!(authority.tool_bundle_sha256(), LOCAL_PROVIDER_TOOL_SHA256);
+        assert_eq!(
+            std::fs::metadata(authority.lease_root.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(&authority.lease_root)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(&authority.relay_root)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert!(authority.is_active());
+        authority.revoke();
+        assert!(!authority.is_active());
+        let debug = format!("{authority:?}");
+        assert!(debug.contains("LocalProviderAuthority(..)"));
+        assert!(!debug.contains(authority.credential_reference_sha256()));
+        assert!(!debug.contains(authority.lease_root.to_string_lossy().as_ref()));
+        assert!(!debug.contains(authority.relay_root.to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn local_authority_generation_is_fenced_and_drop_tears_down_private_roots() {
+        let first = LocalProviderAuthorityProvisioner::provision().unwrap();
+        let first_generation = first.generation();
+        let second = LocalProviderAuthorityProvisioner::provision().unwrap();
+        assert!(second.generation() > first_generation);
+        assert!(!first.is_active());
+        assert!(second.is_active());
+        assert_eq!(
+            first.credential_reference_sha256(),
+            second.credential_reference_sha256()
+        );
+        let first_root = first.lease_root.parent().unwrap().to_owned();
+        drop(first);
+        assert!(!first_root.exists());
+        let second_root = second.lease_root.parent().unwrap().to_owned();
+        drop(second);
+        assert!(!second_root.exists());
     }
 
     #[test]
