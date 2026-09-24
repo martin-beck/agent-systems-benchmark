@@ -158,6 +158,21 @@ pub struct LiveProviderRuntimeScheduler {
     factory: LiveProviderAttemptFactory,
 }
 
+/// Opaque runtime-owned source consumed by production run and sweep dispatch.
+///
+/// The source is minted only from an already authenticated runtime handle and
+/// retains the scheduler factory privately. Frontends can move it into the
+/// CLI boundary, but cannot provide or inspect any authority inputs.
+pub struct LiveProviderRuntimeDispatchSource {
+    scheduler: LiveProviderRuntimeScheduler,
+}
+
+impl std::fmt::Debug for LiveProviderRuntimeDispatchSource {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderRuntimeDispatchSource(..)")
+    }
+}
+
 impl std::fmt::Debug for LiveProviderRuntimeScheduler {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("LiveProviderRuntimeScheduler(..)")
@@ -797,6 +812,27 @@ impl LiveProviderRuntimeScheduler {
     }
 }
 
+impl LiveProviderRuntimeDispatchSource {
+    /// Mint a dispatch source from an opaque runtime handle. All launch
+    /// inputs remain runtime-owned and network-denied validation is retained.
+    pub fn from_handle(
+        handle: LiveProviderRuntimeHandle,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+    ) -> Result<Self, LiveProviderProvisionError> {
+        Ok(Self {
+            scheduler: LiveProviderRuntimeScheduler::new(handle, input, limits, adapter_sha256)?,
+        })
+    }
+
+    /// Consume the opaque source at the CLI run/sweep boundary.
+    #[must_use]
+    pub fn into_scheduler(self) -> LiveProviderRuntimeScheduler {
+        self.scheduler
+    }
+}
+
 /// Runtime-owned enrollment used to construct the live provisioner.
 ///
 /// This type is crate-private on purpose: CLI callers cannot provide a policy,
@@ -1305,6 +1341,56 @@ mod tests {
                 .unwrap_err(),
             LiveProviderProvisionError::InvalidConfiguration
         );
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn dispatch_source_is_runtime_owned_and_consumable_once() {
+        let (spec, relay_root) = bootstrap_spec();
+        let handle = spec.provisioner().unwrap();
+        let input = launch_input(&root());
+        let source = LiveProviderRuntimeDispatchSource::from_handle(
+            handle,
+            input,
+            ProcessLimits::new(
+                4096,
+                4096,
+                Duration::from_secs(1),
+                Duration::from_millis(100),
+                Duration::from_millis(5),
+            )
+            .unwrap(),
+            &"d".repeat(64),
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{source:?}"),
+            "LiveProviderRuntimeDispatchSource(..)"
+        );
+        let scheduler = source.into_scheduler();
+        assert_eq!(format!("{scheduler:?}"), "LiveProviderRuntimeScheduler(..)");
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn dispatch_source_rejects_non_digest_adapter_before_exposing_source() {
+        let (spec, relay_root) = bootstrap_spec();
+        let handle = spec.provisioner().unwrap();
+        let error = LiveProviderRuntimeDispatchSource::from_handle(
+            handle,
+            launch_input(&root()),
+            ProcessLimits::new(
+                4096,
+                4096,
+                Duration::from_secs(1),
+                Duration::from_millis(100),
+                Duration::from_millis(5),
+            )
+            .unwrap(),
+            "not-a-digest",
+        )
+        .unwrap_err();
+        assert_eq!(error, LiveProviderProvisionError::InvalidConfiguration);
         let _ = std::fs::remove_dir_all(relay_root);
     }
 
