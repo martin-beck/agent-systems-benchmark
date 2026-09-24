@@ -8,14 +8,15 @@ use asb_bundle::{VerifierConfig, verify_detached_document};
 use asb_control::{
     AgentAvailability, AgentCatalog, AgentCatalogAction, AgentCatalogEntry, AgentCatalogRequest,
     AgentTarget, AgentUnavailableReason, AnalysisSummary, ArtifactMetadata, ArtifactSensitivity,
-    AuthStatusResponse, BackendFailure, BoundControlResult, CONTROL_MEASUREMENT_SELECTION_V1,
-    Capabilities, ConfigurationSnapshot, ConfigurationStatusRequest, ControlBackend, ControlCall,
-    ControlEvent, ControlEventKind, ControlLimits, ControlResult, ControlVersion,
-    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
-    PlanReference, ProviderAuthMethod, ProviderAvailability, ProviderCatalog,
-    ProviderCatalogAction, ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel,
-    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
-    SettingsIssue, SettingsValidation,
+    AuthStatusResponse, AuthenticatedChainEnrollmentV1, BackendFailure, BoundControlResult,
+    CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, CertificateAuthorityV1, ConfigurationSnapshot,
+    ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
+    ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
+    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference, ProviderAuthMethod,
+    ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogEntry,
+    ProviderCatalogRequest, ProviderModel, ProvisionedControlServer, PublicRunState,
+    RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1, SettingsIssue,
+    SettingsValidation,
 };
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
@@ -339,6 +340,8 @@ struct Catalog {
     #[serde(default)]
     auth: BTreeMap<String, AuthRecord>,
     #[serde(default)]
+    runtime_authorities: BTreeMap<String, RuntimeAuthorityRecord>,
+    #[serde(default)]
     configuration: Option<ConfigurationRecord>,
     #[serde(default)]
     recording_campaign: Option<RecordingCampaignRecord>,
@@ -463,6 +466,44 @@ struct AuthRecord {
     credential_locator_sha256: String,
     generation: u64,
     status: String,
+}
+
+/// Owner-injected, credential-free authority material retained by the runner.
+/// The trust anchor is a digest because certificate/private-key bytes never
+/// enter the public catalog or durable evidence.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RuntimeAuthorityRecord {
+    provider: String,
+    trust_anchor_sha256: String,
+    endpoint_identity_sha256: String,
+    chain: AuthenticatedChainEnrollmentV1,
+    enrollment: RuntimeAuthorityEnrollmentV1,
+}
+
+impl RuntimeAuthorityRecord {
+    #[allow(dead_code)] // Consumed by the authenticated receipt operation successor.
+    fn issue_receipt(
+        &self,
+        now: u64,
+    ) -> Result<asb_control::RuntimeEnrollmentReceiptV1, BackendFailure> {
+        if self.provider != self.enrollment.provider {
+            return Err(BackendFailure::Rejected);
+        }
+        let authority = CertificateAuthorityV1::with_trust_anchor_digest_and_endpoint(
+            self.trust_anchor_sha256.clone(),
+            self.chain.generation,
+            self.endpoint_identity_sha256.clone(),
+        )
+        .map_err(|_| BackendFailure::Rejected)?;
+        let issued = self
+            .chain
+            .issue_chain(&authority, now)
+            .map_err(|_| BackendFailure::Rejected)?;
+        self.enrollment
+            .issue_receipt(&issued)
+            .map_err(|_| BackendFailure::Rejected)
+    }
 }
 
 struct ActiveRun {
@@ -698,6 +739,7 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         mutations: BTreeMap::new(),
         events: Vec::new(),
         auth: BTreeMap::new(),
+        runtime_authorities: BTreeMap::new(),
         configuration: None,
         recording_campaign: None,
         provider_generation: 1,
@@ -715,6 +757,11 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         || catalog.plans.len() > 100_000
         || catalog.runs.len() > 1_000_000
         || catalog.mutations.len() > 1_000_000
+        || catalog.runtime_authorities.len() > 32
+        || catalog
+            .runtime_authorities
+            .keys()
+            .any(|provider| asb_control::validate_identity(provider).is_err())
         || catalog.revision.0 != catalog.events.last().map_or(0, |event| event.revision.0)
     {
         return Err(CliError::operation("control catalog is invalid"));
@@ -3370,6 +3417,37 @@ mod tests {
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn runtime_authority_record_rejects_provider_mismatch_before_issuance() {
+        let record = RuntimeAuthorityRecord {
+            provider: "openai".into(),
+            trust_anchor_sha256: "a".repeat(64),
+            endpoint_identity_sha256: "b".repeat(64),
+            chain: AuthenticatedChainEnrollmentV1 {
+                schema_version: 1,
+                chain: Vec::new(),
+                pairing_fingerprint_sha256: "c".repeat(64),
+                generation: 1,
+            },
+            enrollment: RuntimeAuthorityEnrollmentV1 {
+                schema_version: 1,
+                chain_sha256: "d".repeat(64),
+                provider: "openrouter".into(),
+                credential_ref_sha256: "e".repeat(64),
+                target: "203.0.113.10:443".into(),
+                tool_bundle_sha256: "f".repeat(64),
+                lease_root_sha256: "1".repeat(64),
+                relay_root_sha256: "2".repeat(64),
+                generation: 1,
+                issued_at_unix_ms: 1_000,
+                expires_at_unix_ms: 2_000,
+            },
+        };
+        assert_eq!(record.issue_receipt(1_500), Err(BackendFailure::Rejected));
+        let encoded = serde_json::to_string(&record).unwrap();
+        assert!(!encoded.contains("/tmp"));
+    }
 
     struct FixtureProviderCapture {
         calls: AtomicUsize,

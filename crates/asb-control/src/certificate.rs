@@ -369,6 +369,28 @@ impl CertificateAuthorityV1 {
         Ok(authority)
     }
 
+    /// Reconstruct an authority from an owner-checked persisted trust-anchor
+    /// digest and endpoint binding. No certificate or private-key bytes are
+    /// accepted at this recovery boundary.
+    pub fn with_trust_anchor_digest_and_endpoint(
+        trust_anchor_sha256: String,
+        generation: u64,
+        endpoint_identity_sha256: String,
+    ) -> Result<Self, CertificateError> {
+        validate_digest(&trust_anchor_sha256)?;
+        validate_digest(&endpoint_identity_sha256)?;
+        if generation == 0 {
+            return Err(CertificateError::InvalidGeneration);
+        }
+        Ok(Self {
+            trust_anchor_sha256,
+            generation,
+            trust_anchor_der: None,
+            endpoint_identity_sha256: Some(endpoint_identity_sha256),
+            revoked_generations: Arc::new(Mutex::new(BTreeSet::new())),
+        })
+    }
+
     /// Revoke a generation atomically; all subsequent issuance attempts fail closed.
     pub fn revoke_generation(&self, generation: u64) -> Result<(), CertificateError> {
         if generation == 0 {
