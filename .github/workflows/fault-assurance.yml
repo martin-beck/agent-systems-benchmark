@@ -10,7 +10,8 @@ permissions:
   contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Never cancel an exact-main post-merge run: its SHA is immutable evidence.
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
 jobs:
   retained-faults:
     name: Retained faults (${{ matrix.runner }})
