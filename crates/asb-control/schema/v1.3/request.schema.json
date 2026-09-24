@@ -53,23 +53,6 @@
       ]
     },
     {
-      "description": "Issue one runtime-bound receipt from runner-owned authority material.",
-      "type": "object",
-      "properties": {
-        "method": {
-          "type": "string",
-          "const": "runtime_receipt"
-        },
-        "params": {
-          "$ref": "#/$defs/RuntimeReceiptRequestV1"
-        }
-      },
-      "required": [
-        "method",
-        "params"
-      ]
-    },
-    {
       "description": "Obtain the immutable catalog of selectable measurements.",
       "type": "object",
       "properties": {
@@ -543,40 +526,6 @@
     "RunId": {
       "description": "Opaque stable run identity.",
       "type": "string"
-    },
-    "RuntimeReceiptRequestV1": {
-      "description": "Bounded request for one runtime receipt from the enrolled control source.",
-      "type": "object",
-      "properties": {
-        "generation": {
-          "description": "Expected monotonic enrollment generation.",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "provider": {
-          "description": "Provider identity bound to the enrolled authority.",
-          "type": "string"
-        },
-        "request_nonce_sha256": {
-          "description": "Caller nonce used to prevent response confusion and replay.",
-          "type": "string"
-        },
-        "schema_version": {
-          "description": "Request schema version.",
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "schema_version",
-        "provider",
-        "generation",
-        "request_nonce_sha256"
-      ]
     }
   }
 }

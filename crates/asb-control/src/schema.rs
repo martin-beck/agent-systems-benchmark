@@ -298,6 +298,7 @@ fn remove_lifecycle_variants(value: &mut Value) {
         "auth_rotate",
         "auth_revoke",
         "auth_helper_invoke",
+        "runtime_receipt",
     ] {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
