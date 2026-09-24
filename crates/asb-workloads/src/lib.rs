@@ -2,8 +2,13 @@
 // SPDX-License-Identifier: MIT
 //! Offline, bounded original engineering workloads and protected graders.
 
+mod literature;
 mod validity;
 
+pub use literature::{
+    Acquisition, AcquisitionReceipt, AdapterStatus, Evaluation, LITERATURE_WORKLOAD_IDS,
+    LiteratureAdapter, LiteratureDescriptor, LiteratureError, LiteratureFamily, LiteraturePrepared,
+};
 pub use validity::{
     AdaptationKind, BaselineEvidence, BenchmarkValidityRegistry, DependencyPin, ExposurePolicy,
     ExposureStatus, MAX_NESTED_ENTRIES, MAX_PUBLIC_TEXT_BYTES, MAX_REGISTRY_BYTES,
