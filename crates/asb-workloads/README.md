@@ -112,5 +112,8 @@ The fixture path is available for contract tests and LiteLLM-compatible local
 mock runs. `evaluate` returns `Unavailable` until the official evaluator,
 image, reset and oracle evidence are independently qualified. The separate
 `evaluate_local_mock` result is explicitly not an upstream benchmark score.
-HAL is retained as a harness boundary and CORE-Bench remains unsupported;
-neither can be selected as an executable workload by this adapter.
+`run_local_mock` returns provenance, adaptation, model, scorer, workload and
+result digests, and rejects malformed tasks, invalid timeouts, grader
+co-location, and any requested network destination. CORE-Bench and HAL retain
+their distinct source families while their bounded local contract probes remain
+available; this does not qualify either official evaluator or harness.

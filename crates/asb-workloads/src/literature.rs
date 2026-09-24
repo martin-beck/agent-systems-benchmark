@@ -20,9 +20,14 @@ const EXTERNAL_REGISTRY: &str = include_str!("../registry/v1/external-workloads.
 
 /// Maximum bytes read from an explicitly acquired archive.
 pub const MAX_ACQUISITION_BYTES: u64 = 64 * 1024 * 1024;
+/// Maximum timeout accepted by the deterministic local evaluator.
+pub const MAX_LOCAL_MOCK_TIMEOUT_MS: u64 = 60_000;
 const OWNER: &str = ".asb-literature-owner";
 const ANSWER: &str = "mock-answer.txt";
 const PROMPT: &str = "PROMPT.md";
+const LOCAL_MOCK_MODEL: &str = "asb-local-deterministic-model-v1";
+const LOCAL_MOCK_ADAPTATION: &str = "asb-literature-local-fixture-v1";
+const LOCAL_MOCK_SCORER: &str = "asb-literature-local-mock-scorer-v1";
 
 /// Stable identities documented by ASB.  They are provenance identities, not
 /// a claim that every upstream evaluator is executable or qualified.
@@ -314,6 +319,8 @@ pub enum LiteratureFamily {
     RepositoryRepair,
     /// Terminal, operating-system, or system environment.
     TerminalSystem,
+    /// Bounded systems and performance task family.
+    SystemsPerformance,
     /// Function or multi-language code generation.
     CodeGeneration,
     /// Stateful interaction and tool use.
@@ -398,6 +405,113 @@ pub enum Evaluation {
     },
 }
 
+/// A bounded deterministic model double used by development fixtures.
+///
+/// This is an in-process, provider-free stand-in. Its output is never
+/// evidence that an upstream model or evaluator ran.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DeterministicMockModel;
+
+impl DeterministicMockModel {
+    /// Stable model identity recorded in local-mock evidence.
+    #[must_use]
+    pub const fn model_id() -> &'static str {
+        LOCAL_MOCK_MODEL
+    }
+
+    /// Return the bounded fixture answer without network or process effects.
+    #[must_use]
+    pub fn respond(_prompt: &str) -> &'static str {
+        "ASB-LOCAL-MOCK-OK"
+    }
+}
+
+/// Controls for one deterministic local-mock attempt.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalMockConfig {
+    /// Requested bounded attempt timeout.
+    pub timeout_ms: u64,
+    /// Any destination here is rejected; local mocks have no egress.
+    pub network_destinations: BTreeSet<String>,
+    /// Whether the fixture task passed structural validation.
+    pub task_valid: bool,
+    /// Whether grader material is outside the agent-writable workspace.
+    pub grader_isolated: bool,
+}
+
+impl Default for LocalMockConfig {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 5_000,
+            network_destinations: BTreeSet::new(),
+            task_valid: true,
+            grader_isolated: true,
+        }
+    }
+}
+
+/// Content-free local-mock result evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalMockResult {
+    workload_id: String,
+    source_revision: String,
+    adaptation: String,
+    evaluator: String,
+    mock_model: String,
+    workload_sha256: String,
+    scorer_sha256: String,
+    result_sha256: String,
+    passed: bool,
+}
+
+impl LocalMockResult {
+    /// Stable workload identity.
+    #[must_use]
+    pub fn workload_id(&self) -> &str {
+        &self.workload_id
+    }
+    /// Pinned literature source revision.
+    #[must_use]
+    pub fn source_revision(&self) -> &str {
+        &self.source_revision
+    }
+    /// Explicit adaptation identity.
+    #[must_use]
+    pub fn adaptation(&self) -> &str {
+        &self.adaptation
+    }
+    /// Official evaluator identity, which is not invoked by this result.
+    #[must_use]
+    pub fn evaluator(&self) -> &str {
+        &self.evaluator
+    }
+    /// In-process model-double identity.
+    #[must_use]
+    pub fn mock_model(&self) -> &str {
+        &self.mock_model
+    }
+    /// Digest of the workload identity and fixture source.
+    #[must_use]
+    pub fn workload_sha256(&self) -> &str {
+        &self.workload_sha256
+    }
+    /// Digest of the local scorer contract.
+    #[must_use]
+    pub fn scorer_sha256(&self) -> &str {
+        &self.scorer_sha256
+    }
+    /// Digest of this content-free result evidence.
+    #[must_use]
+    pub fn result_sha256(&self) -> &str {
+        &self.result_sha256
+    }
+    /// Whether the local fixture answer matched.
+    #[must_use]
+    pub const fn passed(&self) -> bool {
+        self.passed
+    }
+}
+
 /// Errors fail closed without exposing paths or submitted contents.
 #[derive(Debug)]
 pub enum LiteratureError {
@@ -413,6 +527,14 @@ pub enum LiteratureError {
     LimitExceeded,
     /// Archive digest or license gate failed.
     DigestMismatch,
+    /// The deterministic task input was malformed.
+    MalformedTask,
+    /// The bounded local attempt could not meet its timeout contract.
+    Timeout,
+    /// Local fixtures never permit network destinations.
+    EgressDenied,
+    /// Grader material must remain outside the agent workspace.
+    GraderIsolation,
     /// Bounded filesystem operation failed.
     Io(io::Error),
 }
@@ -434,6 +556,10 @@ impl fmt::Display for LiteratureError {
             Self::DigestMismatch => {
                 f.write_str("literature workload digest or license gate failed")
             }
+            Self::MalformedTask => f.write_str("literature mock task is malformed"),
+            Self::Timeout => f.write_str("literature mock timeout is outside the bounded contract"),
+            Self::EgressDenied => f.write_str("literature local mock denies network egress"),
+            Self::GraderIsolation => f.write_str("literature grader isolation contract failed"),
             Self::Io(error) => write!(f, "literature workload I/O failed: {error}"),
         }
     }
@@ -475,7 +601,32 @@ impl LiteraturePrepared {
     }
     /// Exercise the adapter contract without representing an upstream score.
     pub fn evaluate_local_mock(&self) -> Result<Evaluation, LiteratureError> {
+        Ok(Evaluation::LocalMock {
+            passed: self.run_local_mock()?.passed(),
+        })
+    }
+    /// Run the deterministic local evaluator and return provenance-bound evidence.
+    pub fn run_local_mock(&self) -> Result<LocalMockResult, LiteratureError> {
+        self.run_local_mock_with(LocalMockConfig::default())
+    }
+    /// Run one bounded local-mock attempt with explicit fail-closed controls.
+    pub fn run_local_mock_with(
+        &self,
+        config: LocalMockConfig,
+    ) -> Result<LocalMockResult, LiteratureError> {
         verify_owner(&self.root, &self.descriptor.id)?;
+        if config.timeout_ms == 0 || config.timeout_ms > MAX_LOCAL_MOCK_TIMEOUT_MS {
+            return Err(LiteratureError::Timeout);
+        }
+        if !config.network_destinations.is_empty() {
+            return Err(LiteratureError::EgressDenied);
+        }
+        if !config.task_valid {
+            return Err(LiteratureError::MalformedTask);
+        }
+        if !config.grader_isolated {
+            return Err(LiteratureError::GraderIsolation);
+        }
         let answer = self.workspace().join(ANSWER);
         let mut text = String::new();
         if fs::metadata(&answer)
@@ -484,8 +635,35 @@ impl LiteraturePrepared {
         {
             fs::File::open(answer)?.read_to_string(&mut text)?;
         }
-        Ok(Evaluation::LocalMock {
-            passed: text.trim() == "ASB-LOCAL-MOCK-OK",
+        let passed = text.lines().next().unwrap_or_default().trim()
+            == DeterministicMockModel::respond(&self.prompt());
+        let workload_sha256 = self.descriptor.content_sha256.clone();
+        let scorer_sha256 = digest(LOCAL_MOCK_SCORER);
+        let mut result_hasher = Sha256::new();
+        result_hasher.update(b"asb-literature-local-mock-result-v1\0");
+        for value in [
+            self.descriptor.id.as_str(),
+            self.descriptor.source_revision.as_str(),
+            LOCAL_MOCK_ADAPTATION,
+            self.descriptor.evaluator.as_str(),
+            LOCAL_MOCK_MODEL,
+            workload_sha256.as_str(),
+            scorer_sha256.as_str(),
+            if passed { "passed" } else { "failed" },
+        ] {
+            result_hasher.update(value.as_bytes());
+            result_hasher.update([0]);
+        }
+        Ok(LocalMockResult {
+            workload_id: self.descriptor.id.clone(),
+            source_revision: self.descriptor.source_revision.clone(),
+            adaptation: LOCAL_MOCK_ADAPTATION.into(),
+            evaluator: self.descriptor.evaluator.clone(),
+            mock_model: LOCAL_MOCK_MODEL.into(),
+            workload_sha256,
+            scorer_sha256,
+            result_sha256: format!("{:x}", result_hasher.finalize()),
+            passed,
         })
     }
     /// Reset the fixture without touching protected grader material.
@@ -523,10 +701,7 @@ impl LiteratureAdapter {
         hasher.update(b"asb-literature-descriptor-v1\0");
         hasher.update(id.as_bytes());
         hasher.update(revision.as_bytes());
-        let status = if matches!(
-            family,
-            LiteratureFamily::HarnessBoundary | LiteratureFamily::UnsupportedCandidate
-        ) {
+        let status = if family == LiteratureFamily::UnsupportedCandidate {
             AdapterStatus::Unsupported
         } else {
             AdapterStatus::FixtureOnly
@@ -639,8 +814,9 @@ impl LiteratureAdapter {
 fn family(id: &str) -> LiteratureFamily {
     match id {
         "swe-bench" | "swe-bench-lite" | "swe-bench-verified" | "swe-bench-pro" | "swe-rebench"
-        | "swe-lancer" | "swe-perf" | "swe-fficiency" => LiteratureFamily::RepositoryRepair,
+        | "swe-lancer" => LiteratureFamily::RepositoryRepair,
         "terminal-bench" | "agentbench" => LiteratureFamily::TerminalSystem,
+        "swe-perf" | "swe-fficiency" | "core-bench" => LiteratureFamily::SystemsPerformance,
         "aider-polyglot" | "bigcodebench" | "evalplus" | "humaneval-plus" | "mbpp-plus"
         | "livecodebench" => LiteratureFamily::CodeGeneration,
         "tau-bench" | "agentdojo" | "harbor" | "inspect-ai" => LiteratureFamily::StatefulToolUse,
@@ -766,6 +942,13 @@ fn valid_absolute(path: &Path) -> bool {
             .components()
             .all(|component| matches!(component, Component::RootDir | Component::Normal(_)))
 }
+
+fn digest(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 fn is_safe_archive(path: &Path) -> bool {
     path.is_absolute()
         && fs::symlink_metadata(path)
@@ -820,24 +1003,45 @@ mod tests {
     fn every_documented_family_has_a_local_fixture_and_official_score_is_unavailable() {
         for id in LITERATURE_WORKLOAD_IDS {
             let descriptor = LiteratureAdapter::describe(id).unwrap();
-            if descriptor.status == AdapterStatus::FixtureOnly {
-                let root = root(id);
-                let prepared = LiteratureAdapter::prepare(id, &root).unwrap();
-                assert_eq!(
-                    prepared.evaluate().unwrap(),
-                    Evaluation::Unavailable {
-                        reason: "official evaluator, image, reset, and oracle evidence are not qualified"
-                    }
-                );
-                assert_eq!(
-                    prepared.evaluate_local_mock().unwrap(),
-                    Evaluation::LocalMock { passed: false }
-                );
-                prepared.cleanup().unwrap();
-            } else {
-                assert_eq!(descriptor.status, AdapterStatus::Unsupported);
-            }
+            assert_eq!(descriptor.status, AdapterStatus::FixtureOnly);
+            let root = root(id);
+            let prepared = LiteratureAdapter::prepare(id, &root).unwrap();
+            assert_eq!(
+                prepared.evaluate().unwrap(),
+                Evaluation::Unavailable {
+                    reason: "official evaluator, image, reset, and oracle evidence are not qualified"
+                }
+            );
+            assert_eq!(
+                prepared.evaluate_local_mock().unwrap(),
+                Evaluation::LocalMock { passed: false }
+            );
+            prepared.cleanup().unwrap();
         }
+    }
+
+    #[test]
+    fn local_mock_result_binds_every_provenance_digest_and_is_deterministic() {
+        let first_root = root("evidence-first");
+        let second_root = root("evidence-second");
+        let first = LiteratureAdapter::prepare("core-bench", &first_root).unwrap();
+        let second = LiteratureAdapter::prepare("core-bench", &second_root).unwrap();
+        let first_result = first.run_local_mock().unwrap();
+        let second_result = second.run_local_mock().unwrap();
+        assert_eq!(first_result, second_result);
+        assert_eq!(first_result.workload_id(), "core-bench");
+        assert_eq!(first_result.adaptation(), "asb-literature-local-fixture-v1");
+        assert_eq!(
+            first_result.mock_model(),
+            DeterministicMockModel::model_id()
+        );
+        assert!(!first_result.source_revision().is_empty());
+        assert!(!first_result.evaluator().is_empty());
+        assert_eq!(first_result.workload_sha256().len(), 64);
+        assert_eq!(first_result.scorer_sha256().len(), 64);
+        assert_eq!(first_result.result_sha256().len(), 64);
+        first.cleanup().unwrap();
+        second.cleanup().unwrap();
     }
     #[test]
     fn malformed_or_unaccepted_archive_fails_closed_without_network() {
@@ -956,6 +1160,49 @@ mod tests {
     }
 
     #[test]
+    fn local_mock_rejects_timeout_task_egress_and_grader_failures() {
+        let root = root("negative-controls");
+        let prepared = LiteratureAdapter::prepare("tau-bench", &root).unwrap();
+        let mut config = LocalMockConfig {
+            timeout_ms: 0,
+            ..Default::default()
+        };
+        assert!(matches!(
+            prepared.run_local_mock_with(config.clone()),
+            Err(LiteratureError::Timeout)
+        ));
+        config.timeout_ms = MAX_LOCAL_MOCK_TIMEOUT_MS + 1;
+        assert!(matches!(
+            prepared.run_local_mock_with(config.clone()),
+            Err(LiteratureError::Timeout)
+        ));
+        config = LocalMockConfig {
+            task_valid: false,
+            ..Default::default()
+        };
+        assert!(matches!(
+            prepared.run_local_mock_with(config.clone()),
+            Err(LiteratureError::MalformedTask)
+        ));
+        config = LocalMockConfig {
+            grader_isolated: false,
+            ..Default::default()
+        };
+        assert!(matches!(
+            prepared.run_local_mock_with(config.clone()),
+            Err(LiteratureError::GraderIsolation)
+        ));
+        config
+            .network_destinations
+            .insert("api.example.invalid".into());
+        assert!(matches!(
+            prepared.run_local_mock_with(config),
+            Err(LiteratureError::EgressDenied)
+        ));
+        prepared.cleanup().unwrap();
+    }
+
+    #[test]
     fn relative_and_symlink_archives_are_rejected() {
         assert!(matches!(
             LiteratureAdapter::acquire(
@@ -987,18 +1234,16 @@ mod tests {
         fs::remove_file(target).unwrap();
     }
     #[test]
-    fn unsupported_harness_and_unknown_ids_are_not_executable() {
+    fn unknown_ids_are_not_executable_and_harnesses_have_local_contracts() {
         assert_eq!(
             LiteratureAdapter::describe("not-a-workload")
                 .unwrap_err()
                 .to_string(),
             "unknown literature workload"
         );
-        assert_eq!(
-            LiteratureAdapter::prepare("hal", root("hal"))
-                .unwrap_err()
-                .to_string(),
-            "literature workload is not executable by this adapter"
-        );
+        let root = root("hal");
+        let prepared = LiteratureAdapter::prepare("hal", &root).unwrap();
+        assert_eq!(prepared.run_local_mock().unwrap().workload_id(), "hal");
+        prepared.cleanup().unwrap();
     }
 }
