@@ -7,6 +7,7 @@
 //! without making an upstream request or claiming that the official evaluator
 //! is qualified.  Official scorers never run in this crate.
 
+use crate::FIXTURE_IDS;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -14,6 +15,8 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
+
+const EXTERNAL_REGISTRY: &str = include_str!("../registry/v1/external-workloads.json");
 
 /// Maximum bytes read from an explicitly acquired archive.
 pub const MAX_ACQUISITION_BYTES: u64 = 64 * 1024 * 1024;
@@ -47,6 +50,157 @@ pub const LITERATURE_WORKLOAD_IDS: [&str; 22] = [
     "inspect-ai",
     "hal",
 ];
+
+/// Public, content-addressed selection metadata shared by list/describe and
+/// report consumers.  It is deliberately data-only: no acquisition or
+/// evaluator is attempted while constructing the catalog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkloadCatalogEntry {
+    /// Stable selection identity.
+    pub id: String,
+    /// `builtin` or `literature`.
+    pub source: String,
+    /// Immutable source revision.
+    pub source_revision: String,
+    /// Source/task license expression.
+    pub license: String,
+    /// Evaluator identity, or `unqualified` when absent.
+    pub evaluator: String,
+    /// Adaptation status (never inferred as semantic parity).
+    pub adaptation: String,
+    /// Current platform evidence label.
+    pub platform: String,
+    /// Selection availability (`available`, `fixture_only`, or `unavailable`).
+    pub availability: String,
+    /// Evidence qualification label.
+    pub evidence: String,
+    /// Stable digest binding identity, scorer and source revision.
+    pub identity_digest: String,
+}
+
+/// A catalog selection failure.  All externally controlled IDs fail closed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CatalogSelectionError {
+    /// The ID is not in either the built-in or literature namespace.
+    Unknown,
+    /// The record is visible for provenance but not selectable.
+    Unavailable,
+    /// The requested platform has no support evidence.
+    UnsupportedPlatform,
+    /// No evaluator qualification exists for the record.
+    EvaluatorMissing,
+}
+
+impl fmt::Display for CatalogSelectionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Unknown => "unknown workload ID",
+            Self::Unavailable => "workload is unavailable for selection",
+            Self::UnsupportedPlatform => "workload has no supported platform evidence",
+            Self::EvaluatorMissing => "workload evaluator is not qualified",
+        })
+    }
+}
+
+/// Return one deterministic catalog containing built-ins and every registry record.
+#[must_use]
+pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
+    let mut entries = FIXTURE_IDS
+        .iter()
+        .map(|id| WorkloadCatalogEntry {
+            id: (*id).into(),
+            source: "builtin".into(),
+            source_revision: "asb-original-v1".into(),
+            license: "MIT".into(),
+            evaluator: "asb-original-oracle-v1".into(),
+            adaptation: "none".into(),
+            platform: "linux-x86_64:native-tested".into(),
+            availability: "available".into(),
+            evidence: "qualified".into(),
+            identity_digest: digest_identity(id, "asb-original-v1", "asb-original-oracle-v1"),
+        })
+        .collect::<Vec<_>>();
+    let document: serde_json::Value = serde_json::from_str(EXTERNAL_REGISTRY)
+        .expect("checked-in external workload registry must be valid JSON");
+    for record in document["workloads"].as_array().into_iter().flatten() {
+        let id = record["id"].as_str().unwrap_or_default();
+        let source_revision = record["source"]["commit"]
+            .as_str()
+            .or_else(|| record["source"]["revision"].as_str())
+            .unwrap_or_else(|| record["version"].as_str().unwrap_or("unknown"));
+        let evaluator = record["evaluator"]["entrypoint"]
+            .as_str()
+            .unwrap_or("unqualified");
+        let provenance = record["evaluator"]["provenance"]["status"]
+            .as_str()
+            .unwrap_or("missing");
+        let selection = record["selection"]
+            .as_str()
+            .unwrap_or("executable-candidate");
+        let platform = record["platforms"]["linux-x86_64"]
+            .as_str()
+            .unwrap_or("unsupported");
+        let unavailable = selection != "executable-candidate" || provenance != "qualified";
+        entries.push(WorkloadCatalogEntry {
+            id: id.into(),
+            source: "literature".into(),
+            source_revision: source_revision.into(),
+            license: record["source"]["license"]
+                .as_str()
+                .unwrap_or("NOASSERTION")
+                .into(),
+            evaluator: evaluator.into(),
+            adaptation: "fixture-only".into(),
+            platform: platform.into(),
+            availability: if unavailable {
+                "unavailable"
+            } else {
+                "available"
+            }
+            .into(),
+            evidence: provenance.into(),
+            identity_digest: digest_identity(id, source_revision, evaluator),
+        });
+    }
+    entries.sort_by(|a, b| a.id.cmp(&b.id));
+    entries
+}
+
+fn digest_identity(id: &str, revision: &str, evaluator: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"asb-workload-selection-v1\0");
+    hasher.update(id.as_bytes());
+    hasher.update([0]);
+    hasher.update(revision.as_bytes());
+    hasher.update([0]);
+    hasher.update(evaluator.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+/// Select an explicitly qualified local fixture; no network or provider is used.
+pub fn select_workload(
+    id: &str,
+    platform: &str,
+) -> Result<WorkloadCatalogEntry, CatalogSelectionError> {
+    let entry = workload_catalog()
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .ok_or(CatalogSelectionError::Unknown)?;
+    if entry.source == "builtin" {
+        return Ok(entry);
+    }
+    if entry.availability != "available" {
+        return Err(if entry.evaluator == "unqualified" {
+            CatalogSelectionError::EvaluatorMissing
+        } else {
+            CatalogSelectionError::Unavailable
+        });
+    }
+    if !entry.platform.starts_with(platform) {
+        return Err(CatalogSelectionError::UnsupportedPlatform);
+    }
+    Ok(entry)
+}
 
 /// Broad execution semantics shared by literature workload adapters.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -610,6 +764,46 @@ mod tests {
             "literature workload digest or license gate failed"
         );
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn catalog_contains_builtins_and_every_registry_record_with_stable_identity() {
+        let first = workload_catalog();
+        let second = workload_catalog();
+        assert_eq!(first, second);
+        assert!(
+            first
+                .iter()
+                .any(|entry| entry.id == "original.bug-fix" && entry.source == "builtin")
+        );
+        let literature = first
+            .iter()
+            .filter(|entry| entry.source == "literature")
+            .collect::<Vec<_>>();
+        assert_eq!(literature.len(), 22);
+        let literature_count = literature.len();
+        for entry in literature {
+            assert!(!entry.source_revision.is_empty());
+            assert!(!entry.identity_digest.is_empty());
+        }
+        assert_eq!(first.len(), FIXTURE_IDS.len() + literature_count);
+    }
+
+    #[test]
+    fn selection_is_explicit_and_fails_closed_for_unqualified_records() {
+        assert!(select_workload("original.bug-fix", "linux-x86_64").is_ok());
+        assert_eq!(
+            select_workload("not-a-workload", "linux-x86_64"),
+            Err(CatalogSelectionError::Unknown)
+        );
+        assert_eq!(
+            select_workload("agentops", "linux-x86_64"),
+            Err(CatalogSelectionError::Unavailable)
+        );
+        assert_eq!(
+            select_workload("swe-bench", "linux-x86_64"),
+            Err(CatalogSelectionError::Unavailable)
+        );
     }
 
     #[test]
