@@ -1105,6 +1105,15 @@ mod tests {
         assert_eq!(agentops.kind, CatalogKind::Methodology);
         assert_eq!(agentops.availability_kind, CatalogAvailability::Unavailable);
         assert_eq!(agentops.evidence_kind, CatalogEvidence::Planned);
+        for id in ["harbor", "inspect-ai", "hal"] {
+            let entry = catalog.iter().find(|entry| entry.id == id).unwrap();
+            assert_eq!(entry.kind, CatalogKind::Methodology);
+            assert_eq!(entry.availability_kind, CatalogAvailability::Unavailable);
+            assert_eq!(
+                select_workload(id, "linux-x86_64"),
+                Err(CatalogSelectionError::Unavailable)
+            );
+        }
         for id in [
             "swe-bench-lite",
             "swe-bench-verified",

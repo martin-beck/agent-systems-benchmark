@@ -37,12 +37,14 @@ evaluator image/SBOM evidence before ASB may report a speedup. CORE-Bench is a
 reproducibility workload rather than a speedup suite and still requires exact
 capsule identities and answer-oracle parity before qualification.
 
-The registry also records the interactive and harness-oriented literature
-boundaries AgentBench, tau-bench, AgentDojo, Harbor, Inspect AI, and HAL. These
-records are `executable-candidate` entries, not claims that their task images,
-scorers, reset behavior, licenses, or platform cells are qualified. They remain
-explicit-download and non-vendored, and may only become selectable after a
-separate adapter binds the workload lifecycle and deterministic local fixtures.
+The registry also records the interactive workload boundaries AgentBench,
+tau-bench, and AgentDojo, plus the Harbor, Inspect AI, and HAL harnesses. The
+workload boundaries are `executable-candidate` records, not claims that their
+task images, scorers, reset behavior, licenses, or platform cells are qualified.
+The harnesses are `methodology-only` records: they describe execution
+boundaries but are never selectable as benchmark tasks. All remain
+explicit-download and non-vendored; a separate adapter must bind any workload
+lifecycle and deterministic local fixture before execution.
 
 AgentOps, HELM, and AI Agents That Matter are `methodology-only` references.
 They are intentionally present for provenance and design traceability but have

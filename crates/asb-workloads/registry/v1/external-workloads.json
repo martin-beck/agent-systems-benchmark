@@ -391,7 +391,7 @@
       "id": "hal",
       "version": "main-16bb03eb",
       "kind": "agent-benchmark-harness",
-      "selection": "executable-candidate",
+      "selection": "methodology-only",
       "source": {
         "repository": "https://github.com/princeton-pli/hal-harness",
         "commit": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
@@ -405,17 +405,17 @@
         "split": "task-definitions"
       },
       "evaluator": {
-        "entrypoint": "hal-eval",
+        "entrypoint": "not-applicable",
         "version": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
         "image_digest": null,
-        "oracle": "task-grader",
+        "oracle": "not-applicable",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 1,
+      "attempt_budget": 0,
       "platforms": {
         "linux-x86_64": "planned",
         "linux-aarch64": "planned"
@@ -430,7 +430,7 @@
       "id": "harbor",
       "version": "main-cdb76bae",
       "kind": "agent-task-harness",
-      "selection": "executable-candidate",
+      "selection": "methodology-only",
       "source": {
         "repository": "https://github.com/laude-institute/harbor",
         "commit": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
@@ -443,17 +443,17 @@
         "split": "task-definitions"
       },
       "evaluator": {
-        "entrypoint": "harbor run",
+        "entrypoint": "not-applicable",
         "version": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
         "image_digest": null,
-        "oracle": "task-verifier",
+        "oracle": "not-applicable",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 1,
+      "attempt_budget": 0,
       "platforms": {
         "linux-x86_64": "planned",
         "linux-aarch64": "planned"
@@ -506,7 +506,7 @@
       "id": "inspect-ai",
       "version": "main-1ab0d75f",
       "kind": "evaluation-harness",
-      "selection": "executable-candidate",
+      "selection": "methodology-only",
       "source": {
         "repository": "https://github.com/UKGovernmentBEIS/inspect_ai",
         "commit": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
@@ -519,17 +519,17 @@
         "split": "scenarios"
       },
       "evaluator": {
-        "entrypoint": "inspect eval",
+        "entrypoint": "not-applicable",
         "version": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
         "image_digest": null,
-        "oracle": "scenario-scorer",
+        "oracle": "not-applicable",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 1,
+      "attempt_budget": 0,
       "platforms": {
         "linux-x86_64": "planned",
         "linux-aarch64": "planned"

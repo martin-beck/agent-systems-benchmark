@@ -13,7 +13,9 @@ def test_external_registry_is_pinned_and_non_vendored():
     data = json.loads(REGISTRY.read_text())
     assert data["schema_version"] == 1
     ids = [item["id"] for item in data["workloads"]]
-    assert ids == [item["id"] for item in sorted(data["workloads"], key=lambda value: value["id"])]
+    assert ids == [
+        item["id"] for item in sorted(data["workloads"], key=lambda value: value["id"])
+    ]
     for item in data["workloads"]:
         if item.get("selection") == "methodology-only":
             continue
@@ -27,11 +29,31 @@ def test_external_registry_is_pinned_and_non_vendored():
             "unsupported-until-native-evidence",
         }
 
-    methodology = [item for item in data["workloads"] if item.get("selection") == "methodology-only"]
+    methodology = [
+        item
+        for item in data["workloads"]
+        if item.get("selection") == "methodology-only"
+    ]
     assert {item["id"] for item in methodology} == {
-        "agentops", "helm", "ai-agents-that-matter"
+        "agentops",
+        "helm",
+        "ai-agents-that-matter",
+        "harbor",
+        "inspect-ai",
+        "hal",
     }
     assert all(item["attempt_budget"] == 0 for item in methodology)
+
+    by_id = {item["id"]: item for item in data["workloads"]}
+    assert {"agentbench", "tau-bench", "agentdojo"} <= set(by_id)
+    assert all(
+        by_id[ident]["selection"] == "executable-candidate"
+        for ident in ["agentbench", "tau-bench", "agentdojo"]
+    )
+    assert all(
+        by_id[ident]["selection"] == "methodology-only"
+        for ident in ["harbor", "inspect-ai", "hal"]
+    )
 
     terminal = next(
         item for item in data["workloads"] if item["id"] == "terminal-bench"
@@ -52,7 +74,8 @@ def test_external_registry_is_pinned_and_non_vendored():
         assert item["performance"]["uncertainty_method"] is None
 
     for item in [
-        item for item in data["workloads"]
+        item
+        for item in data["workloads"]
         if item["id"] in {"swe-bench-pro", "bigcodebench", "evalplus", "livecodebench"}
     ]:
         assert item["source"]["archive_status"] == "verified"
@@ -67,5 +90,8 @@ def test_external_registry_is_pinned_and_non_vendored():
         for item in data["workloads"]
         if item["id"] in {"swe-lancer", "swe-rebench"}
     }
-    assert evolving["swe-lancer"]["source"]["archive_status"] == "unavailable-at-pinned-revision"
+    assert (
+        evolving["swe-lancer"]["source"]["archive_status"]
+        == "unavailable-at-pinned-revision"
+    )
     assert evolving["swe-rebench"]["dataset"]["license"] == "CC-BY-4.0"
