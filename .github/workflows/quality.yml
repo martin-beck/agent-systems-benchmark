@@ -83,7 +83,8 @@ jobs:
       - name: Validate offline tutorial contracts
         run: |
           python3 -m unittest tools.tutorials.test_validate
-          python3 tools/tutorials/validate.py tools/tutorials/example-v1.json
+          python3 -m unittest tools.tutorials.test_freshness
+          python3 tools/tutorials/check_freshness.py
       - name: Validate GitHub workflows
         run: |
           test -x "$ASB_QUALITY_BIN/shellcheck"

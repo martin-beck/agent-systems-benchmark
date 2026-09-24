@@ -279,7 +279,15 @@ def load(path: Path) -> Any:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
         raise ValidationError("tutorial must be a bounded regular file")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValidationError(f"duplicate JSON field: {key}")
+                result[key] = value
+            return result
+
+        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ValidationError("tutorial is not valid bounded UTF-8 JSON") from exc
 
