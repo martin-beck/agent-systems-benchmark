@@ -220,7 +220,7 @@ pub enum PreparedWorkloadChoice {
     /// ASB-owned protected fixture.
     Builtin(PreparedWorkload),
     /// Literature identity backed by an offline deterministic fixture.
-    Literature(crate::literature::LiteraturePrepared),
+    Literature(Box<crate::literature::LiteraturePrepared>),
 }
 
 impl PreparedWorkloadChoice {
@@ -310,7 +310,7 @@ pub fn prepare_workload(
             .map_err(|error| error.to_string());
     }
     LiteratureAdapter::prepare(id, root)
-        .map(PreparedWorkloadChoice::Literature)
+        .map(|prepared| PreparedWorkloadChoice::Literature(Box::new(prepared)))
         .map_err(|error| error.to_string())
 }
 
