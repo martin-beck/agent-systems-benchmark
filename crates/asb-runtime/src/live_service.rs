@@ -157,6 +157,8 @@ const LOCAL_PROVIDER_CREDENTIAL_SHA256: &str =
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const LOCAL_PROVIDER_TOOL_SHA256: &str =
     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const LOCAL_PROVIDER_MODEL: &str = "local-deterministic-mock-v1";
+const LOCAL_PROVIDER_MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
 
 /// Runtime-owned deterministic loopback authority for offline development and
 /// CI. It contains only private in-memory capability markers and ephemeral
@@ -179,6 +181,46 @@ impl std::fmt::Debug for LocalProviderAuthority {
 #[derive(Debug)]
 pub struct LocalProviderCredentialCapability {
     reference_sha256: String,
+}
+
+/// Public, content-minimized result from the deterministic local provider.
+///
+/// This is deliberately not a [`LiveProviderAttempt`]. The local fixture is a
+/// credential-free protocol double used to qualify request binding and
+/// teardown; it cannot mint production launch authority or authorize egress.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalProviderMockResponse {
+    attempt_id: u32,
+    response_sha256: String,
+}
+
+impl LocalProviderMockResponse {
+    /// Scheduler identity assigned to the mock request.
+    #[must_use]
+    pub const fn attempt_id(&self) -> u32 {
+        self.attempt_id
+    }
+
+    /// Digest of the deterministic response; no response body is retained.
+    #[must_use]
+    pub fn response_sha256(&self) -> &str {
+        &self.response_sha256
+    }
+}
+
+/// Fail-closed local mock request validation failures.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalProviderMockError {
+    /// The runtime-owned authority has been revoked or superseded.
+    Inactive,
+    /// Zero is not a valid scheduler attempt identity.
+    InvalidAttempt,
+    /// The request used a different pinned local model.
+    ModelMismatch,
+    /// The credential reference did not match the enrolled opaque marker.
+    CredentialMismatch,
+    /// The bounded request body exceeded the local fixture budget.
+    RequestTooLarge,
 }
 
 /// Fixed runtime-owned local authority provisioner. Its zero-argument API is
@@ -258,6 +300,44 @@ impl LocalProviderAuthority {
     #[must_use]
     pub fn tool_bundle_sha256(&self) -> &'static str {
         LOCAL_PROVIDER_TOOL_SHA256
+    }
+
+    /// Execute one deterministic loopback protocol-double request.
+    ///
+    /// The method accepts only the opaque credential reference and a bounded
+    /// request body. It never accepts an endpoint, credential bytes, policy,
+    /// lease, namespace, or tool and therefore cannot be used to mint a live
+    /// launch attempt. The response retains only a digest for evidence.
+    pub fn execute_mock_request(
+        &self,
+        attempt_id: u32,
+        model: &str,
+        credential_reference_sha256: &str,
+        request: &[u8],
+    ) -> Result<LocalProviderMockResponse, LocalProviderMockError> {
+        if !self.is_active() {
+            return Err(LocalProviderMockError::Inactive);
+        }
+        if attempt_id == 0 {
+            return Err(LocalProviderMockError::InvalidAttempt);
+        }
+        if model != LOCAL_PROVIDER_MODEL {
+            return Err(LocalProviderMockError::ModelMismatch);
+        }
+        if credential_reference_sha256 != self.credential_reference_sha256() {
+            return Err(LocalProviderMockError::CredentialMismatch);
+        }
+        if request.len() > LOCAL_PROVIDER_MAX_REQUEST_BYTES {
+            return Err(LocalProviderMockError::RequestTooLarge);
+        }
+        let mut digest = Sha256::new();
+        digest.update(LOCAL_PROVIDER_MODEL.as_bytes());
+        digest.update(attempt_id.to_le_bytes());
+        digest.update(request);
+        Ok(LocalProviderMockResponse {
+            attempt_id,
+            response_sha256: format!("{:x}", digest.finalize()),
+        })
     }
 
     /// Return whether this authority generation remains usable.
@@ -2194,6 +2274,65 @@ mod tests {
         let second_root = second.lease_root.parent().unwrap().to_owned();
         drop(second);
         assert!(!second_root.exists());
+    }
+
+    #[test]
+    fn local_mock_request_is_deterministic_and_secret_free() {
+        let authority = LocalProviderAuthorityProvisioner::provision().unwrap();
+        let credential = authority.credential_reference_sha256().to_owned();
+        let first = authority
+            .execute_mock_request(1, LOCAL_PROVIDER_MODEL, &credential, br#"{"prompt":"x"}"#)
+            .unwrap();
+        let second = authority
+            .execute_mock_request(1, LOCAL_PROVIDER_MODEL, &credential, br#"{"prompt":"x"}"#)
+            .unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.attempt_id(), 1);
+        assert_eq!(first.response_sha256().len(), 64);
+        let debug = format!("{first:?}");
+        assert!(!debug.contains(&credential));
+        assert!(!debug.contains("prompt"));
+    }
+
+    #[test]
+    fn local_mock_rejects_stale_credentials_bad_model_oversize_and_revocation() {
+        let authority = LocalProviderAuthorityProvisioner::provision().unwrap();
+        let credential = authority.credential_reference_sha256().to_owned();
+        assert_eq!(
+            authority.execute_mock_request(0, LOCAL_PROVIDER_MODEL, &credential, b"{}"),
+            Err(LocalProviderMockError::InvalidAttempt)
+        );
+        assert_eq!(
+            authority.execute_mock_request(1, "moving-alias", &credential, b"{}"),
+            Err(LocalProviderMockError::ModelMismatch)
+        );
+        assert_eq!(
+            authority.execute_mock_request(1, LOCAL_PROVIDER_MODEL, &"f".repeat(64), b"{}"),
+            Err(LocalProviderMockError::CredentialMismatch)
+        );
+        assert_eq!(
+            authority.execute_mock_request(
+                1,
+                LOCAL_PROVIDER_MODEL,
+                &credential,
+                &vec![0_u8; LOCAL_PROVIDER_MAX_REQUEST_BYTES + 1]
+            ),
+            Err(LocalProviderMockError::RequestTooLarge)
+        );
+        authority.revoke();
+        assert_eq!(
+            authority.execute_mock_request(1, LOCAL_PROVIDER_MODEL, &credential, b"{}"),
+            Err(LocalProviderMockError::Inactive)
+        );
+    }
+
+    #[test]
+    fn local_mock_target_cannot_be_promoted_to_provider_egress() {
+        let authority = LocalProviderAuthorityProvisioner::provision().unwrap();
+        assert_eq!(
+            ProviderEgressTarget::new(authority.target()),
+            Err(crate::provider_egress::ProviderEgressError::InvalidTarget)
+        );
     }
 
     #[test]
