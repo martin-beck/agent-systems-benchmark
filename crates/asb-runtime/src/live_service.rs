@@ -332,11 +332,56 @@ pub struct LiveProviderRuntimeBridge {
     ledger: LiveProviderEnrollmentLedger,
 }
 
+/// Opaque runtime-owned profile produced only after authenticated receipt
+/// validation and one-shot replay consumption. The profile retains no raw
+/// credentials or private paths and cannot be constructed by a frontend.
+#[derive(Clone)]
+pub struct LiveProviderRuntimeAuthorityProfile {
+    record: LiveProviderEnrollmentRecordV1,
+    attestation: LiveProviderControlAttestation,
+}
+
+impl std::fmt::Debug for LiveProviderRuntimeAuthorityProfile {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderRuntimeAuthorityProfile(..)")
+    }
+}
+
+impl LiveProviderRuntimeAuthorityProfile {
+    /// Authenticated provider identity bound to this profile.
+    #[must_use]
+    pub fn provider(&self) -> &str {
+        &self.record.provider
+    }
+
+    /// Authenticated certificate generation bound to this profile.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.attestation.claims.generation
+    }
+}
+
 impl LiveProviderRuntimeBridge {
     /// Create an empty bridge with one-shot replay protection.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Materialize one opaque authority profile from authenticated runtime
+    /// state. Caller-supplied records, stale attestations, and replayed
+    /// records fail closed before any live launch authority is available.
+    pub fn materialize_profile(
+        &self,
+        record: &LiveProviderEnrollmentRecordV1,
+        attestation: &LiveProviderControlAttestation,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderRuntimeAuthorityProfile, LiveProviderEnrollmentRecordError> {
+        self.ledger.consume(record, attestation, now_unix_ms)?;
+        Ok(LiveProviderRuntimeAuthorityProfile {
+            record: record.clone(),
+            attestation: attestation.clone(),
+        })
     }
 
     /// Validate a control-issued receipt against its opaque authenticated chain
@@ -1631,6 +1676,22 @@ mod tests {
         assert!(!encoded.contains('/'));
         assert!(matches!(
             bridge.ingest_control_receipt(&receipt, &chain, 1_500),
+            Err(LiveProviderEnrollmentRecordError::Replay)
+        ));
+    }
+
+    #[test]
+    fn runtime_bridge_materializes_opaque_profile_once_and_rejects_replay() {
+        let attestation = attested_record();
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        let bridge = LiveProviderRuntimeBridge::new();
+        let profile = bridge
+            .materialize_profile(&record, &attestation, 1_500)
+            .unwrap();
+        assert_eq!(profile.provider(), "openrouter");
+        assert_eq!(profile.generation(), 7);
+        assert!(matches!(
+            bridge.materialize_profile(&record, &attestation, 1_500),
             Err(LiveProviderEnrollmentRecordError::Replay)
         ));
     }
