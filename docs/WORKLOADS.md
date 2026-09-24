@@ -33,6 +33,7 @@ and failure evidence without publishing task secrets or raw private transcripts.
 | [SWE-bench Lite / Verified](https://www.swebench.com/SWE-bench/guides/datasets/) | Repository issue repair with independent tests | First external repository suite; preserve official grading |
 | [Terminal-Bench](https://www.tbench.ai/benchmarks) | Multi-step terminal, build and debugging work | First terminal suite; pin a published version and use its harness where practical |
 | [Aider Polyglot](https://aider.chat/docs/benchmarks.html) | Multi-language editing with test feedback | Early integration; normalize attempts and model budgets |
+| Exercism Tracks | Pinned multi-language exercise fixtures | Provenance-only candidate; preserve per-exercise licenses and keep evaluator evidence unavailable |
 | [SWE-bench Pro](https://github.com/scaleapi/SWE-bench_Pro-os) | Longer repository changes | Later stress workload; substantially heavier execution |
 | [BigCodeBench](https://github.com/bigcode-project/bigcodebench) | Library-oriented code generation | Component workload, not complete agent evaluation |
 | [HumanEval+ / MBPP+ via EvalPlus](https://github.com/evalplus/evalplus) | Fast code correctness controls | Small synthetic controls; weak proxy for repository engineering |
