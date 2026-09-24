@@ -45,7 +45,10 @@ use asb_store::{
     AtomicStore, ExecutionState, JOURNAL_SCHEMA_VERSION, JournalEvent, MANIFEST_SCHEMA_VERSION,
     RunManifest, StoreLimits,
 };
-use asb_workloads::{OriginalWorkloads, PreparedWorkload, workload_catalog};
+use asb_workloads::{
+    OriginalWorkloads, PreparedWorkloadChoice, WorkloadEvaluation, describe_workload,
+    prepare_workload,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -54,7 +57,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
-use std::ops::Deref;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
@@ -627,7 +629,7 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
         .workload_ids
         .iter()
         .map(|id| {
-            OriginalWorkloads::describe(id)
+            describe_workload(id)
                 .map(|workload| (id.clone(), workload.scoring_version))
                 .map_err(|_| CliError::validation("recording campaign workload is unavailable"))
         })
@@ -2144,23 +2146,8 @@ fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
         ));
     }
     validate_measurement_selection(plan)?;
-    let workload = match OriginalWorkloads::describe(&plan.workload) {
-        Ok(workload) => workload,
-        Err(_) => {
-            // Literature identities are visible through the same catalog, but
-            // remain non-runnable until evaluator/image/reset evidence is
-            // qualified. Never let a provenance record reach preparation.
-            if workload_catalog()
-                .iter()
-                .any(|entry| entry.id == plan.workload)
-            {
-                return Err(CliError::validation(
-                    "literature workload evaluator is unavailable",
-                ));
-            }
-            return Err(CliError::validation("unknown or invalid workload"));
-        }
-    };
+    let workload = describe_workload(&plan.workload)
+        .map_err(|_| CliError::validation("unknown or invalid workload"))?;
     if workload.workload_id.0 != plan.experiment.workload.workload
         || workload.version != plan.experiment.workload.workload_revision
         || workload.content_sha256 != plan.experiment.workload.workload_sha256
@@ -2320,35 +2307,47 @@ struct AttemptSummary {
     output_truncated: bool,
 }
 
-struct PreparedGuard(Option<PreparedWorkload>);
+struct PreparedGuard(Option<PreparedWorkloadChoice>);
 
 impl PreparedGuard {
-    fn new(workload: PreparedWorkload) -> Self {
+    fn new(workload: PreparedWorkloadChoice) -> Self {
         Self(Some(workload))
     }
 
     fn cleanup(&mut self) -> Result<(), CliError> {
-        if let Some(workload) = self.0.as_ref() {
+        if let Some(workload) = self.0.take() {
             workload
                 .cleanup()
                 .map_err(|_| CliError::operation("attempt workspace cleanup failed"))?;
-            self.0 = None;
         }
         Ok(())
     }
 }
 
-impl Deref for PreparedGuard {
-    type Target = PreparedWorkload;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref().expect("prepared workload remains guarded")
+impl PreparedGuard {
+    fn workspace(&self) -> PathBuf {
+        self.0
+            .as_ref()
+            .expect("prepared workload remains guarded")
+            .workspace()
+    }
+    fn prompt(&self) -> String {
+        self.0
+            .as_ref()
+            .expect("prepared workload remains guarded")
+            .prompt()
+    }
+    fn evaluate(&self) -> Result<WorkloadEvaluation, String> {
+        self.0
+            .as_ref()
+            .expect("prepared workload remains guarded")
+            .evaluate()
     }
 }
 
 impl Drop for PreparedGuard {
     fn drop(&mut self) {
-        if let Some(workload) = self.0.as_ref() {
+        if let Some(workload) = self.0.take() {
             let _ = workload.cleanup();
         }
     }
@@ -2508,7 +2507,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             ));
         }
     }
-    let workload = OriginalWorkloads::describe(&definition.execution.workload)
+    let workload = describe_workload(&definition.execution.workload)
         .map_err(|_| CliError::validation("stored run workload is invalid"))?;
     let measurement_selection = match definition.execution.plan_schema_version {
         LEGACY_PLAN_SCHEMA_VERSION => {
@@ -3163,7 +3162,7 @@ fn run_attempt(
     let phase = if warmup { "warmup" } else { "measured" };
     let attempt_root = work_root.join(format!("{run_id}-{phase}-{input_id}"));
     let mut prepared = PreparedGuard::new(
-        OriginalWorkloads::prepare(&plan.workload, &attempt_root)
+        prepare_workload(&plan.workload, &attempt_root)
             .map_err(|_| CliError::operation("workload preparation failed"))?,
     );
     let private = attempt_root.join(".asb-private");
@@ -3313,7 +3312,7 @@ fn run_attempt(
     let outcome = match evidence.termination {
         Termination::Cancelled => "cancelled",
         Termination::TimedOut => "timed_out",
-        Termination::Exited if evidence.exit_code == Some(0) && grade.passed() => "completed",
+        Termination::Exited if evidence.exit_code == Some(0) && grade.passed => "completed",
         Termination::Exited => "failed",
     };
     let observed_ids = collected_metric_ids
@@ -3331,8 +3330,8 @@ fn run_attempt(
         input_id,
         phase,
         outcome,
-        grade_passed: grade.passed(),
-        failed_check_count: grade.failed_checks().len(),
+        grade_passed: grade.passed,
+        failed_check_count: grade.failed_check_count,
         termination,
         exit_code: evidence.exit_code,
         signal: evidence.signal,
@@ -4684,6 +4683,15 @@ mod tests {
         value.controls.replay.cassette_sha256 = None;
         value.refresh_content_address().unwrap();
         value
+    }
+
+    #[test]
+    fn cli_dispatch_rejects_methodology_only_plan_before_execution() {
+        let scratch = Scratch::new("methodology-dispatch");
+        let (_, mut plan) = plan_fixture(&scratch.0, "methodology");
+        plan.workload = "agentops".into();
+        let error = validate_plan(&plan).expect_err("methodology-only workload must fail closed");
+        assert_eq!(error.message, "unknown or invalid workload");
     }
 
     fn plan_fixture(root: &Path, run_id: &str) -> (PathBuf, PlanFile) {

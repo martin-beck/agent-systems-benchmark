@@ -213,6 +213,106 @@ pub struct PreparedWorkload {
     root: PathBuf,
 }
 
+/// A prepared workload selected from either the built-in or literature catalog.
+#[derive(Debug)]
+pub enum PreparedWorkloadChoice {
+    /// ASB-owned protected fixture.
+    Builtin(PreparedWorkload),
+    /// Literature identity backed by an offline deterministic fixture.
+    Literature(crate::literature::LiteraturePrepared),
+}
+
+impl PreparedWorkloadChoice {
+    /// Agent-writable workspace.
+    #[must_use]
+    pub fn workspace(&self) -> PathBuf {
+        match self {
+            Self::Builtin(value) => value.workspace(),
+            Self::Literature(value) => value.workspace(),
+        }
+    }
+
+    /// Prompt for this exact fixture.
+    #[must_use]
+    pub fn prompt(&self) -> String {
+        match self {
+            Self::Builtin(value) => value.prompt().to_owned(),
+            Self::Literature(value) => value.prompt(),
+        }
+    }
+
+    /// Evaluate with the protected built-in grader or local mock scorer.
+    pub fn evaluate(&self) -> Result<WorkloadEvaluation, String> {
+        match self {
+            Self::Builtin(value) => value
+                .evaluate()
+                .map(|report| WorkloadEvaluation {
+                    passed: report.passed(),
+                    failed_check_count: report.failed_checks().len(),
+                })
+                .map_err(|error| error.to_string()),
+            Self::Literature(value) => value
+                .run_local_mock()
+                .map(|result| WorkloadEvaluation {
+                    passed: result.passed(),
+                    failed_check_count: usize::from(!result.passed()),
+                })
+                .map_err(|error| error.to_string()),
+        }
+    }
+
+    /// Remove the exact prepared root.
+    pub fn cleanup(self) -> Result<(), String> {
+        match self {
+            Self::Builtin(value) => value.cleanup().map_err(|error| error.to_string()),
+            Self::Literature(value) => value.cleanup().map_err(|error| error.to_string()),
+        }
+    }
+}
+
+/// Bounded, content-free outcome shared by CLI execution paths.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorkloadEvaluation {
+    /// Whether the protected/local scorer passed.
+    pub passed: bool,
+    /// Number of failed checks, without exposing submitted content.
+    pub failed_check_count: usize,
+}
+
+/// Describe any catalog workload using the common protocol manifest.
+pub fn describe_workload(id: &str) -> Result<WorkloadManifest, String> {
+    if let Ok(workload) = OriginalWorkloads::describe(id) {
+        return Ok(workload);
+    }
+    if workload_catalog()
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .is_some_and(|entry| entry.kind == CatalogKind::Methodology)
+    {
+        return Err("methodology-only workload is not executable".into());
+    }
+    LiteratureAdapter::describe(id)
+        .map(|descriptor| descriptor.manifest())
+        .map_err(|error| error.to_string())
+}
+
+/// Prepare either a built-in fixture or a deterministic local literature fixture.
+pub fn prepare_workload(
+    id: &str,
+    root: impl Into<PathBuf>,
+) -> Result<PreparedWorkloadChoice, String> {
+    describe_workload(id)?;
+    let root = root.into();
+    if FIXTURE_IDS.contains(&id) {
+        return OriginalWorkloads::prepare(id, root)
+            .map(PreparedWorkloadChoice::Builtin)
+            .map_err(|error| error.to_string());
+    }
+    LiteratureAdapter::prepare(id, root)
+        .map(PreparedWorkloadChoice::Literature)
+        .map_err(|error| error.to_string())
+}
+
 impl PreparedWorkload {
     /// Directory exposed to the agent. Grader and reference data are not copied here.
     #[must_use]
@@ -1458,5 +1558,27 @@ mod tests {
             .join("\n");
         assert!(grade(Some(&too_many)).contains(&"tests.count"));
         assert!(grade(Some("-1|2\n0|0\n1|1")).contains(&"tests.mutants"));
+    }
+
+    #[test]
+    fn unified_dispatch_accepts_builtin_and_literature_fixture() {
+        let builtin = describe_workload(FIXTURE_IDS[0]).unwrap();
+        assert_eq!(builtin.workload_id.0, FIXTURE_IDS[0]);
+        let literature = describe_workload("swe-bench").unwrap();
+        assert_eq!(literature.workload_id.0, "swe-bench");
+        let prepared = prepare_workload("swe-bench", root("dispatch-literature")).unwrap();
+        assert!(prepared.workspace().is_dir());
+        prepared.cleanup().unwrap();
+    }
+
+    #[test]
+    fn unified_dispatch_rejects_methodology_only_records() {
+        for id in ["agentops", "ai-agents-that-matter", "helm"] {
+            assert_eq!(
+                describe_workload(id).unwrap_err(),
+                "methodology-only workload is not executable"
+            );
+            assert!(prepare_workload(id, root("dispatch-methodology")).is_err());
+        }
     }
 }
