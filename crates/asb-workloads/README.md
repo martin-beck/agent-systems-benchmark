@@ -97,3 +97,20 @@ under `tools/quality/` form a fail-closed workflow:
 
 Comparisons with different oracle or evaluator identities are reported as
 `non-comparable`; they must not be combined into an unqualified global ranking.
+
+## Literature adapter boundary
+
+`LiteratureAdapter` exposes the documented literature identities through one
+bounded lifecycle boundary. It retains source revision, split, license,
+content digest, evaluator identity, family and empty network policy in every
+descriptor. `acquire` accepts only a caller-supplied local archive whose digest
+and license gate pass, or the deterministic local fixture; it never downloads,
+extracts, or executes an upstream package. Preparation uses a private 0700
+owned root and keeps scorer material outside the agent workspace.
+
+The fixture path is available for contract tests and LiteLLM-compatible local
+mock runs. `evaluate` returns `Unavailable` until the official evaluator,
+image, reset and oracle evidence are independently qualified. The separate
+`evaluate_local_mock` result is explicitly not an upstream benchmark score.
+HAL is retained as a harness boundary and CORE-Bench remains unsupported;
+neither can be selected as an executable workload by this adapter.
