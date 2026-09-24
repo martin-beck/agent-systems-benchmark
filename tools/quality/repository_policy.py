@@ -391,7 +391,7 @@ def validate_merge_integrity_tools() -> None:
         '"commit-tree",\n                "-S",',
         'f"--force-with-lease={args.target_ref}:{base}"',
         'parents != [base, head]',
-        'remote target changed before publication',
+        'fresh exact-main qualification required',
     )
     if any(fragment not in merge for fragment in required_merge):
         fail("signed merge tool lacks an exact identity or lease boundary")

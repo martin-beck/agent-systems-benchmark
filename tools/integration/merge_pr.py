@@ -181,6 +181,30 @@ def verify_merge_shape(root: Path, merge: str, base: str, head: str, tree: str) 
     verify_commit(root, merge)
 
 
+def requalify_remote(
+    root: Path,
+    remote: str,
+    target_ref: str,
+    pr_ref: str,
+    base: str,
+    head: str,
+    tree: str,
+    *,
+    verify_objects: bool = True,
+) -> None:
+    """Re-read the protected target and reviewed topic immediately before use."""
+    current = remote_oids(root, remote, target_ref, pr_ref)
+    if current[target_ref] != base:
+        raise ValueError("remote target advanced; fresh exact-main qualification required")
+    if current[pr_ref] != head:
+        raise ValueError("remote pull-request head changed; fresh review required")
+    if verify_objects:
+        if run(root, "git", "merge-base", base, head) != base:
+            raise ValueError("approved head is no longer based on the exact approved base")
+        if run(root, "git", "rev-parse", f"{head}^{{tree}}") != tree:
+            raise ValueError("approved head tree no longer matches the reviewed tree")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -211,19 +235,15 @@ def main() -> int:
             raise ValueError("integration worktree is not clean")
         if run(root, "git", "rev-parse", "HEAD") != base:
             raise ValueError("integration worktree is not at the approved base")
-        initial = remote_oids(root, args.remote, args.target_ref, args.pr_ref)
-        if initial[args.target_ref] != base:
-            raise ValueError("remote target no longer equals the approved base")
-        if initial[args.pr_ref] != head:
-            raise ValueError(
-                "remote pull-request head no longer equals the approved head"
-            )
+        requalify_remote(
+            root, args.remote, args.target_ref, args.pr_ref, base, head, tree,
+            verify_objects=False,
+        )
 
         run(root, "git", "fetch", "--no-tags", args.remote, base, head)
-        if run(root, "git", "merge-base", base, head) != base:
-            raise ValueError("approved head is not based on the exact approved base")
-        if run(root, "git", "rev-parse", f"{head}^{{tree}}") != tree:
-            raise ValueError("approved head tree does not match the expected tree")
+        requalify_remote(
+            root, args.remote, args.target_ref, args.pr_ref, base, head, tree
+        )
         verify_range(root, base, head)
 
         name = run(root, "git", "config", "user.name")
@@ -264,15 +284,9 @@ def main() -> int:
         print(f"TREE={tree}")
         print(f"MERGE={merge}")
         if args.push:
-            before = remote_oids(root, args.remote, args.target_ref, args.pr_ref)
-            if before[args.target_ref] != base:
-                raise ValueError("remote target changed before publication")
-            if before[args.pr_ref] != head:
-                raise ValueError("remote pull-request head changed before publication")
-            if run(root, "git", "rev-parse", f"{head}^{{tree}}") != tree:
-                raise ValueError("reviewed pull-request tree changed before publication")
-            if run(root, "git", "merge-base", base, head) != base:
-                raise ValueError("reviewed pull-request parent topology changed before publication")
+            requalify_remote(
+                root, args.remote, args.target_ref, args.pr_ref, base, head, tree
+            )
             verify_merge_shape(root, merge, base, head, tree)
             push = bounded_command(
                 root,

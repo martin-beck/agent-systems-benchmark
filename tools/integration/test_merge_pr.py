@@ -128,6 +128,9 @@ class Fixture:
             "    if mode == 'accepted-error':\n"
             "        raise SystemExit(1)\n"
             "    raise SystemExit(result.returncode)\n"
+            "if args and args[0] == 'fetch' and mode == 'fetch-target-race':\n"
+            "    subprocess.run([real, '--git-dir', os.environ['ASB_REMOTE'],\n"
+            "    'update-ref', 'refs/heads/main', os.environ['ASB_DRIFT_OID']], check=True)\n"
             "os.execv(real, [real, *args])\n",
             encoding="utf-8",
         )
@@ -223,7 +226,20 @@ class MergeIntegrityTests(unittest.TestCase):
                 fixture.repository, *fixture.merge_command(), check=False
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("remote target no longer equals the approved base", result.stderr)
+            self.assertIn("fresh exact-main qualification required", result.stderr)
+
+    def test_requalifies_target_after_fetch_before_constructing_merge(self) -> None:
+        """Main advancing during object refresh must invalidate the qualification."""
+        with tempfile.TemporaryDirectory(prefix="asb-merge-fetch-race-") as raw:
+            fixture = Fixture(Path(raw))
+            result = command(
+                fixture.repository,
+                *fixture.merge_command(),
+                check=False,
+                env=fixture.fake_git_environment("fetch-target-race", fixture.head),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("fresh exact-main qualification required", result.stderr)
 
     def test_rejects_unsigned_or_non_dco_feature_commit(self) -> None:
         for signed, dco in ((False, True), (True, False)):
