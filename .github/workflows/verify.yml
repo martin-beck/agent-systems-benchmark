@@ -71,7 +71,9 @@ jobs:
       - name: Workload catalog parity
         run: |
           python3 tools/quality/generate_workload_catalog.py
-          python3 tools/quality/check_workload_catalog_parity.py <(cargo run --locked -q -p asb-cli -- workload-catalog)
+          catalog_output="${RUNNER_TEMP}/asb-workload-catalog.json"
+          cargo run --locked -q -p asb-cli -- workload-catalog > "$catalog_output"
+          python3 tools/quality/check_workload_catalog_parity.py "$catalog_output"
       - name: Release build and CLI
         run: |
           cargo build --locked --workspace --release
