@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "benchmark-readiness-negative-network",
+  "title": "Invalid readiness network fixture",
+  "steps": [
+    {
+      "id": "check",
+      "command": ["asb", "provider-catalog"],
+      "expect": {"exit_code": 0, "stdout_shape": "provider-catalog-v1"},
+      "network": "allowed",
+      "credentials": "none"
+    }
+  ]
+}
