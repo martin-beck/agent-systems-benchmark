@@ -23,7 +23,66 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+
+/// Runtime-owned store for one authenticated certificate chain.
+///
+/// The chain type is opaque and can only be produced by the validated
+/// certificate-authority APIs in `asb-control`; this store never accepts
+/// certificate bytes, identities, or trust anchors from a CLI caller.
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeCertificateChainStore {
+    chain: Arc<Mutex<Option<IssuedCertificateChainV1>>>,
+}
+
+/// Failure while installing or retrieving the runtime-owned chain.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuntimeCertificateChainStoreError {
+    /// No chain has been enrolled in this runtime instance.
+    Unavailable,
+    /// A lower or equal generation cannot replace the active chain.
+    StaleGeneration,
+    /// The store lock was poisoned after an unexpected runtime failure.
+    StateUnavailable,
+}
+
+impl RuntimeCertificateChainStore {
+    /// Create an empty store. Empty stores fail closed on acquisition.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Install a validated opaque chain from the authenticated control/runtime
+    /// boundary. Raw certificate material never enters this API.
+    pub fn install(
+        &self,
+        chain: IssuedCertificateChainV1,
+    ) -> Result<(), RuntimeCertificateChainStoreError> {
+        let mut current = self
+            .chain
+            .lock()
+            .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?;
+        if current
+            .as_ref()
+            .is_some_and(|existing| existing.identity().generation >= chain.identity().generation)
+        {
+            return Err(RuntimeCertificateChainStoreError::StaleGeneration);
+        }
+        *current = Some(chain);
+        Ok(())
+    }
+
+    /// Return the currently enrolled opaque chain for runtime-owned bridge
+    /// validation. No certificate bytes or private authority escape.
+    pub fn chain(&self) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError> {
+        self.chain
+            .lock()
+            .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?
+            .clone()
+            .ok_or(RuntimeCertificateChainStoreError::Unavailable)
+    }
+}
 
 /// Validated references accepted by the production live acquisition service.
 ///
@@ -1485,6 +1544,27 @@ mod tests {
         assert_eq!(
             ledger.consume(&record, &attestation, 1_500),
             Err(LiveProviderEnrollmentRecordError::Replay)
+        );
+    }
+
+    #[test]
+    fn chain_store_installs_opaque_authenticated_chain_and_rejects_stale_replacement() {
+        let (chain, _) = control_receipt();
+        let store = RuntimeCertificateChainStore::new();
+        store.install(chain.clone()).unwrap();
+        assert_eq!(store.chain().unwrap(), chain);
+        assert_eq!(
+            store.install(chain),
+            Err(RuntimeCertificateChainStoreError::StaleGeneration)
+        );
+    }
+
+    #[test]
+    fn empty_chain_store_fails_closed_without_authority() {
+        let store = RuntimeCertificateChainStore::new();
+        assert_eq!(
+            store.chain(),
+            Err(RuntimeCertificateChainStoreError::Unavailable)
         );
     }
 }
