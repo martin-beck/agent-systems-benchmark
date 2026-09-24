@@ -2,152 +2,950 @@
   "schema_version": 1,
   "workloads": [
     {
-      "id": "swe-bench",
-      "version": "verified-02e7a74f",
-      "kind": "repository-repair",
-      "source": {"repository": "https://github.com/SWE-bench/SWE-bench", "commit": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e", "license": "MIT", "archive_status": "verified", "archive_sha256": "96b996931a3732793b8840afb6a972b04552763154e2976724496a521a2a7e4d"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "verified"},
-      "evaluator": {"entrypoint": "swebench.harness", "version": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e", "image_digest": null, "oracle": "official-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "id": "agentbench",
+      "version": "main-d1e4a10d",
+      "kind": "interactive-agent-environment",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/THUDM/AgentBench",
+        "commit": "d1e4a10db08c87075c78972e48ecc182be03e2d5",
+        "license": "Apache-2.0",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "upstream-environments"
+      },
+      "evaluator": {
+        "entrypoint": "agentbench evaluator",
+        "version": "d1e4a10db08c87075c78972e48ecc182be03e2d5",
+        "image_digest": null,
+        "oracle": "environment-specific-task-grader",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["Dataset and evaluator are acquired separately", "No native-arm claim without an arm64 image and oracle-parity run"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
+      },
+      "limitations": [
+        "Interactive environments require separate task images and reset evidence",
+        "No external provider is required for qualification",
+        "Evaluator image, SBOM, task licenses and native oracle evidence remain unqualified"
+      ]
+    },
+    {
+      "id": "agentdojo",
+      "version": "main-089ed468",
+      "kind": "tool-use-robustness",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/ethz-spylab/agentdojo",
+        "commit": "089ed468cf3ed0322acc66b0211f26d9d90dbf60",
+        "license": "MIT",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "upstream-environments"
+      },
+      "evaluator": {
+        "entrypoint": "agentdojo evaluator",
+        "version": "089ed468cf3ed0322acc66b0211f26d9d90dbf60",
+        "image_digest": null,
+        "oracle": "utility-and-policy-violation-grader",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
+      },
+      "limitations": [
+        "Useful completion and policy violation scores remain distinct",
+        "Task data, tools and reset require explicit non-vendored acquisition",
+        "Evaluator image and native evidence remain unqualified"
+      ]
+    },
+    {
+      "id": "agentops",
+      "version": "main-f8e907b9",
+      "kind": "methodology-reference",
+      "selection": "methodology-only",
+      "source": {
+        "repository": "https://github.com/AgentOps-AI/agentops",
+        "commit": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
+        "license": "MIT",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "not-applicable"
+      },
+      "evaluator": {
+        "entrypoint": "not-applicable",
+        "version": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
+        "image_digest": null,
+        "oracle": "not-applicable",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 0,
+      "platforms": {
+        "linux-x86_64": "not-applicable",
+        "linux-aarch64": "not-applicable"
+      },
+      "limitations": [
+        "Observability ideas only; never selectable as an executable workload",
+        "Telemetry is not an ASB runtime dependency",
+        "No benchmark score or provider execution is implied"
+      ]
+    },
+    {
+      "id": "ai-agents-that-matter",
+      "version": "arxiv-2407.01502v1",
+      "kind": "methodology-reference",
+      "selection": "methodology-only",
+      "source": {
+        "repository": "https://arxiv.org/abs/2407.01502",
+        "revision": "v1",
+        "license": "NOASSERTION",
+        "license_status": "paper-license-not-a-workload-license",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "not-applicable"
+      },
+      "evaluator": {
+        "entrypoint": "not-applicable",
+        "version": "arxiv-2407.01502v1",
+        "image_digest": null,
+        "oracle": "not-applicable",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 0,
+      "platforms": {
+        "linux-x86_64": "not-applicable",
+        "linux-aarch64": "not-applicable"
+      },
+      "limitations": [
+        "Research methodology only; no executable workload or redistributable dataset is identified",
+        "Never selectable as an executable workload",
+        "No benchmark score or provider execution is implied"
+      ]
     },
     {
       "id": "aider-polyglot",
       "version": "main-5dc9490b",
       "kind": "multilanguage-editing",
-      "source": {"repository": "https://github.com/Aider-AI/aider", "commit": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c", "license": "Apache-2.0-and-per-exercise", "archive_status": "verified", "archive_sha256": "e8cbcdcf1dbe765a62a366a1950269bf655529174cc89545ced331cdb128f677"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "public"},
-      "evaluator": {"entrypoint": "aider.benchmarks.polyglot", "version": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f", "image_digest": null, "oracle": "exercise-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "source": {
+        "repository": "https://github.com/Aider-AI/aider",
+        "commit": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+        "license": "Apache-2.0-and-per-exercise",
+        "archive_status": "verified",
+        "archive_sha256": "e8cbcdcf1dbe765a62a366a1950269bf655529174cc89545ced331cdb128f677"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "public"
+      },
+      "evaluator": {
+        "entrypoint": "aider.benchmarks.polyglot",
+        "version": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f",
+        "image_digest": null,
+        "oracle": "exercise-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["Each Exercism exercise license and attribution must be retained", "Archive is source provenance only; evaluator image and SBOM remain unqualified"]
-    },
-    {
-      "id": "exercism-tracks",
-      "version": "pinned-20260908",
-      "kind": "multilanguage-editing",
-      "source": {"repositories": ["cpp@413b80a9b94089e4588c50500b8553a59c48cda8", "go@97472cfeecf6da52acb42029fe70a07ba990942a", "java@f1b22a3dc048451303f910fa08b279dea38e189a", "javascript@9be84b9eb31eea9beabbe3f7021a12101379d6e5", "python@1f6aab8667bf653b10cc3799f94352fcdb749db6", "rust@1d3a0f463c0f411dcb5ccbe45e72354da8db58dc"], "license": "MIT", "archive_status": "verified", "archive_sha256": {"cpp": "fe13f9291f5ba72f51ed8a435ee4409c113ba5a22599832cd8ad0b32422e3c02", "go": "f255c7c75335401f0f0cd7ab7edb5ce3e28f043ba9b5be6dda3e90313f74c4d5", "java": "da500a621e3d7407d7a29b4e068ee2a01d71676d30909e476c7fb451dad5ccff", "javascript": "5638c85af5cb116505a4a18182c12142c1a608467c24552ee3f52c85b0ded177", "python": "ebe43747e30d85f5d5293b938f3aadb6bc2f777e6d9c158793918b3539e56631", "rust": "0a22ff95abe7c8c181152f905b5541a7ee02d6918ac3ca6b05c42a8a1ab00e79"}},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "public"},
-      "evaluator": {"entrypoint": "track-test-runner", "version": "pinned-20260908", "image_digest": null, "oracle": "track-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
-      "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "planned-with-toolchain-evidence"},
-      "limitations": ["Track sources are pinned independently", "Toolchain and image digests remain required before qualification"]
-    },
-    {
-      "id": "terminal-bench",
-      "version": "v4.0.0-452bf305",
-      "kind": "terminal-environment",
-      "source": {"repository": "https://github.com/harbor-framework/terminal-bench", "commit": "452bf305c6daa62fc59061d22133a7cbc7c1572e", "license": "Apache-2.0", "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4", "archive_status": "verified", "archive_sha256": "390ee198a0f02fcdf140ac21420e106ce98f26d5f028b3d16b73e2d5137ff392"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "split": "terminal-bench-v4", "manifest_sha256": "ecd296ba053840bd4c0068e8f84e8a6fa829d184d0fd9852becdc19f4c895fcf", "task_count": 66, "task_reference_kind": "harbor-package-sha256", "source_tree_matches_packages": false},
-      "evaluator": {"entrypoint": "harbor run", "version": "4407eb5227a2ff4f0d3f16b2eb48849382fdf276", "repository": "https://github.com/harbor-framework/harbor", "license": "Apache-2.0", "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4", "archive_sha256": "04ec6b077d610896d75ed85b6b5ff88a9a241da6d528419acca66d2307329a21", "image_digest": null, "oracle": "harbor-oracle", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
-      "attempt_budget": 1,
-      "network": {"status": "unqualified-upstream-default-public"},
-      "reset": {"status": "unverified"},
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["Published Harbor package bytes must be acquired and verified independently because sampled source-tree hashes do not match the dataset package digests", "Only 8 of 66 source Dockerfiles pin a base image digest; selected evaluator images and SBOMs remain unqualified", "No task declares a network policy, so Harbor resolves the upstream default to public network access", "Reset behavior and repeated native oracle success remain unverified"]
-    },
-    {
-      "id": "swe-perf",
-      "version": "main-9e8fed28",
-      "kind": "correctness-preserving-performance",
-      "source": {"repository": "https://github.com/SWE-Perf/SWE-Perf", "commit": "9e8fed285ed640b51baaf66b13773706dc95aa45", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "archive_status": "verified", "archive_sha256": "eae21438a7ed072f5a0befd3849f40d6c92d947dea532a2ede55b71487d1f1dd"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/SWE-Perf/SWE-Perf", "revision": "6298f128c550e92ac25af17653cf092224046516", "license": "Apache-2.0", "split": "test", "task_count": 140},
-      "evaluator": {"entrypoint": "python -m run_evaluation", "version": "9e8fed285ed640b51baaf66b13773706dc95aa45", "image_digest": null, "oracle": "repository-tests-plus-runtime", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
-      "performance": {"correctness": "unqualified", "timing": "unqualified", "paired_trials": 0, "uncertainty_method": null, "hardware_control": "unqualified"},
-      "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["Pinned source archive has no license file and cannot be treated as executable support", "Dataset license does not establish source-code license", "No paired native baseline, stable timing oracle, evaluator image, SBOM, or reproduction evidence is qualified"]
-    },
-    {
-      "id": "swe-fficiency",
-      "version": "swefficiency-base-12d32a2d",
-      "kind": "correctness-preserving-performance",
-      "source": {"repository": "https://github.com/swefficiency/swefficiency", "commit": "12d32a2d6800824a7d84bdb6797b5708e7b7957f", "license": "Apache-2.0", "license_status": "verified", "license_sha256": "eaed39fc79747b44aa9bde43b0db7fc742fdf616895940c3056d2663e40bac52", "archive_status": "verified", "archive_sha256": "f8d0c3b895dd67d46da8e534092af2986694cb2de494c61547963006964a1945"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/swefficiency/swefficiency", "revision": "7fbfe6c2f1f409afb17acc4c3f737991ec6e1c27", "license": "NOASSERTION", "split": "test", "task_count": 498},
-      "evaluator": {"entrypoint": "swefficiency eval", "version": "12d32a2d6800824a7d84bdb6797b5708e7b7957f", "image_digest": null, "oracle": "guarding-tests-plus-speedup-ratio", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
-      "performance": {"correctness": "unqualified", "timing": "unqualified", "paired_trials": 0, "uncertainty_method": null, "hardware_control": "unqualified"},
-      "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The dataset card has no declared license at the pinned revision", "Upstream recommends privileged host setup and mutable prebuilt images that are not content-addressed here", "No paired native baseline, uncertainty estimate, evaluator image, SBOM, or reproduction evidence is qualified"]
-    },
-    {
-      "id": "core-bench",
-      "version": "main-e32a2980",
-      "kind": "computational-reproducibility",
-      "source": {"repository": "https://github.com/siegelz/core-bench", "commit": "e32a2980e72fe6eb04ee04eb749458f570625663", "license": "MIT", "license_status": "verified", "license_sha256": "fa800fc3033ad315e2bf2949afca5c6bcb9f19ad6331d1db996e7dfca1e0eeb8", "archive_status": "verified", "archive_sha256": "1be7112b9c06e19cf0f44051200dca73d8107ec43537d185a2008d9f82c2aa68"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/siegelz/core-bench", "revision": "18ac8edf2532d9edb9d13ae71f715410de6ee5a0", "license": "MIT", "split": "test"},
-      "evaluator": {"entrypoint": "hal-eval --benchmark corebench", "version": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa", "repository": "https://github.com/princeton-pli/hal-harness", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "archive_sha256": "fdcfd347d37b16acc5736e18abe734901345a899b20fefbcab6bdde1e490e607", "image_digest": null, "oracle": "answer-reproduction", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
-      "performance": {"correctness": "unqualified", "timing": "not-applicable", "paired_trials": 0, "uncertainty_method": null, "hardware_control": "unqualified"},
-      "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The original harness is unmaintained and recommends HAL", "The pinned HAL evaluator has no license file and is archived", "The original local path uses privileged nested containers and external capsule downloads", "No evaluator image, SBOM, capsule digest set, answer-oracle parity, or native reproduction evidence is qualified"]
-    },
-    {
-      "id": "swe-bench-pro",
-      "version": "main-ca10a60a",
-      "kind": "repository-repair",
-      "source": {"repository": "https://github.com/scaleapi/SWE-bench_Pro-os", "commit": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5", "license": "MIT", "license_sha256": "03a44b2f703779d3f34c18e056da5b893537ca61588e6b15b615a4a612e77fb9", "archive_status": "verified", "archive_sha256": "c1058143eba29553d02fd8cb9c55ec2f0c04aa7093f4ba6fc5af43b57f5d73e0"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro", "revision": "7ab5114912baf22bb098818e604c02fe7ad2c11f", "split": "test", "license": "NOASSERTION"},
-      "evaluator": {"entrypoint": "python swe_bench_pro_eval.py", "version": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5", "repository": "https://github.com/scaleapi/SWE-bench_Pro-os", "license": "MIT", "license_sha256": "03a44b2f703779d3f34c18e056da5b893537ca61588e6b15b615a4a612e77fb9", "image_digest": null, "oracle": "official-repository-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
-      "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The dataset and per-instance Docker images are acquired separately and are not vendored", "This is a patch-and-tests benchmark, not evidence of complete autonomous-agent performance", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "Each Exercism exercise license and attribution must be retained",
+        "Archive is source provenance only; evaluator image and SBOM remain unqualified"
+      ]
     },
     {
       "id": "bigcodebench",
       "version": "v0.2.4-9059fb84",
       "kind": "function-level-code-generation",
-      "source": {"repository": "https://github.com/bigcode-project/bigcodebench", "commit": "9059fb84d1188c02edeac4995361656a2fdecbef", "license": "Apache-2.0", "license_sha256": "a858540b8dfd0c74db6953edaae85bde0b671643a7e2fb04a065f4dfd25fc28c", "archive_status": "verified", "archive_sha256": "b95cc1e4adc1d1d1f888785ce5614930d11097805a3e6925e2b948f1b93683b1"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/bigcode/bigcodebench", "revision": "b74c0d0bf70d2c0bc459be537895cca163007f1a", "split": "complete-and-instruct", "task_count": 1140, "license": "Apache-2.0"},
-      "evaluator": {"entrypoint": "bigcodebench.evaluate", "version": "v0.2.4-9059fb84", "repository": "https://github.com/bigcode-project/bigcodebench", "license": "Apache-2.0", "license_sha256": "a858540b8dfd0c74db6953edaae85bde0b671643a7e2fb04a065f4dfd25fc28c", "image_digest": null, "oracle": "official-execution-checks", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "source": {
+        "repository": "https://github.com/bigcode-project/bigcodebench",
+        "commit": "9059fb84d1188c02edeac4995361656a2fdecbef",
+        "license": "Apache-2.0",
+        "license_sha256": "a858540b8dfd0c74db6953edaae85bde0b671643a7e2fb04a065f4dfd25fc28c",
+        "archive_status": "verified",
+        "archive_sha256": "b95cc1e4adc1d1d1f888785ce5614930d11097805a3e6925e2b948f1b93683b1"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/bigcode/bigcodebench",
+        "revision": "b74c0d0bf70d2c0bc459be537895cca163007f1a",
+        "split": "complete-and-instruct",
+        "task_count": 1140,
+        "license": "Apache-2.0"
+      },
+      "evaluator": {
+        "entrypoint": "bigcodebench.evaluate",
+        "version": "v0.2.4-9059fb84",
+        "repository": "https://github.com/bigcode-project/bigcodebench",
+        "license": "Apache-2.0",
+        "license_sha256": "a858540b8dfd0c74db6953edaae85bde0b671643a7e2fb04a065f4dfd25fc28c",
+        "image_digest": null,
+        "oracle": "official-execution-checks",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["Complete and instruct splits are code-generation controls rather than repository-agent evaluations", "The default remote execution service is not an ASB-qualified evaluator boundary", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "Complete and instruct splits are code-generation controls rather than repository-agent evaluations",
+        "The default remote execution service is not an ASB-qualified evaluator boundary",
+        "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
+      ]
+    },
+    {
+      "id": "core-bench",
+      "version": "main-e32a2980",
+      "kind": "computational-reproducibility",
+      "source": {
+        "repository": "https://github.com/siegelz/core-bench",
+        "commit": "e32a2980e72fe6eb04ee04eb749458f570625663",
+        "license": "MIT",
+        "license_status": "verified",
+        "license_sha256": "fa800fc3033ad315e2bf2949afca5c6bcb9f19ad6331d1db996e7dfca1e0eeb8",
+        "archive_status": "verified",
+        "archive_sha256": "1be7112b9c06e19cf0f44051200dca73d8107ec43537d185a2008d9f82c2aa68"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/siegelz/core-bench",
+        "revision": "18ac8edf2532d9edb9d13ae71f715410de6ee5a0",
+        "license": "MIT",
+        "split": "test"
+      },
+      "evaluator": {
+        "entrypoint": "hal-eval --benchmark corebench",
+        "version": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
+        "repository": "https://github.com/princeton-pli/hal-harness",
+        "license": "NOASSERTION",
+        "license_status": "missing-at-pinned-revision",
+        "archive_sha256": "fdcfd347d37b16acc5736e18abe734901345a899b20fefbcab6bdde1e490e607",
+        "image_digest": null,
+        "oracle": "answer-reproduction",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "performance": {
+        "correctness": "unqualified",
+        "timing": "not-applicable",
+        "paired_trials": 0,
+        "uncertainty_method": null,
+        "hardware_control": "unqualified"
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "The original harness is unmaintained and recommends HAL",
+        "The pinned HAL evaluator has no license file and is archived",
+        "The original local path uses privileged nested containers and external capsule downloads",
+        "No evaluator image, SBOM, capsule digest set, answer-oracle parity, or native reproduction evidence is qualified"
+      ]
     },
     {
       "id": "evalplus",
       "version": "v0.3.1-e5d0ed0b",
       "kind": "function-level-code-correctness",
-      "source": {"repository": "https://github.com/evalplus/evalplus", "commit": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2", "license": "Apache-2.0", "license_sha256": "fcc1f77fe5443b21bfc4dfcc3d66f7654f599b91582df771850e5e876986a103", "archive_status": "verified", "archive_sha256": "490f08728db1da8a73df89ada48f8ad0270fbd667895838348e64506095a2d49"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/evalplus/humanevalplus", "revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b", "split": "humaneval-plus-and-mbpp-plus", "license": "MIT"},
-      "evaluator": {"entrypoint": "evalplus.evaluate", "version": "v0.3.1-e5d0ed0b", "repository": "https://github.com/evalplus/evalplus", "license": "Apache-2.0", "license_sha256": "fcc1f77fe5443b21bfc4dfcc3d66f7654f599b91582df771850e5e876986a103", "image_digest": null, "oracle": "expanded-independent-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "source": {
+        "repository": "https://github.com/evalplus/evalplus",
+        "commit": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
+        "license": "Apache-2.0",
+        "license_sha256": "fcc1f77fe5443b21bfc4dfcc3d66f7654f599b91582df771850e5e876986a103",
+        "archive_status": "verified",
+        "archive_sha256": "490f08728db1da8a73df89ada48f8ad0270fbd667895838348e64506095a2d49"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/evalplus/humanevalplus",
+        "revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b",
+        "split": "humaneval-plus-and-mbpp-plus",
+        "license": "MIT"
+      },
+      "evaluator": {
+        "entrypoint": "evalplus.evaluate",
+        "version": "v0.3.1-e5d0ed0b",
+        "repository": "https://github.com/evalplus/evalplus",
+        "license": "Apache-2.0",
+        "license_sha256": "fcc1f77fe5443b21bfc4dfcc3d66f7654f599b91582df771850e5e876986a103",
+        "image_digest": null,
+        "oracle": "expanded-independent-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["HumanEval+ and MBPP+ are small function-level correctness controls, not repository-agent evaluations", "Dataset release and evaluator are acquired separately and are not vendored", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "HumanEval+ and MBPP+ are small function-level correctness controls, not repository-agent evaluations",
+        "Dataset release and evaluator are acquired separately and are not vendored",
+        "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
+      ]
+    },
+    {
+      "id": "exercism-tracks",
+      "version": "pinned-20260908",
+      "kind": "multilanguage-editing",
+      "source": {
+        "repositories": [
+          "cpp@413b80a9b94089e4588c50500b8553a59c48cda8",
+          "go@97472cfeecf6da52acb42029fe70a07ba990942a",
+          "java@f1b22a3dc048451303f910fa08b279dea38e189a",
+          "javascript@9be84b9eb31eea9beabbe3f7021a12101379d6e5",
+          "python@1f6aab8667bf653b10cc3799f94352fcdb749db6",
+          "rust@1d3a0f463c0f411dcb5ccbe45e72354da8db58dc"
+        ],
+        "license": "MIT",
+        "archive_status": "verified",
+        "archive_sha256": {
+          "cpp": "fe13f9291f5ba72f51ed8a435ee4409c113ba5a22599832cd8ad0b32422e3c02",
+          "go": "f255c7c75335401f0f0cd7ab7edb5ce3e28f043ba9b5be6dda3e90313f74c4d5",
+          "java": "da500a621e3d7407d7a29b4e068ee2a01d71676d30909e476c7fb451dad5ccff",
+          "javascript": "5638c85af5cb116505a4a18182c12142c1a608467c24552ee3f52c85b0ded177",
+          "python": "ebe43747e30d85f5d5293b938f3aadb6bc2f777e6d9c158793918b3539e56631",
+          "rust": "0a22ff95abe7c8c181152f905b5541a7ee02d6918ac3ca6b05c42a8a1ab00e79"
+        }
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "public"
+      },
+      "evaluator": {
+        "entrypoint": "track-test-runner",
+        "version": "pinned-20260908",
+        "image_digest": null,
+        "oracle": "track-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned-with-toolchain-evidence"
+      },
+      "limitations": [
+        "Track sources are pinned independently",
+        "Toolchain and image digests remain required before qualification"
+      ]
+    },
+    {
+      "id": "hal",
+      "version": "main-16bb03eb",
+      "kind": "agent-benchmark-harness",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/princeton-pli/hal-harness",
+        "commit": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
+        "license": "NOASSERTION",
+        "license_status": "missing-at-pinned-revision",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "task-definitions"
+      },
+      "evaluator": {
+        "entrypoint": "hal-eval",
+        "version": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
+        "image_digest": null,
+        "oracle": "task-grader",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
+      },
+      "limitations": [
+        "HAL is a harness boundary, not a single workload",
+        "Pinned source has no confirmed license declaration",
+        "Task images, capsule digests, reset and native evidence remain unqualified"
+      ]
+    },
+    {
+      "id": "harbor",
+      "version": "main-cdb76bae",
+      "kind": "agent-task-harness",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/laude-institute/harbor",
+        "commit": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
+        "license": "Apache-2.0",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "task-definitions"
+      },
+      "evaluator": {
+        "entrypoint": "harbor run",
+        "version": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
+        "image_digest": null,
+        "oracle": "task-verifier",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
+      },
+      "limitations": [
+        "Harbor is a task harness and not itself a benchmark score",
+        "Imported tasks need license, package digest, network policy and reset evidence",
+        "No public-network default or native support is implied"
+      ]
+    },
+    {
+      "id": "helm",
+      "version": "main-63754d05",
+      "kind": "methodology-reference",
+      "selection": "methodology-only",
+      "source": {
+        "repository": "https://github.com/stanford-crfm/helm",
+        "commit": "63754d05db6f874e41a395880fb573890a13e791",
+        "license": "Apache-2.0",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "not-applicable"
+      },
+      "evaluator": {
+        "entrypoint": "not-applicable",
+        "version": "63754d05db6f874e41a395880fb573890a13e791",
+        "image_digest": null,
+        "oracle": "not-applicable",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 0,
+      "platforms": {
+        "linux-x86_64": "not-applicable",
+        "linux-aarch64": "not-applicable"
+      },
+      "limitations": [
+        "Scenario and metric methodology only; never selectable as an executable workload",
+        "Upstream maintenance and adapters require review before import",
+        "No benchmark score or provider execution is implied"
+      ]
+    },
+    {
+      "id": "inspect-ai",
+      "version": "main-1ab0d75f",
+      "kind": "evaluation-harness",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/UKGovernmentBEIS/inspect_ai",
+        "commit": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
+        "license": "MIT",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "scenarios"
+      },
+      "evaluator": {
+        "entrypoint": "inspect eval",
+        "version": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
+        "image_digest": null,
+        "oracle": "scenario-scorer",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
+      },
+      "limitations": [
+        "Imported scenarios retain independent workload identity",
+        "Deferred scoring and epochs stay separate from raw observations",
+        "Evaluator image, scenario licenses and native evidence remain unqualified"
+      ]
     },
     {
       "id": "livecodebench",
       "version": "release-v6-28fef95e",
       "kind": "time-windowed-code-generation",
-      "source": {"repository": "https://github.com/LiveCodeBench/LiveCodeBench", "commit": "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24", "license": "MIT", "license_sha256": "104099948b78ebc36f2e951b3a7973b956adfa7d39aaec0d1512f97a2686d15d", "archive_status": "verified", "archive_sha256": "cd2b592e51ef9aec0f8e92ebb2b8b579f1e519fbcaaeb9e63e4f0ffbf3f18bb1"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/livecodebench/code_generation_lite", "revision": "0fe84c3912ea0c4d4a78037083943e8f0c4dd505", "split": "release_v6", "task_count": 1055, "license": "NOASSERTION"},
-      "evaluator": {"entrypoint": "python -m lcb_runner.runner.main", "version": "release_v6", "repository": "https://github.com/LiveCodeBench/LiveCodeBench", "license": "MIT", "license_sha256": "104099948b78ebc36f2e951b3a7973b956adfa7d39aaec0d1512f97a2686d15d", "image_digest": null, "oracle": "official-time-windowed-checker", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "source": {
+        "repository": "https://github.com/LiveCodeBench/LiveCodeBench",
+        "commit": "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24",
+        "license": "MIT",
+        "license_sha256": "104099948b78ebc36f2e951b3a7973b956adfa7d39aaec0d1512f97a2686d15d",
+        "archive_status": "verified",
+        "archive_sha256": "cd2b592e51ef9aec0f8e92ebb2b8b579f1e519fbcaaeb9e63e4f0ffbf3f18bb1"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/livecodebench/code_generation_lite",
+        "revision": "0fe84c3912ea0c4d4a78037083943e8f0c4dd505",
+        "split": "release_v6",
+        "task_count": 1055,
+        "license": "NOASSERTION"
+      },
+      "evaluator": {
+        "entrypoint": "python -m lcb_runner.runner.main",
+        "version": "release_v6",
+        "repository": "https://github.com/LiveCodeBench/LiveCodeBench",
+        "license": "MIT",
+        "license_sha256": "104099948b78ebc36f2e951b3a7973b956adfa7d39aaec0d1512f97a2686d15d",
+        "image_digest": null,
+        "oracle": "official-time-windowed-checker",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The repository is continuously updated; release_v6 dataset identity is separate from the source checkout", "This is a time-windowed code-generation benchmark, not complete autonomous-agent evidence", "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "The repository is continuously updated; release_v6 dataset identity is separate from the source checkout",
+        "This is a time-windowed code-generation benchmark, not complete autonomous-agent evidence",
+        "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
+      ]
+    },
+    {
+      "id": "swe-bench",
+      "version": "verified-02e7a74f",
+      "kind": "repository-repair",
+      "source": {
+        "repository": "https://github.com/SWE-bench/SWE-bench",
+        "commit": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+        "license": "MIT",
+        "archive_status": "verified",
+        "archive_sha256": "96b996931a3732793b8840afb6a972b04552763154e2976724496a521a2a7e4d"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "verified"
+      },
+      "evaluator": {
+        "entrypoint": "swebench.harness",
+        "version": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+        "image_digest": null,
+        "oracle": "official-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "Dataset and evaluator are acquired separately",
+        "No native-arm claim without an arm64 image and oracle-parity run"
+      ]
+    },
+    {
+      "id": "swe-bench-pro",
+      "version": "main-ca10a60a",
+      "kind": "repository-repair",
+      "source": {
+        "repository": "https://github.com/scaleapi/SWE-bench_Pro-os",
+        "commit": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5",
+        "license": "MIT",
+        "license_sha256": "03a44b2f703779d3f34c18e056da5b893537ca61588e6b15b615a4a612e77fb9",
+        "archive_status": "verified",
+        "archive_sha256": "c1058143eba29553d02fd8cb9c55ec2f0c04aa7093f4ba6fc5af43b57f5d73e0"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro",
+        "revision": "7ab5114912baf22bb098818e604c02fe7ad2c11f",
+        "split": "test",
+        "license": "NOASSERTION"
+      },
+      "evaluator": {
+        "entrypoint": "python swe_bench_pro_eval.py",
+        "version": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5",
+        "repository": "https://github.com/scaleapi/SWE-bench_Pro-os",
+        "license": "MIT",
+        "license_sha256": "03a44b2f703779d3f34c18e056da5b893537ca61588e6b15b615a4a612e77fb9",
+        "image_digest": null,
+        "oracle": "official-repository-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "The dataset and per-instance Docker images are acquired separately and are not vendored",
+        "This is a patch-and-tests benchmark, not evidence of complete autonomous-agent performance",
+        "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
+      ]
+    },
+    {
+      "id": "swe-fficiency",
+      "version": "swefficiency-base-12d32a2d",
+      "kind": "correctness-preserving-performance",
+      "source": {
+        "repository": "https://github.com/swefficiency/swefficiency",
+        "commit": "12d32a2d6800824a7d84bdb6797b5708e7b7957f",
+        "license": "Apache-2.0",
+        "license_status": "verified",
+        "license_sha256": "eaed39fc79747b44aa9bde43b0db7fc742fdf616895940c3056d2663e40bac52",
+        "archive_status": "verified",
+        "archive_sha256": "f8d0c3b895dd67d46da8e534092af2986694cb2de494c61547963006964a1945"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/swefficiency/swefficiency",
+        "revision": "7fbfe6c2f1f409afb17acc4c3f737991ec6e1c27",
+        "license": "NOASSERTION",
+        "split": "test",
+        "task_count": 498
+      },
+      "evaluator": {
+        "entrypoint": "swefficiency eval",
+        "version": "12d32a2d6800824a7d84bdb6797b5708e7b7957f",
+        "image_digest": null,
+        "oracle": "guarding-tests-plus-speedup-ratio",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "performance": {
+        "correctness": "unqualified",
+        "timing": "unqualified",
+        "paired_trials": 0,
+        "uncertainty_method": null,
+        "hardware_control": "unqualified"
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "The dataset card has no declared license at the pinned revision",
+        "Upstream recommends privileged host setup and mutable prebuilt images that are not content-addressed here",
+        "No paired native baseline, uncertainty estimate, evaluator image, SBOM, or reproduction evidence is qualified"
+      ]
     },
     {
       "id": "swe-lancer",
       "version": "frontier-evals-51052ced",
       "kind": "long-horizon-repository-and-proposal",
-      "source": {"repository": "https://github.com/openai/frontier-evals", "commit": "51052cede8cc608f95bb00346635e03759013e5a", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "archive_status": "unavailable-at-pinned-revision"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://github.com/openai/frontier-evals", "revision": "51052cede8cc608f95bb00346635e03759013e5a", "split": "swelancer", "license": "NOASSERTION"},
-      "evaluator": {"entrypoint": "frontier-evals/project/swelancer", "version": "51052cede8cc608f95bb00346635e03759013e5a", "repository": "https://github.com/openai/frontier-evals", "license": "NOASSERTION", "license_status": "missing-at-pinned-revision", "image_digest": null, "oracle": "offline-task-tests-and-managerial-labels", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "source": {
+        "repository": "https://github.com/openai/frontier-evals",
+        "commit": "51052cede8cc608f95bb00346635e03759013e5a",
+        "license": "NOASSERTION",
+        "license_status": "missing-at-pinned-revision",
+        "archive_status": "unavailable-at-pinned-revision"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://github.com/openai/frontier-evals",
+        "revision": "51052cede8cc608f95bb00346635e03759013e5a",
+        "split": "swelancer",
+        "license": "NOASSERTION"
+      },
+      "evaluator": {
+        "entrypoint": "frontier-evals/project/swelancer",
+        "version": "51052cede8cc608f95bb00346635e03759013e5a",
+        "repository": "https://github.com/openai/frontier-evals",
+        "license": "NOASSERTION",
+        "license_status": "missing-at-pinned-revision",
+        "image_digest": null,
+        "oracle": "offline-task-tests-and-managerial-labels",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The original SWELancer repository is archived and the maintained code moved into frontier-evals", "Source archive and license evidence were unavailable at this pinned revision and must be refreshed before execution", "This records an evolving workload boundary only; task setup, evaluator images, contamination cutoff, reset behavior, and native qualification remain unverified"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "The original SWELancer repository is archived and the maintained code moved into frontier-evals",
+        "Source archive and license evidence were unavailable at this pinned revision and must be refreshed before execution",
+        "This records an evolving workload boundary only; task setup, evaluator images, contamination cutoff, reset behavior, and native qualification remain unverified"
+      ]
+    },
+    {
+      "id": "swe-perf",
+      "version": "main-9e8fed28",
+      "kind": "correctness-preserving-performance",
+      "source": {
+        "repository": "https://github.com/SWE-Perf/SWE-Perf",
+        "commit": "9e8fed285ed640b51baaf66b13773706dc95aa45",
+        "license": "NOASSERTION",
+        "license_status": "missing-at-pinned-revision",
+        "archive_status": "verified",
+        "archive_sha256": "eae21438a7ed072f5a0befd3849f40d6c92d947dea532a2ede55b71487d1f1dd"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/SWE-Perf/SWE-Perf",
+        "revision": "6298f128c550e92ac25af17653cf092224046516",
+        "license": "Apache-2.0",
+        "split": "test",
+        "task_count": 140
+      },
+      "evaluator": {
+        "entrypoint": "python -m run_evaluation",
+        "version": "9e8fed285ed640b51baaf66b13773706dc95aa45",
+        "image_digest": null,
+        "oracle": "repository-tests-plus-runtime",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "performance": {
+        "correctness": "unqualified",
+        "timing": "unqualified",
+        "paired_trials": 0,
+        "uncertainty_method": null,
+        "hardware_control": "unqualified"
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "Pinned source archive has no license file and cannot be treated as executable support",
+        "Dataset license does not establish source-code license",
+        "No paired native baseline, stable timing oracle, evaluator image, SBOM, or reproduction evidence is qualified"
+      ]
     },
     {
       "id": "swe-rebench",
       "version": "swe-bench-fork-e4907b7a",
       "kind": "continuously-refreshed-repository-repair",
-      "source": {"repository": "https://github.com/SWE-rebench/SWE-bench-fork", "commit": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284", "license": "MIT", "archive_status": "unavailable-at-pinned-revision"},
-      "dataset": {"acquisition": "explicit-download", "vendored": false, "repository": "https://huggingface.co/datasets/nebius/SWE-rebench", "revision": "89cdfbab4ab1bd8f5a658bb212d1b63624f4f881", "split": "default", "license": "CC-BY-4.0"},
-      "evaluator": {"entrypoint": "swe-bench-fork", "version": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284", "repository": "https://github.com/SWE-rebench/SWE-bench-fork", "license": "MIT", "image_digest": null, "oracle": "repository-tests", "provenance": {"status": "planned", "sbom_sha256": null, "evidence": null}},
+      "source": {
+        "repository": "https://github.com/SWE-rebench/SWE-bench-fork",
+        "commit": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284",
+        "license": "MIT",
+        "archive_status": "unavailable-at-pinned-revision"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/nebius/SWE-rebench",
+        "revision": "89cdfbab4ab1bd8f5a658bb212d1b63624f4f881",
+        "split": "default",
+        "license": "CC-BY-4.0"
+      },
+      "evaluator": {
+        "entrypoint": "swe-bench-fork",
+        "version": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284",
+        "repository": "https://github.com/SWE-rebench/SWE-bench-fork",
+        "license": "MIT",
+        "image_digest": null,
+        "oracle": "repository-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
       "attempt_budget": 1,
-      "platforms": {"linux-x86_64": "planned", "linux-aarch64": "unsupported-until-native-evidence"},
-      "limitations": ["The dataset is continuously refreshed, so the revision and contamination cutoff must be repinned for every evaluation window", "Source archive bytes and task-image digests are not yet qualified", "No evaluator SBOM, deterministic reset evidence, independent grading audit, or native qualification is claimed"]
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "The dataset is continuously refreshed, so the revision and contamination cutoff must be repinned for every evaluation window",
+        "Source archive bytes and task-image digests are not yet qualified",
+        "No evaluator SBOM, deterministic reset evidence, independent grading audit, or native qualification is claimed"
+      ]
+    },
+    {
+      "id": "tau-bench",
+      "version": "main-59a200c6",
+      "kind": "stateful-tool-use",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/sierra-research/tau-bench",
+        "commit": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+        "license": "MIT",
+        "archive_status": "unverified"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "retail-and-airline"
+      },
+      "evaluator": {
+        "entrypoint": "tau_bench evaluator",
+        "version": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+        "image_digest": null,
+        "oracle": "simulated-user-policy-grader",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
+      },
+      "limitations": [
+        "Pass^k reliability and simulated-user policy remain separate metrics",
+        "Tool/database fixtures require pinned reset and isolation evidence",
+        "Evaluator image and native evidence remain unqualified"
+      ]
+    },
+    {
+      "id": "terminal-bench",
+      "version": "v4.0.0-452bf305",
+      "kind": "terminal-environment",
+      "source": {
+        "repository": "https://github.com/harbor-framework/terminal-bench",
+        "commit": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+        "license": "Apache-2.0",
+        "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "archive_status": "verified",
+        "archive_sha256": "390ee198a0f02fcdf140ac21420e106ce98f26d5f028b3d16b73e2d5137ff392"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "split": "terminal-bench-v4",
+        "manifest_sha256": "ecd296ba053840bd4c0068e8f84e8a6fa829d184d0fd9852becdc19f4c895fcf",
+        "task_count": 66,
+        "task_reference_kind": "harbor-package-sha256",
+        "source_tree_matches_packages": false
+      },
+      "evaluator": {
+        "entrypoint": "harbor run",
+        "version": "4407eb5227a2ff4f0d3f16b2eb48849382fdf276",
+        "repository": "https://github.com/harbor-framework/harbor",
+        "license": "Apache-2.0",
+        "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "archive_sha256": "04ec6b077d610896d75ed85b6b5ff88a9a241da6d528419acca66d2307329a21",
+        "image_digest": null,
+        "oracle": "harbor-oracle",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "network": {
+        "status": "unqualified-upstream-default-public"
+      },
+      "reset": {
+        "status": "unverified"
+      },
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "Published Harbor package bytes must be acquired and verified independently because sampled source-tree hashes do not match the dataset package digests",
+        "Only 8 of 66 source Dockerfiles pin a base image digest; selected evaluator images and SBOMs remain unqualified",
+        "No task declares a network policy, so Harbor resolves the upstream default to public network access",
+        "Reset behavior and repeated native oracle success remain unverified"
+      ]
     }
   ]
 }

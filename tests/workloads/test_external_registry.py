@@ -13,22 +13,10 @@ def test_external_registry_is_pinned_and_non_vendored():
     data = json.loads(REGISTRY.read_text())
     assert data["schema_version"] == 1
     ids = [item["id"] for item in data["workloads"]]
-    assert ids == [
-        "swe-bench",
-        "aider-polyglot",
-        "exercism-tracks",
-        "terminal-bench",
-        "swe-perf",
-        "swe-fficiency",
-        "core-bench",
-        "swe-bench-pro",
-        "bigcodebench",
-        "evalplus",
-        "livecodebench",
-        "swe-lancer",
-        "swe-rebench",
-    ]
+    assert ids == [item["id"] for item in sorted(data["workloads"], key=lambda value: value["id"])]
     for item in data["workloads"]:
+        if item.get("selection") == "methodology-only":
+            continue
         assert item["dataset"]["vendored"] is False
         assert item["dataset"]["acquisition"] == "explicit-download"
         assert item["evaluator"]["image_digest"] is None
@@ -38,6 +26,12 @@ def test_external_registry_is_pinned_and_non_vendored():
             "planned-with-toolchain-evidence",
             "unsupported-until-native-evidence",
         }
+
+    methodology = [item for item in data["workloads"] if item.get("selection") == "methodology-only"]
+    assert {item["id"] for item in methodology} == {
+        "agentops", "helm", "ai-agents-that-matter"
+    }
+    assert all(item["attempt_budget"] == 0 for item in methodology)
 
     terminal = next(
         item for item in data["workloads"] if item["id"] == "terminal-bench"

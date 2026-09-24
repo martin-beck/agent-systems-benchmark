@@ -75,3 +75,11 @@ semantic-parity evidence. A speedup threshold is valid only for its opaque host 
 and paired uncertainty evidence; thresholds do not transfer silently between hosts.
 The checked-in original suite is fully public and has no holdout, contamination-
 resistance, native workload, or performance claim.
+
+The external registry also inventories the interactive literature boundaries
+AgentBench, tau-bench, and AgentDojo, plus the Harbor, Inspect AI, and HAL
+harnesses. They are explicit-download, non-vendored `executable-candidate`
+records only; task images, reset/scoring parity, licenses, and platform evidence
+must be qualified by later adapter ARs. AgentOps, HELM, and AI Agents That
+Matter are recorded as `methodology-only` references and are never selectable
+or executable workloads.
