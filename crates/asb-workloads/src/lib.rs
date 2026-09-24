@@ -7,10 +7,11 @@ mod validity;
 
 pub use literature::{
     Acquisition, AcquisitionReceipt, AdapterStatus, CatalogAvailability, CatalogEvidence,
-    CatalogKind, CatalogSelectionError, DeterministicMockModel, Evaluation,
-    LITERATURE_WORKLOAD_IDS, LiteratureAdapter, LiteratureDescriptor, LiteratureError,
-    LiteratureFamily, LiteraturePrepared, LocalMockConfig, LocalMockResult,
-    MAX_LOCAL_MOCK_TIMEOUT_MS, WorkloadCatalogEntry, select_workload, workload_catalog,
+    CatalogKind, CatalogSelectionError, CodeGenerationControl, CodeGenerationControlKind,
+    DeterministicMockModel, Evaluation, LITERATURE_WORKLOAD_IDS, LiteratureAdapter,
+    LiteratureDescriptor, LiteratureError, LiteratureFamily, LiteraturePrepared, LocalMockConfig,
+    LocalMockResult, MAX_LOCAL_MOCK_TIMEOUT_MS, WorkloadCatalogEntry, select_workload,
+    workload_catalog,
 };
 pub use validity::{
     AdaptationKind, BaselineEvidence, BenchmarkValidityRegistry, DependencyPin, ExposurePolicy,
@@ -219,7 +220,7 @@ pub enum PreparedWorkloadChoice {
     /// ASB-owned protected fixture.
     Builtin(PreparedWorkload),
     /// Literature identity backed by an offline deterministic fixture.
-    Literature(crate::literature::LiteraturePrepared),
+    Literature(Box<crate::literature::LiteraturePrepared>),
 }
 
 impl PreparedWorkloadChoice {
@@ -309,7 +310,7 @@ pub fn prepare_workload(
             .map_err(|error| error.to_string());
     }
     LiteratureAdapter::prepare(id, root)
-        .map(PreparedWorkloadChoice::Literature)
+        .map(|prepared| PreparedWorkloadChoice::Literature(Box::new(prepared)))
         .map_err(|error| error.to_string())
 }
 

@@ -49,6 +49,19 @@ remain `planned` or unsupported until immutable evaluator images, SBOMs, reset/f
 and real native runs are independently qualified. These are code-generation or correctness
 controls and must not be reported as complete agent-performance results.
 
+### Code-generation control semantics
+
+The code-generation controls use a separate comparison namespace from
+repository-agent workloads. BigCodeBench and EvalPlus (including the
+HumanEval+ and MBPP+ split identities) are function-level controls with
+`function-correctness-pass-rate` or `expanded-test-pass-rate` metrics. LiveCodeBench
+is a time-windowed control with `time-windowed-code-generation-pass-rate`; its
+`release_v6` dataset boundary is part of the identity and must not be replaced by
+an unpinned latest snapshot. Local development runs exercise only the deterministic
+ASB fixture and report the namespace `code-generation.function-level.v1` or
+`code-generation.time-windowed.v1`. They do not contact a provider, execute an
+upstream evaluator, or contribute scores to repository-agent comparisons.
+
 AR-0406 adds SWE-Lancer and SWE-rebench as explicit-download, non-vendored, provenance-only
 boundaries. SWE-Lancer is pinned to frontier-evals commit `51052ced` and remains unavailable for
 execution until its archived source/license and offline evaluator boundary are repinned. SWE-rebench
