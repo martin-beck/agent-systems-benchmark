@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "result-comparison",
+  "title": "Compare agents on one benchmark definition",
+  "steps": [
+    {
+      "id": "report-codex",
+      "command": ["asb", "report", "results/runs/codex-run"],
+      "expect": {"exit_code": 0, "stdout_shape": "report-v1"},
+      "references": [
+        {"path": "results/runs/codex-run", "kind": "input"},
+        {"path": "fixtures/v1/comparison-report-codex.json", "kind": "fixture"}
+      ],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "report-gemini",
+      "command": ["asb", "report", "results/runs/gemini-run"],
+      "expect": {"exit_code": 0, "stdout_shape": "report-v1"},
+      "references": [
+        {"path": "results/runs/gemini-run", "kind": "input"},
+        {"path": "fixtures/v1/comparison-report-gemini.json", "kind": "fixture"}
+      ],
+      "network": "denied",
+      "credentials": "none"
+    },
+    {
+      "id": "compare-compatible-runs",
+      "command": ["asb", "compare", "results/runs/codex-run", "results/runs/gemini-run"],
+      "expect": {"exit_code": 0, "stdout_shape": "comparison-v1"},
+      "references": [
+        {"path": "results/runs/codex-run", "kind": "input"},
+        {"path": "results/runs/gemini-run", "kind": "input"},
+        {"path": "fixtures/v1/comparison-positive.json", "kind": "fixture"}
+      ],
+      "network": "denied",
+      "credentials": "none"
+    }
+  ]
+}

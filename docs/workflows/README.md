@@ -14,6 +14,7 @@ follow, terminal state, report, compare, record, and replay.
 | Build and validate a first plan | [CLI first run](cli-first-run.md) | [TUI first run](tui-first-run.md) |
 | Select several agents for one provider | [Shared provider](multi-agent-provider.md) | Same page, `MultiAgentWizard` |
 | Follow, finish, and compare runs | [CLI first run](cli-first-run.md#follow-finish-and-compare) | [TUI first run](tui-first-run.md#follow-finish-and-compare) |
+| Compare multiple agents | [Result comparison](result-comparison.md) | [TUI first run](tui-first-run.md#follow-finish-and-compare) |
 | Capture and replay provider responses | [Record and replay](record-replay.md) | Same page, `RecordingWorkflow` |
 | Recover from a failed or stale run | [Troubleshooting](troubleshooting.md) | [TUI recovery](tui-first-run.md#reconnect-and-recover) |
 

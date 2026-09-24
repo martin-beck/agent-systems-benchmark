@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "run_id": "codex-run",
+  "agent": "codex",
+  "terminal_state": "completed",
+  "benchmark": {"id": "original.bug-fix", "revision": "v1"},
+  "measurement": {"id": "quality", "revision": "v1", "unit": "fraction"},
+  "configuration_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "score": 0.8
+}
