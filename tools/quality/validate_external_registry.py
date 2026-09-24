@@ -71,20 +71,54 @@ REGISTRY = (
     / "crates/asb-workloads/registry/v1/external-workloads.json"
 )
 ALLOWED_ITEM_KEYS = {
-    "id", "version", "kind", "selection", "source", "dataset", "evaluator",
-    "attempt_budget", "platforms", "limitations", "network", "reset", "performance",
+    "id",
+    "version",
+    "kind",
+    "selection",
+    "source",
+    "dataset",
+    "evaluator",
+    "attempt_budget",
+    "platforms",
+    "limitations",
+    "network",
+    "reset",
+    "performance",
 }
 ALLOWED_SOURCE_KEYS = {
-    "repository", "repositories", "commit", "revision", "license", "license_sha256",
-    "license_status", "archive_status", "archive_sha256",
+    "repository",
+    "repositories",
+    "commit",
+    "revision",
+    "license",
+    "license_sha256",
+    "license_status",
+    "archive_status",
+    "archive_sha256",
 }
 ALLOWED_DATASET_KEYS = {
-    "acquisition", "vendored", "split", "repository", "revision", "license",
-    "manifest_sha256", "task_count", "task_reference_kind", "source_tree_matches_packages",
+    "acquisition",
+    "vendored",
+    "split",
+    "repository",
+    "revision",
+    "license",
+    "manifest_sha256",
+    "task_count",
+    "task_reference_kind",
+    "source_tree_matches_packages",
 }
 ALLOWED_EVALUATOR_KEYS = {
-    "entrypoint", "version", "image_digest", "oracle", "provenance", "repository",
-    "license", "license_sha256", "license_status", "archive_sha256",
+    "entrypoint",
+    "version",
+    "image_digest",
+    "oracle",
+    "provenance",
+    "repository",
+    "license",
+    "license_sha256",
+    "license_status",
+    "archive_sha256",
 }
 
 
@@ -199,7 +233,10 @@ def validate_additional_suite(item: dict[str, Any]) -> None:
         fail(f"{ident}: evaluator must remain unqualified without native evidence")
     if source.get("license") not in {"MIT", "Apache-2.0"}:
         fail(f"{ident}: source license must be an explicit SPDX license")
-    if dataset.get("vendored") is not False or dataset.get("acquisition") != "explicit-download":
+    if (
+        dataset.get("vendored") is not False
+        or dataset.get("acquisition") != "explicit-download"
+    ):
         fail(f"{ident}: dataset must remain explicit-download and non-vendored")
 
 
@@ -224,13 +261,16 @@ def main() -> int:
             fail(f"{ident}: unknown fields are not permitted: {sorted(unknown)}")
         kind = item.get("kind")
         selection = item.get("selection")
-        if kind == "methodology-reference":
-            if selection != "methodology-only":
-                fail(f"{ident}: methodology references must be methodology-only")
+        if selection == "methodology-only":
             if item.get("attempt_budget") != 0:
                 fail(f"{ident}: methodology references cannot have execution attempts")
-            if item.get("evaluator", {}).get("entrypoint") != "not-applicable":
+            if (
+                kind == "methodology-reference"
+                and item.get("evaluator", {}).get("entrypoint") != "not-applicable"
+            ):
                 fail(f"{ident}: methodology references cannot define an evaluator")
+        elif kind == "methodology-reference":
+            fail(f"{ident}: methodology references must be methodology-only")
         elif selection not in {None, "executable-candidate"}:
             fail(f"{ident}: executable candidates must be selectable as workloads")
         source = item.get("source", {})
@@ -241,7 +281,9 @@ def main() -> int:
         ):
             unknown = set(value) - allowed
             if unknown:
-                fail(f"{ident}: unknown {label} fields are not permitted: {sorted(unknown)}")
+                fail(
+                    f"{ident}: unknown {label} fields are not permitted: {sorted(unknown)}"
+                )
         if source.get("archive_status") not in {
             "verified",
             "unverified",

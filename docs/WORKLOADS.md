@@ -76,13 +76,13 @@ and paired uncertainty evidence; thresholds do not transfer silently between hos
 The checked-in original suite is fully public and has no holdout, contamination-
 resistance, native workload, or performance claim.
 
-The external registry also inventories the interactive literature boundaries
-AgentBench, tau-bench, and AgentDojo, plus the Harbor, Inspect AI, and HAL
-harnesses. They are explicit-download, non-vendored `executable-candidate`
-records only; task images, reset/scoring parity, licenses, and platform evidence
-must be qualified by later adapter ARs. AgentOps, HELM, and AI Agents That
-Matter are recorded as `methodology-only` references and are never selectable
-or executable workloads.
+The external registry also inventories the interactive workload boundaries
+AgentBench, tau-bench, and AgentDojo. They are explicit-download, non-vendored
+`executable-candidate` records only; task images, reset/scoring parity, licenses,
+and platform evidence must be qualified by later adapter ARs. Harbor, Inspect AI,
+and HAL are harness/framework boundaries, recorded as `methodology-only` and
+never selectable as benchmark tasks. AgentOps, HELM, and AI Agents That Matter
+are likewise methodology references and never selectable or executable workloads.
 
 Every executable-candidate family also has a bounded ASB-owned development mock
 fixture. The mock uses an in-process deterministic model double, denies egress,
