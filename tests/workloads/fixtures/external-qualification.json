@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "workload": "terminal-bench",
+  "status": "qualified",
+  "source": {
+    "repository": "https://example.invalid/terminal-bench",
+    "commit": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+    "archive_sha256": "390ee198a0f02fcdf140ac21420e106ce98f26d5f028b3d16b73e2d5137ff392",
+    "license": "Apache-2.0",
+    "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  "dataset": {
+    "repository": "https://example.invalid/terminal-bench-data",
+    "revision": "ecd296ba053840bd4c0068e8f84e8a6fa829d184",
+    "split": "test",
+    "window": "v4.0.0:66-tasks",
+    "license": "Apache-2.0",
+    "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  "evaluator": {
+    "repository": "https://example.invalid/harbor",
+    "revision": "4407eb5227a2ff4f0d3f16b2eb48849382fdf276",
+    "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sbom_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "license": "Apache-2.0",
+    "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  "adaptation": {"status": "verified", "evidence": "fixture-adaptation-parity-v1"},
+  "contamination": {"status": "verified", "evidence": "fixture-contamination-review-v1"},
+  "reset": {"status": "verified", "evidence": "fixture-reset-v1"},
+  "platform": {"runner": "linux-x86_64", "status": "verified", "evidence": "fixture-native-platform-v1"},
+  "oracle": {"id": "harbor-official-execution", "revision": "4407eb5227a2ff4f0d3f16b2eb48849382fdf276", "evidence": "fixture-oracle-v1"}
+}

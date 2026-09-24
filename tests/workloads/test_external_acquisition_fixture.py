@@ -35,4 +35,4 @@ def test_verifier_accepts_only_the_pinned_artifact():
         capture_output=True,
         text=True,
     )
-    assert json.loads(result.stdout)["sha256"] == "93c10dc970a5de4a200ae6b67cd4530647a1aa62a4ddc2817347627d8670802e"
+    assert json.loads(result.stdout)["sha256"] == "beb4aefa676c7d32678428bd6c5cb5a4b03563bcce3b975c581e7652bc8bb8d8"
