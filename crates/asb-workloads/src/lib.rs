@@ -6,8 +6,9 @@ mod literature;
 mod validity;
 
 pub use literature::{
-    Acquisition, AcquisitionReceipt, AdapterStatus, Evaluation, LITERATURE_WORKLOAD_IDS,
-    LiteratureAdapter, LiteratureDescriptor, LiteratureError, LiteratureFamily, LiteraturePrepared,
+    Acquisition, AcquisitionReceipt, AdapterStatus, CatalogSelectionError, Evaluation,
+    LITERATURE_WORKLOAD_IDS, LiteratureAdapter, LiteratureDescriptor, LiteratureError,
+    LiteratureFamily, LiteraturePrepared, WorkloadCatalogEntry, select_workload, workload_catalog,
 };
 pub use validity::{
     AdaptationKind, BaselineEvidence, BenchmarkValidityRegistry, DependencyPin, ExposurePolicy,
