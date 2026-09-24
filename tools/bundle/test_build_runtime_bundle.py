@@ -6,6 +6,7 @@
 import importlib.util
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 
 
@@ -17,6 +18,25 @@ SPEC.loader.exec_module(BUILDER)
 
 
 class BundleBuilderTests(unittest.TestCase):
+    def test_manifest_profile_status_is_truthful(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "bin").mkdir()
+            (root / "bin" / "payload").write_bytes(b"payload")
+            args = Namespace(
+                profile="unsigned-development",
+                bundle_id="fixture",
+                bundle_version="1.0.0",
+                os="linux",
+                arch="x86_64",
+                libc="glibc",
+                libc_version="2.39",
+            )
+            BUILDER.make_manifest(root, args)
+            manifest = __import__("json").loads((root / "manifest.json").read_text())
+            self.assertEqual(manifest["profile"], "unsigned-development")
+            self.assertEqual(manifest["signature_status"], "unsigned")
+
     def test_inventory_excludes_signed_metadata_and_is_sorted(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

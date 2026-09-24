@@ -26,6 +26,7 @@ SCHEMA_ROOTS = (
     "crates/asb-replay/schema/v1",
     "crates/asb-bundle/schema/v1",
     "crates/asb-bundle/schema/v2",
+    "crates/asb-bundle/schema/v3",
     "crates/asb-workloads/registry/v1",
 )
 REQUIRED_COMMANDS = (
