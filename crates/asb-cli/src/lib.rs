@@ -45,7 +45,7 @@ use asb_store::{
     AtomicStore, ExecutionState, JOURNAL_SCHEMA_VERSION, JournalEvent, MANIFEST_SCHEMA_VERSION,
     RunManifest, StoreLimits,
 };
-use asb_workloads::{OriginalWorkloads, PreparedWorkload};
+use asb_workloads::{OriginalWorkloads, PreparedWorkload, workload_catalog};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -2144,8 +2144,23 @@ fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
         ));
     }
     validate_measurement_selection(plan)?;
-    let workload = OriginalWorkloads::describe(&plan.workload)
-        .map_err(|_| CliError::validation("unknown or invalid workload"))?;
+    let workload = match OriginalWorkloads::describe(&plan.workload) {
+        Ok(workload) => workload,
+        Err(_) => {
+            // Literature identities are visible through the same catalog, but
+            // remain non-runnable until evaluator/image/reset evidence is
+            // qualified. Never let a provenance record reach preparation.
+            if workload_catalog()
+                .iter()
+                .any(|entry| entry.id == plan.workload)
+            {
+                return Err(CliError::validation(
+                    "literature workload evaluator is unavailable",
+                ));
+            }
+            return Err(CliError::validation("unknown or invalid workload"));
+        }
+    };
     if workload.workload_id.0 != plan.experiment.workload.workload
         || workload.version != plan.experiment.workload.workload_revision
         || workload.content_sha256 != plan.experiment.workload.workload_sha256
