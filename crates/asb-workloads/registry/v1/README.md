@@ -36,3 +36,15 @@ native trials, an explicit uncertainty method, controlled hardware, and pinned
 evaluator image/SBOM evidence before ASB may report a speedup. CORE-Bench is a
 reproducibility workload rather than a speedup suite and still requires exact
 capsule identities and answer-oracle parity before qualification.
+
+The registry also records the interactive and harness-oriented literature
+boundaries AgentBench, tau-bench, AgentDojo, Harbor, Inspect AI, and HAL. These
+records are `executable-candidate` entries, not claims that their task images,
+scorers, reset behavior, licenses, or platform cells are qualified. They remain
+explicit-download and non-vendored, and may only become selectable after a
+separate adapter binds the workload lifecycle and deterministic local fixtures.
+
+AgentOps, HELM, and AI Agents That Matter are `methodology-only` references.
+They are intentionally present for provenance and design traceability but have
+zero execution budget, a `not-applicable` evaluator, and cannot be selected as
+workloads. No methodology reference adds a runtime dependency or provider call.

@@ -70,6 +70,22 @@ REGISTRY = (
     Path(__file__).parents[2]
     / "crates/asb-workloads/registry/v1/external-workloads.json"
 )
+ALLOWED_ITEM_KEYS = {
+    "id", "version", "kind", "selection", "source", "dataset", "evaluator",
+    "attempt_budget", "platforms", "limitations", "network", "reset", "performance",
+}
+ALLOWED_SOURCE_KEYS = {
+    "repository", "repositories", "commit", "revision", "license", "license_sha256",
+    "license_status", "archive_status", "archive_sha256",
+}
+ALLOWED_DATASET_KEYS = {
+    "acquisition", "vendored", "split", "repository", "revision", "license",
+    "manifest_sha256", "task_count", "task_reference_kind", "source_tree_matches_packages",
+}
+ALLOWED_EVALUATOR_KEYS = {
+    "entrypoint", "version", "image_digest", "oracle", "provenance", "repository",
+    "license", "license_sha256", "license_status", "archive_sha256",
+}
 
 
 def fail(message: str) -> None:
@@ -203,7 +219,29 @@ def main() -> int:
         if not isinstance(ident, str) or not ident or ident in seen:
             fail(f"duplicate or invalid workload id: {ident!r}")
         seen.add(ident)
+        unknown = set(item) - ALLOWED_ITEM_KEYS
+        if unknown:
+            fail(f"{ident}: unknown fields are not permitted: {sorted(unknown)}")
+        kind = item.get("kind")
+        selection = item.get("selection")
+        if kind == "methodology-reference":
+            if selection != "methodology-only":
+                fail(f"{ident}: methodology references must be methodology-only")
+            if item.get("attempt_budget") != 0:
+                fail(f"{ident}: methodology references cannot have execution attempts")
+            if item.get("evaluator", {}).get("entrypoint") != "not-applicable":
+                fail(f"{ident}: methodology references cannot define an evaluator")
+        elif selection not in {None, "executable-candidate"}:
+            fail(f"{ident}: executable candidates must be selectable as workloads")
         source = item.get("source", {})
+        for label, value, allowed in (
+            ("source", source, ALLOWED_SOURCE_KEYS),
+            ("dataset", item.get("dataset", {}), ALLOWED_DATASET_KEYS),
+            ("evaluator", item.get("evaluator", {}), ALLOWED_EVALUATOR_KEYS),
+        ):
+            unknown = set(value) - allowed
+            if unknown:
+                fail(f"{ident}: unknown {label} fields are not permitted: {sorted(unknown)}")
         if source.get("archive_status") not in {
             "verified",
             "unverified",
@@ -226,7 +264,12 @@ def main() -> int:
             if source.get("commit")
             else [x.split("@", 1)[1] for x in source.get("repositories", [])]
         )
-        if not commits or any(not SHA.fullmatch(commit) for commit in commits):
+        if not commits and kind == "methodology-reference" and source.get("revision"):
+            commits = ["methodology-revision"]
+        if not commits or any(
+            commit != "methodology-revision" and not SHA.fullmatch(commit)
+            for commit in commits
+        ):
             fail(
                 f"{ident}: every source revision must be a 40-character lowercase commit"
             )
@@ -258,6 +301,8 @@ def main() -> int:
             )
         if not item.get("limitations"):
             fail(f"{ident}: limitations must be explicit")
+        if kind == "methodology-reference":
+            continue
         if ident == "terminal-bench":
             validate_terminal_bench(item)
         if ident in PERFORMANCE_PINS:
