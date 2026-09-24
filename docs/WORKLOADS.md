@@ -90,3 +90,12 @@ and emits provenance-bound workload, adaptation, evaluator, mock, scorer, and
 result digests. It is suitable for offline contract and CLI development only;
 it never promotes an official evaluator, dataset, native-platform cell, or
 leaderboard result to qualified evidence.
+
+## CLI catalog dispatch
+
+The CLI plan, stored-run validation, and execution paths resolve workload IDs
+through the unified catalog. Built-in IDs retain their protected grader, while
+literature IDs use only the bounded offline local fixture and deterministic
+mock scorer. Methodology-only records such as AgentOps, HELM, and AI Agents
+That Matter are rejected before plan or workspace effects; they are references,
+not executable workloads. Unknown and malformed identities fail closed.

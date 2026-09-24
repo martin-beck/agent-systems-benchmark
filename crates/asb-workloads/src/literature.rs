@@ -8,6 +8,7 @@
 //! is qualified.  Official scorers never run in this crate.
 
 use crate::FIXTURE_IDS;
+use asb_protocol::{Id, WorkloadManifest};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -361,6 +362,35 @@ pub struct LiteratureDescriptor {
     pub status: AdapterStatus,
     /// Network is always denied for the local fixture path.
     pub allowed_network_destinations: BTreeSet<String>,
+}
+
+impl LiteratureDescriptor {
+    /// Convert provenance into the common protocol manifest used by CLI plans.
+    pub fn manifest(&self) -> WorkloadManifest {
+        WorkloadManifest {
+            workload_id: Id(self.id.clone()),
+            version: "1.0.0".into(),
+            license: self.license.clone(),
+            source_revision: self.source_revision.clone(),
+            content_sha256: self.content_sha256.clone(),
+            architectures: BTreeSet::from(["aarch64".into(), "x86_64".into()]),
+            operating_systems: BTreeSet::from(["linux".into()]),
+            fixture_bytes: self.prompt_bytes(),
+            timeout_ms: 60_000,
+            cpu_count: 1,
+            memory_bytes: 256 * 1024 * 1024,
+            scoring_version: LOCAL_MOCK_SCORER.into(),
+            allowed_network_destinations: BTreeSet::new(),
+        }
+    }
+
+    fn prompt_bytes(&self) -> u64 {
+        format!(
+            "Implement the bounded local fixture for {} ({:?}).\n",
+            self.id, self.family
+        )
+        .len() as u64
+    }
 }
 
 /// Input source accepted by acquisition. No network client exists here.
