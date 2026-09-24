@@ -488,6 +488,37 @@ impl LiveProviderRuntimeBridge {
         Ok(record)
     }
 
+    /// Materialize an opaque authority profile directly from one authenticated
+    /// control receipt and its already validated certificate chain.  This is
+    /// the runtime-owned receipt-to-bootstrap boundary: callers cannot inject
+    /// a record, endpoint, credential, policy, root, or tool and the ledger
+    /// consumes the receipt before a profile is returned.
+    pub fn materialize_control_receipt_profile(
+        &self,
+        receipt: &RuntimeEnrollmentReceiptV1,
+        chain: &IssuedCertificateChainV1,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderRuntimeAuthorityProfile, LiveProviderEnrollmentRecordError> {
+        let record = self.ingest_control_receipt(receipt, chain, now_unix_ms)?;
+        let claims = LiveProviderControlClaims::new(
+            record.provider.clone(),
+            record.endpoint_identity_sha256.clone(),
+            record.credential_ref_sha256.clone(),
+            record.generation,
+            record.target,
+            record.tool_bundle_sha256.clone(),
+            record.lease_root_sha256.clone(),
+            record.relay_root_sha256.clone(),
+        )
+        .map_err(|_| LiveProviderEnrollmentRecordError::InvalidIdentity)?;
+        let attestation = LiveProviderControlAttestation::from_control(chain, claims)
+            .map_err(|_| LiveProviderEnrollmentRecordError::AttestationMismatch)?;
+        Ok(LiveProviderRuntimeAuthorityProfile {
+            record,
+            attestation,
+        })
+    }
+
     /// Consume one authenticated control response for the runtime dispatch
     /// path. The request binding and certificate chain are supplied by the
     /// control/runtime boundary; callers cannot turn a fabricated response
@@ -542,8 +573,12 @@ fn expected_nonce(attestation: &LiveProviderControlAttestation) -> String {
     let mut digest = Sha256::new();
     digest.update(attestation.chain_sha256().as_bytes());
     digest.update(claims.provider.as_bytes());
+    digest.update(claims.credential_ref_sha256.as_bytes());
     digest.update(claims.generation.to_le_bytes());
     digest.update(claims.target.to_string().as_bytes());
+    digest.update(claims.tool_bundle_sha256.as_bytes());
+    digest.update(claims.lease_root_sha256.as_bytes());
+    digest.update(claims.relay_root_sha256.as_bytes());
     format!("{:x}", digest.finalize())
 }
 
@@ -1804,6 +1839,32 @@ mod tests {
         assert!(matches!(
             bridge.ingest_control_receipt(&receipt, &chain, 1_500),
             Err(LiveProviderEnrollmentRecordError::Replay)
+        ));
+    }
+
+    #[test]
+    fn runtime_bridge_materializes_receipt_to_opaque_profile_and_rejects_replay() {
+        let (chain, receipt) = control_receipt();
+        let bridge = LiveProviderRuntimeBridge::new();
+        let profile = bridge
+            .materialize_control_receipt_profile(&receipt, &chain, 1_500)
+            .unwrap();
+        assert_eq!(profile.provider(), "openrouter");
+        assert_eq!(profile.generation(), 7);
+        assert!(matches!(
+            bridge.materialize_control_receipt_profile(&receipt, &chain, 1_500),
+            Err(LiveProviderEnrollmentRecordError::Replay)
+        ));
+    }
+
+    #[test]
+    fn runtime_bridge_receipt_materializer_rejects_tamper_before_profile() {
+        let (chain, mut receipt) = control_receipt();
+        receipt.credential_ref_sha256 = "0".repeat(64);
+        let bridge = LiveProviderRuntimeBridge::new();
+        assert!(matches!(
+            bridge.materialize_control_receipt_profile(&receipt, &chain, 1_500),
+            Err(LiveProviderEnrollmentRecordError::AttestationMismatch)
         ));
     }
 
