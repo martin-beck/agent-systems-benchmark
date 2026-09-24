@@ -34,6 +34,7 @@ use asb_replay::{
 use asb_runtime::launch_factory::{
     LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, ReplayLaunchAuthority,
 };
+use asb_runtime::live_service::LiveProviderRuntimeScheduler;
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
@@ -183,6 +184,19 @@ pub fn run_with_live_provider_factory(
             envelope.error.exit_code
         }
     }
+}
+
+/// Execute a live-provider run or sweep using the runtime-owned scheduler
+/// composition boundary. The CLI receives only the opaque per-attempt
+/// factory; provider, lease, relay, namespace, credential, and backend
+/// authority remain inside `asb-runtime`.
+pub fn run_with_runtime_live_provider_scheduler(
+    args: &[OsString],
+    scheduler: LiveProviderRuntimeScheduler,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    run_with_live_provider_factory(args, scheduler.into_factory(), stdout, stderr)
 }
 
 fn dispatch(
