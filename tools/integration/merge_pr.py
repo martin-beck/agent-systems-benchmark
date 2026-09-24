@@ -181,6 +181,16 @@ def verify_merge_shape(root: Path, merge: str, base: str, head: str, tree: str) 
     verify_commit(root, merge)
 
 
+def verify_merge_preview(root: Path, base: str, head: str, tree: str) -> None:
+    """Bind the reviewed tree to the exact protected-target merge preview."""
+    preview = run(root, "git", "merge-tree", "--write-tree", base, head)
+    preview_tree = preview.splitlines()[0] if preview else ""
+    if not FULL_OID.fullmatch(preview_tree) or preview_tree != tree:
+        raise ValueError(
+            "reviewed topic tree differs from the exact protected-target merge preview"
+        )
+
+
 def requalify_remote(
     root: Path,
     remote: str,
@@ -244,6 +254,7 @@ def main() -> int:
         requalify_remote(
             root, args.remote, args.target_ref, args.pr_ref, base, head, tree
         )
+        verify_merge_preview(root, base, head, tree)
         verify_range(root, base, head)
 
         name = run(root, "git", "config", "user.name")
@@ -287,6 +298,7 @@ def main() -> int:
             requalify_remote(
                 root, args.remote, args.target_ref, args.pr_ref, base, head, tree
             )
+            verify_merge_preview(root, base, head, tree)
             verify_merge_shape(root, merge, base, head, tree)
             push = bounded_command(
                 root,
