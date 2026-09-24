@@ -7,10 +7,11 @@ mod validity;
 
 pub use literature::{
     Acquisition, AcquisitionReceipt, AdapterStatus, CatalogAvailability, CatalogEvidence,
-    CatalogKind, CatalogSelectionError, DeterministicMockModel, Evaluation,
-    LITERATURE_WORKLOAD_IDS, LiteratureAdapter, LiteratureDescriptor, LiteratureError,
-    LiteratureFamily, LiteraturePrepared, LocalMockConfig, LocalMockResult,
-    MAX_LOCAL_MOCK_TIMEOUT_MS, WorkloadCatalogEntry, select_workload, workload_catalog,
+    CatalogKind, CatalogSelectionError, CodeGenerationControl, CodeGenerationControlKind,
+    DeterministicMockModel, Evaluation, LITERATURE_WORKLOAD_IDS, LiteratureAdapter,
+    LiteratureDescriptor, LiteratureError, LiteratureFamily, LiteraturePrepared, LocalMockConfig,
+    LocalMockResult, MAX_LOCAL_MOCK_TIMEOUT_MS, WorkloadCatalogEntry, select_workload,
+    workload_catalog,
 };
 pub use validity::{
     AdaptationKind, BaselineEvidence, BenchmarkValidityRegistry, DependencyPin, ExposurePolicy,

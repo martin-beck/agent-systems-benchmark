@@ -365,6 +365,32 @@ pub enum LiteratureFamily {
     UnsupportedCandidate,
 }
 
+/// The metric boundary for a code-generation control.
+///
+/// These controls intentionally have a separate namespace from repository
+/// repair and autonomous-agent scores.  A local fixture can exercise the
+/// lifecycle without producing an upstream benchmark score.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CodeGenerationControlKind {
+    /// A fixed function or exercise is graded for correctness.
+    FunctionLevel,
+    /// Tasks are selected from an immutable release/window boundary.
+    TimeWindowed,
+}
+
+/// Explicit scoring and contamination identity for code-generation controls.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CodeGenerationControl {
+    /// Function-level or time-windowed semantics.
+    pub kind: CodeGenerationControlKind,
+    /// The metric name is not interchangeable with repository-agent scores.
+    pub metric: &'static str,
+    /// Stable comparison namespace used by recording/reporting consumers.
+    pub comparison_namespace: &'static str,
+    /// Immutable split or release boundary used for contamination control.
+    pub contamination_boundary: &'static str,
+}
+
 /// Explicit readiness of an adapter, never inferred from source metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AdapterStatus {
@@ -395,6 +421,8 @@ pub struct LiteratureDescriptor {
     pub status: AdapterStatus,
     /// Network is always denied for the local fixture path.
     pub allowed_network_destinations: BTreeSet<String>,
+    /// Distinct metric semantics for code-generation controls, when applicable.
+    pub code_generation: Option<CodeGenerationControl>,
 }
 
 impl LiteratureDescriptor {
@@ -525,6 +553,8 @@ pub struct LocalMockResult {
     scorer_sha256: String,
     result_sha256: String,
     passed: bool,
+    comparison_namespace: Option<&'static str>,
+    metric: Option<&'static str>,
 }
 
 impl LocalMockResult {
@@ -572,6 +602,16 @@ impl LocalMockResult {
     #[must_use]
     pub const fn passed(&self) -> bool {
         self.passed
+    }
+    /// Namespace that keeps this result out of repository-agent comparisons.
+    #[must_use]
+    pub const fn comparison_namespace(&self) -> Option<&'static str> {
+        self.comparison_namespace
+    }
+    /// Metric semantics for this result, if it is a code-generation control.
+    #[must_use]
+    pub const fn metric(&self) -> Option<&'static str> {
+        self.metric
     }
 }
 
@@ -712,6 +752,14 @@ impl LiteraturePrepared {
             LOCAL_MOCK_MODEL,
             workload_sha256.as_str(),
             scorer_sha256.as_str(),
+            self.descriptor
+                .code_generation
+                .map_or("not-code-generation", |control| {
+                    control.comparison_namespace
+                }),
+            self.descriptor
+                .code_generation
+                .map_or("not-code-generation", |control| control.metric),
             if passed { "passed" } else { "failed" },
         ] {
             result_hasher.update(value.as_bytes());
@@ -727,6 +775,14 @@ impl LiteraturePrepared {
             scorer_sha256,
             result_sha256: format!("{:x}", result_hasher.finalize()),
             passed,
+            comparison_namespace: self
+                .descriptor
+                .code_generation
+                .map(|control| control.comparison_namespace),
+            metric: self
+                .descriptor
+                .code_generation
+                .map(|control| control.metric),
         })
     }
     /// Reset the fixture without touching protected grader material.
@@ -779,6 +835,7 @@ impl LiteratureAdapter {
             split: split.into(),
             status,
             allowed_network_destinations: BTreeSet::new(),
+            code_generation: code_generation_control(id),
         })
     }
     /// List every deterministic, sorted literature identity.
@@ -999,6 +1056,30 @@ fn provenance(id: &str) -> (&'static str, &'static str, &'static str, &'static s
     }
 }
 
+fn code_generation_control(id: &str) -> Option<CodeGenerationControl> {
+    match id {
+        "aider-polyglot" | "bigcodebench" => Some(CodeGenerationControl {
+            kind: CodeGenerationControlKind::FunctionLevel,
+            metric: "function-correctness-pass-rate",
+            comparison_namespace: "code-generation.function-level.v1",
+            contamination_boundary: "pinned-public-split",
+        }),
+        "evalplus" | "humaneval-plus" | "mbpp-plus" => Some(CodeGenerationControl {
+            kind: CodeGenerationControlKind::FunctionLevel,
+            metric: "expanded-test-pass-rate",
+            comparison_namespace: "code-generation.function-level.v1",
+            contamination_boundary: "humaneval-plus-and-mbpp-plus@d32357c",
+        }),
+        "livecodebench" => Some(CodeGenerationControl {
+            kind: CodeGenerationControlKind::TimeWindowed,
+            metric: "time-windowed-code-generation-pass-rate",
+            comparison_namespace: "code-generation.time-windowed.v1",
+            contamination_boundary: "release_v6@0fe84c3",
+        }),
+        _ => None,
+    }
+}
+
 fn valid_absolute(path: &Path) -> bool {
     path.is_absolute()
         && path
@@ -1098,6 +1179,8 @@ mod tests {
             first_result.mock_model(),
             DeterministicMockModel::model_id()
         );
+        assert_eq!(first_result.comparison_namespace(), None);
+        assert_eq!(first_result.metric(), None);
         assert!(!first_result.source_revision().is_empty());
         assert!(!first_result.evaluator().is_empty());
         assert_eq!(first_result.workload_sha256().len(), 64);
@@ -1105,6 +1188,50 @@ mod tests {
         assert_eq!(first_result.result_sha256().len(), 64);
         first.cleanup().unwrap();
         second.cleanup().unwrap();
+    }
+
+    #[test]
+    fn code_generation_controls_keep_metric_and_contamination_boundaries_distinct() {
+        let function = LiteratureAdapter::describe("bigcodebench").unwrap();
+        let function_control = function.code_generation.unwrap();
+        assert_eq!(
+            function_control.kind,
+            CodeGenerationControlKind::FunctionLevel
+        );
+        assert_eq!(
+            function_control.comparison_namespace,
+            "code-generation.function-level.v1"
+        );
+        assert_eq!(function_control.metric, "function-correctness-pass-rate");
+        assert_eq!(
+            function_control.contamination_boundary,
+            "pinned-public-split"
+        );
+
+        let window = LiteratureAdapter::describe("livecodebench").unwrap();
+        let window_control = window.code_generation.unwrap();
+        assert_eq!(window_control.kind, CodeGenerationControlKind::TimeWindowed);
+        assert_eq!(
+            window_control.comparison_namespace,
+            "code-generation.time-windowed.v1"
+        );
+        assert_eq!(window_control.contamination_boundary, "release_v6@0fe84c3");
+
+        let repository = LiteratureAdapter::describe("swe-bench").unwrap();
+        assert_eq!(repository.code_generation, None);
+    }
+
+    #[test]
+    fn code_generation_local_mock_result_preserves_its_metric_namespace() {
+        let root = root("code-generation-metric");
+        let prepared = LiteratureAdapter::prepare("evalplus", &root).unwrap();
+        let result = prepared.run_local_mock().unwrap();
+        assert_eq!(
+            result.comparison_namespace(),
+            Some("code-generation.function-level.v1")
+        );
+        assert_eq!(result.metric(), Some("expanded-test-pass-rate"));
+        prepared.cleanup().unwrap();
     }
     #[test]
     fn malformed_or_unaccepted_archive_fails_closed_without_network() {
