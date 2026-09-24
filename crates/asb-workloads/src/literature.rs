@@ -51,6 +51,40 @@ pub const LITERATURE_WORKLOAD_IDS: [&str; 22] = [
     "hal",
 ];
 
+/// The provenance class of a catalog record.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum CatalogKind {
+    /// A deterministic ASB-owned fixture with a protected local grader.
+    Builtin,
+    /// An externally maintained benchmark or harness.
+    Literature,
+    /// A research or observability reference that is not a workload.
+    Methodology,
+}
+
+/// Whether a record can be selected as a candidate or only described.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum CatalogAvailability {
+    /// A candidate may appear in a declared plan; execution still requires a
+    /// qualified evaluator or local mock.
+    Candidate,
+    /// Visible for provenance, but never selectable for execution.
+    Unavailable,
+}
+
+/// The evidence state copied from the validity registry.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum CatalogEvidence {
+    /// The local ASB fixture is qualified.
+    Qualified,
+    /// The record is documented but its evaluator boundary is not qualified.
+    Planned,
+    /// The registry explicitly has no applicable workload evidence.
+    NotApplicable,
+    /// The record is malformed or does not provide an evidence state.
+    Missing,
+}
+
 /// Public, content-addressed selection metadata shared by list/describe and
 /// report consumers.  It is deliberately data-only: no acquisition or
 /// evaluator is attempted while constructing the catalog.
@@ -58,6 +92,8 @@ pub const LITERATURE_WORKLOAD_IDS: [&str; 22] = [
 pub struct WorkloadCatalogEntry {
     /// Stable selection identity.
     pub id: String,
+    /// Typed provenance class; the string fields below remain stable JSON/UI labels.
+    pub kind: CatalogKind,
     /// `builtin` or `literature`.
     pub source: String,
     /// Immutable source revision.
@@ -72,8 +108,12 @@ pub struct WorkloadCatalogEntry {
     pub platform: String,
     /// Selection availability (`available`, `fixture_only`, or `unavailable`).
     pub availability: String,
+    /// Typed selection state.
+    pub availability_kind: CatalogAvailability,
     /// Evidence qualification label.
     pub evidence: String,
+    /// Typed evidence state.
+    pub evidence_kind: CatalogEvidence,
     /// Stable digest binding identity, scorer and source revision.
     pub identity_digest: String,
 }
@@ -109,6 +149,7 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
         .iter()
         .map(|id| WorkloadCatalogEntry {
             id: (*id).into(),
+            kind: CatalogKind::Builtin,
             source: "builtin".into(),
             source_revision: "asb-original-v1".into(),
             license: "MIT".into(),
@@ -116,7 +157,9 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             adaptation: "none".into(),
             platform: "linux-x86_64:native-tested".into(),
             availability: "available".into(),
+            availability_kind: CatalogAvailability::Candidate,
             evidence: "qualified".into(),
+            evidence_kind: CatalogEvidence::Qualified,
             identity_digest: digest_identity(id, "asb-original-v1", "asb-original-oracle-v1"),
         })
         .collect::<Vec<_>>();
@@ -141,8 +184,19 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             .as_str()
             .unwrap_or("unsupported");
         let unavailable = selection != "executable-candidate" || provenance != "qualified";
+        let kind = match record["selection"].as_str() {
+            Some("methodology-only") => CatalogKind::Methodology,
+            _ => CatalogKind::Literature,
+        };
+        let evidence_kind = match provenance {
+            "qualified" => CatalogEvidence::Qualified,
+            "planned" => CatalogEvidence::Planned,
+            "not-applicable" => CatalogEvidence::NotApplicable,
+            _ => CatalogEvidence::Missing,
+        };
         entries.push(WorkloadCatalogEntry {
             id: id.into(),
+            kind,
             source: "literature".into(),
             source_revision: source_revision.into(),
             license: record["source"]["license"]
@@ -158,8 +212,59 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
                 "available"
             }
             .into(),
+            availability_kind: if unavailable {
+                CatalogAvailability::Unavailable
+            } else {
+                CatalogAvailability::Candidate
+            },
             evidence: provenance.into(),
+            evidence_kind,
             identity_digest: digest_identity(id, source_revision, evaluator),
+        });
+    }
+    // These public split identities are documented as distinct candidate
+    // workloads but share the pinned SWE-bench/EvalPlus source boundary. They
+    // remain unavailable until a matching evaluator is independently qualified.
+    for (id, revision, license, evaluator) in [
+        (
+            "swe-bench-lite",
+            "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+            "MIT",
+            "swebench.harness@02e7a74",
+        ),
+        (
+            "swe-bench-verified",
+            "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+            "MIT",
+            "swebench.harness@02e7a74",
+        ),
+        (
+            "humaneval-plus",
+            "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
+            "MIT",
+            "evalplus@v0.3.1-e5d0ed0b",
+        ),
+        (
+            "mbpp-plus",
+            "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
+            "MIT",
+            "evalplus@v0.3.1-e5d0ed0b",
+        ),
+    ] {
+        entries.push(WorkloadCatalogEntry {
+            id: id.into(),
+            kind: CatalogKind::Literature,
+            source: "literature".into(),
+            source_revision: revision.into(),
+            license: license.into(),
+            evaluator: evaluator.into(),
+            adaptation: "split-alias".into(),
+            platform: "planned".into(),
+            availability: "unavailable".into(),
+            availability_kind: CatalogAvailability::Unavailable,
+            evidence: "planned".into(),
+            evidence_kind: CatalogEvidence::Planned,
+            identity_digest: digest_identity(id, revision, evaluator),
         });
     }
     entries.sort_by(|a, b| a.id.cmp(&b.id));
@@ -780,13 +885,37 @@ mod tests {
             .iter()
             .filter(|entry| entry.source == "literature")
             .collect::<Vec<_>>();
-        assert_eq!(literature.len(), 22);
+        assert_eq!(literature.len(), 26);
         let literature_count = literature.len();
         for entry in literature {
             assert!(!entry.source_revision.is_empty());
             assert!(!entry.identity_digest.is_empty());
         }
         assert_eq!(first.len(), FIXTURE_IDS.len() + literature_count);
+    }
+
+    #[test]
+    fn catalog_types_preserve_methodology_and_split_boundaries() {
+        let catalog = workload_catalog();
+        let agentops = catalog.iter().find(|entry| entry.id == "agentops").unwrap();
+        assert_eq!(agentops.kind, CatalogKind::Methodology);
+        assert_eq!(agentops.availability_kind, CatalogAvailability::Unavailable);
+        assert_eq!(agentops.evidence_kind, CatalogEvidence::Planned);
+        for id in [
+            "swe-bench-lite",
+            "swe-bench-verified",
+            "humaneval-plus",
+            "mbpp-plus",
+        ] {
+            let entry = catalog.iter().find(|entry| entry.id == id).unwrap();
+            assert_eq!(entry.kind, CatalogKind::Literature);
+            assert_eq!(entry.availability_kind, CatalogAvailability::Unavailable);
+            assert_eq!(entry.evidence_kind, CatalogEvidence::Planned);
+            assert_eq!(
+                select_workload(id, "linux-x86_64"),
+                Err(CatalogSelectionError::Unavailable)
+            );
+        }
     }
 
     #[test]
