@@ -993,6 +993,7 @@ fn workload_catalog_output(output: &mut dyn Write) -> Result<(), CliError> {
                 "source_revision": entry.source_revision,
                 "license": entry.license,
                 "evaluator": entry.evaluator,
+                "capability_tags": entry.capability_tags,
                 "adaptation": entry.adaptation,
                 "platform": entry.platform,
                 "availability": entry.availability,

@@ -224,7 +224,9 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             .as_str()
             .unwrap_or("unsupported");
         let unavailable = selection != "executable-candidate" || provenance != "qualified";
-        let interactive_fixture = matches!(id, "agentbench" | "tau-bench" | "agentdojo");
+        // Every executable candidate has a bounded ASB-owned local fixture.
+        // This does not upgrade the planned or unqualified upstream evidence.
+        let local_fixture = selection == "executable-candidate";
         let kind = match record["selection"].as_str() {
             Some("methodology-only") => CatalogKind::Methodology,
             _ => CatalogKind::Literature,
@@ -253,13 +255,13 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             capability_tags: capability_tags(id),
             attempt_budget,
             adaptation: "fixture-only".into(),
-            platform: if interactive_fixture {
+            platform: if local_fixture {
                 "linux-x86_64:fixture-only"
             } else {
                 platform
             }
             .into(),
-            availability: if interactive_fixture {
+            availability: if local_fixture {
                 "fixture_only"
             } else if unavailable {
                 "unavailable"
@@ -267,7 +269,7 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
                 "available"
             }
             .into(),
-            availability_kind: if interactive_fixture {
+            availability_kind: if local_fixture {
                 CatalogAvailability::FixtureOnly
             } else if unavailable {
                 CatalogAvailability::Unavailable
@@ -323,9 +325,9 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             capability_tags: capability_tags(id),
             attempt_budget: 1,
             adaptation: "split-alias".into(),
-            platform: "planned".into(),
-            availability: "unavailable".into(),
-            availability_kind: CatalogAvailability::Unavailable,
+            platform: "linux-x86_64:fixture-only".into(),
+            availability: "fixture_only".into(),
+            availability_kind: CatalogAvailability::FixtureOnly,
             evidence: "planned".into(),
             evidence_kind: CatalogEvidence::Planned,
             identity_digest: digest_identity(id, revision, evaluator),
@@ -1418,21 +1420,33 @@ mod tests {
         ] {
             let entry = catalog.iter().find(|entry| entry.id == id).unwrap();
             assert_eq!(entry.kind, CatalogKind::Literature);
-            assert_eq!(entry.availability_kind, CatalogAvailability::Unavailable);
+            assert_eq!(entry.availability_kind, CatalogAvailability::FixtureOnly);
             assert_eq!(entry.evidence_kind, CatalogEvidence::Planned);
-            assert_eq!(
-                select_workload(id, "linux-x86_64"),
-                Err(CatalogSelectionError::Unavailable)
-            );
+            assert!(select_workload(id, "linux-x86_64").is_ok());
         }
     }
 
     #[test]
     fn selection_is_explicit_and_fails_closed_for_unqualified_records() {
         assert!(select_workload("original.bug-fix", "linux-x86_64").is_ok());
-        for id in ["agentbench", "tau-bench", "agentdojo"] {
+        for id in [
+            "agentbench",
+            "tau-bench",
+            "agentdojo",
+            "swe-bench",
+            "terminal-bench",
+            "aider-polyglot",
+            "bigcodebench",
+            "evalplus",
+            "livecodebench",
+            "swe-perf",
+            "swe-fficiency",
+            "core-bench",
+            "swe-lancer",
+            "swe-rebench",
+        ] {
             let entry = select_workload(id, "linux-x86_64").unwrap();
-            assert_eq!(entry.availability, "fixture_only");
+            assert_eq!(entry.availability, "fixture_only", "{id}");
             assert_eq!(entry.platform, "linux-x86_64:fixture-only");
         }
         assert_eq!(
@@ -1443,10 +1457,28 @@ mod tests {
             select_workload("agentops", "linux-x86_64"),
             Err(CatalogSelectionError::Unavailable)
         );
-        assert_eq!(
-            select_workload("swe-bench", "linux-x86_64"),
-            Err(CatalogSelectionError::Unavailable)
-        );
+        assert!(select_workload("swe-bench", "linux-x86_64").is_ok());
+    }
+
+    #[test]
+    fn every_executable_candidate_has_local_selection_parity() {
+        for entry in workload_catalog() {
+            if entry.kind == CatalogKind::Methodology {
+                assert_eq!(
+                    select_workload(&entry.id, "linux-x86_64"),
+                    Err(CatalogSelectionError::Unavailable),
+                    "methodology record became selectable: {}",
+                    entry.id
+                );
+            } else if entry.source == "literature" {
+                assert_eq!(entry.availability, "fixture_only", "{}", entry.id);
+                assert!(
+                    select_workload(&entry.id, "linux-x86_64").is_ok(),
+                    "candidate lacks local selection: {}",
+                    entry.id
+                );
+            }
+        }
     }
 
     #[test]
