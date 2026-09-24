@@ -13,6 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tools.integration import merge_pr
+
 ROOT = Path(__file__).resolve().parents[2]
 MERGE = ROOT / "tools/integration/merge_pr.py"
 SETTINGS = ROOT / "tools/integration/repository_settings.py"
@@ -150,6 +152,17 @@ class Fixture:
 
 
 class MergeIntegrityTests(unittest.TestCase):
+    def test_preview_binds_reviewed_tree_to_exact_parent_pair(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-merge-preview-") as raw:
+            fixture = Fixture(Path(raw))
+            merge_pr.verify_merge_preview(
+                fixture.repository, fixture.base, fixture.head, fixture.tree
+            )
+            with self.assertRaisesRegex(ValueError, "merge preview"):
+                merge_pr.verify_merge_preview(
+                    fixture.repository, fixture.base, fixture.head, "0" * 40
+                )
+
     def test_constructs_and_publishes_exact_signed_dco_merge(self) -> None:
         with tempfile.TemporaryDirectory(prefix="asb-merge-positive-") as raw:
             fixture = Fixture(Path(raw))

@@ -21,7 +21,9 @@ The command refuses a dirty tree, stale target or pull-request ref, non-descenda
 tree, missing DCO, untrusted signature, or a signer principal that differs from the matching
 author, committer, and DCO identity. It requalifies the protected target and pull-request refs
 after object refresh and immediately before publication; any target advancement requires a fresh
-exact-main qualification. It uses `git commit-tree -S` to create a signed, DCO-trailered
+exact-main qualification. Before creating the commit, it previews the exact two-parent merge with
+`git merge-tree` and requires the preview tree to equal the reviewed tree. It uses
+`git commit-tree -S` to create a signed, DCO-trailered
 no-fast-forward merge with parents exactly `BASE_OID HEAD_OID` and tree exactly `TREE_OID`.
 Immediately before publication, the integration command rechecks the target and pull-request refs,
 the reviewed topic tree and ancestry, and the constructed merge's exact parents, tree, signature
