@@ -15,8 +15,8 @@ use crate::sandbox::{
     SandboxLaunchInput, ToolPin,
 };
 use asb_control::{
-    IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1, RuntimeReceiptRequestV1,
-    RuntimeReceiptResponseV1,
+    ControlCall, ControlClient, ControlResult, ControlSuccess, IssuedCertificateChainV1,
+    RuntimeEnrollmentReceiptV1, RuntimeReceiptRequestV1, RuntimeReceiptResponseV1,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -44,6 +44,19 @@ pub enum RuntimeCertificateChainStoreError {
     StaleGeneration,
     /// The store lock was poisoned after an unexpected runtime failure.
     StateUnavailable,
+}
+
+/// Fail-closed errors from the runtime-owned control receipt adapter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveProviderControlAdapterError {
+    /// The authenticated control transport rejected or could not complete the call.
+    Transport,
+    /// The control response did not contain the requested typed receipt.
+    InvalidResponse,
+    /// No authenticated chain is enrolled in the runtime store.
+    ChainUnavailable,
+    /// The receipt failed runtime bridge validation.
+    AttestationMismatch,
 }
 
 impl RuntimeCertificateChainStore {
@@ -369,6 +382,36 @@ impl LiveProviderRuntimeBridge {
             .validate_for(request)
             .map_err(|_| LiveProviderEnrollmentRecordError::AttestationMismatch)?;
         self.ingest_control_receipt(&response.receipt, chain, now_unix_ms)
+    }
+
+    /// Request and validate one receipt through the authenticated control
+    /// client, using only the opaque chain retained by the runtime store.
+    pub fn request_control_receipt(
+        &self,
+        client: &mut ControlClient,
+        chains: &RuntimeCertificateChainStore,
+        request: RuntimeReceiptRequestV1,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderEnrollmentRecordV1, LiveProviderControlAdapterError> {
+        let response = client
+            .call(ControlCall::RuntimeReceipt(request.clone()), 60_000)
+            .map_err(|_| LiveProviderControlAdapterError::Transport)?;
+        let result = response
+            .result()
+            .and_then(|success| match success {
+                ControlSuccess::Operation(bound) => Some(&bound.result),
+                ControlSuccess::Negotiated(_) => None,
+            })
+            .and_then(|result| match result {
+                ControlResult::RuntimeReceipt(receipt) => Some(receipt),
+                _ => None,
+            })
+            .ok_or(LiveProviderControlAdapterError::InvalidResponse)?;
+        let chain = chains
+            .chain()
+            .map_err(|_| LiveProviderControlAdapterError::ChainUnavailable)?;
+        self.ingest_control_response(&request, result, &chain, now_unix_ms)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)
     }
 }
 
