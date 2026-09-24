@@ -636,8 +636,17 @@ class SignaturePolicyTests(unittest.TestCase):
             changed_tree,
             [advanced_base, run("git", "rev-parse", "sync-topic", cwd=self.root)],
         )
-        with self.assertRaisesRegex(ValueError, "reviewed topic tree"):
+        with self.assertRaisesRegex(ValueError, "reviewed topic tree") as failure:
             self.validate(base=advanced_base, head=changed_final)
+        diagnostic = str(failure.exception)
+        self.assertIn(f"base={advanced_base}", diagnostic)
+        self.assertIn(
+            f"topic={run('git', 'rev-parse', 'sync-topic', cwd=self.root)}",
+            diagnostic,
+        )
+        self.assertIn(f"merge={changed_final}", diagnostic)
+        self.assertIn("reviewed_tree=", diagnostic)
+        self.assertIn("merge_tree=", diagnostic)
 
     def test_context_key_topology_and_parent_fail_closed(self) -> None:
         for changes in (
