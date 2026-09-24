@@ -64,3 +64,34 @@ def test_planner_rejects_unknown_workload():
     )
     assert result.returncode != 0
     assert "unknown" in result.stderr
+
+
+def test_planner_accepts_only_matching_reviewed_qualification(tmp_path):
+    registry = json.loads((ROOT / "crates/asb-workloads/registry/v1/external-workloads.json").read_text())
+    item = next(item for item in registry["workloads"] if item["id"] == "terminal-bench")
+    item["evaluator"]["image_digest"] = "sha256:" + "a" * 64
+    item["evaluator"]["provenance"] = {"status": "qualified", "sbom_sha256": "b" * 64, "evidence": "fixture"}
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps(registry))
+    fixture = ROOT / "tests/workloads/fixtures/external-qualification.json"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "terminal-bench", "--registry", str(registry_path), "--qualification", str(fixture)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["status"] == "planned"
+
+    wrong = json.loads(fixture.read_text())
+    wrong["workload"] = "swe-bench"
+    wrong_path = tmp_path / "wrong.json"
+    wrong_path.write_text(json.dumps(wrong))
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "terminal-bench", "--registry", str(registry_path), "--qualification", str(wrong_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "does not match" in result.stderr
