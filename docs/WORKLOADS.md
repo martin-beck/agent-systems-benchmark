@@ -1,5 +1,10 @@
 # Workload catalogue
 
+The machine-generated [workload catalog matrix](generated/WORKLOAD_CATALOG.md)
+is the parity view for registry provenance, local fixture adaptation, platform
+evidence, and CLI inventory. Run `python3 tools/quality/generate_workload_catalog.py`
+to verify it; CI rejects stale generated output.
+
 ## Initial portable software engineering suite
 
 Implement these small, original fixtures through extension API v1 before importing
