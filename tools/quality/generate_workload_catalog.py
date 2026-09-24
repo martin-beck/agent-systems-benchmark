@@ -44,6 +44,33 @@ ALIASES = {
 }
 
 
+def capability_tags(workload_id):
+    if workload_id == "agentbench":
+        return ["interactive", "stateful-environment"]
+    if workload_id == "tau-bench":
+        return ["interactive", "tool-use", "simulated-user", "pass-k-reliability"]
+    if workload_id == "agentdojo":
+        return ["interactive", "tool-use", "safety-policy"]
+    families = {
+        "repository-repair": {
+            "swe-bench", "swe-bench-lite", "swe-bench-verified", "swe-bench-pro",
+            "swe-rebench", "swe-lancer",
+        },
+        "terminal-workflow": {"terminal-bench"},
+        "systems-performance": {"swe-perf", "swe-efficiency", "core-bench"},
+        "code-generation": {
+            "aider-polyglot", "bigcodebench", "evalplus", "humaneval-plus",
+            "mbpp-plus", "livecodebench",
+        },
+        "stateful-tool-use": {"tau-bench", "agentdojo", "harbor", "inspect-ai"},
+        "harness-boundary": {"hal"},
+    }
+    for tag, ids in families.items():
+        if workload_id in ids:
+            return [tag]
+    return ["unsupported"]
+
+
 def entry(record, *, ident=None, builtin=False):
     if builtin:
         return {
@@ -53,6 +80,7 @@ def entry(record, *, ident=None, builtin=False):
             "source_revision": "asb-original-v1",
             "license": "MIT",
             "evaluator": "asb-original-oracle-v1",
+            "capability_tags": ["repository-repair"],
             "adaptation": "none",
             "platform": "linux-x86_64:native-tested",
             "availability": "available",
@@ -62,7 +90,8 @@ def entry(record, *, ident=None, builtin=False):
         "commit", record["source"].get("revision", record.get("version", "unknown"))
     )
     methodology = record.get("selection") == "methodology-only"
-    interactive_fixture = record["id"] in {"agentbench", "tau-bench", "agentdojo"}
+    local_fixture = record.get("selection", "executable-candidate") == "executable-candidate"
+    capability = capability_tags(record["id"])
     return {
         "id": record["id"],
         "kind": "methodology" if methodology else "literature",
@@ -70,12 +99,13 @@ def entry(record, *, ident=None, builtin=False):
         "source_revision": revision,
         "license": record["source"].get("license", "NOASSERTION"),
         "evaluator": record["evaluator"].get("entrypoint", "unqualified"),
+        "capability_tags": capability,
         "adaptation": "fixture-only",
         "platform": "linux-x86_64:fixture-only"
-        if interactive_fixture
+        if local_fixture
         else record.get("platforms", {}).get("linux-x86_64", "unsupported"),
         "availability": "fixture_only"
-        if interactive_fixture
+        if local_fixture
         else (
             "unavailable"
             if methodology or record["evaluator"]["provenance"].get("status") != "qualified"
@@ -98,9 +128,10 @@ def inventory():
                 "source_revision": revision,
                 "license": license,
                 "evaluator": evaluator,
+                "capability_tags": ["code-generation"],
                 "adaptation": "split-alias",
-                "platform": "planned",
-                "availability": "unavailable",
+                "platform": "linux-x86_64:fixture-only",
+                "availability": "fixture_only",
                 "evidence": "planned",
             }
         )

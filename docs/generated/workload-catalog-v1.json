@@ -8,6 +8,10 @@
       "source_revision": "d1e4a10db08c87075c78972e48ecc182be03e2d5",
       "license": "Apache-2.0",
       "evaluator": "agentbench evaluator",
+      "capability_tags": [
+        "interactive",
+        "stateful-environment"
+      ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",
       "availability": "fixture_only",
@@ -20,6 +24,11 @@
       "source_revision": "089ed468cf3ed0322acc66b0211f26d9d90dbf60",
       "license": "MIT",
       "evaluator": "agentdojo evaluator",
+      "capability_tags": [
+        "interactive",
+        "tool-use",
+        "safety-policy"
+      ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",
       "availability": "fixture_only",
@@ -32,6 +41,9 @@
       "source_revision": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
       "license": "MIT",
       "evaluator": "not-applicable",
+      "capability_tags": [
+        "unsupported"
+      ],
       "adaptation": "fixture-only",
       "platform": "not-applicable",
       "availability": "unavailable",
@@ -44,6 +56,9 @@
       "source_revision": "v1",
       "license": "NOASSERTION",
       "evaluator": "not-applicable",
+      "capability_tags": [
+        "unsupported"
+      ],
       "adaptation": "fixture-only",
       "platform": "not-applicable",
       "availability": "unavailable",
@@ -56,9 +71,12 @@
       "source_revision": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
       "license": "Apache-2.0-and-per-exercise",
       "evaluator": "aider.benchmarks.polyglot",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -68,9 +86,12 @@
       "source_revision": "9059fb84d1188c02edeac4995361656a2fdecbef",
       "license": "Apache-2.0",
       "evaluator": "bigcodebench.evaluate",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -80,9 +101,12 @@
       "source_revision": "e32a2980e72fe6eb04ee04eb749458f570625663",
       "license": "MIT",
       "evaluator": "hal-eval --benchmark corebench",
+      "capability_tags": [
+        "systems-performance"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -92,9 +116,12 @@
       "source_revision": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
       "license": "Apache-2.0",
       "evaluator": "evalplus.evaluate",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -104,9 +131,12 @@
       "source_revision": "pinned-20260908",
       "license": "MIT",
       "evaluator": "track-test-runner",
+      "capability_tags": [
+        "unsupported"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -116,6 +146,9 @@
       "source_revision": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
       "license": "NOASSERTION",
       "evaluator": "not-applicable",
+      "capability_tags": [
+        "harness-boundary"
+      ],
       "adaptation": "fixture-only",
       "platform": "planned",
       "availability": "unavailable",
@@ -128,6 +161,9 @@
       "source_revision": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
       "license": "Apache-2.0",
       "evaluator": "not-applicable",
+      "capability_tags": [
+        "stateful-tool-use"
+      ],
       "adaptation": "fixture-only",
       "platform": "planned",
       "availability": "unavailable",
@@ -140,6 +176,9 @@
       "source_revision": "63754d05db6f874e41a395880fb573890a13e791",
       "license": "Apache-2.0",
       "evaluator": "not-applicable",
+      "capability_tags": [
+        "unsupported"
+      ],
       "adaptation": "fixture-only",
       "platform": "not-applicable",
       "availability": "unavailable",
@@ -152,9 +191,12 @@
       "source_revision": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
       "license": "MIT",
       "evaluator": "evalplus@v0.3.1-e5d0ed0b",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "split-alias",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -164,6 +206,9 @@
       "source_revision": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
       "license": "MIT",
       "evaluator": "not-applicable",
+      "capability_tags": [
+        "stateful-tool-use"
+      ],
       "adaptation": "fixture-only",
       "platform": "planned",
       "availability": "unavailable",
@@ -176,9 +221,12 @@
       "source_revision": "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24",
       "license": "MIT",
       "evaluator": "python -m lcb_runner.runner.main",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -188,9 +236,12 @@
       "source_revision": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
       "license": "MIT",
       "evaluator": "evalplus@v0.3.1-e5d0ed0b",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "split-alias",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -200,6 +251,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -212,6 +266,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -224,6 +281,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -236,6 +296,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -248,6 +311,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -260,6 +326,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -272,6 +341,9 @@
       "source_revision": "asb-original-v1",
       "license": "MIT",
       "evaluator": "asb-original-oracle-v1",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "none",
       "platform": "linux-x86_64:native-tested",
       "availability": "available",
@@ -284,9 +356,12 @@
       "source_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
       "license": "MIT",
       "evaluator": "swebench.harness",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -296,9 +371,12 @@
       "source_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
       "license": "MIT",
       "evaluator": "swebench.harness@02e7a74",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "split-alias",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -308,9 +386,12 @@
       "source_revision": "ca10a60a5fcae51e6948ffe1485d4153d421e6c5",
       "license": "MIT",
       "evaluator": "python swe_bench_pro_eval.py",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -320,9 +401,12 @@
       "source_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
       "license": "MIT",
       "evaluator": "swebench.harness@02e7a74",
+      "capability_tags": [
+        "code-generation"
+      ],
       "adaptation": "split-alias",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -332,9 +416,12 @@
       "source_revision": "12d32a2d6800824a7d84bdb6797b5708e7b7957f",
       "license": "Apache-2.0",
       "evaluator": "swefficiency eval",
+      "capability_tags": [
+        "unsupported"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -344,9 +431,12 @@
       "source_revision": "51052cede8cc608f95bb00346635e03759013e5a",
       "license": "NOASSERTION",
       "evaluator": "frontier-evals/project/swelancer",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -356,9 +446,12 @@
       "source_revision": "9e8fed285ed640b51baaf66b13773706dc95aa45",
       "license": "NOASSERTION",
       "evaluator": "python -m run_evaluation",
+      "capability_tags": [
+        "systems-performance"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -368,9 +461,12 @@
       "source_revision": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284",
       "license": "MIT",
       "evaluator": "swe-bench-fork",
+      "capability_tags": [
+        "repository-repair"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -380,6 +476,12 @@
       "source_revision": "59a200c6d575d595120f1cb70fea53cef0632f6b",
       "license": "MIT",
       "evaluator": "tau_bench evaluator",
+      "capability_tags": [
+        "interactive",
+        "tool-use",
+        "simulated-user",
+        "pass-k-reliability"
+      ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",
       "availability": "fixture_only",
@@ -392,9 +494,12 @@
       "source_revision": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
       "license": "Apache-2.0",
       "evaluator": "harbor run",
+      "capability_tags": [
+        "terminal-workflow"
+      ],
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     }
   ]
