@@ -83,3 +83,10 @@ records only; task images, reset/scoring parity, licenses, and platform evidence
 must be qualified by later adapter ARs. AgentOps, HELM, and AI Agents That
 Matter are recorded as `methodology-only` references and are never selectable
 or executable workloads.
+
+Every executable-candidate family also has a bounded ASB-owned development mock
+fixture. The mock uses an in-process deterministic model double, denies egress,
+and emits provenance-bound workload, adaptation, evaluator, mock, scorer, and
+result digests. It is suitable for offline contract and CLI development only;
+it never promotes an official evaluator, dataset, native-platform cell, or
+leaderboard result to qualified evidence.
