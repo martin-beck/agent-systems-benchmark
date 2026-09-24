@@ -364,6 +364,18 @@ def commit_tree(root: Path, revision: str) -> str:
     ).strip()
 
 
+def merge_preview_tree(root: Path, base: str, topic: str) -> str:
+    """Return the deterministic tree Git would merge for these exact parents."""
+    output = subprocess.check_output(
+        ["git", "-C", str(root), "merge-tree", "--write-tree", base, topic],
+        text=True,
+    )
+    preview = output.splitlines()[0] if output else ""
+    if not FULL_SHA.fullmatch(preview):
+        fail("protected-main merge preview did not produce an exact tree")
+    return preview
+
+
 def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     return (
         subprocess.run(
@@ -594,8 +606,21 @@ def validate_commits(
                 fail("protected-main historical sync checkpoint is not base ancestry")
             if is_ancestor(root, historical_parents[1], historical_parents[0]):
                 fail("protected-main historical sync checkpoint is redundant")
-    if commit_tree(root, parents[1]) != commit_tree(root, head):
-        fail("protected-main merge tree differs from the reviewed topic tree")
+    reviewed_tree = commit_tree(root, parents[1])
+    merge_tree = commit_tree(root, head)
+    if reviewed_tree != merge_tree:
+        fail(
+            "protected-main merge tree differs from the reviewed topic tree "
+            f"(base={base}, topic={parents[1]}, merge={head}, "
+            f"reviewed_tree={reviewed_tree}, merge_tree={merge_tree})"
+        )
+    preview_tree = merge_preview_tree(root, base, parents[1])
+    if preview_tree != merge_tree:
+        fail(
+            "protected-main merge tree differs from exact parent preview "
+            f"(base={base}, topic={parents[1]}, merge={head}, "
+            f"preview_tree={preview_tree}, merge_tree={merge_tree})"
+        )
     # The service-generated GitHub merge is authenticated by Web Flow below,
     # not by a redundant DCO trailer. Every reviewed topic commit remains
     # strictly DCO- and SSH-validated; locally authored final merges remain
