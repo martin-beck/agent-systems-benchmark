@@ -155,10 +155,59 @@ struct Catalog {
     provider_profiles: BTreeMap<String, ProviderCatalogEntry>,
     #[serde(default)]
     provider_credential_references: BTreeMap<String, String>,
+    /// Durable, target-bound snapshot consumed by setup frontends.
+    #[serde(default)]
+    agent_catalog: Option<AgentCatalog>,
 }
 
 fn default_provider_generation() -> u64 {
     1
+}
+
+fn local_agent_catalog(runner_instance_id: &str, generation: u64, refreshed: bool) -> AgentCatalog {
+    let target = AgentTarget {
+        operating_system: if cfg!(target_os = "linux") {
+            "linux".into()
+        } else {
+            std::env::consts::OS.into()
+        },
+        architecture: std::env::consts::ARCH.into(),
+        libc: "glibc".into(),
+        libc_version: "unknown".into(),
+    };
+    let agents = [
+        "aider",
+        "codex",
+        "gemini",
+        "goose",
+        "mini-swe",
+        "opencode",
+        "opendesk",
+        "openhands",
+        "qwen-code",
+    ]
+    .into_iter()
+    .map(|agent_id| AgentCatalogEntry {
+        agent_id: agent_id.into(),
+        target: target.clone(),
+        package: None,
+        provenance: None,
+        capabilities: Vec::new(),
+        availability: AgentAvailability::Unavailable(AgentUnavailableReason::IncompleteProvenance),
+    })
+    .collect();
+    let mut catalog = AgentCatalog {
+        runner_instance_id: runner_instance_id.into(),
+        generation: Revision(generation),
+        catalog_sha256: String::new(),
+        target,
+        agents,
+        refreshed,
+    };
+    catalog.catalog_sha256 = catalog
+        .computed_sha256()
+        .expect("static local agent catalog must hash");
+    catalog
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -488,6 +537,7 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         provider_generation: 1,
         provider_profiles: BTreeMap::new(),
         provider_credential_references: BTreeMap::new(),
+        agent_catalog: None,
     })
 }
 
@@ -514,6 +564,16 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             })
     {
         return Err(CliError::operation("control provider registry is invalid"));
+    }
+    if let Some(agent_catalog) = &catalog.agent_catalog {
+        if agent_catalog.runner_instance_id != catalog.runner_instance_id
+            || agent_catalog.generation.0 == 0
+        {
+            return Err(CliError::operation("control agent catalog is invalid"));
+        }
+        agent_catalog
+            .validate()
+            .map_err(|_| CliError::operation("control agent catalog is invalid"))?;
     }
     for (provider_id, entry) in &catalog.provider_profiles {
         if provider_id != &entry.provider_id
@@ -2842,59 +2902,42 @@ impl RunnerBackend {
         if request.runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
         }
-        let generation = 1_u64;
-        if request
-            .known_generation
-            .is_some_and(|known| known.0 > generation)
+        let mut live = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let current = live
+            .agent_catalog
+            .clone()
+            .unwrap_or_else(|| local_agent_catalog(&self.runner_instance_id, 1, false));
+        if current.runner_instance_id != self.runner_instance_id
+            || request
+                .known_generation
+                .is_some_and(|known| known.0 > current.generation.0)
         {
             return Err(BackendFailure::StaleIdentity);
         }
-        let target = AgentTarget {
-            operating_system: if cfg!(target_os = "linux") {
-                "linux".into()
-            } else {
-                std::env::consts::OS.into()
-            },
-            architecture: std::env::consts::ARCH.into(),
-            libc: "glibc".into(),
-            libc_version: "unknown".into(),
-        };
-        let agents = [
-            "aider",
-            "codex",
-            "gemini",
-            "goose",
-            "mini-swe",
-            "opencode",
-            "opendesk",
-            "openhands",
-            "qwen-code",
-        ]
-        .into_iter()
-        .map(|agent_id| AgentCatalogEntry {
-            agent_id: agent_id.into(),
-            target: target.clone(),
-            package: None,
-            provenance: None,
-            capabilities: Vec::new(),
-            availability: AgentAvailability::Unavailable(
-                AgentUnavailableReason::IncompleteProvenance,
-            ),
-        })
-        .collect();
-        let mut catalog = AgentCatalog {
-            runner_instance_id: self.runner_instance_id.clone(),
-            generation: Revision(generation),
-            catalog_sha256: String::new(),
-            target,
-            agents,
-            refreshed: matches!(request.action, AgentCatalogAction::Refresh),
-        };
-        catalog.catalog_sha256 = catalog
-            .computed_sha256()
-            .map_err(|_| BackendFailure::Rejected)?;
-        catalog.validate().map_err(|_| BackendFailure::Rejected)?;
-        Ok(catalog)
+        if matches!(request.action, AgentCatalogAction::Status) {
+            if live.agent_catalog.is_none() {
+                let mut staged = live.clone();
+                staged.agent_catalog = Some(current.clone());
+                commit_staged_catalog(&self.state_root, &mut live, staged)
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            }
+            return Ok(current);
+        }
+        let next_generation = current
+            .generation
+            .0
+            .checked_add(1)
+            .ok_or(BackendFailure::Rejected)?;
+        let persisted = local_agent_catalog(&self.runner_instance_id, next_generation, false);
+        let response = local_agent_catalog(&self.runner_instance_id, next_generation, true);
+        let mut staged = live.clone();
+        staged.agent_catalog = Some(persisted);
+        commit_staged_catalog(&self.state_root, &mut live, staged)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        Ok(response)
     }
 
     fn provider_catalog(
@@ -3569,6 +3612,61 @@ mod tests {
                     )
                 )
         }));
+    }
+
+    #[test]
+    fn agent_catalog_refresh_is_durable_and_generation_fenced() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let runner = backend.runner_instance_id().to_owned();
+        let refresh = ControlCall::AgentCatalog(AgentCatalogRequest {
+            action: AgentCatalogAction::Refresh,
+            runner_instance_id: runner.clone(),
+            known_generation: Some(Revision(1)),
+        });
+        let result = backend.execute(&refresh, deadline()).unwrap();
+        let ControlResult::AgentCatalog(ref refreshed) = result.result else {
+            panic!("agent catalog refresh result");
+        };
+        assert!(refreshed.refreshed);
+        assert_eq!(refreshed.generation, Revision(2));
+        let digest = refreshed.catalog_sha256.clone();
+        assert_eq!(
+            refreshed.catalog_sha256,
+            refreshed.computed_sha256().unwrap()
+        );
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::AgentCatalog(AgentCatalogRequest {
+                    action: AgentCatalogAction::Status,
+                    runner_instance_id: runner.clone(),
+                    known_generation: Some(Revision(3)),
+                }),
+                deadline()
+            ),
+            Err(BackendFailure::StaleIdentity)
+        ));
+        drop(backend);
+
+        let restarted = open_backend(state).unwrap();
+        let status = restarted
+            .execute(
+                &ControlCall::AgentCatalog(AgentCatalogRequest {
+                    action: AgentCatalogAction::Status,
+                    runner_instance_id: runner,
+                    known_generation: Some(Revision(2)),
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::AgentCatalog(status) = status.result else {
+            panic!("agent catalog status result");
+        };
+        assert!(!status.refreshed);
+        assert_eq!(status.generation, Revision(2));
+        assert_eq!(status.catalog_sha256, digest);
     }
 
     #[test]
