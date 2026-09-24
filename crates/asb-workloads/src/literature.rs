@@ -74,6 +74,8 @@ pub enum CatalogAvailability {
     /// A candidate may appear in a declared plan; execution still requires a
     /// qualified evaluator or local mock.
     Candidate,
+    /// Selectable only through the bounded ASB-owned local fixture.
+    FixtureOnly,
     /// Visible for provenance, but never selectable for execution.
     Unavailable,
 }
@@ -222,6 +224,7 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             .as_str()
             .unwrap_or("unsupported");
         let unavailable = selection != "executable-candidate" || provenance != "qualified";
+        let interactive_fixture = matches!(id, "agentbench" | "tau-bench" | "agentdojo");
         let kind = match record["selection"].as_str() {
             Some("methodology-only") => CatalogKind::Methodology,
             _ => CatalogKind::Literature,
@@ -250,14 +253,23 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             capability_tags: capability_tags(id),
             attempt_budget,
             adaptation: "fixture-only".into(),
-            platform: platform.into(),
-            availability: if unavailable {
+            platform: if interactive_fixture {
+                "linux-x86_64:fixture-only"
+            } else {
+                platform
+            }
+            .into(),
+            availability: if interactive_fixture {
+                "fixture_only"
+            } else if unavailable {
                 "unavailable"
             } else {
                 "available"
             }
             .into(),
-            availability_kind: if unavailable {
+            availability_kind: if interactive_fixture {
+                CatalogAvailability::FixtureOnly
+            } else if unavailable {
                 CatalogAvailability::Unavailable
             } else {
                 CatalogAvailability::Candidate
@@ -324,6 +336,24 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
 }
 
 fn capability_tags(id: &str) -> BTreeSet<String> {
+    if id == "agentbench" {
+        return BTreeSet::from(["interactive".into(), "stateful-environment".into()]);
+    }
+    if id == "tau-bench" {
+        return BTreeSet::from([
+            "interactive".into(),
+            "tool-use".into(),
+            "simulated-user".into(),
+            "pass-k-reliability".into(),
+        ]);
+    }
+    if id == "agentdojo" {
+        return BTreeSet::from([
+            "interactive".into(),
+            "tool-use".into(),
+            "safety-policy".into(),
+        ]);
+    }
     let tag = match family(id) {
         LiteratureFamily::RepositoryRepair => "repository-repair",
         LiteratureFamily::TerminalSystem => "terminal-workflow",
@@ -383,6 +413,12 @@ pub fn select_workload(
         .find(|entry| entry.id == id)
         .ok_or(CatalogSelectionError::Unknown)?;
     if entry.source == "builtin" {
+        return Ok(entry);
+    }
+    if entry.availability == "fixture_only" {
+        if !entry.platform.starts_with(platform) {
+            return Err(CatalogSelectionError::UnsupportedPlatform);
+        }
         return Ok(entry);
     }
     if entry.availability != "available" {
@@ -1394,6 +1430,11 @@ mod tests {
     #[test]
     fn selection_is_explicit_and_fails_closed_for_unqualified_records() {
         assert!(select_workload("original.bug-fix", "linux-x86_64").is_ok());
+        for id in ["agentbench", "tau-bench", "agentdojo"] {
+            let entry = select_workload(id, "linux-x86_64").unwrap();
+            assert_eq!(entry.availability, "fixture_only");
+            assert_eq!(entry.platform, "linux-x86_64:fixture-only");
+        }
         assert_eq!(
             select_workload("not-a-workload", "linux-x86_64"),
             Err(CatalogSelectionError::Unknown)

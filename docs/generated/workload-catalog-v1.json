@@ -9,8 +9,8 @@
       "license": "Apache-2.0",
       "evaluator": "agentbench evaluator",
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -21,8 +21,8 @@
       "license": "MIT",
       "evaluator": "agentdojo evaluator",
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -381,8 +381,8 @@
       "license": "MIT",
       "evaluator": "tau_bench evaluator",
       "adaptation": "fixture-only",
-      "platform": "planned",
-      "availability": "unavailable",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {

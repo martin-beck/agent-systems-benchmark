@@ -117,3 +117,10 @@ result digests, and rejects malformed tasks, invalid timeouts, grader
 co-location, and any requested network destination. CORE-Bench and HAL retain
 their distinct source families while their bounded local contract probes remain
 available; this does not qualify either official evaluator or harness.
+
+The interactive adapter adds fixture-only selection for `agentbench`,
+`tau-bench`, and `agentdojo`. It validates state reset, bounded tool calls,
+simulated-user turns, repeated-trial pass@k/pass^k reliability, and separate
+safety-policy outcomes. Exact task and scorer revisions are required; stale
+revisions, unsafe calls, malformed users, reset leakage, and scorer drift fail
+closed without invoking an upstream provider or evaluator.

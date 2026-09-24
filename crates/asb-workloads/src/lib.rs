@@ -2,8 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! Offline, bounded original engineering workloads and protected graders.
 
+mod interactive;
 mod literature;
 mod validity;
+
+pub use interactive::{
+    InteractiveAdapter, InteractiveError, InteractiveFamily, InteractiveMockConfig,
+    InteractiveMockResult, InteractivePrepared, InteractiveToolCall, SimulatedUserTurn,
+};
 
 pub use literature::{
     Acquisition, AcquisitionReceipt, AdapterStatus, CatalogAvailability, CatalogEvidence,
