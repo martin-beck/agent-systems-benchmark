@@ -2,7 +2,40 @@
 
 Recording is an explicit choice because it can expose provider traffic and may
 incur cost. Replay is strict and offline; it is useful for deterministic
-workflow checks, not for claiming fresh model quality.
+workflow checks, not for claiming fresh model quality. The CI example below is
+entirely synthetic: it reads a checked-in cassette and never records traffic,
+starts a provider, or opens a network connection.
+
+## Offline tutorial contract
+
+The public fixture at
+`crates/asb-replay/fixtures/v1/buffered.json` is the only input used by this
+tutorial. It has dialect `synthetic`, contains the redaction policy and
+selector digest that were applied before persistence, and carries a SHA-256
+root in its `integrity` object. Treat those fields as provenance, not as proof
+that a provider was contacted. A real recording must be reviewed and redacted
+before it is sealed; never put credentials, raw authorization headers, or
+unbounded prompts in a cassette.
+
+The syntax-checked sequence is:
+
+```text
+fixture = crates/asb-replay/fixtures/v1/buffered.json
+assert fixture.contents.interactions[0].dialect == synthetic
+assert sha256(canonical(fixture.contents)) == fixture.integrity.digest
+assert fixture.contents.redaction.selector_sha256 is present
+assert replay_source == fixture.integrity.digest
+assert network == denied
+assert provider_fallback == forbidden
+```
+
+The assertions are deliberately data-only. They validate the cassette schema,
+the content/integrity relationship, redaction provenance, deterministic
+selection, and the network boundary; they do not invoke `asb record`,
+`asb replay`, an agent, or an LLM service. A malformed JSON object, an unknown
+field, a changed selector digest, or a mismatched cassette root must fail
+closed. Replay failure is returned to the caller; it never falls back to a
+provider.
 
 ## CLI route
 
@@ -16,8 +49,10 @@ asb replay /absolute/path/CASSETTE.json PROVIDER_PROFILE_SHA256 codex
 
 `record` atomically seals the cassette and prints metadata only. The cassette
 is immutable content-addressed evidence; keep its path and SHA-256 in the run
-record. `replay` requires an exact provider-profile and agent match and denies
-provider network access before execution.
+record. Redaction happens before sealing and the selector digest is retained
+as provenance. `replay` requires an exact provider-profile, agent, and cassette
+root match and denies provider network access before execution. If no exact
+cassette is available, it returns an error—there is no live-provider fallback.
 
 To compare live and replay results, first produce two terminal run directories,
 then use:
@@ -45,7 +80,8 @@ different profile as a hard boundary—not as a performance difference.
 
 The negotiated renderer must not show prompts, responses, or credential values
 as ordinary UI fields. Nearby but incompatible cassettes remain unavailable
-with their typed reason.
+with their typed reason. The TUI route is descriptive only for this tutorial;
+the offline CI check does not launch `asb-tui` or a backend.
 
 ## Evidence boundary
 

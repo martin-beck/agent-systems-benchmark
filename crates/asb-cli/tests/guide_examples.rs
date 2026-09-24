@@ -3,6 +3,7 @@
 //! Executes the public offline documentation workflow and support inventory.
 
 use asb_protocol::ExperimentManifestV1;
+use asb_replay::{CassetteLimits, canonical_contents_bytes, decode_cassette};
 use asb_workloads::OriginalWorkloads;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -260,4 +261,50 @@ fn beginner_workflow_hub_has_complete_links_and_honest_boundaries() {
         assert!(!guide.contains(&home_prefix));
         assert!(!guide.contains(&private_host));
     }
+}
+
+#[test]
+fn record_replay_tutorial_is_synthetic_and_fail_closed() {
+    let guide = include_str!("../../../docs/workflows/record-replay.md");
+    let cassette: Value =
+        serde_json::from_str(include_str!("../../asb-replay/fixtures/v1/buffered.json")).unwrap();
+
+    assert!(guide.contains("Offline tutorial contract"));
+    assert!(guide.contains("assert network == denied"));
+    assert!(guide.contains("assert provider_fallback == forbidden"));
+    assert!(guide.contains("no live-provider fallback"));
+    assert!(guide.contains("selector_sha256"));
+    assert!(guide.contains("fixture.integrity.digest"));
+    assert!(guide.contains("dialect == synthetic"));
+    assert!(!guide.contains("curl "));
+    assert!(!guide.contains("wget "));
+    assert!(!guide.contains("OPENAI_API_KEY"));
+    assert_eq!(cassette["contents"]["schema_version"], 1);
+    assert_eq!(
+        cassette["contents"]["interactions"][0]["dialect"],
+        "synthetic"
+    );
+    assert!(cassette["contents"]["redaction"]["selector_sha256"].is_string());
+    assert!(
+        cassette["integrity"]["digest"]
+            .as_str()
+            .is_some_and(|digest| {
+                digest.len() == 64
+                    && digest
+                        .chars()
+                        .all(|character| character.is_ascii_hexdigit())
+            })
+    );
+    assert_eq!(cassette["integrity"]["algorithm"], "sha256");
+
+    let bytes = include_bytes!("../../asb-replay/fixtures/v1/buffered.json");
+    let authenticated = decode_cassette(bytes, CassetteLimits::default()).unwrap();
+    let canonical = canonical_contents_bytes(&authenticated.contents).unwrap();
+    let expected = format!("{:x}", Sha256::digest(canonical));
+    assert_eq!(authenticated.integrity.digest, expected);
+
+    let mut malformed = cassette;
+    malformed["contents"]["unexpected"] = Value::Bool(true);
+    let malformed = serde_json::to_vec(&malformed).unwrap();
+    assert!(decode_cassette(&malformed, CassetteLimits::default()).is_err());
 }
