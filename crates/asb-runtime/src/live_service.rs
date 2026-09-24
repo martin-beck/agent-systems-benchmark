@@ -14,7 +14,10 @@ use crate::sandbox::{
     CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease, SandboxBackend,
     SandboxLaunchInput, ToolPin,
 };
-use asb_control::{IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1};
+use asb_control::{
+    IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1, RuntimeReceiptRequestV1,
+    RuntimeReceiptResponseV1,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -290,6 +293,23 @@ impl LiveProviderRuntimeBridge {
         }
         self.ledger.consume(&record, &attestation, now_unix_ms)?;
         Ok(record)
+    }
+
+    /// Consume one authenticated control response for the runtime dispatch
+    /// path. The request binding and certificate chain are supplied by the
+    /// control/runtime boundary; callers cannot turn a fabricated response
+    /// into a live enrollment record.
+    pub fn ingest_control_response(
+        &self,
+        request: &RuntimeReceiptRequestV1,
+        response: &RuntimeReceiptResponseV1,
+        chain: &IssuedCertificateChainV1,
+        now_unix_ms: u64,
+    ) -> Result<LiveProviderEnrollmentRecordV1, LiveProviderEnrollmentRecordError> {
+        response
+            .validate_for(request)
+            .map_err(|_| LiveProviderEnrollmentRecordError::AttestationMismatch)?;
+        self.ingest_control_receipt(&response.receipt, chain, now_unix_ms)
     }
 }
 
@@ -1384,6 +1404,33 @@ mod tests {
             bridge.ingest_control_receipt(&receipt, &chain, 1_500),
             Err(LiveProviderEnrollmentRecordError::Replay)
         ));
+    }
+
+    #[test]
+    fn runtime_bridge_consumes_bound_control_response_and_rejects_nonce_tamper() {
+        let (chain, receipt) = control_receipt();
+        let request = RuntimeReceiptRequestV1 {
+            schema_version: 1,
+            provider: receipt.provider.clone(),
+            generation: receipt.generation,
+            request_nonce_sha256: receipt.nonce_sha256.clone(),
+        };
+        let response = RuntimeReceiptResponseV1 {
+            schema_version: 1,
+            request_nonce_sha256: request.request_nonce_sha256.clone(),
+            receipt: receipt.clone(),
+        };
+        let bridge = LiveProviderRuntimeBridge::new();
+        bridge
+            .ingest_control_response(&request, &response, &chain, 1_500)
+            .unwrap();
+
+        let mut tampered = response;
+        tampered.request_nonce_sha256 = "f".repeat(64);
+        assert_eq!(
+            bridge.ingest_control_response(&request, &tampered, &chain, 1_500),
+            Err(LiveProviderEnrollmentRecordError::AttestationMismatch)
+        );
     }
 
     #[test]
