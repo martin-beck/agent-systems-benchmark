@@ -13,7 +13,7 @@ on both disposable x86_64 and aarch64 workers.
 | --- | --- | --- | --- |
 | TLC 1.8.0 | deterministic source build from TLA+ commit b123b22654942bd7f8b1bcadcc47da4ee2cf4c0e | 8c200a88d151c6c183c8dbc57a6b633d135e7a2b18242a3afbf243a9e4b68d3e | closed source/build-input license receipts |
 | Alloy 6.2.0 | Alloy commit 59ba2033993449d483d54acad0e11a7bbf20354f | 6b8c1cb5bc93bedfc7c61435c4e1ab6e688a242dc702a394628d9a9801edb78d | upstream 6.2.0 LICENSE declares current code MIT |
-| Temurin JRE | 17.0.20+8 through setup-java commit dded0888837ed1f317902acf8a20df0ad188d165 | action-managed distribution | Eclipse Temurin binary license boundary |
+| Temurin JRE | 17.0.20+8 through setup-java commit de7274f081f381c8f8158605e0321c36c376e2e6 | action-managed distribution | Eclipse Temurin binary license boundary |
 
 The upstream v1.8.0 prerelease repeatedly replaced the bytes published under its stable-looking
 download path, so ASB does not consume or repin that mutable asset. The runner instead consumes
