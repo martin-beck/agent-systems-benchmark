@@ -765,6 +765,7 @@ pub struct Negotiated {
     rename_all = "snake_case",
     deny_unknown_fields
 )]
+#[allow(clippy::large_enum_variant)]
 pub enum ControlSuccess {
     /// Initial protocol negotiation.
     Negotiated(Negotiated),
