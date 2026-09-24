@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "run_id": "synthetic-run",
+  "terminal_state": "completed",
+  "workload": {"id": "original.bug-fix", "revision": "v1"},
+  "configuration": {
+    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "agents": ["codex", "opendesk"]
+  },
+  "artifacts": {"manifest": "manifest.json", "journal": "journal.ndjson", "max_bytes": 65536}
+}

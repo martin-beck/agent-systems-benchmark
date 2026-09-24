@@ -10,6 +10,7 @@ follow, terminal state, report, compare, record, and replay.
 | Goal | CLI | TUI/control surface |
 | --- | --- | --- |
 | Check benchmark readiness offline | [Benchmark readiness](benchmark-readiness.md) | Same configuration boundary |
+| Run one benchmark with shared configuration | [Benchmark run and shared config](benchmark-run-shared-config.md) | Same configuration boundary |
 | Build and validate a first plan | [CLI first run](cli-first-run.md) | [TUI first run](tui-first-run.md) |
 | Select several agents for one provider | [Shared provider](multi-agent-provider.md) | Same page, `MultiAgentWizard` |
 | Follow, finish, and compare runs | [CLI first run](cli-first-run.md#follow-finish-and-compare) | [TUI first run](tui-first-run.md#follow-finish-and-compare) |

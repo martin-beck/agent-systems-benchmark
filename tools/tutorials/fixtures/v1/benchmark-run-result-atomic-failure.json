@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "run_id": "synthetic-incompatible",
+  "terminal_state": "failed",
+  "error": {"code": "incompatible_agent", "agent": "opendesk"},
+  "configuration": {
+    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "agents": ["codex", "opendesk"]
+  },
+  "applied_agents": [],
+  "artifacts": {"manifest": "manifest.json", "journal": "journal.ndjson", "max_bytes": 65536}
+}
