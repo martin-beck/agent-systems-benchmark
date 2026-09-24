@@ -422,7 +422,7 @@ pub fn verify_bundle_with_policy(
     let (manifest_bytes, manifest_file) =
         read_regular_bounded_with_file(&manifest_path, MAX_MANIFEST_BYTES)?;
     let manifest: RuntimeBundleManifest = serde_json::from_slice(&manifest_bytes)
-        .map_err(|_| VerifyError::Metadata("manifest is not strict schema-v1 JSON".into()))?;
+        .map_err(|_| VerifyError::Metadata("manifest is not strict schema-v2 JSON".into()))?;
     validate_profile(&manifest, policy)?;
     match manifest.signature_status {
         SignatureStatus::Signed => {

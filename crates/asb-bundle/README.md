@@ -1,6 +1,6 @@
 # ASB runtime bundle verification
 
-asb-bundle defines the version-1 manifest used by reproducible agent runtime bundles and
+asb-bundle defines the version-2 manifest used by reproducible agent runtime bundles and
 verifies it without network access. Every manifest declares a `profile` and
 `signature_status`. The `signed` profile uses an OpenSSH SSHSIG over the exact
 manifest.json bytes in namespace asb-runtime-bundle-v1; trust is supplied explicitly as an

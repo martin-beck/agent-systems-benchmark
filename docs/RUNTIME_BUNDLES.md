@@ -1,6 +1,6 @@
 # Runtime bundle manifests and offline verification
 
-ASB agent installations use the version-1 contract in
+ASB agent installations use the version-2 contract in
 [asb-bundle](../crates/asb-bundle/README.md). A bundle directory contains exactly:
 
 - manifest.json and, for the `signed` profile, its detached manifest.json.sig SSHSIG;
