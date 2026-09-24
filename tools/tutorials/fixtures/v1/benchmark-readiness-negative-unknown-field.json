@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tutorial_id": "benchmark-readiness-negative",
+  "title": "Invalid readiness fixture",
+  "steps": [
+    {
+      "id": "check",
+      "command": ["asb", "doctor"],
+      "expect": {"exit_code": 0, "stdout_shape": "doctor-v1"},
+      "unexpected": true
+    }
+  ]
+}

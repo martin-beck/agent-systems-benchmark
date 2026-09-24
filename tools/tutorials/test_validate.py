@@ -35,6 +35,24 @@ class TutorialValidatorTests(unittest.TestCase):
     def test_initial_setup_tutorial_contract(self):
         validate_document(load(ROOT / "initial-setup-v1.json"), METADATA)
 
+    def test_benchmark_readiness_tutorial_contract(self):
+        validate_document(load(ROOT / "benchmark-readiness-v1.json"), METADATA)
+
+    def test_benchmark_readiness_positive_fixture(self):
+        validate_document(
+            load(ROOT / "fixtures/v1/benchmark-readiness-positive.json"), METADATA
+        )
+
+    def test_benchmark_readiness_negative_fixtures_fail_closed(self):
+        for name, message in [
+            ("benchmark-readiness-negative-unknown-field.json", "unknown field"),
+            ("benchmark-readiness-negative-network.json", "offline"),
+            ("benchmark-readiness-negative-secret.json", "secret"),
+        ]:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValidationError, message):
+                    validate_document(load(ROOT / "fixtures/v1" / name), METADATA)
+
     def test_unknown_option_fails(self):
         with self.assertRaisesRegex(ValidationError, "do not match"):
             validate_document(document(["asb", "capabilities", "--json"]), METADATA)
