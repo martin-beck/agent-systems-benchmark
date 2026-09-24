@@ -5,7 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from .validate import ValidationError, load, validate_document, validate_metadata
+from .validate import (
+    ValidationError,
+    load,
+    validate_comparison_fixture,
+    validate_document,
+    validate_metadata,
+)
 
 
 ROOT = Path(__file__).parent
@@ -41,6 +47,16 @@ class TutorialValidatorTests(unittest.TestCase):
     def test_benchmark_run_shared_config_tutorial_contract(self):
         validate_document(load(ROOT / "benchmark-run-shared-config-v1.json"), METADATA)
 
+    def test_result_comparison_tutorial_contract(self):
+        validate_document(load(ROOT / "result-comparison-v1.json"), METADATA)
+
+    def test_result_comparison_keeps_report_and_compare_order(self):
+        tutorial = load(ROOT / "result-comparison-v1.json")
+        self.assertEqual(
+            [step["command"][1] for step in tutorial["steps"]],
+            ["report", "report", "compare"],
+        )
+
     def test_shared_config_requires_all_agents_before_run(self):
         tutorial = load(ROOT / "benchmark-run-shared-config-v1.json")
         self.assertEqual(tutorial["steps"][0]["command"][-4:], ["--agent", "codex", "--agent", "opendesk"])
@@ -61,6 +77,16 @@ class TutorialValidatorTests(unittest.TestCase):
             self.assertEqual(result["terminal_state"], expected_state)
             self.assertLessEqual(result["artifacts"]["max_bytes"], 65536)
             self.assertNotIn("secret", json.dumps(result).lower())
+
+    def test_comparison_fixtures_require_shared_identity_and_failure_denominator(self):
+        positive = load(ROOT / "fixtures/v1/comparison-positive.json")
+        validate_comparison_fixture(positive)
+        mismatched = load(ROOT / "fixtures/v1/comparison-negative-definition.json")
+        with self.assertRaisesRegex(ValidationError, "incompatible"):
+            validate_comparison_fixture(mismatched)
+        dropped = load(ROOT / "fixtures/v1/comparison-negative-dropped-failure.json")
+        with self.assertRaisesRegex(ValidationError, "denominator"):
+            validate_comparison_fixture(dropped)
 
     def test_benchmark_readiness_negative_fixtures_fail_closed(self):
         for name, message in [

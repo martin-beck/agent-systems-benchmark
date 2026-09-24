@@ -186,6 +186,95 @@ def validate_metadata(metadata: Any) -> dict[str, Any]:
     return root
 
 
+def validate_comparison_fixture(document: Any) -> None:
+    """Validate a bounded comparison result without running a benchmark."""
+    root = _object(
+        document,
+        "comparison",
+        {
+            "schema_version", "comparison_id", "benchmark", "measurement",
+            "configuration_digest", "runs", "denominator", "comparable", "reason",
+        },
+    )
+    if root.get("schema_version") != 1:
+        raise ValidationError("comparison schema_version must be 1")
+    _string(root.get("comparison_id"), "comparison_id")
+    benchmark = _object(root.get("benchmark"), "comparison benchmark", {"id", "revision"})
+    measurement = _object(
+        root.get("measurement"), "comparison measurement", {"id", "revision", "unit"}
+    )
+    for name, value in [
+        ("benchmark id", benchmark.get("id")),
+        ("benchmark revision", benchmark.get("revision")),
+        ("measurement id", measurement.get("id")),
+        ("measurement revision", measurement.get("revision")),
+        ("measurement unit", measurement.get("unit")),
+    ]:
+        _string(value, name)
+    digest = root.get("configuration_digest")
+    if not isinstance(digest, str) or not SHA256.fullmatch(digest):
+        raise ValidationError("comparison configuration_digest must be SHA-256")
+    runs = root.get("runs")
+    if not isinstance(runs, list) or len(runs) < 2 or len(runs) > MAX_STEPS:
+        raise ValidationError("comparison runs must contain between 2 and 64 runs")
+    failed = completed = 0
+    identities = set()
+    for raw in runs:
+        run = _object(
+            raw,
+            "comparison run",
+            {"run_id", "agent", "terminal_state", "score", "benchmark"},
+        )
+        _string(run.get("run_id"), "comparison run_id")
+        _string(run.get("agent"), "comparison agent")
+        state = run.get("terminal_state")
+        if state not in {"completed", "failed", "cancelled", "needs_reconciliation"}:
+            raise ValidationError("comparison run has invalid terminal_state")
+        if state == "failed":
+            failed += 1
+        if state == "completed":
+            completed += 1
+            if not isinstance(run.get("score"), (int, float)) or isinstance(
+                run.get("score"), bool
+            ):
+                raise ValidationError("completed comparison run must have a numeric score")
+        run_benchmark = run.get("benchmark")
+        if run_benchmark is not None:
+            candidate = _object(
+                run_benchmark, "comparison run benchmark", {"id", "revision"}
+            )
+            identity = (candidate.get("id"), candidate.get("revision"))
+            if identity != (benchmark["id"], benchmark["revision"]):
+                identities.add(identity)
+    denominator = _object(
+        root.get("denominator"),
+        "comparison denominator",
+        {"attempted", "completed", "failed", "eligible"},
+    )
+    counts = {
+        name: denominator.get(name)
+        for name in ("attempted", "completed", "failed", "eligible")
+    }
+    if any(
+        not isinstance(value, int) or isinstance(value, bool) or value < 0
+        for value in counts.values()
+    ):
+        raise ValidationError("comparison denominator counts must be non-negative integers")
+    if (
+        counts["attempted"] != len(runs)
+        or counts["completed"] != completed
+        or counts["failed"] != failed
+    ):
+        raise ValidationError("comparison denominator must retain every terminal run")
+    comparable = root.get("comparable")
+    if not isinstance(comparable, bool):
+        raise ValidationError("comparison comparable must be boolean")
+    if identities or (comparable and failed) or (comparable and counts["eligible"] != completed):
+        raise ValidationError("comparison silently compares incompatible or failed runs")
+    if not comparable and not root.get("reason"):
+        raise ValidationError("non-comparable comparison needs a reason")
+
+
 def load(path: Path) -> Any:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
         raise ValidationError("tutorial must be a bounded regular file")
