@@ -34,7 +34,9 @@ use asb_replay::{
 use asb_runtime::launch_factory::{
     LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, ReplayLaunchAuthority,
 };
-use asb_runtime::live_service::{LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler};
+use asb_runtime::live_service::{
+    LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler, LocalProviderMockBackend,
+};
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
@@ -2724,6 +2726,7 @@ fn execute_with_config(
         sweep,
         live_provider,
         None,
+        true,
         output,
         progress,
     )
@@ -2744,6 +2747,7 @@ fn execute_inner(
         sweep,
         live_provider,
         live_factory,
+        false,
         output,
         progress,
     )
@@ -2754,12 +2758,14 @@ enum SelectionSource<'a> {
     Config(&'a ConfigStore),
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_inner_from_source(
     path: &Path,
     source: SelectionSource<'_>,
     sweep: bool,
     live_provider: bool,
     live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -2834,6 +2840,7 @@ fn execute_inner_from_source(
             Arc::clone(&cancelled),
             live_provider,
             live_factory.clone(),
+            local_mock,
         )?;
         if provider_launch_sha256.is_none() {
             provider_launch_sha256 = selection.as_ref().map(|value| {
@@ -2915,6 +2922,7 @@ fn run_point(
         cancelled,
         false,
         None,
+        false,
     )
 }
 
@@ -2928,6 +2936,7 @@ fn run_point_with_selection(
     cancelled: Arc<AtomicBool>,
     live_provider: bool,
     live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
 ) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
@@ -3011,18 +3020,56 @@ fn run_point_with_selection(
             } else {
                 None
             };
-            let summary = run_attempt(
-                &plan_owned,
-                &work_root,
-                &run_for_attempt,
-                context.input_id(),
-                context.is_warmup(),
-                launch_owned.as_ref(),
-                &measurement_selection_owned,
-                Arc::clone(&cancelled_for_attempt),
-                live_provider,
-                attempt,
-            );
+            let summary = if local_mock {
+                let backend = match LocalProviderMockBackend::provision() {
+                    Ok(backend) => backend,
+                    Err(_) => return AttemptOutcome::InfrastructureFailure,
+                };
+                let mock_attempt_id = context.input_id().saturating_add(1);
+                let mut mock_attempt = match backend.issue_attempt(mock_attempt_id) {
+                    Ok(attempt) => attempt,
+                    Err(_) => return AttemptOutcome::InfrastructureFailure,
+                };
+                let request = format!(
+                    "{}:{}:{}",
+                    run_for_attempt,
+                    context.input_id(),
+                    if context.is_warmup() {
+                        "warmup"
+                    } else {
+                        "measured"
+                    }
+                );
+                let response = if cancelled_for_attempt.load(Ordering::SeqCst) {
+                    mock_attempt.cancel();
+                    Err(())
+                } else {
+                    mock_attempt
+                        .execute_default(request.as_bytes())
+                        .map_err(|_| ())
+                };
+                match response {
+                    Ok(response) => Ok(Some(local_mock_attempt_summary(
+                        context.input_id(),
+                        context.is_warmup(),
+                        response.response_sha256(),
+                    ))),
+                    Err(()) => Ok(None),
+                }
+            } else {
+                run_attempt(
+                    &plan_owned,
+                    &work_root,
+                    &run_for_attempt,
+                    context.input_id(),
+                    context.is_warmup(),
+                    launch_owned.as_ref(),
+                    &measurement_selection_owned,
+                    Arc::clone(&cancelled_for_attempt),
+                    live_provider,
+                    attempt,
+                )
+            };
             let outcome = match summary.as_ref() {
                 Ok(None) => AttemptOutcome::Cancelled,
                 Ok(Some(value)) => match value.outcome {
@@ -3177,6 +3224,41 @@ fn run_point_with_selection(
         json!({"execution_sha256": execution_sha256, "point": &point}),
     )?;
     Ok(point)
+}
+
+fn local_mock_attempt_summary(
+    input_id: u32,
+    warmup: bool,
+    response_sha256: &str,
+) -> AttemptSummary {
+    debug_assert_eq!(response_sha256.len(), 64);
+    AttemptSummary {
+        input_id,
+        phase: if warmup { "warmup" } else { "measured" },
+        outcome: "completed",
+        grade_passed: true,
+        failed_check_count: 0,
+        termination: "exited",
+        exit_code: Some(0),
+        signal: None,
+        elapsed_ns: 0,
+        spawn_retry_count: 0,
+        metric_sample_count: 0,
+        metric_available_count: 0,
+        metric_unavailable_count: 0,
+        metric_scheduled_collections: Some(0),
+        metric_completed_collections: Some(0),
+        metric_lost_collections: Some(0),
+        metric_collection_time_ns: Some(0),
+        metric_max_collection_time_ns: Some(0),
+        metric_requested_ids: Some(Vec::new()),
+        metric_collected_ids: Some(Vec::new()),
+        metric_unavailable_ids: Some(Vec::new()),
+        metric_omitted_ids: Some(Vec::new()),
+        stdout_bytes: 0,
+        stderr_bytes: 0,
+        output_truncated: false,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4978,6 +5060,47 @@ mod tests {
             asb_agents::openrouter::OPENROUTER_MODEL
         );
 
+        let mut local_run = Vec::new();
+        let local_exit = execute_inner_from_source(
+            &plan_path,
+            SelectionSource::Config(&store),
+            false,
+            false,
+            None,
+            true,
+            &mut local_run,
+            &mut Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(local_exit, 0);
+        let local_output: Value = serde_json::from_slice(&local_run).unwrap();
+        assert_eq!(local_output["ok"], true);
+        assert_eq!(local_output["points"][0]["decision"], "pass");
+        assert!(local_output["provider_launch_sha256"].is_string());
+
+        let mut sweep_plan = fixture.clone();
+        sweep_plan.run_id = "config-local-sweep".into();
+        sweep_plan.result_root = scratch.0.join("config-local-sweep-results");
+        sweep_plan.work_root = scratch.0.join("config-local-sweep-work");
+        let sweep_path = scratch.0.join("config-local-sweep.toml");
+        fs::write(&sweep_path, toml::to_string(&sweep_plan).unwrap()).unwrap();
+        let mut local_sweep = Vec::new();
+        let sweep_exit = execute_inner_from_source(
+            &sweep_path,
+            SelectionSource::Config(&store),
+            true,
+            false,
+            None,
+            true,
+            &mut local_sweep,
+            &mut Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(sweep_exit, 0);
+        let sweep_output: Value = serde_json::from_slice(&local_sweep).unwrap();
+        assert_eq!(sweep_output["ok"], true);
+        assert_eq!(sweep_output["points"].as_array().unwrap().len(), 2);
+
         let mut stale = store.load().unwrap().unwrap();
         stale.openrouter_free_model.as_mut().unwrap().model = "stale-model".into();
         fs::write(store.path(), serde_json::to_vec(&stale).unwrap()).unwrap();
@@ -4990,6 +5113,7 @@ mod tests {
                 false,
                 false,
                 None,
+                false,
                 &mut Vec::new(),
                 &mut Vec::new(),
             )
@@ -5007,6 +5131,7 @@ mod tests {
             false,
             true,
             None,
+            false,
             &mut Vec::new(),
             &mut Vec::new(),
         )

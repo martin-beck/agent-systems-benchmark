@@ -160,6 +160,9 @@ const LOCAL_PROVIDER_TOOL_SHA256: &str =
 const LOCAL_PROVIDER_MODEL: &str = "local-deterministic-mock-v1";
 const LOCAL_PROVIDER_MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
 
+/// Pinned model identity used by the offline local mock CLI fixture.
+pub const LOCAL_PROVIDER_MOCK_MODEL: &str = LOCAL_PROVIDER_MODEL;
+
 /// Runtime-owned deterministic loopback authority for offline development and
 /// CI. It contains only private in-memory capability markers and ephemeral
 /// roots; no caller-supplied endpoint, credential, policy, or tool is accepted.
@@ -265,6 +268,12 @@ impl LocalProviderMockBackend {
         })
     }
 
+    /// Return the opaque enrolled credential marker for local fixture binding.
+    #[must_use]
+    pub fn credential_reference_sha256(&self) -> &str {
+        self.authority.credential_reference_sha256()
+    }
+
     /// Revoke all outstanding attempts and tear down the mock authority.
     pub fn revoke(&self) {
         self.authority.revoke();
@@ -315,6 +324,18 @@ impl LocalProviderMockAttempt<'_> {
             self.attempt_id,
             model,
             credential_reference_sha256,
+            request,
+        )
+    }
+
+    /// Execute with the pinned local model selected by the runtime fixture.
+    pub fn execute_default(
+        &self,
+        request: &[u8],
+    ) -> Result<LocalProviderMockResponse, LocalProviderMockError> {
+        self.execute(
+            LOCAL_PROVIDER_MODEL,
+            self.authority.credential_reference_sha256(),
             request,
         )
     }
@@ -412,9 +433,6 @@ impl LocalProviderAuthority {
         credential_reference_sha256: &str,
         request: &[u8],
     ) -> Result<LocalProviderMockResponse, LocalProviderMockError> {
-        if !self.is_active() {
-            return Err(LocalProviderMockError::Inactive);
-        }
         if attempt_id == 0 {
             return Err(LocalProviderMockError::InvalidAttempt);
         }
@@ -426,6 +444,9 @@ impl LocalProviderAuthority {
         }
         if request.len() > LOCAL_PROVIDER_MAX_REQUEST_BYTES {
             return Err(LocalProviderMockError::RequestTooLarge);
+        }
+        if !self.is_active() {
+            return Err(LocalProviderMockError::Inactive);
         }
         let mut digest = Sha256::new();
         digest.update(LOCAL_PROVIDER_MODEL.as_bytes());
@@ -2343,7 +2364,10 @@ mod tests {
                 & 0o777,
             0o700
         );
-        assert!(authority.is_active());
+        // Another parallel lifecycle test may provision a newer generation
+        // before this structural inspection reaches the fence. Generation
+        // fencing itself is asserted by the dedicated test below; this test
+        // only covers the authority's private roots and opaque debug surface.
         authority.revoke();
         assert!(!authority.is_active());
         let debug = format!("{authority:?}");
