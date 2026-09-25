@@ -6,6 +6,8 @@
 import json
 from pathlib import Path
 
+import jsonschema
+
 
 ROOT = Path(__file__).parents[2]
 SCHEMA = json.loads((ROOT / "docs/orchestration-schema-v1.json").read_text())
@@ -32,6 +34,35 @@ def validate_request(value: dict) -> None:
     assert 0 < limits["max_artifact_total_bytes"] <= 268435456
 
 
+validator = jsonschema.Draft202012Validator(SCHEMA)
+validator.check_schema(SCHEMA)
+validator.validate(VALID)
+for operation in (
+    {"schema_version": 1, "kind": "status_request", "run_handle": {"id": "run-1", "generation": 1, "fence": "a" * 64}},
+    {"schema_version": 1, "kind": "cancel_request", "run_handle": {"id": "run-1", "generation": 1, "fence": "a" * 64}, "attempt_handle": {"id": "attempt-1", "generation": 1, "fence": "b" * 64}},
+    {"schema_version": 1, "kind": "retry_request", "run_handle": {"id": "run-1", "generation": 1, "fence": "a" * 64}, "retry_token": "c" * 64},
+    {"schema_version": 1, "kind": "result_page_request", "run_handle": {"id": "run-1", "generation": 1, "fence": "a" * 64}, "page_size": 16},
+):
+    validator.validate(operation)
+live = dict(VALID)
+live.update({"mode": "live", "credential_ref_digest": "d" * 64})
+validator.validate(live)
+replay = dict(VALID)
+replay.update({"mode": "strict-replay", "cassette_digest": "e" * 64})
+validator.validate(replay)
+for invalid in (
+    UNKNOWN,
+    {**VALID, "mode": "live"},
+    {**VALID, "mode": "strict-replay", "cassette_digest": "e" * 64, "credential_ref_digest": "d" * 64},
+):
+    try:
+        validator.validate(invalid)
+    except jsonschema.ValidationError:
+        pass
+    else:
+        raise AssertionError("invalid orchestration instance was accepted")
+
+
 assert SCHEMA["$defs"]["RunRequest"]["additionalProperties"] is False
 assert SCHEMA["$defs"]["RunRequest"]["properties"]["model_id"]["$ref"] == "#/$defs/Id"
 assert "scorer_revision" in SCHEMA["$defs"]["RunRequest"]["required"]
@@ -39,9 +70,3 @@ assert SCHEMA["$defs"]["Limits"]["properties"]["max_artifact_total_bytes"]["maxi
 for operation in ("StatusRequest", "CancelRequest", "RetryRequest", "ResultPageRequest"):
     assert SCHEMA["$defs"][operation]["additionalProperties"] is False
 validate_request(VALID)
-try:
-    validate_request(UNKNOWN)
-except AssertionError:
-    pass
-else:
-    raise AssertionError("unknown orchestration field was accepted")

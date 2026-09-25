@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/martin-beck/agent-systems-benchmark/blob/main/docs/orchestration-schema-v1.json",
+  "$id": "https://asb.example.invalid/schema/orchestration-v1",
   "title": "ASB central orchestration v1",
   "description": "Credential-free request, response, operation and event contract. Authority objects and secret bytes are not representable.",
   "oneOf": [
