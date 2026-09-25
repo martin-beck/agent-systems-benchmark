@@ -2,10 +2,20 @@
 // SPDX-License-Identifier: MIT
 //! Runtime-owned authority for handing a validated replay launch to a consumer.
 
+use crate::ProcessLimits;
 use crate::live_namespace::{LiveProviderNamespaceHandoff, NamespaceIdentity};
-use crate::sandbox::{LeaseClass, ResourceLease, SandboxBackend, SandboxError, SandboxLaunchInput};
+use crate::relay::ReplayRelay;
+use crate::sandbox::{
+    CpuSet, LeaseClass, NetworkPolicy, ResourceLease, Resources, SandboxBackend, SandboxError,
+    SandboxLaunchInput, SandboxSpec, ToolPin,
+};
+use crate::supervisor::{PinnedCommand, SupervisorPlan};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// A launch authority that can only be issued by the runtime factory.
 ///
@@ -23,6 +33,7 @@ pub struct ReplayLaunchAuthority {
     supervisor_digest: Option<String>,
     cassette_sha256: String,
     backend: Option<SandboxBackend>,
+    relay: Option<ReplayRelay>,
 }
 
 /// Owned launch values transferred after one-shot authority consumption.
@@ -37,6 +48,8 @@ pub struct ReplayLaunchContext {
     supervisor_digest: Option<String>,
     backend: Option<SandboxBackend>,
     operation_issued: bool,
+    #[allow(dead_code)]
+    relay: Option<ReplayRelay>,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -48,44 +61,141 @@ pub struct ReplayLaunchFactory;
 /// to the exact cassette before returning opaque authority.
 pub struct ReplayAuthoritySource;
 
-/// Runtime-owned local replay authority factory.
-///
-/// The launch inputs are retained by the runtime boundary.  Consumers may
-/// provide only the validated cassette identity to [`Self::acquire`]; they
-/// cannot construct or replace the lease, relay, sandbox, or backend between
-/// acquisition and attestation.
-pub struct LocalReplayAuthorityFactory {
-    input: SandboxLaunchInput,
-    lease: ResourceLease,
-    backend: SandboxBackend,
+/// Runtime-only bootstrap inputs.  The CLI cannot construct this type.
+#[allow(dead_code)]
+pub(crate) struct LocalReplayBootstrapSpec {
+    relay_root: PathBuf,
+    lease_root: PathBuf,
+    workspace: PathBuf,
+    tools: [ToolPin; 4],
 }
 
-impl LocalReplayAuthorityFactory {
-    /// Bind already-qualified runtime resources to one local replay factory.
-    ///
-    /// Resource provisioning and qualification belong to the runtime owner;
-    /// this constructor is intentionally the only boundary that can retain
-    /// them for subsequent cassette-scoped acquisition.
-    pub fn new(input: SandboxLaunchInput, lease: ResourceLease, backend: SandboxBackend) -> Self {
-        Self {
-            input,
-            lease,
-            backend,
+#[allow(dead_code)]
+impl LocalReplayBootstrapSpec {
+    pub(crate) fn new(
+        relay_root: &Path,
+        lease_root: &Path,
+        workspace: &Path,
+        tools: [ToolPin; 4],
+    ) -> Result<Self, ReplayAuthorityBootstrapError> {
+        for root in [relay_root, lease_root, workspace] {
+            if !root.is_absolute()
+                || !root.is_dir()
+                || fs::canonicalize(root).ok().as_deref() != Some(root)
+            {
+                return Err(ReplayAuthorityBootstrapError::InvalidRoot);
+            }
         }
+        Ok(Self {
+            relay_root: relay_root.to_owned(),
+            lease_root: lease_root.to_owned(),
+            workspace: workspace.to_owned(),
+            tools,
+        })
     }
 
-    /// Acquire one opaque authority for exactly one validated cassette.
+    pub(crate) fn provisioner(self) -> LocalReplayProvisioner {
+        LocalReplayProvisioner { spec: self }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(dead_code)]
+pub(crate) enum ReplayAuthorityBootstrapError {
+    InvalidRoot,
+}
+
+/// Opaque runtime handle used by the CLI integration; all launch resources
+/// remain owned by this runtime object.
+pub struct LocalReplayProvisioner {
+    spec: LocalReplayBootstrapSpec,
+}
+
+impl LocalReplayProvisioner {
+    /// Acquire one opaque authority for one exact cassette identity.
     pub fn acquire(
         self,
         cassette_sha256: &str,
     ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
-        ReplayAuthoritySource::issue(
-            self.input,
-            self.lease,
-            self.backend,
-            cassette_sha256.to_owned(),
+        ReplayAuthoritySource::validate_cassette_digest(cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Authority)?;
+        let generation = format!("replay-{}", &cassette_sha256[..16]);
+        let relay = ReplayRelay::bind(&self.spec.relay_root, &generation).map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let handoff = relay
+            .handoff(PathBuf::from("/run/asb/replay.sock"))
+            .map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+        let lease = ResourceLease::acquire(
+            &self.spec.lease_root,
+            LeaseClass::Benchmark,
+            CpuSet::new(vec![0]).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLease)
+            })?,
         )
+        .map_err(|_| ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLease))?;
+        let digest = executable_digest(Path::new("/bin/true")).map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let command = PinnedCommand::new_verified(PathBuf::from("/bin/true"), Vec::new(), &digest)
+            .map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+        let plan = SupervisorPlan::new(
+            command.clone(),
+            command.clone(),
+            handoff.socket_path().to_owned(),
+            generation.clone(),
+            cassette_sha256.to_owned(),
+            Duration::from_secs(30),
+        )
+        .map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let spec = SandboxSpec::new(
+            &self.spec.workspace,
+            PathBuf::from("."),
+            "/bin/true".into(),
+            Vec::new(),
+            BTreeMap::new(),
+            Resources::new(64 * 1024 * 1024, 16, 100, CpuSet::new(vec![0]).unwrap()).map_err(
+                |_| ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput),
+            )?,
+            NetworkPolicy::Deny,
+        )
+        .map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?
+        .with_supervisor(plan);
+        let input = SandboxLaunchInput::new(spec, ProcessLimits::default())
+            .map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?
+            .with_replay_handoff(handoff)
+            .map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+        ReplayAuthoritySource::issue_with_relay(
+            input,
+            lease,
+            SandboxBackend::new(
+                self.spec.tools[0].clone(),
+                self.spec.tools[1].clone(),
+                self.spec.tools[2].clone(),
+                self.spec.tools[3].clone(),
+            ),
+            cassette_sha256.to_owned(),
+            relay,
+        )
+        .map_err(|error| error)
     }
+}
+
+fn executable_digest(path: &Path) -> Result<String, std::io::Error> {
+    let bytes = fs::read(path)?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
 /// Failure while materializing runtime-owned replay authority.
@@ -120,6 +230,25 @@ impl ReplayAuthoritySource {
             .map_err(ReplayAuthoritySourceError::Attestation)?;
         ReplayLaunchFactory::issue_with_backend(token, input, lease, cassette_sha256, backend)
             .map_err(ReplayAuthoritySourceError::Authority)
+    }
+
+    fn issue_with_relay(
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        backend: SandboxBackend,
+        cassette_sha256: String,
+        relay: ReplayRelay,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        Self::validate_cassette_digest(&cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Authority)?;
+        let token = backend
+            .attest_replay_launch(&input, &lease, &cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Attestation)?;
+        let mut authority =
+            ReplayLaunchFactory::issue_with_backend(token, input, lease, cassette_sha256, backend)
+                .map_err(ReplayAuthoritySourceError::Authority)?;
+        authority.relay = Some(relay);
+        Ok(authority)
     }
 }
 
@@ -299,6 +428,7 @@ impl ReplayLaunchFactory {
             supervisor_digest,
             cassette_sha256,
             backend,
+            relay: None,
         })
     }
 }
@@ -555,6 +685,7 @@ impl ReplayLaunchAuthority {
             supervisor_digest: self.supervisor_digest,
             backend: self.backend,
             operation_issued: false,
+            relay: self.relay,
         })
     }
 }
