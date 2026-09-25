@@ -1148,6 +1148,12 @@ mod tests {
         .unwrap()
     }
 
+    fn command_fixture() -> PinnedCommand {
+        let path = PathBuf::from("/bin/true");
+        let digest = format!("{:x}", Sha256::digest(fs::read(&path).unwrap()));
+        PinnedCommand::new_verified(path, Vec::new(), &digest).unwrap()
+    }
+
     #[test]
     fn local_bootstrap_rejects_untrusted_root_before_any_effect() {
         let root = std::env::temp_dir().join(format!(
@@ -1202,6 +1208,50 @@ mod tests {
         ));
         assert_eq!(fs::read_dir(root.join("leases")).unwrap().count(), 0);
         assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_bootstrap_positive_acquires_and_spawns_owned_authority() {
+        if std::env::var_os("ASB_REQUIRE_NATIVE_SANDBOX").is_none() {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!(
+            "asb-replay-bootstrap-positive-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("leases")).unwrap();
+        fs::create_dir_all(root.join("workspace")).unwrap();
+        for path in [&root, &root.join("leases"), &root.join("workspace")] {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let pin = |path: &str, version: &str| ToolPin::new(path.into(), version.into()).unwrap();
+        let bootstrap = LocalReplayBootstrapSpec::new(
+            &root,
+            &root.join("leases"),
+            &root.join("workspace"),
+            [
+                pin("/usr/bin/bwrap", "bubblewrap 0.9.0"),
+                pin("/usr/bin/systemd-run", "systemd 255 (255.4-1ubuntu8.17)"),
+                pin("/usr/bin/systemctl", "systemd 255 (255.4-1ubuntu8.17)"),
+                pin("/usr/bin/taskset", "taskset from util-linux 2.39.3"),
+            ],
+            command_fixture(),
+            command_fixture(),
+            command_fixture(),
+        )
+        .unwrap();
+        let authority = bootstrap
+            .provisioner()
+            .acquire(ReplayAuthoritySource::validate_cassette_digest(&"e".repeat(64)).unwrap())
+            .unwrap();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let mut child = context.spawn_owned().unwrap();
+        let output = child.wait().unwrap();
+        assert_eq!(output.exit_code, Some(0));
+        assert_eq!(output.termination, crate::Termination::Exited);
         let _ = fs::remove_dir_all(root);
     }
 
