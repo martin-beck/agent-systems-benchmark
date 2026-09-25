@@ -1688,7 +1688,14 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             continue;
         };
         let observed = observed_state(plan, &record.run_id, record.state);
-        record.state = if matches!(
+        let replay_completed = plan.experiment.controls.replay.mode
+            == asb_protocol::ReplayMode::Replay
+            && record.state == PublicRunState::Completed;
+        record.state = if replay_completed {
+            // Strict replay commits lifecycle evidence in the orchestrator
+            // journal and does not fabricate provider-run artifacts.
+            PublicRunState::Completed
+        } else if matches!(
             observed,
             PublicRunState::Running | PublicRunState::Collecting
         ) || (uncertain_runs.contains(&record.run_id)
@@ -2056,7 +2063,17 @@ impl RunnerBackend {
                 if let Ok(mut catalog) = catalog_state.lock() {
                     let mut staged = catalog.clone();
                     if let Some(mut current) = staged.runs.get(&run_id).cloned() {
-                        let observed = observed_state(&plan, &run_id, current.state);
+                        let observed = if execution.is_ok()
+                            && plan.experiment.controls.replay.mode
+                                == asb_protocol::ReplayMode::Replay
+                        {
+                            // Strict replay commits its durable lifecycle in the
+                            // orchestrator journal; it intentionally does not
+                            // fabricate a provider-run manifest or artifacts.
+                            PublicRunState::Completed
+                        } else {
+                            observed_state(&plan, &run_id, current.state)
+                        };
                         if observed == current.state
                             && matches!(
                                 observed,
