@@ -46,11 +46,14 @@ explicit local fixture marker and delegates to the same config-bound paths:
 ```text
 asb easy run /absolute/path/EXPERIMENT.toml --use-config --local-mock
 asb easy sweep /absolute/path/EXPERIMENT.toml --use-config --local-mock
+asb easy record-campaign /absolute/path/MANIFEST.json --local-mock
 ```
 
 The guided command rejects live-provider, endpoint, and unknown options. It
 never contacts a provider or creates a `LiveProviderAttempt`; ordinary and
 live-provider paths retain their existing fail-closed behavior.
+The campaign command seals the already-bounded capture matrix for strict
+offline replay; it does not capture from or fall back to a provider.
 
 Only public model/endpoint identities and digests are persisted. Missing,
 stale, altered, or credential-bearing configuration is rejected before any

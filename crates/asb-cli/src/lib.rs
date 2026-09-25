@@ -342,6 +342,14 @@ fn guided_local(
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
+    if args.len() == 3 && args[0] == "record-campaign" {
+        if args[2] != "--local-mock" {
+            return Err(CliError::usage(
+                "easy record-campaign accepts only --local-mock",
+            ));
+        }
+        return record_campaign(Path::new(&args[1]), output).map(|()| 0);
+    }
     if args.len() != 4 {
         return Err(CliError::usage(
             "easy requires run|sweep PATH --use-config --local-mock",
@@ -476,7 +484,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb record-campaign MANIFEST.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
@@ -6861,8 +6869,10 @@ mod tests {
         assert_eq!(
             run(
                 &[
+                    "easy".into(),
                     "record-campaign".into(),
-                    manifest_path.as_os_str().to_owned()
+                    manifest_path.as_os_str().to_owned(),
+                    "--local-mock".into()
                 ],
                 &mut output,
                 &mut diagnostics,
@@ -6874,5 +6884,22 @@ mod tests {
         assert_eq!(result["offline_ready"], true);
         assert_eq!(result["tuple_count"], 1);
         assert!(cassette_path.is_file());
+
+        let mut hostile = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "record-campaign".into(),
+                    manifest_path.as_os_str().to_owned(),
+                    "--use-config".into(),
+                ],
+                &mut hostile,
+                &mut diagnostics,
+            ),
+            2
+        );
+        let hostile: Value = serde_json::from_slice(&hostile).unwrap();
+        assert_eq!(hostile["error"]["code"], "usage");
     }
 }
