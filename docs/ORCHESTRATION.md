@@ -87,7 +87,9 @@ The versioned request, response, and event contract is checked in at
 [`docs/orchestration-schema-v1.json`](orchestration-schema-v1.json). It fixes
 field names, closed objects, identifier patterns, mode vocabulary, idempotency
 limits, and numeric transport ceilings. AR-1452 adds Rust round-trip and hostile
-fixtures for this schema before the service is enabled.
+fixtures for the same immutable contract before the service is enabled. The
+design-level positive and unknown-field vectors are exercised by
+`tests/quality/test_orchestration_schema.py`.
 
 ## Failure and security rules
 
@@ -122,6 +124,11 @@ fixtures for this schema before the service is enabled.
    opaque handles; local mock/replay are first (AR-1452).
 3. Route CLI and control dispatch through the service and retire direct
    injection-only paths (AR-1453). `asb-control` remains the transport; it
-   cannot become a second run authority.
+   cannot become a second run authority. The compatibility period is exactly
+   one released protocol minor: old injection methods return a typed
+   `CompatibilityOnly` error after the new service path is available, and are
+   removed in the next major protocol version. `run`, `sweep`, `status`,
+   `cancel`, `retry`, and result-page operations all map to the v1 operations
+   in the checked-in schema.
 4. Requalify first-customer install, local benchmark, replay, cancellation,
    recovery, cleanup, and optional live admission on disposable runners.
