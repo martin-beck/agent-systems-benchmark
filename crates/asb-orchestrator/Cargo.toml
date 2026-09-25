@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
+asb-store = { version = "=0.1.0", path = "../asb-store" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.143", features = ["raw_value"] }
 sha2 = "=0.10.9"

@@ -155,6 +155,7 @@ name = "asb-orchestrator"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "asb-store",
  "serde",
  "serde_json",
  "sha2",

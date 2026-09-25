@@ -8,6 +8,10 @@
 //! effects behind [`AuthoritySource`].
 
 use asb_protocol::Id;
+use asb_store::{
+    AtomicStore, ExecutionState, JournalEvent, RecoveryDecision, RunManifest, StoreError,
+    StoreLimits,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -22,6 +26,7 @@ const MAX_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ARTIFACT_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_TIMEOUT_MS: u64 = 86_400_000;
 const MAX_OUTPUT_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_ACTIVE_RUNS: usize = 256;
 
 /// Execution mode admitted by the central service.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -83,6 +88,8 @@ impl RunLimits {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunRequest {
+    /// Closed request discriminator.
+    pub kind: String,
     /// Contract generation.
     pub schema_version: u16,
     /// Stable idempotency key supplied by a frontend.
@@ -112,7 +119,8 @@ pub struct RunRequest {
 }
 
 /// Server-issued opaque run handle with a causal fence.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RunHandle {
     id: Id,
     generation: u32,
@@ -138,7 +146,8 @@ impl RunHandle {
 }
 
 /// Server-issued opaque attempt handle with a causal fence.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AttemptHandle {
     id: Id,
     generation: u32,
@@ -164,7 +173,8 @@ impl AttemptHandle {
 }
 
 /// Closed run lifecycle.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     /// Request was accepted and journal intent exists.
     Admitted,
@@ -191,7 +201,8 @@ impl RunStatus {
 }
 
 /// Bounded service event.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RunEvent {
     /// Monotonic sequence within a run.
     pub sequence: u32,
@@ -204,6 +215,18 @@ pub struct RunEvent {
 pub struct AttemptCapability {
     mode: ExecutionMode,
     binding: String,
+}
+
+/// Digest-only outcome returned by a mode authority.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionOutcome {
+    /// Content digest of the deterministic result.
+    pub result_digest: String,
+    /// Retained process-output byte count.
+    pub output_bytes: u64,
+    /// Retained artifact byte count.
+    pub artifact_bytes: u64,
 }
 
 impl AttemptCapability {
@@ -223,6 +246,12 @@ impl AttemptCapability {
 pub trait AuthoritySource {
     /// Prepare one authority after the orchestrator has journaled intent.
     fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError>;
+    /// Execute the already-prepared attempt without exposing authority handles.
+    fn execute(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<ExecutionOutcome, AuthorityError>;
 }
 
 /// Deterministic source used by development and CI.
@@ -241,6 +270,21 @@ impl AuthoritySource for DeterministicAuthoritySource {
         Ok(AttemptCapability {
             mode: request.mode,
             binding,
+        })
+    }
+
+    fn execute(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if request.mode == ExecutionMode::Live || capability.mode != request.mode {
+            return Err(AuthorityError::LiveUnavailable);
+        }
+        Ok(ExecutionOutcome {
+            result_digest: capability.binding.clone(),
+            output_bytes: 0,
+            artifact_bytes: 0,
         })
     }
 }
@@ -266,6 +310,15 @@ pub enum OrchestratorError {
     /// Authority source rejected preparation.
     #[error("authority preparation failed: {0}")]
     Authority(#[from] AuthorityError),
+    /// Durable journal operation failed.
+    #[error("durable orchestration storage failed: {0}")]
+    Storage(String),
+    /// Output or artifact accounting exceeded the request bound.
+    #[error("run evidence limit exceeded: {0}")]
+    EvidenceLimit(&'static str),
+    /// Durable restart requires reconciliation before effects can resume.
+    #[error("run requires reconciliation")]
+    NeedsReconciliation,
     /// No such run exists.
     #[error("run not found")]
     NotFound,
@@ -286,12 +339,14 @@ pub enum AuthorityError {
 }
 
 struct RunRecord {
+    request: RunRequest,
     request_digest: String,
     run: RunHandle,
     attempt: AttemptHandle,
     status: RunStatus,
     capability: Option<AttemptCapability>,
     events: Vec<RunEvent>,
+    artifact_bytes: u64,
 }
 
 /// Central runtime-owned orchestration service.
@@ -300,6 +355,7 @@ pub struct Orchestrator<S> {
     next_id: u64,
     runs: BTreeMap<Id, RunRecord>,
     idempotency: BTreeMap<String, Id>,
+    store: Option<AtomicStore>,
 }
 
 impl<S: AuthoritySource> Orchestrator<S> {
@@ -311,12 +367,28 @@ impl<S: AuthoritySource> Orchestrator<S> {
             next_id: 1,
             runs: BTreeMap::new(),
             idempotency: BTreeMap::new(),
+            store: None,
         }
+    }
+
+    /// Open a crash-consistent authority journal at `root`.
+    pub fn open(source: S, root: impl AsRef<std::path::Path>) -> Result<Self, OrchestratorError> {
+        let store = AtomicStore::open(root, StoreLimits::default()).map_err(storage_error)?;
+        Ok(Self {
+            source,
+            next_id: 1,
+            runs: BTreeMap::new(),
+            idempotency: BTreeMap::new(),
+            store: Some(store),
+        })
     }
 
     /// Admit and prepare one request; duplicate identical requests are idempotent.
     pub fn admit(&mut self, request: RunRequest) -> Result<RunHandle, OrchestratorError> {
         validate_request(&request)?;
+        if self.runs.len() >= MAX_ACTIVE_RUNS {
+            return Err(OrchestratorError::InvalidLimit("active_runs"));
+        }
         let digest =
             request_digest(&request).map_err(|_| OrchestratorError::InvalidRequest("digest"))?;
         if let Some(existing_id) = self.idempotency.get(&request.idempotency_key) {
@@ -349,52 +421,151 @@ impl<S: AuthoritySource> Orchestrator<S> {
             generation: 1,
             fence: digest.clone(),
         };
-        let capability = self.source.prepare(&request)?;
         let mut record = RunRecord {
-            request_digest: digest,
+            request: request.clone(),
+            request_digest: digest.clone(),
             run: run.clone(),
-            attempt,
+            attempt: attempt.clone(),
             status: RunStatus::Admitted,
-            capability: Some(capability),
+            capability: None,
             events: Vec::new(),
+            artifact_bytes: 0,
         };
+        if let Some(store) = self.store.as_ref() {
+            store
+                .create_run(&RunManifest {
+                    schema_version: asb_store::MANIFEST_SCHEMA_VERSION,
+                    run_id: run.id.clone(),
+                    attempt_id: attempt.id.clone(),
+                    definition: serde_json::to_value(&request)
+                        .map_err(|_| OrchestratorError::InvalidRequest("manifest"))?,
+                })
+                .map_err(storage_error)?;
+            append_state(store, &run, &attempt, RunStatus::Admitted, 0)?;
+        }
+        let capability = match self.source.prepare(&request) {
+            Ok(capability) => capability,
+            Err(error) => {
+                let _ = push_event(&mut record, RunStatus::Failed);
+                let _ = self.persist_record(&record, RunStatus::Failed);
+                return Err(error.into());
+            }
+        };
+        record.capability = Some(capability);
+        record.request = request.clone();
         push_event(&mut record, RunStatus::Prepared)?;
         self.idempotency
             .insert(request.idempotency_key, run_id.clone());
-        self.runs.insert(run_id, record);
+        self.runs.insert(run_id.clone(), record);
+        self.persist_for(&run_id, RunStatus::Prepared)?;
         Ok(run)
     }
 
     /// Start an admitted attempt using its exact server-issued fence.
     pub fn start(&mut self, handle: &RunHandle) -> Result<RunStatus, OrchestratorError> {
-        let record = self.record_mut(handle)?;
-        if record.status != RunStatus::Prepared {
-            return Err(OrchestratorError::InvalidTransition);
+        let status = {
+            let record = self.record_mut(handle)?;
+            if record.status != RunStatus::Prepared {
+                return Err(OrchestratorError::InvalidTransition);
+            }
+            push_event(record, RunStatus::Running)?;
+            record.status
+        };
+        self.persist_for(handle.id(), status)?;
+        Ok(status)
+    }
+
+    /// Execute a prepared attempt through the authority source and collect a bounded outcome.
+    pub fn execute(
+        &mut self,
+        run: &RunHandle,
+        attempt: &AttemptHandle,
+    ) -> Result<ExecutionOutcome, OrchestratorError> {
+        let (request, capability) = {
+            let record = self.record(run)?;
+            if record.attempt != *attempt || record.status != RunStatus::Prepared {
+                return Err(OrchestratorError::StaleHandle);
+            }
+            (
+                record.request.clone(),
+                record
+                    .capability
+                    .as_ref()
+                    .ok_or(OrchestratorError::StaleHandle)?
+                    .binding
+                    .clone(),
+            )
+        };
+        self.start(run)?;
+        let cap = AttemptCapability {
+            mode: request.mode,
+            binding: capability,
+        };
+        let outcome = match self.source.execute(&request, &cap) {
+            Ok(value) => value,
+            Err(error) => {
+                {
+                    let record = self.record_mut(run)?;
+                    push_event(record, RunStatus::Failed)?;
+                    record.capability = None;
+                }
+                self.persist_for(run.id(), RunStatus::Failed)?;
+                return Err(error.into());
+            }
+        };
+        if outcome.output_bytes > request.limits.max_output_bytes {
+            return Err(OrchestratorError::EvidenceLimit("max_output_bytes"));
         }
-        push_event(record, RunStatus::Running)?;
-        Ok(record.status)
+        if outcome.artifact_bytes > request.limits.max_artifact_total_bytes {
+            return Err(OrchestratorError::EvidenceLimit("max_artifact_total_bytes"));
+        }
+        {
+            let record = self.record_mut(run)?;
+            push_event(record, RunStatus::Collecting)?;
+            push_event(record, RunStatus::Completed)?;
+            record.capability = None;
+            record.artifact_bytes = outcome.artifact_bytes;
+        }
+        self.persist_for(run.id(), RunStatus::Collecting)?;
+        self.persist_for(run.id(), RunStatus::Completed)?;
+        Ok(outcome)
     }
 
     /// Request cancellation; cleanup remains owned by the attempt session.
-    pub fn cancel(&mut self, handle: &RunHandle) -> Result<RunStatus, OrchestratorError> {
-        let record = self.record_mut(handle)?;
-        if record.status.terminal() {
-            return Ok(record.status);
-        }
-        push_event(record, RunStatus::Cancelled)?;
-        record.capability = None;
-        Ok(record.status)
+    pub fn cancel(
+        &mut self,
+        handle: &RunHandle,
+        attempt: &AttemptHandle,
+    ) -> Result<RunStatus, OrchestratorError> {
+        let status = {
+            let record = self.record_mut(handle)?;
+            if record.attempt != *attempt {
+                return Err(OrchestratorError::StaleHandle);
+            }
+            if record.status.terminal() {
+                return Ok(record.status);
+            }
+            push_event(record, RunStatus::Cancelled)?;
+            record.capability = None;
+            record.status
+        };
+        self.persist_for(handle.id(), status)?;
+        Ok(status)
     }
 
     /// Mark a running attempt as terminal after bounded collection.
     pub fn complete(&mut self, handle: &RunHandle) -> Result<RunStatus, OrchestratorError> {
-        let record = self.record_mut(handle)?;
-        if !matches!(record.status, RunStatus::Running | RunStatus::Collecting) {
-            return Err(OrchestratorError::InvalidTransition);
-        }
-        push_event(record, RunStatus::Completed)?;
-        record.capability = None;
-        Ok(record.status)
+        let status = {
+            let record = self.record_mut(handle)?;
+            if !matches!(record.status, RunStatus::Running | RunStatus::Collecting) {
+                return Err(OrchestratorError::InvalidTransition);
+            }
+            push_event(record, RunStatus::Completed)?;
+            record.capability = None;
+            record.status
+        };
+        self.persist_for(handle.id(), status)?;
+        Ok(status)
     }
 
     /// Read the authoritative current status.
@@ -410,6 +581,64 @@ impl<S: AuthoritySource> Orchestrator<S> {
     /// Read bounded lifecycle events for a valid handle.
     pub fn events(&self, handle: &RunHandle) -> Result<Vec<RunEvent>, OrchestratorError> {
         Ok(self.record(handle)?.events.clone())
+    }
+
+    /// Inspect durable state after a restart without starting any effect.
+    pub fn recovery(&self, handle: &RunHandle) -> Result<RecoveryDecision, OrchestratorError> {
+        let store = self.store.as_ref().ok_or(OrchestratorError::NotFound)?;
+        store
+            .recovery_decision(handle.id().0.as_str())
+            .map_err(storage_error)
+    }
+
+    fn persist_record(
+        &self,
+        record: &RunRecord,
+        status: RunStatus,
+    ) -> Result<(), OrchestratorError> {
+        let Some(store) = self.store.as_ref() else {
+            return Ok(());
+        };
+        let events = store
+            .load_journal(record.run.id().0.as_str())
+            .map_err(storage_error)?;
+        if events.last().map(|event| event.state) == Some(to_state(status)) {
+            return Ok(());
+        }
+        append_state(
+            store,
+            &record.run,
+            &record.attempt,
+            status,
+            events.len() as u64,
+        )
+    }
+
+    fn persist_for(&self, run_id: &Id, status: RunStatus) -> Result<(), OrchestratorError> {
+        let Some(store) = self.store.as_ref() else {
+            return Ok(());
+        };
+        let record = self.runs.get(run_id).ok_or(OrchestratorError::NotFound)?;
+        let events = store
+            .load_journal(run_id.0.as_str())
+            .map_err(storage_error)?;
+        if events.last().map(|event| event.state) == Some(to_state(status)) {
+            return Ok(());
+        }
+        let sequence = events.len() as u64;
+        store
+            .append(
+                run_id.0.as_str(),
+                &JournalEvent {
+                    schema_version: asb_store::JOURNAL_SCHEMA_VERSION,
+                    sequence,
+                    attempt_id: record.attempt.id.clone(),
+                    monotonic_offset_ns: sequence,
+                    state: to_state(status),
+                    evidence: serde_json::json!({"status": status}),
+                },
+            )
+            .map_err(storage_error)
     }
 
     fn record(&self, handle: &RunHandle) -> Result<&RunRecord, OrchestratorError> {
@@ -436,7 +665,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
 }
 
 fn push_event(record: &mut RunRecord, status: RunStatus) -> Result<(), OrchestratorError> {
-    if record.events.len() >= MAX_EVENTS {
+    if record.events.len() >= record.request.limits.max_events as usize
+        || record.events.len() >= MAX_EVENTS
+    {
         return Err(OrchestratorError::InvalidLimit("max_events"));
     }
     let sequence = record.events.len() as u32 + 1;
@@ -446,6 +677,9 @@ fn push_event(record: &mut RunRecord, status: RunStatus) -> Result<(), Orchestra
 }
 
 fn validate_request(request: &RunRequest) -> Result<(), OrchestratorError> {
+    if request.kind != "run_request" {
+        return Err(OrchestratorError::InvalidRequest("kind"));
+    }
     if request.schema_version != SCHEMA_VERSION {
         return Err(OrchestratorError::InvalidRequest("schema_version"));
     }
@@ -502,12 +736,52 @@ fn request_digest(request: &RunRequest) -> Result<String, serde_json::Error> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+fn storage_error(error: StoreError) -> OrchestratorError {
+    OrchestratorError::Storage(error.to_string())
+}
+
+fn to_state(status: RunStatus) -> ExecutionState {
+    match status {
+        RunStatus::Admitted => ExecutionState::Planned,
+        RunStatus::Prepared => ExecutionState::Prepared,
+        RunStatus::Running => ExecutionState::Running,
+        RunStatus::Collecting => ExecutionState::Collecting,
+        RunStatus::Completed => ExecutionState::Completed,
+        RunStatus::Failed => ExecutionState::Failed,
+        RunStatus::Cancelled => ExecutionState::Cancelled,
+        RunStatus::NeedsReconciliation => ExecutionState::Failed,
+    }
+}
+
+fn append_state(
+    store: &AtomicStore,
+    run: &RunHandle,
+    attempt: &AttemptHandle,
+    status: RunStatus,
+    sequence: u64,
+) -> Result<(), OrchestratorError> {
+    store
+        .append(
+            run.id().0.as_str(),
+            &JournalEvent {
+                schema_version: asb_store::JOURNAL_SCHEMA_VERSION,
+                sequence,
+                attempt_id: attempt.id.clone(),
+                monotonic_offset_ns: sequence,
+                state: to_state(status),
+                evidence: serde_json::json!({"status": status}),
+            },
+        )
+        .map_err(storage_error)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn request(mode: ExecutionMode) -> RunRequest {
         RunRequest {
+            kind: "run_request".into(),
             schema_version: SCHEMA_VERSION,
             idempotency_key: "one".into(),
             agent_id: Id("aider".into()),
@@ -575,7 +849,11 @@ mod tests {
             generation: handle.generation,
             fence: "f".repeat(64),
         };
-        assert_eq!(service.cancel(&stale), Err(OrchestratorError::StaleHandle));
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(
+            service.cancel(&stale, &attempt),
+            Err(OrchestratorError::StaleHandle)
+        );
     }
 
     #[test]
