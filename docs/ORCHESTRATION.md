@@ -107,10 +107,18 @@ design-level positive and unknown-field vectors are exercised by
   it does not require a particular host distribution or architecture.
 - Events and manifests contain identities, digests, statuses, and bounded
   metrics only. Each event is at most 64 KiB, each retained stream is subject to
-  the runtime's 64 MiB ceiling, and event/artifact counts are bounded by the
-  negotiated run limits. Schemas reject credential fields, prompt/transcript
-  fields, raw provider bodies, private host paths, and unknown fields; redaction
-  is performed before journaling rather than after publication.
+  the runtime's 64 MiB ceiling, each artifact is at most 64 MiB, and total
+  artifact bytes are at most 256 MiB. Event and artifact counts are bounded by
+  the negotiated run limits. Schemas reject credential fields,
+  prompt/transcript fields, raw provider bodies, private host paths, and unknown
+  fields; redaction is performed before journaling rather than after
+  publication.
+
+Run and attempt handles are server-issued objects containing an opaque ID,
+monotonic generation, and a fence digest. Every mutating operation must echo
+the complete handle; the service rejects copied, stale, or cross-run handles
+before journal mutation. A retry token is separately issued only after cleanup
+and reconciliation.
 
 ## Migration
 

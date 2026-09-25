@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[2]
+SCHEMA = json.loads((ROOT / "docs/orchestration-schema-v1.json").read_text())
 VALID = json.loads((ROOT / "docs/orchestration-schema-v1.valid.json").read_text())
 UNKNOWN = json.loads((ROOT / "docs/orchestration-schema-v1.unknown-field.json").read_text())
 
@@ -15,7 +16,7 @@ UNKNOWN = json.loads((ROOT / "docs/orchestration-schema-v1.unknown-field.json").
 def validate_request(value: dict) -> None:
     allowed = {
         "schema_version", "kind", "idempotency_key", "agent_id", "provider_id",
-        "model_id", "workload_id", "mode", "catalog_digest", "workload_revision",
+        "model_id", "workload_id", "mode", "catalog_digest", "workload_revision", "scorer_revision",
         "cassette_digest", "credential_ref_digest", "limits",
     }
     required = allowed - {"cassette_digest", "credential_ref_digest"}
@@ -27,8 +28,16 @@ def validate_request(value: dict) -> None:
     limits = value["limits"]
     assert 0 < limits["max_events"] <= 1024
     assert 0 < limits["max_artifacts"] <= 1024
+    assert 0 < limits["max_artifact_bytes"] <= 67108864
+    assert 0 < limits["max_artifact_total_bytes"] <= 268435456
 
 
+assert SCHEMA["$defs"]["RunRequest"]["additionalProperties"] is False
+assert SCHEMA["$defs"]["RunRequest"]["properties"]["model_id"]["$ref"] == "#/$defs/Id"
+assert "scorer_revision" in SCHEMA["$defs"]["RunRequest"]["required"]
+assert SCHEMA["$defs"]["Limits"]["properties"]["max_artifact_total_bytes"]["maximum"] == 268435456
+for operation in ("StatusRequest", "CancelRequest", "RetryRequest", "ResultPageRequest"):
+    assert SCHEMA["$defs"][operation]["additionalProperties"] is False
 validate_request(VALID)
 try:
     validate_request(UNKNOWN)
