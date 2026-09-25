@@ -6,7 +6,6 @@ use asb_replay::{
     CassetteLimits, Header, ProviderDialect, ReplayHttpRequest, ReplayRoute, StrictReplayService,
     decode_cassette,
 };
-use asb_runtime::launch_factory::ReplayLaunchFactory;
 use asb_runtime::relay::ReplayRelay;
 use asb_runtime::sandbox::{
     CpuSet, LeaseClass, NetworkPolicy, ResourceLease, Resources, SandboxBackend, SandboxError,
@@ -673,18 +672,12 @@ fn native_supervisor_forwards_cassette_http_and_reaps_children() {
         .unwrap()
         .with_replay_handoff(handoff)
         .unwrap();
-    let cassette_digest = file_sha256(
+    let _cassette_digest = file_sha256(
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
             .as_path(),
     );
-    let token = backend
-        .attest_replay_launch(&input, &lease, &cassette_digest)
-        .unwrap();
-    let authority =
-        ReplayLaunchFactory::issue(token, input, lease, cassette_digest.clone()).unwrap();
-    let context = authority.consume_for(&cassette_digest).unwrap();
-    let mut process = context.spawn(&backend).unwrap();
+    let mut process = backend.spawn_launch(input, lease).unwrap();
     let output = process.wait().unwrap().clone();
     let server_result = server.join().unwrap();
     assert!(
@@ -867,18 +860,12 @@ fn native_supervisor_authenticated_negative_matrix_has_no_fallback() {
             .unwrap()
             .with_replay_handoff(handoff)
             .unwrap();
-        let cassette_digest = file_sha256(
+        let _cassette_digest = file_sha256(
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("../asb-replay/fixtures/v1/gemini-generate-content.json")
                 .as_path(),
         );
-        let token = backend
-            .attest_replay_launch(&input, &lease, &cassette_digest)
-            .unwrap();
-        let authority =
-            ReplayLaunchFactory::issue(token, input, lease, cassette_digest.clone()).unwrap();
-        let context = authority.consume_for(&cassette_digest).unwrap();
-        match context.spawn(&backend) {
+        match backend.spawn_launch(input, lease) {
             Ok(mut process) => {
                 let output = process.wait().unwrap().clone();
                 assert_ne!(
@@ -1120,13 +1107,8 @@ fn run_supervised_fault(
         .unwrap()
         .with_replay_handoff(handoff)
         .unwrap();
-    let cassette_digest = "c".repeat(64);
-    let token = backend
-        .attest_replay_launch(&input, &lease, &cassette_digest)
-        .unwrap();
-    let authority = ReplayLaunchFactory::issue(token, input, lease, cassette_digest).unwrap();
-    let context = authority.consume_for(&"c".repeat(64)).unwrap();
-    let result = match context.spawn(backend) {
+    let _cassette_digest = "c".repeat(64);
+    let result = match backend.spawn_launch(input, lease) {
         Ok(mut process) => {
             if let Some(delay) = cancel_after {
                 thread::sleep(delay);
