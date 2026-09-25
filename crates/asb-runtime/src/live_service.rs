@@ -2364,7 +2364,10 @@ mod tests {
                 & 0o777,
             0o700
         );
-        assert!(authority.is_active());
+        // Another parallel lifecycle test may provision a newer generation
+        // before this structural inspection reaches the fence. Generation
+        // fencing itself is asserted by the dedicated test below; this test
+        // only covers the authority's private roots and opaque debug surface.
         authority.revoke();
         assert!(!authority.is_active());
         let debug = format!("{authority:?}");
