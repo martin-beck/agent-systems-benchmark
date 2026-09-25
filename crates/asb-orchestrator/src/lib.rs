@@ -923,6 +923,25 @@ impl<S: AuthoritySource> Orchestrator<S> {
         Ok(self.record(handle)?.status)
     }
 
+    /// Read the authoritative status for a request after a frontend restart.
+    ///
+    /// The idempotency key is the stable request identity retained in the
+    /// journal; callers do not need to reconstruct or persist an opaque run
+    /// handle in order to project durable lifecycle state.
+    pub fn status_for_idempotency_key(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<RunStatus, OrchestratorError> {
+        let run_id = self
+            .idempotency
+            .get(idempotency_key)
+            .ok_or(OrchestratorError::NotFound)?;
+        self.runs
+            .get(run_id)
+            .map(|record| record.status)
+            .ok_or(OrchestratorError::NotFound)
+    }
+
     /// Read the server-issued attempt handle paired with a run.
     pub fn attempt_handle(&self, handle: &RunHandle) -> Result<AttemptHandle, OrchestratorError> {
         Ok(self.record(handle)?.attempt.clone())

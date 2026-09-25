@@ -831,6 +831,28 @@ impl FrontendOrchestration {
             .ok_or(BackendFailure::StaleIdentity)?;
         self.cancel(&run_id)
     }
+
+    fn status_for_plan(
+        &self,
+        plan_run_id: &str,
+    ) -> Result<asb_orchestrator::RunStatus, BackendFailure> {
+        self.service
+            .status_for_idempotency_key(plan_run_id)
+            .map_err(orchestration_failure)
+    }
+}
+
+fn public_state_for_orchestration(status: asb_orchestrator::RunStatus) -> PublicRunState {
+    match status {
+        asb_orchestrator::RunStatus::Admitted => PublicRunState::Planned,
+        asb_orchestrator::RunStatus::Prepared => PublicRunState::Prepared,
+        asb_orchestrator::RunStatus::Running => PublicRunState::Running,
+        asb_orchestrator::RunStatus::Collecting => PublicRunState::Collecting,
+        asb_orchestrator::RunStatus::Completed => PublicRunState::Completed,
+        asb_orchestrator::RunStatus::Failed => PublicRunState::Failed,
+        asb_orchestrator::RunStatus::Cancelled => PublicRunState::Cancelled,
+        asb_orchestrator::RunStatus::NeedsReconciliation => PublicRunState::NeedsReconciliation,
+    }
 }
 
 fn plan_request(plan: &PlanFile) -> Result<RunRequest, BackendFailure> {
@@ -969,7 +991,8 @@ fn open_backend_with_capture(
         .try_lock()
         .map_err(|_| CliError::operation("control state root is already owned"))?;
     let mut catalog = load_or_create_catalog(&state_root)?;
-    reconcile_catalog(&mut catalog)?;
+    let orchestration = FrontendOrchestration::open(&state_root, &catalog.plans)?;
+    reconcile_catalog(&mut catalog, &orchestration)?;
     // Re-validate persisted authority material against the runner-owned
     // enrollment on every restart.  This prevents a copied or stale catalog
     // from becoming an authority source merely because its JSON is well formed.
@@ -994,7 +1017,6 @@ fn open_backend_with_capture(
     }
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
-    let orchestration = FrontendOrchestration::open(&state_root, &catalog.plans)?;
     Ok(RunnerBackend {
         state_root,
         runner_instance_id,
@@ -1643,7 +1665,10 @@ fn commit_analysis(root: &Path, bytes: &[u8], digest: &str) -> Result<(), CliErr
     result
 }
 
-fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
+fn reconcile_catalog(
+    catalog: &mut Catalog,
+    orchestration: &FrontendOrchestration,
+) -> Result<(), CliError> {
     if let Some(campaign) = catalog.recording_campaign.as_mut()
         && campaign.state == "recording"
     {
@@ -1687,7 +1712,10 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             }
             continue;
         };
-        let observed = observed_state(plan, &record.run_id, record.state);
+        let observed = orchestration
+            .status_for_plan(&record.run_id)
+            .map(public_state_for_orchestration)
+            .unwrap_or_else(|_| observed_state(plan, &record.run_id, record.state));
         let replay_completed = plan.experiment.controls.replay.mode
             == asb_protocol::ReplayMode::Replay
             && record.state == PublicRunState::Completed;
@@ -1705,7 +1733,8 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
                     | PublicRunState::Prepared
                     | PublicRunState::Running
                     | PublicRunState::Collecting
-            )) {
+            ))
+        {
             PublicRunState::NeedsReconciliation
         } else {
             observed
@@ -2060,20 +2089,16 @@ impl RunnerBackend {
                             .map(|_| ())
                             .map_err(|_| CliError::operation("orchestrated run failed"))
                     });
+                let orchestration_state = orchestration
+                    .lock()
+                    .ok()
+                    .and_then(|service| service.status_for_plan(&run_id).ok())
+                    .map(public_state_for_orchestration);
                 if let Ok(mut catalog) = catalog_state.lock() {
                     let mut staged = catalog.clone();
                     if let Some(mut current) = staged.runs.get(&run_id).cloned() {
-                        let observed = if execution.is_ok()
-                            && plan.experiment.controls.replay.mode
-                                == asb_protocol::ReplayMode::Replay
-                        {
-                            // Strict replay commits its durable lifecycle in the
-                            // orchestrator journal; it intentionally does not
-                            // fabricate a provider-run manifest or artifacts.
-                            PublicRunState::Completed
-                        } else {
-                            observed_state(&plan, &run_id, current.state)
-                        };
+                        let observed = orchestration_state
+                            .unwrap_or_else(|| observed_state(&plan, &run_id, current.state));
                         if observed == current.state
                             && matches!(
                                 observed,
@@ -2238,14 +2263,22 @@ impl RunnerBackend {
             .lock()
             .map_err(|_| BackendFailure::NeedsReconciliation)?
             .contains_key(run_id);
-        let state = if active_present
+        let state = if let Ok(orchestration_state) = self
+            .orchestration
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)
+            .and_then(|orchestration| orchestration.status_for_plan(run_id))
+        {
+            public_state_for_orchestration(orchestration_state)
+        } else if active_present
             && matches!(
                 record.state,
                 PublicRunState::Planned
                     | PublicRunState::Prepared
                     | PublicRunState::Running
                     | PublicRunState::Collecting
-            ) {
+            )
+        {
             record.state
         } else {
             observed_state(&plan, run_id, record.state)
