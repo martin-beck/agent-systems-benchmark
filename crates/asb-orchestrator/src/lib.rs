@@ -880,6 +880,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             if record.attempt != *attempt {
                 return Err(OrchestratorError::StaleHandle);
             }
+            if !matches!(record.status, RunStatus::Running | RunStatus::Collecting) {
+                return Err(OrchestratorError::InvalidTransition);
+            }
             (record.request.clone(), record.capability.clone())
         };
         if let Some(capability) = capability.as_ref()
@@ -959,10 +962,14 @@ impl<S: AuthoritySource> Orchestrator<S> {
             record.status = RunStatus::Failed;
             record.status
         };
-        self.persist_for(handle.id(), status)?;
+        let persisted = self.persist_for(handle.id(), status);
+        if persisted.is_err() {
+            return persisted.map(|_| status);
+        }
         if let Some(record) = self.runs.get_mut(&handle.id) {
             record.durability_barrier = false;
         }
+        persisted?;
         Ok(status)
     }
 
