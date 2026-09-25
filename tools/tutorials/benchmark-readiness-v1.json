@@ -35,7 +35,7 @@
       "id": "validate-provider-config",
       "command": [
         "asb", "setup", "--provider-profile", "openrouter", "--model",
-        "deepseek/deepseek-chat-v3-0324:free", "--output", "benchmark-readiness.json"
+        "cohere/north-mini-code:free", "--output", "benchmark-readiness.json"
       ],
       "expect": {"exit_code": 0, "stdout_shape": "setup-v1"},
       "references": [{"path": "benchmark-readiness.json", "kind": "output"}],

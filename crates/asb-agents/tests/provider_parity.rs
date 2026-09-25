@@ -293,8 +293,8 @@ fn openrouter_effective_requests_preserve_one_profile_for_every_supported_agent(
             .iter()
             .all(|item| item.profile_sha256 == plan.profile_sha256())
     );
-    let chat = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
-    let responses = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"input":[],"tools":[{"type":"function"}]}"#;
+    let chat = br#"{"model":"cohere/north-mini-code:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
+    let responses = br#"{"model":"cohere/north-mini-code:free","stream":true,"input":[],"tools":[{"type":"function"}]}"#;
     for selected in SUPPORTED {
         let agent = openrouter_agent(selected);
         let route = profile
@@ -340,7 +340,7 @@ fn openrouter_endpoint_mismatch_and_unsupported_settings_fail_closed() {
         profile.translate(OpenRouterAgent::Aider, &changed),
         Err(asb_agents::openrouter::OpenRouterProfileError::ProfileMismatch)
     ));
-    let body = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
+    let body = br#"{"model":"cohere/north-mini-code:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
     assert!(matches!(
         profile.verify_effective_request(
             OpenRouterAgent::Aider,
@@ -357,7 +357,7 @@ fn openrouter_endpoint_mismatch_and_unsupported_settings_fail_closed() {
             profile.provider_profile(),
             "/api/v1/chat/completions",
             "Bearer synthetic-fixture-token",
-            br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"messages":[],"tools":[{}],"reasoning_effort":"low"}"#,
+            br#"{"model":"cohere/north-mini-code:free","stream":true,"messages":[],"tools":[{}],"reasoning_effort":"low"}"#,
         ),
         Err(asb_agents::openrouter::OpenRouterProfileError::EffectiveRequestMismatch)
     ));
@@ -459,8 +459,8 @@ fn openrouter_replay_and_live_choices_stay_profile_exact_in_parallel() {
 fn openrouter_parallel_same_profile_sessions_never_bleed_credentials() {
     let profile = OpenRouterProfile::new(openrouter_credential_reference().unwrap()).unwrap();
     let profile = Arc::new(profile);
-    let chat = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
-    let responses = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"input":[],"tools":[{"type":"function"}]}"#;
+    let chat = br#"{"model":"cohere/north-mini-code:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
+    let responses = br#"{"model":"cohere/north-mini-code:free","stream":true,"input":[],"tools":[{"type":"function"}]}"#;
     let threads = SUPPORTED
         .into_iter()
         .map(|selected| {
@@ -516,7 +516,7 @@ fn openrouter_credential_bleed_is_rejected_and_secret_never_exposed() {
             profile.provider_profile(),
             "/api/v1/responses",
             "Bearer synthetic-fixture-token",
-            br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"input":[],"tools":[{}],"api_key":"sk-leaked"}"#,
+            br#"{"model":"cohere/north-mini-code:free","stream":true,"input":[],"tools":[{}],"api_key":"sk-leaked"}"#,
         ),
         Err(asb_agents::openrouter::OpenRouterProfileError::EffectiveRequestMismatch)
     ));
@@ -526,7 +526,7 @@ fn openrouter_credential_bleed_is_rejected_and_secret_never_exposed() {
             profile.provider_profile(),
             "/api/v1/responses",
             "Bearer synthetic-fixture-token",
-            br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"input":[],"tools":[{}],"authorization":"Bearer sk-leaked"}"#,
+            br#"{"model":"cohere/north-mini-code:free","stream":true,"input":[],"tools":[{}],"authorization":"Bearer sk-leaked"}"#,
         ),
         Err(asb_agents::openrouter::OpenRouterProfileError::EffectiveRequestMismatch)
     ));

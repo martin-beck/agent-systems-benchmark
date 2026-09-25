@@ -28,7 +28,7 @@ evidence boundary, not a claim of native third-party provider-service qualificat
 
 The OpenRouter profile (AR-1325) is pinned to `https://openrouter.ai/api/v1` with
 `ProviderKind::OpenAiCompatible` and the dated model snapshot
-`deepseek/deepseek-chat-v3-0324:free@2026-09-22`. Every compatible adapter projection translates
+`cohere/north-mini-code:free@2026-09-25`. Every compatible adapter projection translates
 one exact profile: identical endpoint, model, API-mode, settings, and resolver identity; Gemini
 is rejected before launch because it has no proven OpenRouter boundary.
 

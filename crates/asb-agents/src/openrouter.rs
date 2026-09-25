@@ -28,18 +28,18 @@ const MAX_AUTHORIZATION_BYTES: usize = 8 * 1024;
 /// Exact public API base accepted by the built-in profile.
 pub const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
 /// Exact free-model identifier transmitted to OpenRouter.
-pub const OPENROUTER_MODEL: &str = "deepseek/deepseek-chat-v3-0324:free";
+pub const OPENROUTER_MODEL: &str = "cohere/north-mini-code:free";
 /// Date on which the [`OPENROUTER_MODEL`] snapshot was pinned.
-pub const OPENROUTER_MODEL_SNAPSHOT_DATE: &str = "2026-09-22";
+pub const OPENROUTER_MODEL_SNAPSHOT_DATE: &str = "2026-09-25";
 /// Dated snapshot identity recorded as immutable evidence instead of a moving alias.
-pub const OPENROUTER_MODEL_SNAPSHOT: &str = "deepseek/deepseek-chat-v3-0324:free@2026-09-22";
+pub const OPENROUTER_MODEL_SNAPSHOT: &str = "cohere/north-mini-code:free@2026-09-25";
 /// Process-environment credential reference for the OpenRouter API key.
 pub const OPENROUTER_API_KEY_ENV: &str = "OPENROUTER_API_KEY";
 
 /// Credential-free provider-specific pinning evidence.
 const OPENROUTER_ADDITIONAL_SETTINGS: &str = concat!(
     "openrouter-profile-v1\n",
-    "model_snapshot=deepseek/deepseek-chat-v3-0324:free@2026-09-22\n",
+    "model_snapshot=cohere/north-mini-code:free@2026-09-25\n",
     "api=openai-compatible\n",
     "sampling=profile-defaults\n",
 );
@@ -499,8 +499,8 @@ mod tests {
     #[test]
     fn bounded_effective_requests_prove_routes_settings_tools_and_redaction() {
         let profile = profile();
-        let chat = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
-        let responses = br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"input":[],"tools":[{"type":"function"}]}"#;
+        let chat = br#"{"model":"cohere/north-mini-code:free","stream":true,"messages":[],"tools":[{"type":"function"}]}"#;
+        let responses = br#"{"model":"cohere/north-mini-code:free","stream":true,"input":[],"tools":[{"type":"function"}]}"#;
         let chat_proof = profile
             .verify_effective_request(
                 OpenRouterAgent::Aider,
@@ -536,14 +536,14 @@ mod tests {
         let profile = profile();
         let cases: [(&str, &str, &[u8]); 9] = [
             ("/api/v1/responses", "Bearer token", b"not-json"),
-            ("/api/v1/responses", "", br#"{"model":"deepseek/deepseek-chat-v3-0324:free"}"#),
-            ("/v1/chat/completions", "Bearer token", br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"tools":[{}]}"#),
+            ("/api/v1/responses", "", br#"{"model":"cohere/north-mini-code:free"}"#),
+            ("/v1/chat/completions", "Bearer token", br#"{"model":"cohere/north-mini-code:free","stream":true,"tools":[{}]}"#),
             ("/api/v1/chat/completions", "Bearer token", br#"{"model":"wrong","stream":true,"tools":[{}]}"#),
-            ("/api/v1/responses", "Bearer token", br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":false,"tools":[{}]}"#),
-            ("/api/v1/responses", "Bearer token", br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"tools":[]}"#),
-            ("/api/v1/responses", "Bearer token", br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"tools":[{}],"temperature":0}"#),
-            ("/api/v1/responses", "Bearer token", br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"tools":[{}],"reasoning_effort":"low"}"#),
-            ("/api/v1/responses", "Bearer token", br#"{"model":"deepseek/deepseek-chat-v3-0324:free","stream":true,"tools":[{}],"api_key":"secret"}"#),
+            ("/api/v1/responses", "Bearer token", br#"{"model":"cohere/north-mini-code:free","stream":false,"tools":[{}]}"#),
+            ("/api/v1/responses", "Bearer token", br#"{"model":"cohere/north-mini-code:free","stream":true,"tools":[]}"#),
+            ("/api/v1/responses", "Bearer token", br#"{"model":"cohere/north-mini-code:free","stream":true,"tools":[{}],"temperature":0}"#),
+            ("/api/v1/responses", "Bearer token", br#"{"model":"cohere/north-mini-code:free","stream":true,"tools":[{}],"reasoning_effort":"low"}"#),
+            ("/api/v1/responses", "Bearer token", br#"{"model":"cohere/north-mini-code:free","stream":true,"tools":[{}],"api_key":"secret"}"#),
         ];
         for (path, authorization, body) in cases {
             assert!(matches!(

@@ -59,6 +59,26 @@ Only public model/endpoint identities and digests are persisted. Missing,
 stale, altered, or credential-bearing configuration is rejected before any
 provider contact.
 
+### Changing the provider, model, or agent set
+
+The catalog and planner are the single selection authority. To change a
+selection, refresh the catalog and generate a new content-pinned plan; do not
+edit a prior selection or maintain a second model registry:
+
+```sh
+asb provider-catalog > catalog.json
+asb provider-plan --catalog-sha256 "$(jq -r .catalog_sha256 catalog.json)" \
+  --provider-profile openrouter \
+  --agent codex --agent opendesk \
+  --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
+```
+
+Replace the provider profile and repeated `--agent` values with entries
+advertised by the same catalog. The selected model is the catalog's exact
+dated pin; stale, unsupported, mixed-provider, duplicate, or incompatible
+agent selections fail closed and require generating a fresh plan. The planner
+does not contact a provider or store a credential.
+
 ## TUI route
 
 Populate `MultiAgentCatalog` from the runner, then:
@@ -82,3 +102,30 @@ not belong in TOML, JSON selection files, argv, environment, logs, or reports.
 OpenAI and OpenRouter selections are supported when their preflight evidence is
 present; Ollama is advertised only when its local-daemon evidence is verified.
 Unsupported combinations remain unavailable rather than being guessed.
+
+## Optional local OpenRouter measurement
+
+The operator-only helper below is supplementary `remote_live` evidence; it is
+not part of ASB runtime execution and is never invoked by CI. Supply one
+bounded workload prompt on standard input. The helper reads the key from
+`OPENROUTER_API_KEY` or the mode-0600 `~/.api_key_openrouter` file, and emits
+only the workload identity, prompt digest, model identity, status, bounded
+timings, and token counters. Prompts, responses, credentials, headers, and
+private paths are not retained.
+
+```sh
+cargo run --locked -q -p asb-cli --bin asb -- provider-catalog > /tmp/asb-provider-catalog.json
+python3 tools/local_openrouter_measurement.py \
+  --catalog /tmp/asb-provider-catalog.json \
+  --workload-id original.bug-fix --agent codex --trials 1
+```
+
+The helper loads the selected workload's checked-in `prompt.md` transiently;
+the prompt and model response are never written. Repeat `--agent` for a
+catalog-advertised set and pass `--model` only when it exactly matches the
+fresh catalog profile. Unsupported, duplicate, stale, or mixed selections
+fail before provider contact.
+
+This helper does not make `asb run` or `asb sweep` live-provider capable. Those
+commands retain their runtime-owned authority boundary and deterministic local
+mock path; remote reachability is optional evidence only.
