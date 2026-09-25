@@ -42,6 +42,47 @@ pub struct ReplayLaunchContext {
 /// Runtime-owned factory for validated replay launch authority.
 pub struct ReplayLaunchFactory;
 
+/// Runtime-owned source that materializes replay authority from a validated
+/// launch boundary. Callers provide only already-validated runtime objects;
+/// the source performs the sandbox attestation and binds the resulting token
+/// to the exact cassette before returning opaque authority.
+pub struct ReplayAuthoritySource;
+
+/// Failure while materializing runtime-owned replay authority.
+#[derive(Debug)]
+pub enum ReplayAuthoritySourceError {
+    /// The runtime sandbox could not attest the launch boundary.
+    Attestation(SandboxError),
+    /// The attested values did not satisfy the authority contract.
+    Authority(LaunchAuthorityError),
+}
+
+impl ReplayAuthoritySource {
+    fn validate_cassette_digest(value: &str) -> Result<(), LaunchAuthorityError> {
+        if valid_digest(value) {
+            Ok(())
+        } else {
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        }
+    }
+
+    /// Attest and materialize one authority for one exact replay cassette.
+    pub fn issue(
+        input: SandboxLaunchInput,
+        lease: ResourceLease,
+        backend: SandboxBackend,
+        cassette_sha256: String,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        Self::validate_cassette_digest(&cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Authority)?;
+        let token = backend
+            .attest_replay_launch(&input, &lease, &cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Attestation)?;
+        ReplayLaunchFactory::issue_with_backend(token, input, lease, cassette_sha256, backend)
+            .map_err(ReplayAuthoritySourceError::Authority)
+    }
+}
+
 /// Runtime-owned authority for one explicitly admitted live-provider launch.
 ///
 /// This type deliberately contains no endpoint, namespace, or credential
@@ -811,6 +852,15 @@ mod tests {
         assert!(matches!(
             result,
             Err(LaunchAuthorityError::IdentityMismatch)
+        ));
+    }
+
+    #[test]
+    fn authority_source_digest_gate_is_closed() {
+        assert!(ReplayAuthoritySource::validate_cassette_digest(&"e".repeat(64)).is_ok());
+        assert!(matches!(
+            ReplayAuthoritySource::validate_cassette_digest("not-a-digest"),
+            Err(LaunchAuthorityError::InvalidLaunchInput)
         ));
     }
 
