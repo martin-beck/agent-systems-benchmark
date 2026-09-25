@@ -272,12 +272,7 @@ pub trait AuthoritySource {
         request: &RunRequest,
         capability: &AttemptCapability,
         deadline: Instant,
-    ) -> Result<ExecutionOutcome, AuthorityError> {
-        if Instant::now() >= deadline {
-            return Err(AuthorityError::Timeout);
-        }
-        self.execute(request, capability)
-    }
+    ) -> Result<ExecutionOutcome, AuthorityError>;
     /// Revoke runtime resources before terminal cancellation.
     fn cancel(
         &mut self,
@@ -331,6 +326,18 @@ impl AuthoritySource for DeterministicAuthoritySource {
             artifact_count: 0,
             largest_artifact_bytes: 0,
         })
+    }
+
+    fn execute_until(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+        deadline: Instant,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if Instant::now() >= deadline {
+            return Err(AuthorityError::Timeout);
+        }
+        self.execute(request, capability)
     }
 }
 
@@ -399,6 +406,18 @@ impl AuthoritySource for LocalMockAuthoritySource {
             artifact_count: 0,
             largest_artifact_bytes: 0,
         })
+    }
+
+    fn execute_until(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+        deadline: Instant,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if Instant::now() >= deadline {
+            return Err(AuthorityError::Timeout);
+        }
+        self.execute(request, capability)
     }
 
     fn cancel(
@@ -748,7 +767,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
         let outcome = match self.source.execute_until(&request, &cap, deadline) {
             Ok(value) => value,
             Err(error) => {
-                let _ = self.source.cancel(&request, &cap);
+                if self.source.cancel(&request, &cap).is_err() {
+                    return Err(self.cleanup_barrier(run.id()));
+                }
                 {
                     let record = self.record_mut(run)?;
                     push_event(record, RunStatus::Failed)?;
@@ -759,7 +780,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             }
         };
         if started.elapsed().as_millis() > u128::from(request.limits.timeout_ms) {
-            let _ = self.source.cancel(&request, &cap);
+            if self.source.cancel(&request, &cap).is_err() {
+                return Err(self.cleanup_barrier(run.id()));
+            }
             {
                 let record = self.record_mut(run)?;
                 push_event(record, RunStatus::Failed)?;
@@ -780,7 +803,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             None
         };
         if let Some(kind) = limit_error {
-            let _ = self.source.cancel(&request, &cap);
+            if self.source.cancel(&request, &cap).is_err() {
+                return Err(self.cleanup_barrier(run.id()));
+            }
             {
                 let record = self.record_mut(run)?;
                 push_event(record, RunStatus::Failed)?;
@@ -788,6 +813,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             }
             self.persist_for(run.id(), RunStatus::Failed)?;
             return Err(OrchestratorError::EvidenceLimit(kind));
+        }
+        if self.source.cancel(&request, &cap).is_err() {
+            return Err(self.cleanup_barrier(run.id()));
         }
         {
             let record = self.record_mut(run)?;
@@ -820,8 +848,10 @@ impl<S: AuthoritySource> Orchestrator<S> {
             }
             (record.request.clone(), record.capability.clone())
         };
-        if let Some(capability) = capability.as_ref() {
-            self.source.cancel(&request, capability)?;
+        if let Some(capability) = capability.as_ref()
+            && self.source.cancel(&request, capability).is_err()
+        {
+            return Err(self.cleanup_barrier(handle.id()));
         }
         let status = {
             let record = self.record_mut(handle)?;
@@ -845,6 +875,18 @@ impl<S: AuthoritySource> Orchestrator<S> {
         handle: &RunHandle,
         attempt: &AttemptHandle,
     ) -> Result<RunStatus, OrchestratorError> {
+        let (request, capability) = {
+            let record = self.record(handle)?;
+            if record.attempt != *attempt {
+                return Err(OrchestratorError::StaleHandle);
+            }
+            (record.request.clone(), record.capability.clone())
+        };
+        if let Some(capability) = capability.as_ref()
+            && self.source.cancel(&request, capability).is_err()
+        {
+            return Err(self.cleanup_barrier(handle.id()));
+        }
         let status = {
             let record = self.record_mut(handle)?;
             if record.attempt != *attempt {
@@ -945,6 +987,15 @@ impl<S: AuthoritySource> Orchestrator<S> {
             status,
             events.len() as u64,
         )
+    }
+
+    fn cleanup_barrier(&mut self, run_id: &Id) -> OrchestratorError {
+        if let Some(record) = self.runs.get_mut(run_id) {
+            record.status = RunStatus::NeedsReconciliation;
+            record.capability = None;
+            record.durability_barrier = true;
+        }
+        OrchestratorError::NeedsReconciliation
     }
 
     fn persist_for(&mut self, run_id: &Id, status: RunStatus) -> Result<(), OrchestratorError> {
