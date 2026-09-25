@@ -5,6 +5,13 @@ is the parity view for registry provenance, local fixture adaptation, platform
 evidence, and CLI inventory. Run `python3 tools/quality/generate_workload_catalog.py`
 to verify it; CI rejects stale generated output.
 
+The machine-generated [literature parity artifact](generated/literature-parity-v1.json)
+reconciles every benchmark and framework named by this document, `RELATED_WORK.md`,
+or `PLAN.md` to exactly one registry identity. Run
+`python3 tools/quality/reconcile_literature.py` to verify it. Framework and harness
+records remain visible for provenance but are never executable workloads without an
+independent task protocol and grader.
+
 ## Initial portable software engineering suite
 
 Implement these small, original fixtures through extension API v1 before importing
