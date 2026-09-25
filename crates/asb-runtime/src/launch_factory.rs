@@ -48,6 +48,46 @@ pub struct ReplayLaunchFactory;
 /// to the exact cassette before returning opaque authority.
 pub struct ReplayAuthoritySource;
 
+/// Runtime-owned local replay authority factory.
+///
+/// The launch inputs are retained by the runtime boundary.  Consumers may
+/// provide only the validated cassette identity to [`Self::acquire`]; they
+/// cannot construct or replace the lease, relay, sandbox, or backend between
+/// acquisition and attestation.
+pub struct LocalReplayAuthorityFactory {
+    input: SandboxLaunchInput,
+    lease: ResourceLease,
+    backend: SandboxBackend,
+}
+
+impl LocalReplayAuthorityFactory {
+    /// Bind already-qualified runtime resources to one local replay factory.
+    ///
+    /// Resource provisioning and qualification belong to the runtime owner;
+    /// this constructor is intentionally the only boundary that can retain
+    /// them for subsequent cassette-scoped acquisition.
+    pub fn new(input: SandboxLaunchInput, lease: ResourceLease, backend: SandboxBackend) -> Self {
+        Self {
+            input,
+            lease,
+            backend,
+        }
+    }
+
+    /// Acquire one opaque authority for exactly one validated cassette.
+    pub fn acquire(
+        self,
+        cassette_sha256: &str,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        ReplayAuthoritySource::issue(
+            self.input,
+            self.lease,
+            self.backend,
+            cassette_sha256.to_owned(),
+        )
+    }
+}
+
 /// Failure while materializing runtime-owned replay authority.
 #[derive(Debug)]
 pub enum ReplayAuthoritySourceError {
