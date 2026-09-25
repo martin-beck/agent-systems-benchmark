@@ -234,6 +234,7 @@ fn dispatch(
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
         [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
         [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
+        [command, easy_args @ ..] if command == "easy" => guided_local(easy_args, stdout, stderr),
         [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
@@ -332,6 +333,62 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
         .collect()
 }
 
+/// Run the catalog/config-driven local qualification fixture through the
+/// ordinary run/sweep dispatcher. This command deliberately has no live or
+/// endpoint option: the explicit `--local-mock --use-config` pair is the
+/// complete authority surface.
+fn guided_local(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    if args.len() != 4 {
+        return Err(CliError::usage(
+            "easy requires run|sweep PATH --use-config --local-mock",
+        ));
+    }
+    if args[1].is_empty() || !args[2..].iter().any(|flag| flag == "--use-config") {
+        return Err(CliError::validation(
+            "easy requires an experiment path and --use-config",
+        ));
+    }
+    if !args[2..].iter().any(|flag| flag == "--local-mock")
+        || args[2..]
+            .iter()
+            .any(|flag| !matches!(flag.as_str(), "--use-config" | "--local-mock"))
+    {
+        return Err(CliError::usage(
+            "easy accepts only --use-config and --local-mock",
+        ));
+    }
+    let store = ConfigStore::from_environment()
+        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    guided_local_at(args, &store, output, progress)
+}
+
+fn guided_local_at(
+    args: &[String],
+    store: &ConfigStore,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    let sweep = match args[0].as_str() {
+        "run" => false,
+        "sweep" => true,
+        _ => return Err(CliError::usage("easy requires run or sweep")),
+    };
+    execute_inner_from_source(
+        Path::new(&args[1]),
+        SelectionSource::Config(&store),
+        sweep,
+        false,
+        None,
+        true,
+        output,
+        progress,
+    )
+}
+
 /// Emit a bounded, credential-free authenticated control request.
 fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
     let usage =
@@ -395,6 +452,7 @@ fn command_name(args: &[OsString]) -> &'static str {
     match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
         Some("setup") => "setup",
+        Some("easy") => "easy",
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
         Some("provider-catalog") => "provider-catalog",
@@ -418,7 +476,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb record-campaign MANIFEST.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
@@ -528,7 +586,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui --help --version' asb"
+        "complete -W 'doctor setup easy capabilities provider-catalog workload-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -4864,6 +4922,68 @@ mod tests {
         assert_eq!(run(&["unknown".into()], &mut output, &mut diagnostic), 2);
         let error: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(error["error"]["code"], "usage");
+    }
+
+    #[test]
+    fn guided_local_requires_explicit_mock_and_config_flags() {
+        let missing_mock = vec![
+            "run".into(),
+            "experiment.toml".into(),
+            "--use-config".into(),
+            "--live-provider".into(),
+        ];
+        assert!(guided_local(&missing_mock, &mut Vec::new(), &mut Vec::new()).is_err());
+
+        let unknown = vec![
+            "sweep".into(),
+            "experiment.toml".into(),
+            "--use-config".into(),
+            "--local-mock".into(),
+            "--endpoint".into(),
+        ];
+        assert!(guided_local(&unknown, &mut Vec::new(), &mut Vec::new()).is_err());
+
+        let absent_config = vec![
+            "run".into(),
+            "experiment.toml".into(),
+            "--use-config".into(),
+            "--local-mock".into(),
+        ];
+        let result = guided_local(&absent_config, &mut Vec::new(), &mut Vec::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn guided_local_delegates_catalog_bound_run_to_mock() {
+        let scratch = Scratch::new("guided-local-positive");
+        let store = ConfigStore::new(scratch.0.join("config.json"));
+        configure_openrouter_at(&store, &mut Vec::new()).unwrap();
+        let (plan_path, mut fixture) = plan_fixture(&scratch.0, "guided-local");
+        fixture.experiment.agent.implementation = "codex".into();
+        let configured = load_openrouter_config_at(&store).unwrap();
+        let configured_plan = provider_plan_from_selection(&configured, "codex").unwrap();
+        fixture.experiment.model.provider = "openrouter".into();
+        fixture.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        fixture.experiment.model.settings.additional_settings_sha256 =
+            Some(configured_plan.provider_profile_sha256);
+        fixture.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&fixture).unwrap()).unwrap();
+
+        let args = vec![
+            "run".into(),
+            plan_path.to_string_lossy().into_owned(),
+            "--use-config".into(),
+            "--local-mock".into(),
+        ];
+        let mut output = Vec::new();
+        assert_eq!(
+            guided_local_at(&args, &store, &mut output, &mut Vec::new()).unwrap(),
+            0
+        );
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["points"][0]["decision"], "pass");
+        assert!(result["provider_launch_sha256"].is_string());
     }
 
     #[test]

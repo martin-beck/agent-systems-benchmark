@@ -40,6 +40,18 @@ asb run /absolute/path/EXPERIMENT.toml --use-config
 asb sweep /absolute/path/EXPERIMENT.toml --use-config
 ```
 
+For deterministic offline qualification, the guided wrapper requires an
+explicit local fixture marker and delegates to the same config-bound paths:
+
+```text
+asb easy run /absolute/path/EXPERIMENT.toml --use-config --local-mock
+asb easy sweep /absolute/path/EXPERIMENT.toml --use-config --local-mock
+```
+
+The guided command rejects live-provider, endpoint, and unknown options. It
+never contacts a provider or creates a `LiveProviderAttempt`; ordinary and
+live-provider paths retain their existing fail-closed behavior.
+
 Only public model/endpoint identities and digests are persisted. Missing,
 stale, altered, or credential-bearing configuration is rejected before any
 provider contact.
