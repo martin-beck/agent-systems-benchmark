@@ -690,10 +690,14 @@ impl AuthoritySource for PlanAuthoritySource {
             &plan,
             plan.run_id.clone(),
             plan.point.concurrency,
-            cancelled,
+            Arc::clone(&cancelled),
         );
+        let was_cancelled = cancelled.load(Ordering::SeqCst);
         if let Ok(mut cancelled) = self.cancelled.lock() {
             cancelled.remove(capability.binding());
+        }
+        if was_cancelled {
+            return Err(AuthorityError::Cancelled);
         }
         let point = point.map_err(|_| AuthorityError::LocalExecution)?;
         let encoded = serde_json::to_vec(&point).map_err(|_| AuthorityError::LocalExecution)?;
@@ -739,6 +743,7 @@ impl AuthoritySource for PlanAuthoritySource {
         });
         let result = self.execute(request, capability);
         let expired = Instant::now() >= effective_deadline;
+        let cancelled_by_authority = cancelled.load(Ordering::SeqCst);
         let _ = stop_tx.send(());
         let _ = timer.join();
         if let Ok(mut cancelled) = self.cancelled.lock() {
@@ -746,6 +751,9 @@ impl AuthoritySource for PlanAuthoritySource {
         }
         if expired {
             return Err(AuthorityError::Timeout);
+        }
+        if cancelled_by_authority {
+            return Err(AuthorityError::Cancelled);
         }
         result
     }
@@ -6659,9 +6667,9 @@ printf '%s' 'not-json'
     }
 
     #[test]
-    fn authority_cancellation_is_bounded_and_cleans_state() {
+    fn in_flight_authority_cancellation_is_durable_and_bounded() {
         let scratch = Scratch::new();
-        let plan = fixture_plan_with_script(&scratch.0, b"#!/bin/sh\nsleep 1\n");
+        let plan = fixture_plan_with_script(&scratch.0, b"#!/bin/sh\nsleep 5\n");
         let request = RunRequest {
             kind: "run_request".into(),
             schema_version: asb_orchestrator::SCHEMA_VERSION,
@@ -6692,17 +6700,25 @@ printf '%s' 'not-json'
         };
         let capability = source.prepare(&request).unwrap();
         let binding = capability.binding().to_owned();
-        cancelled
+        let worker = thread::spawn(move || {
+            source.execute_until(
+                &request,
+                &capability,
+                Instant::now() + Duration::from_secs(5),
+            )
+        });
+        thread::sleep(Duration::from_millis(50));
+        let flag = cancelled
             .lock()
             .unwrap()
             .get(&binding)
-            .unwrap()
-            .store(true, Ordering::SeqCst);
-        let _ = source.execute_until(
-            &request,
-            &capability,
-            Instant::now() + Duration::from_secs(5),
-        );
+            .cloned()
+            .expect("authority remains registered while execution is in flight");
+        flag.store(true, Ordering::SeqCst);
+        assert!(matches!(
+            worker.join().unwrap(),
+            Err(AuthorityError::Cancelled)
+        ));
         assert!(cancelled.lock().unwrap().is_empty());
     }
 

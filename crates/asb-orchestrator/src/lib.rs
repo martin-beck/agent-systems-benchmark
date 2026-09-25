@@ -518,6 +518,9 @@ pub enum AuthorityError {
     /// The runtime-owned authority exceeded its deadline.
     #[error("authority execution timed out")]
     Timeout,
+    /// The runtime-owned authority observed an explicit cancellation.
+    #[error("authority execution cancelled")]
+    Cancelled,
 }
 
 struct RunRecord {
@@ -778,6 +781,15 @@ impl<S: AuthoritySource> Orchestrator<S> {
         let deadline = started + std::time::Duration::from_millis(request.limits.timeout_ms);
         let outcome = match self.source.execute_until(&request, &cap, deadline) {
             Ok(value) => value,
+            Err(AuthorityError::Cancelled) => {
+                {
+                    let record = self.record_mut(run)?;
+                    push_event(record, RunStatus::Cancelled)?;
+                    record.capability = None;
+                }
+                self.persist_for(run.id(), RunStatus::Cancelled)?;
+                return Err(AuthorityError::Cancelled.into());
+            }
             Err(error) => {
                 if self.source.cancel(&request, &cap).is_err() {
                     return Err(self.cleanup_barrier(run.id()));
