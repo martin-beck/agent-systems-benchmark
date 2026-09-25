@@ -208,6 +208,12 @@ pub struct RunEvent {
     pub sequence: u32,
     /// State reached after this event.
     pub status: RunStatus,
+    /// Run fence carried with the event for consumer correlation.
+    pub run: Option<RunHandle>,
+    /// Attempt fence carried with the event for consumer correlation.
+    pub attempt: Option<AttemptHandle>,
+    /// Stable event kind.
+    pub kind: String,
 }
 
 /// Opaque mode authority held only by an attempt session.
@@ -425,11 +431,18 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 generation: 1,
                 fence: digest.clone(),
             };
-            let capability = if status == RunStatus::Prepared {
-                Some(service.source.prepare(&request)?)
-            } else {
-                None
-            };
+            let decision = service
+                .store
+                .as_ref()
+                .expect("store")
+                .recovery_decision(&id)
+                .map_err(storage_error)?;
+            let capability =
+                if matches!(decision, RecoveryDecision::Resume(ExecutionState::Prepared)) {
+                    Some(service.source.prepare(&request)?)
+                } else {
+                    None
+                };
             let record = RunRecord {
                 request: request.clone(),
                 request_digest: digest,
@@ -443,6 +456,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
                     .map(|(index, event)| RunEvent {
                         sequence: index as u32 + 1,
                         status: from_state(event.state),
+                        run: None,
+                        attempt: None,
+                        kind: "lifecycle".into(),
                     })
                     .collect(),
                 artifact_bytes: 0,
@@ -451,6 +467,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 .idempotency
                 .insert(request.idempotency_key, run.id.clone());
             service.runs.insert(run.id.clone(), record);
+            service.next_id = service.next_id.max(parse_id_number(&id).saturating_add(1));
         }
         Ok(service)
     }
@@ -765,7 +782,13 @@ fn push_event(record: &mut RunRecord, status: RunStatus) -> Result<(), Orchestra
     }
     let sequence = record.events.len() as u32 + 1;
     record.status = status;
-    record.events.push(RunEvent { sequence, status });
+    record.events.push(RunEvent {
+        sequence,
+        status,
+        run: Some(record.run.clone()),
+        attempt: Some(record.attempt.clone()),
+        kind: "lifecycle".into(),
+    });
     Ok(())
 }
 
@@ -856,6 +879,12 @@ fn from_state(state: ExecutionState) -> RunStatus {
         ExecutionState::Failed => RunStatus::Failed,
         ExecutionState::Cancelled => RunStatus::Cancelled,
     }
+}
+
+fn parse_id_number(id: &str) -> u64 {
+    id.strip_prefix("run-")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0)
 }
 
 fn append_state(
