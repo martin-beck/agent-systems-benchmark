@@ -586,7 +586,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup easy capabilities provider-catalog workload-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui --help --version' asb"
+        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui easy --help --version' asb"
     )
     .map_err(output_error)
 }
