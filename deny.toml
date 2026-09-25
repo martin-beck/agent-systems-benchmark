@@ -6,11 +6,16 @@ yanked = "deny"
 multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
+skip = [
+  { crate = "syn@3.0.6", reason = "displaydoc and asn1-rs require syn 3 while project derives use syn 2" },
+  { crate = "synstructure@0.13.2", reason = "asn1-rs derive requires the older synstructure line" },
+  { crate = "synstructure@0.14.0", reason = "schemars derive requires the newer synstructure line" },
+]
 
 [licenses]
 version = 2
 confidence-threshold = 0.93
-allow = ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "Unicode-3.0"]
+allow = ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT"]
 
 [sources]
 unknown-git = "deny"
