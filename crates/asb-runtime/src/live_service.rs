@@ -433,9 +433,6 @@ impl LocalProviderAuthority {
         credential_reference_sha256: &str,
         request: &[u8],
     ) -> Result<LocalProviderMockResponse, LocalProviderMockError> {
-        if !self.is_active() {
-            return Err(LocalProviderMockError::Inactive);
-        }
         if attempt_id == 0 {
             return Err(LocalProviderMockError::InvalidAttempt);
         }
@@ -447,6 +444,9 @@ impl LocalProviderAuthority {
         }
         if request.len() > LOCAL_PROVIDER_MAX_REQUEST_BYTES {
             return Err(LocalProviderMockError::RequestTooLarge);
+        }
+        if !self.is_active() {
+            return Err(LocalProviderMockError::Inactive);
         }
         let mut digest = Sha256::new();
         digest.update(LOCAL_PROVIDER_MODEL.as_bytes());
