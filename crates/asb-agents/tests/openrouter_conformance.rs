@@ -219,7 +219,7 @@ fn response_hostiles_fail_closed_without_secret_or_uncertain_effect() {
     );
     assert_eq!(
         verify_sse(
-            &["data: {\"model\":\"deepseek/deepseek-chat-v3-0324:free\"}"],
+            &["data: {\"model\":\"cohere/north-mini-code:free\"}"],
             OPENROUTER_MODEL
         ),
         Err(ResponseFailure::StreamNotTerminated)
@@ -227,7 +227,7 @@ fn response_hostiles_fail_closed_without_secret_or_uncertain_effect() {
     assert_eq!(
         verify_sse(
             &[
-                "data: {\"model\":\"deepseek/deepseek-chat-v3-0324:free\"}",
+                "data: {\"model\":\"cohere/north-mini-code:free\"}",
                 "data: [DONE]"
             ],
             OPENROUTER_MODEL
@@ -237,8 +237,8 @@ fn response_hostiles_fail_closed_without_secret_or_uncertain_effect() {
     assert_eq!(
         verify_sse(
             &[
-                "data: {\"model\":\"deepseek/deepseek-chat-v3-0324:free\",\"tool_call_index\":0}",
-                "data: {\"model\":\"deepseek/deepseek-chat-v3-0324:free\",\"tool_call_index\":0}",
+                "data: {\"model\":\"cohere/north-mini-code:free\",\"tool_call_index\":0}",
+                "data: {\"model\":\"cohere/north-mini-code:free\",\"tool_call_index\":0}",
                 "data: [DONE]"
             ],
             OPENROUTER_MODEL

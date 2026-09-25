@@ -18,7 +18,7 @@ use thiserror::Error;
 /// Current on-disk configuration schema.
 pub const CONFIG_SCHEMA_VERSION: u16 = 1;
 /// Exact dated free-model snapshot accepted by the user configuration.
-pub const OPENROUTER_MODEL_SNAPSHOT: &str = "deepseek/deepseek-chat-v3-0324:free@2026-09-22";
+pub const OPENROUTER_MODEL_SNAPSHOT: &str = "cohere/north-mini-code:free@2026-09-25";
 /// Configuration schema for the pinned OpenRouter free-model enrollment.
 pub const OPENROUTER_FREE_MODEL_CONFIG_SCHEMA_VERSION: u16 = 1;
 /// Maximum serialized configuration size.
@@ -1226,8 +1226,8 @@ mod tests {
     #[test]
     fn openrouter_free_model_enrollment_is_credential_free_and_pinned() {
         let selection = OpenRouterFreeModelConfig::enroll(
-            "deepseek/deepseek-chat-v3-0324:free".into(),
-            "2026-09-22".into(),
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
             "a".repeat(64),
             1,
         )
@@ -1242,8 +1242,8 @@ mod tests {
     #[test]
     fn openrouter_free_model_rejects_stale_or_credential_bearing_records() {
         let mut selection = OpenRouterFreeModelConfig::enroll(
-            "deepseek/deepseek-chat-v3-0324:free".into(),
-            "2026-09-22".into(),
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
             "a".repeat(64),
             1,
         )
@@ -1251,8 +1251,8 @@ mod tests {
         selection.model_snapshot_date = "2026-09-23".into();
         assert!(selection.validate().is_err());
         let mut selection = OpenRouterFreeModelConfig::enroll(
-            "deepseek/deepseek-chat-v3-0324:free".into(),
-            "2026-09-22".into(),
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
             "a".repeat(64),
             1,
         )
@@ -1262,11 +1262,26 @@ mod tests {
     }
 
     #[test]
+    fn openrouter_free_model_rejects_previous_dated_pin() {
+        let mut selection = OpenRouterFreeModelConfig::enroll(
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
+            "a".repeat(64),
+            1,
+        )
+        .unwrap();
+        selection.model = "deepseek/deepseek-chat-v3-0324:free".into();
+        selection.model_snapshot = "deepseek/deepseek-chat-v3-0324:free@2026-09-22".into();
+        selection.model_snapshot_date = "2026-09-22".into();
+        assert!(selection.validate().is_err());
+    }
+
+    #[test]
     fn openrouter_free_model_rejects_every_identity_and_enrollment_drift() {
         let base = || {
             OpenRouterFreeModelConfig::enroll(
-                "deepseek/deepseek-chat-v3-0324:free".into(),
-                "2026-09-22".into(),
+                "cohere/north-mini-code:free".into(),
+                "2026-09-25".into(),
                 "a".repeat(64),
                 1,
             )
@@ -1312,8 +1327,8 @@ mod tests {
     #[test]
     fn openrouter_enrollment_is_credential_free_and_bound() {
         let config = OpenRouterFreeModelConfig::enroll(
-            "deepseek/deepseek-chat-v3-0324:free".into(),
-            "2026-09-22".into(),
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
             "a".repeat(64),
             1,
         )
@@ -1329,8 +1344,8 @@ mod tests {
     #[test]
     fn openrouter_enrollment_rejects_stale_or_mixed_identity() {
         let mut config = OpenRouterFreeModelConfig::enroll(
-            "deepseek/deepseek-chat-v3-0324:free".into(),
-            "2026-09-22".into(),
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
             "b".repeat(64),
             7,
         )
@@ -1339,8 +1354,8 @@ mod tests {
         assert!(config.validate().is_err());
 
         let mut config = OpenRouterFreeModelConfig::enroll(
-            "deepseek/deepseek-chat-v3-0324:free".into(),
-            "2026-09-22".into(),
+            "cohere/north-mini-code:free".into(),
+            "2026-09-25".into(),
             "c".repeat(64),
             7,
         )
@@ -1354,8 +1369,8 @@ mod tests {
         let mut configuration = sample();
         configuration.openrouter_free_model = Some(
             OpenRouterFreeModelConfig::enroll(
-                "deepseek/deepseek-chat-v3-0324:free".into(),
-                "2026-09-22".into(),
+                "cohere/north-mini-code:free".into(),
+                "2026-09-25".into(),
                 "d".repeat(64),
                 1,
             )
