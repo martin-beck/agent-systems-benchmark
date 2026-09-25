@@ -8,6 +8,7 @@
 //! effects behind [`AuthoritySource`].
 
 use asb_protocol::Id;
+use asb_runtime::live_service::{LOCAL_PROVIDER_MOCK_MODEL, LocalProviderMockBackend};
 use asb_store::{
     AtomicStore, ExecutionState, JournalEvent, RecoveryDecision, RunManifest, StoreError,
     StoreLimits,
@@ -301,6 +302,71 @@ impl AuthoritySource for DeterministicAuthoritySource {
     }
 }
 
+/// Runtime-owned local protocol double for production-like qualification.
+pub struct LocalMockAuthoritySource {
+    backend: LocalProviderMockBackend,
+}
+
+impl std::fmt::Debug for LocalMockAuthoritySource {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LocalMockAuthoritySource(..)")
+    }
+}
+
+impl LocalMockAuthoritySource {
+    /// Provision one runtime-owned local mock source.
+    pub fn provision() -> Result<Self, AuthorityError> {
+        LocalProviderMockBackend::provision()
+            .map(|backend| Self { backend })
+            .map_err(|_| AuthorityError::LocalUnavailable)
+    }
+}
+
+impl AuthoritySource for LocalMockAuthoritySource {
+    fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError> {
+        if request.mode != ExecutionMode::LocalMock
+            || request.model_id.0 != LOCAL_PROVIDER_MOCK_MODEL
+        {
+            return Err(AuthorityError::InvalidBinding);
+        }
+        let binding = request_digest(request).map_err(|_| AuthorityError::InvalidBinding)?;
+        Ok(AttemptCapability {
+            mode: request.mode,
+            binding,
+        })
+    }
+
+    fn execute(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if capability.mode != ExecutionMode::LocalMock
+            || request.model_id.0 != LOCAL_PROVIDER_MOCK_MODEL
+        {
+            return Err(AuthorityError::InvalidBinding);
+        }
+        let attempt_id = u32::from_str_radix(&capability.binding[..8], 16)
+            .unwrap_or(1)
+            .max(1);
+        let attempt = self
+            .backend
+            .issue_attempt(attempt_id)
+            .map_err(|_| AuthorityError::LocalExecution)?;
+        let body = serde_json::to_vec(request).map_err(|_| AuthorityError::LocalExecution)?;
+        let response = attempt
+            .execute_default(&body)
+            .map_err(|_| AuthorityError::LocalExecution)?;
+        Ok(ExecutionOutcome {
+            result_digest: response.response_sha256().to_owned(),
+            output_bytes: 0,
+            artifact_bytes: 0,
+            artifact_count: 0,
+            largest_artifact_bytes: 0,
+        })
+    }
+}
+
 /// Service-level failures; no external effect is authorized on admission error.
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum OrchestratorError {
@@ -348,6 +414,12 @@ pub enum AuthorityError {
     /// Source could not compute a safe binding.
     #[error("invalid authority binding")]
     InvalidBinding,
+    /// Local deterministic authority could not be provisioned.
+    #[error("local mock authority unavailable")]
+    LocalUnavailable,
+    /// Local deterministic authority rejected the bounded request.
+    #[error("local mock execution failed")]
+    LocalExecution,
 }
 
 struct RunRecord {
@@ -962,6 +1034,18 @@ mod tests {
                 AuthorityError::LiveUnavailable
             ))
         );
+    }
+
+    #[test]
+    fn local_mock_source_executes_through_runtime_owned_backend() {
+        let mut source = LocalMockAuthoritySource::provision().unwrap();
+        let mut request = request(ExecutionMode::LocalMock);
+        request.model_id = Id(LOCAL_PROVIDER_MOCK_MODEL.into());
+        let capability = source.prepare(&request).unwrap();
+        let outcome = source.execute(&request, &capability).unwrap();
+        assert_eq!(outcome.output_bytes, 0);
+        assert_eq!(outcome.artifact_count, 0);
+        assert_eq!(outcome.result_digest.len(), 64);
     }
 
     #[test]
