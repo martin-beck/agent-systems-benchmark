@@ -566,7 +566,7 @@ def collect(
         or len({name for name, _ in all_checks}) != len(all_checks)
     ):
         raise EvidenceError(
-            "checks must include process and metrics, may include replay-authority, and allow only optional sandbox"
+            "checks must be exactly process and metrics, with optional replay-authority and optional sandbox"
         )
     tool_evidence_probe = tool_evidence_probe or sandbox_tool_evidence
     tools = tool_evidence_probe(platform_id, arch, root, source, probe)
