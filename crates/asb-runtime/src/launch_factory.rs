@@ -296,7 +296,8 @@ impl ReplayAuthoritySource {
     }
 
     /// Attest and materialize one authority for one exact replay cassette.
-    pub fn issue(
+    #[allow(dead_code)]
+    pub(crate) fn issue(
         input: SandboxLaunchInput,
         lease: ResourceLease,
         backend: SandboxBackend,
@@ -441,7 +442,8 @@ pub enum LaunchAuthorityError {
 
 impl ReplayLaunchFactory {
     /// Issue opaque authority from already validated runtime launch values.
-    pub fn issue(
+    #[allow(dead_code)]
+    pub(crate) fn issue(
         token: RuntimeLaunchToken,
         input: SandboxLaunchInput,
         lease: ResourceLease,
@@ -455,7 +457,7 @@ impl ReplayLaunchFactory {
     /// The backend is retained inside the opaque authority so a CLI caller
     /// cannot substitute tools or isolation settings between issuance and
     /// supervised child creation.
-    pub fn issue_with_backend(
+    pub(crate) fn issue_with_backend(
         token: RuntimeLaunchToken,
         input: SandboxLaunchInput,
         lease: ResourceLease,
@@ -781,7 +783,8 @@ impl ReplayLaunchContext {
     /// The context owns the validated launch input and benchmark lease. Passing
     /// both directly to the backend prevents a caller from replacing either
     /// value between authority consumption and child creation.
-    pub fn spawn(
+    #[allow(dead_code)]
+    pub(crate) fn spawn(
         self,
         backend: &SandboxBackend,
     ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
