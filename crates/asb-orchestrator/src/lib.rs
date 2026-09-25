@@ -773,6 +773,26 @@ impl<S: AuthoritySource> Orchestrator<S> {
             .map_err(storage_error)
     }
 
+    /// Reconcile an interrupted attempt after the runtime supervisor has
+    /// inspected and torn down any orphaned process, relay, and lease.
+    pub fn reconcile(
+        &mut self,
+        handle: &RunHandle,
+        attempt: &AttemptHandle,
+    ) -> Result<RunStatus, OrchestratorError> {
+        let status = {
+            let record = self.record_mut(handle)?;
+            if record.attempt != *attempt || record.status != RunStatus::NeedsReconciliation {
+                return Err(OrchestratorError::StaleHandle);
+            }
+            record.capability = None;
+            record.status = RunStatus::Failed;
+            record.status
+        };
+        self.persist_for(handle.id(), status)?;
+        Ok(status)
+    }
+
     fn persist_record(
         &self,
         record: &RunRecord,
