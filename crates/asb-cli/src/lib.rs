@@ -234,7 +234,9 @@ fn dispatch(
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
         [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
         [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
-        [command, easy_args @ ..] if command == "easy" => guided_local(easy_args, stdout, stderr),
+        [command, easy_args @ ..] if command == "easy" => {
+            guided_local(easy_args, replay_authority.take(), stdout, stderr)
+        }
         [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
@@ -339,9 +341,41 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
 /// complete authority surface.
 fn guided_local(
     args: &[String],
+    replay_authority: Option<ReplayLaunchAuthority>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
+    if args.is_empty() || args[0] == "--help" || args[0] == "-h" {
+        return write_easy_help(output).map(|()| 0);
+    }
+    if args[0] == "setup" {
+        return setup(&args[1..], output).map(|()| 0);
+    }
+    if args[0] == "provider-catalog" && args.len() == 1 {
+        return provider_catalog(output).map(|()| 0);
+    }
+    if args[0] == "plan" && args.len() == 3 && args[2] == "--use-config" {
+        return plan_with_config(Path::new(&args[1]), output).map(|()| 0);
+    }
+    if args[0] == "report" && args.len() >= 2 {
+        return report(&args[1..], output).map(|()| 0);
+    }
+    if args[0] == "compare" && args.len() >= 3 {
+        return compare(&args[1..], output).map(|()| 0);
+    }
+    if args[0] == "record" && args.len() == 4 && args[3] == "--local-mock" {
+        return record(Path::new(&args[1]), Path::new(&args[2]), output).map(|()| 0);
+    }
+    if args[0] == "replay" && args.len() == 5 && args[4] == "--local-mock" {
+        return replay(
+            Path::new(&args[1]),
+            &args[2],
+            &args[3],
+            replay_authority,
+            output,
+        )
+        .map(|()| 0);
+    }
     if args.len() == 3 && args[0] == "record-campaign" {
         if args[2] != "--local-mock" {
             return Err(CliError::usage(
@@ -372,6 +406,14 @@ fn guided_local(
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
     guided_local_at(args, &store, output, progress)
+}
+
+fn write_easy_help(output: &mut dyn Write) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "ASB guided local workflow\n\nUsage:\n  asb easy setup [SETUP_OPTIONS]\n  asb easy provider-catalog\n  asb easy plan EXPERIMENT.toml --use-config\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy report RUN...\n  asb easy compare RUN RUN...\n  asb easy record CAPTURE.json CASSETTE.json --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb easy replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n\nThe guided path delegates to the canonical catalog, configuration, evidence,\nand strict replay contracts. It never contacts a provider in local-mock mode."
+    )
+    .map_err(output_error)
 }
 
 fn guided_local_at(
@@ -4946,7 +4988,7 @@ mod tests {
             "--use-config".into(),
             "--live-provider".into(),
         ];
-        assert!(guided_local(&missing_mock, &mut Vec::new(), &mut Vec::new()).is_err());
+        assert!(guided_local(&missing_mock, None, &mut Vec::new(), &mut Vec::new()).is_err());
 
         let unknown = vec![
             "sweep".into(),
@@ -4955,7 +4997,7 @@ mod tests {
             "--local-mock".into(),
             "--endpoint".into(),
         ];
-        assert!(guided_local(&unknown, &mut Vec::new(), &mut Vec::new()).is_err());
+        assert!(guided_local(&unknown, None, &mut Vec::new(), &mut Vec::new()).is_err());
 
         let absent_config = vec![
             "run".into(),
@@ -4963,8 +5005,36 @@ mod tests {
             "--use-config".into(),
             "--local-mock".into(),
         ];
-        let result = guided_local(&absent_config, &mut Vec::new(), &mut Vec::new());
+        let result = guided_local(&absent_config, None, &mut Vec::new(), &mut Vec::new());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn guided_wrapper_help_and_provider_catalog_are_explicit() {
+        let mut output = Vec::new();
+        assert_eq!(
+            run(
+                &["easy".into(), "--help".into()],
+                &mut output,
+                &mut Vec::new()
+            ),
+            0
+        );
+        let help = String::from_utf8(output).unwrap();
+        assert!(help.contains("asb easy setup"));
+        assert!(help.contains("asb easy replay"));
+
+        let mut output = Vec::new();
+        assert_eq!(
+            run(
+                &["easy".into(), "provider-catalog".into()],
+                &mut output,
+                &mut Vec::new()
+            ),
+            0
+        );
+        let catalog: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(catalog["command"], "provider-catalog");
     }
 
     #[test]

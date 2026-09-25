@@ -49,6 +49,23 @@ asb easy sweep /absolute/path/EXPERIMENT.toml --use-config --local-mock
 asb easy record-campaign /absolute/path/MANIFEST.json --local-mock
 ```
 
+The same guided surface exposes the catalog and evidence journeys without
+requiring users to copy digests or reconstruct the underlying command shape:
+
+```text
+asb easy setup
+asb easy provider-catalog
+asb easy plan /absolute/path/EXPERIMENT.toml --use-config
+asb easy report /absolute/path/RUN
+asb easy compare /absolute/path/RUN_A /absolute/path/RUN_B
+asb easy record /absolute/path/CAPTURE.json /absolute/path/CASSETTE.json --local-mock
+asb easy replay /absolute/path/CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock
+```
+
+`easy replay` still requires the runtime-injected replay authority; a plain
+CLI invocation fails closed rather than fabricating one. All local-mock routes
+remain offline and delegate validation to the canonical ASB commands.
+
 The guided command rejects live-provider, endpoint, and unknown options. It
 never contacts a provider or creates a `LiveProviderAttempt`; ordinary and
 live-provider paths retain their existing fail-closed behavior.
