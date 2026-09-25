@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/martin-beck/agent-systems-benchmark/blob/main/docs/orchestration-schema-v1.json",
+  "title": "ASB central orchestration v1",
+  "description": "Credential-free request, response and event contract. Authority objects and secret bytes are intentionally not representable.",
+  "oneOf": [
+    {"$ref": "#/$defs/RunRequest"},
+    {"$ref": "#/$defs/RunResponse"},
+    {"$ref": "#/$defs/RunEvent"}
+  ],
+  "$defs": {
+    "Id": {"type": "string", "pattern": "^[a-z][a-z0-9._-]{0,63}$"},
+    "Sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "Mode": {"type": "string", "enum": ["local-mock", "strict-replay", "live"]},
+    "Limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeout_ms", "max_output_bytes", "max_events"],
+      "properties": {
+        "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 86400000},
+        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "max_events": {"type": "integer", "minimum": 1, "maximum": 100000}
+      }
+    },
+    "RunRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "idempotency_key", "agent_id", "provider_id", "model_id", "workload_id", "mode", "limits"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "kind": {"const": "run_request"},
+        "idempotency_key": {"type": "string", "pattern": "^[A-Za-z0-9._~-]{1,128}$"},
+        "agent_id": {"$ref": "#/$defs/Id"},
+        "provider_id": {"$ref": "#/$defs/Id"},
+        "model_id": {"$ref": "#/$defs/Id"},
+        "workload_id": {"$ref": "#/$defs/Id"},
+        "mode": {"$ref": "#/$defs/Mode"},
+        "catalog_digest": {"$ref": "#/$defs/Sha256"},
+        "workload_revision": {"$ref": "#/$defs/Sha256"},
+        "limits": {"$ref": "#/$defs/Limits"}
+      }
+    },
+    "RunResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_id", "status"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "kind": {"const": "run_response"},
+        "run_id": {"$ref": "#/$defs/Id"},
+        "status": {"type": "string", "enum": ["admitted", "prepared", "running", "collecting", "completed", "failed", "cancelled", "needs_reconciliation"]}
+      }
+    },
+    "RunEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_id", "attempt_id", "sequence", "event"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "kind": {"const": "run_event"},
+        "run_id": {"$ref": "#/$defs/Id"},
+        "attempt_id": {"$ref": "#/$defs/Id"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "event": {"type": "string", "enum": ["prepared", "started", "collecting", "completed", "failed", "cancel_requested", "cancelled", "needs_reconciliation"]},
+        "evidence_digest": {"$ref": "#/$defs/Sha256"}
+      }
+    }
+  }
+}
