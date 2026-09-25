@@ -7,7 +7,9 @@ multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
 skip = [
-  { crate = "syn@3.0.5", reason = "schemars/ref-cast requires syn 3 while serde and thiserror derive require syn 2" },
+  { crate = "syn@3.0.6", reason = "displaydoc and asn1-rs require syn 3 while project derives use syn 2" },
+  { crate = "synstructure@0.13.2", reason = "asn1-rs derive requires the older synstructure line" },
+  { crate = "synstructure@0.14.0", reason = "schemars derive requires the newer synstructure line" },
 ]
 
 [licenses]

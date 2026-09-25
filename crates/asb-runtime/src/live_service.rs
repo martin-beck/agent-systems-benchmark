@@ -171,6 +171,7 @@ pub struct LocalProviderAuthority {
     relay_root: PathBuf,
     credential: LocalProviderCredentialCapability,
     teardown: Arc<AtomicU64>,
+    cancelled_attempts: Arc<Mutex<BTreeSet<u32>>>,
 }
 
 impl std::fmt::Debug for LocalProviderAuthority {
@@ -271,6 +272,11 @@ impl LocalProviderMockBackend {
     #[must_use]
     pub fn credential_reference_sha256(&self) -> &str {
         self.authority.credential_reference_sha256()
+    }
+
+    /// Cancel one scheduler attempt while preserving other authority sessions.
+    pub fn cancel_attempt(&self, attempt_id: u32) {
+        self.authority.cancel_attempt(attempt_id);
     }
 
     /// Revoke all outstanding attempts and tear down the mock authority.
@@ -383,6 +389,7 @@ impl LocalProviderAuthorityProvisioner {
                 reference_sha256: LOCAL_PROVIDER_CREDENTIAL_SHA256.to_owned(),
             },
             teardown: Arc::new(AtomicU64::new(generation)),
+            cancelled_attempts: Arc::new(Mutex::new(BTreeSet::new())),
         })
     }
 }
@@ -446,6 +453,9 @@ impl LocalProviderAuthority {
         if !self.is_active() {
             return Err(LocalProviderMockError::Inactive);
         }
+        if self.is_attempt_cancelled(attempt_id) {
+            return Err(LocalProviderMockError::Cancelled);
+        }
         let mut digest = Sha256::new();
         digest.update(LOCAL_PROVIDER_MODEL.as_bytes());
         digest.update(attempt_id.to_le_bytes());
@@ -465,6 +475,20 @@ impl LocalProviderAuthority {
     /// Fence this authority before cancellation or teardown.
     pub fn revoke(&self) {
         self.teardown.store(0, Ordering::Release);
+    }
+
+    /// Fence one scheduler attempt without revoking unrelated attempts.
+    pub fn cancel_attempt(&self, attempt_id: u32) {
+        if let Ok(mut cancelled) = self.cancelled_attempts.lock() {
+            cancelled.insert(attempt_id);
+        }
+    }
+
+    fn is_attempt_cancelled(&self, attempt_id: u32) -> bool {
+        self.cancelled_attempts
+            .lock()
+            .map(|cancelled| cancelled.contains(&attempt_id))
+            .unwrap_or(true)
     }
 }
 

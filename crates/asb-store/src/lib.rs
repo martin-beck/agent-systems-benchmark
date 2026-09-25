@@ -220,6 +220,20 @@ impl AtomicStore {
         self.load_manifest_unlocked(run_id)
     }
 
+    /// List durable run identities in lexical order for restart rehydration.
+    pub fn run_ids(&self) -> Result<Vec<String>, StoreError> {
+        let _lock = self.lock()?;
+        let mut ids = Vec::new();
+        for entry in fs::read_dir(self.root.join("runs"))? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                ids.push(entry.file_name().to_string_lossy().into_owned());
+            }
+        }
+        ids.sort();
+        Ok(ids)
+    }
+
     /// Append an event by atomically replacing the checksummed bounded journal.
     pub fn append(&self, run_id: &str, event: &JournalEvent) -> Result<(), StoreError> {
         require_version("journal", event.schema_version, JOURNAL_SCHEMA_VERSION)?;
