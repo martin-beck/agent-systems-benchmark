@@ -561,7 +561,12 @@ impl<S: AuthoritySource> Orchestrator<S> {
             }
             return Err(OrchestratorError::IdempotencyConflict);
         }
-        if self.runs.len() >= MAX_ACTIVE_RUNS {
+        let active_runs = self
+            .runs
+            .values()
+            .filter(|record| !record.status.terminal())
+            .count();
+        if active_runs >= MAX_ACTIVE_RUNS {
             return Err(OrchestratorError::InvalidLimit("active_runs"));
         }
         let run_id = Id(format!("run-{}", self.next_id));
