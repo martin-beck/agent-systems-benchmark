@@ -60,7 +60,7 @@ use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -349,7 +349,7 @@ fn guided_local(
         return write_easy_help(output).map(|()| 0);
     }
     if args[0] == "setup" {
-        return setup(&args[1..], output).map(|()| 0);
+        return guided_setup(&args[1..], output).map(|()| 0);
     }
     if args[0] == "provider-catalog" && args.len() == 1 {
         return provider_catalog(output).map(|()| 0);
@@ -364,17 +364,13 @@ fn guided_local(
         return compare(&args[1..], output).map(|()| 0);
     }
     if args[0] == "record" && args.len() == 4 && args[3] == "--local-mock" {
-        return record(Path::new(&args[1]), Path::new(&args[2]), output).map(|()| 0);
+        let input = guided_path(&args[1], "recording capture")?;
+        let destination = guided_path(&args[2], "recording cassette output")?;
+        return record(&input, &destination, output).map(|()| 0);
     }
     if args[0] == "replay" && args.len() == 5 && args[4] == "--local-mock" {
-        return replay(
-            Path::new(&args[1]),
-            &args[2],
-            &args[3],
-            replay_authority,
-            output,
-        )
-        .map(|()| 0);
+        let cassette = guided_path(&args[1], "recording cassette")?;
+        return replay(&cassette, &args[2], &args[3], replay_authority, output).map(|()| 0);
     }
     if args.len() == 3 && args[0] == "record-campaign" {
         if args[2] != "--local-mock" {
@@ -406,6 +402,73 @@ fn guided_local(
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
     guided_local_at(args, &store, output, progress)
+}
+
+fn guided_path(value: &str, label: &'static str) -> Result<PathBuf, CliError> {
+    let path = Path::new(value);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| component == Component::ParentDir)
+    {
+        let _ = label;
+        return Err(CliError::validation(
+            "guided path must be absolute and cannot contain '..'",
+        ));
+    }
+    Ok(path.to_owned())
+}
+
+fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let mut profile = None;
+    let mut model = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--format=json" => index += 1,
+            "--provider-profile" | "--model" | "--output" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::usage("guided setup option is missing a value"))?;
+                if args[index] == "--provider-profile" {
+                    profile = Some(value.as_str());
+                } else if args[index] == "--model" {
+                    model = Some(value.as_str());
+                } else {
+                    let _ = guided_path(value, "setup output")?;
+                }
+                index += 2;
+            }
+            _ => return Err(CliError::usage("unsupported guided setup option")),
+        }
+    }
+    if profile.is_some() != model.is_some() {
+        return Err(CliError::validation(
+            "guided setup provider and model must be selected together",
+        ));
+    }
+    if let (Some(profile), Some(model)) = (profile, model) {
+        let expected = match profile {
+            "openai" => asb_agents::openai::OPENAI_MODEL,
+            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
+            "ollama" => {
+                return Err(CliError::validation(
+                    "guided setup provider is unavailable without verified local daemon evidence",
+                ));
+            }
+            _ => {
+                return Err(CliError::validation(
+                    "guided setup provider is not in the catalog",
+                ));
+            }
+        };
+        if model != expected {
+            return Err(CliError::validation(
+                "guided setup model is not the catalog-advertised model for this provider",
+            ));
+        }
+    }
+    setup(args, output)
 }
 
 fn write_easy_help(output: &mut dyn Write) -> Result<(), CliError> {

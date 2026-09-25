@@ -64,7 +64,10 @@ asb easy replay /absolute/path/CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --loc
 
 `easy replay` still requires the runtime-injected replay authority; a plain
 CLI invocation fails closed rather than fabricating one. All local-mock routes
-remain offline and delegate validation to the canonical ASB commands.
+remain offline and delegate validation to the canonical ASB commands. Guided
+setup accepts only the exact provider/model pairs advertised by
+`provider-catalog`; workflow input and output paths must be absolute and may
+not contain parent traversal components.
 
 The guided command rejects live-provider, endpoint, and unknown options. It
 never contacts a provider or creates a `LiveProviderAttempt`; ordinary and
