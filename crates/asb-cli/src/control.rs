@@ -659,13 +659,6 @@ impl AuthoritySource for PlanAuthoritySource {
             .get(&request.idempotency_key)
             .cloned()
             .ok_or(AuthorityError::LocalUnavailable)?;
-        let cancelled = self
-            .cancelled
-            .lock()
-            .map_err(|_| AuthorityError::LocalUnavailable)?
-            .entry(capability.binding().to_owned())
-            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-            .clone();
         if request.mode == ExecutionMode::StrictReplay {
             return execute_strict_replay(
                 &plan,
@@ -675,6 +668,13 @@ impl AuthoritySource for PlanAuthoritySource {
                     .ok_or(AuthorityError::MissingCassette)?,
             );
         }
+        let cancelled = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .entry(capability.binding().to_owned())
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .clone();
         let store = AtomicStore::open(&plan.result_root, StoreLimits::default())
             .map(Arc::new)
             .map_err(|_| AuthorityError::LocalExecution)?;
@@ -684,8 +684,11 @@ impl AuthoritySource for PlanAuthoritySource {
             plan.run_id.clone(),
             plan.point.concurrency,
             cancelled,
-        )
-        .map_err(|_| AuthorityError::LocalExecution)?;
+        );
+        if let Ok(mut cancelled) = self.cancelled.lock() {
+            cancelled.remove(capability.binding());
+        }
+        let point = point.map_err(|_| AuthorityError::LocalExecution)?;
         let encoded = serde_json::to_vec(&point).map_err(|_| AuthorityError::LocalExecution)?;
         Ok(ExecutionOutcome {
             result_digest: format!("{:x}", Sha256::digest(encoded)),
@@ -702,7 +705,12 @@ impl AuthoritySource for PlanAuthoritySource {
         capability: &AttemptCapability,
         deadline: Instant,
     ) -> Result<ExecutionOutcome, AuthorityError> {
-        if Instant::now() >= deadline {
+        let effective_deadline = deadline.min(
+            Instant::now()
+                .checked_add(Duration::from_millis(request.limits.timeout_ms))
+                .ok_or(AuthorityError::Timeout)?,
+        );
+        if Instant::now() >= effective_deadline {
             return Err(AuthorityError::Timeout);
         }
         let cancelled = self
@@ -716,16 +724,19 @@ impl AuthoritySource for PlanAuthoritySource {
         let timer_flag = Arc::clone(&cancelled);
         let timer = std::thread::spawn(move || {
             if stop_rx
-                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .recv_timeout(effective_deadline.saturating_duration_since(Instant::now()))
                 .is_err()
             {
                 timer_flag.store(true, Ordering::SeqCst);
             }
         });
         let result = self.execute(request, capability);
-        let expired = Instant::now() >= deadline;
+        let expired = Instant::now() >= effective_deadline;
         let _ = stop_tx.send(());
         let _ = timer.join();
+        if let Ok(mut cancelled) = self.cancelled.lock() {
+            cancelled.remove(capability.binding());
+        }
         if expired {
             return Err(AuthorityError::Timeout);
         }
@@ -741,7 +752,7 @@ impl AuthoritySource for PlanAuthoritySource {
             .cancelled
             .lock()
             .map_err(|_| AuthorityError::LocalUnavailable)?
-            .get(capability.binding())
+            .remove(capability.binding())
         {
             flag.store(true, Ordering::SeqCst);
         }
