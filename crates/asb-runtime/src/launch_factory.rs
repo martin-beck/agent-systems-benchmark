@@ -189,7 +189,6 @@ impl LocalReplayProvisioner {
             cassette_sha256.to_owned(),
             relay,
         )
-        .map_err(|error| error)
     }
 }
 
