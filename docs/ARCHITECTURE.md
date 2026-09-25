@@ -27,12 +27,24 @@ A future Rust coordinator requires differential tests against its existing model
 | asb-analysis | Experimental design, statistics, SLO assessment and comparisons |
 | asb-store | Atomic manifests, event journal, artifact hashes and recovery |
 | asb-control | Bounded local frontend protocol, admission, cursors and Unix socket |
+| asb-orchestrator | Runtime-owned run admission, authority acquisition, attempt lifecycle, recovery and teardown |
 | asb-cli | Terminal UX and machine-readable CLI output |
 | asb-csb | Optional CSB subprocess integration and result mapping |
 | asb-bundle | Signed runtime-bundle manifests and offline content/SBOM/license verification |
 
 Only asb-core and asb-cli exist at bootstrap. Add crates when their AR starts.
 Core must not depend on process, network, terminal or GitHub implementations.
+
+The orchestrator is the single authority boundary above `asb-runtime`,
+`asb-agents`, `asb-workloads`, `asb-replay`, `asb-store`, and `asb-control`.
+Frontends submit declarative requests and receive opaque handles; they cannot
+construct or inject credentials, provider targets, namespace identities,
+relays, leases, sandbox backends, launch tokens, or live-attempt objects.
+`asb-control` remains the transport and peer-admission boundary, while
+`asb-orchestrator` owns the run state machine and delegates process effects to
+the runtime. The orchestrator is not a second scheduler: it is the sole owner
+of attempt admission and delegates bounded execution to the existing runtime
+scheduler so concurrency and measurements are not double-counted.
 
 The runtime bundle contract and its trust boundary are documented in
 [runtime bundle verification](RUNTIME_BUNDLES.md).
