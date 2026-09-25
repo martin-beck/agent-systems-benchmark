@@ -543,6 +543,7 @@ struct RunnerBackend {
     state_lock: Arc<fs::File>,
     provider_capture: Arc<dyn ProviderCapture>,
     orchestration: Arc<Mutex<FrontendOrchestration>>,
+    cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
 }
 
 /// Runtime-owned adapter used by the control frontend. The frontend supplies
@@ -552,6 +553,7 @@ struct FrontendOrchestration {
     service: Orchestrator<PlanAuthoritySource>,
     bindings: BTreeMap<String, (RunHandle, AttemptHandle)>,
     plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
+    cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
     by_plan: BTreeMap<String, String>,
 }
 
@@ -641,6 +643,11 @@ impl AuthoritySource for PlanAuthoritySource {
                 serde_json::to_vec(request).map_err(|_| AuthorityError::InvalidBinding)?
             )
         );
+        self.cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .entry(binding.clone())
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)));
         Ok(AttemptCapability::for_authority(request.mode, binding))
     }
 
@@ -672,9 +679,9 @@ impl AuthoritySource for PlanAuthoritySource {
             .cancelled
             .lock()
             .map_err(|_| AuthorityError::LocalUnavailable)?
-            .entry(capability.binding().to_owned())
-            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-            .clone();
+            .get(capability.binding())
+            .cloned()
+            .ok_or(AuthorityError::LocalUnavailable)?;
         let store = AtomicStore::open(&plan.result_root, StoreLimits::default())
             .map(Arc::new)
             .map_err(|_| AuthorityError::LocalExecution)?;
@@ -717,9 +724,9 @@ impl AuthoritySource for PlanAuthoritySource {
             .cancelled
             .lock()
             .map_err(|_| AuthorityError::LocalUnavailable)?
-            .entry(capability.binding().to_owned())
-            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-            .clone();
+            .get(capability.binding())
+            .cloned()
+            .ok_or(AuthorityError::LocalUnavailable)?;
         let (stop_tx, stop_rx) = mpsc::channel();
         let timer_flag = Arc::clone(&cancelled);
         let timer = std::thread::spawn(move || {
@@ -770,15 +777,17 @@ impl FrontendOrchestration {
                     .map(|plan| (plan.run_id.clone(), plan.clone())),
             );
         }
+        let cancelled = Arc::new(Mutex::new(BTreeMap::new()));
         let source = PlanAuthoritySource {
             plans: Arc::clone(&plans),
-            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+            cancelled: Arc::clone(&cancelled),
         };
         Orchestrator::open(source, root.join("orchestrator"))
             .map(|service| Self {
                 service,
                 bindings: BTreeMap::new(),
                 plans,
+                cancelled: Arc::clone(&cancelled),
                 by_plan: BTreeMap::new(),
             })
             .map_err(|_| CliError::operation("orchestration journal cannot be opened"))
@@ -813,18 +822,6 @@ impl FrontendOrchestration {
             .map_err(orchestration_failure)
     }
 
-    fn cancel(&mut self, run_id: &str) -> Result<(), BackendFailure> {
-        let (run, attempt) = self
-            .bindings
-            .get(run_id)
-            .cloned()
-            .ok_or(BackendFailure::StaleIdentity)?;
-        self.service
-            .cancel(&run, &attempt)
-            .map(|_| ())
-            .map_err(orchestration_failure)
-    }
-
     fn execute_plan(&mut self, plan_id: &str) -> Result<ExecutionOutcome, BackendFailure> {
         let run_id = self
             .by_plan
@@ -832,15 +829,6 @@ impl FrontendOrchestration {
             .cloned()
             .ok_or(BackendFailure::StaleIdentity)?;
         self.execute(&run_id)
-    }
-
-    fn cancel_plan(&mut self, plan_id: &str) -> Result<(), BackendFailure> {
-        let run_id = self
-            .by_plan
-            .get(plan_id)
-            .cloned()
-            .ok_or(BackendFailure::StaleIdentity)?;
-        self.cancel(&run_id)
     }
 
     fn status_for_plan(
@@ -1028,6 +1016,7 @@ fn open_backend_with_capture(
     }
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
+    let cancelled = Arc::clone(&orchestration.cancelled);
     Ok(RunnerBackend {
         state_root,
         runner_instance_id,
@@ -1036,6 +1025,7 @@ fn open_backend_with_capture(
         state_lock: Arc::new(state_lock),
         provider_capture,
         orchestration: Arc::new(Mutex::new(orchestration)),
+        cancelled,
     })
 }
 
@@ -2653,12 +2643,30 @@ impl ControlBackend for RunnerBackend {
                     deadline
                         .check()
                         .map_err(|_| BackendFailure::NeedsReconciliation)?;
-                    // The intent is durable before cancellation becomes visible, and the
-                    // worker cannot commit Completed ahead of this transition.
-                    self.orchestration
+                    // The intent is durable before cancellation becomes visible. Signal the
+                    // authority source directly so cancellation never waits on the service
+                    // mutex held by an in-flight execution.
+                    let plan = catalog
+                        .runs
+                        .get(&params.run_id.0)
+                        .and_then(|record| catalog.plans.get(&record.plan_id))
+                        .ok_or(BackendFailure::NeedsReconciliation)?;
+                    let orchestration_request = plan_request(plan)?;
+                    let binding = format!(
+                        "{:x}",
+                        Sha256::digest(
+                            serde_json::to_vec(&orchestration_request)
+                                .map_err(|_| BackendFailure::Rejected)?,
+                        )
+                    );
+                    let authority_cancelled = self
+                        .cancelled
                         .lock()
                         .map_err(|_| BackendFailure::NeedsReconciliation)?
-                        .cancel_plan(&params.run_id.0)?;
+                        .get(&binding)
+                        .cloned()
+                        .ok_or(BackendFailure::NeedsReconciliation)?;
+                    authority_cancelled.store(true, Ordering::SeqCst);
                     run.cancelled.store(true, Ordering::SeqCst);
                 }
                 let terminal = loop {
@@ -6648,6 +6656,60 @@ printf '%s' 'not-json'
             Err(AuthorityError::Timeout)
         ));
         assert!(started.elapsed() < Duration::from_millis(750));
+    }
+
+    #[test]
+    fn in_flight_authority_cancellation_is_observed_without_service_lock() {
+        let scratch = Scratch::new();
+        let plan = fixture_plan_with_script(&scratch.0, b"#!/bin/sh\nsleep 1\n");
+        let request = RunRequest {
+            kind: "run_request".into(),
+            schema_version: asb_orchestrator::SCHEMA_VERSION,
+            idempotency_key: plan.run_id.clone(),
+            agent_id: asb_protocol::Id(plan.experiment.agent.implementation.clone()),
+            provider_id: asb_protocol::Id(plan.experiment.model.provider.clone()),
+            model_id: asb_protocol::Id(plan.experiment.model.model.clone()),
+            workload_id: asb_protocol::Id(plan.experiment.workload.workload.clone()),
+            catalog_digest: plan.experiment.experiment_sha256.clone(),
+            workload_revision: plan.experiment.workload.workload_sha256.clone(),
+            scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
+            mode: ExecutionMode::LocalMock,
+            cassette_digest: None,
+            credential_ref_digest: None,
+            limits: RunLimits {
+                timeout_ms: 5_000,
+                max_output_bytes: 64 * 1024 * 1024,
+                max_events: 1024,
+                max_artifacts: 1024,
+                max_artifact_bytes: 64 * 1024 * 1024,
+                max_artifact_total_bytes: 256 * 1024 * 1024,
+            },
+        };
+        let cancelled = Arc::new(Mutex::new(BTreeMap::new()));
+        let mut source = PlanAuthoritySource {
+            plans: Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)]))),
+            cancelled: Arc::clone(&cancelled),
+        };
+        let capability = source.prepare(&request).unwrap();
+        let binding = capability.binding().to_owned();
+        let started = Instant::now();
+        let worker = thread::spawn(move || {
+            source.execute_until(
+                &request,
+                &capability,
+                Instant::now() + Duration::from_secs(5),
+            )
+        });
+        thread::sleep(Duration::from_millis(50));
+        cancelled
+            .lock()
+            .unwrap()
+            .get(&binding)
+            .unwrap()
+            .store(true, Ordering::SeqCst);
+        let _ = worker.join().unwrap();
+        assert!(started.elapsed() < Duration::from_millis(750));
+        assert!(cancelled.lock().unwrap().is_empty());
     }
 
     #[test]
