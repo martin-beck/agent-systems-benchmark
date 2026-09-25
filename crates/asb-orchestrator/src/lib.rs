@@ -16,6 +16,7 @@ use asb_store::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::time::Instant;
 use thiserror::Error;
 
 /// Immutable orchestration contract generation.
@@ -218,10 +219,11 @@ pub struct RunEvent {
 }
 
 /// Opaque mode authority held only by an attempt session.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AttemptCapability {
     mode: ExecutionMode,
     binding: String,
+    attempt_id: String,
 }
 
 /// Digest-only outcome returned by a mode authority.
@@ -263,6 +265,14 @@ pub trait AuthoritySource {
         request: &RunRequest,
         capability: &AttemptCapability,
     ) -> Result<ExecutionOutcome, AuthorityError>;
+    /// Revoke runtime resources before terminal cancellation.
+    fn cancel(
+        &mut self,
+        _request: &RunRequest,
+        _capability: &AttemptCapability,
+    ) -> Result<(), AuthorityError> {
+        Ok(())
+    }
 }
 
 /// Deterministic source used by development and CI.
@@ -281,6 +291,7 @@ impl AuthoritySource for DeterministicAuthoritySource {
         Ok(AttemptCapability {
             mode: request.mode,
             binding,
+            attempt_id: String::new(),
         })
     }
 
@@ -333,6 +344,7 @@ impl AuthoritySource for LocalMockAuthoritySource {
         Ok(AttemptCapability {
             mode: request.mode,
             binding,
+            attempt_id: String::new(),
         })
     }
 
@@ -346,9 +358,11 @@ impl AuthoritySource for LocalMockAuthoritySource {
         {
             return Err(AuthorityError::InvalidBinding);
         }
-        let attempt_id = u32::from_str_radix(&capability.binding[..8], 16)
-            .unwrap_or(1)
-            .max(1);
+        let attempt_id = capability
+            .attempt_id
+            .strip_prefix("attempt-")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(1);
         let attempt = self
             .backend
             .issue_attempt(attempt_id)
@@ -364,6 +378,17 @@ impl AuthoritySource for LocalMockAuthoritySource {
             artifact_count: 0,
             largest_artifact_bytes: 0,
         })
+    }
+
+    fn cancel(
+        &mut self,
+        _request: &RunRequest,
+        _capability: &AttemptCapability,
+    ) -> Result<(), AuthorityError> {
+        self.backend.revoke();
+        self.backend =
+            LocalProviderMockBackend::provision().map_err(|_| AuthorityError::LocalUnavailable)?;
+        Ok(())
     }
 }
 
@@ -500,7 +525,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 fence: digest.clone(),
             };
             let attempt = AttemptHandle {
-                id: manifest.attempt_id,
+                id: manifest.attempt_id.clone(),
                 generation: 1,
                 fence: digest.clone(),
             };
@@ -512,7 +537,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 .map_err(storage_error)?;
             let capability =
                 if matches!(decision, RecoveryDecision::Resume(ExecutionState::Prepared)) {
-                    Some(service.source.prepare(&request)?)
+                    let mut capability = service.source.prepare(&request)?;
+                    capability.attempt_id = manifest.attempt_id.0.clone();
+                    Some(capability)
                 } else {
                     None
                 };
@@ -613,7 +640,10 @@ impl<S: AuthoritySource> Orchestrator<S> {
             append_state(store, &run, &attempt, RunStatus::Admitted, 0)?;
         }
         let capability = match self.source.prepare(&request) {
-            Ok(capability) => capability,
+            Ok(mut capability) => {
+                capability.attempt_id = attempt.id.0.clone();
+                capability
+            }
             Err(error) => {
                 let _ = push_event(&mut record, RunStatus::Failed);
                 let _ = self.persist_record(&record, RunStatus::Failed);
@@ -669,7 +699,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
         let cap = AttemptCapability {
             mode: request.mode,
             binding: capability,
+            attempt_id: attempt.id.0.clone(),
         };
+        let started = Instant::now();
         let outcome = match self.source.execute(&request, &cap) {
             Ok(value) => value,
             Err(error) => {
@@ -682,6 +714,16 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 return Err(error.into());
             }
         };
+        if started.elapsed().as_millis() > u128::from(request.limits.timeout_ms) {
+            let _ = self.source.cancel(&request, &cap);
+            {
+                let record = self.record_mut(run)?;
+                push_event(record, RunStatus::Failed)?;
+                record.capability = None;
+            }
+            self.persist_for(run.id(), RunStatus::Failed)?;
+            return Err(OrchestratorError::EvidenceLimit("timeout_ms"));
+        }
         let limit_error = if outcome.output_bytes > request.limits.max_output_bytes {
             Some("max_output_bytes")
         } else if outcome.artifact_bytes > request.limits.max_artifact_total_bytes {
@@ -720,6 +762,19 @@ impl<S: AuthoritySource> Orchestrator<S> {
         handle: &RunHandle,
         attempt: &AttemptHandle,
     ) -> Result<RunStatus, OrchestratorError> {
+        let (request, capability) = {
+            let record = self.record(handle)?;
+            if record.attempt != *attempt {
+                return Err(OrchestratorError::StaleHandle);
+            }
+            if record.status.terminal() {
+                return Ok(record.status);
+            }
+            (record.request.clone(), record.capability.clone())
+        };
+        if let Some(capability) = capability.as_ref() {
+            self.source.cancel(&request, capability)?;
+        }
         let status = {
             let record = self.record_mut(handle)?;
             if record.attempt != *attempt {
