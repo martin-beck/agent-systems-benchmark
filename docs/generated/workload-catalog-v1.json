@@ -44,7 +44,7 @@
       "capability_tags": [
         "unsupported"
       ],
-      "adaptation": "fixture-only",
+      "adaptation": "not-applicable",
       "platform": "not-applicable",
       "availability": "unavailable",
       "evidence": "planned"
@@ -59,7 +59,7 @@
       "capability_tags": [
         "unsupported"
       ],
-      "adaptation": "fixture-only",
+      "adaptation": "not-applicable",
       "platform": "not-applicable",
       "availability": "unavailable",
       "evidence": "planned"
@@ -149,7 +149,7 @@
       "capability_tags": [
         "harness-boundary"
       ],
-      "adaptation": "fixture-only",
+      "adaptation": "not-applicable",
       "platform": "planned",
       "availability": "unavailable",
       "evidence": "planned"
@@ -164,7 +164,7 @@
       "capability_tags": [
         "stateful-tool-use"
       ],
-      "adaptation": "fixture-only",
+      "adaptation": "not-applicable",
       "platform": "planned",
       "availability": "unavailable",
       "evidence": "planned"
@@ -179,7 +179,7 @@
       "capability_tags": [
         "unsupported"
       ],
-      "adaptation": "fixture-only",
+      "adaptation": "not-applicable",
       "platform": "not-applicable",
       "availability": "unavailable",
       "evidence": "planned"
@@ -209,7 +209,7 @@
       "capability_tags": [
         "stateful-tool-use"
       ],
-      "adaptation": "fixture-only",
+      "adaptation": "not-applicable",
       "platform": "planned",
       "availability": "unavailable",
       "evidence": "planned"

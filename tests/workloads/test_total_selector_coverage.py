@@ -10,7 +10,7 @@ REGISTRY = ROOT / "crates/asb-workloads/registry/v1/external-workloads.json"
 CATALOG = ROOT / "docs/generated/workload-catalog-v1.json"
 DOCS = "\n".join(
     (ROOT / name).read_text(encoding="utf-8")
-    for name in ("docs/WORKLOADS.md", "docs/RELATED_WORK.md")
+    for name in ("docs/WORKLOADS.md", "docs/RELATED_WORK.md", "docs/PLAN.md")
 )
 
 # These labels are the public names used by the two literature inventories.
@@ -71,3 +71,13 @@ def test_catalog_evidence_keeps_unqualified_records_unavailable():
             assert entry["kind"] == "literature"
             assert entry["availability"] == "fixture_only"
             assert entry["evidence"] in {"planned", "unqualified"}
+
+
+def test_methodology_catalog_entries_are_explicitly_non_selectable():
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    by_id = {item["id"]: item for item in catalog["entries"]}
+    for ident in {"harbor", "inspect-ai", "hal", "agentops", "helm", "ai-agents-that-matter"}:
+        entry = by_id[ident]
+        assert entry["kind"] == "methodology"
+        assert entry["availability"] == "unavailable"
+        assert entry["adaptation"] == "not-applicable"
