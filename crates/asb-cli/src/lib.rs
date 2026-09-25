@@ -379,7 +379,7 @@ fn guided_local_at(
     };
     execute_inner_from_source(
         Path::new(&args[1]),
-        SelectionSource::Config(&store),
+        SelectionSource::Config(store),
         sweep,
         false,
         None,
