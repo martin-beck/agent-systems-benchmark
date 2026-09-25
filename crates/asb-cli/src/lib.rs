@@ -1496,6 +1496,9 @@ struct PlanFile {
     agent: BatchAgent,
     point: PointInput,
     experiment: ExperimentManifestV1,
+    /// Authenticated cassette consumed by strict replay control runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replay_cassette_path: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurement_selection: Option<MeasurementSelectionV1>,
 }
@@ -2581,6 +2584,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             },
             point: definition.execution.requested_point,
             experiment: definition.experiment.clone(),
+            replay_cassette_path: None,
             measurement_selection: definition.measurement_selection.clone(),
         };
         validate_selection_binding(&synthetic_plan, selection)?;
@@ -2628,6 +2632,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
                 },
                 point: definition.execution.requested_point,
                 experiment: definition.experiment.clone(),
+                replay_cassette_path: None,
                 measurement_selection: None,
             })?;
             if definition
@@ -4907,6 +4912,7 @@ mod tests {
                 sweep_max_concurrency: Some(2),
             },
             experiment,
+            replay_cassette_path: None,
             measurement_selection: Some(measurement_selection),
         };
         let path = root.join(format!("{run_id}.toml"));

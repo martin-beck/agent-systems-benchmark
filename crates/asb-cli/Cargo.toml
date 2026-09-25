@@ -13,6 +13,7 @@ asb-analysis = { version = "=0.1.0", path = "../asb-analysis" }
 asb-control = { version = "=0.1.0", path = "../asb-control" }
 asb-config = { version = "=0.1.0", path = "../asb-config" }
 asb-metrics = { version = "=0.1.0", path = "../asb-metrics" }
+asb-orchestrator = { version = "=0.1.0", path = "../asb-orchestrator" }
 asb-protocol = { version = "=0.1.0", path = "../asb-protocol" }
 asb-replay = { version = "=0.1.0", path = "../asb-replay" }
 asb-runtime = { version = "=0.1.0", path = "../asb-runtime" }
