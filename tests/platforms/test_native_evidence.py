@@ -107,7 +107,10 @@ class NativeEvidenceTests(unittest.TestCase):
             "version_signature": "Ubuntu 1.2.3-test" if platform_id.startswith("ubuntu") else "unavailable",
         }
 
-    def collect(self, probe=None, platform_id="ubuntu-24.04", run_check=None):
+    def collect(
+        self, probe=None, platform_id="ubuntu-24.04", run_check=None,
+        include_replay=True, require_replay=False,
+    ):
         result = {
             "status": "passed",
             "argv_sha256": "sha256:" + "b" * 64,
@@ -117,14 +120,18 @@ class NativeEvidenceTests(unittest.TestCase):
         with mock.patch.object(EVIDENCE.platform, "machine", return_value="x86_64"), mock.patch.object(
             EVIDENCE.platform, "release", return_value="7.0.0-test"
         ), mock.patch.object(EVIDENCE, "run_check", side_effect=run_check, return_value=result):
+            checks = [("process", ["cargo", "test"]), ("metrics", ["cargo", "test"])]
+            if include_replay:
+                checks.append(("replay-authority", ["cargo", "test"]))
             return EVIDENCE.collect(
                 platform_id, "x86_64", "run-1", ROOT, "d" * 40,
-                [("process", ["cargo", "test"]), ("metrics", ["cargo", "test"])],
+                checks,
                 [("sandbox", ["cargo", "test"])], root=self.root,
                 probe=probe or self.probe,
                 sandbox_probe=lambda *_: True,
                 tool_evidence_probe=self.tool_evidence,
                 kernel_evidence_probe=self.kernel_evidence,
+                require_replay_authority=require_replay,
             )
 
     def test_report_is_bound_sanitized_and_not_a_performance_baseline(self) -> None:
@@ -143,6 +150,15 @@ class NativeEvidenceTests(unittest.TestCase):
         encoded = json.dumps(report)
         self.assertNotIn(str(ROOT), encoded)
         self.assertNotIn("cargo test", encoded)
+
+    def test_qualified_collection_requires_replay_authority(self) -> None:
+        with self.assertRaisesRegex(EVIDENCE.EvidenceError, "requires replay-authority"):
+            self.collect(include_replay=False, require_replay=True, run_check=lambda *_: {
+                "status": "passed",
+                "argv_sha256": "sha256:" + "b" * 64,
+                "output_sha256": "sha256:" + "c" * 64,
+                "output_bytes": 3,
+            })
 
     def test_distribution_architecture_container_and_emulation_fail_closed(self) -> None:
         (self.root / "etc/os-release").write_text(
@@ -787,12 +803,14 @@ class NativeEvidenceTests(unittest.TestCase):
             "--source", str(ROOT), "--output", str(output),
             "--base-commit", "d" * 40, "--output-root", str(self.root),
             "--check", 'process=["/bin/true"]', "--check", 'metrics=["/bin/true"]',
+            "--check", 'replay-authority=["/bin/true"]',
             "--optional-check", 'sandbox=["/bin/true"]',
         ]
         with mock.patch.object(sys, "argv", argv), mock.patch.object(
             EVIDENCE, "collect", return_value=report
-        ):
+        ) as collect:
             self.assertEqual(EVIDENCE.main(), 0)
+        self.assertTrue(collect.call_args.kwargs["require_replay_authority"])
         self.assertTrue(output.is_file())
         output.unlink()
         with mock.patch.object(sys, "argv", argv), mock.patch.object(

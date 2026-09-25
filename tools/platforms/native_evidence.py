@@ -527,6 +527,7 @@ def collect(
     sandbox_probe: Callable[[str, str, Path, Path], bool] | None = None,
     tool_evidence_probe: Callable[..., list[dict[str, str]]] | None = None,
     kernel_evidence_probe: Callable[..., dict[str, str]] | None = None,
+    require_replay_authority: bool = False,
 ) -> dict[str, Any]:
     """Collect an evidence document, failing before output on any mismatch."""
     if not RUN_ID.fullmatch(run_id):
@@ -558,12 +559,18 @@ def collect(
     commit, tree = source_identity(source, base_commit, probe)
     optional_checks = optional_checks or []
     all_checks = checks + optional_checks
+    required_names = {name for name, _ in checks}
+    if require_replay_authority and "replay-authority" not in required_names:
+        raise EvidenceError("qualified native collection requires replay-authority")
     if (
-        {name for name, _ in checks} != {"process", "metrics"}
+        not {"process", "metrics"}.issubset(required_names)
+        or not required_names.issubset({"process", "metrics", "replay-authority"})
         or [name for name, _ in optional_checks] != ["sandbox"]
         or len({name for name, _ in all_checks}) != len(all_checks)
     ):
-        raise EvidenceError("checks must be exactly process, metrics, and optional sandbox")
+        raise EvidenceError(
+            "checks must be exactly process and metrics, with optional replay-authority and optional sandbox"
+        )
     tool_evidence_probe = tool_evidence_probe or sandbox_tool_evidence
     tools = tool_evidence_probe(platform_id, arch, root, source, probe)
     kernel_evidence_probe = kernel_evidence_probe or kernel_provenance
@@ -730,6 +737,7 @@ def main() -> int:
         report = collect(
             args.platform_id, args.architecture, args.run_id,
             args.source.resolve(strict=True), args.base_commit, args.check, args.optional_check,
+            require_replay_authority=True,
         )
         write_atomic(args.output, report, args.output_root.resolve(strict=True))
     except EvidenceError as error:
