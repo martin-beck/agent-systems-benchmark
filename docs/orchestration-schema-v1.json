@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asb.example.invalid/schema/orchestration-v1",
+  "title": "ASB central orchestration v1",
+  "description": "Credential-free request, response, operation and event contract. Authority objects and secret bytes are not representable.",
+  "oneOf": [
+    {"$ref": "#/$defs/RunRequest"},
+    {"$ref": "#/$defs/StatusRequest"},
+    {"$ref": "#/$defs/CancelRequest"},
+    {"$ref": "#/$defs/RetryRequest"},
+    {"$ref": "#/$defs/ResultPageRequest"},
+    {"$ref": "#/$defs/RunResponse"},
+    {"$ref": "#/$defs/RunEvent"}
+  ],
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,127}$",
+      "not": {"pattern": "\\.\\./"}
+    },
+    "Sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "Mode": {"type": "string", "enum": ["local-mock", "strict-replay", "live"]},
+    "Limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeout_ms", "max_output_bytes", "max_events", "max_artifacts", "max_artifact_bytes", "max_artifact_total_bytes"],
+      "properties": {
+        "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 86400000},
+        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "max_events": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "max_artifacts": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "max_artifact_bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "max_artifact_total_bytes": {"type": "integer", "minimum": 1, "maximum": 268435456}
+      }
+    },
+    "RunRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "idempotency_key", "agent_id", "provider_id", "model_id", "workload_id", "mode", "catalog_digest", "workload_revision", "scorer_revision", "limits"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "kind": {"const": "run_request"},
+        "idempotency_key": {"type": "string", "pattern": "^[A-Za-z0-9._~-]{1,128}$"},
+        "agent_id": {"$ref": "#/$defs/Id"},
+        "provider_id": {"$ref": "#/$defs/Id"},
+        "model_id": {"$ref": "#/$defs/Id"},
+        "workload_id": {"$ref": "#/$defs/Id"},
+        "mode": {"$ref": "#/$defs/Mode"},
+        "catalog_digest": {"$ref": "#/$defs/Sha256"},
+        "workload_revision": {"$ref": "#/$defs/Sha256"},
+        "scorer_revision": {"$ref": "#/$defs/Sha256"},
+        "cassette_digest": {"$ref": "#/$defs/Sha256"},
+        "credential_ref_digest": {"$ref": "#/$defs/Sha256"},
+        "limits": {"$ref": "#/$defs/Limits"}
+      },
+      "allOf": [
+        {"if": {"properties": {"mode": {"const": "strict-replay"}}}, "then": {"required": ["cassette_digest"], "not": {"required": ["credential_ref_digest"]}}},
+        {"if": {"properties": {"mode": {"const": "live"}}}, "then": {"required": ["credential_ref_digest"], "not": {"required": ["cassette_digest"]}}},
+        {"if": {"properties": {"mode": {"const": "local-mock"}}}, "then": {"not": {"anyOf": [{"required": ["cassette_digest"]}, {"required": ["credential_ref_digest"]}]}}}
+      ]
+    },
+    "Handle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "generation", "fence"],
+      "properties": {
+        "id": {"$ref": "#/$defs/Id"},
+        "generation": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "fence": {"$ref": "#/$defs/Sha256"}
+      }
+    },
+    "RunResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_handle", "status"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "kind": {"const": "run_response"},
+        "run_handle": {"$ref": "#/$defs/Handle"},
+        "attempt_handle": {"$ref": "#/$defs/Handle"},
+        "status": {"type": "string", "enum": ["admitted", "prepared", "running", "collecting", "completed", "failed", "cancelled", "needs_reconciliation"]},
+        "next_cursor": {"type": "string", "pattern": "^[A-Za-z0-9._~-]{1,256}$"},
+        "result_digest": {"$ref": "#/$defs/Sha256"}
+      }
+    },
+    "StatusRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_handle"],
+      "properties": {"schema_version": {"const": 1}, "kind": {"const": "status_request"}, "run_handle": {"$ref": "#/$defs/Handle"}}
+    },
+    "CancelRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_handle", "attempt_handle"],
+      "properties": {"schema_version": {"const": 1}, "kind": {"const": "cancel_request"}, "run_handle": {"$ref": "#/$defs/Handle"}, "attempt_handle": {"$ref": "#/$defs/Handle"}}
+    },
+    "RetryRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_handle", "retry_token"],
+      "properties": {"schema_version": {"const": 1}, "kind": {"const": "retry_request"}, "run_handle": {"$ref": "#/$defs/Handle"}, "retry_token": {"$ref": "#/$defs/Sha256"}}
+    },
+    "ResultPageRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_handle", "page_size"],
+      "properties": {"schema_version": {"const": 1}, "kind": {"const": "result_page_request"}, "run_handle": {"$ref": "#/$defs/Handle"}, "cursor": {"type": "string", "pattern": "^[A-Za-z0-9._~-]{1,256}$"}, "page_size": {"type": "integer", "minimum": 1, "maximum": 128}}
+    },
+    "RunEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "run_handle", "attempt_handle", "sequence", "event"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "kind": {"const": "run_event"},
+        "run_handle": {"$ref": "#/$defs/Handle"},
+        "attempt_handle": {"$ref": "#/$defs/Handle"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "event": {"type": "string", "enum": ["prepared", "started", "collecting", "completed", "failed", "cancel_requested", "cancelled", "needs_reconciliation"]},
+        "evidence_digest": {"$ref": "#/$defs/Sha256"}
+      }
+    }
+  }
+}
