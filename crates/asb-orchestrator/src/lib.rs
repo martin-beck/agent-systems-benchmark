@@ -1212,6 +1212,141 @@ fn append_state(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    #[derive(Clone, Copy)]
+    enum Script {
+        Success,
+        AuthorityError,
+        Timeout,
+        OutputLimit,
+        ArtifactTotal,
+        ArtifactCount,
+        ArtifactLargest,
+    }
+
+    struct ScriptedSource {
+        script: Script,
+        cancel_fails: bool,
+        reconcile_fails: bool,
+        cancels: usize,
+    }
+
+    impl ScriptedSource {
+        fn new(script: Script) -> Self {
+            Self {
+                script,
+                cancel_fails: false,
+                reconcile_fails: false,
+                cancels: 0,
+            }
+        }
+    }
+
+    impl AuthoritySource for ScriptedSource {
+        fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError> {
+            Ok(AttemptCapability {
+                mode: request.mode,
+                binding: request_digest(request).map_err(|_| AuthorityError::InvalidBinding)?,
+                attempt_id: String::new(),
+            })
+        }
+
+        fn execute(
+            &mut self,
+            request: &RunRequest,
+            capability: &AttemptCapability,
+        ) -> Result<ExecutionOutcome, AuthorityError> {
+            if capability.mode != request.mode {
+                return Err(AuthorityError::InvalidBinding);
+            }
+            match self.script {
+                Script::AuthorityError => Err(AuthorityError::LocalExecution),
+                Script::Timeout => Err(AuthorityError::Timeout),
+                Script::OutputLimit => Ok(ExecutionOutcome {
+                    result_digest: capability.binding.clone(),
+                    output_bytes: request.limits.max_output_bytes + 1,
+                    artifact_bytes: 0,
+                    artifact_count: 0,
+                    largest_artifact_bytes: 0,
+                }),
+                Script::ArtifactTotal => Ok(ExecutionOutcome {
+                    result_digest: capability.binding.clone(),
+                    output_bytes: 0,
+                    artifact_bytes: request.limits.max_artifact_total_bytes + 1,
+                    artifact_count: 0,
+                    largest_artifact_bytes: 0,
+                }),
+                Script::ArtifactCount => Ok(ExecutionOutcome {
+                    result_digest: capability.binding.clone(),
+                    output_bytes: 0,
+                    artifact_bytes: 0,
+                    artifact_count: request.limits.max_artifacts + 1,
+                    largest_artifact_bytes: 0,
+                }),
+                Script::ArtifactLargest => Ok(ExecutionOutcome {
+                    result_digest: capability.binding.clone(),
+                    output_bytes: 0,
+                    artifact_bytes: 0,
+                    artifact_count: 0,
+                    largest_artifact_bytes: request.limits.max_artifact_bytes + 1,
+                }),
+                Script::Success => Ok(ExecutionOutcome {
+                    result_digest: capability.binding.clone(),
+                    output_bytes: 0,
+                    artifact_bytes: 0,
+                    artifact_count: 0,
+                    largest_artifact_bytes: 0,
+                }),
+            }
+        }
+
+        fn execute_until(
+            &mut self,
+            request: &RunRequest,
+            capability: &AttemptCapability,
+            _deadline: Instant,
+        ) -> Result<ExecutionOutcome, AuthorityError> {
+            self.execute(request, capability)
+        }
+
+        fn cancel(
+            &mut self,
+            _request: &RunRequest,
+            _capability: &AttemptCapability,
+        ) -> Result<(), AuthorityError> {
+            self.cancels += 1;
+            if self.cancel_fails {
+                Err(AuthorityError::LocalExecution)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn reconcile(
+            &mut self,
+            _request: &RunRequest,
+            _attempt: &AttemptHandle,
+        ) -> Result<(), AuthorityError> {
+            if self.reconcile_fails {
+                Err(AuthorityError::LocalExecution)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn store_root(label: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "asb-orchestrator-{label}-{}-{}",
+            std::process::id(),
+            TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        root
+    }
 
     fn request(mode: ExecutionMode) -> RunRequest {
         RunRequest {
@@ -1327,5 +1462,319 @@ mod tests {
             .unwrap()
             .insert("authority".into(), serde_json::Value::Null);
         assert!(serde_json::from_value::<RunRequest>(value).is_err());
+    }
+
+    #[test]
+    fn request_validation_rejects_bad_contract_and_mode_fields() {
+        let mut value = request(ExecutionMode::LocalMock);
+        value.kind = "wrong".into();
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidRequest("kind"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.schema_version += 1;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidRequest("schema_version"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.catalog_digest = "bad".into();
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidRequest("catalog_digest"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.cassette_digest = Some("d".repeat(64));
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidRequest("local authority fields"))
+        );
+        let mut value = request(ExecutionMode::StrictReplay);
+        value.cassette_digest = None;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidRequest("replay authority fields"))
+        );
+        let mut value = request(ExecutionMode::Live);
+        value.credential_ref_digest = None;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidRequest("live authority fields"))
+        );
+    }
+
+    #[test]
+    fn request_validation_rejects_each_zero_or_oversized_limit() {
+        let mut value = request(ExecutionMode::LocalMock);
+        value.limits.timeout_ms = 0;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidLimit("timeout_ms"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.limits.max_output_bytes = 0;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidLimit("max_output_bytes"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.limits.max_events = 0;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidLimit("max_events"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.limits.max_artifacts = 0;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidLimit("max_artifacts"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.limits.max_artifact_bytes = 0;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidLimit("max_artifact_bytes"))
+        );
+        let mut value = request(ExecutionMode::LocalMock);
+        value.limits.max_artifact_total_bytes = 0;
+        assert_eq!(
+            validate_request(&value),
+            Err(OrchestratorError::InvalidLimit("max_artifact_total_bytes"))
+        );
+    }
+
+    #[test]
+    fn execute_records_authority_error_and_cleanup() {
+        let mut source = ScriptedSource::new(Script::AuthorityError);
+        let mut service = Orchestrator::new(source);
+        let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(
+            service.execute(&handle, &attempt),
+            Err(OrchestratorError::Authority(AuthorityError::LocalExecution))
+        );
+        assert_eq!(service.status(&handle), Ok(RunStatus::Failed));
+        source = service.source;
+        assert_eq!(source.cancels, 1);
+    }
+
+    #[test]
+    fn execute_rejects_evidence_and_timeout_and_barriers_cleanup_failure() {
+        let mut service = Orchestrator::new(ScriptedSource::new(Script::OutputLimit));
+        let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert!(matches!(
+            service.execute(&handle, &attempt),
+            Err(OrchestratorError::EvidenceLimit("max_output_bytes"))
+        ));
+        assert_eq!(service.status(&handle), Ok(RunStatus::Failed));
+
+        let mut timeout = Orchestrator::new(ScriptedSource::new(Script::Timeout));
+        let handle = timeout.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = timeout.attempt_handle(&handle).unwrap();
+        assert_eq!(
+            timeout.execute(&handle, &attempt),
+            Err(OrchestratorError::Authority(AuthorityError::Timeout))
+        );
+
+        let mut cleanup = ScriptedSource::new(Script::Success);
+        cleanup.cancel_fails = true;
+        let mut service = Orchestrator::new(cleanup);
+        let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(
+            service.execute(&handle, &attempt),
+            Err(OrchestratorError::NeedsReconciliation)
+        );
+        assert_eq!(service.status(&handle), Ok(RunStatus::NeedsReconciliation));
+    }
+
+    #[test]
+    fn cancel_and_complete_cover_transitions_and_cleanup_failure() {
+        let mut service = Orchestrator::new(ScriptedSource::new(Script::Success));
+        let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(service.cancel(&handle, &attempt), Ok(RunStatus::Cancelled));
+        assert_eq!(service.cancel(&handle, &attempt), Ok(RunStatus::Cancelled));
+
+        let mut service = Orchestrator::new(ScriptedSource::new(Script::Success));
+        let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(service.start(&handle), Ok(RunStatus::Running));
+        assert_eq!(
+            service.complete(&handle, &attempt),
+            Ok(RunStatus::Completed)
+        );
+
+        let mut service = Orchestrator::new(ScriptedSource::new(Script::Success));
+        let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(
+            service.complete(&handle, &attempt),
+            Err(OrchestratorError::InvalidTransition)
+        );
+    }
+
+    #[test]
+    fn persisted_restart_rehydrates_and_reconciles_interrupted_run() {
+        let root = store_root("recovery");
+        let handle = {
+            let mut service = Orchestrator::open(DeterministicAuthoritySource, &root).unwrap();
+            let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+            service.start(&handle).unwrap();
+            handle
+        };
+        let mut service = Orchestrator::open(DeterministicAuthoritySource, &root).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(service.status(&handle), Ok(RunStatus::NeedsReconciliation));
+        assert_eq!(
+            service.recovery(&handle),
+            Ok(RecoveryDecision::NeedsReconciliation)
+        );
+        assert_eq!(
+            service.cancel(&handle, &attempt),
+            Err(OrchestratorError::NeedsReconciliation)
+        );
+        assert_eq!(service.reconcile(&handle, &attempt), Ok(RunStatus::Failed));
+        assert_eq!(service.status(&handle), Ok(RunStatus::Failed));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn serialized_contracts_and_state_mappings_are_closed() {
+        for status in [
+            RunStatus::Admitted,
+            RunStatus::Prepared,
+            RunStatus::Running,
+            RunStatus::Collecting,
+            RunStatus::Completed,
+            RunStatus::Failed,
+            RunStatus::Cancelled,
+            RunStatus::NeedsReconciliation,
+        ] {
+            let state = to_state(status);
+            let recovered = from_state(state);
+            let expected = match status {
+                RunStatus::Running | RunStatus::Collecting => RunStatus::NeedsReconciliation,
+                RunStatus::NeedsReconciliation => RunStatus::Failed,
+                other => other,
+            };
+            assert_eq!(recovered, expected);
+        }
+        assert!(valid_digest(&"a".repeat(64)));
+        assert!(!valid_digest("A"));
+        assert_eq!(parse_id_number("run-42"), 42);
+        assert_eq!(parse_id_number("attempt-42"), 0);
+        let encoded = serde_json::to_string(&request(ExecutionMode::LocalMock)).unwrap();
+        assert!(encoded.contains("local-mock"));
+        assert!(
+            request_digest(&request(ExecutionMode::LocalMock))
+                .unwrap()
+                .len()
+                == 64
+        );
+    }
+
+    #[test]
+    fn opaque_handle_and_capability_accessors_are_stable() {
+        let mut service = Orchestrator::new(DeterministicAuthoritySource);
+        let run = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&run).unwrap();
+        assert!(run.id().0.starts_with("run-"));
+        assert_eq!(run.generation(), 1);
+        assert_eq!(run.fence().len(), 64);
+        assert!(attempt.id().0.starts_with("attempt-"));
+        assert_eq!(attempt.generation(), 1);
+        assert_eq!(attempt.fence(), run.fence());
+        let capability = AttemptCapability {
+            mode: ExecutionMode::LocalMock,
+            binding: run.fence().to_owned(),
+            attempt_id: attempt.id().0.clone(),
+        };
+        assert_eq!(capability.mode(), ExecutionMode::LocalMock);
+        assert_eq!(capability.binding(), run.fence());
+        assert!(
+            service
+                .events(&run)
+                .unwrap()
+                .iter()
+                .all(|event| event.sequence > 0)
+        );
+    }
+
+    #[test]
+    fn deterministic_source_rejects_live_missing_cassette_and_expired_deadline() {
+        let source = &mut DeterministicAuthoritySource;
+        let mut live = request(ExecutionMode::Live);
+        live.credential_ref_digest = Some("a".repeat(64));
+        assert!(matches!(
+            source.prepare(&live),
+            Err(AuthorityError::LiveUnavailable)
+        ));
+        let mut replay = request(ExecutionMode::StrictReplay);
+        replay.cassette_digest = None;
+        assert!(matches!(
+            source.prepare(&replay),
+            Err(AuthorityError::MissingCassette)
+        ));
+        let request = request(ExecutionMode::LocalMock);
+        let capability = source.prepare(&request).unwrap();
+        assert_eq!(
+            source.execute_until(&request, &capability, Instant::now()),
+            Err(AuthorityError::Timeout)
+        );
+        let mut wrong = capability.clone();
+        wrong.mode = ExecutionMode::Live;
+        assert_eq!(
+            source.execute(&request, &wrong),
+            Err(AuthorityError::LiveUnavailable)
+        );
+    }
+
+    #[test]
+    fn invalid_handles_and_transitions_are_rejected() {
+        let mut service = Orchestrator::new(DeterministicAuthoritySource);
+        let run = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+        let attempt = service.attempt_handle(&run).unwrap();
+        let mut stale_run = run.clone();
+        stale_run.fence = "f".repeat(64);
+        assert_eq!(
+            service.status(&stale_run),
+            Err(OrchestratorError::StaleHandle)
+        );
+        let mut stale_attempt = attempt.clone();
+        stale_attempt.fence = "f".repeat(64);
+        assert_eq!(
+            service.cancel(&run, &stale_attempt),
+            Err(OrchestratorError::StaleHandle)
+        );
+        assert_eq!(service.start(&run), Ok(RunStatus::Running));
+        assert_eq!(
+            service.start(&run),
+            Err(OrchestratorError::InvalidTransition)
+        );
+        assert_eq!(
+            service.execute(&run, &attempt),
+            Err(OrchestratorError::StaleHandle)
+        );
+    }
+
+    #[test]
+    fn each_artifact_bound_is_enforced() {
+        for (script, field) in [
+            (Script::ArtifactTotal, "max_artifact_total_bytes"),
+            (Script::ArtifactCount, "max_artifacts"),
+            (Script::ArtifactLargest, "max_artifact_bytes"),
+        ] {
+            let source = ScriptedSource::new(script);
+            let mut service = Orchestrator::new(source);
+            let run = service.admit(request(ExecutionMode::LocalMock)).unwrap();
+            let attempt = service.attempt_handle(&run).unwrap();
+            assert_eq!(
+                service.execute(&run, &attempt),
+                Err(OrchestratorError::EvidenceLimit(field))
+            );
+        }
     }
 }
