@@ -13,6 +13,7 @@ use crate::supervisor::{PinnedCommand, SupervisorPlan};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -85,6 +86,13 @@ impl LocalReplayBootstrapSpec {
             {
                 return Err(ReplayAuthorityBootstrapError::InvalidRoot);
             }
+            let mode = fs::metadata(root)
+                .map_err(|_| ReplayAuthorityBootstrapError::InvalidRoot)?
+                .permissions()
+                .mode();
+            if mode & 0o077 != 0 {
+                return Err(ReplayAuthorityBootstrapError::InvalidRoot);
+            }
         }
         Ok(Self {
             relay_root: relay_root.to_owned(),
@@ -119,7 +127,7 @@ impl LocalReplayProvisioner {
     ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
         ReplayAuthoritySource::validate_cassette_digest(cassette_sha256)
             .map_err(ReplayAuthoritySourceError::Authority)?;
-        let generation = format!("replay-{}", &cassette_sha256[..16]);
+        let generation = format!("replay-{cassette_sha256}");
         let relay = ReplayRelay::bind(&self.spec.relay_root, &generation).map_err(|_| {
             ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
         })?;
