@@ -391,22 +391,29 @@ impl AuthoritySource for LocalMockAuthoritySource {
     fn cancel(
         &mut self,
         _request: &RunRequest,
-        _capability: &AttemptCapability,
+        capability: &AttemptCapability,
     ) -> Result<(), AuthorityError> {
-        self.backend.revoke();
-        self.backend =
-            LocalProviderMockBackend::provision().map_err(|_| AuthorityError::LocalUnavailable)?;
+        let attempt_id = capability
+            .attempt_id
+            .strip_prefix("attempt-")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(1);
+        self.backend.cancel_attempt(attempt_id);
         Ok(())
     }
 
     fn reconcile(
         &mut self,
         _request: &RunRequest,
-        _attempt: &AttemptHandle,
+        attempt: &AttemptHandle,
     ) -> Result<(), AuthorityError> {
-        self.backend.revoke();
-        self.backend =
-            LocalProviderMockBackend::provision().map_err(|_| AuthorityError::LocalUnavailable)?;
+        let attempt_id = attempt
+            .id
+            .0
+            .strip_prefix("attempt-")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(1);
+        self.backend.cancel_attempt(attempt_id);
         Ok(())
     }
 }
@@ -724,6 +731,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
         let outcome = match self.source.execute(&request, &cap) {
             Ok(value) => value,
             Err(error) => {
+                let _ = self.source.cancel(&request, &cap);
                 {
                     let record = self.record_mut(run)?;
                     push_event(record, RunStatus::Failed)?;
@@ -755,6 +763,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
             None
         };
         if let Some(kind) = limit_error {
+            let _ = self.source.cancel(&request, &cap);
             {
                 let record = self.record_mut(run)?;
                 push_event(record, RunStatus::Failed)?;
