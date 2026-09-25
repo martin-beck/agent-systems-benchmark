@@ -152,7 +152,6 @@ pub trait LiveProviderResolver: Send {
 pub struct LiveProviderRuntimeService;
 
 static LOCAL_PROVIDER_GENERATION: AtomicU64 = AtomicU64::new(0);
-static LOCAL_PROVIDER_ACTIVE_GENERATION: AtomicU64 = AtomicU64::new(0);
 const LOCAL_PROVIDER_CREDENTIAL_SHA256: &str =
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const LOCAL_PROVIDER_TOOL_SHA256: &str =
@@ -376,7 +375,6 @@ impl LocalProviderAuthorityProvisioner {
                 std::fs::set_permissions(&relay_root, std::fs::Permissions::from_mode(0o700))
             })
             .map_err(|_| LocalProviderAuthorityError::Unavailable)?;
-        LOCAL_PROVIDER_ACTIVE_GENERATION.store(generation, Ordering::SeqCst);
         Ok(LocalProviderAuthority {
             generation,
             lease_root,
@@ -462,7 +460,6 @@ impl LocalProviderAuthority {
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.teardown.load(Ordering::Acquire) == self.generation
-            && LOCAL_PROVIDER_ACTIVE_GENERATION.load(Ordering::Acquire) == self.generation
     }
 
     /// Fence this authority before cancellation or teardown.
@@ -2364,10 +2361,9 @@ mod tests {
                 & 0o777,
             0o700
         );
-        // Another parallel lifecycle test may provision a newer generation
-        // before this structural inspection reaches the fence. Generation
-        // fencing itself is asserted by the dedicated test below; this test
-        // only covers the authority's private roots and opaque debug surface.
+        // Structural inspection deliberately revokes this authority before
+        // checking its opaque debug surface; independent authorities remain
+        // usable until their own cancellation or drop.
         authority.revoke();
         assert!(!authority.is_active());
         let debug = format!("{authority:?}");
@@ -2378,12 +2374,12 @@ mod tests {
     }
 
     #[test]
-    fn local_authority_generation_is_fenced_and_drop_tears_down_private_roots() {
+    fn local_authority_generations_are_independent_and_drop_tears_down_private_roots() {
         let first = LocalProviderAuthorityProvisioner::provision().unwrap();
         let first_generation = first.generation();
         let second = LocalProviderAuthorityProvisioner::provision().unwrap();
         assert!(second.generation() > first_generation);
-        assert!(!first.is_active());
+        assert!(first.is_active());
         assert!(second.is_active());
         assert_eq!(
             first.credential_reference_sha256(),
