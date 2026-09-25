@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
 """Dependency-free hostile/positive checks for orchestration schema vectors."""
 
 import json
@@ -34,4 +36,3 @@ except AssertionError:
     pass
 else:
     raise AssertionError("unknown orchestration field was accepted")
-
