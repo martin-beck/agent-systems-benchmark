@@ -18,7 +18,8 @@ The artifact must be a bounded, sanitized report produced by
 `tools/platforms/native_evidence.py`. The manifest validator checks its SHA-256,
 source commit and tree, reviewed base ancestry, platform, architecture, booted
 kernel provenance, run ID, cgroup v2 and PSI probes, and the exact process,
-metrics and optional sandbox check set. The closed report contract is
+metrics, optional runtime-owned replay-authority, and optional sandbox check set. The
+replay-authority check is required on qualified native runners and the closed report contract is
 [`native-evidence.schema.json`](../platforms/v1/native-evidence.schema.json).
 A partial report remains useful evidence but cannot promote a cell.
 

@@ -558,12 +558,16 @@ def collect(
     commit, tree = source_identity(source, base_commit, probe)
     optional_checks = optional_checks or []
     all_checks = checks + optional_checks
+    required_names = {name for name, _ in checks}
     if (
-        {name for name, _ in checks} != {"process", "metrics"}
+        not {"process", "metrics"}.issubset(required_names)
+        or not required_names.issubset({"process", "metrics", "replay-authority"})
         or [name for name, _ in optional_checks] != ["sandbox"]
         or len({name for name, _ in all_checks}) != len(all_checks)
     ):
-        raise EvidenceError("checks must be exactly process, metrics, and optional sandbox")
+        raise EvidenceError(
+            "checks must include process and metrics, may include replay-authority, and allow only optional sandbox"
+        )
     tool_evidence_probe = tool_evidence_probe or sandbox_tool_evidence
     tools = tool_evidence_probe(platform_id, arch, root, source, probe)
     kernel_evidence_probe = kernel_evidence_probe or kernel_provenance
