@@ -254,7 +254,12 @@ pub fn workload_catalog() -> Vec<WorkloadCatalogEntry> {
             evaluator: evaluator.into(),
             capability_tags: capability_tags(id),
             attempt_budget,
-            adaptation: "fixture-only".into(),
+            adaptation: if local_fixture {
+                "fixture-only"
+            } else {
+                "not-applicable"
+            }
+            .into(),
             platform: if local_fixture {
                 "linux-x86_64:fixture-only"
             } else {
