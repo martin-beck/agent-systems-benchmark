@@ -273,6 +273,14 @@ pub trait AuthoritySource {
     ) -> Result<(), AuthorityError> {
         Ok(())
     }
+    /// Reconcile an interrupted attempt after runtime inspection.
+    fn reconcile(
+        &mut self,
+        _request: &RunRequest,
+        _attempt: &AttemptHandle,
+    ) -> Result<(), AuthorityError> {
+        Ok(())
+    }
 }
 
 /// Deterministic source used by development and CI.
@@ -384,6 +392,17 @@ impl AuthoritySource for LocalMockAuthoritySource {
         &mut self,
         _request: &RunRequest,
         _capability: &AttemptCapability,
+    ) -> Result<(), AuthorityError> {
+        self.backend.revoke();
+        self.backend =
+            LocalProviderMockBackend::provision().map_err(|_| AuthorityError::LocalUnavailable)?;
+        Ok(())
+    }
+
+    fn reconcile(
+        &mut self,
+        _request: &RunRequest,
+        _attempt: &AttemptHandle,
     ) -> Result<(), AuthorityError> {
         self.backend.revoke();
         self.backend =
@@ -770,6 +789,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             if record.status.terminal() {
                 return Ok(record.status);
             }
+            if record.status == RunStatus::NeedsReconciliation {
+                return Err(OrchestratorError::NeedsReconciliation);
+            }
             (record.request.clone(), record.capability.clone())
         };
         if let Some(capability) = capability.as_ref() {
@@ -843,10 +865,10 @@ impl<S: AuthoritySource> Orchestrator<S> {
         handle: &RunHandle,
         attempt: &AttemptHandle,
     ) -> Result<RunStatus, OrchestratorError> {
-        let status = {
+        let (request, capability) = {
             let record = self
                 .runs
-                .get_mut(&handle.id)
+                .get(&handle.id)
                 .ok_or(OrchestratorError::NotFound)?;
             if record.run != *handle
                 || record.attempt != *attempt
@@ -854,6 +876,17 @@ impl<S: AuthoritySource> Orchestrator<S> {
             {
                 return Err(OrchestratorError::StaleHandle);
             }
+            (record.request.clone(), record.capability.clone())
+        };
+        self.source.reconcile(&request, attempt)?;
+        if let Some(capability) = capability.as_ref() {
+            self.source.cancel(&request, capability)?;
+        }
+        let status = {
+            let record = self
+                .runs
+                .get_mut(&handle.id)
+                .ok_or(OrchestratorError::NotFound)?;
             record.capability = None;
             record.status = RunStatus::Failed;
             record.status
