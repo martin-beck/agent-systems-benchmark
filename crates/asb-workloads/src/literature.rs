@@ -32,7 +32,7 @@ const LOCAL_MOCK_SCORER: &str = "asb-literature-local-mock-scorer-v1";
 
 /// Stable identities documented by ASB.  They are provenance identities, not
 /// a claim that every upstream evaluator is executable or qualified.
-pub const LITERATURE_WORKLOAD_IDS: [&str; 22] = [
+pub const LITERATURE_WORKLOAD_IDS: [&str; 25] = [
     "swe-bench",
     "swe-bench-lite",
     "swe-bench-verified",
@@ -55,6 +55,9 @@ pub const LITERATURE_WORKLOAD_IDS: [&str; 22] = [
     "harbor",
     "inspect-ai",
     "hal",
+    "agentops",
+    "ai-agents-that-matter",
+    "helm",
 ];
 
 /// The provenance class of a catalog record.
@@ -1044,7 +1047,10 @@ fn family(id: &str) -> LiteratureFamily {
 /// must remain visible in the registry, but never acquire an executable local
 /// fixture or enter a plan.
 fn methodology_only(id: &str) -> bool {
-    matches!(id, "harbor" | "inspect-ai" | "hal")
+    matches!(
+        id,
+        "harbor" | "inspect-ai" | "hal" | "agentops" | "ai-agents-that-matter" | "helm"
+    )
 }
 
 fn provenance(id: &str) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -1476,6 +1482,26 @@ mod tests {
             assert_eq!(entry.availability_kind, CatalogAvailability::FixtureOnly);
             assert_eq!(entry.evidence_kind, CatalogEvidence::Planned);
             assert!(select_workload(id, "linux-x86_64").is_ok());
+        }
+    }
+
+    #[test]
+    fn every_framework_identity_is_described_but_never_prepared() {
+        for id in [
+            "harbor",
+            "inspect-ai",
+            "hal",
+            "agentops",
+            "ai-agents-that-matter",
+            "helm",
+        ] {
+            let descriptor = LiteratureAdapter::describe(id).unwrap();
+            assert_eq!(descriptor.status, AdapterStatus::Unsupported, "{id}");
+            assert_eq!(descriptor.id, id);
+            assert!(matches!(
+                LiteratureAdapter::prepare(id, root(&format!("framework-{id}"))),
+                Err(LiteratureError::Unsupported)
+            ));
         }
     }
 
