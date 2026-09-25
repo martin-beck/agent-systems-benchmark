@@ -560,6 +560,7 @@ struct FrontendOrchestration {
 struct PlanAuthoritySource {
     plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
     cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
+    execution_started: Option<Arc<AtomicBool>>,
 }
 
 fn execute_strict_replay(
@@ -685,6 +686,9 @@ impl AuthoritySource for PlanAuthoritySource {
         let store = AtomicStore::open(&plan.result_root, StoreLimits::default())
             .map(Arc::new)
             .map_err(|_| AuthorityError::LocalExecution)?;
+        if let Some(started) = &self.execution_started {
+            started.store(true, Ordering::SeqCst);
+        }
         let point = super::run_point(
             store,
             &plan,
@@ -789,6 +793,7 @@ impl FrontendOrchestration {
         let source = PlanAuthoritySource {
             plans: Arc::clone(&plans),
             cancelled: Arc::clone(&cancelled),
+            execution_started: None,
         };
         Orchestrator::open(source, root.join("orchestrator"))
             .map(|service| Self {
@@ -6656,6 +6661,7 @@ printf '%s' 'not-json'
         let mut source = PlanAuthoritySource {
             plans,
             cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+            execution_started: None,
         };
         let capability = source.prepare(&request).unwrap();
         let started = Instant::now();
@@ -6694,9 +6700,11 @@ printf '%s' 'not-json'
             },
         };
         let cancelled = Arc::new(Mutex::new(BTreeMap::new()));
+        let execution_started = Arc::new(AtomicBool::new(false));
         let mut source = PlanAuthoritySource {
             plans: Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)]))),
             cancelled: Arc::clone(&cancelled),
+            execution_started: Some(Arc::clone(&execution_started)),
         };
         let capability = source.prepare(&request).unwrap();
         let binding = capability.binding().to_owned();
@@ -6707,7 +6715,14 @@ printf '%s' 'not-json'
                 Instant::now() + Duration::from_secs(5),
             )
         });
-        thread::sleep(Duration::from_millis(50));
+        let wait_started = Instant::now();
+        while !execution_started.load(Ordering::SeqCst) {
+            assert!(
+                wait_started.elapsed() < Duration::from_secs(2),
+                "execution did not reach the in-flight barrier"
+            );
+            thread::yield_now();
+        }
         let flag = cancelled
             .lock()
             .unwrap()
