@@ -243,6 +243,18 @@ pub struct ExecutionOutcome {
 }
 
 impl AttemptCapability {
+    /// Construct a capability for an authority source after it has validated
+    /// and bound the request. Frontends must never call this method; it is
+    /// intended for runtime-owned [`AuthoritySource`] implementations.
+    #[must_use]
+    pub fn for_authority(mode: ExecutionMode, binding: String) -> Self {
+        Self {
+            mode,
+            binding,
+            attempt_id: String::new(),
+        }
+    }
+
     /// Mode authorized by the runtime source.
     #[must_use]
     pub const fn mode(&self) -> ExecutionMode {
@@ -506,6 +518,9 @@ pub enum AuthorityError {
     /// The runtime-owned authority exceeded its deadline.
     #[error("authority execution timed out")]
     Timeout,
+    /// The runtime-owned authority observed an explicit cancellation.
+    #[error("authority execution cancelled")]
+    Cancelled,
 }
 
 struct RunRecord {
@@ -766,6 +781,15 @@ impl<S: AuthoritySource> Orchestrator<S> {
         let deadline = started + std::time::Duration::from_millis(request.limits.timeout_ms);
         let outcome = match self.source.execute_until(&request, &cap, deadline) {
             Ok(value) => value,
+            Err(AuthorityError::Cancelled) => {
+                {
+                    let record = self.record_mut(run)?;
+                    push_event(record, RunStatus::Cancelled)?;
+                    record.capability = None;
+                }
+                self.persist_for(run.id(), RunStatus::Cancelled)?;
+                return Err(AuthorityError::Cancelled.into());
+            }
             Err(error) => {
                 if self.source.cancel(&request, &cap).is_err() {
                     return Err(self.cleanup_barrier(run.id()));
@@ -909,6 +933,25 @@ impl<S: AuthoritySource> Orchestrator<S> {
     /// Read the authoritative current status.
     pub fn status(&self, handle: &RunHandle) -> Result<RunStatus, OrchestratorError> {
         Ok(self.record(handle)?.status)
+    }
+
+    /// Read the authoritative status for a request after a frontend restart.
+    ///
+    /// The idempotency key is the stable request identity retained in the
+    /// journal; callers do not need to reconstruct or persist an opaque run
+    /// handle in order to project durable lifecycle state.
+    pub fn status_for_idempotency_key(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<RunStatus, OrchestratorError> {
+        let run_id = self
+            .idempotency
+            .get(idempotency_key)
+            .ok_or(OrchestratorError::NotFound)?;
+        self.runs
+            .get(run_id)
+            .map(|record| record.status)
+            .ok_or(OrchestratorError::NotFound)
     }
 
     /// Read the server-issued attempt handle paired with a run.

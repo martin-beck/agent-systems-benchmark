@@ -18,6 +18,10 @@ use asb_control::{
     RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1,
     RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
 };
+use asb_orchestrator::{
+    AttemptCapability, AttemptHandle, AuthorityError, AuthoritySource, ExecutionMode,
+    ExecutionOutcome, Orchestrator, OrchestratorError, RunHandle, RunLimits, RunRequest,
+};
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
     ProviderCapture, ProviderCaptureError, ProviderCaptureRequest, ProviderCaptureResult,
@@ -28,6 +32,7 @@ use std::env;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::AtomicU64;
+use std::sync::mpsc;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -537,6 +542,383 @@ struct RunnerBackend {
     active: Arc<Mutex<BTreeMap<String, ActiveRun>>>,
     state_lock: Arc<fs::File>,
     provider_capture: Arc<dyn ProviderCapture>,
+    orchestration: Arc<Mutex<FrontendOrchestration>>,
+    cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
+}
+
+/// Runtime-owned adapter used by the control frontend. The frontend supplies
+/// only a validated plan; process, cancellation, and result effects stay
+/// behind the central orchestrator source.
+struct FrontendOrchestration {
+    service: Orchestrator<PlanAuthoritySource>,
+    bindings: BTreeMap<String, (RunHandle, AttemptHandle)>,
+    plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
+    cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
+    by_plan: BTreeMap<String, String>,
+}
+
+struct PlanAuthoritySource {
+    plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
+    cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
+    execution_started: Option<Arc<AtomicBool>>,
+}
+
+fn execute_strict_replay(
+    plan: &PlanFile,
+    expected_digest: &str,
+) -> Result<ExecutionOutcome, AuthorityError> {
+    let path = plan
+        .replay_cassette_path
+        .as_deref()
+        .ok_or(AuthorityError::MissingCassette)?;
+    let bytes = super::read_bounded_json(path, super::MAX_CAPTURE_BYTES, "recording cassette")
+        .map_err(|_| AuthorityError::LocalExecution)?;
+    let cassette = asb_replay::decode_cassette(&bytes, asb_replay::CassetteLimits::default())
+        .map_err(|_| AuthorityError::LocalExecution)?;
+    if cassette.integrity.digest != expected_digest {
+        return Err(AuthorityError::InvalidBinding);
+    }
+    let interaction = cassette
+        .contents
+        .interactions
+        .first()
+        .ok_or(AuthorityError::LocalExecution)?;
+    let route = asb_replay::ReplayRoute {
+        session_id: interaction.session_id.clone(),
+        attempt_id: interaction.attempt_id.clone(),
+        dialect: interaction.dialect,
+    };
+    let request = asb_replay::ReplayHttpRequest {
+        method: interaction.request.method.clone(),
+        path: interaction.request.path.clone(),
+        headers: interaction.request.headers.clone(),
+        body: asb_replay::canonical_json_bytes(&interaction.request.body)
+            .map_err(|_| AuthorityError::LocalExecution)?,
+    };
+    let service =
+        asb_replay::StrictReplayService::new(cassette, asb_replay::ReplayLimits::default())
+            .map_err(|_| AuthorityError::LocalExecution)?;
+    let response = service
+        .handle(&route, request)
+        .map_err(|_| AuthorityError::LocalExecution)?;
+    let output_bytes = response
+        .segments
+        .iter()
+        .try_fold(0_u64, |total, segment| {
+            total.checked_add(segment.len() as u64)
+        })
+        .ok_or(AuthorityError::LocalExecution)?;
+    let mut digest = Sha256::new();
+    digest.update(response.status.to_be_bytes());
+    for segment in &response.segments {
+        digest.update(segment);
+    }
+    Ok(ExecutionOutcome {
+        result_digest: format!("{:x}", digest.finalize()),
+        output_bytes,
+        artifact_bytes: 0,
+        artifact_count: 0,
+        largest_artifact_bytes: 0,
+    })
+}
+
+impl AuthoritySource for PlanAuthoritySource {
+    fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError> {
+        if !matches!(
+            request.mode,
+            ExecutionMode::LocalMock | ExecutionMode::StrictReplay
+        ) {
+            return Err(AuthorityError::LocalUnavailable);
+        }
+        if !self
+            .plans
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .contains_key(&request.idempotency_key)
+        {
+            return Err(AuthorityError::LocalUnavailable);
+        }
+        let binding = format!(
+            "{:x}",
+            Sha256::digest(
+                serde_json::to_vec(request).map_err(|_| AuthorityError::InvalidBinding)?
+            )
+        );
+        self.cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .entry(binding.clone())
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)));
+        Ok(AttemptCapability::for_authority(request.mode, binding))
+    }
+
+    fn execute(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if capability.mode() != request.mode {
+            return Err(AuthorityError::InvalidBinding);
+        }
+        let plan = self
+            .plans
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .get(&request.idempotency_key)
+            .cloned()
+            .ok_or(AuthorityError::LocalUnavailable)?;
+        if request.mode == ExecutionMode::StrictReplay {
+            return execute_strict_replay(
+                &plan,
+                request
+                    .cassette_digest
+                    .as_deref()
+                    .ok_or(AuthorityError::MissingCassette)?,
+            );
+        }
+        let cancelled = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .get(capability.binding())
+            .cloned()
+            .ok_or(AuthorityError::LocalUnavailable)?;
+        let store = AtomicStore::open(&plan.result_root, StoreLimits::default())
+            .map(Arc::new)
+            .map_err(|_| AuthorityError::LocalExecution)?;
+        if let Some(started) = &self.execution_started {
+            started.store(true, Ordering::SeqCst);
+        }
+        let point = super::run_point(
+            store,
+            &plan,
+            plan.run_id.clone(),
+            plan.point.concurrency,
+            Arc::clone(&cancelled),
+        );
+        let was_cancelled = cancelled.load(Ordering::SeqCst);
+        if let Ok(mut cancelled) = self.cancelled.lock() {
+            cancelled.remove(capability.binding());
+        }
+        if was_cancelled {
+            return Err(AuthorityError::Cancelled);
+        }
+        let point = point.map_err(|_| AuthorityError::LocalExecution)?;
+        let encoded = serde_json::to_vec(&point).map_err(|_| AuthorityError::LocalExecution)?;
+        Ok(ExecutionOutcome {
+            result_digest: format!("{:x}", Sha256::digest(encoded)),
+            output_bytes: 0,
+            artifact_bytes: 0,
+            artifact_count: 0,
+            largest_artifact_bytes: 0,
+        })
+    }
+
+    fn execute_until(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+        deadline: Instant,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        let effective_deadline = deadline.min(
+            Instant::now()
+                .checked_add(Duration::from_millis(request.limits.timeout_ms))
+                .ok_or(AuthorityError::Timeout)?,
+        );
+        if Instant::now() >= effective_deadline {
+            return Err(AuthorityError::Timeout);
+        }
+        let cancelled = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .get(capability.binding())
+            .cloned()
+            .ok_or(AuthorityError::LocalUnavailable)?;
+        let (stop_tx, stop_rx) = mpsc::channel();
+        let timer_flag = Arc::clone(&cancelled);
+        let timer = std::thread::spawn(move || {
+            if stop_rx
+                .recv_timeout(effective_deadline.saturating_duration_since(Instant::now()))
+                .is_err()
+            {
+                timer_flag.store(true, Ordering::SeqCst);
+            }
+        });
+        let result = self.execute(request, capability);
+        let expired = Instant::now() >= effective_deadline;
+        let cancelled_by_authority = cancelled.load(Ordering::SeqCst);
+        let _ = stop_tx.send(());
+        let _ = timer.join();
+        if let Ok(mut cancelled) = self.cancelled.lock() {
+            cancelled.remove(capability.binding());
+        }
+        if expired {
+            return Err(AuthorityError::Timeout);
+        }
+        if cancelled_by_authority {
+            return Err(AuthorityError::Cancelled);
+        }
+        result
+    }
+
+    fn cancel(
+        &mut self,
+        _request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<(), AuthorityError> {
+        if let Some(flag) = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .remove(capability.binding())
+        {
+            flag.store(true, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+}
+
+impl FrontendOrchestration {
+    fn open(root: &Path, initial_plans: &BTreeMap<String, PlanFile>) -> Result<Self, CliError> {
+        let plans = Arc::new(Mutex::new(BTreeMap::new()));
+        if let Ok(mut stored) = plans.lock() {
+            stored.extend(
+                initial_plans
+                    .values()
+                    .map(|plan| (plan.run_id.clone(), plan.clone())),
+            );
+        }
+        let cancelled = Arc::new(Mutex::new(BTreeMap::new()));
+        let source = PlanAuthoritySource {
+            plans: Arc::clone(&plans),
+            cancelled: Arc::clone(&cancelled),
+            execution_started: None,
+        };
+        Orchestrator::open(source, root.join("orchestrator"))
+            .map(|service| Self {
+                service,
+                bindings: BTreeMap::new(),
+                plans,
+                cancelled: Arc::clone(&cancelled),
+                by_plan: BTreeMap::new(),
+            })
+            .map_err(|_| CliError::operation("orchestration journal cannot be opened"))
+    }
+
+    fn admit_plan(&mut self, plan: PlanFile) -> Result<(RunHandle, AttemptHandle), BackendFailure> {
+        let request = plan_request(&plan)?;
+        let plan_key = request.idempotency_key.clone();
+        self.plans
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .insert(request.idempotency_key.clone(), plan);
+        let run = self.service.admit(request).map_err(orchestration_failure)?;
+        let attempt = self
+            .service
+            .attempt_handle(&run)
+            .map_err(orchestration_failure)?;
+        self.bindings
+            .insert(run.id().0.clone(), (run.clone(), attempt.clone()));
+        self.by_plan.insert(plan_key, run.id().0.clone());
+        Ok((run, attempt))
+    }
+
+    fn execute(&mut self, run_id: &str) -> Result<ExecutionOutcome, BackendFailure> {
+        let (run, attempt) = self
+            .bindings
+            .get(run_id)
+            .cloned()
+            .ok_or(BackendFailure::StaleIdentity)?;
+        self.service
+            .execute(&run, &attempt)
+            .map_err(orchestration_failure)
+    }
+
+    fn execute_plan(&mut self, plan_id: &str) -> Result<ExecutionOutcome, BackendFailure> {
+        let run_id = self
+            .by_plan
+            .get(plan_id)
+            .cloned()
+            .ok_or(BackendFailure::StaleIdentity)?;
+        self.execute(&run_id)
+    }
+
+    fn status_for_plan(
+        &self,
+        plan_run_id: &str,
+    ) -> Result<asb_orchestrator::RunStatus, BackendFailure> {
+        self.service
+            .status_for_idempotency_key(plan_run_id)
+            .map_err(orchestration_failure)
+    }
+}
+
+fn public_state_for_orchestration(status: asb_orchestrator::RunStatus) -> PublicRunState {
+    match status {
+        asb_orchestrator::RunStatus::Admitted => PublicRunState::Planned,
+        asb_orchestrator::RunStatus::Prepared => PublicRunState::Prepared,
+        asb_orchestrator::RunStatus::Running => PublicRunState::Running,
+        asb_orchestrator::RunStatus::Collecting => PublicRunState::Collecting,
+        asb_orchestrator::RunStatus::Completed => PublicRunState::Completed,
+        asb_orchestrator::RunStatus::Failed => PublicRunState::Failed,
+        asb_orchestrator::RunStatus::Cancelled => PublicRunState::Cancelled,
+        asb_orchestrator::RunStatus::NeedsReconciliation => PublicRunState::NeedsReconciliation,
+    }
+}
+
+fn plan_request(plan: &PlanFile) -> Result<RunRequest, BackendFailure> {
+    let replay = &plan.experiment.controls.replay;
+    let mode = match replay.mode {
+        asb_protocol::ReplayMode::Live => return Err(BackendFailure::CapabilityUnavailable),
+        asb_protocol::ReplayMode::Replay => ExecutionMode::StrictReplay,
+    };
+    let cassette_digest = (mode == ExecutionMode::StrictReplay)
+        .then(|| replay.cassette_sha256.clone())
+        .flatten();
+    if mode == ExecutionMode::StrictReplay && plan.replay_cassette_path.is_none() {
+        return Err(BackendFailure::Rejected);
+    }
+    let request = RunRequest {
+        kind: "run_request".into(),
+        schema_version: asb_orchestrator::SCHEMA_VERSION,
+        idempotency_key: plan.run_id.clone(),
+        agent_id: asb_protocol::Id(plan.experiment.agent.implementation.clone()),
+        provider_id: asb_protocol::Id(plan.experiment.model.provider.clone()),
+        model_id: asb_protocol::Id(plan.experiment.model.model.clone()),
+        workload_id: asb_protocol::Id(plan.experiment.workload.workload.clone()),
+        catalog_digest: plan.experiment.experiment_sha256.clone(),
+        workload_revision: plan.experiment.workload.workload_sha256.clone(),
+        scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
+        mode,
+        cassette_digest,
+        credential_ref_digest: None,
+        limits: RunLimits {
+            timeout_ms: plan.point.timeout_ms,
+            max_output_bytes: 64 * 1024 * 1024,
+            max_events: 1024,
+            max_artifacts: 1024,
+            max_artifact_bytes: 64 * 1024 * 1024,
+            max_artifact_total_bytes: 256 * 1024 * 1024,
+        },
+    };
+    Ok(request)
+}
+
+fn orchestration_failure(error: OrchestratorError) -> BackendFailure {
+    match error {
+        OrchestratorError::NotFound | OrchestratorError::StaleHandle => {
+            BackendFailure::StaleIdentity
+        }
+        OrchestratorError::NeedsReconciliation | OrchestratorError::Storage(_) => {
+            BackendFailure::NeedsReconciliation
+        }
+        OrchestratorError::Authority(AuthorityError::LiveUnavailable)
+        | OrchestratorError::Authority(AuthorityError::LocalUnavailable) => {
+            BackendFailure::CapabilityUnavailable
+        }
+        _ => BackendFailure::Rejected,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -621,7 +1003,8 @@ fn open_backend_with_capture(
         .try_lock()
         .map_err(|_| CliError::operation("control state root is already owned"))?;
     let mut catalog = load_or_create_catalog(&state_root)?;
-    reconcile_catalog(&mut catalog)?;
+    let orchestration = FrontendOrchestration::open(&state_root, &catalog.plans)?;
+    reconcile_catalog(&mut catalog, &orchestration)?;
     // Re-validate persisted authority material against the runner-owned
     // enrollment on every restart.  This prevents a copied or stale catalog
     // from becoming an authority source merely because its JSON is well formed.
@@ -646,6 +1029,7 @@ fn open_backend_with_capture(
     }
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
+    let cancelled = Arc::clone(&orchestration.cancelled);
     Ok(RunnerBackend {
         state_root,
         runner_instance_id,
@@ -653,6 +1037,8 @@ fn open_backend_with_capture(
         active: Arc::new(Mutex::new(BTreeMap::new())),
         state_lock: Arc::new(state_lock),
         provider_capture,
+        orchestration: Arc::new(Mutex::new(orchestration)),
+        cancelled,
     })
 }
 
@@ -1293,7 +1679,10 @@ fn commit_analysis(root: &Path, bytes: &[u8], digest: &str) -> Result<(), CliErr
     result
 }
 
-fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
+fn reconcile_catalog(
+    catalog: &mut Catalog,
+    orchestration: &FrontendOrchestration,
+) -> Result<(), CliError> {
     if let Some(campaign) = catalog.recording_campaign.as_mut()
         && campaign.state == "recording"
     {
@@ -1337,8 +1726,18 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
             }
             continue;
         };
-        let observed = observed_state(plan, &record.run_id, record.state);
-        record.state = if matches!(
+        let observed = orchestration
+            .status_for_plan(&record.run_id)
+            .map(public_state_for_orchestration)
+            .unwrap_or_else(|_| observed_state(plan, &record.run_id, record.state));
+        let replay_completed = plan.experiment.controls.replay.mode
+            == asb_protocol::ReplayMode::Replay
+            && record.state == PublicRunState::Completed;
+        record.state = if replay_completed {
+            // Strict replay commits lifecycle evidence in the orchestrator
+            // journal and does not fabricate provider-run artifacts.
+            PublicRunState::Completed
+        } else if matches!(
             observed,
             PublicRunState::Running | PublicRunState::Collecting
         ) || (uncertain_runs.contains(&record.run_id)
@@ -1348,7 +1747,8 @@ fn reconcile_catalog(catalog: &mut Catalog) -> Result<(), CliError> {
                     | PublicRunState::Prepared
                     | PublicRunState::Running
                     | PublicRunState::Collecting
-            )) {
+            ))
+        {
             PublicRunState::NeedsReconciliation
         } else {
             observed
@@ -1618,6 +2018,11 @@ impl RunnerBackend {
             .get(&params.plan_id)
             .cloned()
             .ok_or(BackendFailure::NotFound)?;
+        let _orchestration_run = self
+            .orchestration
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .admit_plan(plan.clone())?;
         if catalog.runs.contains_key(&plan.run_id) {
             return Err(BackendFailure::NeedsReconciliation);
         }
@@ -1678,6 +2083,7 @@ impl RunnerBackend {
         let active = Arc::clone(&self.active);
         let state_lock = Arc::clone(&self.state_lock);
         let state_root = self.state_root.clone();
+        let orchestration = Arc::clone(&self.orchestration);
         let run_id = record.run_id.clone();
         let (start_sender, start_receiver) = std::sync::mpsc::channel();
         let worker = thread::Builder::new()
@@ -1688,22 +2094,25 @@ impl RunnerBackend {
                 if !start_receiver.recv().unwrap_or(false) {
                     return;
                 }
-                let execution = AtomicStore::open(&plan.result_root, StoreLimits::default())
-                    .map(Arc::new)
-                    .map_err(|_| CliError::operation("result store cannot be opened"))
-                    .and_then(|store| {
-                        run_point(
-                            store,
-                            &plan,
-                            run_id.clone(),
-                            plan.point.concurrency,
-                            Arc::clone(&cancelled),
-                        )
+                let execution = orchestration
+                    .lock()
+                    .map_err(|_| CliError::operation("orchestration service is unavailable"))
+                    .and_then(|mut service| {
+                        service
+                            .execute_plan(&run_id)
+                            .map(|_| ())
+                            .map_err(|_| CliError::operation("orchestrated run failed"))
                     });
+                let orchestration_state = orchestration
+                    .lock()
+                    .ok()
+                    .and_then(|service| service.status_for_plan(&run_id).ok())
+                    .map(public_state_for_orchestration);
                 if let Ok(mut catalog) = catalog_state.lock() {
                     let mut staged = catalog.clone();
                     if let Some(mut current) = staged.runs.get(&run_id).cloned() {
-                        let observed = observed_state(&plan, &run_id, current.state);
+                        let observed = orchestration_state
+                            .unwrap_or_else(|| observed_state(&plan, &run_id, current.state));
                         if observed == current.state
                             && matches!(
                                 observed,
@@ -1868,14 +2277,22 @@ impl RunnerBackend {
             .lock()
             .map_err(|_| BackendFailure::NeedsReconciliation)?
             .contains_key(run_id);
-        let state = if active_present
+        let state = if let Ok(orchestration_state) = self
+            .orchestration
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)
+            .and_then(|orchestration| orchestration.status_for_plan(run_id))
+        {
+            public_state_for_orchestration(orchestration_state)
+        } else if active_present
             && matches!(
                 record.state,
                 PublicRunState::Planned
                     | PublicRunState::Prepared
                     | PublicRunState::Running
                     | PublicRunState::Collecting
-            ) {
+            )
+        {
             record.state
         } else {
             observed_state(&plan, run_id, record.state)
@@ -2239,8 +2656,30 @@ impl ControlBackend for RunnerBackend {
                     deadline
                         .check()
                         .map_err(|_| BackendFailure::NeedsReconciliation)?;
-                    // The intent is durable before cancellation becomes visible, and the
-                    // worker cannot commit Completed ahead of this transition.
+                    // The intent is durable before cancellation becomes visible. Signal the
+                    // authority source directly so cancellation never waits on the service
+                    // mutex held by an in-flight execution.
+                    let plan = catalog
+                        .runs
+                        .get(&params.run_id.0)
+                        .and_then(|record| catalog.plans.get(&record.plan_id))
+                        .ok_or(BackendFailure::NeedsReconciliation)?;
+                    let orchestration_request = plan_request(plan)?;
+                    let binding = format!(
+                        "{:x}",
+                        Sha256::digest(
+                            serde_json::to_vec(&orchestration_request)
+                                .map_err(|_| BackendFailure::Rejected)?,
+                        )
+                    );
+                    let authority_cancelled = self
+                        .cancelled
+                        .lock()
+                        .map_err(|_| BackendFailure::NeedsReconciliation)?
+                        .get(&binding)
+                        .cloned()
+                        .ok_or(BackendFailure::NeedsReconciliation)?;
+                    authority_cancelled.store(true, Ordering::SeqCst);
                     run.cancelled.store(true, Ordering::SeqCst);
                 }
                 let terminal = loop {
@@ -4006,6 +4445,18 @@ mod tests {
         experiment.workload.workload_sha256 = workload.content_sha256;
         experiment.workload.scorer_revision = workload.scoring_version;
         experiment.platform.architecture = std::env::consts::ARCH.to_owned();
+        let replay_cassette_path = root.join("fixture-cassette.json");
+        fs::write(
+            &replay_cassette_path,
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        )
+        .unwrap();
+        let replay_cassette = asb_replay::decode_cassette(
+            &fs::read(&replay_cassette_path).unwrap(),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        experiment.controls.replay.cassette_sha256 = Some(replay_cassette.integrity.digest);
         experiment.refresh_content_address().unwrap();
         let measurement_selection =
             super::process_measurement_selection(experiment.controls.replay.mode, 5_000_000)
@@ -4034,6 +4485,7 @@ mod tests {
                 sweep_max_concurrency: None,
             },
             experiment,
+            replay_cassette_path: Some(replay_cassette_path),
             measurement_selection: Some(measurement_selection),
         }
     }
@@ -6128,6 +6580,161 @@ printf '%s' 'not-json'
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn orchestrator_rejects_live_plan_before_catalog_or_process_effects() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.refresh_content_address().unwrap();
+        assert_eq!(
+            plan_request(&plan),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+        assert!(!plan.result_root.exists());
+    }
+
+    #[test]
+    fn strict_replay_consumes_authenticated_cassette_and_rejects_wrong_digest() {
+        let scratch = Scratch::new();
+        let cassette_path = scratch.0.join("cassette.json");
+        fs::write(
+            &cassette_path,
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        )
+        .unwrap();
+        let cassette = asb_replay::decode_cassette(
+            &fs::read(&cassette_path).unwrap(),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        let digest = cassette.integrity.digest.clone();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.replay_cassette_path = Some(cassette_path);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        plan.experiment.controls.replay.cassette_sha256 = Some(digest.clone());
+        plan.experiment.refresh_content_address().unwrap();
+        let outcome = execute_strict_replay(&plan, &digest).unwrap();
+        assert!(outcome.output_bytes > 0);
+        assert!(matches!(
+            execute_strict_replay(&plan, &"0".repeat(64)),
+            Err(AuthorityError::InvalidBinding)
+        ));
+    }
+
+    #[test]
+    fn strict_replay_requires_a_cassette_path_and_expired_deadline_fails_closed() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan_with_script(&scratch.0, b"#!/bin/sh\nsleep 1\n");
+        plan.replay_cassette_path = None;
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        plan.experiment.controls.replay.cassette_sha256 = Some("a".repeat(64));
+        plan.experiment.refresh_content_address().unwrap();
+        assert_eq!(plan_request(&plan), Err(BackendFailure::Rejected));
+
+        let request = RunRequest {
+            kind: "run_request".into(),
+            schema_version: asb_orchestrator::SCHEMA_VERSION,
+            idempotency_key: plan.run_id.clone(),
+            agent_id: asb_protocol::Id(plan.experiment.agent.implementation.clone()),
+            provider_id: asb_protocol::Id(plan.experiment.model.provider.clone()),
+            model_id: asb_protocol::Id(plan.experiment.model.model.clone()),
+            workload_id: asb_protocol::Id(plan.experiment.workload.workload.clone()),
+            catalog_digest: plan.experiment.experiment_sha256.clone(),
+            workload_revision: plan.experiment.workload.workload_sha256.clone(),
+            scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
+            mode: ExecutionMode::LocalMock,
+            cassette_digest: None,
+            credential_ref_digest: None,
+            limits: RunLimits {
+                timeout_ms: 1,
+                max_output_bytes: 64 * 1024 * 1024,
+                max_events: 1024,
+                max_artifacts: 1024,
+                max_artifact_bytes: 64 * 1024 * 1024,
+                max_artifact_total_bytes: 256 * 1024 * 1024,
+            },
+        };
+        let plans = Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)])));
+        let mut source = PlanAuthoritySource {
+            plans,
+            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+            execution_started: None,
+        };
+        let capability = source.prepare(&request).unwrap();
+        let started = Instant::now();
+        assert!(matches!(
+            source.execute_until(&request, &capability, started + Duration::from_millis(50)),
+            Err(AuthorityError::Timeout)
+        ));
+        assert!(started.elapsed() < Duration::from_millis(750));
+    }
+
+    #[test]
+    fn in_flight_authority_cancellation_is_durable_and_bounded() {
+        let scratch = Scratch::new();
+        let plan = fixture_plan_with_script(&scratch.0, b"#!/bin/sh\nsleep 5\n");
+        let request = RunRequest {
+            kind: "run_request".into(),
+            schema_version: asb_orchestrator::SCHEMA_VERSION,
+            idempotency_key: plan.run_id.clone(),
+            agent_id: asb_protocol::Id(plan.experiment.agent.implementation.clone()),
+            provider_id: asb_protocol::Id(plan.experiment.model.provider.clone()),
+            model_id: asb_protocol::Id(plan.experiment.model.model.clone()),
+            workload_id: asb_protocol::Id(plan.experiment.workload.workload.clone()),
+            catalog_digest: plan.experiment.experiment_sha256.clone(),
+            workload_revision: plan.experiment.workload.workload_sha256.clone(),
+            scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
+            mode: ExecutionMode::LocalMock,
+            cassette_digest: None,
+            credential_ref_digest: None,
+            limits: RunLimits {
+                timeout_ms: 5_000,
+                max_output_bytes: 64 * 1024 * 1024,
+                max_events: 1024,
+                max_artifacts: 1024,
+                max_artifact_bytes: 64 * 1024 * 1024,
+                max_artifact_total_bytes: 256 * 1024 * 1024,
+            },
+        };
+        let cancelled = Arc::new(Mutex::new(BTreeMap::new()));
+        let execution_started = Arc::new(AtomicBool::new(false));
+        let mut source = PlanAuthoritySource {
+            plans: Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)]))),
+            cancelled: Arc::clone(&cancelled),
+            execution_started: Some(Arc::clone(&execution_started)),
+        };
+        let capability = source.prepare(&request).unwrap();
+        let binding = capability.binding().to_owned();
+        let worker = thread::spawn(move || {
+            source.execute_until(
+                &request,
+                &capability,
+                Instant::now() + Duration::from_secs(5),
+            )
+        });
+        let wait_started = Instant::now();
+        while !execution_started.load(Ordering::SeqCst) {
+            assert!(
+                wait_started.elapsed() < Duration::from_secs(2),
+                "execution did not reach the in-flight barrier"
+            );
+            thread::yield_now();
+        }
+        let flag = cancelled
+            .lock()
+            .unwrap()
+            .get(&binding)
+            .cloned()
+            .expect("authority remains registered while execution is in flight");
+        flag.store(true, Ordering::SeqCst);
+        assert!(matches!(
+            worker.join().unwrap(),
+            Err(AuthorityError::Cancelled)
+        ));
+        assert!(cancelled.lock().unwrap().is_empty());
     }
 
     #[test]
