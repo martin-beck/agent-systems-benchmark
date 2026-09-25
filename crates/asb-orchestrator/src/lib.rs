@@ -227,6 +227,10 @@ pub struct ExecutionOutcome {
     pub output_bytes: u64,
     /// Retained artifact byte count.
     pub artifact_bytes: u64,
+    /// Number of artifacts produced.
+    pub artifact_count: u32,
+    /// Largest individual artifact in bytes.
+    pub largest_artifact_bytes: u64,
 }
 
 impl AttemptCapability {
@@ -285,6 +289,8 @@ impl AuthoritySource for DeterministicAuthoritySource {
             result_digest: capability.binding.clone(),
             output_bytes: 0,
             artifact_bytes: 0,
+            artifact_count: 0,
+            largest_artifact_bytes: 0,
         })
     }
 }
@@ -374,21 +380,84 @@ impl<S: AuthoritySource> Orchestrator<S> {
     /// Open a crash-consistent authority journal at `root`.
     pub fn open(source: S, root: impl AsRef<std::path::Path>) -> Result<Self, OrchestratorError> {
         let store = AtomicStore::open(root, StoreLimits::default()).map_err(storage_error)?;
-        Ok(Self {
+        let mut service = Self {
             source,
             next_id: 1,
             runs: BTreeMap::new(),
             idempotency: BTreeMap::new(),
             store: Some(store),
-        })
+        };
+        let ids = service
+            .store
+            .as_ref()
+            .expect("store")
+            .run_ids()
+            .map_err(storage_error)?;
+        for id in ids {
+            let manifest = service
+                .store
+                .as_ref()
+                .expect("store")
+                .load_manifest(&id)
+                .map_err(storage_error)?;
+            let request: RunRequest = serde_json::from_value(manifest.definition)
+                .map_err(|_| OrchestratorError::InvalidRequest("manifest definition"))?;
+            validate_request(&request)?;
+            let digest = request_digest(&request)
+                .map_err(|_| OrchestratorError::InvalidRequest("digest"))?;
+            let events = service
+                .store
+                .as_ref()
+                .expect("store")
+                .load_journal(&id)
+                .map_err(storage_error)?;
+            let status = events
+                .last()
+                .map(|event| from_state(event.state))
+                .unwrap_or(RunStatus::Admitted);
+            let run = RunHandle {
+                id: manifest.run_id.clone(),
+                generation: 1,
+                fence: digest.clone(),
+            };
+            let attempt = AttemptHandle {
+                id: manifest.attempt_id,
+                generation: 1,
+                fence: digest.clone(),
+            };
+            let capability = if status == RunStatus::Prepared {
+                Some(service.source.prepare(&request)?)
+            } else {
+                None
+            };
+            let record = RunRecord {
+                request: request.clone(),
+                request_digest: digest,
+                run: run.clone(),
+                attempt,
+                status,
+                capability,
+                events: events
+                    .iter()
+                    .enumerate()
+                    .map(|(index, event)| RunEvent {
+                        sequence: index as u32 + 1,
+                        status: from_state(event.state),
+                    })
+                    .collect(),
+                artifact_bytes: 0,
+            };
+            service
+                .idempotency
+                .insert(request.idempotency_key, run.id.clone());
+            service.runs.insert(run.id.clone(), record);
+        }
+        Ok(service)
     }
 
     /// Admit and prepare one request; duplicate identical requests are idempotent.
     pub fn admit(&mut self, request: RunRequest) -> Result<RunHandle, OrchestratorError> {
         validate_request(&request)?;
-        if self.runs.len() >= MAX_ACTIVE_RUNS {
-            return Err(OrchestratorError::InvalidLimit("active_runs"));
-        }
         let digest =
             request_digest(&request).map_err(|_| OrchestratorError::InvalidRequest("digest"))?;
         if let Some(existing_id) = self.idempotency.get(&request.idempotency_key) {
@@ -400,6 +469,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 return Ok(record.run.clone());
             }
             return Err(OrchestratorError::IdempotencyConflict);
+        }
+        if self.runs.len() >= MAX_ACTIVE_RUNS {
+            return Err(OrchestratorError::InvalidLimit("active_runs"));
         }
         let run_id = Id(format!("run-{}", self.next_id));
         self.next_id = self
@@ -513,11 +585,25 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 return Err(error.into());
             }
         };
-        if outcome.output_bytes > request.limits.max_output_bytes {
-            return Err(OrchestratorError::EvidenceLimit("max_output_bytes"));
-        }
-        if outcome.artifact_bytes > request.limits.max_artifact_total_bytes {
-            return Err(OrchestratorError::EvidenceLimit("max_artifact_total_bytes"));
+        let limit_error = if outcome.output_bytes > request.limits.max_output_bytes {
+            Some("max_output_bytes")
+        } else if outcome.artifact_bytes > request.limits.max_artifact_total_bytes {
+            Some("max_artifact_total_bytes")
+        } else if outcome.artifact_count > request.limits.max_artifacts {
+            Some("max_artifacts")
+        } else if outcome.largest_artifact_bytes > request.limits.max_artifact_bytes {
+            Some("max_artifact_bytes")
+        } else {
+            None
+        };
+        if let Some(kind) = limit_error {
+            {
+                let record = self.record_mut(run)?;
+                push_event(record, RunStatus::Failed)?;
+                record.capability = None;
+            }
+            self.persist_for(run.id(), RunStatus::Failed)?;
+            return Err(OrchestratorError::EvidenceLimit(kind));
         }
         {
             let record = self.record_mut(run)?;
@@ -554,9 +640,16 @@ impl<S: AuthoritySource> Orchestrator<S> {
     }
 
     /// Mark a running attempt as terminal after bounded collection.
-    pub fn complete(&mut self, handle: &RunHandle) -> Result<RunStatus, OrchestratorError> {
+    pub fn complete(
+        &mut self,
+        handle: &RunHandle,
+        attempt: &AttemptHandle,
+    ) -> Result<RunStatus, OrchestratorError> {
         let status = {
             let record = self.record_mut(handle)?;
+            if record.attempt != *attempt {
+                return Err(OrchestratorError::StaleHandle);
+            }
             if !matches!(record.status, RunStatus::Running | RunStatus::Collecting) {
                 return Err(OrchestratorError::InvalidTransition);
             }
@@ -753,6 +846,18 @@ fn to_state(status: RunStatus) -> ExecutionState {
     }
 }
 
+fn from_state(state: ExecutionState) -> RunStatus {
+    match state {
+        ExecutionState::Planned => RunStatus::Admitted,
+        ExecutionState::Prepared => RunStatus::Prepared,
+        ExecutionState::Running => RunStatus::NeedsReconciliation,
+        ExecutionState::Collecting => RunStatus::NeedsReconciliation,
+        ExecutionState::Completed => RunStatus::Completed,
+        ExecutionState::Failed => RunStatus::Failed,
+        ExecutionState::Cancelled => RunStatus::Cancelled,
+    }
+}
+
 fn append_state(
     store: &AtomicStore,
     run: &RunHandle,
@@ -811,7 +916,11 @@ mod tests {
         let handle = service.admit(request(ExecutionMode::LocalMock)).unwrap();
         assert_eq!(service.attempt_handle(&handle).unwrap().generation(), 1);
         assert_eq!(service.start(&handle), Ok(RunStatus::Running));
-        assert_eq!(service.complete(&handle), Ok(RunStatus::Completed));
+        let attempt = service.attempt_handle(&handle).unwrap();
+        assert_eq!(
+            service.complete(&handle, &attempt),
+            Ok(RunStatus::Completed)
+        );
         assert_eq!(service.events(&handle).unwrap().len(), 3);
     }
 
