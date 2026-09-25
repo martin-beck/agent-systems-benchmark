@@ -431,6 +431,7 @@ struct RunRecord {
     capability: Option<AttemptCapability>,
     events: Vec<RunEvent>,
     artifact_bytes: u64,
+    durability_barrier: bool,
 }
 
 /// Central runtime-owned orchestration service.
@@ -519,7 +520,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
                 request: request.clone(),
                 request_digest: digest,
                 run: run.clone(),
-                attempt,
+                attempt: attempt.clone(),
                 status,
                 capability,
                 events: events
@@ -528,12 +529,13 @@ impl<S: AuthoritySource> Orchestrator<S> {
                     .map(|(index, event)| RunEvent {
                         sequence: index as u32 + 1,
                         status: from_state(event.state),
-                        run: None,
-                        attempt: None,
+                        run: Some(run.clone()),
+                        attempt: Some(attempt.clone()),
                         kind: "lifecycle".into(),
                     })
                     .collect(),
                 artifact_bytes: 0,
+                durability_barrier: false,
             };
             service
                 .idempotency
@@ -591,6 +593,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
             capability: None,
             events: Vec::new(),
             artifact_bytes: 0,
+            durability_barrier: false,
         };
         if let Some(store) = self.store.as_ref() {
             store
@@ -794,7 +797,7 @@ impl<S: AuthoritySource> Orchestrator<S> {
     }
 
     fn persist_record(
-        &self,
+        &mut self,
         record: &RunRecord,
         status: RunStatus,
     ) -> Result<(), OrchestratorError> {
@@ -816,31 +819,44 @@ impl<S: AuthoritySource> Orchestrator<S> {
         )
     }
 
-    fn persist_for(&self, run_id: &Id, status: RunStatus) -> Result<(), OrchestratorError> {
+    fn persist_for(&mut self, run_id: &Id, status: RunStatus) -> Result<(), OrchestratorError> {
         let Some(store) = self.store.as_ref() else {
             return Ok(());
         };
-        let record = self.runs.get(run_id).ok_or(OrchestratorError::NotFound)?;
-        let events = store
+        let attempt = self
+            .runs
+            .get(run_id)
+            .ok_or(OrchestratorError::NotFound)?
+            .attempt
+            .clone();
+        let result = store
             .load_journal(run_id.0.as_str())
-            .map_err(storage_error)?;
-        if events.last().map(|event| event.state) == Some(to_state(status)) {
-            return Ok(());
+            .and_then(|events| {
+                if events.last().map(|event| event.state) == Some(to_state(status)) {
+                    return Ok(());
+                }
+                let sequence = events.len() as u64;
+                store.append(
+                    run_id.0.as_str(),
+                    &JournalEvent {
+                        schema_version: asb_store::JOURNAL_SCHEMA_VERSION,
+                        sequence,
+                        attempt_id: attempt.id.clone(),
+                        monotonic_offset_ns: sequence,
+                        state: to_state(status),
+                        evidence: serde_json::json!({"status": status}),
+                    },
+                )
+            })
+            .map_err(storage_error);
+        if result.is_err()
+            && let Some(record) = self.runs.get_mut(run_id)
+        {
+            record.status = RunStatus::NeedsReconciliation;
+            record.capability = None;
+            record.durability_barrier = true;
         }
-        let sequence = events.len() as u64;
-        store
-            .append(
-                run_id.0.as_str(),
-                &JournalEvent {
-                    schema_version: asb_store::JOURNAL_SCHEMA_VERSION,
-                    sequence,
-                    attempt_id: record.attempt.id.clone(),
-                    monotonic_offset_ns: sequence,
-                    state: to_state(status),
-                    evidence: serde_json::json!({"status": status}),
-                },
-            )
-            .map_err(storage_error)
+        result
     }
 
     fn record(&self, handle: &RunHandle) -> Result<&RunRecord, OrchestratorError> {
@@ -861,6 +877,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             .ok_or(OrchestratorError::NotFound)?;
         if record.run != *handle {
             return Err(OrchestratorError::StaleHandle);
+        }
+        if record.durability_barrier {
+            return Err(OrchestratorError::NeedsReconciliation);
         }
         Ok(record)
     }
@@ -1066,6 +1085,19 @@ mod tests {
         assert_eq!(outcome.output_bytes, 0);
         assert_eq!(outcome.artifact_count, 0);
         assert_eq!(outcome.result_digest.len(), 64);
+    }
+
+    #[test]
+    fn service_executes_through_local_mock_authority() {
+        let source = LocalMockAuthoritySource::provision().unwrap();
+        let mut service = Orchestrator::new(source);
+        let mut request = request(ExecutionMode::LocalMock);
+        request.model_id = Id(LOCAL_PROVIDER_MOCK_MODEL.into());
+        let handle = service.admit(request).unwrap();
+        let attempt = service.attempt_handle(&handle).unwrap();
+        let outcome = service.execute(&handle, &attempt).unwrap();
+        assert_eq!(service.status(&handle), Ok(RunStatus::Completed));
+        assert_eq!(outcome.artifact_count, 0);
     }
 
     #[test]
