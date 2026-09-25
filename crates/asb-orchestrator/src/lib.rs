@@ -243,6 +243,18 @@ pub struct ExecutionOutcome {
 }
 
 impl AttemptCapability {
+    /// Construct a capability for an authority source after it has validated
+    /// and bound the request. Frontends must never call this method; it is
+    /// intended for runtime-owned [`AuthoritySource`] implementations.
+    #[must_use]
+    pub fn for_authority(mode: ExecutionMode, binding: String) -> Self {
+        Self {
+            mode,
+            binding,
+            attempt_id: String::new(),
+        }
+    }
+
     /// Mode authorized by the runtime source.
     #[must_use]
     pub const fn mode(&self) -> ExecutionMode {

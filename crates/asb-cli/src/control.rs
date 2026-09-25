@@ -18,6 +18,10 @@ use asb_control::{
     RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1,
     RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
 };
+use asb_orchestrator::{
+    AttemptCapability, AttemptHandle, AuthorityError, AuthoritySource, ExecutionMode,
+    ExecutionOutcome, Orchestrator, OrchestratorError, RunHandle, RunLimits, RunRequest,
+};
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
     ProviderCapture, ProviderCaptureError, ProviderCaptureRequest, ProviderCaptureResult,
@@ -537,6 +541,251 @@ struct RunnerBackend {
     active: Arc<Mutex<BTreeMap<String, ActiveRun>>>,
     state_lock: Arc<fs::File>,
     provider_capture: Arc<dyn ProviderCapture>,
+    orchestration: Arc<Mutex<FrontendOrchestration>>,
+}
+
+/// Runtime-owned adapter used by the control frontend. The frontend supplies
+/// only a validated plan; process, cancellation, and result effects stay
+/// behind the central orchestrator source.
+struct FrontendOrchestration {
+    service: Orchestrator<PlanAuthoritySource>,
+    bindings: BTreeMap<String, (RunHandle, AttemptHandle)>,
+    plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
+    by_plan: BTreeMap<String, String>,
+}
+
+struct PlanAuthoritySource {
+    plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
+    cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
+}
+
+impl AuthoritySource for PlanAuthoritySource {
+    fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError> {
+        if !matches!(
+            request.mode,
+            ExecutionMode::LocalMock | ExecutionMode::StrictReplay
+        ) {
+            return Err(AuthorityError::LocalUnavailable);
+        }
+        if !self
+            .plans
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .contains_key(&request.idempotency_key)
+        {
+            return Err(AuthorityError::LocalUnavailable);
+        }
+        let binding = format!(
+            "{:x}",
+            Sha256::digest(
+                serde_json::to_vec(request).map_err(|_| AuthorityError::InvalidBinding)?
+            )
+        );
+        Ok(AttemptCapability::for_authority(request.mode, binding))
+    }
+
+    fn execute(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if capability.mode() != request.mode {
+            return Err(AuthorityError::InvalidBinding);
+        }
+        let plan = self
+            .plans
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .get(&request.idempotency_key)
+            .cloned()
+            .ok_or(AuthorityError::LocalUnavailable)?;
+        let cancelled = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .entry(capability.binding().to_owned())
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .clone();
+        let store = AtomicStore::open(&plan.result_root, StoreLimits::default())
+            .map(Arc::new)
+            .map_err(|_| AuthorityError::LocalExecution)?;
+        let point = super::run_point(
+            store,
+            &plan,
+            plan.run_id.clone(),
+            plan.point.concurrency,
+            cancelled,
+        )
+        .map_err(|_| AuthorityError::LocalExecution)?;
+        let encoded = serde_json::to_vec(&point).map_err(|_| AuthorityError::LocalExecution)?;
+        Ok(ExecutionOutcome {
+            result_digest: format!("{:x}", Sha256::digest(encoded)),
+            output_bytes: 0,
+            artifact_bytes: 0,
+            artifact_count: 0,
+            largest_artifact_bytes: 0,
+        })
+    }
+
+    fn execute_until(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+        _deadline: Instant,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        self.execute(request, capability)
+    }
+
+    fn cancel(
+        &mut self,
+        _request: &RunRequest,
+        capability: &AttemptCapability,
+    ) -> Result<(), AuthorityError> {
+        if let Some(flag) = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .get(capability.binding())
+        {
+            flag.store(true, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+}
+
+impl FrontendOrchestration {
+    fn open(root: &Path, initial_plans: &BTreeMap<String, PlanFile>) -> Result<Self, CliError> {
+        let plans = Arc::new(Mutex::new(BTreeMap::new()));
+        if let Ok(mut stored) = plans.lock() {
+            stored.extend(
+                initial_plans
+                    .values()
+                    .map(|plan| (plan.run_id.clone(), plan.clone())),
+            );
+        }
+        let source = PlanAuthoritySource {
+            plans: Arc::clone(&plans),
+            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        Orchestrator::open(source, root.join("orchestrator"))
+            .map(|service| Self {
+                service,
+                bindings: BTreeMap::new(),
+                plans,
+                by_plan: BTreeMap::new(),
+            })
+            .map_err(|_| CliError::operation("orchestration journal cannot be opened"))
+    }
+
+    fn admit_plan(&mut self, plan: PlanFile) -> Result<(RunHandle, AttemptHandle), BackendFailure> {
+        let request = plan_request(&plan)?;
+        let plan_key = request.idempotency_key.clone();
+        self.plans
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .insert(request.idempotency_key.clone(), plan);
+        let run = self.service.admit(request).map_err(orchestration_failure)?;
+        let attempt = self
+            .service
+            .attempt_handle(&run)
+            .map_err(orchestration_failure)?;
+        self.bindings
+            .insert(run.id().0.clone(), (run.clone(), attempt.clone()));
+        self.by_plan.insert(plan_key, run.id().0.clone());
+        Ok((run, attempt))
+    }
+
+    fn execute(&mut self, run_id: &str) -> Result<ExecutionOutcome, BackendFailure> {
+        let (run, attempt) = self
+            .bindings
+            .get(run_id)
+            .cloned()
+            .ok_or(BackendFailure::StaleIdentity)?;
+        self.service
+            .execute(&run, &attempt)
+            .map_err(orchestration_failure)
+    }
+
+    fn cancel(&mut self, run_id: &str) -> Result<(), BackendFailure> {
+        let (run, attempt) = self
+            .bindings
+            .get(run_id)
+            .cloned()
+            .ok_or(BackendFailure::StaleIdentity)?;
+        self.service
+            .cancel(&run, &attempt)
+            .map(|_| ())
+            .map_err(orchestration_failure)
+    }
+
+    fn execute_plan(&mut self, plan_id: &str) -> Result<ExecutionOutcome, BackendFailure> {
+        let run_id = self
+            .by_plan
+            .get(plan_id)
+            .cloned()
+            .ok_or(BackendFailure::StaleIdentity)?;
+        self.execute(&run_id)
+    }
+
+    fn cancel_plan(&mut self, plan_id: &str) -> Result<(), BackendFailure> {
+        let run_id = self
+            .by_plan
+            .get(plan_id)
+            .cloned()
+            .ok_or(BackendFailure::StaleIdentity)?;
+        self.cancel(&run_id)
+    }
+}
+
+fn plan_request(plan: &PlanFile) -> Result<RunRequest, BackendFailure> {
+    let replay = &plan.experiment.controls.replay;
+    let mode = match replay.mode {
+        asb_protocol::ReplayMode::Live => return Err(BackendFailure::CapabilityUnavailable),
+        asb_protocol::ReplayMode::Replay => ExecutionMode::StrictReplay,
+    };
+    let cassette_digest = (mode == ExecutionMode::StrictReplay)
+        .then(|| replay.cassette_sha256.clone())
+        .flatten();
+    let request = RunRequest {
+        kind: "run_request".into(),
+        schema_version: asb_orchestrator::SCHEMA_VERSION,
+        idempotency_key: plan.run_id.clone(),
+        agent_id: asb_protocol::Id(plan.experiment.agent.implementation.clone()),
+        provider_id: asb_protocol::Id(plan.experiment.model.provider.clone()),
+        model_id: asb_protocol::Id(plan.experiment.model.model.clone()),
+        workload_id: asb_protocol::Id(plan.experiment.workload.workload.clone()),
+        catalog_digest: plan.experiment.experiment_sha256.clone(),
+        workload_revision: plan.experiment.workload.workload_sha256.clone(),
+        scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
+        mode,
+        cassette_digest,
+        credential_ref_digest: None,
+        limits: RunLimits {
+            timeout_ms: plan.point.timeout_ms,
+            max_output_bytes: 64 * 1024 * 1024,
+            max_events: 1024,
+            max_artifacts: 1024,
+            max_artifact_bytes: 64 * 1024 * 1024,
+            max_artifact_total_bytes: 256 * 1024 * 1024,
+        },
+    };
+    Ok(request)
+}
+
+fn orchestration_failure(error: OrchestratorError) -> BackendFailure {
+    match error {
+        OrchestratorError::NotFound | OrchestratorError::StaleHandle => {
+            BackendFailure::StaleIdentity
+        }
+        OrchestratorError::NeedsReconciliation | OrchestratorError::Storage(_) => {
+            BackendFailure::NeedsReconciliation
+        }
+        OrchestratorError::Authority(AuthorityError::LiveUnavailable)
+        | OrchestratorError::Authority(AuthorityError::LocalUnavailable) => {
+            BackendFailure::CapabilityUnavailable
+        }
+        _ => BackendFailure::Rejected,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -646,6 +895,7 @@ fn open_backend_with_capture(
     }
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
+    let orchestration = FrontendOrchestration::open(&state_root, &catalog.plans)?;
     Ok(RunnerBackend {
         state_root,
         runner_instance_id,
@@ -653,6 +903,7 @@ fn open_backend_with_capture(
         active: Arc::new(Mutex::new(BTreeMap::new())),
         state_lock: Arc::new(state_lock),
         provider_capture,
+        orchestration: Arc::new(Mutex::new(orchestration)),
     })
 }
 
@@ -1618,6 +1869,11 @@ impl RunnerBackend {
             .get(&params.plan_id)
             .cloned()
             .ok_or(BackendFailure::NotFound)?;
+        let _orchestration_run = self
+            .orchestration
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .admit_plan(plan.clone())?;
         if catalog.runs.contains_key(&plan.run_id) {
             return Err(BackendFailure::NeedsReconciliation);
         }
@@ -1678,6 +1934,7 @@ impl RunnerBackend {
         let active = Arc::clone(&self.active);
         let state_lock = Arc::clone(&self.state_lock);
         let state_root = self.state_root.clone();
+        let orchestration = Arc::clone(&self.orchestration);
         let run_id = record.run_id.clone();
         let (start_sender, start_receiver) = std::sync::mpsc::channel();
         let worker = thread::Builder::new()
@@ -1688,17 +1945,14 @@ impl RunnerBackend {
                 if !start_receiver.recv().unwrap_or(false) {
                     return;
                 }
-                let execution = AtomicStore::open(&plan.result_root, StoreLimits::default())
-                    .map(Arc::new)
-                    .map_err(|_| CliError::operation("result store cannot be opened"))
-                    .and_then(|store| {
-                        run_point(
-                            store,
-                            &plan,
-                            run_id.clone(),
-                            plan.point.concurrency,
-                            Arc::clone(&cancelled),
-                        )
+                let execution = orchestration
+                    .lock()
+                    .map_err(|_| CliError::operation("orchestration service is unavailable"))
+                    .and_then(|mut service| {
+                        service
+                            .execute_plan(&run_id)
+                            .map(|_| ())
+                            .map_err(|_| CliError::operation("orchestrated run failed"))
                     });
                 if let Ok(mut catalog) = catalog_state.lock() {
                     let mut staged = catalog.clone();
@@ -2241,6 +2495,10 @@ impl ControlBackend for RunnerBackend {
                         .map_err(|_| BackendFailure::NeedsReconciliation)?;
                     // The intent is durable before cancellation becomes visible, and the
                     // worker cannot commit Completed ahead of this transition.
+                    self.orchestration
+                        .lock()
+                        .map_err(|_| BackendFailure::NeedsReconciliation)?
+                        .cancel_plan(&params.run_id.0)?;
                     run.cancelled.store(true, Ordering::SeqCst);
                 }
                 let terminal = loop {
@@ -6128,6 +6386,20 @@ printf '%s' 'not-json'
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn orchestrator_rejects_live_plan_before_catalog_or_process_effects() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.refresh_content_address().unwrap();
+        assert_eq!(
+            plan_request(&plan),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+        assert!(!plan.result_root.exists());
     }
 
     #[test]

@@ -78,6 +78,7 @@ dependencies = [
  "asb-config",
  "asb-control",
  "asb-metrics",
+ "asb-orchestrator",
  "asb-protocol",
  "asb-replay",
  "asb-runtime",
