@@ -3,7 +3,14 @@
 # SPDX-License-Identifier: MIT
 set -eu
 if test "$(id -u)" -ne 0; then
-    exec sudo -n --preserve-env=PATH "$0" "$@"
+    if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+        exec sudo -n --preserve-env=PATH "$0" "$@"
+    fi
+    if ! command -v fakeroot >/dev/null 2>&1; then
+        echo 'ERROR: hardened rootless runner lacks sudo and fakeroot; install fakeroot or provide an approved rootless fixture runtime' >&2
+        exit 1
+    fi
+    exec fakeroot -- "$0" "$@"
 fi
 if ! awk '$2 == "/proc" && $4 ~ /(^|,)(hidepid=2|hidepid=invisible)(,|$)/ { found=1 } END { exit !found }' /proc/mounts; then
     test "${ASB_PRIVATE_PROC_FIXTURE:-}" != 1 || { echo 'private procfs fixture setup failed' >&2; exit 1; }

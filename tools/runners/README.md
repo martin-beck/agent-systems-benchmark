@@ -59,3 +59,11 @@ reset; reboot persistence remains outside this AR.
 
 AR-0830 permits only a protected manual prequalification canary. Ordinary workflow routing remains
 disabled until AR-0832 qualifies this capacity and a separately reviewed activation enables it.
+
+The lifecycle fixture in `tests/runners/test_runner_scripts.sh` is also runnable on the approved
+rootless development host. It first probes non-interactive `sudo`; when `NoNewPrivileges` correctly
+rejects that escalation, it uses the locally installed `fakeroot` fixture runtime to exercise the
+same ownership, registration, cleanup and private-procfs assertions without changing runner
+hardening. This is test emulation only and never qualifies the host as a production runner. If
+neither path is available, the fixture fails closed with an actionable diagnostic rather than
+skipping lifecycle checks. `test_rootless_dispatch.sh` covers that negative path.
