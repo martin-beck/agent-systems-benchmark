@@ -378,7 +378,8 @@ fn guided_local(
                 "easy record-campaign accepts only --local-mock",
             ));
         }
-        return record_campaign(Path::new(&args[1]), output).map(|()| 0);
+        let manifest = guided_path(&args[1], "recording campaign manifest")?;
+        return record_campaign(&manifest, output).map(|()| 0);
     }
     if args.len() != 4 {
         return Err(CliError::usage(
@@ -5070,6 +5071,13 @@ mod tests {
         ];
         let result = guided_local(&absent_config, None, &mut Vec::new(), &mut Vec::new());
         assert!(result.is_err());
+
+        let relative_campaign = vec![
+            "record-campaign".into(),
+            "manifest.json".into(),
+            "--local-mock".into(),
+        ];
+        assert!(guided_local(&relative_campaign, None, &mut Vec::new(), &mut Vec::new()).is_err());
     }
 
     #[test]
