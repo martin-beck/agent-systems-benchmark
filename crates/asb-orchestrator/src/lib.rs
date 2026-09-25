@@ -789,8 +789,14 @@ impl<S: AuthoritySource> Orchestrator<S> {
         attempt: &AttemptHandle,
     ) -> Result<RunStatus, OrchestratorError> {
         let status = {
-            let record = self.record_mut(handle)?;
-            if record.attempt != *attempt || record.status != RunStatus::NeedsReconciliation {
+            let record = self
+                .runs
+                .get_mut(&handle.id)
+                .ok_or(OrchestratorError::NotFound)?;
+            if record.run != *handle
+                || record.attempt != *attempt
+                || record.status != RunStatus::NeedsReconciliation
+            {
                 return Err(OrchestratorError::StaleHandle);
             }
             record.capability = None;
@@ -798,6 +804,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
             record.status
         };
         self.persist_for(handle.id(), status)?;
+        if let Some(record) = self.runs.get_mut(&handle.id) {
+            record.durability_barrier = false;
+        }
         Ok(status)
     }
 
@@ -857,6 +866,9 @@ impl<S: AuthoritySource> Orchestrator<S> {
         if result.is_err()
             && let Some(record) = self.runs.get_mut(run_id)
         {
+            if record.events.last().map(|event| event.status) == Some(status) {
+                record.events.pop();
+            }
             record.status = RunStatus::NeedsReconciliation;
             record.capability = None;
             record.durability_barrier = true;
