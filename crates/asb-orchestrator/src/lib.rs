@@ -265,6 +265,19 @@ pub trait AuthoritySource {
         request: &RunRequest,
         capability: &AttemptCapability,
     ) -> Result<ExecutionOutcome, AuthorityError>;
+    /// Deadline-aware execution hook. Runtime adapters must cooperatively
+    /// interrupt child/relay work when the deadline expires.
+    fn execute_until(
+        &mut self,
+        request: &RunRequest,
+        capability: &AttemptCapability,
+        deadline: Instant,
+    ) -> Result<ExecutionOutcome, AuthorityError> {
+        if Instant::now() >= deadline {
+            return Err(AuthorityError::Timeout);
+        }
+        self.execute(request, capability)
+    }
     /// Revoke runtime resources before terminal cancellation.
     fn cancel(
         &mut self,
@@ -471,6 +484,9 @@ pub enum AuthorityError {
     /// Local deterministic authority rejected the bounded request.
     #[error("local mock execution failed")]
     LocalExecution,
+    /// The runtime-owned authority exceeded its deadline.
+    #[error("authority execution timed out")]
+    Timeout,
 }
 
 struct RunRecord {
@@ -728,7 +744,8 @@ impl<S: AuthoritySource> Orchestrator<S> {
             attempt_id: attempt.id.0.clone(),
         };
         let started = Instant::now();
-        let outcome = match self.source.execute(&request, &cap) {
+        let deadline = started + std::time::Duration::from_millis(request.limits.timeout_ms);
+        let outcome = match self.source.execute_until(&request, &cap, deadline) {
             Ok(value) => value,
             Err(error) => {
                 let _ = self.source.cancel(&request, &cap);
