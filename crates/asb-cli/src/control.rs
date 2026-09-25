@@ -32,6 +32,7 @@ use std::env;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::AtomicU64;
+use std::sync::mpsc;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -559,6 +560,65 @@ struct PlanAuthoritySource {
     cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
 }
 
+fn execute_strict_replay(
+    plan: &PlanFile,
+    expected_digest: &str,
+) -> Result<ExecutionOutcome, AuthorityError> {
+    let path = plan
+        .replay_cassette_path
+        .as_deref()
+        .ok_or(AuthorityError::MissingCassette)?;
+    let bytes = super::read_bounded_json(path, super::MAX_CAPTURE_BYTES, "recording cassette")
+        .map_err(|_| AuthorityError::LocalExecution)?;
+    let cassette = asb_replay::decode_cassette(&bytes, asb_replay::CassetteLimits::default())
+        .map_err(|_| AuthorityError::LocalExecution)?;
+    if cassette.integrity.digest != expected_digest {
+        return Err(AuthorityError::InvalidBinding);
+    }
+    let interaction = cassette
+        .contents
+        .interactions
+        .first()
+        .ok_or(AuthorityError::LocalExecution)?;
+    let route = asb_replay::ReplayRoute {
+        session_id: interaction.session_id.clone(),
+        attempt_id: interaction.attempt_id.clone(),
+        dialect: interaction.dialect,
+    };
+    let request = asb_replay::ReplayHttpRequest {
+        method: interaction.request.method.clone(),
+        path: interaction.request.path.clone(),
+        headers: interaction.request.headers.clone(),
+        body: asb_replay::canonical_json_bytes(&interaction.request.body)
+            .map_err(|_| AuthorityError::LocalExecution)?,
+    };
+    let service =
+        asb_replay::StrictReplayService::new(cassette, asb_replay::ReplayLimits::default())
+            .map_err(|_| AuthorityError::LocalExecution)?;
+    let response = service
+        .handle(&route, request)
+        .map_err(|_| AuthorityError::LocalExecution)?;
+    let output_bytes = response
+        .segments
+        .iter()
+        .try_fold(0_u64, |total, segment| {
+            total.checked_add(segment.len() as u64)
+        })
+        .ok_or(AuthorityError::LocalExecution)?;
+    let mut digest = Sha256::new();
+    digest.update(response.status.to_be_bytes());
+    for segment in &response.segments {
+        digest.update(segment);
+    }
+    Ok(ExecutionOutcome {
+        result_digest: format!("{:x}", digest.finalize()),
+        output_bytes,
+        artifact_bytes: 0,
+        artifact_count: 0,
+        largest_artifact_bytes: 0,
+    })
+}
+
 impl AuthoritySource for PlanAuthoritySource {
     fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError> {
         if !matches!(
@@ -606,6 +666,15 @@ impl AuthoritySource for PlanAuthoritySource {
             .entry(capability.binding().to_owned())
             .or_insert_with(|| Arc::new(AtomicBool::new(false)))
             .clone();
+        if request.mode == ExecutionMode::StrictReplay {
+            return execute_strict_replay(
+                &plan,
+                request
+                    .cassette_digest
+                    .as_deref()
+                    .ok_or(AuthorityError::MissingCassette)?,
+            );
+        }
         let store = AtomicStore::open(&plan.result_root, StoreLimits::default())
             .map(Arc::new)
             .map_err(|_| AuthorityError::LocalExecution)?;
@@ -631,9 +700,36 @@ impl AuthoritySource for PlanAuthoritySource {
         &mut self,
         request: &RunRequest,
         capability: &AttemptCapability,
-        _deadline: Instant,
+        deadline: Instant,
     ) -> Result<ExecutionOutcome, AuthorityError> {
-        self.execute(request, capability)
+        if Instant::now() >= deadline {
+            return Err(AuthorityError::Timeout);
+        }
+        let cancelled = self
+            .cancelled
+            .lock()
+            .map_err(|_| AuthorityError::LocalUnavailable)?
+            .entry(capability.binding().to_owned())
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .clone();
+        let (stop_tx, stop_rx) = mpsc::channel();
+        let timer_flag = Arc::clone(&cancelled);
+        let timer = std::thread::spawn(move || {
+            if stop_rx
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .is_err()
+            {
+                timer_flag.store(true, Ordering::SeqCst);
+            }
+        });
+        let result = self.execute(request, capability);
+        let expired = Instant::now() >= deadline;
+        let _ = stop_tx.send(());
+        let _ = timer.join();
+        if expired {
+            return Err(AuthorityError::Timeout);
+        }
+        result
     }
 
     fn cancel(
@@ -746,6 +842,9 @@ fn plan_request(plan: &PlanFile) -> Result<RunRequest, BackendFailure> {
     let cassette_digest = (mode == ExecutionMode::StrictReplay)
         .then(|| replay.cassette_sha256.clone())
         .flatten();
+    if mode == ExecutionMode::StrictReplay && plan.replay_cassette_path.is_none() {
+        return Err(BackendFailure::Rejected);
+    }
     let request = RunRequest {
         kind: "run_request".into(),
         schema_version: asb_orchestrator::SCHEMA_VERSION,
@@ -4264,6 +4363,18 @@ mod tests {
         experiment.workload.workload_sha256 = workload.content_sha256;
         experiment.workload.scorer_revision = workload.scoring_version;
         experiment.platform.architecture = std::env::consts::ARCH.to_owned();
+        let replay_cassette_path = root.join("fixture-cassette.json");
+        fs::write(
+            &replay_cassette_path,
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        )
+        .unwrap();
+        let replay_cassette = asb_replay::decode_cassette(
+            &fs::read(&replay_cassette_path).unwrap(),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        experiment.controls.replay.cassette_sha256 = Some(replay_cassette.integrity.digest);
         experiment.refresh_content_address().unwrap();
         let measurement_selection =
             super::process_measurement_selection(experiment.controls.replay.mode, 5_000_000)
@@ -4292,6 +4403,7 @@ mod tests {
                 sweep_max_concurrency: None,
             },
             experiment,
+            replay_cassette_path: Some(replay_cassette_path),
             measurement_selection: Some(measurement_selection),
         }
     }
@@ -6400,6 +6512,81 @@ printf '%s' 'not-json'
             Err(BackendFailure::CapabilityUnavailable)
         );
         assert!(!plan.result_root.exists());
+    }
+
+    #[test]
+    fn strict_replay_consumes_authenticated_cassette_and_rejects_wrong_digest() {
+        let scratch = Scratch::new();
+        let cassette_path = scratch.0.join("cassette.json");
+        fs::write(
+            &cassette_path,
+            include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+        )
+        .unwrap();
+        let cassette = asb_replay::decode_cassette(
+            &fs::read(&cassette_path).unwrap(),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        let digest = cassette.integrity.digest.clone();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.replay_cassette_path = Some(cassette_path);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        plan.experiment.controls.replay.cassette_sha256 = Some(digest.clone());
+        plan.experiment.refresh_content_address().unwrap();
+        let outcome = execute_strict_replay(&plan, &digest).unwrap();
+        assert!(outcome.output_bytes > 0);
+        assert!(matches!(
+            execute_strict_replay(&plan, &"0".repeat(64)),
+            Err(AuthorityError::InvalidBinding)
+        ));
+    }
+
+    #[test]
+    fn strict_replay_requires_a_cassette_path_and_expired_deadline_fails_closed() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan_with_script(&scratch.0, b"#!/bin/sh\nsleep 1\n");
+        plan.replay_cassette_path = None;
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        plan.experiment.controls.replay.cassette_sha256 = Some("a".repeat(64));
+        plan.experiment.refresh_content_address().unwrap();
+        assert_eq!(plan_request(&plan), Err(BackendFailure::Rejected));
+
+        let request = RunRequest {
+            kind: "run_request".into(),
+            schema_version: asb_orchestrator::SCHEMA_VERSION,
+            idempotency_key: plan.run_id.clone(),
+            agent_id: asb_protocol::Id(plan.experiment.agent.implementation.clone()),
+            provider_id: asb_protocol::Id(plan.experiment.model.provider.clone()),
+            model_id: asb_protocol::Id(plan.experiment.model.model.clone()),
+            workload_id: asb_protocol::Id(plan.experiment.workload.workload.clone()),
+            catalog_digest: plan.experiment.experiment_sha256.clone(),
+            workload_revision: plan.experiment.workload.workload_sha256.clone(),
+            scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
+            mode: ExecutionMode::LocalMock,
+            cassette_digest: None,
+            credential_ref_digest: None,
+            limits: RunLimits {
+                timeout_ms: 1,
+                max_output_bytes: 64 * 1024 * 1024,
+                max_events: 1024,
+                max_artifacts: 1024,
+                max_artifact_bytes: 64 * 1024 * 1024,
+                max_artifact_total_bytes: 256 * 1024 * 1024,
+            },
+        };
+        let plans = Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)])));
+        let mut source = PlanAuthoritySource {
+            plans,
+            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        let capability = source.prepare(&request).unwrap();
+        let started = Instant::now();
+        assert!(matches!(
+            source.execute_until(&request, &capability, started + Duration::from_millis(50)),
+            Err(AuthorityError::Timeout)
+        ));
+        assert!(started.elapsed() < Duration::from_millis(750));
     }
 
     #[test]
