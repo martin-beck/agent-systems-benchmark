@@ -571,51 +571,11 @@ fn execute_strict_replay(
         .replay_cassette_path
         .as_deref()
         .ok_or(AuthorityError::MissingCassette)?;
-    let bytes = super::read_bounded_json(path, super::MAX_CAPTURE_BYTES, "recording cassette")
-        .map_err(|_| AuthorityError::LocalExecution)?;
-    let cassette = asb_replay::decode_cassette(&bytes, asb_replay::CassetteLimits::default())
-        .map_err(|_| AuthorityError::LocalExecution)?;
-    if cassette.integrity.digest != expected_digest {
-        return Err(AuthorityError::InvalidBinding);
-    }
-    let interaction = cassette
-        .contents
-        .interactions
-        .first()
-        .ok_or(AuthorityError::LocalExecution)?;
-    let route = asb_replay::ReplayRoute {
-        session_id: interaction.session_id.clone(),
-        attempt_id: interaction.attempt_id.clone(),
-        dialect: interaction.dialect,
-    };
-    let request = asb_replay::ReplayHttpRequest {
-        method: interaction.request.method.clone(),
-        path: interaction.request.path.clone(),
-        headers: interaction.request.headers.clone(),
-        body: asb_replay::canonical_json_bytes(&interaction.request.body)
-            .map_err(|_| AuthorityError::LocalExecution)?,
-    };
-    let service =
-        asb_replay::StrictReplayService::new(cassette, asb_replay::ReplayLimits::default())
-            .map_err(|_| AuthorityError::LocalExecution)?;
-    let response = service
-        .handle(&route, request)
-        .map_err(|_| AuthorityError::LocalExecution)?;
-    let output_bytes = response
-        .segments
-        .iter()
-        .try_fold(0_u64, |total, segment| {
-            total.checked_add(segment.len() as u64)
-        })
-        .ok_or(AuthorityError::LocalExecution)?;
-    let mut digest = Sha256::new();
-    digest.update(response.status.to_be_bytes());
-    for segment in &response.segments {
-        digest.update(segment);
-    }
+    let result = asb_runtime::guided_replay::execute_local_strict_replay(path, expected_digest)
+        .map_err(|_| AuthorityError::InvalidBinding)?;
     Ok(ExecutionOutcome {
-        result_digest: format!("{:x}", digest.finalize()),
-        output_bytes,
+        result_digest: result.result_digest,
+        output_bytes: result.output_bytes,
         artifact_bytes: 0,
         artifact_count: 0,
         largest_artifact_bytes: 0,

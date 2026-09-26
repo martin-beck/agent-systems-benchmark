@@ -98,6 +98,7 @@ version = "0.1.0"
 dependencies = [
  "asb-control",
  "asb-core",
+ "asb-replay",
  "rustix",
  "serde",
  "serde_json",
