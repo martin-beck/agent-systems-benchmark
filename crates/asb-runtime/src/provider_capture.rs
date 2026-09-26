@@ -5,6 +5,11 @@
 //! The control service receives this trait only from the runtime.  Frontends
 //! and path-based recording importers never construct a capture authority.
 
+use asb_replay::{
+    ReplayError, ReplayHttpRequest, ReplayHttpResponse, ReplayRoute, StrictReplayService,
+};
+use std::io::{Read, Write};
+
 /// Secret-free identity handed from the runtime launch to the capture seam.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProviderCaptureRequest {
@@ -41,6 +46,44 @@ pub trait ProviderCapture: Send + Sync {
         &self,
         request: &ProviderCaptureRequest,
     ) -> Result<ProviderCaptureResult, ProviderCaptureError>;
+}
+
+/// Run one runtime-authenticated exchange through the strict replay capture
+/// seam and return only public cassette verification metadata. The stream and
+/// forwarding callback are supplied by the runtime launch; callers cannot
+/// provide a path-based capture or bypass redaction and sealing.
+pub fn capture_authenticated_connection<S, F>(
+    service: &StrictReplayService,
+    request: &ProviderCaptureRequest,
+    stream: &mut S,
+    route: &ReplayRoute,
+    forward: F,
+) -> Result<ProviderCaptureResult, ProviderCaptureError>
+where
+    S: Read + Write,
+    F: FnOnce(&ReplayRoute, &ReplayHttpRequest) -> Result<ReplayHttpResponse, ReplayError>,
+{
+    if request.attempt_id != route.attempt_id {
+        return Err(ProviderCaptureError::IdentityMismatch);
+    }
+    let (cassette, _report) = service
+        .capture_and_seal_authenticated_connection(
+            stream,
+            route,
+            format!("{}-capture", request.attempt_id),
+            forward,
+        )
+        .map_err(|_| ProviderCaptureError::Verification)?;
+    // Re-open through the strict service constructor before reporting the
+    // cassette as replay-ready. This validates route, dialect, redaction and
+    // integrity contracts without contacting a provider or retaining payloads.
+    StrictReplayService::new(cassette.clone(), Default::default())
+        .map_err(|_| ProviderCaptureError::Verification)?;
+    Ok(ProviderCaptureResult {
+        cassette_sha256: cassette.integrity.digest,
+        redaction_verified: true,
+        replay_verified: true,
+    })
 }
 
 /// Fail-closed capture errors.  No provider details or credentials are carried.
