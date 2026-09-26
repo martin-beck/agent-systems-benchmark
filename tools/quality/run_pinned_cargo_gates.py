@@ -29,7 +29,9 @@ def main() -> int:
         version = subprocess.run([str(path), "--version"], check=True, capture_output=True, text=True).stdout
         if expected["version"] not in version:
             raise SystemExit(f"pinned tool version mismatch: {name}")
-    subprocess.run([str(args.bin_dir / "cargo-deny"), "check", "--locked"], check=True)
+    # cargo-deny resolves the already-checked-in Cargo.lock; unlike Cargo itself,
+    # its check subcommand has no --locked flag.
+    subprocess.run([str(args.bin_dir / "cargo-deny"), "check"], check=True)
     subprocess.run([str(args.bin_dir / "cargo-audit"), "--deny", "warnings"], check=True)
     return 0
 
