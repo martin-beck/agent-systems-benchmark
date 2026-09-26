@@ -55,8 +55,8 @@ evidence; keep its path and SHA-256 in the run record. Redaction happens before
 sealing and the selector digest is retained as provenance. `replay-offline`
 requires runtime-issued authority plus an exact provider-profile, agent, and
 cassette root match and denies provider network access before execution. If no
-exact cassette is available, it returns an error—there is no live-provider
-fallback, even when replay is unavailable.
+exact cassette is available, it returns an error. Replay has no live-provider fallback,
+even when replay is unavailable.
 Production provider capture remains a separately supervised runtime integration;
 this local/mock route intentionally does not claim external reachability.
 
