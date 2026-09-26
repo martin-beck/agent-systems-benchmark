@@ -310,10 +310,28 @@ fn dispatch(
         [command, input, output] if command == "record" => {
             record(Path::new(input), Path::new(output), stdout).map(|()| 0)
         }
+        [command, input, output, flag] if command == "record-live" && flag == "--local-mock" => {
+            record_live(Path::new(input), Path::new(output), false, stdout).map(|()| 0)
+        }
+        [command, input, output, local, confirm]
+            if command == "record-live"
+                && local == "--local-mock"
+                && confirm == "--confirm-record" =>
+        {
+            record_live(Path::new(input), Path::new(output), true, stdout).map(|()| 0)
+        }
         [command, manifest] if command == "record-campaign" => {
             record_campaign(Path::new(manifest), stdout).map(|()| 0)
         }
         [command, cassette, profile, agent] if command == "replay" => replay(
+            Path::new(cassette),
+            profile,
+            agent,
+            replay_authority.take(),
+            stdout,
+        )
+        .map(|()| 0),
+        [command, cassette, profile, agent] if command == "replay-offline" => replay(
             Path::new(cassette),
             profile,
             agent,
@@ -368,7 +386,21 @@ fn guided_local(
         let destination = guided_path(&args[2], "recording cassette output")?;
         return record(&input, &destination, output).map(|()| 0);
     }
+    if args[0] == "record-live" && args.len() == 5 {
+        if args[3] != "--local-mock" || args[4] != "--confirm-record" {
+            return Err(CliError::usage(
+                "easy record-live requires --local-mock --confirm-record",
+            ));
+        }
+        let input = guided_path(&args[1], "recording capture")?;
+        let destination = guided_path(&args[2], "recording cassette output")?;
+        return record_live(&input, &destination, true, output).map(|()| 0);
+    }
     if args[0] == "replay" && args.len() == 5 && args[4] == "--local-mock" {
+        let cassette = guided_path(&args[1], "recording cassette")?;
+        return replay(&cassette, &args[2], &args[3], replay_authority, output).map(|()| 0);
+    }
+    if args[0] == "replay-offline" && args.len() == 5 && args[4] == "--local-mock" {
         let cassette = guided_path(&args[1], "recording cassette")?;
         return replay(&cassette, &args[2], &args[3], replay_authority, output).map(|()| 0);
     }
@@ -582,7 +614,9 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("report") => "report",
         Some("serve") => "serve",
         Some("record") => "record",
+        Some("record-live") => "record-live",
         Some("replay") => "replay",
+        Some("replay-offline") => "replay-offline",
         _ => "cli",
     }
 }
@@ -593,7 +627,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
-    writeln!(output, "  asb record CAPTURE.json CASSETTE.json\n  asb record-campaign MANIFEST.json\n  asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
+    writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
 }
 
@@ -739,6 +773,24 @@ fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), Cli
     }
     write_atomic_private(output, &encoded)?;
     write_json(stdout, &artifact.metadata)
+}
+
+/// Seal a capture through the explicit record-live route.
+///
+/// This qualification path is local/mock only: it has no provider side effect.
+/// The separate confirmation flag prevents accidental durable recording.
+fn record_live(
+    input: &Path,
+    output: &Path,
+    confirmed: bool,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    if !confirmed {
+        return Err(CliError::validation(
+            "record-live requires explicit --confirm-record opt-in",
+        ));
+    }
+    record(input, output, stdout)
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -7006,6 +7058,61 @@ mod tests {
         assert_eq!(replay["ok"], false);
         assert_eq!(
             replay["error"]["message"],
+            "runtime replay authority is required"
+        );
+        let live_cassette = scratch.0.join("live-cassette.json");
+        let mut live_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "record-live".into(),
+                    capture_path.as_os_str().to_owned(),
+                    live_cassette.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                    "--confirm-record".into(),
+                ],
+                &mut live_output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        assert!(live_cassette.is_file());
+        let mut denied_live = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "record-live".into(),
+                    capture_path.as_os_str().to_owned(),
+                    scratch.0.join("denied.json").as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut denied_live,
+                &mut diagnostics,
+            ),
+            3
+        );
+        let denied_live: Value = serde_json::from_slice(&denied_live).unwrap();
+        assert_eq!(
+            denied_live["error"]["message"],
+            "record-live requires explicit --confirm-record opt-in"
+        );
+        let mut offline_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "replay-offline".into(),
+                    live_cassette.as_os_str().to_owned(),
+                    "a".repeat(64).into(),
+                    "codex".into(),
+                ],
+                &mut offline_output,
+                &mut diagnostics,
+            ),
+            3
+        );
+        let offline: Value = serde_json::from_slice(&offline_output).unwrap();
+        assert_eq!(
+            offline["error"]["message"],
             "runtime replay authority is required"
         );
         let _ = digest;

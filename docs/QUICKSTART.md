@@ -16,7 +16,7 @@ The final command runs the executable guide fixture through `plan`, `run`,
 `batch-stdio-v1` agent in a private disposable directory, executes the original
 bug-fix workload, validates JSON output and durable manifest/journal artifacts,
 then removes the directory. It also proves that a stale plan schema and the
-unimplemented `record` and `replay` commands fail.
+missing-authority `replay-offline` command fails closed.
 
 ## Preparing a real plan
 
@@ -90,12 +90,18 @@ The command redacts and atomically seals the capture; its stdout contains only
 catalog metadata, never prompts, responses, or credentials:
 
 ```sh
-asb record CAPTURE.json CASSETTE.json
-asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT
+asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record
+asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT
 ```
 
-Replay authenticates the cassette, requires an exact provider-profile and agent
-match, labels the result `strict_replay`, and denies provider network access.
+`record-live` requires the explicit confirmation flag and seals a bounded,
+redacted capture. In local qualification (`--local-mock`) it does not contact a
+provider. Replay authenticates the cassette, requires runtime-issued authority,
+an exact provider-profile and agent match, labels the result `strict_replay`,
+and denies provider network access.
+The legacy aliases `asb record CAPTURE.json CASSETTE.json` and
+`asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT` remain accepted for
+compatibility, but the explicit names above document the complete workflow.
 Incomplete, corrupt, stale, or incompatible cassettes fail before execution.
 The TUI exposes the same choices through `RecordingWorkflow`: compatible
 recordings are selectable, near matches carry an explicit unavailable reason,
@@ -118,6 +124,8 @@ This table is checked against live `doctor` output and
 | `sweep` | supported |
 | `compare` | supported |
 | `report` | supported |
+| `record-live` | supported (local mock) |
+| `replay-offline` | supported (runtime authority) |
 | `record` | supported |
 | `replay` | supported |
 | `completion` | supported |
