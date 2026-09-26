@@ -507,7 +507,7 @@ fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
 fn write_easy_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "ASB guided local workflow\n\nUsage:\n  asb easy setup [SETUP_OPTIONS]\n  asb easy provider-catalog\n  asb easy plan EXPERIMENT.toml --use-config\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy report RUN...\n  asb easy compare RUN RUN...\n  asb easy record CAPTURE.json CASSETTE.json --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb easy replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n\nThe guided path delegates to the canonical catalog, configuration, evidence,\nand strict replay contracts. It never contacts a provider in local-mock mode."
+        "ASB guided local workflow\n\nUsage:\n  asb easy setup [SETUP_OPTIONS]\n  asb easy provider-catalog\n  asb easy plan EXPERIMENT.toml --use-config\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy report RUN...\n  asb easy compare RUN RUN...\n  asb easy record CAPTURE.json CASSETTE.json --local-mock\n  asb easy record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb easy replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n  asb easy replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n\nThe guided path delegates to the canonical catalog, configuration, evidence,\nand strict replay contracts. It never contacts a provider in local-mock mode."
     )
     .map_err(output_error)
 }

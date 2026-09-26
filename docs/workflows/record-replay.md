@@ -56,7 +56,9 @@ sealing and the selector digest is retained as provenance. `replay-offline`
 requires runtime-issued authority plus an exact provider-profile, agent, and
 cassette root match and denies provider network access before execution. If no
 exact cassette is available, it returns an error—there is no live-provider
-fallback. There is no live-provider fallback, even when replay is unavailable.
+fallback, even when replay is unavailable.
+Production provider capture remains a separately supervised runtime integration;
+this local/mock route intentionally does not claim external reachability.
 
 To compare live and replay results, first produce two terminal run directories,
 then use:

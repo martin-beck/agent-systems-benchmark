@@ -99,6 +99,9 @@ redacted capture. In local qualification (`--local-mock`) it does not contact a
 provider. Replay authenticates the cassette, requires runtime-issued authority,
 an exact provider-profile and agent match, labels the result `strict_replay`,
 and denies provider network access.
+The checked-in qualification path is local/mock; production provider capture
+remains an explicitly supervised runtime integration and is not required for
+offline qualification.
 The legacy aliases `asb record CAPTURE.json CASSETTE.json` and
 `asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT` remain accepted for
 compatibility, but the explicit names above document the complete workflow.
