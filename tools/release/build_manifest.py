@@ -49,6 +49,14 @@ def main() -> int:
         die("source revision does not match HEAD")
     if not args.binary.is_file() or args.binary.is_symlink():
         die("release binary must be a regular file")
+    cargo_toml = Path("Cargo.toml").read_text(encoding="utf-8")
+    version_match = re.search(
+        r"(?ms)^\[workspace\.package\].*?^version\s*=\s*\"([^\"]+)\"",
+        cargo_toml,
+    )
+    if version_match is None:
+        die("workspace package version is missing")
+    version = version_match.group(1)
     output = args.output.resolve()
     if output.exists():
         die("refusing to overwrite an existing release output")
@@ -59,12 +67,38 @@ def main() -> int:
         shutil.copyfile(args.binary, payload)
         os.chmod(payload, 0o755)
         binary_sha = digest(payload)
+        spdx = {
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "asb-release",
+            "documentNamespace": f"https://agent-systems-benchmark.invalid/spdx/{args.source_revision}",
+            "creationInfo": {"created": "1970-01-01T00:00:00Z", "creators": ["Tool: asb-release-manifest-v1"]},
+            "packages": [{
+                "SPDXID": "SPDXRef-Package-asb",
+                "name": "asb",
+                "versionInfo": version,
+                "downloadLocation": "NOASSERTION",
+                "filesAnalyzed": False,
+            }],
+        }
+        cyclonedx = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": f"urn:uuid:{args.source_revision}",
+            "version": 1,
+            "metadata": {"component": {"type": "application", "name": "asb", "version": version}},
+            "components": [],
+        }
+        (root / "sbom.spdx.json").write_text(json.dumps(spdx, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+        (root / "sbom.cyclonedx.json").write_text(json.dumps(cyclonedx, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
         manifest = {
             "schema_version": 1,
             "profile": args.profile,
-            "version": "0.1.0",
+            "version": version,
             "source_revision": args.source_revision,
             "artifacts": [{"path": "asb", "size": payload.stat().st_size, "sha256": binary_sha}],
+            "sbom": {"spdx": "sbom.spdx.json", "cyclonedx": "sbom.cyclonedx.json"},
             "provenance": {"builder": "asb-release-manifest-v1", "network": "none", "credentials": "none"},
         }
         (root / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
