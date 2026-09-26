@@ -480,21 +480,21 @@ mod tests {
         }
 
         fn harness_tool(&self) -> PinnedTool {
-            let path = std::env::current_exe().unwrap();
-            let bytes = fs::read(&path).unwrap();
-            let output = Command::new(&path).arg("--list").output().unwrap();
-            let version = if output.stdout.is_empty() {
-                output.stderr
-            } else {
-                output.stdout
-            };
-            let version = version.strip_suffix(b"\n").unwrap_or(&version);
-            let version = version.strip_suffix(b"\r").unwrap_or(version);
+            let path = self.0.join("harness-tool");
+            let bytes = b"#!/bin/sh\ncase \"$1:$3\" in\n  --list:) printf '%s\\n' fixture-v1 ;;\n  *:kernel::tests::fixture_process_success) printf '%s\\n' '12.5;msec;task-clock;1;100.0' ;;\n  *:kernel::tests::fixture_process_timeout) sleep 2 ;;\n  *) exit 1 ;;\nesac\n";
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o500)
+                .open(&path)
+                .unwrap()
+                .write_all(bytes)
+                .unwrap();
             PinnedTool::new(
                 path,
                 format!("{:x}", Sha256::digest(bytes)),
                 "--list".into(),
-                String::from_utf8(version.to_vec()).unwrap(),
+                "fixture-v1".into(),
             )
             .unwrap()
         }
@@ -562,7 +562,12 @@ mod tests {
         }
 
         fn assert_clean(&self) {
-            assert_eq!(fs::read_dir(&self.0).unwrap().count(), 0);
+            let entries = fs::read_dir(&self.0)
+                .unwrap()
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_name() != "harness-tool")
+                .count();
+            assert_eq!(entries, 0);
         }
     }
 
