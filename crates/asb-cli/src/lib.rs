@@ -654,6 +654,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     if let (Some(profile), Some(model_name)) = (&provider_profile, &model) {
         let compatible = match profile.as_str() {
             "openai" => model_name.starts_with("gpt-") || model_name.starts_with("o1"),
+            "openrouter" => model_name == asb_agents::openrouter::OPENROUTER_MODEL,
             "gemini" => model_name.starts_with("gemini-"),
             "ollama" => ["llama", "mistral", "qwen", "phi"]
                 .iter()
@@ -5106,6 +5107,42 @@ mod tests {
         );
         let catalog: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(catalog["command"], "provider-catalog");
+    }
+
+    #[test]
+    fn guided_setup_accepts_only_catalog_openrouter_model() {
+        let mut output = Vec::new();
+        let model = asb_agents::openrouter::OPENROUTER_MODEL;
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "setup".into(),
+                    "--provider-profile".into(),
+                    "openrouter".into(),
+                    "--model".into(),
+                    model.into(),
+                    "--format=json".into(),
+                ],
+                &mut output,
+                &mut Vec::new(),
+            ),
+            0
+        );
+        assert!(
+            run(
+                &[
+                    "easy".into(),
+                    "setup".into(),
+                    "--provider-profile".into(),
+                    "openrouter".into(),
+                    "--model".into(),
+                    "unadvertised-model".into(),
+                ],
+                &mut Vec::new(),
+                &mut Vec::new(),
+            ) > 0
+        );
     }
 
     #[test]
