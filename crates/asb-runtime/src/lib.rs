@@ -5,6 +5,9 @@
 /// Opaque cross-crate credential injection at the final launch boundary.
 pub mod credential_injection;
 
+/// Runtime-owned bounded strict-replay execution for the central orchestrator.
+pub mod guided_replay;
+
 /// Runtime-issued authority for strict-replay launch inputs.
 pub mod launch_factory;
 /// Runtime-issued namespace-bound capability for explicit live provider launches.
