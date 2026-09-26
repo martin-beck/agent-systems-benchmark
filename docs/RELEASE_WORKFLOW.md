@@ -3,7 +3,8 @@
 The release input is one clean exact Git revision. Build the pinned release
 binary, then run `tools/release/build_manifest.py` with that revision and the
 binary path. The command creates a private output directory containing the
-unsigned-release manifest, executable, and deterministic `SHA256SUMS` file.
+unsigned-release manifest, executable, SPDX and CycloneDX SBOM documents, and
+deterministic `SHA256SUMS` file covering every output.
 It rejects dirty trees, revision mismatches, symlinked payloads, and existing
 outputs. It performs no network access and records no host paths, credentials,
 prompts, or logs.
