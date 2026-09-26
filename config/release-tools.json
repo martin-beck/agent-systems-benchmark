@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "cargo-deny": {"version": "0.20.2", "sha256": "df8fba368345a79640ff6fd68d82c3572e2367a3e93135a2e49d7a2432cfccb5"},
+    "cargo-audit": {"version": "0.22.2", "sha256": "d0bcff980c3659a05dcd90626490c528ed9bb117e8780c03c38ec5a53bf0c56a"}
+  }
+}
