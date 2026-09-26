@@ -43,16 +43,22 @@ Prepare a bounded `RecordingCapture` JSON envelope with explicit `record`,
 `network`, and (when applicable) `cost` acknowledgements. Then run:
 
 ```sh
-asb record /absolute/path/CAPTURE.json /absolute/path/CASSETTE.json
-asb replay /absolute/path/CASSETTE.json PROVIDER_PROFILE_SHA256 codex
+asb record-live /absolute/path/CAPTURE.json /absolute/path/CASSETTE.json \
+  --local-mock --confirm-record
+asb replay-offline /absolute/path/CASSETTE.json PROVIDER_PROFILE_SHA256 codex
 ```
 
-`record` atomically seals the cassette and prints metadata only. The cassette
-is immutable content-addressed evidence; keep its path and SHA-256 in the run
-record. Redaction happens before sealing and the selector digest is retained
-as provenance. `replay` requires an exact provider-profile, agent, and cassette
-root match and denies provider network access before execution. If no exact
-cassette is available, it returns an error—there is no live-provider fallback.
+`record-live` requires the explicit `--confirm-record` opt-in and atomically
+seals the cassette. With `--local-mock`, qualification is credential-free and
+does not contact a provider. The cassette is immutable content-addressed
+evidence; keep its path and SHA-256 in the run record. Redaction happens before
+sealing and the selector digest is retained as provenance. `replay-offline`
+requires runtime-issued authority plus an exact provider-profile, agent, and
+cassette root match and denies provider network access before execution. If no
+exact cassette is available, it returns an error. Replay has no live-provider fallback,
+even when replay is unavailable.
+Production provider capture remains a separately supervised runtime integration;
+this local/mock route intentionally does not claim external reachability.
 
 To compare live and replay results, first produce two terminal run directories,
 then use:
