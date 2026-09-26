@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+# SPDX-License-Identifier: MIT
 """Run cargo-deny and cargo-audit from an already provisioned tool directory."""
 from __future__ import annotations
 
