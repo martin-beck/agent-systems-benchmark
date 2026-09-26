@@ -60,7 +60,7 @@ use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -234,7 +234,9 @@ fn dispatch(
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
         [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
         [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
-        [command, easy_args @ ..] if command == "easy" => guided_local(easy_args, stdout, stderr),
+        [command, easy_args @ ..] if command == "easy" => {
+            guided_local(easy_args, replay_authority.take(), stdout, stderr)
+        }
         [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
@@ -339,16 +341,45 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
 /// complete authority surface.
 fn guided_local(
     args: &[String],
+    replay_authority: Option<ReplayLaunchAuthority>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
+    if args.is_empty() || args[0] == "--help" || args[0] == "-h" {
+        return write_easy_help(output).map(|()| 0);
+    }
+    if args[0] == "setup" {
+        return guided_setup(&args[1..], output).map(|()| 0);
+    }
+    if args[0] == "provider-catalog" && args.len() == 1 {
+        return provider_catalog(output).map(|()| 0);
+    }
+    if args[0] == "plan" && args.len() == 3 && args[2] == "--use-config" {
+        return plan_with_config(Path::new(&args[1]), output).map(|()| 0);
+    }
+    if args[0] == "report" && args.len() >= 2 {
+        return report(&args[1..], output).map(|()| 0);
+    }
+    if args[0] == "compare" && args.len() >= 3 {
+        return compare(&args[1..], output).map(|()| 0);
+    }
+    if args[0] == "record" && args.len() == 4 && args[3] == "--local-mock" {
+        let input = guided_path(&args[1], "recording capture")?;
+        let destination = guided_path(&args[2], "recording cassette output")?;
+        return record(&input, &destination, output).map(|()| 0);
+    }
+    if args[0] == "replay" && args.len() == 5 && args[4] == "--local-mock" {
+        let cassette = guided_path(&args[1], "recording cassette")?;
+        return replay(&cassette, &args[2], &args[3], replay_authority, output).map(|()| 0);
+    }
     if args.len() == 3 && args[0] == "record-campaign" {
         if args[2] != "--local-mock" {
             return Err(CliError::usage(
                 "easy record-campaign accepts only --local-mock",
             ));
         }
-        return record_campaign(Path::new(&args[1]), output).map(|()| 0);
+        let manifest = guided_path(&args[1], "recording campaign manifest")?;
+        return record_campaign(&manifest, output).map(|()| 0);
     }
     if args.len() != 4 {
         return Err(CliError::usage(
@@ -372,6 +403,81 @@ fn guided_local(
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
     guided_local_at(args, &store, output, progress)
+}
+
+fn guided_path(value: &str, label: &'static str) -> Result<PathBuf, CliError> {
+    let path = Path::new(value);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| component == Component::ParentDir)
+    {
+        let _ = label;
+        return Err(CliError::validation(
+            "guided path must be absolute and cannot contain '..'",
+        ));
+    }
+    Ok(path.to_owned())
+}
+
+fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let mut profile = None;
+    let mut model = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--format=json" => index += 1,
+            "--provider-profile" | "--model" | "--output" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::usage("guided setup option is missing a value"))?;
+                if args[index] == "--provider-profile" {
+                    profile = Some(value.as_str());
+                } else if args[index] == "--model" {
+                    model = Some(value.as_str());
+                } else {
+                    let _ = guided_path(value, "setup output")?;
+                }
+                index += 2;
+            }
+            _ => return Err(CliError::usage("unsupported guided setup option")),
+        }
+    }
+    if profile.is_some() != model.is_some() {
+        return Err(CliError::validation(
+            "guided setup provider and model must be selected together",
+        ));
+    }
+    if let (Some(profile), Some(model)) = (profile, model) {
+        let expected = match profile {
+            "openai" => asb_agents::openai::OPENAI_MODEL,
+            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
+            "ollama" => {
+                return Err(CliError::validation(
+                    "guided setup provider is unavailable without verified local daemon evidence",
+                ));
+            }
+            _ => {
+                return Err(CliError::validation(
+                    "guided setup provider is not in the catalog",
+                ));
+            }
+        };
+        if model != expected {
+            return Err(CliError::validation(
+                "guided setup model is not the catalog-advertised model for this provider",
+            ));
+        }
+    }
+    setup(args, output)
+}
+
+fn write_easy_help(output: &mut dyn Write) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "ASB guided local workflow\n\nUsage:\n  asb easy setup [SETUP_OPTIONS]\n  asb easy provider-catalog\n  asb easy plan EXPERIMENT.toml --use-config\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy report RUN...\n  asb easy compare RUN RUN...\n  asb easy record CAPTURE.json CASSETTE.json --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb easy replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n\nThe guided path delegates to the canonical catalog, configuration, evidence,\nand strict replay contracts. It never contacts a provider in local-mock mode."
+    )
+    .map_err(output_error)
 }
 
 fn guided_local_at(
@@ -548,6 +654,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     if let (Some(profile), Some(model_name)) = (&provider_profile, &model) {
         let compatible = match profile.as_str() {
             "openai" => model_name.starts_with("gpt-") || model_name.starts_with("o1"),
+            "openrouter" => model_name == asb_agents::openrouter::OPENROUTER_MODEL,
             "gemini" => model_name.starts_with("gemini-"),
             "ollama" => ["llama", "mistral", "qwen", "phi"]
                 .iter()
@@ -4946,7 +5053,7 @@ mod tests {
             "--use-config".into(),
             "--live-provider".into(),
         ];
-        assert!(guided_local(&missing_mock, &mut Vec::new(), &mut Vec::new()).is_err());
+        assert!(guided_local(&missing_mock, None, &mut Vec::new(), &mut Vec::new()).is_err());
 
         let unknown = vec![
             "sweep".into(),
@@ -4955,7 +5062,7 @@ mod tests {
             "--local-mock".into(),
             "--endpoint".into(),
         ];
-        assert!(guided_local(&unknown, &mut Vec::new(), &mut Vec::new()).is_err());
+        assert!(guided_local(&unknown, None, &mut Vec::new(), &mut Vec::new()).is_err());
 
         let absent_config = vec![
             "run".into(),
@@ -4963,8 +5070,79 @@ mod tests {
             "--use-config".into(),
             "--local-mock".into(),
         ];
-        let result = guided_local(&absent_config, &mut Vec::new(), &mut Vec::new());
+        let result = guided_local(&absent_config, None, &mut Vec::new(), &mut Vec::new());
         assert!(result.is_err());
+
+        let relative_campaign = vec![
+            "record-campaign".into(),
+            "manifest.json".into(),
+            "--local-mock".into(),
+        ];
+        assert!(guided_local(&relative_campaign, None, &mut Vec::new(), &mut Vec::new()).is_err());
+    }
+
+    #[test]
+    fn guided_wrapper_help_and_provider_catalog_are_explicit() {
+        let mut output = Vec::new();
+        assert_eq!(
+            run(
+                &["easy".into(), "--help".into()],
+                &mut output,
+                &mut Vec::new()
+            ),
+            0
+        );
+        let help = String::from_utf8(output).unwrap();
+        assert!(help.contains("asb easy setup"));
+        assert!(help.contains("asb easy replay"));
+
+        let mut output = Vec::new();
+        assert_eq!(
+            run(
+                &["easy".into(), "provider-catalog".into()],
+                &mut output,
+                &mut Vec::new()
+            ),
+            0
+        );
+        let catalog: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(catalog["command"], "provider-catalog");
+    }
+
+    #[test]
+    fn guided_setup_accepts_only_catalog_openrouter_model() {
+        let mut output = Vec::new();
+        let model = asb_agents::openrouter::OPENROUTER_MODEL;
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "setup".into(),
+                    "--provider-profile".into(),
+                    "openrouter".into(),
+                    "--model".into(),
+                    model.into(),
+                    "--format=json".into(),
+                ],
+                &mut output,
+                &mut Vec::new(),
+            ),
+            0
+        );
+        assert!(
+            run(
+                &[
+                    "easy".into(),
+                    "setup".into(),
+                    "--provider-profile".into(),
+                    "openrouter".into(),
+                    "--model".into(),
+                    "unadvertised-model".into(),
+                ],
+                &mut Vec::new(),
+                &mut Vec::new(),
+            ) > 0
+        );
     }
 
     #[test]
