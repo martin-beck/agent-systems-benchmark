@@ -320,7 +320,7 @@ fn dispatch(
         {
             record_live(Path::new(input), Path::new(output), true, stdout).map(|()| 0)
         }
-        [command, manifest] if command == "record-campaign" => {
+        [command, manifest, flag] if command == "record-campaign" && flag == "--local-mock" => {
             record_campaign(Path::new(manifest), stdout).map(|()| 0)
         }
         [command, cassette, profile, agent] if command == "replay" => replay(
@@ -627,7 +627,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
-    writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
+    writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
 }
 
@@ -7175,6 +7175,21 @@ mod tests {
         assert_eq!(result["offline_ready"], true);
         assert_eq!(result["tuple_count"], 1);
         assert!(cassette_path.is_file());
+
+        let mut direct_without_opt_in = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "record-campaign".into(),
+                    manifest_path.as_os_str().to_owned(),
+                ],
+                &mut direct_without_opt_in,
+                &mut diagnostics,
+            ),
+            2
+        );
+        let direct_without_opt_in: Value = serde_json::from_slice(&direct_without_opt_in).unwrap();
+        assert_eq!(direct_without_opt_in["error"]["code"], "usage");
 
         let mut hostile = Vec::new();
         assert_eq!(
