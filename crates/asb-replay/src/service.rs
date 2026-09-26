@@ -718,6 +718,37 @@ impl StrictReplayService {
         })
     }
 
+    /// Capture, redact, seal, and authenticate one runtime-owned exchange.
+    ///
+    /// This is the only composition boundary that turns the sanitized output
+    /// of [`Self::capture_authenticated_connection`] into a persistent
+    /// cassette.  The forwarding callback remains responsible for the
+    /// authenticated provider effect; this method performs no network access
+    /// and returns a cassette whose digest is content-addressed.
+    pub fn capture_and_seal_authenticated_connection<S, F>(
+        &self,
+        stream: &mut S,
+        route: &ReplayRoute,
+        cassette_id: String,
+        forward: F,
+    ) -> Result<(Cassette, crate::RedactionReport), ReplayError>
+    where
+        S: Read + Write,
+        F: FnOnce(&ReplayRoute, &ReplayHttpRequest) -> Result<ReplayHttpResponse, ReplayError>,
+    {
+        let exchange = self.capture_authenticated_connection(stream, route, forward)?;
+        let contents = exchange.into_cassette_contents(route, cassette_id)?;
+        let (redacted, report) = crate::Redactor::new(crate::RedactionPolicy::default())
+            .map_err(|_| ReplayError::InvalidCassette)?
+            .redact_contents(contents)
+            .map_err(|_| ReplayError::InvalidCassette)?;
+        let encoded = crate::seal_cassette(redacted, CassetteLimits::default())
+            .map_err(|_| ReplayError::InvalidCassette)?;
+        let cassette = crate::decode_cassette(&encoded, CassetteLimits::default())
+            .map_err(|_| ReplayError::InvalidCassette)?;
+        Ok((cassette, report))
+    }
+
     #[cfg(test)]
     fn serve_connection<S: Read + Write>(
         &self,
@@ -1956,6 +1987,48 @@ mod tests {
                 .unwrap()
                 .contains("content-length: 2")
         );
+    }
+
+    #[test]
+    fn capture_boundary_seals_redacted_content_addressed_cassette() {
+        let input = b"POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer secret\r\ncontent-length: 39\r\n\r\n{\"model\":\"fixture-model\",\"messages\":[]}".to_vec();
+        let mut io = MemoryIo::new(input);
+        let route = ReplayRoute {
+            session_id: "session".into(),
+            attempt_id: "attempt".into(),
+            dialect: ProviderDialect::OpenaiChatCompletions,
+        };
+        let service = StrictReplayService {
+            state: Mutex::new(ReplayState {
+                routes: BTreeMap::new(),
+                cursors: BTreeMap::new(),
+                reservations: BTreeMap::new(),
+                sensitive_headers: BTreeSet::new(),
+                request_body_pointers: BTreeMap::new(),
+            }),
+            limits: ReplayLimits::default(),
+        };
+        let (cassette, report) = service
+            .capture_and_seal_authenticated_connection(
+                &mut io,
+                &route,
+                "fixture-cassette".into(),
+                |_, _| {
+                    Ok(ReplayHttpResponse {
+                        status: 200,
+                        headers: vec![],
+                        segments: vec![br#"{"id":"response-1","choices":[]}"#.to_vec()],
+                        recorded_offsets: vec![Duration::ZERO],
+                    })
+                },
+            )
+            .unwrap();
+        assert_eq!(cassette.integrity.algorithm, "sha256");
+        assert_eq!(cassette.integrity.digest.len(), 64);
+        assert_eq!(cassette.contents.interactions.len(), 1);
+        assert_eq!(report.policy_version, 1);
+        let encoded = crate::canonical_contents_bytes(&cassette.contents).unwrap();
+        assert!(!String::from_utf8_lossy(&encoded).contains("secret"));
     }
 
     #[test]
