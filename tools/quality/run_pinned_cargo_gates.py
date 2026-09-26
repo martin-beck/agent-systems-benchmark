@@ -32,7 +32,7 @@ def main() -> int:
     # cargo-deny resolves the already-checked-in Cargo.lock; unlike Cargo itself,
     # its check subcommand has no --locked flag.
     subprocess.run([str(args.bin_dir / "cargo-deny"), "check"], check=True)
-    subprocess.run([str(args.bin_dir / "cargo-audit"), "audit", "--deny", "warnings"], check=True)
+    subprocess.run([str(args.bin_dir / "cargo-audit"), "audit", "--no-fetch", "--deny", "warnings"], check=True)
     return 0
 
 
