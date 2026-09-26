@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "cargo-deny": {"version": "0.20.2", "sha256": "REPLACE_WITH_REVIEWED_BINARY_DIGEST"},
+    "cargo-audit": {"version": "0.22.2", "sha256": "REPLACE_WITH_REVIEWED_BINARY_DIGEST"}
+  }
+}
