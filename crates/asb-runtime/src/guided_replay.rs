@@ -21,6 +21,17 @@ pub struct LocalReplayResult {
     pub output_bytes: u64,
 }
 
+/// Fail-closed reasons from the guided replay boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalReplayError {
+    /// The cassette was missing, not a regular file, oversized, or unreadable.
+    CassetteUnavailable,
+    /// The cassette was malformed or failed strict replay validation.
+    InvalidCassette,
+    /// The cassette digest did not match the admitted plan.
+    DigestMismatch,
+}
+
 /// Runtime-owned strict replay entrypoint.
 ///
 /// The caller supplies only a cassette path and the digest already bound into
@@ -29,18 +40,23 @@ pub struct LocalReplayResult {
 pub fn execute_local_strict_replay(
     cassette_path: &Path,
     expected_digest: &str,
-) -> Result<LocalReplayResult, ()> {
-    let metadata = fs::symlink_metadata(cassette_path).map_err(|_| ())?;
+) -> Result<LocalReplayResult, LocalReplayError> {
+    let metadata =
+        fs::symlink_metadata(cassette_path).map_err(|_| LocalReplayError::CassetteUnavailable)?;
     if !metadata.is_file() || metadata.len() > MAX_CASSETTE_BYTES {
-        return Err(());
+        return Err(LocalReplayError::CassetteUnavailable);
     }
-    let bytes = fs::read(cassette_path).map_err(|_| ())?;
-    let cassette =
-        asb_replay::decode_cassette(&bytes, CassetteLimits::default()).map_err(|_| ())?;
+    let bytes = fs::read(cassette_path).map_err(|_| LocalReplayError::CassetteUnavailable)?;
+    let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
+        .map_err(|_| LocalReplayError::InvalidCassette)?;
     if cassette.integrity.digest != expected_digest {
-        return Err(());
+        return Err(LocalReplayError::DigestMismatch);
     }
-    let interaction = cassette.contents.interactions.first().ok_or(())?;
+    let interaction = cassette
+        .contents
+        .interactions
+        .first()
+        .ok_or(LocalReplayError::InvalidCassette)?;
     let route = ReplayRoute {
         session_id: interaction.session_id.clone(),
         attempt_id: interaction.attempt_id.clone(),
@@ -50,17 +66,21 @@ pub fn execute_local_strict_replay(
         method: interaction.request.method.clone(),
         path: interaction.request.path.clone(),
         headers: interaction.request.headers.clone(),
-        body: asb_replay::canonical_json_bytes(&interaction.request.body).map_err(|_| ())?,
+        body: asb_replay::canonical_json_bytes(&interaction.request.body)
+            .map_err(|_| LocalReplayError::InvalidCassette)?,
     };
-    let service = StrictReplayService::new(cassette, ReplayLimits::default()).map_err(|_| ())?;
-    let response = service.handle(&route, request).map_err(|_| ())?;
+    let service = StrictReplayService::new(cassette, ReplayLimits::default())
+        .map_err(|_| LocalReplayError::InvalidCassette)?;
+    let response = service
+        .handle(&route, request)
+        .map_err(|_| LocalReplayError::InvalidCassette)?;
     let output_bytes = response
         .segments
         .iter()
         .try_fold(0_u64, |total, segment| {
             total.checked_add(segment.len() as u64)
         })
-        .ok_or(())?;
+        .ok_or(LocalReplayError::InvalidCassette)?;
     let mut digest = Sha256::new();
     digest.update(response.status.to_be_bytes());
     for segment in &response.segments {
