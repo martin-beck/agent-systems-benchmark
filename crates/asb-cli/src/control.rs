@@ -1831,6 +1831,38 @@ fn observed_state(plan: &PlanFile, run_id: &str, prior: PublicRunState) -> Publi
 }
 
 impl RunnerBackend {
+    /// Materialize one receipt from the control-owned authority source.
+    ///
+    /// The persisted runtime authority is only a source when the corresponding
+    /// enrollment is still active and unchanged.  Re-checking that binding at
+    /// every receipt request prevents revocation or rotation from leaving a
+    /// stale private authority usable in the runtime bridge.
+    fn materialize_runtime_receipt(
+        catalog: &Catalog,
+        params: &asb_control::RuntimeReceiptRequestV1,
+        now: u64,
+    ) -> Result<asb_control::RuntimeEnrollmentReceiptV1, BackendFailure> {
+        let record = catalog
+            .runtime_authorities
+            .get(&params.provider)
+            .ok_or(BackendFailure::CapabilityUnavailable)?;
+        let enrollment = catalog
+            .auth
+            .get(&params.provider)
+            .ok_or(BackendFailure::CapabilityUnavailable)?;
+        if enrollment.status != "active"
+            || enrollment.endpoint_identity_sha256 != record.endpoint_identity_sha256
+            || enrollment.credential_locator_sha256 != record.enrollment.credential_ref_sha256
+            || enrollment.generation != record.enrollment.generation
+        {
+            return Err(BackendFailure::CapabilityUnavailable);
+        }
+        if params.generation != record.enrollment.generation {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        record.issue_receipt(now)
+    }
+
     /// Install authority material received from the runtime-owned control
     /// bridge.  This is deliberately private: frontends cannot construct or
     /// replace authority records, and the record is accepted only when it is
@@ -2984,18 +3016,11 @@ impl ControlBackend for RunnerBackend {
                     .catalog
                     .lock()
                     .map_err(|_| BackendFailure::NeedsReconciliation)?;
-                let record = catalog
-                    .runtime_authorities
-                    .get(&params.provider)
-                    .ok_or(BackendFailure::CapabilityUnavailable)?;
-                if params.generation != record.enrollment.generation {
-                    return Err(BackendFailure::StaleIdentity);
-                }
                 let now = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .map_err(|_| BackendFailure::Rejected)?
                     .as_secs();
-                let receipt = record.issue_receipt(now)?;
+                let receipt = RunnerBackend::materialize_runtime_receipt(&catalog, params, now)?;
                 self.bind(
                     call,
                     ControlResult::RuntimeReceipt(RuntimeReceiptResponseV1 {
@@ -3982,10 +4007,22 @@ mod tests {
         RunnerBackend::install_runtime_authority(&mut catalog, "openrouter", record.clone())
             .unwrap();
         assert!(catalog.runtime_authorities.contains_key("openrouter"));
+        let request = asb_control::RuntimeReceiptRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 1,
+            request_nonce_sha256: "3".repeat(64),
+        };
+        let receipt = RunnerBackend::materialize_runtime_receipt(&catalog, &request, 1).unwrap();
+        assert_eq!(receipt.provider, "openrouter");
         catalog.auth.get_mut("openrouter").unwrap().status = "revoked".into();
         assert_eq!(
             RunnerBackend::install_runtime_authority(&mut catalog, "openrouter", record),
             Err(BackendFailure::Rejected)
+        );
+        assert_eq!(
+            RunnerBackend::materialize_runtime_receipt(&catalog, &request, 1),
+            Err(BackendFailure::CapabilityUnavailable)
         );
         scratch.cleanup_with_hook(|| {});
     }
