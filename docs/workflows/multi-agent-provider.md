@@ -75,6 +75,10 @@ live-provider paths retain their existing fail-closed behavior.
 The campaign command seals the already-bounded capture matrix for strict
 offline replay; it does not capture from or fall back to a provider.
 
+The direct equivalent is `asb record-campaign /absolute/path/MANIFEST.json
+--local-mock`; the explicit local-mock opt-in is mandatory. Omitting it fails
+closed before any manifest or capture is read.
+
 Only public model/endpoint identities and digests are persisted. Missing,
 stale, altered, or credential-bearing configuration is rejected before any
 provider contact.
