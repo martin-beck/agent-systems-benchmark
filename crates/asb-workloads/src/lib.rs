@@ -4,6 +4,7 @@
 
 mod interactive;
 mod literature;
+mod refresh;
 mod validity;
 
 pub use interactive::{
@@ -19,6 +20,7 @@ pub use literature::{
     LocalMockResult, MAX_LOCAL_MOCK_TIMEOUT_MS, WorkloadCatalogEntry, select_workload,
     workload_catalog,
 };
+pub use refresh::{RefreshManifestError, RefreshManifestInput, RefreshManifestV1};
 pub use validity::{
     AdaptationKind, BaselineEvidence, BenchmarkValidityRegistry, DependencyPin, ExposurePolicy,
     ExposureStatus, MAX_NESTED_ENTRIES, MAX_PUBLIC_TEXT_BYTES, MAX_REGISTRY_BYTES,
