@@ -71,6 +71,23 @@ It is non-production staging, not a release artifact. The external operator
 must sign the unchanged manifest, add the detached signature, and rerun the
 default verifier before customer acceptance can proceed.
 
+The `--principal` and `--ssh-keygen-sha256` values are required operator-owned
+inputs, not ASB defaults. `asb-release` and `SSH_KEYGEN_SHA256` in examples are
+illustrative placeholders only; the operator must replace them with the exact
+principal authorized by the supplied `ALLOWED_SIGNERS` line and the lowercase
+SHA-256 of the trusted `ssh-keygen` executable. The operator procedure is:
+
+1. Provision the approved private signing key and matching quiescent
+   `ALLOWED_SIGNERS` file outside ASB; do not copy either into the bundle or
+   coordination state.
+2. Record the externally approved principal and trusted `ssh-keygen` digest in
+   the handoff invocation, then stage the unchanged manifest.
+3. Sign exactly `manifest.json` with namespace `asb-runtime-bundle-v1`, attach
+   only `manifest.json.sig`, and independently run the default offline verifier
+   with the same allowed-signers file, principal, executable, digest, and target.
+4. Release/customer-publish only after verifier success and independent review;
+   missing or mismatched inputs remain blocked.
+
 The release operator builds the pinned supervisor and sidecar in the reviewed release workflow,
 then supplies those regular files explicitly to the offline builder. The builder never discovers
 or downloads executables and refuses symlinks, missing signing inputs, and an existing output

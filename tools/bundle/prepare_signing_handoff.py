@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import shutil
 import stat
 import sys
@@ -17,9 +18,19 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from build_runtime_bundle import digest, make_manifest  # noqa: E402
 
 NAMESPACE = "asb-runtime-bundle-v1"
+PRINCIPAL_PATTERN = re.compile(r"[A-Za-z0-9._:@+-]{1,128}\Z")
+
+
+def validate_authority_inputs(principal: str, ssh_keygen_sha256: str) -> None:
+    """Reject malformed operator inputs without deciding who is trusted."""
+    if not PRINCIPAL_PATTERN.fullmatch(principal):
+        raise SystemExit("principal must be a bounded OpenSSH principal identity")
+    if not re.fullmatch(r"[0-9a-f]{64}", ssh_keygen_sha256):
+        raise SystemExit("ssh-keygen SHA-256 must be 64 lowercase hexadecimal characters")
 
 
 def stage(args: argparse.Namespace) -> None:
+    validate_authority_inputs(args.principal, args.ssh_keygen_sha256)
     destination = args.stage_output
     if destination.exists() or destination.is_symlink():
         raise SystemExit("refusing to overwrite an existing staging directory")
