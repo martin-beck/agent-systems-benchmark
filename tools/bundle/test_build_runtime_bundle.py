@@ -4,6 +4,7 @@
 """Bounded, offline tests for runtime-bundle assembly primitives."""
 
 import importlib.util
+import json
 import tempfile
 import unittest
 from argparse import Namespace
@@ -60,6 +61,65 @@ class BundleBuilderTests(unittest.TestCase):
             self.assertEqual(first.read_bytes(), second.read_bytes())
             with self.assertRaises(SystemExit):
                 BUILDER.archive(root, first)
+
+    def test_staging_handoff_is_signed_profile_but_has_no_signature(self) -> None:
+        handoff_module = Path(__file__).with_name("prepare_signing_handoff.py")
+        handoff_spec = importlib.util.spec_from_file_location("prepare_signing_handoff", handoff_module)
+        assert handoff_spec and handoff_spec.loader
+        handoff = importlib.util.module_from_spec(handoff_spec)
+        handoff_spec.loader.exec_module(handoff)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            supervisor = root / "supervisor"
+            sidecar = root / "sidecar"
+            supervisor.write_bytes(b"supervisor")
+            sidecar.write_bytes(b"sidecar")
+            stage = root / "stage"
+            handoff_file = root / "handoff.json"
+            handoff.stage(
+                Namespace(
+                    bundle_id="fixture",
+                    bundle_version="1.0.0",
+                    os="linux",
+                    arch="x86_64",
+                    libc="glibc",
+                    libc_version="2.39",
+                    principal="asb-release",
+                    ssh_keygen_sha256="a" * 64,
+                    supervisor=supervisor,
+                    sidecar=sidecar,
+                    stage_output=stage,
+                    handoff_output=handoff_file,
+                )
+            )
+            manifest = json.loads((stage / "manifest.json").read_text())
+            record = json.loads(handoff_file.read_text())
+            self.assertEqual(manifest["profile"], "signed")
+            self.assertEqual(manifest["signature_status"], "signed")
+            self.assertFalse((stage / "manifest.json.sig").exists())
+            self.assertTrue(record["verification"]["signature_must_be_supplied_externally"])
+            self.assertEqual(record["required_signature"]["namespace"], "asb-runtime-bundle-v1")
+
+    def test_staging_refuses_existing_output_and_bad_helpers(self) -> None:
+        handoff_module = Path(__file__).with_name("prepare_signing_handoff.py")
+        handoff_spec = importlib.util.spec_from_file_location("prepare_signing_handoff", handoff_module)
+        assert handoff_spec and handoff_spec.loader
+        handoff = importlib.util.module_from_spec(handoff_spec)
+        handoff_spec.loader.exec_module(handoff)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            helper = root / "helper"
+            helper.write_bytes(b"helper")
+            stage = root / "stage"
+            stage.mkdir()
+            args = Namespace(
+                bundle_id="fixture", bundle_version="1.0.0", os="linux", arch="x86_64",
+                libc="glibc", libc_version="2.39", principal="asb-release",
+                ssh_keygen_sha256="a" * 64, supervisor=helper, sidecar=helper,
+                stage_output=stage, handoff_output=root / "handoff.json",
+            )
+            with self.assertRaises(SystemExit):
+                handoff.stage(args)
 
 
 if __name__ == "__main__":
