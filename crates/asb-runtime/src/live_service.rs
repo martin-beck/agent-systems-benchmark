@@ -1212,6 +1212,24 @@ impl LiveProviderRuntimeScheduler {
 }
 
 impl LiveProviderRuntimeDispatchSource {
+    /// Mint a dispatch source from an authenticated runtime enrollment.
+    ///
+    /// The enrollment supplies only an opaque runtime handle; callers cannot
+    /// construct provider authority, credentials, roots, namespace identity,
+    /// or launch policy. Enrollment failure is mapped to the bounded
+    /// configuration error before any scheduler is exposed.
+    pub fn from_enrollment(
+        enrollment: &dyn LiveProviderEnrollment,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+    ) -> Result<Self, LiveProviderProvisionError> {
+        let handle = enrollment
+            .enroll()
+            .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?;
+        Self::from_handle(handle, input, limits, adapter_sha256)
+    }
+
     /// Mint a dispatch source from an opaque runtime handle. All launch
     /// inputs remain runtime-owned and network-denied validation is retained.
     pub fn from_handle(
@@ -1554,6 +1572,7 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
     use std::net::SocketAddr;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
@@ -1769,6 +1788,61 @@ mod tests {
         let scheduler = source.into_scheduler();
         assert_eq!(format!("{scheduler:?}"), "LiveProviderRuntimeScheduler(..)");
         let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    struct OneShotEnrollment(Mutex<Option<LiveProviderRuntimeHandle>>);
+
+    impl LiveProviderEnrollment for OneShotEnrollment {
+        fn enroll(&self) -> Result<LiveProviderRuntimeHandle, LiveProviderEnrollmentError> {
+            self.0
+                .lock()
+                .unwrap()
+                .take()
+                .ok_or(LiveProviderEnrollmentError::Unavailable)
+        }
+    }
+
+    #[test]
+    fn dispatch_source_consumes_only_an_opaque_enrollment_handle() {
+        let (spec, relay_root) = bootstrap_spec();
+        let enrollment = OneShotEnrollment(Mutex::new(Some(spec.provisioner().unwrap())));
+        let input = launch_input(&root());
+        let limits = input.limits();
+        let source = LiveProviderRuntimeDispatchSource::from_enrollment(
+            &enrollment,
+            input,
+            limits,
+            &"e".repeat(64),
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{source:?}"),
+            "LiveProviderRuntimeDispatchSource(..)"
+        );
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn dispatch_source_rejects_unavailable_enrollment_before_scheduler() {
+        let enrollment = OneShotEnrollment(Mutex::new(None));
+        let input = launch_input(&root());
+        assert_eq!(
+            LiveProviderRuntimeDispatchSource::from_enrollment(
+                &enrollment,
+                input,
+                ProcessLimits::new(
+                    4096,
+                    4096,
+                    Duration::from_secs(1),
+                    Duration::from_millis(100),
+                    Duration::from_millis(5),
+                )
+                .unwrap(),
+                &"e".repeat(64),
+            )
+            .unwrap_err(),
+            LiveProviderProvisionError::InvalidConfiguration
+        );
     }
 
     #[test]
