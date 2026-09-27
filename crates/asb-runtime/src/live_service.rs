@@ -1280,6 +1280,45 @@ pub trait LiveProviderEnrollment: Send + Sync {
     fn enroll(&self) -> Result<LiveProviderRuntimeHandle, LiveProviderEnrollmentError>;
 }
 
+/// Runtime-owned enrollment source backed by authenticated private inputs.
+///
+/// The constructor is crate-private so callers cannot provide policy, roots,
+/// tools, credentials, or namespace authority. Each enrollment revalidates
+/// the owner and generation fence before the profile mints an opaque handle.
+#[allow(dead_code)] // Consumed by the runtime/control run and sweep wiring.
+pub(crate) struct RuntimeOwnedEnrollmentSource {
+    profile: LiveProviderRuntimeAuthorityProfile,
+    resolver: Arc<RuntimeAuthorityInputResolver>,
+    owner: String,
+}
+
+impl RuntimeOwnedEnrollmentSource {
+    #[allow(dead_code)] // Consumed by the runtime/control run and sweep wiring.
+    pub(crate) fn from_authenticated_profile(
+        profile: LiveProviderRuntimeAuthorityProfile,
+        resolver: Arc<RuntimeAuthorityInputResolver>,
+        owner: String,
+    ) -> Result<Self, LiveProviderEnrollmentError> {
+        if owner.is_empty() || owner.len() > 128 {
+            return Err(LiveProviderEnrollmentError::Unavailable);
+        }
+        Ok(Self {
+            profile,
+            resolver,
+            owner,
+        })
+    }
+}
+
+impl LiveProviderEnrollment for RuntimeOwnedEnrollmentSource {
+    fn enroll(&self) -> Result<LiveProviderRuntimeHandle, LiveProviderEnrollmentError> {
+        self.profile
+            .clone()
+            .materialize_handle_from_resolver(&self.resolver, &self.owner)
+            .map_err(|_| LiveProviderEnrollmentError::Unavailable)
+    }
+}
+
 /// Enrollment failures intentionally contain no paths, output, or secrets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LiveProviderEnrollmentError {
@@ -3052,5 +3091,56 @@ mod tests {
             resolver.resolve("owner-1", "7"),
             Err(RuntimeAuthorityInputResolverError::Revoked)
         ));
+    }
+
+    #[test]
+    fn runtime_owned_enrollment_source_mints_only_after_fenced_resolution() {
+        let (profile, inputs) = resolver_inputs();
+        let resolver = Arc::new(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                inputs,
+                root().join("source.json"),
+            )
+            .unwrap(),
+        );
+        let source = RuntimeOwnedEnrollmentSource::from_authenticated_profile(
+            profile,
+            Arc::clone(&resolver),
+            "owner-1".into(),
+        )
+        .unwrap();
+        assert!(source.enroll().is_ok());
+        resolver.cancel().unwrap();
+        assert_eq!(
+            source.enroll().unwrap_err(),
+            LiveProviderEnrollmentError::Unavailable
+        );
+        let _ = std::fs::remove_dir_all(root());
+    }
+
+    #[test]
+    fn runtime_owned_enrollment_source_rejects_invalid_owner_without_authority() {
+        let (profile, inputs) = resolver_inputs();
+        let resolver = Arc::new(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                inputs,
+                root().join("wrong-owner-source.json"),
+            )
+            .unwrap(),
+        );
+        let source = RuntimeOwnedEnrollmentSource::from_authenticated_profile(
+            profile,
+            resolver,
+            "wrong-owner".into(),
+        )
+        .unwrap();
+        assert_eq!(
+            source.enroll().unwrap_err(),
+            LiveProviderEnrollmentError::Unavailable
+        );
     }
 }
