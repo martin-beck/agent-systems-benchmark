@@ -18,6 +18,7 @@ follow, terminal state, report, compare, record, and replay.
 | Capture and replay provider responses | [Record and replay](record-replay.md) | Same page, `RecordingWorkflow` |
 | Recover from a failed or stale run | [Troubleshooting](troubleshooting.md) | [TUI recovery](tui-first-run.md#reconnect-and-recover) |
 | Qualify the owner-backed first-customer path | [Owner-backed journey](owner-backed-first-customer-journey.md) | ASB CLI/runtime only |
+| Consume a first-customer release package | [Package consumption](first-customer-package-consumption.md) | ASB release/runtime only |
 
 ## Fastest verified CLI path
 
