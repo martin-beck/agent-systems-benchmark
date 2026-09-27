@@ -79,6 +79,8 @@ The direct equivalent is `asb record-campaign /absolute/path/MANIFEST.json
 --local-mock`; the explicit local-mock opt-in is mandatory. Omitting it fails
 closed before any manifest or capture is read.
 
+Campaign workload IDs are selected through the validated workload catalog. This includes the built-in suite and literature identities with `fixture_only` local/mock evidence, such as `swe-bench`, `terminal-bench`, and `agentbench`; methodology-only and unavailable records remain visible but are rejected before capture. The selector binds each tuple to its workload identity, scorer revision, capability family, and Linux fixture platform without downloading a dataset or contacting a provider.
+
 Only public model/endpoint identities and digests are persisted. Missing,
 stale, altered, or credential-bearing configuration is rejected before any
 provider contact.
