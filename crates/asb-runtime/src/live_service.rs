@@ -2884,4 +2884,173 @@ mod tests {
             Err(RuntimeCertificateChainStoreError::Unavailable)
         );
     }
+
+    fn resolver_inputs() -> (LiveProviderRuntimeAuthorityProfile, RuntimeAuthorityInputs) {
+        let attestation = attested_record();
+        let record = LiveProviderEnrollmentRecordV1::from_attestation(&attestation, 1_000, 2_000);
+        let profile = LiveProviderRuntimeBridge::new()
+            .materialize_profile(&record, &attestation, 1_500)
+            .unwrap();
+        let selected = ProviderEgressTarget::test_only("203.0.113.10:443".parse().unwrap());
+        let allowlist = ProviderEgressAllowlist::new(vec![selected]).unwrap();
+        let lease_root = root();
+        let relay_root = root();
+        let config = LiveProviderRuntimeConfig::new(
+            &lease_root,
+            &allowlist,
+            selection(
+                selected,
+                "7",
+                "1".repeat(64),
+                "f".repeat(64),
+                NetworkPolicy::Deny,
+            ),
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let policy =
+            ProviderEgressPolicy::new("https://openrouter.ai/api/v1", "openrouter.ai").unwrap();
+        let pin = |path: &str| ToolPin::new(path.into(), "test".into()).unwrap();
+        let namespace = crate::live_namespace::NamespaceIdentity::new("net:[123]").unwrap();
+        let inputs = RuntimeAuthorityInputs {
+            config,
+            policy,
+            allowlist,
+            relay_root,
+            bubblewrap: pin("/bin/true"),
+            systemd_run: pin("/bin/true"),
+            systemctl: pin("/bin/true"),
+            taskset: pin("/bin/true"),
+            live_launch_gate: pin("/bin/true"),
+            namespace,
+        };
+        (profile, inputs)
+    }
+
+    #[test]
+    fn authority_resolver_persists_and_fences_runtime_inputs() {
+        let (profile, inputs) = resolver_inputs();
+        let state_path = root().join("authority.json");
+        let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+            "owner-1".into(),
+            &profile,
+            inputs,
+            state_path.clone(),
+        )
+        .unwrap();
+        let record = resolver.record().unwrap();
+        assert_eq!(record.owner, "owner-1");
+        assert_eq!(record.generation, "7");
+        assert_eq!(record.revision, 1);
+        assert_eq!(record.schema_version, 1);
+        let persisted: RuntimeAuthorityInputRecordV1 =
+            serde_json::from_slice(&std::fs::read(&state_path).unwrap()).unwrap();
+        assert_eq!(persisted, record);
+        assert!(resolver.resolve("owner-1", "7").is_ok());
+        assert!(matches!(
+            resolver.resolve("wrong-owner", "7"),
+            Err(RuntimeAuthorityInputResolverError::OwnerMismatch)
+        ));
+        assert!(matches!(
+            resolver.resolve("owner-1", "8"),
+            Err(RuntimeAuthorityInputResolverError::StaleGeneration)
+        ));
+        resolver.cancel().unwrap();
+        assert!(matches!(
+            resolver.resolve("owner-1", "7"),
+            Err(RuntimeAuthorityInputResolverError::Revoked)
+        ));
+        let _ = std::fs::remove_dir_all(state_path.parent().unwrap());
+    }
+
+    #[test]
+    fn authority_resolver_rejects_invalid_enrollment_inputs() {
+        let (profile, inputs) = resolver_inputs();
+        let relative = PathBuf::from("relative-state.json");
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                String::new(),
+                &profile,
+                inputs.clone(),
+                root().join("empty-owner.json"),
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                inputs.clone(),
+                relative,
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+
+        let mut wrong_generation = inputs.clone();
+        wrong_generation.config = LiveProviderRuntimeConfig::new(
+            &root(),
+            &wrong_generation.allowlist,
+            selection(
+                ProviderEgressTarget::test_only("203.0.113.10:443".parse().unwrap()),
+                "wrong-generation",
+                "1".repeat(64),
+                "f".repeat(64),
+                NetworkPolicy::Deny,
+            ),
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                wrong_generation,
+                root().join("wrong-generation.json"),
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+
+        let mut wrong_target = inputs;
+        wrong_target.config = LiveProviderRuntimeConfig::new(
+            &root(),
+            &wrong_target.allowlist,
+            selection(
+                ProviderEgressTarget::test_only("203.0.113.10:443".parse().unwrap()),
+                "7",
+                "1".repeat(64),
+                "d".repeat(64),
+                NetworkPolicy::Deny,
+            ),
+            CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                wrong_target,
+                root().join("wrong-target.json"),
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+    }
+
+    #[test]
+    fn authority_resolver_teardown_revokes_without_exposing_private_inputs() {
+        let (profile, inputs) = resolver_inputs();
+        let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+            "owner-1".into(),
+            &profile,
+            inputs,
+            root().join("teardown.json"),
+        )
+        .unwrap();
+        let debug = format!("{:?}", resolver.record().unwrap());
+        assert!(!debug.contains("openrouter.ai"));
+        resolver.teardown().unwrap();
+        assert!(matches!(
+            resolver.resolve("owner-1", "7"),
+            Err(RuntimeAuthorityInputResolverError::Revoked)
+        ));
+    }
 }
