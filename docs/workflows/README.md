@@ -19,6 +19,7 @@ follow, terminal state, report, compare, record, and replay.
 | Recover from a failed or stale run | [Troubleshooting](troubleshooting.md) | [TUI recovery](tui-first-run.md#reconnect-and-recover) |
 | Qualify the owner-backed first-customer path | [Owner-backed journey](owner-backed-first-customer-journey.md) | ASB CLI/runtime only |
 | Consume a first-customer release package | [Package consumption](first-customer-package-consumption.md) | ASB release/runtime only |
+| Qualify without an external package | [Self-contained package qualification](self-contained-package-qualification.md) | Non-production fixture only |
 
 ## Fastest verified CLI path
 
