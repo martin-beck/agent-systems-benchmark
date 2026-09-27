@@ -1,4 +1,4 @@
-# Offline quickstart
+# Benchmark quickstart: offline first, live by explicit opt-in
 
 This quickstart exercises the released command boundary without credentials,
 downloads, provider traffic, or paid API calls. Use the pinned Rust toolchain
@@ -45,6 +45,30 @@ asb report /absolute/result/root/runs/RUN_ID
 executes the deterministic bounded capacity order. Results are JSON on stdout;
 progress is on stderr. A nonzero exit and structured error are authoritative.
 Never treat absent measurements as zero or a failed/inconclusive point as pass.
+
+## Complete benchmark workflow
+
+The production-shaped workflow is deliberately explicit:
+
+1. Enroll a logical credential reference through the runtime-owned control
+   service; the secret value never enters the CLI arguments or evidence.
+2. Run `asb provider-catalog`, retain its `catalog_sha256`, and create a
+   digest-bound selection with `asb provider-plan`.
+3. Validate the experiment with `asb plan`, then run one point with `asb run`
+   or a bounded matrix with `asb sweep`.
+4. For development and CI, select the credential-free local/mock path. For a
+   provider, live execution requires explicit operator admission and a
+   runtime-issued credential capability; provider reachability is optional
+   supplementary evidence, never an offline qualification requirement.
+5. To preserve a runtime-authorized exchange, use `record-live` with explicit
+   capture acknowledgements, then use `replay-offline` against the exact
+   content-addressed cassette. Replay denies provider egress and cannot fall
+   back to a live provider.
+
+The exact provider/model/agent support boundary is the digest-anchored matrix in
+[Provider-aware launches](PROVIDER_LAUNCH.md). A catalog-selectable cell is not
+native, official, or quality qualification; retain those evidence labels in every
+report.
 
 ## Selecting one provider for several agents
 

@@ -19,6 +19,24 @@ provider by changing its defaults: the launch digest and profile identity are fi
 constructor-controlled projection and are revalidated immediately before spawn. Replay remains
 offline and must use its existing exact cassette/network-denial contract.
 
+## Supported agent/provider/model matrix
+
+The following snapshot was produced by `asb provider-catalog` at protected-main
+commit `6baa7acfb1cc3616c9737118a6345b1813b291f1`. Its catalog digest is
+`e834d287378fc7b1b19cd93cf5fa28fc2c753d80a6da05f8e3d2ac45b1af56c7`.
+“Catalog-selectable” means the identity is advertised and can enter the
+digest-bound selection contract; it does not claim native execution, provider
+reachability, or model quality.
+
+| Provider | Exact model | Agents in catalog contract | Availability/evidence boundary |
+| --- | --- | --- | --- |
+| `openai` | `gpt-5.2-2025-12-11` | `opencode`, `opendesk`, `aider`, `codex`, `qwen_code`, `goose`, `mini_swe`, `openhands` | catalog-selectable; Gemini is rejected before launch; live use is explicit and runtime-authorized |
+| `openrouter` | `cohere/north-mini-code:free` (dated snapshot `2026-09-25`) | `opencode`, `opendesk`, `aider`, `codex`, `qwen_code`, `goose`, `mini_swe`, `openhands` | catalog-selectable; Gemini is rejected before launch; live use is optional |
+| `ollama` | `qwen3-coder:30b` | none | unavailable: verified local-daemon evidence is unavailable |
+
+The matrix intentionally excludes secret values and endpoint credentials. Refresh the catalog
+before every selection; a stale digest or altered model identity fails closed.
+
 The current experiment plan carries one verified executable identity. Until runtime-bundle
 manifests are included in the plan schema, that executable content address is used as the
 fail-closed runtime identity; it must match again at snapshot/spawn time. This is an explicit
