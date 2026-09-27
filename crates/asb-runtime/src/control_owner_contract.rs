@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::live_service::{LocalProviderMockAttempt, LocalProviderMockBackend};
+
 /// Current version of the runtime/control owner contract.
 pub const RUNTIME_CONTROL_OWNER_CONTRACT_SCHEMA: u16 = 1;
 const MAX_OWNER_ID_BYTES: usize = 128;
@@ -59,6 +61,78 @@ pub enum RuntimeControlOwnerContractError {
     TooLarge,
     /// The encoded contract is malformed or contains unknown fields.
     Malformed,
+    /// The deterministic local/mock owner backend rejected an attempt.
+    LocalMockUnavailable,
+}
+
+/// Runtime-owned provider-free process owner used for local/mock qualification.
+/// It owns the mock backend and lifecycle projection; no production authority
+/// or caller-supplied launch input can be derived from this type.
+pub struct LocalMockRuntimeControlOwner {
+    contract: RuntimeControlOwnerContractV1,
+    backend: LocalProviderMockBackend,
+}
+
+impl std::fmt::Debug for LocalMockRuntimeControlOwner {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("LocalMockRuntimeControlOwner")
+            .field("contract", &self.contract)
+            .finish_non_exhaustive()
+    }
+}
+
+impl LocalMockRuntimeControlOwner {
+    /// Provision an ephemeral owner with deterministic local/mock authority.
+    pub fn provision(
+        owner_id: String,
+        generation: u64,
+        chain_sha256: String,
+        receipt_nonce_sha256: String,
+    ) -> Result<Self, RuntimeControlOwnerContractError> {
+        let contract = RuntimeControlOwnerContractV1::new(
+            owner_id,
+            generation,
+            chain_sha256,
+            receipt_nonce_sha256,
+        )?;
+        let backend = LocalProviderMockBackend::provision()
+            .map_err(|_| RuntimeControlOwnerContractError::LocalMockUnavailable)?;
+        Ok(Self { contract, backend })
+    }
+
+    /// Return the secret-free lifecycle projection.
+    #[must_use]
+    pub fn contract(&self) -> &RuntimeControlOwnerContractV1 {
+        &self.contract
+    }
+
+    /// Authenticate the local/mock enrollment before issuing any attempt.
+    pub fn enroll(&mut self) -> Result<(), RuntimeControlOwnerContractError> {
+        self.contract.transition(RuntimeControlOwnerState::Enrolled)
+    }
+
+    /// Issue one bounded local/mock attempt after enrollment.
+    pub fn issue_attempt(
+        &mut self,
+        attempt_id: u32,
+    ) -> Result<LocalProviderMockAttempt<'_>, RuntimeControlOwnerContractError> {
+        if self.contract.state != RuntimeControlOwnerState::Enrolled {
+            return Err(RuntimeControlOwnerContractError::InvalidTransition);
+        }
+        let attempt = self
+            .backend
+            .issue_attempt(attempt_id)
+            .map_err(|_| RuntimeControlOwnerContractError::LocalMockUnavailable)?;
+        self.contract.transition(RuntimeControlOwnerState::Issued)?;
+        Ok(attempt)
+    }
+
+    /// Fence local/mock attempts and close the owner.
+    pub fn teardown(&mut self) -> Result<(), RuntimeControlOwnerContractError> {
+        self.backend.revoke();
+        self.contract.transition(RuntimeControlOwnerState::TornDown)
+    }
 }
 
 /// Secret-free identity and lifecycle projection owned by runtime/control.
@@ -276,6 +350,30 @@ mod tests {
         assert_eq!(
             RuntimeControlOwnerContractV1::decode(&bytes),
             Err(RuntimeControlOwnerContractError::Malformed)
+        );
+    }
+
+    #[test]
+    fn local_mock_owner_fences_issue_until_enrollment_and_teardown() {
+        let mut owner = LocalMockRuntimeControlOwner::provision(
+            "owner-local-mock".into(),
+            7,
+            "a".repeat(64),
+            "b".repeat(64),
+        )
+        .unwrap();
+        assert_eq!(
+            owner.issue_attempt(1).map(|_| ()),
+            Err(RuntimeControlOwnerContractError::InvalidTransition)
+        );
+        owner.enroll().unwrap();
+        let mut attempt = owner.issue_attempt(1).unwrap();
+        attempt.cancel();
+        owner.teardown().unwrap();
+        assert_eq!(owner.contract().state, RuntimeControlOwnerState::TornDown);
+        assert_eq!(
+            owner.issue_attempt(2).map(|_| ()),
+            Err(RuntimeControlOwnerContractError::InvalidTransition)
         );
     }
 }

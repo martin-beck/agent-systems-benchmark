@@ -29,3 +29,12 @@ namespace paths, or launch tokens.
 
 Qualification uses deterministic local/mock and strict-replay fixtures only;
 live providers and network access are optional and never completion gates.
+
+## Provider-free process-owner qualification
+
+`LocalMockRuntimeControlOwner` is the bounded local qualification owner. It
+creates an ephemeral mock backend from the validated contract, enrolls before
+issuing an attempt, and revokes that backend during teardown. Issuance before
+enrollment and issuance after teardown are rejected. The mock backend is test
+evidence only: it cannot mint production authority, accept caller-supplied
+credentials, or establish a live-provider connection.
