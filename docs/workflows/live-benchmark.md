@@ -40,6 +40,13 @@ evidence.
 7. Compare live and replay run directories only after preserving their evidence
    labels and manifests; replay does not establish fresh model quality.
 
+The ordinary process entry point does not construct live authority: `run` and
+`sweep` fail closed unless the runtime/control owner injects the opaque
+dispatch source through the authenticated composition boundary. That boundary
+returns only a runtime-minted source; policy, credential capabilities, lease
+and relay roots, namespace identity, tools, cancellation and teardown remain
+private to runtime/control.
+
 See [Provider-aware launches](../PROVIDER_LAUNCH.md) for the exact catalog
 snapshot and support matrix, and [Record once, replay offline](record-replay.md)
 for cassette boundaries.
