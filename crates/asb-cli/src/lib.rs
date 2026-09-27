@@ -215,6 +215,42 @@ pub fn run_with_runtime_live_provider_source(
     run_with_runtime_live_provider_scheduler(args, source.into_scheduler(), stdout, stderr)
 }
 
+/// Fail-closed error returned when the runtime/control owner cannot provide a
+/// fresh opaque dispatch source. The CLI never receives the underlying cause,
+/// authority, paths, or credentials.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuntimeControlDispatchError {
+    /// No authenticated runtime-owned source is available.
+    Unavailable,
+}
+
+/// Runtime/control-owned composition seam for normal CLI run and sweep.
+/// Implementations must return only a runtime-minted opaque source.
+pub trait RuntimeControlDispatchSource: Send + Sync {
+    /// Resolve one fresh source or fail closed before CLI effects.
+    fn dispatch_source(
+        &self,
+    ) -> Result<LiveProviderRuntimeDispatchSource, RuntimeControlDispatchError>;
+}
+
+/// Execute `run` or `sweep` after runtime/control composition resolves an
+/// opaque source. No caller authority crosses this boundary.
+pub fn run_with_runtime_control_source(
+    args: &[OsString],
+    control: &dyn RuntimeControlDispatchSource,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    let source = match control.dispatch_source() {
+        Ok(source) => source,
+        Err(RuntimeControlDispatchError::Unavailable) => {
+            let _ = writeln!(stderr, "runtime-owned live dispatch source unavailable");
+            return 2;
+        }
+    };
+    run_with_runtime_live_provider_source(args, source, stdout, stderr)
+}
+
 fn dispatch(
     args: &[OsString],
     stdout: &mut dyn Write,
@@ -5557,6 +5593,37 @@ mod tests {
             "--live-provider requires an explicit provider selection"
         );
         assert!(!scratch.0.join("results").exists());
+    }
+
+    struct UnavailableRuntimeControlSource;
+
+    impl RuntimeControlDispatchSource for UnavailableRuntimeControlSource {
+        fn dispatch_source(
+            &self,
+        ) -> Result<LiveProviderRuntimeDispatchSource, RuntimeControlDispatchError> {
+            Err(RuntimeControlDispatchError::Unavailable)
+        }
+    }
+
+    #[test]
+    fn runtime_control_source_fails_closed_before_cli_dispatch() {
+        let source = UnavailableRuntimeControlSource;
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        assert_eq!(
+            run_with_runtime_control_source(
+                &["run".into(), "experiment.toml".into()],
+                &source,
+                &mut stdout,
+                &mut stderr,
+            ),
+            2
+        );
+        assert!(stdout.is_empty());
+        assert_eq!(
+            String::from_utf8(stderr).unwrap(),
+            "runtime-owned live dispatch source unavailable\n"
+        );
     }
 
     #[test]
