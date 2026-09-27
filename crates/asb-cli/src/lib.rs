@@ -5859,6 +5859,70 @@ mod tests {
     }
 
     #[test]
+    fn runtime_local_mock_owner_keeps_result_bounded_and_private() {
+        let scratch = Scratch::new("runtime-local-owner-private");
+        let (plan_path, _) = plan_fixture(&scratch.0, "runtime-owner-private");
+        let owner = LocalMockRuntimeControlOwner::provision(
+            "cli-local-owner-private".into(),
+            1,
+            "1".repeat(64),
+            "2".repeat(64),
+        )
+        .unwrap();
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_eq!(
+            run_with_runtime_control_local_mock_owner(
+                &["run".into(), plan_path.as_os_str().to_owned()],
+                owner,
+                &mut output,
+                &mut stderr,
+            ),
+            0
+        );
+        assert!(output.len() < 32 * 1024);
+        let rendered = String::from_utf8(output).unwrap();
+        let progress = String::from_utf8(stderr).unwrap();
+        assert!(rendered.contains("\"ok\":true"));
+        assert!(!rendered.contains(plan_path.to_string_lossy().as_ref()));
+        assert!(!progress.contains(plan_path.to_string_lossy().as_ref()));
+        assert!(!rendered.contains(&"1".repeat(64)));
+        assert!(!rendered.contains(&"2".repeat(64)));
+        assert!(!progress.contains(&"1".repeat(64)));
+        assert!(!progress.contains(&"2".repeat(64)));
+    }
+
+    #[test]
+    fn runtime_local_mock_owner_rejects_unqualified_entry_shape() {
+        let scratch = Scratch::new("runtime-local-owner-shape");
+        let owner = LocalMockRuntimeControlOwner::provision(
+            "cli-local-owner-shape".into(),
+            1,
+            "3".repeat(64),
+            "4".repeat(64),
+        )
+        .unwrap();
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_eq!(
+            run_with_runtime_control_local_mock_owner(
+                &["run".into()],
+                owner,
+                &mut output,
+                &mut stderr,
+            ),
+            3
+        );
+        assert!(
+            String::from_utf8(output)
+                .unwrap()
+                .contains("runtime local/mock entry expects run or sweep")
+        );
+        assert!(stderr.is_empty());
+        assert!(!scratch.0.join("results").exists());
+    }
+
+    #[test]
     fn live_provider_dispatch_requires_runtime_source_after_selection_binding() {
         let scratch = Scratch::new("live-provider-source-gate");
         let (selection_path, selection) =
