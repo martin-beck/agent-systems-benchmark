@@ -128,6 +128,28 @@ impl LocalMockRuntimeControlOwner {
         Ok(attempt)
     }
 
+    /// Execute one deterministic local/mock request under the enrolled owner.
+    /// This keeps the owner in the enrolled state so a bounded run or sweep
+    /// may admit multiple scheduler attempts before teardown.
+    pub fn execute_mock_attempt(
+        &self,
+        attempt_id: u32,
+        request: &[u8],
+        cancelled: bool,
+    ) -> Result<String, RuntimeControlOwnerContractError> {
+        let mut attempt = self
+            .backend
+            .issue_attempt(attempt_id)
+            .map_err(|_| RuntimeControlOwnerContractError::LocalMockUnavailable)?;
+        if cancelled {
+            attempt.cancel();
+        }
+        attempt
+            .execute_default(request)
+            .map(|response| response.response_sha256().to_owned())
+            .map_err(|_| RuntimeControlOwnerContractError::LocalMockUnavailable)
+    }
+
     /// Fence local/mock attempts and close the owner.
     pub fn teardown(&mut self) -> Result<(), RuntimeControlOwnerContractError> {
         self.backend.revoke();

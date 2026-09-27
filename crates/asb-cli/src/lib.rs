@@ -31,6 +31,7 @@ use asb_replay::{
     CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
     SourceChoice, seal_recording,
 };
+use asb_runtime::control_owner_contract::LocalMockRuntimeControlOwner;
 use asb_runtime::launch_factory::{
     LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, ReplayLaunchAuthority,
 };
@@ -249,6 +250,87 @@ pub fn run_with_runtime_control_source(
         }
     };
     run_with_runtime_live_provider_source(args, source, stdout, stderr)
+}
+
+/// Execute a provider-free run or sweep after runtime/control enrollment.
+///
+/// This is the credential-free qualification path for the ordinary CLI entry
+/// shape. The owner is enrolled and torn down around the bounded local/mock
+/// execution; no caller-supplied authority or live provider crosses the CLI
+/// boundary.
+pub fn run_with_runtime_control_local_mock_owner(
+    args: &[OsString],
+    owner: LocalMockRuntimeControlOwner,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    let owner = Arc::new(Mutex::new(owner));
+    if owner
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .enroll()
+        .is_err()
+    {
+        let _ = writeln!(stderr, "runtime-owned local/mock owner unavailable");
+        return 2;
+    }
+    let result = run_local_mock_entry(args, Arc::clone(&owner), stdout, stderr);
+    if owner
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .teardown()
+        .is_err()
+    {
+        let _ = writeln!(stderr, "runtime-owned local/mock owner teardown failed");
+        return 2;
+    }
+    result
+}
+
+fn run_local_mock_entry(
+    args: &[OsString],
+    owner: Arc<Mutex<LocalMockRuntimeControlOwner>>,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    let result = (|| -> Result<u8, CliError> {
+        let words = unicode_args(args)?;
+        let (path, sweep) = match words.as_slice() {
+            [command, path] if command == "run" => (path.as_str(), false),
+            [command, path] if command == "sweep" => (path.as_str(), true),
+            _ => {
+                return Err(CliError::validation(
+                    "runtime local/mock entry expects run or sweep",
+                ));
+            }
+        };
+        execute_inner_from_source_with_owner(
+            Path::new(path),
+            SelectionSource::Path(None),
+            sweep,
+            false,
+            None,
+            true,
+            Some(owner),
+            stdout,
+            stderr,
+        )
+    })();
+    match result {
+        Ok(exit_code) => exit_code,
+        Err(error) => {
+            let envelope = ErrorEnvelope {
+                schema_version: OUTPUT_SCHEMA_VERSION,
+                ok: false,
+                command: command_name(args),
+                error,
+            };
+            if write_json(stdout, &envelope).is_err() {
+                let _ = writeln!(stderr, "ASB could not write structured error output");
+            }
+            envelope.error.exit_code
+        }
+    }
 }
 
 fn dispatch(
@@ -3087,6 +3169,31 @@ fn execute_inner_from_source(
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
+    execute_inner_from_source_with_owner(
+        path,
+        source,
+        sweep,
+        live_provider,
+        live_factory,
+        local_mock,
+        None,
+        output,
+        progress,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_inner_from_source_with_owner(
+    path: &Path,
+    source: SelectionSource<'_>,
+    sweep: bool,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
+    local_mock_owner: Option<Arc<Mutex<LocalMockRuntimeControlOwner>>>,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
     let (plan, selection) = match source {
         SelectionSource::Path(selection_path) => load_plan_and_selection(path, selection_path)?,
         SelectionSource::Config(store) => {
@@ -3149,7 +3256,7 @@ fn execute_inner_from_source(
             plan.run_id.clone()
         };
         let _ = writeln!(progress, "starting {run_id}");
-        let point = run_point_with_selection(
+        let point = run_point_with_selection_with_owner(
             Arc::clone(&store),
             &plan,
             run_id.clone(),
@@ -3159,6 +3266,7 @@ fn execute_inner_from_source(
             live_provider,
             live_factory.clone(),
             local_mock,
+            local_mock_owner.clone(),
         )?;
         if provider_launch_sha256.is_none() {
             provider_launch_sha256 = selection.as_ref().map(|value| {
@@ -3256,6 +3364,33 @@ fn run_point_with_selection(
     live_factory: Option<LiveProviderAttemptFactory>,
     local_mock: bool,
 ) -> Result<PointOutput, CliError> {
+    run_point_with_selection_with_owner(
+        store,
+        plan,
+        run_id,
+        concurrency,
+        selection,
+        cancelled,
+        live_provider,
+        live_factory,
+        local_mock,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_point_with_selection_with_owner(
+    store: Arc<AtomicStore>,
+    plan: &PlanFile,
+    run_id: String,
+    concurrency: u32,
+    selection: Option<&ProviderPlanOutput>,
+    cancelled: Arc<AtomicBool>,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
+    local_mock_owner: Option<Arc<Mutex<LocalMockRuntimeControlOwner>>>,
+) -> Result<PointOutput, CliError> {
     let started = Instant::now();
     let attempt_id = format!("{run_id}-attempt");
     // Bind and verify provider selection before creating any durable run or
@@ -3339,15 +3474,7 @@ fn run_point_with_selection(
                 None
             };
             let summary = if local_mock {
-                let backend = match LocalProviderMockBackend::provision() {
-                    Ok(backend) => backend,
-                    Err(_) => return AttemptOutcome::InfrastructureFailure,
-                };
                 let mock_attempt_id = context.input_id().saturating_add(1);
-                let mut mock_attempt = match backend.issue_attempt(mock_attempt_id) {
-                    Ok(attempt) => attempt,
-                    Err(_) => return AttemptOutcome::InfrastructureFailure,
-                };
                 let request = format!(
                     "{}:{}:{}",
                     run_for_attempt,
@@ -3358,21 +3485,42 @@ fn run_point_with_selection(
                         "measured"
                     }
                 );
-                let response = if cancelled_for_attempt.load(Ordering::SeqCst) {
-                    mock_attempt.cancel();
-                    Err(())
+                let response_sha256 = if let Some(owner) = local_mock_owner.as_ref() {
+                    owner
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .execute_mock_attempt(
+                            mock_attempt_id,
+                            request.as_bytes(),
+                            cancelled_for_attempt.load(Ordering::SeqCst),
+                        )
+                        .ok()
                 } else {
-                    mock_attempt
-                        .execute_default(request.as_bytes())
-                        .map_err(|_| ())
+                    let backend = match LocalProviderMockBackend::provision() {
+                        Ok(backend) => backend,
+                        Err(_) => return AttemptOutcome::InfrastructureFailure,
+                    };
+                    let mut mock_attempt = match backend.issue_attempt(mock_attempt_id) {
+                        Ok(attempt) => attempt,
+                        Err(_) => return AttemptOutcome::InfrastructureFailure,
+                    };
+                    if cancelled_for_attempt.load(Ordering::SeqCst) {
+                        mock_attempt.cancel();
+                        None
+                    } else {
+                        mock_attempt
+                            .execute_default(request.as_bytes())
+                            .ok()
+                            .map(|response| response.response_sha256().to_owned())
+                    }
                 };
-                match response {
-                    Ok(response) => Ok(Some(local_mock_attempt_summary(
+                match response_sha256 {
+                    Some(response_sha256) => Ok(Some(local_mock_attempt_summary(
                         context.input_id(),
                         context.is_warmup(),
-                        response.response_sha256(),
+                        &response_sha256,
                     ))),
-                    Err(()) => Ok(None),
+                    None => Ok(None),
                 }
             } else {
                 run_attempt(
@@ -5624,6 +5772,90 @@ mod tests {
             String::from_utf8(stderr).unwrap(),
             "runtime-owned live dispatch source unavailable\n"
         );
+    }
+
+    #[test]
+    fn runtime_local_mock_owner_wires_run_and_sweep_and_tears_down() {
+        let scratch = Scratch::new("runtime-local-owner-entry");
+        let (run_path, _) = plan_fixture(&scratch.0, "runtime-owner-run");
+        let owner = LocalMockRuntimeControlOwner::provision(
+            "cli-local-owner".into(),
+            1,
+            "a".repeat(64),
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut run_output = Vec::new();
+        let mut run_progress = Vec::new();
+        assert_eq!(
+            run_with_runtime_control_local_mock_owner(
+                &["run".into(), run_path.as_os_str().to_owned()],
+                owner,
+                &mut run_output,
+                &mut run_progress,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&run_output).unwrap()["ok"],
+            true
+        );
+
+        let (sweep_path, _) = plan_fixture(&scratch.0, "runtime-owner-sweep");
+        let sweep_owner = LocalMockRuntimeControlOwner::provision(
+            "cli-local-owner-sweep".into(),
+            1,
+            "c".repeat(64),
+            "d".repeat(64),
+        )
+        .unwrap();
+        let mut sweep_output = Vec::new();
+        let mut sweep_progress = Vec::new();
+        assert_eq!(
+            run_with_runtime_control_local_mock_owner(
+                &["sweep".into(), sweep_path.as_os_str().to_owned()],
+                sweep_owner,
+                &mut sweep_output,
+                &mut sweep_progress,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&sweep_output).unwrap()["ok"],
+            true
+        );
+    }
+
+    #[test]
+    fn runtime_local_mock_owner_rejects_reuse_after_teardown() {
+        let scratch = Scratch::new("runtime-local-owner-reuse");
+        let (plan_path, _) = plan_fixture(&scratch.0, "runtime-owner-reuse");
+        let mut owner = LocalMockRuntimeControlOwner::provision(
+            "cli-local-owner-reuse".into(),
+            1,
+            "e".repeat(64),
+            "f".repeat(64),
+        )
+        .unwrap();
+        owner.enroll().unwrap();
+        owner.teardown().unwrap();
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_eq!(
+            run_with_runtime_control_local_mock_owner(
+                &["run".into(), plan_path.as_os_str().to_owned()],
+                owner,
+                &mut output,
+                &mut stderr,
+            ),
+            2
+        );
+        assert!(output.is_empty());
+        assert_eq!(
+            String::from_utf8(stderr).unwrap(),
+            "runtime-owned local/mock owner unavailable\n"
+        );
+        assert!(!scratch.0.join("results").exists());
     }
 
     #[test]

@@ -38,3 +38,11 @@ issuing an attempt, and revokes that backend during teardown. Issuance before
 enrollment and issuance after teardown are rejected. The mock backend is test
 evidence only: it cannot mint production authority, accept caller-supplied
 credentials, or establish a live-provider connection.
+
+The ordinary provider-free CLI qualification entry point is
+`run_with_runtime_control_local_mock_owner`. It accepts only the runtime-owned
+owner object, enrolls before `run` or `sweep`, and tears the owner down before
+returning. Reuse after teardown and malformed entry shapes fail before result
+roots or execution state are created. Production/live dispatch continues to
+use the separate AR-1480 opaque source and is unavailable without an
+authenticated runtime source.
