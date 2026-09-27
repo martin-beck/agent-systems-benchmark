@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Stable, secret-free runtime/control process-owner lifecycle contract.
+pub mod control_owner_contract;
 /// Opaque cross-crate credential injection at the final launch boundary.
 pub mod credential_injection;
 
