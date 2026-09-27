@@ -17,6 +17,7 @@ follow, terminal state, report, compare, record, and replay.
 | Compare multiple agents | [Result comparison](result-comparison.md) | [TUI first run](tui-first-run.md#follow-finish-and-compare) |
 | Capture and replay provider responses | [Record and replay](record-replay.md) | Same page, `RecordingWorkflow` |
 | Recover from a failed or stale run | [Troubleshooting](troubleshooting.md) | [TUI recovery](tui-first-run.md#reconnect-and-recover) |
+| Qualify the owner-backed first-customer path | [Owner-backed journey](owner-backed-first-customer-journey.md) | ASB CLI/runtime only |
 
 ## Fastest verified CLI path
 
