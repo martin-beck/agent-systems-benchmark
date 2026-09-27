@@ -70,6 +70,18 @@ ASB fixture and report the namespace `code-generation.function-level.v1` or
 `code-generation.time-windowed.v1`. They do not contact a provider, execute an
 upstream evaluator, or contribute scores to repository-agent comparisons.
 
+### Refresh manifests for evolving windows
+
+LiveCodeBench and SWE-rebench use the strict `RefreshManifestV1` contract in
+`asb-workloads`. A manifest content-addresses the source revision, dataset/task
+revision, evaluation window, contamination cutoff, selected split digest,
+evaluator revision, image and SBOM identities, license state, and evidence
+status. Missing image/SBOM or unverified license evidence keeps a record
+inspection-only; it cannot silently become selectable. Changing the window,
+task split, or evaluator produces a new identity, and comparisons across those
+identities fail closed. Validation is entirely offline and does not acquire a
+dataset or contact a provider.
+
 AR-0406 adds SWE-Lancer and SWE-rebench as explicit-download, non-vendored, provenance-only
 boundaries. SWE-Lancer is pinned to frontier-evals commit `51052ced` and remains unavailable for
 execution until its archived source/license and offline evaluator boundary are repinned. SWE-rebench
