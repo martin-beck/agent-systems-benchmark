@@ -4,13 +4,14 @@ ASB is a Linux terminal framework for measuring how AI coding agents scale:
 how many concurrent sessions a system can sustain while task quality, latency
 and resource consumption remain within declared bounds.
 
-**Status: active development.** The CLI implements `doctor`, `capabilities`, `plan`, `run`,
-`sweep`, `compare`, `report` and the local `serve` control endpoint. `run` and
+**Status: active development.** The CLI implements `doctor`, `capabilities`, `setup`,
+`provider-catalog`, `provider-plan`, `plan`, `run`, `sweep`, `compare`, `report`,
+`record-live`, `replay-offline` and the local `serve` control endpoint. `run` and
 `sweep` execute the original in-tree workloads through a digest-pinned
 `batch-stdio-v1` executable, then persist bounded run evidence for reporting and
-comparison. Provider recording/replay and live-provider selection are not CLI
-commands yet; unsupported and unqualified platform combinations remain visible
-in the public coordination repository.
+comparison. Provider selection and record/replay are explicit CLI workflows:
+offline/local-mock qualification is the default development path, while live
+provider use is opt-in and requires runtime-owned credential authority.
 
 The `asb-agents` library exposes a versioned `AllAgentsProviderSelection`
 configuration boundary for applying one pinned OpenAI or verified Ollama profile
@@ -65,15 +66,22 @@ asb sweep EXPERIMENT.toml
 asb compare RUN...
 asb report RUN...
 asb serve CONTROL.toml
+asb provider-catalog
+asb provider-plan --catalog-sha256 CATALOG_SHA256 --provider-profile openai --agent codex \
+  --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256
+asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record
+asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 codex
 ```
 
 `plan` validates without launching. `run` executes one configured capacity point;
 `sweep` executes the bounded range in the plan. `compare` requires at least two
 persisted run directories and `report` requires at least one. Structured results
 and errors are JSON on stdout, progress is on stderr, and invalid usage returns a
-nonzero status. See `asb --help` for the authoritative command list. There is no
-`asb record` or `asb replay` command in the current CLI. No paid API call or
-workload download is required by repository tests.
+nonzero status. See `asb --help` for the authoritative command list. The complete
+workflow is documented in [the live benchmark workflow](docs/workflows/live-benchmark.md).
+No paid API call or workload download is required by repository tests. The support
+matrix in [Provider-aware launches](docs/PROVIDER_LAUNCH.md) is digest-anchored and
+labels catalog availability separately from runtime or native qualification.
 
 `asb capabilities --format json` is a bounded, deterministic, side-effect-free
 description of the closed protocol implemented for independent frontends. Its

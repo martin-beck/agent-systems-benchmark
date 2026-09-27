@@ -32,7 +32,10 @@ A future Rust coordinator requires differential tests against its existing model
 | asb-csb | Optional CSB subprocess integration and result mapping |
 | asb-bundle | Signed runtime-bundle manifests and offline content/SBOM/license verification |
 
-Only asb-core and asb-cli exist at bootstrap. Add crates when their AR starts.
+The workspace now includes the control, runtime, agent, workload, replay, store,
+orchestrator, analysis, metrics, bundle and CSB boundary crates listed above.
+Each crate remains subject to its own qualification evidence; a catalog entry or
+local fixture does not claim native or official provider qualification.
 Core must not depend on process, network, terminal or GitHub implementations.
 
 The orchestrator is the single authority boundary above `asb-runtime`,
@@ -100,6 +103,22 @@ process tree, reap children and publish partial evidence on timeout.
 Separate immutable run manifests, bounded event journals and artifact storage.
 Record toolchain, agent/model identity, workload revision, machine/kernel metadata,
 image digests, collector settings, random seeds and all measurement exclusions.
+
+## End-to-end benchmark workflow
+
+The supported operator path is: enroll a logical credential reference through the
+runtime-owned control boundary; refresh `provider-catalog`; create a digest-bound
+`provider-plan`; validate an experiment with `plan`; execute `run` or `sweep` with
+explicit live admission; and retain bounded run evidence. For deterministic
+development, use the local/mock provider path and checked-in fixtures. A completed
+runtime capture may then be sealed with `record-live` and consumed by
+`replay-offline`, which authenticates the cassette and denies provider egress.
+
+Provider selection and recording are opt-in. Credential values, prompts and
+responses never enter plans, argv, manifests, logs or public evidence. Replay is
+strictly offline and is evidence of the controlled runtime path, not fresh model
+quality or native platform performance. See [the workflow guide](workflows/live-benchmark.md)
+and the [provider support matrix](PROVIDER_LAUNCH.md).
 
 ## CSB decision
 
