@@ -75,7 +75,7 @@ impl RuntimeCertificateChainStore {
 
     /// Install a validated opaque chain from the authenticated control/runtime
     /// boundary. Raw certificate material never enters this API.
-    pub fn install(
+    pub(crate) fn install(
         &self,
         chain: IssuedCertificateChainV1,
     ) -> Result<(), RuntimeCertificateChainStoreError> {
@@ -912,9 +912,20 @@ impl LiveProviderRuntimeBridge {
                 _ => None,
             })
             .ok_or(LiveProviderControlAdapterError::InvalidResponse)?;
-        let chain = chains
-            .chain()
-            .map_err(|_| LiveProviderControlAdapterError::ChainUnavailable)?;
+        let chain = match chains.chain() {
+            Ok(chain) => chain,
+            Err(RuntimeCertificateChainStoreError::Unavailable) => {
+                let chain = result
+                    .chain
+                    .issue_runtime_chain(now_unix_ms / 1_000)
+                    .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+                chains
+                    .install(chain.clone())
+                    .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+                chain
+            }
+            Err(_) => return Err(LiveProviderControlAdapterError::ChainUnavailable),
+        };
         self.ingest_control_response(&request, result, &chain, now_unix_ms)
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)
     }
@@ -2322,6 +2333,12 @@ mod tests {
         let response = RuntimeReceiptResponseV1 {
             schema_version: 1,
             request_nonce_sha256: request.request_nonce_sha256.clone(),
+            chain: asb_control::AuthenticatedChainEnrollmentV1 {
+                schema_version: 1,
+                chain: vec![chain.identity().clone()],
+                pairing_fingerprint_sha256: "c".repeat(64),
+                generation: chain.identity().generation,
+            },
             receipt: receipt.clone(),
         };
         let bridge = LiveProviderRuntimeBridge::new();

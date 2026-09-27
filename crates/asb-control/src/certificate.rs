@@ -172,6 +172,8 @@ pub struct RuntimeReceiptResponseV1 {
     pub schema_version: u16,
     /// Request nonce copied only after exact request validation.
     pub request_nonce_sha256: String,
+    /// Authenticated public chain metadata emitted by control for runtime enrollment.
+    pub chain: AuthenticatedChainEnrollmentV1,
     /// Authenticated runtime receipt.
     pub receipt: RuntimeEnrollmentReceiptV1,
 }
@@ -185,6 +187,7 @@ impl RuntimeReceiptResponseV1 {
         }
         if self.receipt.provider != request.provider
             || self.receipt.generation != request.generation
+            || self.receipt.chain_sha256 != canonical_chain_digest(&self.chain.chain)
         {
             return Err(CertificateError::InvalidReceiptResponse);
         }
@@ -193,6 +196,31 @@ impl RuntimeReceiptResponseV1 {
 }
 
 impl AuthenticatedChainEnrollmentV1 {
+    /// Return the canonical digest used to bind a control response to its chain.
+    #[must_use]
+    pub fn chain_sha256(&self) -> String {
+        canonical_chain_digest(&self.chain)
+    }
+
+    /// Reconstitute the opaque runtime chain from control-issued public metadata.
+    /// The response transport is the authority source; callers never provide
+    /// certificate bytes, trust roots, or private credentials to this method.
+    pub fn issue_runtime_chain(
+        &self,
+        now: u64,
+    ) -> Result<IssuedCertificateChainV1, CertificateError> {
+        let leaf = self
+            .chain
+            .first()
+            .ok_or(CertificateError::InvalidChainLength)?;
+        let authority = CertificateAuthorityV1::with_trust_anchor_digest_and_endpoint(
+            leaf.trust_anchor_sha256.clone(),
+            self.generation,
+            leaf.endpoint_identity_sha256.clone(),
+        )?;
+        self.issue_chain(&authority, now)
+    }
+
     /// Validate the durable enrollment against the runtime-owned authority.
     pub fn issue_chain(
         &self,
@@ -1053,6 +1081,34 @@ mod tests {
     }
 
     #[test]
+    fn runtime_chain_is_reconstructed_only_from_bound_control_metadata() {
+        let authority = CertificateAuthorityV1::with_trust_anchor_and_endpoint(
+            vec![1, 2, 3],
+            7,
+            "b".repeat(64),
+        )
+        .unwrap();
+        let mut identity = identity(&"c".repeat(64), &"d".repeat(64), &"e".repeat(64));
+        identity.trust_anchor_sha256 = digest_bytes(&[1, 2, 3]);
+        identity.endpoint_identity_sha256 = "b".repeat(64);
+        let enrollment = AuthenticatedChainEnrollmentV1 {
+            schema_version: 1,
+            chain: vec![identity],
+            pairing_fingerprint_sha256: "c".repeat(64),
+            generation: 7,
+        };
+        let expected = enrollment.issue_chain(&authority, 1_000).unwrap();
+        let reconstructed = enrollment.issue_runtime_chain(1_000).unwrap();
+        assert_eq!(reconstructed, expected);
+        let mut tampered = enrollment;
+        tampered.generation = 8;
+        assert_eq!(
+            tampered.issue_runtime_chain(1_000),
+            Err(CertificateError::InvalidGeneration)
+        );
+    }
+
+    #[test]
     fn authority_enrollment_rejects_unknown_fields() {
         let value = serde_json::json!({
             "schema_version": 1,
@@ -1121,9 +1177,15 @@ mod tests {
         let response = RuntimeReceiptResponseV1 {
             schema_version: 1,
             request_nonce_sha256: request.request_nonce_sha256.clone(),
+            chain: AuthenticatedChainEnrollmentV1 {
+                schema_version: 1,
+                chain: Vec::new(),
+                pairing_fingerprint_sha256: "c".repeat(64),
+                generation: 7,
+            },
             receipt: RuntimeEnrollmentReceiptV1 {
                 schema_version: 1,
-                chain_sha256: "b".repeat(64),
+                chain_sha256: canonical_chain_digest(&[]),
                 provider: "openrouter".into(),
                 endpoint_identity_sha256: "c".repeat(64),
                 credential_ref_sha256: "d".repeat(64),

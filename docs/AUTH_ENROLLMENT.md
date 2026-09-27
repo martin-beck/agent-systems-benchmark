@@ -52,3 +52,12 @@ malformed DER, issuer/anchor mismatches, expired or not-yet-valid certificates,
 unsupported roles, stale generations, and unknown fields fail closed. Only bounded
 identity digests and authorization outcomes are suitable for durable public evidence;
 certificate and private-key bytes must remain in the caller's protected memory/store.
+
+The runtime receipt response also carries the bounded public
+`AuthenticatedChainEnrollmentV1` metadata. Control binds its canonical chain
+digest to the receipt before sending it over the owner-authenticated control
+socket. The runtime reconstructs its opaque chain only from that response,
+installs it in `RuntimeCertificateChainStore`, and then validates generation,
+freshness, target, tool, lease, relay and nonce bindings before issuing a live
+dispatch profile. The store cannot be populated by a CLI-supplied chain, and a
+replayed, stale, revoked or mismatched response is rejected without egress.
