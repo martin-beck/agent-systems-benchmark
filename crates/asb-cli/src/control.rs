@@ -3012,6 +3012,7 @@ impl ControlBackend for RunnerBackend {
                 )
             }
             ControlCall::RuntimeReceipt(params) => {
+                params.validate().map_err(|_| BackendFailure::Rejected)?;
                 let catalog = self
                     .catalog
                     .lock()
@@ -3021,20 +3022,21 @@ impl ControlBackend for RunnerBackend {
                     .map_err(|_| BackendFailure::Rejected)?
                     .as_secs();
                 let receipt = RunnerBackend::materialize_runtime_receipt(&catalog, params, now)?;
-                self.bind(
-                    call,
-                    ControlResult::RuntimeReceipt(RuntimeReceiptResponseV1 {
-                        schema_version: 1,
-                        request_nonce_sha256: params.request_nonce_sha256.clone(),
-                        chain: catalog
-                            .runtime_authorities
-                            .get(&params.provider)
-                            .ok_or(BackendFailure::CapabilityUnavailable)?
-                            .chain
-                            .clone(),
-                        receipt,
-                    }),
-                )
+                let response = RuntimeReceiptResponseV1 {
+                    schema_version: 1,
+                    request_nonce_sha256: params.request_nonce_sha256.clone(),
+                    chain: catalog
+                        .runtime_authorities
+                        .get(&params.provider)
+                        .ok_or(BackendFailure::CapabilityUnavailable)?
+                        .chain
+                        .clone(),
+                    receipt,
+                };
+                response
+                    .validate_for(params)
+                    .map_err(|_| BackendFailure::Rejected)?;
+                self.bind(call, ControlResult::RuntimeReceipt(response))
             }
             ControlCall::AuthRotate(params) => self.mutation(
                 call,
@@ -5839,6 +5841,24 @@ mod tests {
         assert_eq!(
             backend.execute(&call, deadline()),
             Err(BackendFailure::CapabilityUnavailable)
+        );
+    }
+
+    #[test]
+    fn runtime_receipt_rejects_malformed_request_before_authority_lookup() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::RuntimeReceipt(asb_control::RuntimeReceiptRequestV1 {
+            schema_version: 2,
+            provider: "openrouter".into(),
+            generation: 1,
+            request_nonce_sha256: "a".repeat(64),
+        });
+        assert_eq!(
+            backend.execute(&call, deadline()),
+            Err(BackendFailure::Rejected)
         );
     }
 
