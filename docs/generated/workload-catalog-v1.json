@@ -132,7 +132,7 @@
       "license": "MIT",
       "evaluator": "track-test-runner",
       "capability_tags": [
-        "unsupported"
+        "code-generation"
       ],
       "adaptation": "fixture-only",
       "platform": "linux-x86_64:fixture-only",

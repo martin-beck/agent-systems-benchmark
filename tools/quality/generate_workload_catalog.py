@@ -59,7 +59,7 @@ def capability_tags(workload_id):
         "terminal-workflow": {"terminal-bench"},
         "systems-performance": {"swe-perf", "swe-fficiency", "core-bench"},
         "code-generation": {
-            "aider-polyglot", "bigcodebench", "evalplus", "humaneval-plus",
+            "aider-polyglot", "exercism-tracks", "bigcodebench", "evalplus", "humaneval-plus",
             "mbpp-plus", "livecodebench",
         },
         "stateful-tool-use": {"tau-bench", "agentdojo", "harbor", "inspect-ai"},
