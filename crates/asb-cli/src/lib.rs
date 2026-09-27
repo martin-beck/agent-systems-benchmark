@@ -90,6 +90,27 @@ pub fn entry(args: Vec<OsString>) -> ExitCode {
     ExitCode::from(run(&args, &mut stdout, &mut stderr))
 }
 
+/// Run a live-provider request with an authenticated runtime-owned source.
+///
+/// The ordinary process entry point cannot execute live-provider work because
+/// it has no runtime authority. A runtime/control owner must inject the opaque
+/// source, after which `run` and `sweep` may consume only its per-attempt
+/// factory.
+#[must_use]
+pub fn entry_with_runtime_live_provider_source(
+    args: Vec<OsString>,
+    source: LiveProviderRuntimeDispatchSource,
+) -> ExitCode {
+    let mut stdout = io::stdout().lock();
+    let mut stderr = io::stderr().lock();
+    ExitCode::from(run_with_runtime_live_provider_source(
+        &args,
+        source,
+        &mut stdout,
+        &mut stderr,
+    ))
+}
+
 /// Execute one CLI request with injected output streams.
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     match dispatch(args, stdout, stderr, None, None) {
@@ -276,6 +297,18 @@ fn dispatch(
         [command, path, flag] if command == "run" && flag == "--use-config" => {
             execute_with_config(Path::new(path), false, false, stdout, stderr)
         }
+        [command, path, use_config, live]
+            if command == "run" && use_config == "--use-config" && live == "--live-provider" =>
+        {
+            execute_with_config_live_provider(
+                Path::new(path),
+                false,
+                true,
+                live_factory,
+                stdout,
+                stderr,
+            )
+        }
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
             execute(Path::new(path), false, true, live_factory, stdout, stderr)
         }
@@ -296,6 +329,18 @@ fn dispatch(
         }
         [command, path, flag] if command == "sweep" && flag == "--use-config" => {
             execute_with_config(Path::new(path), true, false, stdout, stderr)
+        }
+        [command, path, use_config, live]
+            if command == "sweep" && use_config == "--use-config" && live == "--live-provider" =>
+        {
+            execute_with_config_live_provider(
+                Path::new(path),
+                true,
+                true,
+                live_factory,
+                stdout,
+                stderr,
+            )
         }
         [command, path, flag] if command == "sweep" && flag == "--live-provider" => {
             execute(Path::new(path), true, true, live_factory, stdout, stderr)
@@ -2962,6 +3007,28 @@ fn execute_with_config(
     )
 }
 
+fn execute_with_config_live_provider(
+    path: &Path,
+    sweep: bool,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    let store = ConfigStore::from_environment()
+        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+    execute_inner_from_source(
+        path,
+        SelectionSource::Config(&store),
+        sweep,
+        live_provider,
+        live_factory,
+        false,
+        output,
+        progress,
+    )
+}
+
 fn execute_inner(
     path: &Path,
     selection_path: Option<&Path>,
@@ -5503,6 +5570,32 @@ mod tests {
         assert_eq!(
             error.message,
             "--live-provider requires an explicit provider selection"
+        );
+        assert!(!scratch.0.join("results").exists());
+    }
+
+    #[test]
+    fn live_provider_dispatch_requires_runtime_source_after_selection_binding() {
+        let scratch = Scratch::new("live-provider-source-gate");
+        let (selection_path, selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "live-source-gate");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let error = execute_inner_from_source(
+            &plan_path,
+            SelectionSource::Path(Some(&selection_path)),
+            false,
+            true,
+            None,
+            false,
+            &mut Vec::new(),
+            &mut Vec::new(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.message,
+            "live provider requires a runtime-issued attempt factory"
         );
         assert!(!scratch.0.join("results").exists());
     }
