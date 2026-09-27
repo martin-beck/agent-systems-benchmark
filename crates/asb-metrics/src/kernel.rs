@@ -378,14 +378,29 @@ fn execute(
         Duration::from_millis(5),
     )
     .map_err(|_| UnavailableReason::ProbeRejected)?;
-    let mut command = Command::new(executable);
-    command
-        .args(arguments)
-        .env_clear()
-        .env("LC_ALL", "C")
-        .current_dir(directory)
-        .stdin(Stdio::null());
-    let mut process = RunningProcess::spawn(command, limits).map_err(map_process)?;
+    let mut process = None;
+    for attempt in 0..3 {
+        let mut command = Command::new(executable);
+        command
+            .args(arguments)
+            .env_clear()
+            .env("LC_ALL", "C")
+            .current_dir(directory)
+            .stdin(Stdio::null());
+        match RunningProcess::spawn(command, limits) {
+            Ok(value) => {
+                process = Some(value);
+                break;
+            }
+            Err(ProcessError::Spawn(error))
+                if error.kind() == io::ErrorKind::WouldBlock && attempt < 2 =>
+            {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(map_process(error)),
+        }
+    }
+    let mut process = process.ok_or(UnavailableReason::ProbeRejected)?;
     process
         .wait()
         .cloned()
