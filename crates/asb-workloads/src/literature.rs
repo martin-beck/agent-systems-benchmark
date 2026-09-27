@@ -32,12 +32,13 @@ const LOCAL_MOCK_SCORER: &str = "asb-literature-local-mock-scorer-v1";
 
 /// Stable identities documented by ASB.  They are provenance identities, not
 /// a claim that every upstream evaluator is executable or qualified.
-pub const LITERATURE_WORKLOAD_IDS: [&str; 25] = [
+pub const LITERATURE_WORKLOAD_IDS: [&str; 26] = [
     "swe-bench",
     "swe-bench-lite",
     "swe-bench-verified",
     "terminal-bench",
     "aider-polyglot",
+    "exercism-tracks",
     "swe-bench-pro",
     "bigcodebench",
     "evalplus",
@@ -380,6 +381,7 @@ fn metric_kind(id: &str) -> &'static str {
     match id {
         "swe-perf" | "swe-fficiency" => "paired-performance",
         "core-bench" => "computational-reproducibility",
+        "exercism-tracks" => "multilingual-function-correctness",
         "swe-rebench" => "refreshed-repository-repair",
         "swe-lancer" | "swe-bench-pro" => "long-horizon-repository-repair",
         _ => "task-correctness",
@@ -1035,8 +1037,8 @@ fn family(id: &str) -> LiteratureFamily {
         | "swe-lancer" => LiteratureFamily::RepositoryRepair,
         "terminal-bench" | "agentbench" => LiteratureFamily::TerminalSystem,
         "swe-perf" | "swe-fficiency" | "core-bench" => LiteratureFamily::SystemsPerformance,
-        "aider-polyglot" | "bigcodebench" | "evalplus" | "humaneval-plus" | "mbpp-plus"
-        | "livecodebench" => LiteratureFamily::CodeGeneration,
+        "aider-polyglot" | "exercism-tracks" | "bigcodebench" | "evalplus" | "humaneval-plus"
+        | "mbpp-plus" | "livecodebench" => LiteratureFamily::CodeGeneration,
         "tau-bench" | "agentdojo" | "harbor" | "inspect-ai" => LiteratureFamily::StatefulToolUse,
         "hal" => LiteratureFamily::HarnessBoundary,
         _ => LiteratureFamily::UnsupportedCandidate,
@@ -1083,6 +1085,12 @@ fn provenance(id: &str) -> (&'static str, &'static str, &'static str, &'static s
             "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
             "Apache-2.0-and-per-exercise",
             "aider.polyglot@7e0611e",
+            "public",
+        ),
+        "exercism-tracks" => (
+            "pinned-20260908",
+            "MIT",
+            "track-test-runner@pinned-20260908",
             "public",
         ),
         "swe-bench-pro" => (
@@ -1177,6 +1185,12 @@ fn code_generation_control(id: &str) -> Option<CodeGenerationControl> {
             metric: "expanded-test-pass-rate",
             comparison_namespace: "code-generation.function-level.v1",
             contamination_boundary: "humaneval-plus-and-mbpp-plus@d32357c",
+        }),
+        "exercism-tracks" => Some(CodeGenerationControl {
+            kind: CodeGenerationControlKind::FunctionLevel,
+            metric: "multilingual-track-test-pass-rate",
+            comparison_namespace: "code-generation.multilingual.v1",
+            contamination_boundary: "pinned-20260908",
         }),
         "livecodebench" => Some(CodeGenerationControl {
             kind: CodeGenerationControlKind::TimeWindowed,
@@ -1348,6 +1362,25 @@ mod tests {
         assert_eq!(
             function_control.contamination_boundary,
             "pinned-public-split"
+        );
+
+        let multilingual = LiteratureAdapter::describe("exercism-tracks").unwrap();
+        let multilingual_control = multilingual.code_generation.unwrap();
+        assert_eq!(
+            multilingual_control.kind,
+            CodeGenerationControlKind::FunctionLevel
+        );
+        assert_eq!(
+            multilingual_control.metric,
+            "multilingual-track-test-pass-rate"
+        );
+        assert_eq!(
+            multilingual_control.comparison_namespace,
+            "code-generation.multilingual.v1"
+        );
+        assert_eq!(
+            multilingual_control.contamination_boundary,
+            "pinned-20260908"
         );
 
         let window = LiteratureAdapter::describe("livecodebench").unwrap();
