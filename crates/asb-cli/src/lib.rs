@@ -276,6 +276,21 @@ fn dispatch(
         [command, path, flag] if command == "run" && flag == "--use-config" => {
             execute_with_config(Path::new(path), false, false, stdout, stderr)
         }
+        [command, path, selection, selection_path, live]
+            if command == "run"
+                && selection == "--provider-selection"
+                && live == "--live-provider" =>
+        {
+            execute_with_selection_live_provider(
+                Path::new(path),
+                Path::new(selection_path),
+                false,
+                true,
+                live_factory,
+                stdout,
+                stderr,
+            )
+        }
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
             execute(Path::new(path), false, true, live_factory, stdout, stderr)
         }
@@ -296,6 +311,21 @@ fn dispatch(
         }
         [command, path, flag] if command == "sweep" && flag == "--use-config" => {
             execute_with_config(Path::new(path), true, false, stdout, stderr)
+        }
+        [command, path, selection, selection_path, live]
+            if command == "sweep"
+                && selection == "--provider-selection"
+                && live == "--live-provider" =>
+        {
+            execute_with_selection_live_provider(
+                Path::new(path),
+                Path::new(selection_path),
+                true,
+                true,
+                live_factory,
+                stdout,
+                stderr,
+            )
         }
         [command, path, flag] if command == "sweep" && flag == "--live-provider" => {
             execute(Path::new(path), true, true, live_factory, stdout, stderr)
@@ -2962,6 +2992,26 @@ fn execute_with_config(
     )
 }
 
+fn execute_with_selection_live_provider(
+    path: &Path,
+    selection_path: &Path,
+    sweep: bool,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    execute_inner(
+        path,
+        Some(selection_path),
+        sweep,
+        live_provider,
+        live_factory,
+        output,
+        progress,
+    )
+}
+
 fn execute_inner(
     path: &Path,
     selection_path: Option<&Path>,
@@ -5505,6 +5555,81 @@ mod tests {
             "--live-provider requires an explicit provider selection"
         );
         assert!(!scratch.0.join("results").exists());
+    }
+
+    #[test]
+    fn live_provider_dispatch_requires_runtime_source_after_selection_binding() {
+        let scratch = Scratch::new("live-provider-source-gate");
+        let (selection_path, selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "live-source-gate");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let error = execute_inner_from_source(
+            &plan_path,
+            SelectionSource::Path(Some(&selection_path)),
+            false,
+            true,
+            None,
+            false,
+            &mut Vec::new(),
+            &mut Vec::new(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.message,
+            "live provider requires a runtime-issued attempt factory"
+        );
+        assert!(!scratch.0.join("results").exists());
+    }
+
+    #[test]
+    fn live_provider_run_and_sweep_dispatch_consume_the_runtime_factory() {
+        let scratch = Scratch::new("live-provider-dispatch");
+        let (selection_path, selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "live-dispatch");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        });
+        let args = vec![
+            "run".into(),
+            plan_path.as_os_str().to_owned(),
+            "--provider-selection".into(),
+            selection_path.as_os_str().to_owned(),
+            "--live-provider".into(),
+        ];
+        let mut output = Vec::new();
+        assert_ne!(
+            run_with_live_provider_factory(&args, factory, &mut output, &mut Vec::new()),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output).unwrap()["ok"],
+            false
+        );
+
+        let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        });
+        let args = vec![
+            "sweep".into(),
+            plan_path.as_os_str().to_owned(),
+            "--provider-selection".into(),
+            selection_path.as_os_str().to_owned(),
+            "--live-provider".into(),
+        ];
+        let mut output = Vec::new();
+        assert_ne!(
+            run_with_live_provider_factory(&args, factory, &mut output, &mut Vec::new()),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output).unwrap()["ok"],
+            false
+        );
     }
 
     #[test]
