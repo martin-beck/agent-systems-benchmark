@@ -50,6 +50,27 @@ must remain quiescent for the duration of verification.
 
 ## Reproducible assembly
 
+When release signing inputs are held by an external authorized operator, the
+repository can prepare a deterministic signed-profile staging tree and a
+credential-free handoff record without creating a detached signature:
+
+```sh
+python3 tools/bundle/prepare_signing_handoff.py \
+  --bundle-version 1.0.0 --os linux --arch x86_64 --libc glibc --libc-version 2.39 \
+  --supervisor target/release/asb_loopback_supervisor \
+  --sidecar target/release/asb_loopback_sidecar \
+  --principal asb-release --ssh-keygen-sha256 SSH_KEYGEN_SHA256 \
+  --stage-output dist/asb-runtime-staging \
+  --handoff-output dist/asb-runtime-signing-handoff.json
+```
+
+The staging manifest deliberately has the `signed` profile but no
+`manifest.json.sig`; the handoff records the exact manifest/content digests,
+SSHSIG namespace, principal, allowed-signers filename, and verifier command.
+It is non-production staging, not a release artifact. The external operator
+must sign the unchanged manifest, add the detached signature, and rerun the
+default verifier before customer acceptance can proceed.
+
 The release operator builds the pinned supervisor and sidecar in the reviewed release workflow,
 then supplies those regular files explicitly to the offline builder. The builder never discovers
 or downloads executables and refuses symlinks, missing signing inputs, and an existing output
