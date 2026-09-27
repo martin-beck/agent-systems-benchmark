@@ -49,7 +49,7 @@ use asb_store::{
 };
 use asb_workloads::{
     CatalogKind, OriginalWorkloads, PreparedWorkloadChoice, WorkloadEvaluation, describe_workload,
-    prepare_workload, workload_catalog,
+    prepare_workload, select_workload, workload_catalog,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -888,8 +888,10 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
         .workload_ids
         .iter()
         .map(|id| {
-            describe_workload(id)
-                .map(|workload| (id.clone(), workload.scoring_version))
+            let selected = select_workload(id, "linux-x86_64")
+                .map_err(|_| CliError::validation("recording campaign workload is unavailable"))?;
+            describe_workload(&selected.id)
+                .map(|workload| (selected.id, workload.scoring_version))
                 .map_err(|_| CliError::validation("recording campaign workload is unavailable"))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -7248,6 +7250,7 @@ mod tests {
         let scratch = Scratch::new("record-campaign");
         let capture_path = scratch.0.join("capture.json");
         let cassette_path = scratch.0.join("cassette.json");
+        let literature_cassette_path = scratch.0.join("literature-cassette.json");
         let manifest_path = scratch.0.join("campaign.json");
         let cassette = asb_replay::decode_cassette(
             include_bytes!("../../asb-replay/fixtures/v1/buffered.json"),
@@ -7272,11 +7275,15 @@ mod tests {
             "schema_version": asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
             "provider_profile_sha256": "a".repeat(64),
             "agent_ids": ["codex"],
-            "workload_ids": ["original.bug-fix"],
+            "workload_ids": ["original.bug-fix", "swe-bench"],
             "entries": [{
                 "workload_id": "original.bug-fix",
                 "capture_path": capture_path,
                 "cassette_path": cassette_path
+            }, {
+                "workload_id": "swe-bench",
+                "capture_path": capture_path,
+                "cassette_path": literature_cassette_path
             }]
         });
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
@@ -7298,8 +7305,9 @@ mod tests {
         let result: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(result["complete_coverage"], true);
         assert_eq!(result["offline_ready"], true);
-        assert_eq!(result["tuple_count"], 1);
+        assert_eq!(result["tuple_count"], 2);
         assert!(cassette_path.is_file());
+        assert!(literature_cassette_path.is_file());
 
         let mut direct_without_opt_in = Vec::new();
         assert_eq!(
