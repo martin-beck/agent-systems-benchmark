@@ -115,12 +115,19 @@ fn runtime_receipt_operation_binds_nonce_provider_and_generation() {
         request_nonce_sha256: "a".repeat(64),
     });
     assert_eq!(call.minimum_version(), CONTROL_RUNTIME_RECEIPT_V1);
+    let chain = AuthenticatedChainEnrollmentV1 {
+        schema_version: 1,
+        chain: Vec::new(),
+        pairing_fingerprint_sha256: "c".repeat(64),
+        generation: 7,
+    };
     let response = ControlResult::RuntimeReceipt(RuntimeReceiptResponseV1 {
         schema_version: 1,
         request_nonce_sha256: "a".repeat(64),
+        chain: chain.clone(),
         receipt: RuntimeEnrollmentReceiptV1 {
             schema_version: 1,
-            chain_sha256: "b".repeat(64),
+            chain_sha256: chain.chain_sha256(),
             provider: "openrouter".into(),
             endpoint_identity_sha256: "c".repeat(64),
             credential_ref_sha256: "d".repeat(64),

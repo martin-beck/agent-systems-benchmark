@@ -3026,6 +3026,12 @@ impl ControlBackend for RunnerBackend {
                     ControlResult::RuntimeReceipt(RuntimeReceiptResponseV1 {
                         schema_version: 1,
                         request_nonce_sha256: params.request_nonce_sha256.clone(),
+                        chain: catalog
+                            .runtime_authorities
+                            .get(&params.provider)
+                            .ok_or(BackendFailure::CapabilityUnavailable)?
+                            .chain
+                            .clone(),
                         receipt,
                     }),
                 )
