@@ -129,6 +129,203 @@ pub struct LiveProviderRuntimeSelection {
     network_policy: NetworkPolicy,
 }
 
+/// Digest-only, versioned projection of runtime-owned authority inputs.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeAuthorityInputRecordV1 {
+    pub schema_version: u16,
+    pub owner: String,
+    pub generation: String,
+    pub target_sha256: String,
+    pub policy_sha256: String,
+    pub allowlist_sha256: String,
+    pub tool_bundle_sha256: String,
+    pub lease_root_sha256: String,
+    pub relay_root_sha256: String,
+    pub namespace: String,
+    pub revision: u64,
+}
+
+/// Private inputs retained only by the authenticated runtime boundary.
+#[allow(dead_code)]
+#[derive(Clone)]
+pub(crate) struct RuntimeAuthorityInputs {
+    config: LiveProviderRuntimeConfig,
+    policy: ProviderEgressPolicy,
+    allowlist: ProviderEgressAllowlist,
+    relay_root: PathBuf,
+    bubblewrap: ToolPin,
+    systemd_run: ToolPin,
+    systemctl: ToolPin,
+    taskset: ToolPin,
+    live_launch_gate: ToolPin,
+    namespace: NamespaceIdentity,
+}
+
+#[allow(missing_docs)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuntimeAuthorityInputResolverError {
+    InvalidRecord,
+    OwnerMismatch,
+    StaleGeneration,
+    Revoked,
+    StateUnavailable,
+}
+
+#[allow(dead_code)]
+struct RuntimeAuthorityInputResolverState {
+    inputs: RuntimeAuthorityInputs,
+    record: RuntimeAuthorityInputRecordV1,
+    cancelled: bool,
+    torn_down: bool,
+}
+
+/// Owner/generation fenced resolver for authenticated runtime launch inputs.
+///
+/// Only a runtime enrollment source can construct this type. The persisted
+/// file is digest-only and cannot recreate authority after restart.
+#[allow(dead_code)]
+pub(crate) struct RuntimeAuthorityInputResolver {
+    state: Arc<Mutex<RuntimeAuthorityInputResolverState>>,
+    state_path: PathBuf,
+}
+
+#[allow(dead_code)]
+impl RuntimeAuthorityInputResolver {
+    pub(crate) fn from_authenticated_enrollment(
+        owner: String,
+        profile: &LiveProviderRuntimeAuthorityProfile,
+        inputs: RuntimeAuthorityInputs,
+        state_path: PathBuf,
+    ) -> Result<Self, RuntimeAuthorityInputResolverError> {
+        if owner.is_empty() || owner.len() > 128 || !state_path.is_absolute() {
+            return Err(RuntimeAuthorityInputResolverError::InvalidRecord);
+        }
+        let claims = profile.attestation.claims();
+        if claims.generation.to_string() != inputs.config.generation()
+            || claims.target != inputs.config.target().address()
+            || claims.credential_ref_sha256 != inputs.config.credential_ref_sha256()
+            || inputs.namespace.as_str().is_empty()
+        {
+            return Err(RuntimeAuthorityInputResolverError::InvalidRecord);
+        }
+        let record = RuntimeAuthorityInputRecordV1 {
+            schema_version: 1,
+            owner,
+            generation: claims.generation.to_string(),
+            target_sha256: digest(&inputs.config.target().address().to_string()),
+            policy_sha256: digest(inputs.policy.endpoint_sha256()),
+            allowlist_sha256: digest(
+                &inputs
+                    .allowlist
+                    .targets()
+                    .iter()
+                    .map(|target| target.address().to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ),
+            tool_bundle_sha256: digest(
+                &[
+                    inputs.bubblewrap.version_line(),
+                    inputs.systemd_run.version_line(),
+                    inputs.systemctl.version_line(),
+                    inputs.taskset.version_line(),
+                    inputs.live_launch_gate.version_line(),
+                ]
+                .join("\n"),
+            ),
+            lease_root_sha256: digest(&inputs.config.lease_root().display().to_string()),
+            relay_root_sha256: digest(&inputs.relay_root.display().to_string()),
+            namespace: inputs.namespace.as_str().to_string(),
+            revision: 1,
+        };
+        let resolver = Self {
+            state: Arc::new(Mutex::new(RuntimeAuthorityInputResolverState {
+                inputs,
+                record,
+                cancelled: false,
+                torn_down: false,
+            })),
+            state_path,
+        };
+        resolver.persist()?;
+        Ok(resolver)
+    }
+
+    fn persist(&self) -> Result<(), RuntimeAuthorityInputResolverError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)?;
+        let bytes = serde_json::to_vec(&state.record)
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)?;
+        if bytes.len() > 16 * 1024 {
+            return Err(RuntimeAuthorityInputResolverError::InvalidRecord);
+        }
+        let parent = self
+            .state_path
+            .parent()
+            .ok_or(RuntimeAuthorityInputResolverError::InvalidRecord)?;
+        std::fs::create_dir_all(parent)
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)?;
+        let temporary = self.state_path.with_extension("tmp");
+        std::fs::write(&temporary, bytes)
+            .and_then(|_| std::fs::rename(&temporary, &self.state_path))
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)
+    }
+
+    pub(crate) fn record(
+        &self,
+    ) -> Result<RuntimeAuthorityInputRecordV1, RuntimeAuthorityInputResolverError> {
+        self.state
+            .lock()
+            .map(|state| state.record.clone())
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)
+    }
+
+    pub(crate) fn cancel(&self) -> Result<(), RuntimeAuthorityInputResolverError> {
+        self.state
+            .lock()
+            .map(|mut state| state.cancelled = true)
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)?;
+        self.persist()
+    }
+
+    pub(crate) fn teardown(&self) -> Result<(), RuntimeAuthorityInputResolverError> {
+        self.state
+            .lock()
+            .map(|mut state| state.torn_down = true)
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)?;
+        self.persist()
+    }
+
+    pub(crate) fn resolve(
+        &self,
+        owner: &str,
+        generation: &str,
+    ) -> Result<RuntimeAuthorityInputs, RuntimeAuthorityInputResolverError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| RuntimeAuthorityInputResolverError::StateUnavailable)?;
+        if state.record.owner != owner {
+            return Err(RuntimeAuthorityInputResolverError::OwnerMismatch);
+        }
+        if state.record.generation != generation {
+            return Err(RuntimeAuthorityInputResolverError::StaleGeneration);
+        }
+        if state.cancelled || state.torn_down {
+            return Err(RuntimeAuthorityInputResolverError::Revoked);
+        }
+        Ok(state.inputs.clone())
+    }
+}
+
+#[allow(dead_code)]
+fn digest(value: &str) -> String {
+    format!("{:x}", Sha256::digest(value.as_bytes()))
+}
+
 /// Failure while an adapter resolves the final opaque credential capability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LiveProviderResolveError {
@@ -767,6 +964,29 @@ impl LiveProviderRuntimeAuthorityProfile {
         .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?
         .provisioner()
         .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)
+    }
+
+    /// Resolve private launch inputs through the authenticated runtime owner.
+    #[allow(dead_code)]
+    pub(crate) fn materialize_handle_from_resolver(
+        self,
+        resolver: &RuntimeAuthorityInputResolver,
+        owner: &str,
+    ) -> Result<LiveProviderRuntimeHandle, LiveProviderProvisionError> {
+        let inputs = resolver
+            .resolve(owner, &self.generation().to_string())
+            .map_err(|_| LiveProviderProvisionError::InvalidConfiguration)?;
+        self.materialize_handle(
+            inputs.config,
+            inputs.policy,
+            inputs.allowlist,
+            &inputs.relay_root,
+            inputs.bubblewrap,
+            inputs.systemd_run,
+            inputs.systemctl,
+            inputs.taskset,
+            inputs.live_launch_gate,
+        )
     }
 }
 

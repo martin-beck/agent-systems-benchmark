@@ -53,6 +53,13 @@ impl ToolPin {
             shell_script: None,
         })
     }
+
+    /// Exact pinned executable path retained by the runtime boundary.
+    /// Exact version identity bound to the executable.
+    #[allow(dead_code)]
+    pub(crate) fn version_line(&self) -> &str {
+        &self.version_line
+    }
 }
 
 /// Sorted dedicated Linux CPU identifiers.
