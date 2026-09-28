@@ -327,6 +327,40 @@ fn unsigned_development_requires_explicit_policy_and_preserves_integrity() {
 }
 
 #[test]
+fn unsigned_development_explicitly_tolerates_arbitrary_signature_bytes() {
+    let fixture = make_unsigned_fixture(BundleProfile::UnsignedDevelopment);
+    fs::write(fixture.root.join("manifest.json.sig"), b"not an SSHSIG").expect("write placeholder");
+
+    assert!(matches!(
+        verify_bundle(&fixture.root, &config(&fixture), &target()),
+        Err(VerifyError::Signature)
+    ));
+    let verified = verify_bundle_with_policy(
+        &fixture.root,
+        &config(&fixture),
+        &target(),
+        VerificationPolicy::AllowUnsignedDevelopment,
+    )
+    .expect("explicit development policy tolerates placeholder signature");
+    assert_eq!(verified.signature_status, SignatureStatus::Unsigned);
+}
+
+#[test]
+fn unsigned_release_does_not_inherit_development_signature_tolerance() {
+    let fixture = make_unsigned_fixture(BundleProfile::UnsignedRelease);
+    fs::write(fixture.root.join("manifest.json.sig"), b"not an SSHSIG").expect("write placeholder");
+    assert!(matches!(
+        verify_bundle_with_policy(
+            &fixture.root,
+            &config(&fixture),
+            &target(),
+            VerificationPolicy::AllowUnsignedRelease,
+        ),
+        Err(VerifyError::Metadata(_))
+    ));
+}
+
+#[test]
 fn unsigned_release_is_explicit_and_cannot_be_formal_default() {
     let fixture = make_unsigned_fixture(BundleProfile::UnsignedRelease);
     assert!(matches!(

@@ -431,14 +431,21 @@ pub fn verify_bundle_with_policy(
         }
         SignatureStatus::Unsigned => {
             if signature_path.exists() {
-                return Err(VerifyError::Metadata(
-                    "unsigned profile must not include manifest.json.sig".into(),
-                ));
+                if policy != VerificationPolicy::AllowUnsignedDevelopment {
+                    return Err(VerifyError::Metadata(
+                        "unsigned profile must not include manifest.json.sig".into(),
+                    ));
+                }
+                // Development qualification may carry a stale, malformed, or
+                // placeholder signature file. Bound and topology-check it,
+                // but deliberately never parse or trust its contents. Every
+                // production/default policy remains strict above.
+                validate_regular_file_bounded(&signature_path, MAX_SIGNATURE_BYTES)?;
             }
         }
     }
     validate_manifest(&manifest, expected)?;
-    if expected_inventory(&manifest)? != enumerate_files(&root)? {
+    if expected_inventory(&manifest, policy, signature_path.exists())? != enumerate_files(&root)? {
         return Err(VerifyError::Content(
             "signed inventory does not equal bundle files".into(),
         ));
@@ -718,7 +725,11 @@ fn validate_sbom(sbom: &SbomDocument) -> Result<(), VerifyError> {
     validate_hash(&sbom.sha256)
 }
 
-fn expected_inventory(manifest: &RuntimeBundleManifest) -> Result<BTreeSet<String>, VerifyError> {
+fn expected_inventory(
+    manifest: &RuntimeBundleManifest,
+    policy: VerificationPolicy,
+    signature_present: bool,
+) -> Result<BTreeSet<String>, VerifyError> {
     let mut paths: BTreeSet<String> = manifest
         .artifacts
         .iter()
@@ -730,7 +741,9 @@ fn expected_inventory(manifest: &RuntimeBundleManifest) -> Result<BTreeSet<Strin
         }
     }
     paths.insert("manifest.json".into());
-    if manifest.signature_status == SignatureStatus::Signed {
+    if manifest.signature_status == SignatureStatus::Signed
+        || (policy == VerificationPolicy::AllowUnsignedDevelopment && signature_present)
+    {
         paths.insert("manifest.json.sig".into());
     }
     Ok(paths)
