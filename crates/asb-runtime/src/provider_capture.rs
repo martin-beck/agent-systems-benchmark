@@ -6,6 +6,7 @@
 //! and path-based recording importers never construct a capture authority.
 
 use crate::live_service::{LOCAL_PROVIDER_MOCK_MODEL, LocalProviderMockBackend};
+use asb_control::RequestDeadline;
 use asb_replay::{
     ReplayError, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits, ReplayRoute,
     StrictReplayService,
@@ -13,6 +14,7 @@ use asb_replay::{
 use sha2::{Digest, Sha256};
 use std::io::{Cursor, Read, Write};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Secret-free identity handed from the runtime launch to the capture seam.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,12 +48,33 @@ pub struct ProviderCaptureResult {
     pub cassette_json: Vec<u8>,
 }
 
+/// Runtime-owned cancellation and deadline fence for one capture effect.
+pub struct ProviderCaptureContext<'a> {
+    /// Absolute request deadline inherited from the control admission.
+    pub deadline: RequestDeadline,
+    /// Runtime-owned cancellation flag for this campaign.
+    pub cancelled: &'a AtomicBool,
+}
+
+impl ProviderCaptureContext<'_> {
+    /// Fail closed when cancellation or the absolute deadline is observed.
+    pub fn check(&self) -> Result<(), ProviderCaptureError> {
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(ProviderCaptureError::Cancelled);
+        }
+        self.deadline
+            .check()
+            .map_err(|_| ProviderCaptureError::Deadline)
+    }
+}
+
 /// Runtime-owned provider capture callback.
 pub trait ProviderCapture: Send + Sync {
     /// Capture one tuple through an already authenticated provider launch.
     fn capture(
         &self,
         request: &ProviderCaptureRequest,
+        context: &ProviderCaptureContext<'_>,
     ) -> Result<ProviderCaptureResult, ProviderCaptureError>;
 }
 
@@ -64,12 +87,14 @@ pub fn capture_authenticated_connection<S, F>(
     request: &ProviderCaptureRequest,
     stream: &mut S,
     route: &ReplayRoute,
+    context: &ProviderCaptureContext<'_>,
     forward: F,
 ) -> Result<ProviderCaptureResult, ProviderCaptureError>
 where
     S: Read + Write,
     F: FnOnce(&ReplayRoute, &ReplayHttpRequest) -> Result<ReplayHttpResponse, ReplayError>,
 {
+    context.check()?;
     if request.attempt_id != route.attempt_id {
         return Err(ProviderCaptureError::IdentityMismatch);
     }
@@ -81,6 +106,7 @@ where
             forward,
         )
         .map_err(|_| ProviderCaptureError::Verification)?;
+    context.check()?;
     // Re-open through the strict service constructor before reporting the
     // cassette as replay-ready. This validates route, dialect, redaction and
     // integrity contracts without contacting a provider or retaining payloads.
@@ -125,7 +151,9 @@ impl ProviderCapture for LocalMockProviderCapture {
     fn capture(
         &self,
         request: &ProviderCaptureRequest,
+        context: &ProviderCaptureContext<'_>,
     ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
+        context.check()?;
         if request.agent_id.is_empty()
             || request.workload_id.is_empty()
             || request.scorer_revision.is_empty()
@@ -158,6 +186,7 @@ impl ProviderCapture for LocalMockProviderCapture {
             .map_err(|_| ProviderCaptureError::Unavailable)?
             .response_sha256()
             .to_owned();
+        context.check()?;
         let request_bytes = format!(
             "POST /v1/chat/completions HTTP/1.1\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{}",
             body.len(),
@@ -172,7 +201,7 @@ impl ProviderCapture for LocalMockProviderCapture {
         let service = StrictReplayService::capture_only(ReplayLimits::default())
             .map_err(|_| ProviderCaptureError::Verification)?;
         let mut stream = Cursor::new(request_bytes);
-        capture_authenticated_connection(&service, request, &mut stream, &route, |_, _| {
+        capture_authenticated_connection(&service, request, &mut stream, &route, context, |_, _| {
             Ok(ReplayHttpResponse {
                 status: 200,
                 headers: vec![("content-type", "application/json")]
@@ -207,6 +236,10 @@ pub enum ProviderCaptureError {
     Bounds,
     /// Redaction or strict replay verification failed.
     Verification,
+    /// The control operation was cancelled.
+    Cancelled,
+    /// The control operation deadline expired.
+    Deadline,
 }
 
 /// Default implementation used by the standalone control service until a
@@ -218,6 +251,7 @@ impl ProviderCapture for UnavailableProviderCapture {
     fn capture(
         &self,
         _request: &ProviderCaptureRequest,
+        _context: &ProviderCaptureContext<'_>,
     ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
         Err(ProviderCaptureError::Unavailable)
     }
@@ -230,15 +264,23 @@ mod tests {
     #[test]
     fn local_mock_capture_seals_replayable_secret_free_cassette() {
         let capture = LocalMockProviderCapture::provision().expect("local authority");
+        let cancelled = AtomicBool::new(false);
+        let context = ProviderCaptureContext {
+            deadline: RequestDeadline::start(10_000).expect("deadline"),
+            cancelled: &cancelled,
+        };
         let result = capture
-            .capture(&ProviderCaptureRequest {
-                provider_profile_sha256: "a".repeat(64),
-                agent_id: "aider".into(),
-                workload_id: "original.bug-fix".into(),
-                scorer_revision: "scorer-v1".into(),
-                attempt_id: "campaign-aider-original.bug-fix-attempt".into(),
-                generation: 1,
-            })
+            .capture(
+                &ProviderCaptureRequest {
+                    provider_profile_sha256: "a".repeat(64),
+                    agent_id: "aider".into(),
+                    workload_id: "original.bug-fix".into(),
+                    scorer_revision: "scorer-v1".into(),
+                    attempt_id: "campaign-aider-original.bug-fix-attempt".into(),
+                    generation: 1,
+                },
+                &context,
+            )
             .expect("capture");
         assert!(result.redaction_verified);
         assert!(result.replay_verified);
@@ -254,14 +296,40 @@ mod tests {
     #[test]
     fn local_mock_capture_fences_route_identity() {
         let capture = LocalMockProviderCapture::provision().expect("local authority");
-        let error = capture.capture(&ProviderCaptureRequest {
-            provider_profile_sha256: "b".repeat(64),
-            agent_id: "aider".into(),
-            workload_id: "w".into(),
-            scorer_revision: "s".into(),
-            attempt_id: "".into(),
-            generation: 1,
-        });
+        let cancelled = AtomicBool::new(false);
+        let context = ProviderCaptureContext {
+            deadline: RequestDeadline::start(10_000).expect("deadline"),
+            cancelled: &cancelled,
+        };
+        let error = capture.capture(
+            &ProviderCaptureRequest {
+                provider_profile_sha256: "b".repeat(64),
+                agent_id: "aider".into(),
+                workload_id: "w".into(),
+                scorer_revision: "s".into(),
+                attempt_id: "".into(),
+                generation: 1,
+            },
+            &context,
+        );
         assert_eq!(error, Err(ProviderCaptureError::IdentityMismatch));
+    }
+
+    #[test]
+    fn capture_context_is_effectively_cancelled_and_deadline_bounded() {
+        let cancelled = AtomicBool::new(true);
+        let context = ProviderCaptureContext {
+            deadline: RequestDeadline::start(10_000).expect("deadline"),
+            cancelled: &cancelled,
+        };
+        assert_eq!(context.check(), Err(ProviderCaptureError::Cancelled));
+
+        let cancelled = AtomicBool::new(false);
+        let context = ProviderCaptureContext {
+            deadline: RequestDeadline::start(1).expect("deadline"),
+            cancelled: &cancelled,
+        };
+        std::thread::sleep(std::time::Duration::from_millis(3));
+        assert_eq!(context.check(), Err(ProviderCaptureError::Deadline));
     }
 }

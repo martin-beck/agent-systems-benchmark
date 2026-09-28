@@ -24,14 +24,14 @@ use asb_orchestrator::{
 };
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
-    LocalMockProviderCapture, ProviderCapture, ProviderCaptureError, ProviderCaptureRequest,
-    ProviderCaptureResult, UnavailableProviderCapture,
+    LocalMockProviderCapture, ProviderCapture, ProviderCaptureContext, ProviderCaptureError,
+    ProviderCaptureRequest, ProviderCaptureResult, UnavailableProviderCapture,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -3395,9 +3395,9 @@ impl RunnerBackend {
                     agent_ids: record.agent_ids.clone(),
                     workload_ids: record.workload_ids.clone(),
                     tuple_count: record.tuple_count,
-                    state: "planned".to_owned(),
-                    offline_ready: false,
-                    unavailable_reason: Some("recording-required".to_owned()),
+                    state: record.state.clone(),
+                    offline_ready: record.offline_ready,
+                    unavailable_reason: record.unavailable_reason.clone(),
                 });
         let generation = catalog
             .configuration
@@ -3449,6 +3449,12 @@ impl RunnerBackend {
         if runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
         }
+        if matches!(action, RecordingLifecycleAction::Cancel)
+            && let Ok(cancelled) = self.cancelled.lock()
+            && let Some(flag) = cancelled.get(campaign_id)
+        {
+            flag.store(true, Ordering::Release);
+        }
         if matches!(action, RecordingLifecycleAction::Execute) {
             return self.recording_campaign_execute(
                 call,
@@ -3480,14 +3486,35 @@ impl RunnerBackend {
                 }
                 RecordingLifecycleAction::Cancel => return Err(BackendFailure::Rejected),
                 RecordingLifecycleAction::Reconcile => {
-                    if record.state == "recording" {
+                    if matches!(record.state.as_str(), "recording" | "needs_reconciliation") {
                         for entry in &mut record.coverage {
                             if entry.state == "in_progress" {
                                 entry.state = "stale".to_owned();
                             }
                         }
-                        record.state = "needs_reconciliation".to_owned();
-                        record.unavailable_reason = Some("provider-capture-required".to_owned());
+                        let unresolved = record.coverage.iter().any(|entry| entry.state == "stale");
+                        let artifacts_valid = record.coverage.iter().all(|entry| {
+                            entry.cassette_sha256.as_deref().is_some_and(|digest| {
+                                cassette_artifact_valid(&self.state_root, digest)
+                            })
+                        });
+                        record.state = if unresolved {
+                            "needs_reconciliation".to_owned()
+                        } else {
+                            "complete".to_owned()
+                        };
+                        record.covered_tuple_count = record
+                            .coverage
+                            .iter()
+                            .filter(|entry| entry.state == "complete")
+                            .count() as u16;
+                        record.offline_ready =
+                            !unresolved && recording_coverage_complete(record) && artifacts_valid;
+                        record.unavailable_reason = if record.offline_ready {
+                            None
+                        } else {
+                            Some("provider-capture-required".to_owned())
+                        };
                     }
                 }
                 RecordingLifecycleAction::OfflineDefault => {
@@ -3543,10 +3570,11 @@ impl RunnerBackend {
         if campaign.generation != expected_generation.0 {
             return Err(BackendFailure::StaleIdentity);
         }
-        if campaign.state != "planned" {
-            return if campaign.state == "recording" {
-                Err(BackendFailure::NeedsReconciliation)
-            } else if campaign.state == "complete" {
+        if !matches!(
+            campaign.state.as_str(),
+            "planned" | "recording" | "needs_reconciliation"
+        ) {
+            return if campaign.state == "complete" {
                 self.bind(
                     call,
                     ControlResult::RecordingCampaignLifecycle(self.lifecycle_projection(&campaign)),
@@ -3555,6 +3583,18 @@ impl RunnerBackend {
                 Err(BackendFailure::Rejected)
             };
         }
+        let cancellation = {
+            let mut flags = self
+                .cancelled
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            Arc::clone(
+                flags
+                    .entry(campaign_id.to_owned())
+                    .or_insert_with(|| Arc::new(AtomicBool::new(false))),
+            )
+        };
+        cancellation.store(false, Ordering::Release);
         let start_target = MutationTarget::RecordingCampaignLifecycle {
             campaign_id: campaign_id.to_owned(),
             action: "execute_intent".to_owned(),
@@ -3565,17 +3605,25 @@ impl RunnerBackend {
                 .as_mut()
                 .filter(|record| record.campaign_id == campaign_id)
                 .ok_or(BackendFailure::NotFound)?;
-            if record.generation != expected_generation.0 || record.state != "planned" {
+            if record.generation != expected_generation.0
+                || !matches!(
+                    record.state.as_str(),
+                    "planned" | "recording" | "needs_reconciliation"
+                )
+            {
                 return Err(BackendFailure::StaleIdentity);
             }
             for entry in &mut record.coverage {
-                entry.state = "in_progress".to_owned();
-                entry.cassette_sha256 = None;
-                entry.redaction_verified = false;
-                entry.replay_verified = false;
+                if entry.state != "complete" {
+                    entry.state = "in_progress".to_owned();
+                }
             }
             record.state = "recording".to_owned();
-            record.covered_tuple_count = 0;
+            record.covered_tuple_count = record
+                .coverage
+                .iter()
+                .filter(|entry| entry.state == "complete")
+                .count() as u16;
             record.offline_ready = false;
             record.unavailable_reason = Some("provider-capture-in-progress".to_owned());
             Ok(ControlResult::RecordingCampaignLifecycle(
@@ -3583,9 +3631,22 @@ impl RunnerBackend {
             ))
         })?;
 
-        let mut captures = Vec::<ProviderCaptureResult>::with_capacity(campaign.coverage.len());
+        let campaign = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?
+            .recording_campaign
+            .clone()
+            .ok_or(BackendFailure::NotFound)?;
         let mut failure = None;
         for entry in &campaign.coverage {
+            if entry.state == "complete" {
+                continue;
+            }
+            if cancellation.load(Ordering::Acquire) {
+                failure = Some(ProviderCaptureError::Cancelled);
+                break;
+            }
             let request = ProviderCaptureRequest {
                 provider_profile_sha256: recording_tuple_digest(
                     &campaign.provider_id,
@@ -3601,14 +3662,63 @@ impl RunnerBackend {
                 attempt_id: entry.attempt_id.clone(),
                 generation: campaign.generation,
             };
-            match self.provider_capture.capture(&request) {
+            let context = ProviderCaptureContext {
+                deadline,
+                cancelled: &cancellation,
+            };
+            match self.provider_capture.capture(&request, &context) {
                 Ok(result)
                     if result.redaction_verified
                         && result.replay_verified
                         && asb_control::validate_digest(&result.cassette_sha256).is_ok()
                         && persist_cassette_artifact(&self.state_root, &result).is_ok() =>
                 {
-                    captures.push(result);
+                    let tuple_key = entry.attempt_id.clone();
+                    let checkpoint_key = format!("{key}:tuple:{tuple_key}");
+                    let checkpoint_target = MutationTarget::RecordingCampaignLifecycle {
+                        campaign_id: campaign_id.to_owned(),
+                        action: "tuple_checkpoint".to_owned(),
+                    };
+                    let checkpoint = self.mutation(
+                        call,
+                        &checkpoint_key,
+                        checkpoint_target,
+                        deadline,
+                        |catalog| {
+                            let record = catalog
+                                .recording_campaign
+                                .as_mut()
+                                .filter(|record| record.campaign_id == campaign_id)
+                                .ok_or(BackendFailure::NotFound)?;
+                            let target = record
+                                .coverage
+                                .iter_mut()
+                                .find(|candidate| candidate.attempt_id == tuple_key)
+                                .ok_or(BackendFailure::NotFound)?;
+                            if target.state == "complete" {
+                                return Ok(ControlResult::RecordingCampaignLifecycle(
+                                    self.lifecycle_projection(record),
+                                ));
+                            }
+                            target.state = "complete".to_owned();
+                            target.cassette_sha256 = Some(result.cassette_sha256.clone());
+                            target.redaction_verified = result.redaction_verified;
+                            target.replay_verified = result.replay_verified;
+                            record.covered_tuple_count = record
+                                .coverage
+                                .iter()
+                                .filter(|entry| entry.state == "complete")
+                                .count()
+                                as u16;
+                            Ok(ControlResult::RecordingCampaignLifecycle(
+                                self.lifecycle_projection(record),
+                            ))
+                        },
+                    );
+                    if checkpoint.is_err() {
+                        failure = Some(ProviderCaptureError::Verification);
+                        break;
+                    }
                 }
                 Ok(_) => {
                     failure = Some(ProviderCaptureError::Verification);
@@ -3637,12 +3747,30 @@ impl RunnerBackend {
             if let Some(error) = failure {
                 for entry in &mut record.coverage {
                     if entry.state == "in_progress" {
-                        entry.state = "failed".to_owned();
+                        entry.state = if matches!(
+                            error,
+                            ProviderCaptureError::Cancelled | ProviderCaptureError::Deadline
+                        ) {
+                            "stale".to_owned()
+                        } else {
+                            "failed".to_owned()
+                        };
                     }
                 }
-                record.state = "failed".to_owned();
+                record.state = if matches!(
+                    error,
+                    ProviderCaptureError::Cancelled | ProviderCaptureError::Deadline
+                ) {
+                    "needs_reconciliation".to_owned()
+                } else {
+                    "failed".to_owned()
+                };
                 record.offline_ready = false;
-                record.covered_tuple_count = 0;
+                record.covered_tuple_count = record
+                    .coverage
+                    .iter()
+                    .filter(|entry| entry.state == "complete")
+                    .count() as u16;
                 record.unavailable_reason = Some(
                     match error {
                         ProviderCaptureError::Unavailable => "runtime-capture-unavailable",
@@ -3651,16 +3779,12 @@ impl RunnerBackend {
                         }
                         ProviderCaptureError::Bounds => "runtime-capture-bounds",
                         ProviderCaptureError::Verification => "runtime-capture-verification-failed",
+                        ProviderCaptureError::Cancelled => "recording-cancelled",
+                        ProviderCaptureError::Deadline => "recording-deadline-exceeded",
                     }
                     .to_owned(),
                 );
             } else {
-                for (entry, result) in record.coverage.iter_mut().zip(captures.iter()) {
-                    entry.state = "complete".to_owned();
-                    entry.cassette_sha256 = Some(result.cassette_sha256.clone());
-                    entry.redaction_verified = result.redaction_verified;
-                    entry.replay_verified = result.replay_verified;
-                }
                 record.covered_tuple_count = record.tuple_count;
                 record.state = "complete".to_owned();
                 record.offline_ready = recording_coverage_complete(record)
@@ -4139,10 +4263,11 @@ mod tests {
         fn capture(
             &self,
             request: &ProviderCaptureRequest,
+            context: &ProviderCaptureContext<'_>,
         ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             assert!(request.attempt_id.contains(&request.agent_id));
-            self.delegate.capture(request)
+            self.delegate.capture(request, context)
         }
     }
 
@@ -4154,6 +4279,7 @@ mod tests {
         fn capture(
             &self,
             _request: &ProviderCaptureRequest,
+            _context: &ProviderCaptureContext<'_>,
         ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
             Err(self.error)
         }
@@ -4167,6 +4293,7 @@ mod tests {
         fn capture(
             &self,
             _request: &ProviderCaptureRequest,
+            _context: &ProviderCaptureContext<'_>,
         ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
             Ok(self.result.clone())
         }
@@ -5552,16 +5679,24 @@ mod tests {
             let mut catalog = backend.catalog.lock().unwrap();
             let record = catalog.recording_campaign.as_mut().unwrap();
             let capture = LocalMockProviderCapture::provision().unwrap();
+            let cancelled = AtomicBool::new(false);
+            let context = ProviderCaptureContext {
+                deadline: deadline(),
+                cancelled: &cancelled,
+            };
             for entry in &mut record.coverage {
                 let result = capture
-                    .capture(&ProviderCaptureRequest {
-                        provider_profile_sha256: "a".repeat(64),
-                        agent_id: entry.agent_id.clone(),
-                        workload_id: entry.workload_id.clone(),
-                        scorer_revision: entry.scorer_revision.clone(),
-                        attempt_id: entry.attempt_id.clone(),
-                        generation: entry.generation,
-                    })
+                    .capture(
+                        &ProviderCaptureRequest {
+                            provider_profile_sha256: "a".repeat(64),
+                            agent_id: entry.agent_id.clone(),
+                            workload_id: entry.workload_id.clone(),
+                            scorer_revision: entry.scorer_revision.clone(),
+                            attempt_id: entry.attempt_id.clone(),
+                            generation: entry.generation,
+                        },
+                        &context,
+                    )
                     .unwrap();
                 persist_cassette_artifact(&backend.state_root, &result).unwrap();
                 entry.state = "complete".into();
@@ -5732,6 +5867,8 @@ mod tests {
                     ProviderCaptureError::Bounds => "runtime-capture-bounds",
                     ProviderCaptureError::Verification => "runtime-capture-verification-failed",
                     ProviderCaptureError::Unavailable => unreachable!(),
+                    ProviderCaptureError::Cancelled => "recording-cancelled",
+                    ProviderCaptureError::Deadline => "recording-deadline-exceeded",
                 })
             );
         }
