@@ -542,6 +542,24 @@ pub struct StrictReplayService {
 }
 
 impl StrictReplayService {
+    /// Construct an empty capture service for one runtime-owned exchange.
+    ///
+    /// The service has no replay routes and therefore cannot serve provider
+    /// responses; it only exposes the authenticated capture/sealing boundary.
+    pub fn capture_only(limits: ReplayLimits) -> Result<Self, ReplayError> {
+        let limits = limits.validate()?;
+        Ok(Self {
+            state: Mutex::new(ReplayState {
+                routes: BTreeMap::new(),
+                cursors: BTreeMap::new(),
+                reservations: BTreeMap::new(),
+                sensitive_headers: BTreeSet::new(),
+                request_body_pointers: BTreeMap::new(),
+            }),
+            limits,
+        })
+    }
+
     /// Validate all interactions before making the cassette available.
     pub fn new(cassette: Cassette, limits: ReplayLimits) -> Result<Self, ReplayError> {
         let limits = limits.validate()?;
@@ -738,7 +756,43 @@ impl StrictReplayService {
     {
         let exchange = self.capture_authenticated_connection(stream, route, forward)?;
         let contents = exchange.into_cassette_contents(route, cassette_id)?;
-        let (redacted, report) = crate::Redactor::new(crate::RedactionPolicy::default())
+        // Provider recordings are durable artifacts.  Their body payloads are
+        // never persisted: retain only the protocol shape and replace the
+        // content-bearing fields with bounded redaction markers.
+        let mut policy = crate::RedactionPolicy::default();
+        if let Some(interaction) = contents.interactions.first() {
+            // The capture seam must not persist an arbitrary provider body.
+            // Keep only the model routing identity needed by cassette
+            // normalization; every other top-level field is replaced before
+            // sealing, including unknown provider-specific fields.
+            if let Some(object) = interaction.request.body.as_object() {
+                for key in object.keys().filter(|key| key.as_str() != "model") {
+                    policy
+                        .request_body_pointers
+                        .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
+                }
+            }
+            if let crate::ResponseBody::Buffered { payload, .. } = &interaction.response.body {
+                if let Some(object) = payload.as_object() {
+                    for key in object.keys().filter(|key| key.as_str() != "id") {
+                        policy
+                            .response_body_pointers
+                            .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
+                    }
+                }
+            } else if let crate::ResponseBody::Events { events, .. } = &interaction.response.body {
+                for event in events {
+                    if let Some(object) = event.payload.as_object() {
+                        for key in object.keys().filter(|key| key.as_str() != "id") {
+                            policy
+                                .response_body_pointers
+                                .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
+                        }
+                    }
+                }
+            }
+        }
+        let (redacted, report) = crate::Redactor::new(policy)
             .map_err(|_| ReplayError::InvalidCassette)?
             .redact_contents(contents)
             .map_err(|_| ReplayError::InvalidCassette)?;
@@ -1991,7 +2045,7 @@ mod tests {
 
     #[test]
     fn capture_boundary_seals_redacted_content_addressed_cassette() {
-        let input = b"POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer secret\r\ncontent-length: 39\r\n\r\n{\"model\":\"fixture-model\",\"messages\":[]}".to_vec();
+        let input = b"POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer secret\r\ncontent-length: 64\r\n\r\n{\"model\":\"fixture-model\",\"messages\":[{\"content\":\"body-secret\"}]}".to_vec();
         let mut io = MemoryIo::new(input);
         let route = ReplayRoute {
             session_id: "session".into(),
@@ -2017,7 +2071,10 @@ mod tests {
                     Ok(ReplayHttpResponse {
                         status: 200,
                         headers: vec![],
-                        segments: vec![br#"{"id":"response-1","choices":[]}"#.to_vec()],
+                        segments: vec![
+                            br#"{"id":"response-1","choices":[{"text":"response-secret"}]}"#
+                                .to_vec(),
+                        ],
                         recorded_offsets: vec![Duration::ZERO],
                     })
                 },
@@ -2029,6 +2086,8 @@ mod tests {
         assert_eq!(report.policy_version, 1);
         let encoded = crate::canonical_contents_bytes(&cassette.contents).unwrap();
         assert!(!String::from_utf8_lossy(&encoded).contains("secret"));
+        assert!(!String::from_utf8_lossy(&encoded).contains("body-secret"));
+        assert!(!String::from_utf8_lossy(&encoded).contains("response-secret"));
     }
 
     #[test]
