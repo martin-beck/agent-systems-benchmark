@@ -17,10 +17,13 @@ ssh-keygen -Y sign -f RELEASE_KEY -n asb-runtime-bundle-v1 manifest.json
 
 The manifest's explicit `profile` and `signature_status` fields distinguish the normal `signed`
 profile from opt-in `unsigned-development` and `unsigned-release` profiles. Unsigned profiles
-retain complete content hashes, SBOMs, license evidence, target identity, and provenance; they
-omit only `manifest.json.sig`. The default verifier and all formal qualification paths reject
-unsigned profiles. A caller may deliberately consume one for development or a tagged release
-with `asb-bundle-verify ... --profile unsigned-development` or `--profile unsigned-release`.
+retain complete content hashes, SBOMs, license evidence, target identity, and provenance. The
+default verifier and all formal qualification paths reject unsigned profiles. A caller may
+deliberately consume `unsigned-development` for local qualification with
+`asb-bundle-verify ... --profile unsigned-development`; only this explicit development policy
+may tolerate a missing or arbitrary bounded `manifest.json.sig` file. The `unsigned-release`
+profile remains strict about omitting that file, is not customer-release evidence, and does not
+permit a signature bypass. No profile is inferred from a missing or malformed signature.
 
 Release keys are never part of a bundle. Installers carry an independently provisioned OpenSSH
 allowed-signers file, required principal, exact trusted ssh-keygen path and its SHA-256. They
