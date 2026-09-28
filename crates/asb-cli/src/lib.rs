@@ -449,6 +449,9 @@ fn dispatch(
             execute(Path::new(path), true, true, live_factory, stdout, stderr)
         }
         [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
+        [command, path, flag] if command == "serve" && flag == "--local-mock" => {
+            control::serve_local_mock(Path::new(path)).map(|()| 0)
+        }
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
             compare(runs, stdout).map(|()| 0)
         }

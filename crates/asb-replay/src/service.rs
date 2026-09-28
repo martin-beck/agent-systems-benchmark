@@ -542,6 +542,24 @@ pub struct StrictReplayService {
 }
 
 impl StrictReplayService {
+    /// Construct an empty capture service for one runtime-owned exchange.
+    ///
+    /// The service has no replay routes and therefore cannot serve provider
+    /// responses; it only exposes the authenticated capture/sealing boundary.
+    pub fn capture_only(limits: ReplayLimits) -> Result<Self, ReplayError> {
+        let limits = limits.validate()?;
+        Ok(Self {
+            state: Mutex::new(ReplayState {
+                routes: BTreeMap::new(),
+                cursors: BTreeMap::new(),
+                reservations: BTreeMap::new(),
+                sensitive_headers: BTreeSet::new(),
+                request_body_pointers: BTreeMap::new(),
+            }),
+            limits,
+        })
+    }
+
     /// Validate all interactions before making the cassette available.
     pub fn new(cassette: Cassette, limits: ReplayLimits) -> Result<Self, ReplayError> {
         let limits = limits.validate()?;

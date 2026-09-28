@@ -24,13 +24,13 @@ use asb_orchestrator::{
 };
 use asb_protocol::baseline_measurement_catalog;
 use asb_runtime::provider_capture::{
-    ProviderCapture, ProviderCaptureError, ProviderCaptureRequest, ProviderCaptureResult,
-    UnavailableProviderCapture,
+    LocalMockProviderCapture, ProviderCapture, ProviderCaptureError, ProviderCaptureRequest,
+    ProviderCaptureResult, UnavailableProviderCapture,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::sync::atomic::AtomicU64;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -461,6 +461,71 @@ fn recording_coverage_complete(campaign: &RecordingCampaignRecord) -> bool {
                     .as_deref()
                     .is_some_and(|digest| asb_control::validate_digest(digest).is_ok())
         })
+}
+
+fn cassette_artifact_valid(root: &Path, digest: &str) -> bool {
+    if asb_control::validate_digest(digest).is_err() {
+        return false;
+    }
+    let path = root.join("cassettes").join(format!("{digest}.json"));
+    let Ok(bytes) = fs::read(path) else {
+        return false;
+    };
+    let Ok(cassette) = asb_replay::decode_cassette(&bytes, Default::default()) else {
+        return false;
+    };
+    cassette.integrity.digest == digest
+}
+
+fn persist_cassette_artifact(
+    root: &Path,
+    result: &ProviderCaptureResult,
+) -> Result<(), ProviderCaptureError> {
+    if result.cassette_json.is_empty()
+        || !cassette_artifact_valid_bytes(&result.cassette_json, &result.cassette_sha256)
+    {
+        return Err(ProviderCaptureError::Verification);
+    }
+    let directory = root.join("cassettes");
+    fs::create_dir_all(&directory).map_err(|_| ProviderCaptureError::Verification)?;
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
+        .map_err(|_| ProviderCaptureError::Verification)?;
+    let temporary = directory.join(format!(".{}.tmp", result.cassette_sha256));
+    let file = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)
+    {
+        Ok(mut file) => {
+            file.write_all(&result.cassette_json)
+                .map_err(|_| ProviderCaptureError::Verification)?;
+            file.sync_all()
+                .map_err(|_| ProviderCaptureError::Verification)?;
+            file
+        }
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            if cassette_artifact_valid(root, &result.cassette_sha256) {
+                return Ok(());
+            }
+            return Err(ProviderCaptureError::Verification);
+        }
+        Err(_) => return Err(ProviderCaptureError::Verification),
+    };
+    drop(file);
+    fs::rename(
+        &temporary,
+        directory.join(format!("{}.json", result.cassette_sha256)),
+    )
+    .map_err(|_| ProviderCaptureError::Verification)
+}
+
+fn cassette_artifact_valid_bytes(bytes: &[u8], digest: &str) -> bool {
+    let Ok(cassette) = asb_replay::decode_cassette(bytes, Default::default()) else {
+        return false;
+    };
+    cassette.integrity.digest == digest
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -901,6 +966,21 @@ impl RecordingLifecycleAction {
 }
 
 pub(crate) fn serve(path: &Path) -> Result<(), CliError> {
+    serve_with_capture(path, Arc::new(UnavailableProviderCapture))
+}
+
+/// Serve the control boundary with the explicit credential-free local/mock
+/// provider capture authority. This is never implicit in the normal service.
+pub(crate) fn serve_local_mock(path: &Path) -> Result<(), CliError> {
+    let capture = LocalMockProviderCapture::provision()
+        .map_err(|_| CliError::operation("local mock capture authority unavailable"))?;
+    serve_with_capture(path, Arc::new(capture))
+}
+
+fn serve_with_capture(
+    path: &Path,
+    provider_capture: Arc<dyn ProviderCapture>,
+) -> Result<(), CliError> {
     let config = load_config(path)?;
     if config.schema_version != 1 {
         return Err(CliError::validation(
@@ -913,7 +993,7 @@ pub(crate) fn serve(path: &Path) -> Result<(), CliError> {
         .map_err(|_| CliError::operation("control state root cannot be resolved"))?;
     validate_service_endpoint(&config.socket_path, &state_root)?;
     validate_service_endpoint(&config.provisioning_socket_path, &state_root)?;
-    let backend = open_backend(state_root)?;
+    let backend = open_backend_with_capture(state_root, provider_capture)?;
     let server = ProvisionedControlServer::bind(
         &config.socket_path,
         &config.provisioning_socket_path,
@@ -943,6 +1023,7 @@ fn validate_service_endpoint(path: &Path, state_root: &Path) -> Result<(), CliEr
     Ok(())
 }
 
+#[cfg(test)]
 fn open_backend(state_root: PathBuf) -> Result<RunnerBackend, CliError> {
     open_backend_with_capture(state_root, Arc::new(UnavailableProviderCapture))
 }
@@ -3410,7 +3491,14 @@ impl RunnerBackend {
                     }
                 }
                 RecordingLifecycleAction::OfflineDefault => {
-                    if !record.offline_ready || record.state != "complete" {
+                    if !record.offline_ready
+                        || record.state != "complete"
+                        || !record.coverage.iter().all(|entry| {
+                            entry.cassette_sha256.as_deref().is_some_and(|digest| {
+                                cassette_artifact_valid(&self.state_root, digest)
+                            })
+                        })
+                    {
                         return Err(BackendFailure::CapabilityUnavailable);
                     }
                 }
@@ -3517,7 +3605,8 @@ impl RunnerBackend {
                 Ok(result)
                     if result.redaction_verified
                         && result.replay_verified
-                        && asb_control::validate_digest(&result.cassette_sha256).is_ok() =>
+                        && asb_control::validate_digest(&result.cassette_sha256).is_ok()
+                        && persist_cassette_artifact(&self.state_root, &result).is_ok() =>
                 {
                     captures.push(result);
                 }
@@ -3574,7 +3663,13 @@ impl RunnerBackend {
                 }
                 record.covered_tuple_count = record.tuple_count;
                 record.state = "complete".to_owned();
-                record.offline_ready = recording_coverage_complete(record);
+                record.offline_ready = recording_coverage_complete(record)
+                    && record.coverage.iter().all(|entry| {
+                        entry
+                            .cassette_sha256
+                            .as_deref()
+                            .is_some_and(|digest| cassette_artifact_valid(&self.state_root, digest))
+                    });
                 record.unavailable_reason = if record.offline_ready {
                     None
                 } else {
@@ -4037,6 +4132,7 @@ mod tests {
 
     struct FixtureProviderCapture {
         calls: AtomicUsize,
+        delegate: LocalMockProviderCapture,
     }
 
     impl ProviderCapture for FixtureProviderCapture {
@@ -4046,11 +4142,7 @@ mod tests {
         ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             assert!(request.attempt_id.contains(&request.agent_id));
-            Ok(ProviderCaptureResult {
-                cassette_sha256: "a".repeat(64),
-                redaction_verified: true,
-                replay_verified: true,
-            })
+            self.delegate.capture(request)
         }
     }
 
@@ -5505,6 +5597,7 @@ mod tests {
         prepare_root(&state).unwrap();
         let capture = Arc::new(FixtureProviderCapture {
             calls: AtomicUsize::new(0),
+            delegate: LocalMockProviderCapture::provision().unwrap(),
         });
         let backend = open_backend_with_capture(state, capture.clone()).unwrap();
         let runner = backend.runner_instance_id().to_owned();
@@ -5641,6 +5734,7 @@ mod tests {
                     cassette_sha256: "a".repeat(64),
                     redaction_verified: false,
                     replay_verified: true,
+                    cassette_json: Vec::new(),
                 },
             ),
             (
@@ -5649,6 +5743,7 @@ mod tests {
                     cassette_sha256: "a".repeat(64),
                     redaction_verified: true,
                     replay_verified: false,
+                    cassette_json: Vec::new(),
                 },
             ),
             (
@@ -5657,6 +5752,7 @@ mod tests {
                     cassette_sha256: "not-a-digest".into(),
                     redaction_verified: true,
                     replay_verified: true,
+                    cassette_json: Vec::new(),
                 },
             ),
         ] {
