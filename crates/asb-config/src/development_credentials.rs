@@ -258,6 +258,9 @@ impl DevelopmentCredentialStore {
             return Err(DevelopmentCredentialError::IdempotencyConflict);
         }
         validate_selection(&request.provider_id, &request.model_id, request.auth_method)?;
+        if request.operation != DevelopmentCredentialOperation::Enroll {
+            validate_bound_selection(&self.status, &request)?;
+        }
         validate_generation(&self.status, &request)?;
 
         let mut mock_tested = false;
@@ -422,6 +425,9 @@ pub enum DevelopmentCredentialError {
     /// Provider/model/auth combination is not in the local compatibility matrix.
     #[error("provider, model, and authentication method are incompatible")]
     IncompatibleSelection,
+    /// A non-enrollment operation selected a different binding than the active enrollment.
+    #[error("development credential selection does not match the active enrollment")]
+    SelectionMismatch,
     /// Caller supplied a stale or invalid generation.
     #[error("development credential generation is stale")]
     StaleGeneration,
@@ -546,6 +552,22 @@ fn validate_generation(
         }
     } else if request.expected_generation != status.generation {
         return Err(DevelopmentCredentialError::StaleGeneration);
+    }
+    Ok(())
+}
+
+fn validate_bound_selection(
+    status: &DevelopmentCredentialStatus,
+    request: &DevelopmentCredentialRequest,
+) -> Result<(), DevelopmentCredentialError> {
+    if status.identity.is_none() {
+        return Err(DevelopmentCredentialError::NotEnrolled);
+    }
+    if status.provider_id != request.provider_id
+        || status.model_id != request.model_id
+        || status.auth_method != request.auth_method
+    {
+        return Err(DevelopmentCredentialError::SelectionMismatch);
     }
     Ok(())
 }
@@ -739,6 +761,45 @@ mod tests {
             ),
             Err(DevelopmentCredentialError::StaleGeneration)
         ));
+    }
+
+    #[test]
+    fn non_enroll_operations_require_the_active_selection_binding() {
+        let mut store = DevelopmentCredentialStore::new();
+        let mut enrolled = request(DevelopmentCredentialOperation::Enroll, "bound-enroll", 0);
+        enrolled.provider_id = "openrouter".into();
+        enrolled.model_id = "cohere/north-mini-code:free".into();
+        enrolled.auth_method = DevelopmentAuthMethod::CredentialReference;
+        store
+            .apply(enrolled, DevelopmentServiceAvailability::default())
+            .unwrap();
+
+        let mut wrong_provider = request(DevelopmentCredentialOperation::Test, "bound-provider", 1);
+        wrong_provider.provider_id = "openai".into();
+        wrong_provider.model_id = "gpt-4o-mini".into();
+        wrong_provider.auth_method = DevelopmentAuthMethod::CredentialReference;
+        assert_eq!(
+            store.apply(wrong_provider, DevelopmentServiceAvailability::default()),
+            Err(DevelopmentCredentialError::SelectionMismatch)
+        );
+
+        let mut wrong_model = request(DevelopmentCredentialOperation::Status, "bound-model", 1);
+        wrong_model.provider_id = "openrouter".into();
+        wrong_model.model_id = "meta/llama-3.1-8b-instruct:free".into();
+        wrong_model.auth_method = DevelopmentAuthMethod::CredentialReference;
+        assert_eq!(
+            store.apply(wrong_model, DevelopmentServiceAvailability::default()),
+            Err(DevelopmentCredentialError::SelectionMismatch)
+        );
+
+        let mut wrong_auth = request(DevelopmentCredentialOperation::Test, "bound-auth", 1);
+        wrong_auth.provider_id = "openrouter".into();
+        wrong_auth.model_id = "cohere/north-mini-code:free".into();
+        wrong_auth.auth_method = DevelopmentAuthMethod::None;
+        assert_eq!(
+            store.apply(wrong_auth, DevelopmentServiceAvailability::default()),
+            Err(DevelopmentCredentialError::SelectionMismatch)
+        );
     }
 
     #[test]
