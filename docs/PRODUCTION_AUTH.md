@@ -18,11 +18,15 @@ authorization, Anthropic uses `x-api-key`, Gemini uses `x-goog-api-key`, and
 Ollama must explicitly choose bearer or no-auth. Endpoint identity is hashed
 and checked on every binding and verification request.
 
-Remote verification is an injected, bounded `RemoteVerifier`. The result must
-match the current enrollment generation and endpoint digest and must report
-successful authentication before an enrollment becomes `active`. Delayed,
-cross-endpoint, malformed, or rejected results fail closed. Tests use a local
-deterministic verifier; live provider access is never a development gate.
+Remote verification is an injected, bounded `RemoteVerifier`. Each request
+carries the connection, provider family, authentication method, secure-store
+reference, generation, endpoint digest, and challenge explicitly, so an
+adapter does not need ambient enrollment lookup. The result must match the
+current enrollment generation and endpoint digest and must report successful
+authentication before an enrollment becomes `active`. Delayed, cross-endpoint,
+malformed, or rejected results fail closed. Persisted enrollment metadata is
+validated before a verifier is called. Tests use a local deterministic
+verifier; live provider access is never a development gate.
 
 Rotation is compare-and-swap fenced. The replacement is staged before the old
 reference is revoked; if revocation fails the replacement is rolled back and

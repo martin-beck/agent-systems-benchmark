@@ -400,6 +400,12 @@ impl ProductionEnrollmentV1 {
 pub struct RemoteVerificationRequestV1 {
     /// Connection being verified.
     pub connection_id: String,
+    /// Provider family bound to the enrollment.
+    pub provider: ProviderFamily,
+    /// Authentication method bound to the enrollment.
+    pub auth_method: ProviderAuthMethod,
+    /// Secure-store reference bound to the enrollment.
+    pub secret: SecretReferenceV1,
     /// Enrollment generation being verified.
     pub generation: u64,
     /// Exact endpoint identity expected by the caller.
@@ -441,6 +447,7 @@ impl ProductionEnrollmentV1 {
         max_response_bytes: u32,
         verifier: &mut V,
     ) -> Result<RemoteVerificationResultV1, ProductionAuthError> {
+        self.validate()?;
         if self.status == ProductionEnrollmentStatus::Revoked {
             return Err(ProductionAuthError::Revoked);
         }
@@ -452,6 +459,9 @@ impl ProductionEnrollmentV1 {
         }
         let request = RemoteVerificationRequestV1 {
             connection_id: self.connection_id.clone(),
+            provider: self.auth.provider,
+            auth_method: self.auth.method,
+            secret: self.secret.clone(),
             generation: self.generation,
             endpoint_identity_sha256: self.auth.endpoint_identity_sha256.clone(),
             challenge_sha256: challenge_sha256.to_owned(),
@@ -714,13 +724,15 @@ mod tests {
 
     struct Verifier {
         result: RemoteVerificationResultV1,
+        request: Option<RemoteVerificationRequestV1>,
     }
 
     impl RemoteVerifier for Verifier {
         fn verify(
             &mut self,
-            _: &RemoteVerificationRequestV1,
+            request: &RemoteVerificationRequestV1,
         ) -> Result<RemoteVerificationResultV1, ProductionAuthError> {
+            self.request = Some(request.clone());
             Ok(self.result.clone())
         }
     }
@@ -832,11 +844,18 @@ mod tests {
                 response_sha256: "a".repeat(64),
                 authenticated: true,
             },
+            request: None,
         };
         enrollment
             .verify_remote("b".repeat(64).as_str(), 4096, &mut verifier)
             .unwrap();
         assert_eq!(enrollment.status, ProductionEnrollmentStatus::Active);
+        let request = verifier.request.as_ref().unwrap();
+        assert_eq!(request.connection_id, "primary");
+        assert_eq!(request.provider, ProviderFamily::OpenAiCompatible);
+        assert_eq!(request.auth_method, ProviderAuthMethod::AuthorizationBearer);
+        assert_eq!(request.secret, enrollment.secret);
+        assert_eq!(request.generation, enrollment.generation);
         enrollment
             .rotate(
                 1,
@@ -849,6 +868,36 @@ mod tests {
             enrollment.verify_remote("b".repeat(64).as_str(), 4096, &mut verifier),
             Err(ProductionAuthError::StaleVerification)
         );
+    }
+
+    #[test]
+    fn remote_verification_validates_persisted_binding_before_dispatch() {
+        let (mut auth, secret) = setup();
+        auth.method = ProviderAuthMethod::XApiKey;
+        let mut store = DeterministicMockSecureSecretStore::new();
+        let mut enrollment = ProductionEnrollmentV1::enroll(
+            "primary",
+            setup().0,
+            secret,
+            b"provider-secret",
+            &mut store,
+        )
+        .unwrap();
+        enrollment.auth = auth;
+        let mut verifier = Verifier {
+            result: RemoteVerificationResultV1 {
+                generation: 1,
+                endpoint_identity_sha256: enrollment.auth.endpoint_identity_sha256.clone(),
+                response_sha256: "a".repeat(64),
+                authenticated: true,
+            },
+            request: None,
+        };
+        assert_eq!(
+            enrollment.verify_remote("b".repeat(64).as_str(), 4096, &mut verifier),
+            Err(ProductionAuthError::InvalidEndpoint)
+        );
+        assert!(verifier.request.is_none());
     }
 
     #[test]
