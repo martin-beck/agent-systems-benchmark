@@ -35,6 +35,9 @@ the selected agent set. `default_for_all` creates the setup default, while
 provider configuration. Every capture carries a generation-bound public
 receipt and an explicit fixture seed; stale generations, provider/model
 mismatches, malformed receipts, and idempotency conflicts fail closed.
+The receipt preserves the AR-1499 enrollment self-signature digest and also
+contains a separate seed-bound fixture signature; neither value is a
+production trust assertion.
 
 The fixture produces deterministic loopback-only mock exchanges, seals them
 through the normal redaction and cassette integrity boundary, and exposes the
@@ -43,5 +46,6 @@ path. Serialization, cancellation, interrupted capture recovery, and complete
 selected/all-agent comparison readiness are covered by Rust tests. The fixture
 warnings about missing authentication, signature validation, and key
 management are intentionally visible but never block this development path.
-It is not production provider evidence; production credential and signing
-hardening remains the responsibility of AR-1501.
+Restart state is bounded before JSON parsing and is integrity-checked on
+restore. It is not production provider evidence; production credential and
+signing hardening remains the responsibility of AR-1501.

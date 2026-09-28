@@ -30,6 +30,7 @@ pub const DEVELOPMENT_FIXTURE_SEED: &str = "asb-development-fixture-v1";
 const MAX_TEXT_BYTES: usize = 128;
 const MAX_AGENTS: usize = 32;
 const MAX_CAPTURES: usize = 256;
+const MAX_FIXTURE_STATE_BYTES: usize = 1024 * 1024;
 
 /// Provider/model and all-agent application selected by the development setup.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -72,6 +73,8 @@ pub struct DevelopmentCredentialReceipt {
     pub key_id: String,
     /// Generated public-key fixture digest.
     pub public_key_sha256: String,
+    /// Self-signature digest issued by the AR-1499 enrollment store.
+    pub enrollment_signature_sha256: String,
     /// Deterministic fixture signature digest.
     pub signature_sha256: String,
 }
@@ -199,6 +202,9 @@ pub enum DevelopmentFixtureError {
     /// State encoding failed.
     #[error("development fixture state encoding failed")]
     Encoding,
+    /// Restart state exceeded the bounded persistence contract.
+    #[error("development fixture state exceeds its bound")]
+    StateTooLarge,
 }
 
 impl DevelopmentProviderFixture {
@@ -302,6 +308,7 @@ impl DevelopmentProviderFixture {
             fixture_seed_sha256: seed_digest,
             key_id: identity.key_id.clone(),
             public_key_sha256: identity.public_key_sha256.clone(),
+            enrollment_signature_sha256: identity.signature_sha256.clone(),
             signature_sha256,
         })
     }
@@ -433,11 +440,18 @@ impl DevelopmentProviderFixture {
 
     /// Serialize bounded restart state without secrets or raw prompts.
     pub fn to_json(&self) -> Result<Vec<u8>, DevelopmentFixtureError> {
-        serde_json::to_vec(self).map_err(|_| DevelopmentFixtureError::Encoding)
+        let bytes = serde_json::to_vec(self).map_err(|_| DevelopmentFixtureError::Encoding)?;
+        if bytes.len() > MAX_FIXTURE_STATE_BYTES {
+            return Err(DevelopmentFixtureError::StateTooLarge);
+        }
+        Ok(bytes)
     }
 
     /// Restore and validate bounded restart state and all cassette integrity roots.
     pub fn from_json(bytes: &[u8]) -> Result<Self, DevelopmentFixtureError> {
+        if bytes.is_empty() || bytes.len() > MAX_FIXTURE_STATE_BYTES {
+            return Err(DevelopmentFixtureError::StateTooLarge);
+        }
         let fixture: Self =
             serde_json::from_slice(bytes).map_err(|_| DevelopmentFixtureError::InvalidState)?;
         fixture.validate_state()?;
@@ -773,6 +787,12 @@ mod tests {
             fixture.capture(malformed),
             Err(DevelopmentFixtureError::InvalidReceipt)
         );
+        let mut enrollment_tampered = request(&fixture, "enrollment-tampered", "codex");
+        enrollment_tampered.receipt.enrollment_signature_sha256 = "0".repeat(64);
+        assert_eq!(
+            fixture.capture(enrollment_tampered),
+            Err(DevelopmentFixtureError::InvalidReceipt)
+        );
         let mut wrong = request(&fixture, "wrong", "codex");
         wrong.receipt.model_id = "other-model".into();
         assert_eq!(
@@ -841,5 +861,14 @@ mod tests {
         fixture.recover_after_restart().unwrap();
         assert_eq!(fixture.state(), DevelopmentFixtureState::Ready);
         assert!(!fixture.comparison_readiness().ready);
+    }
+
+    #[test]
+    fn restart_state_is_bounded_before_deserialization() {
+        let oversized = vec![b' '; MAX_FIXTURE_STATE_BYTES + 1];
+        assert!(matches!(
+            DevelopmentProviderFixture::from_json(&oversized),
+            Err(DevelopmentFixtureError::StateTooLarge)
+        ));
     }
 }
