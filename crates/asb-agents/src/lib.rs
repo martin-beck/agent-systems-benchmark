@@ -25,6 +25,7 @@ pub mod opendesk;
 pub mod openhands;
 pub mod openjiuwen;
 pub mod openrouter;
+pub mod production_auth;
 pub mod provider;
 pub mod provider_launch;
 pub mod qwen_code;
