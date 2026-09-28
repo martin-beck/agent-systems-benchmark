@@ -17,8 +17,9 @@ use crate::sandbox::{
     SandboxLaunchInput, ToolPin,
 };
 use asb_control::{
-    ControlCall, ControlClient, ControlResult, ControlSuccess, IssuedCertificateChainV1,
-    RuntimeEnrollmentReceiptV1, RuntimeReceiptRequestV1, RuntimeReceiptResponseV1,
+    AuthenticatedChainEnrollmentV1, ControlCall, ControlClient, ControlResult, ControlSuccess,
+    IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1, RuntimeReceiptRequestV1,
+    RuntimeReceiptResponseV1,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -39,7 +40,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// certificate bytes, identities, or trust anchors from a CLI caller.
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeCertificateChainStore {
-    chain: Arc<Mutex<Option<IssuedCertificateChainV1>>>,
+    chain: Arc<Mutex<Option<RuntimeCertificateChainState>>>,
 }
 
 /// Failure while installing or retrieving the runtime-owned chain.
@@ -51,6 +52,160 @@ pub enum RuntimeCertificateChainStoreError {
     StaleGeneration,
     /// The store lock was poisoned after an unexpected runtime failure.
     StateUnavailable,
+    /// The source-issued chain did not match the authenticated enrollment.
+    EnrollmentMismatch,
+    /// The enrolled chain has expired.
+    Expired,
+    /// Cancellation or teardown revoked the enrolled chain.
+    Revoked,
+}
+
+/// Secret-free runtime binding required before a bootstrap authority may issue
+/// a certificate chain.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeBootstrapRequestV1 {
+    /// Provider identity from the control enrollment.
+    pub provider: String,
+    /// Monotonic enrollment generation.
+    pub generation: u64,
+    /// Endpoint identity digest from the control enrollment.
+    pub endpoint_identity_sha256: String,
+    /// Credential resolver reference digest.
+    pub credential_ref_sha256: String,
+    /// Authenticated control-session identity digest.
+    pub control_session_sha256: String,
+    /// Runtime namespace identity digest.
+    pub namespace_sha256: String,
+    /// Runtime relay-root identity digest.
+    pub relay_root_sha256: String,
+    /// Runtime lease-root identity digest.
+    pub lease_root_sha256: String,
+    /// Exclusive validity deadline in Unix milliseconds.
+    pub expires_at_unix_ms: u64,
+}
+
+impl RuntimeBootstrapRequestV1 {
+    /// Validate bounded digest-only bootstrap inputs.
+    pub fn validate(&self) -> Result<(), RuntimeCertificateChainStoreError> {
+        if self.provider.is_empty()
+            || self.provider.len() > 64
+            || self.generation == 0
+            || self.expires_at_unix_ms == 0
+            || !valid_digest(&self.endpoint_identity_sha256)
+            || !valid_digest(&self.credential_ref_sha256)
+            || !valid_digest(&self.control_session_sha256)
+            || !valid_digest(&self.namespace_sha256)
+            || !valid_digest(&self.relay_root_sha256)
+            || !valid_digest(&self.lease_root_sha256)
+        {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        Ok(())
+    }
+
+    /// Digest binding all runtime-owned identities to the control enrollment.
+    #[must_use]
+    pub fn binding_sha256(&self) -> String {
+        let mut digest = Sha256::new();
+        let generation = self.generation.to_string();
+        let expiry = self.expires_at_unix_ms.to_string();
+        for value in [
+            self.provider.as_str(),
+            generation.as_str(),
+            self.endpoint_identity_sha256.as_str(),
+            self.credential_ref_sha256.as_str(),
+            self.control_session_sha256.as_str(),
+            self.namespace_sha256.as_str(),
+            self.relay_root_sha256.as_str(),
+            self.lease_root_sha256.as_str(),
+            expiry.as_str(),
+        ] {
+            digest.update(value.as_bytes());
+            digest.update([0]);
+        }
+        format!("{:x}", digest.finalize())
+    }
+}
+
+mod bootstrap_authority_sealed {
+    pub trait Sealed {}
+}
+
+/// Runtime-owned bootstrap authority source.
+///
+/// This trait is sealed so a frontend cannot implement an authority source
+/// which turns caller-provided metadata into a chain. Implementations are
+/// limited to runtime/platform adapters in this crate; private signing
+/// material stays inside the adapter and only a validated opaque chain is
+/// returned.
+pub trait RuntimeBootstrapAuthoritySource:
+    bootstrap_authority_sealed::Sealed + Send + Sync
+{
+    /// Issue one chain for the exact authenticated control/runtime binding.
+    fn issue_chain(
+        &self,
+        enrollment: &AuthenticatedChainEnrollmentV1,
+        request: &RuntimeBootstrapRequestV1,
+        now_unix_seconds: u64,
+    ) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError>;
+}
+
+/// Runtime/platform adapter for one authenticated certificate authority.
+///
+/// The adapter is constructed by the runtime owner with the exact digest of
+/// the session, namespace, relay, lease, credential and expiry binding. The
+/// digest is never accepted from a CLI request as authority; enrollment
+/// rejects any request that does not match this pre-bound adapter.
+#[derive(Clone, Debug)]
+pub struct RuntimeCertificateAuthoritySource {
+    authority: asb_control::CertificateAuthorityV1,
+    binding_sha256: String,
+}
+
+impl RuntimeCertificateAuthoritySource {
+    /// Construct an adapter from a runtime-owned authority and immutable
+    /// binding digest. Platform code must derive the digest from its own
+    /// authenticated session and resource roots before calling this boundary.
+    #[allow(dead_code)] // Wired by the runtime-owned platform adapter.
+    pub(crate) fn new(
+        authority: asb_control::CertificateAuthorityV1,
+        binding_sha256: String,
+    ) -> Result<Self, RuntimeCertificateChainStoreError> {
+        if !valid_digest(&binding_sha256) {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        Ok(Self {
+            authority,
+            binding_sha256,
+        })
+    }
+}
+
+impl bootstrap_authority_sealed::Sealed for RuntimeCertificateAuthoritySource {}
+
+impl RuntimeBootstrapAuthoritySource for RuntimeCertificateAuthoritySource {
+    fn issue_chain(
+        &self,
+        enrollment: &AuthenticatedChainEnrollmentV1,
+        request: &RuntimeBootstrapRequestV1,
+        now_unix_seconds: u64,
+    ) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError> {
+        if request.binding_sha256() != self.binding_sha256 {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        enrollment
+            .issue_chain(&self.authority, now_unix_seconds)
+            .map_err(|_| RuntimeCertificateChainStoreError::EnrollmentMismatch)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct RuntimeCertificateChainState {
+    chain: IssuedCertificateChainV1,
+    binding_sha256: String,
+    request: Option<RuntimeBootstrapRequestV1>,
+    expires_at_unix_ms: u64,
+    revoked: bool,
 }
 
 /// Fail-closed errors from the runtime-owned control receipt adapter.
@@ -75,6 +230,7 @@ impl RuntimeCertificateChainStore {
 
     /// Install a validated opaque chain from the authenticated control/runtime
     /// boundary. Raw certificate material never enters this API.
+    #[cfg(test)]
     pub(crate) fn install(
         &self,
         chain: IssuedCertificateChainV1,
@@ -83,25 +239,166 @@ impl RuntimeCertificateChainStore {
             .chain
             .lock()
             .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?;
-        if current
-            .as_ref()
-            .is_some_and(|existing| existing.identity().generation >= chain.identity().generation)
-        {
+        if current.as_ref().is_some_and(|existing| {
+            existing.chain.identity().generation >= chain.identity().generation
+        }) {
             return Err(RuntimeCertificateChainStoreError::StaleGeneration);
         }
-        *current = Some(chain);
+        *current = Some(RuntimeCertificateChainState {
+            chain,
+            binding_sha256: String::new(),
+            request: None,
+            expires_at_unix_ms: u64::MAX,
+            revoked: false,
+        });
         Ok(())
     }
 
-    /// Return the currently enrolled opaque chain for runtime-owned bridge
-    /// validation. No certificate bytes or private authority escape.
-    pub fn chain(&self) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError> {
+    /// Enroll a chain only from the runtime-owned bootstrap source.
+    pub fn enroll_from_authority(
+        &self,
+        source: &dyn RuntimeBootstrapAuthoritySource,
+        enrollment: &AuthenticatedChainEnrollmentV1,
+        request: &RuntimeBootstrapRequestV1,
+        now_unix_ms: u64,
+    ) -> Result<(), RuntimeCertificateChainStoreError> {
+        request.validate()?;
+        if now_unix_ms >= request.expires_at_unix_ms
+            || enrollment.schema_version != 1
+            || enrollment.generation != request.generation
+            || enrollment.pairing_fingerprint_sha256 != request.control_session_sha256
+        {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        let chain = source.issue_chain(enrollment, request, now_unix_ms / 1_000)?;
+        let identity = chain.identity();
+        if identity.generation != request.generation
+            || identity.endpoint_identity_sha256 != request.endpoint_identity_sha256
+            || identity.subject_sha256 != request.control_session_sha256
+            || enrollment.chain_sha256() != chain.chain_sha256()
+        {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        let mut current = self
+            .chain
+            .lock()
+            .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?;
+        if current
+            .as_ref()
+            .is_some_and(|existing| existing.chain.identity().generation >= identity.generation)
+        {
+            return Err(RuntimeCertificateChainStoreError::StaleGeneration);
+        }
+        *current = Some(RuntimeCertificateChainState {
+            chain,
+            binding_sha256: request.binding_sha256(),
+            request: Some(request.clone()),
+            expires_at_unix_ms: request.expires_at_unix_ms,
+            revoked: false,
+        });
+        Ok(())
+    }
+
+    /// Revoke the active generation for cancellation or teardown.
+    pub fn revoke(&self, generation: u64) -> Result<(), RuntimeCertificateChainStoreError> {
+        let mut state = self
+            .chain
+            .lock()
+            .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?;
+        let active = state
+            .as_mut()
+            .ok_or(RuntimeCertificateChainStoreError::Unavailable)?;
+        if active.chain.identity().generation != generation {
+            return Err(RuntimeCertificateChainStoreError::StaleGeneration);
+        }
+        active.revoked = true;
+        Ok(())
+    }
+
+    /// Return the currently enrolled opaque chain for test-only store checks.
+    /// No certificate bytes or private authority escape.
+    #[cfg(test)]
+    pub(crate) fn chain(
+        &self,
+    ) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError> {
         self.chain
             .lock()
             .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?
             .clone()
+            .map(|state| state.chain)
             .ok_or(RuntimeCertificateChainStoreError::Unavailable)
     }
+
+    /// Return the active chain only while its source binding is valid.
+    pub fn chain_at(
+        &self,
+        binding_sha256: &str,
+        now_unix_ms: u64,
+    ) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError> {
+        let state = self
+            .chain
+            .lock()
+            .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?
+            .clone()
+            .ok_or(RuntimeCertificateChainStoreError::Unavailable)?;
+        if state.revoked {
+            return Err(RuntimeCertificateChainStoreError::Revoked);
+        }
+        if state.expires_at_unix_ms <= now_unix_ms {
+            return Err(RuntimeCertificateChainStoreError::Expired);
+        }
+        if !state.binding_sha256.is_empty() && state.binding_sha256 != binding_sha256 {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        Ok(state.chain)
+    }
+
+    /// Return the active source-issued chain after validating receipt fields.
+    pub fn active_chain_for_receipt(
+        &self,
+        receipt: &RuntimeEnrollmentReceiptV1,
+        now_unix_ms: u64,
+    ) -> Result<IssuedCertificateChainV1, RuntimeCertificateChainStoreError> {
+        let state = self
+            .chain
+            .lock()
+            .map_err(|_| RuntimeCertificateChainStoreError::StateUnavailable)?
+            .clone()
+            .ok_or(RuntimeCertificateChainStoreError::Unavailable)?;
+        if state.revoked {
+            return Err(RuntimeCertificateChainStoreError::Revoked);
+        }
+        if state.expires_at_unix_ms <= now_unix_ms {
+            return Err(RuntimeCertificateChainStoreError::Expired);
+        }
+        if receipt.chain_sha256 != state.chain.chain_sha256()
+            || receipt.issued_at_unix_ms > now_unix_ms
+            || receipt.expires_at_unix_ms <= now_unix_ms
+            || receipt.expires_at_unix_ms > state.expires_at_unix_ms
+        {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        let request = state
+            .request
+            .ok_or(RuntimeCertificateChainStoreError::EnrollmentMismatch)?;
+        if receipt.provider != request.provider
+            || receipt.generation != request.generation
+            || receipt.endpoint_identity_sha256 != request.endpoint_identity_sha256
+            || receipt.credential_ref_sha256 != request.credential_ref_sha256
+            || receipt.lease_root_sha256 != request.lease_root_sha256
+            || receipt.relay_root_sha256 != request.relay_root_sha256
+        {
+            return Err(RuntimeCertificateChainStoreError::EnrollmentMismatch);
+        }
+        Ok(state.chain)
+    }
+}
+
+fn valid_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
 /// Validated references accepted by the production live acquisition service.
@@ -1000,7 +1297,8 @@ impl LiveProviderRuntimeBridge {
     /// Materialize one opaque authority profile from authenticated runtime
     /// state. Caller-supplied records, stale attestations, and replayed
     /// records fail closed before any live launch authority is available.
-    pub fn materialize_profile(
+    #[allow(dead_code)] // Retained for the runtime orchestrator integration.
+    pub(crate) fn materialize_profile(
         &self,
         record: &LiveProviderEnrollmentRecordV1,
         attestation: &LiveProviderControlAttestation,
@@ -1015,7 +1313,7 @@ impl LiveProviderRuntimeBridge {
 
     /// Validate a control-issued receipt against its opaque authenticated chain
     /// and consume it exactly once in the runtime ledger.
-    pub fn ingest_control_receipt(
+    pub(crate) fn ingest_control_receipt(
         &self,
         receipt: &RuntimeEnrollmentReceiptV1,
         chain: &IssuedCertificateChainV1,
@@ -1066,7 +1364,8 @@ impl LiveProviderRuntimeBridge {
     /// the runtime-owned receipt-to-bootstrap boundary: callers cannot inject
     /// a record, endpoint, credential, policy, root, or tool and the ledger
     /// consumes the receipt before a profile is returned.
-    pub fn materialize_control_receipt_profile(
+    #[allow(dead_code)] // Retained for the runtime orchestrator integration.
+    pub(crate) fn materialize_control_receipt_profile(
         &self,
         receipt: &RuntimeEnrollmentReceiptV1,
         chain: &IssuedCertificateChainV1,
@@ -1096,7 +1395,7 @@ impl LiveProviderRuntimeBridge {
     /// path. The request binding and certificate chain are supplied by the
     /// control/runtime boundary; callers cannot turn a fabricated response
     /// into a live enrollment record.
-    pub fn ingest_control_response(
+    pub(crate) fn ingest_control_response(
         &self,
         request: &RuntimeReceiptRequestV1,
         response: &RuntimeReceiptResponseV1,
@@ -1132,20 +1431,9 @@ impl LiveProviderRuntimeBridge {
                 _ => None,
             })
             .ok_or(LiveProviderControlAdapterError::InvalidResponse)?;
-        let chain = match chains.chain() {
-            Ok(chain) => chain,
-            Err(RuntimeCertificateChainStoreError::Unavailable) => {
-                let chain = result
-                    .chain
-                    .issue_runtime_chain(now_unix_ms / 1_000)
-                    .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
-                chains
-                    .install(chain.clone())
-                    .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
-                chain
-            }
-            Err(_) => return Err(LiveProviderControlAdapterError::ChainUnavailable),
-        };
+        let chain = chains
+            .active_chain_for_receipt(&result.receipt, now_unix_ms)
+            .map_err(|_| LiveProviderControlAdapterError::ChainUnavailable)?;
         self.ingest_control_response(&request, result, &chain, now_unix_ms)
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)
     }
@@ -1816,13 +2104,6 @@ impl LiveProviderRuntimeConfig {
     }
 }
 
-fn valid_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1914,6 +2195,157 @@ mod tests {
             LiveProviderProvisioner::new(config, policy, allowlist, backend, &relay_root).unwrap(),
             relay_root,
         )
+    }
+
+    fn bootstrap_fixture(
+        expires_at_unix_ms: u64,
+    ) -> (
+        RuntimeBootstrapRequestV1,
+        AuthenticatedChainEnrollmentV1,
+        RuntimeCertificateAuthoritySource,
+    ) {
+        let request = RuntimeBootstrapRequestV1 {
+            provider: "openrouter".into(),
+            generation: 1,
+            endpoint_identity_sha256: "b".repeat(64),
+            credential_ref_sha256: "c".repeat(64),
+            control_session_sha256: "d".repeat(64),
+            namespace_sha256: "e".repeat(64),
+            relay_root_sha256: "f".repeat(64),
+            lease_root_sha256: "1".repeat(64),
+            expires_at_unix_ms,
+        };
+        let enrollment = AuthenticatedChainEnrollmentV1 {
+            schema_version: 1,
+            chain: vec![CertificateIdentityV1 {
+                schema_version: 1,
+                subject_sha256: request.control_session_sha256.clone(),
+                issuer_sha256: "3".repeat(64),
+                certificate_sha256: "3".repeat(64),
+                trust_anchor_sha256: "a".repeat(64),
+                generation: 1,
+                not_before: 1,
+                not_after: 10_000,
+                role: "operator".into(),
+                endpoint_identity_sha256: request.endpoint_identity_sha256.clone(),
+            }],
+            pairing_fingerprint_sha256: request.control_session_sha256.clone(),
+            generation: 1,
+        };
+        let authority = CertificateAuthorityV1::with_trust_anchor_digest_and_endpoint(
+            "a".repeat(64),
+            1,
+            request.endpoint_identity_sha256.clone(),
+        )
+        .unwrap();
+        let source =
+            RuntimeCertificateAuthoritySource::new(authority, request.binding_sha256()).unwrap();
+        (request, enrollment, source)
+    }
+
+    #[test]
+    fn bootstrap_source_binds_control_enrollment_before_store_install() {
+        let (request, enrollment, source) = bootstrap_fixture(5_000);
+        let store = RuntimeCertificateChainStore::new();
+        store
+            .enroll_from_authority(&source, &enrollment, &request, 1_000)
+            .unwrap();
+        let chain = store.chain_at(&request.binding_sha256(), 1_001).unwrap();
+        assert_eq!(chain.identity().generation, request.generation);
+        assert_eq!(
+            chain.identity().endpoint_identity_sha256,
+            request.endpoint_identity_sha256
+        );
+        assert!(format!("{store:?}").contains("RuntimeCertificateChainStore"));
+    }
+
+    #[test]
+    fn bootstrap_source_rejects_session_namespace_and_chain_mismatch() {
+        let (request, enrollment, source) = bootstrap_fixture(5_000);
+        let store = RuntimeCertificateChainStore::new();
+        let mut changed = request.clone();
+        changed.control_session_sha256 = "2".repeat(64);
+        assert_eq!(
+            store.enroll_from_authority(&source, &enrollment, &changed, 1_000),
+            Err(RuntimeCertificateChainStoreError::EnrollmentMismatch)
+        );
+        let mut changed_namespace = request.clone();
+        changed_namespace.namespace_sha256 = "4".repeat(64);
+        assert_eq!(
+            store.enroll_from_authority(&source, &enrollment, &changed_namespace, 1_000),
+            Err(RuntimeCertificateChainStoreError::EnrollmentMismatch)
+        );
+        let mut malformed = enrollment;
+        malformed.chain[0].endpoint_identity_sha256 = "5".repeat(64);
+        assert_eq!(
+            store.enroll_from_authority(&source, &malformed, &request, 1_000),
+            Err(RuntimeCertificateChainStoreError::EnrollmentMismatch)
+        );
+    }
+
+    #[test]
+    fn bootstrap_store_rejects_receipt_root_and_expiry_drift() {
+        let (request, enrollment, source) = bootstrap_fixture(5_000);
+        let store = RuntimeCertificateChainStore::new();
+        store
+            .enroll_from_authority(&source, &enrollment, &request, 1_000)
+            .unwrap();
+        let chain = enrollment.issue_runtime_chain(1).unwrap();
+        let mut receipt = chain
+            .issue_runtime_receipt(
+                request.provider.clone(),
+                request.credential_ref_sha256.clone(),
+                "203.0.113.10:443".into(),
+                "1".repeat(64),
+                request.lease_root_sha256.clone(),
+                request.relay_root_sha256.clone(),
+                1_000,
+                2_000,
+            )
+            .unwrap();
+        assert_eq!(
+            store.active_chain_for_receipt(&receipt, 1_001).unwrap(),
+            chain
+        );
+        receipt.relay_root_sha256 = "2".repeat(64);
+        assert_eq!(
+            store.active_chain_for_receipt(&receipt, 1_001),
+            Err(RuntimeCertificateChainStoreError::EnrollmentMismatch)
+        );
+        receipt.relay_root_sha256 = request.relay_root_sha256.clone();
+        receipt.expires_at_unix_ms = 5_001;
+        assert_eq!(
+            store.active_chain_for_receipt(&receipt, 1_001),
+            Err(RuntimeCertificateChainStoreError::EnrollmentMismatch)
+        );
+    }
+
+    #[test]
+    fn bootstrap_source_expiry_cancellation_and_restart_fail_closed() {
+        let (request, enrollment, source) = bootstrap_fixture(2_000);
+        let store = RuntimeCertificateChainStore::new();
+        store
+            .enroll_from_authority(&source, &enrollment, &request, 1_000)
+            .unwrap();
+        assert_eq!(
+            store.chain_at(&request.binding_sha256(), 2_000),
+            Err(RuntimeCertificateChainStoreError::Expired)
+        );
+        let (request, enrollment, source) = bootstrap_fixture(5_000);
+        let store = RuntimeCertificateChainStore::new();
+        store
+            .enroll_from_authority(&source, &enrollment, &request, 1_000)
+            .unwrap();
+        store.revoke(request.generation).unwrap();
+        assert_eq!(
+            store.chain_at(&request.binding_sha256(), 1_001),
+            Err(RuntimeCertificateChainStoreError::Revoked)
+        );
+        let restarted = RuntimeCertificateChainStore::new();
+        assert_eq!(
+            restarted.chain(),
+            Err(RuntimeCertificateChainStoreError::Unavailable)
+        );
     }
 
     fn bootstrap_spec() -> (LiveProviderBootstrapSpec, PathBuf) {

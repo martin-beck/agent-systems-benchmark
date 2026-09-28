@@ -53,11 +53,29 @@ unsupported roles, stale generations, and unknown fields fail closed. Only bound
 identity digests and authorization outcomes are suitable for durable public evidence;
 certificate and private-key bytes must remain in the caller's protected memory/store.
 
-The runtime receipt response also carries the bounded public
+The runtime receipt response carries bounded public
 `AuthenticatedChainEnrollmentV1` metadata. Control binds its canonical chain
 digest to the receipt before sending it over the owner-authenticated control
-socket. The runtime reconstructs its opaque chain only from that response,
-installs it in `RuntimeCertificateChainStore`, and then validates generation,
-freshness, target, tool, lease, relay and nonce bindings before issuing a live
-dispatch profile. The store cannot be populated by a CLI-supplied chain, and a
-replayed, stale, revoked or mismatched response is rejected without egress.
+socket. Before dispatch, an owned platform adapter is constructed with the
+authenticated control-session, runtime namespace, relay-root, lease-root,
+credential-reference and expiry binding. The adapter is sealed from frontend
+implementations and is the only source accepted by
+`RuntimeCertificateChainStore::enroll_from_authority`; its private authority
+material never enters the request or durable record. Enrollment rejects a
+caller-built chain, a source bound to a different request digest, and a chain
+whose generation, endpoint, subject or canonical digest differs from the
+control enrollment.
+
+The store validates the receipt against that source-issued chain and all
+provider, credential, lease, relay, generation and expiry fields before live
+dispatch. Cancellation revokes the active generation, and a fresh runtime
+starts with an empty store; both states fail closed. A replayed, stale,
+expired, revoked or mismatched response is rejected without egress.
+
+Production platform handoff requirements are therefore: (1) derive the
+binding digest from the authenticated session and runtime-owned resource
+roots, (2) retain the signing/trust material inside the platform adapter,
+(3) issue only the selected generation and endpoint, and (4) revoke the
+generation before cancellation or teardown completes. The local adapter tests
+prove this contract with deterministic metadata only; they are not production
+provider authority or reachability evidence.
