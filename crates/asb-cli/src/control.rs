@@ -4,9 +4,10 @@
 
 use super::*;
 use asb_agents::auth_backend::CredentialBackend;
-use asb_bundle::{VerifierConfig, verify_detached_document};
+use asb_bundle::{ExpectedTarget, VerifierConfig, verify_bundle, verify_detached_document};
 use asb_control::{
     AgentAvailability, AgentCatalog, AgentCatalogAction, AgentCatalogEntry, AgentCatalogRequest,
+    AgentLifecycleBinding, AgentLifecycleFailure, AgentLifecycleResponse, AgentLifecycleState,
     AgentTarget, AgentUnavailableReason, AnalysisSummary, ArtifactMetadata, ArtifactSensitivity,
     AuthStatusResponse, AuthenticatedChainEnrollmentV1, BackendFailure, BoundControlResult,
     CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, CertificateAuthorityV1, ConfigurationSnapshot,
@@ -360,6 +361,12 @@ struct Catalog {
     agent_catalog_generation: u64,
     #[serde(default)]
     agent_catalog: Option<AgentCatalog>,
+    #[serde(default)]
+    agent_lifecycles: BTreeMap<String, AgentLifecycleResponse>,
+    #[serde(default = "default_agent_lifecycle_generation")]
+    agent_lifecycle_generation: u64,
+    #[serde(default)]
+    agent_idempotency: BTreeMap<String, String>,
 }
 
 fn default_provider_generation() -> u64 {
@@ -367,6 +374,10 @@ fn default_provider_generation() -> u64 {
 }
 
 fn default_agent_catalog_generation() -> u64 {
+    1
+}
+
+fn default_agent_lifecycle_generation() -> u64 {
     1
 }
 
@@ -609,6 +620,7 @@ struct RunnerBackend {
     provider_capture: Arc<dyn ProviderCapture>,
     orchestration: Arc<Mutex<FrontendOrchestration>>,
     cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
+    lifecycle_verifier: Option<VerifierConfig>,
 }
 
 /// Runtime-owned adapter used by the control frontend. The frontend supplies
@@ -1028,9 +1040,29 @@ fn open_backend(state_root: PathBuf) -> Result<RunnerBackend, CliError> {
     open_backend_with_capture(state_root, Arc::new(UnavailableProviderCapture))
 }
 
+#[cfg(test)]
+fn open_backend_with_verifier(
+    state_root: PathBuf,
+    verifier: VerifierConfig,
+) -> Result<RunnerBackend, CliError> {
+    open_backend_with_options(
+        state_root,
+        Arc::new(UnavailableProviderCapture),
+        Some(verifier),
+    )
+}
+
 fn open_backend_with_capture(
     state_root: PathBuf,
     provider_capture: Arc<dyn ProviderCapture>,
+) -> Result<RunnerBackend, CliError> {
+    open_backend_with_options(state_root, provider_capture, None)
+}
+
+fn open_backend_with_options(
+    state_root: PathBuf,
+    provider_capture: Arc<dyn ProviderCapture>,
+    lifecycle_verifier: Option<VerifierConfig>,
 ) -> Result<RunnerBackend, CliError> {
     let state_lock = OpenOptions::new()
         .read(true)
@@ -1080,6 +1112,7 @@ fn open_backend_with_capture(
         provider_capture,
         orchestration: Arc::new(Mutex::new(orchestration)),
         cancelled,
+        lifecycle_verifier,
     })
 }
 
@@ -1182,6 +1215,9 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         provider_credential_references: BTreeMap::new(),
         agent_catalog_generation: 1,
         agent_catalog: None,
+        agent_lifecycles: BTreeMap::new(),
+        agent_lifecycle_generation: 1,
+        agent_idempotency: BTreeMap::new(),
     })
 }
 
@@ -1219,6 +1255,24 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             "control agent catalog generation is invalid",
         ));
     }
+    if catalog.agent_lifecycle_generation == 0
+        || catalog.agent_idempotency.len() > 128
+        || catalog.agent_lifecycles.len() > 64
+    {
+        return Err(CliError::operation(
+            "control agent lifecycle generation or journal is invalid",
+        ));
+    }
+    for (key, operation_id) in &catalog.agent_idempotency {
+        if asb_control::validate_identity(key).is_err()
+            || asb_control::validate_identity(operation_id).is_err()
+            || !catalog.agent_lifecycles.contains_key(operation_id)
+        {
+            return Err(CliError::operation(
+                "control agent idempotency fence is invalid",
+            ));
+        }
+    }
     if let Some(agent_catalog) = &catalog.agent_catalog {
         if agent_catalog.runner_instance_id != catalog.runner_instance_id
             || agent_catalog.generation.0 != catalog.agent_catalog_generation
@@ -1230,6 +1284,23 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         agent_catalog
             .validate()
             .map_err(|_| CliError::operation("control agent catalog is invalid"))?;
+    }
+    if catalog.agent_lifecycles.len() > 32 {
+        return Err(CliError::operation(
+            "control agent lifecycle journal is oversized",
+        ));
+    }
+    for (operation_id, response) in &catalog.agent_lifecycles {
+        if operation_id != &response.operation_id
+            || response.binding.runner_instance_id != catalog.runner_instance_id
+        {
+            return Err(CliError::operation(
+                "control agent lifecycle identity is invalid",
+            ));
+        }
+        response
+            .validate()
+            .map_err(|_| CliError::operation("control agent lifecycle projection is invalid"))?;
     }
     for (provider_id, entry) in &catalog.provider_profiles {
         if provider_id != &entry.provider_id
@@ -1724,6 +1795,17 @@ fn reconcile_catalog(
     catalog: &mut Catalog,
     orchestration: &FrontendOrchestration,
 ) -> Result<(), CliError> {
+    // A staging intent is durable before verification or activation.  No
+    // process survives a runner restart with authority to complete it, so
+    // expose an explicit reconciliation failure and require an idempotent
+    // retry rather than guessing whether activation happened.
+    for response in catalog.agent_lifecycles.values_mut() {
+        if response.state == AgentLifecycleState::Staging {
+            response.state = AgentLifecycleState::Failed;
+            response.failure = Some(AgentLifecycleFailure::NeedsReconciliation);
+            response.progress_percent = 0;
+        }
+    }
     if let Some(campaign) = catalog.recording_campaign.as_mut()
         && campaign.state == "recording"
     {
@@ -3160,14 +3242,11 @@ impl ControlBackend for RunnerBackend {
                     }))
                 },
             ),
-            // Lifecycle storage and bundle verification are not wired into the
-            // runner yet. Reject every operation explicitly so no caller can
-            // observe a fabricated or partially active installation.
-            ControlCall::AgentInstall(_)
-            | ControlCall::AgentStatus(_)
-            | ControlCall::AgentCancel(_)
-            | ControlCall::AgentRetry(_)
-            | ControlCall::AgentRemove(_) => Err(BackendFailure::CapabilityUnavailable),
+            ControlCall::AgentInstall(request) => self.agent_install(call, request, deadline),
+            ControlCall::AgentStatus(request) => self.agent_status(call, request),
+            ControlCall::AgentCancel(request) => self.agent_cancel(call, request, deadline),
+            ControlCall::AgentRetry(request) => self.agent_retry(call, request, deadline),
+            ControlCall::AgentRemove(request) => self.agent_remove(call, request, deadline),
             ControlCall::Negotiate(_) => Err(BackendFailure::Rejected),
         }
     }
@@ -3986,6 +4065,678 @@ impl RunnerBackend {
         Ok(next)
     }
 
+    fn lifecycle_binding_matches(
+        catalog: &Catalog,
+        binding: &AgentLifecycleBinding,
+    ) -> Result<AgentCatalog, BackendFailure> {
+        if binding.runner_instance_id != catalog.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let snapshot = catalog
+            .agent_catalog
+            .clone()
+            .ok_or(BackendFailure::CapabilityUnavailable)?;
+        if snapshot.catalog_sha256 != binding.catalog_sha256
+            && snapshot
+                .agents
+                .iter()
+                .find(|entry| entry.agent_id == binding.agent_id)
+                .is_some_and(|entry| matches!(entry.availability, AgentAvailability::Available))
+        {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        Ok(snapshot)
+    }
+
+    fn require_lifecycle_available(
+        snapshot: &AgentCatalog,
+        binding: &AgentLifecycleBinding,
+    ) -> Result<(), BackendFailure> {
+        let entry = snapshot
+            .agents
+            .iter()
+            .find(|entry| entry.agent_id == binding.agent_id)
+            .ok_or(BackendFailure::NotFound)?;
+        if !matches!(entry.availability, AgentAvailability::Available)
+            || entry.package.is_none()
+            || entry.provenance.is_none()
+        {
+            return Err(BackendFailure::CapabilityUnavailable);
+        }
+        Ok(())
+    }
+
+    fn next_agent_generation(catalog: &mut Catalog) -> Result<Revision, BackendFailure> {
+        catalog.agent_lifecycle_generation = catalog
+            .agent_lifecycle_generation
+            .checked_add(1)
+            .ok_or(BackendFailure::NeedsReconciliation)?;
+        Ok(Revision(catalog.agent_lifecycle_generation))
+    }
+
+    fn latest_agent_lifecycle<'a>(
+        catalog: &'a Catalog,
+        agent_id: &str,
+    ) -> Option<&'a AgentLifecycleResponse> {
+        catalog
+            .agent_lifecycles
+            .values()
+            .filter(|response| response.binding.agent_id == agent_id)
+            .max_by_key(|response| response.generation)
+    }
+
+    fn lifecycle_result(
+        &self,
+        call: &ControlCall,
+        response: AgentLifecycleResponse,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        self.bind(call, ControlResult::AgentLifecycle(response))
+    }
+
+    fn lifecycle_artifact_root(&self, package_sha256: &str) -> PathBuf {
+        self.state_root.join("agent-bundles").join(package_sha256)
+    }
+
+    fn require_private_directory(path: &Path) -> Result<(), BackendFailure> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| BackendFailure::Rejected)?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(BackendFailure::Rejected);
+        }
+        Ok(())
+    }
+
+    fn hash_regular_path(path: &Path) -> Result<String, BackendFailure> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| BackendFailure::Rejected)?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.len() > MAX_CATALOG_BYTES as u64
+        {
+            return Err(BackendFailure::Rejected);
+        }
+        let mut file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)
+            .map_err(|_| BackendFailure::Rejected)?;
+        let mut hasher = Sha256::new();
+        io::copy(&mut file, &mut hasher).map_err(|_| BackendFailure::Rejected)?;
+        Ok(format!("{:x}", hasher.finalize()))
+    }
+
+    fn copy_bundle_tree(source: &Path, destination: &Path) -> Result<(), BackendFailure> {
+        let metadata = fs::symlink_metadata(source).map_err(|_| BackendFailure::Rejected)?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(BackendFailure::Rejected);
+        }
+        fs::create_dir(destination).map_err(|_| BackendFailure::NeedsReconciliation)?;
+        fs::set_permissions(destination, fs::Permissions::from_mode(0o700))
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        for entry in fs::read_dir(source).map_err(|_| BackendFailure::Rejected)? {
+            let entry = entry.map_err(|_| BackendFailure::Rejected)?;
+            let path = entry.path();
+            let name = entry.file_name();
+            if name.to_string_lossy().contains('/') {
+                return Err(BackendFailure::Rejected);
+            }
+            let target = destination.join(name);
+            let child = fs::symlink_metadata(&path).map_err(|_| BackendFailure::Rejected)?;
+            if child.file_type().is_symlink() {
+                return Err(BackendFailure::Rejected);
+            }
+            if child.is_dir() {
+                Self::copy_bundle_tree(&path, &target)?;
+            } else if child.is_file() {
+                fs::copy(&path, &target).map_err(|_| BackendFailure::NeedsReconciliation)?;
+                fs::set_permissions(&target, child.permissions())
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            } else {
+                return Err(BackendFailure::Rejected);
+            }
+        }
+        Ok(())
+    }
+
+    fn write_active_marker(
+        &self,
+        agent_id: &str,
+        package_sha256: &str,
+        operation_id: &str,
+    ) -> Result<(), BackendFailure> {
+        let agent_root = self.state_root.join("agents").join(agent_id);
+        let agents_root = self.state_root.join("agents");
+        if agents_root.exists() {
+            Self::require_private_directory(&agents_root)?;
+        }
+        if agent_root.exists() {
+            Self::require_private_directory(&agent_root)?;
+        }
+        fs::create_dir_all(&agent_root).map_err(|_| BackendFailure::NeedsReconciliation)?;
+        fs::set_permissions(&agent_root, fs::Permissions::from_mode(0o700))
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let marker = serde_json::json!({
+            "schema_version": 1,
+            "agent_id": agent_id,
+            "package_sha256": package_sha256,
+            "operation_id": operation_id,
+        });
+        let bytes = serde_json::to_vec(&marker).map_err(|_| BackendFailure::Rejected)?;
+        let temporary = agent_root.join("active.json.tmp");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&temporary)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        file.write_all(&bytes)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        file.sync_all()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        fs::rename(&temporary, agent_root.join("active.json"))
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        fs::File::open(&agent_root)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|_| BackendFailure::NeedsReconciliation)
+    }
+
+    fn verify_agent_artifact(
+        &self,
+        entry: &AgentCatalogEntry,
+    ) -> Result<(asb_bundle::VerifiedBundle, PathBuf), AgentLifecycleFailure> {
+        let package = entry
+            .package
+            .as_ref()
+            .ok_or(AgentLifecycleFailure::UnauthenticatedCatalog)?;
+        let provenance = entry
+            .provenance
+            .as_ref()
+            .ok_or(AgentLifecycleFailure::UnauthenticatedCatalog)?;
+        if entry.target != current_agent_target() {
+            return Err(AgentLifecycleFailure::IncompatibleTarget);
+        }
+        let verifier = self
+            .lifecycle_verifier
+            .clone()
+            .or_else(release_index_verifier_from_env)
+            .ok_or(AgentLifecycleFailure::UnauthenticatedCatalog)?;
+        if verifier.principal != package.signer.principal {
+            return Err(AgentLifecycleFailure::UnauthenticatedCatalog);
+        }
+        let root = self.lifecycle_artifact_root(&package.sha256);
+        Self::require_private_directory(&self.state_root.join("agent-bundles"))
+            .map_err(|_| AgentLifecycleFailure::VerificationFailed)?;
+        Self::require_private_directory(
+            root.parent()
+                .ok_or(AgentLifecycleFailure::VerificationFailed)?,
+        )
+        .map_err(|_| AgentLifecycleFailure::VerificationFailed)?;
+        let expected = ExpectedTarget {
+            operating_system: &entry.target.operating_system,
+            architecture: &entry.target.architecture,
+            libc: &entry.target.libc,
+            libc_version: &entry.target.libc_version,
+        };
+        let verified = verify_bundle(&root, &verifier, &expected).map_err(|error| match error {
+            asb_bundle::VerifyError::Target(_) => AgentLifecycleFailure::IncompatibleTarget,
+            asb_bundle::VerifyError::Signature => AgentLifecycleFailure::UnauthenticatedCatalog,
+            _ => AgentLifecycleFailure::VerificationFailed,
+        })?;
+        if verified.bundle_id != package.package_id
+            || verified.content_sha256 != package.sha256
+            || verified.manifest_sha256 != provenance.manifest_sha256
+        {
+            return Err(AgentLifecycleFailure::VerificationFailed);
+        }
+        let signature_digest = Self::hash_regular_path(&root.join("manifest.json.sig"))
+            .map_err(|_| AgentLifecycleFailure::VerificationFailed)?;
+        if signature_digest != package.signature_sha256 {
+            return Err(AgentLifecycleFailure::VerificationFailed);
+        }
+        let manifest: asb_bundle::RuntimeBundleManifest = serde_json::from_slice(
+            &fs::read(root.join("manifest.json"))
+                .map_err(|_| AgentLifecycleFailure::VerificationFailed)?,
+        )
+        .map_err(|_| AgentLifecycleFailure::VerificationFailed)?;
+        let sbom_digest = Self::hash_regular_path(&root.join(&manifest.spdx.path))
+            .map_err(|_| AgentLifecycleFailure::VerificationFailed)?;
+        if sbom_digest != provenance.sbom_sha256 {
+            return Err(AgentLifecycleFailure::VerificationFailed);
+        }
+        Ok((verified, root))
+    }
+
+    fn finish_agent_failure(
+        &self,
+        operation_id: &str,
+        failure: AgentLifecycleFailure,
+        deadline: RequestDeadline,
+    ) -> Result<AgentLifecycleResponse, BackendFailure> {
+        let mut catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let mut staged = catalog.clone();
+        let response = staged
+            .agent_lifecycles
+            .get(operation_id)
+            .cloned()
+            .ok_or(BackendFailure::NeedsReconciliation)?;
+        if response.state != AgentLifecycleState::Staging {
+            return Ok(response);
+        }
+        let mut failed = response;
+        failed.state = AgentLifecycleState::Failed;
+        failed.failure = Some(failure);
+        failed.progress_percent = 0;
+        failed.generation = Self::next_agent_generation(&mut staged)?;
+        staged
+            .agent_lifecycles
+            .insert(operation_id.to_owned(), failed.clone());
+        deadline
+            .check()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        commit_staged_catalog(&self.state_root, &mut catalog, staged)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        Ok(failed)
+    }
+
+    fn run_agent_install(
+        &self,
+        operation_id: &str,
+        entry: &AgentCatalogEntry,
+        deadline: RequestDeadline,
+    ) -> Result<AgentLifecycleResponse, BackendFailure> {
+        let (verified, root) = match self.verify_agent_artifact(entry) {
+            Ok(value) => value,
+            Err(failure) => return self.finish_agent_failure(operation_id, failure, deadline),
+        };
+        deadline
+            .check()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let binding = {
+            let catalog = self
+                .catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            let response = catalog
+                .agent_lifecycles
+                .get(operation_id)
+                .ok_or(BackendFailure::NeedsReconciliation)?;
+            if response.state != AgentLifecycleState::Staging {
+                return Ok(response.clone());
+            }
+            response.binding.clone()
+        };
+        let package_sha256 = entry
+            .package
+            .as_ref()
+            .ok_or(BackendFailure::CapabilityUnavailable)?
+            .sha256
+            .clone();
+        let versions = self
+            .state_root
+            .join("agents")
+            .join(&entry.agent_id)
+            .join("versions");
+        let agents_root = self.state_root.join("agents");
+        if agents_root.exists() {
+            Self::require_private_directory(&agents_root)?;
+        }
+        let agent_root = agents_root.join(&entry.agent_id);
+        if agent_root.exists() {
+            Self::require_private_directory(&agent_root)?;
+        }
+        if versions.exists() {
+            Self::require_private_directory(&versions)?;
+        }
+        fs::create_dir_all(&versions).map_err(|_| BackendFailure::NeedsReconciliation)?;
+        fs::set_permissions(&versions, fs::Permissions::from_mode(0o700))
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let staging = versions.join(format!(".staging-{operation_id}"));
+        let active_version = versions.join(&package_sha256);
+        if active_version.exists() {
+            let _ = fs::remove_dir_all(&staging);
+        } else {
+            let _ = fs::remove_dir_all(&staging);
+            Self::copy_bundle_tree(&root, &staging)?;
+            fs::rename(&staging, &active_version)
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        }
+        self.write_active_marker(&entry.agent_id, &package_sha256, operation_id)?;
+        let mut catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let mut staged_catalog = catalog.clone();
+        let mut response = staged_catalog
+            .agent_lifecycles
+            .get(operation_id)
+            .cloned()
+            .ok_or(BackendFailure::NeedsReconciliation)?;
+        if response.state != AgentLifecycleState::Staging {
+            return Ok(response);
+        }
+        response.state = AgentLifecycleState::Active;
+        response.progress_percent = 100;
+        response.failure = None;
+        response.generation = Self::next_agent_generation(&mut staged_catalog)?;
+        response.binding = binding;
+        staged_catalog
+            .agent_lifecycles
+            .insert(operation_id.to_owned(), response.clone());
+        deadline
+            .check()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        commit_staged_catalog(&self.state_root, &mut catalog, staged_catalog)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let _ = verified;
+        Ok(response)
+    }
+
+    fn agent_install(
+        &self,
+        call: &ControlCall,
+        request: &asb_control::AgentInstallRequest,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let (operation_id, entry) = {
+            let mut catalog = self
+                .catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            let snapshot = Self::lifecycle_binding_matches(&catalog, &request.binding)?;
+            if request.catalog_generation != snapshot.generation {
+                return Err(BackendFailure::StaleIdentity);
+            }
+            if let Some(existing) = catalog.agent_idempotency.get(&request.idempotency_key) {
+                let response = catalog
+                    .agent_lifecycles
+                    .get(existing)
+                    .ok_or(BackendFailure::NeedsReconciliation)?;
+                if response.binding != request.binding {
+                    return Err(BackendFailure::Rejected);
+                }
+                return self.lifecycle_result(call, response.clone());
+            }
+            let entry = snapshot
+                .agents
+                .iter()
+                .find(|entry| entry.agent_id == request.binding.agent_id)
+                .cloned()
+                .ok_or(BackendFailure::NotFound)?;
+            if !matches!(entry.availability, AgentAvailability::Available)
+                || entry.package.is_none()
+                || entry.provenance.is_none()
+            {
+                return Err(BackendFailure::CapabilityUnavailable);
+            }
+            if let Some(active) = Self::latest_agent_lifecycle(&catalog, &entry.agent_id)
+                && active.state == AgentLifecycleState::Active
+            {
+                return Err(BackendFailure::Rejected);
+            }
+            let operation_id = format!(
+                "agent-op-{:x}",
+                Sha256::digest(format!(
+                    "{}:{}",
+                    request.binding.agent_id, request.idempotency_key
+                ))
+            );
+            let generation = Self::next_agent_generation(&mut catalog)?;
+            let response = AgentLifecycleResponse {
+                binding: request.binding.clone(),
+                operation_id: operation_id.clone(),
+                state: AgentLifecycleState::Staging,
+                generation,
+                progress_percent: 0,
+                failure: None,
+            };
+            let mut staged = catalog.clone();
+            staged
+                .agent_lifecycles
+                .insert(operation_id.clone(), response);
+            staged
+                .agent_idempotency
+                .insert(request.idempotency_key.clone(), operation_id.clone());
+            deadline
+                .check()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            commit_staged_catalog(&self.state_root, &mut catalog, staged)
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            (operation_id, entry)
+        };
+        let response = self.run_agent_install(&operation_id, &entry, deadline)?;
+        self.lifecycle_result(call, response)
+    }
+
+    fn agent_status(
+        &self,
+        call: &ControlCall,
+        request: &asb_control::AgentStatusRequest,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let snapshot = Self::lifecycle_binding_matches(&catalog, &request.binding)?;
+        Self::require_lifecycle_available(&snapshot, &request.binding)?;
+        let response = match &request.operation_id {
+            Some(operation_id) => catalog
+                .agent_lifecycles
+                .get(operation_id)
+                .filter(|response| response.binding == request.binding)
+                .cloned(),
+            None => Self::latest_agent_lifecycle(&catalog, &request.binding.agent_id).cloned(),
+        }
+        .ok_or(BackendFailure::NotFound)?;
+        self.lifecycle_result(call, response)
+    }
+
+    fn agent_cancel(
+        &self,
+        call: &ControlCall,
+        request: &asb_control::AgentCancelRequest,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let mut catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let snapshot = Self::lifecycle_binding_matches(&catalog, &request.binding)?;
+        Self::require_lifecycle_available(&snapshot, &request.binding)?;
+        if let Some(existing) = catalog.agent_idempotency.get(&request.idempotency_key) {
+            if existing != &request.operation_id {
+                return Err(BackendFailure::Rejected);
+            }
+            let response = catalog
+                .agent_lifecycles
+                .get(existing)
+                .ok_or(BackendFailure::NeedsReconciliation)?;
+            return self.lifecycle_result(call, response.clone());
+        }
+        let current = catalog
+            .agent_lifecycles
+            .get(&request.operation_id)
+            .filter(|response| response.binding == request.binding)
+            .cloned()
+            .ok_or(BackendFailure::NotFound)?;
+        if current.state != AgentLifecycleState::Staging {
+            return Err(BackendFailure::Rejected);
+        }
+        let mut staged = catalog.clone();
+        let mut cancelled = current;
+        cancelled.state = AgentLifecycleState::Cancelled;
+        cancelled.progress_percent = 100;
+        cancelled.generation = Self::next_agent_generation(&mut staged)?;
+        staged
+            .agent_lifecycles
+            .insert(request.operation_id.clone(), cancelled.clone());
+        staged.agent_idempotency.insert(
+            request.idempotency_key.clone(),
+            request.operation_id.clone(),
+        );
+        deadline
+            .check()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        commit_staged_catalog(&self.state_root, &mut catalog, staged)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        self.lifecycle_result(call, cancelled)
+    }
+
+    fn agent_retry(
+        &self,
+        call: &ControlCall,
+        request: &asb_control::AgentRetryRequest,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let entry = {
+            let mut catalog = self
+                .catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            let snapshot = Self::lifecycle_binding_matches(&catalog, &request.binding)?;
+            Self::require_lifecycle_available(&snapshot, &request.binding)?;
+            if let Some(existing) = catalog.agent_idempotency.get(&request.idempotency_key) {
+                if existing != &request.operation_id {
+                    return Err(BackendFailure::Rejected);
+                }
+                return self.lifecycle_result(
+                    call,
+                    catalog
+                        .agent_lifecycles
+                        .get(existing)
+                        .ok_or(BackendFailure::NeedsReconciliation)?
+                        .clone(),
+                );
+            }
+            let current = catalog
+                .agent_lifecycles
+                .get(&request.operation_id)
+                .filter(|response| response.binding == request.binding)
+                .cloned()
+                .ok_or(BackendFailure::NotFound)?;
+            if current.state != AgentLifecycleState::Failed {
+                return Err(BackendFailure::Rejected);
+            }
+            let entry = snapshot
+                .agents
+                .iter()
+                .find(|entry| entry.agent_id == request.binding.agent_id)
+                .cloned()
+                .ok_or(BackendFailure::NotFound)?;
+            if !matches!(entry.availability, AgentAvailability::Available) {
+                return Err(BackendFailure::CapabilityUnavailable);
+            }
+            let mut staged = catalog.clone();
+            let mut pending = current;
+            pending.state = AgentLifecycleState::Staging;
+            pending.failure = None;
+            pending.progress_percent = 0;
+            pending.generation = Self::next_agent_generation(&mut staged)?;
+            staged
+                .agent_lifecycles
+                .insert(request.operation_id.clone(), pending);
+            staged.agent_idempotency.insert(
+                request.idempotency_key.clone(),
+                request.operation_id.clone(),
+            );
+            deadline
+                .check()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            commit_staged_catalog(&self.state_root, &mut catalog, staged)
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            entry
+        };
+        let response = self.run_agent_install(&request.operation_id, &entry, deadline)?;
+        self.lifecycle_result(call, response)
+    }
+
+    fn agent_remove(
+        &self,
+        call: &ControlCall,
+        request: &asb_control::AgentRemoveRequest,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        let response = {
+            let mut catalog = self
+                .catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            let snapshot = Self::lifecycle_binding_matches(&catalog, &request.binding)?;
+            Self::require_lifecycle_available(&snapshot, &request.binding)?;
+            if let Some(existing) = catalog.agent_idempotency.get(&request.idempotency_key) {
+                return self.lifecycle_result(
+                    call,
+                    catalog
+                        .agent_lifecycles
+                        .get(existing)
+                        .ok_or(BackendFailure::NeedsReconciliation)?
+                        .clone(),
+                );
+            }
+            let active = Self::latest_agent_lifecycle(&catalog, &request.binding.agent_id)
+                .filter(|response| response.state == AgentLifecycleState::Active)
+                .cloned()
+                .ok_or(BackendFailure::NotFound)?;
+            let operation_id = format!(
+                "agent-remove-{:x}",
+                Sha256::digest(format!(
+                    "{}:{}",
+                    request.binding.agent_id, request.idempotency_key
+                ))
+            );
+            let mut staged = catalog.clone();
+            let generation = Self::next_agent_generation(&mut staged)?;
+            let pending = AgentLifecycleResponse {
+                binding: request.binding.clone(),
+                operation_id: operation_id.clone(),
+                state: AgentLifecycleState::Pending,
+                generation,
+                progress_percent: 0,
+                failure: None,
+            };
+            staged
+                .agent_lifecycles
+                .insert(operation_id.clone(), pending);
+            staged
+                .agent_idempotency
+                .insert(request.idempotency_key.clone(), operation_id.clone());
+            deadline
+                .check()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            commit_staged_catalog(&self.state_root, &mut catalog, staged)
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            let _ = active;
+            operation_id
+        };
+        let agent_root = self
+            .state_root
+            .join("agents")
+            .join(&request.binding.agent_id);
+        if agent_root.exists() {
+            fs::remove_dir_all(&agent_root).map_err(|_| BackendFailure::NeedsReconciliation)?;
+        }
+        let mut catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let mut staged = catalog.clone();
+        let mut removed = staged
+            .agent_lifecycles
+            .get(&response)
+            .cloned()
+            .ok_or(BackendFailure::NeedsReconciliation)?;
+        removed.state = AgentLifecycleState::Removed;
+        removed.progress_percent = 100;
+        removed.generation = Self::next_agent_generation(&mut staged)?;
+        staged.agent_lifecycles.insert(response, removed.clone());
+        deadline
+            .check()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        commit_staged_catalog(&self.state_root, &mut catalog, staged)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        self.lifecycle_result(call, removed)
+    }
+
     fn provider_catalog(
         &self,
         request: &ProviderCatalogRequest,
@@ -4790,6 +5541,540 @@ mod tests {
                     )
                 )
         }));
+    }
+
+    fn lifecycle_test_catalog(backend: &RunnerBackend) -> AgentCatalog {
+        let target = current_agent_target();
+        let entry = AgentCatalogEntry {
+            agent_id: "codex".into(),
+            target: target.clone(),
+            package: Some(asb_control::AgentPackage {
+                package_id: "codex-test".into(),
+                version: "1.0.0".into(),
+                sha256: "a".repeat(64),
+                signature_sha256: "b".repeat(64),
+                signer: asb_control::AgentSigner {
+                    key_id: "test-key".into(),
+                    principal: "test-release".into(),
+                },
+            }),
+            provenance: Some(asb_control::AgentProvenance {
+                source_revision: "c".repeat(40),
+                manifest_sha256: "d".repeat(64),
+                sbom_sha256: "e".repeat(64),
+                license_ref: "MIT".into(),
+            }),
+            capabilities: vec!["coding".into()],
+            availability: AgentAvailability::Available,
+        };
+        let mut snapshot = AgentCatalog {
+            runner_instance_id: backend.runner_instance_id().into(),
+            generation: Revision(2),
+            catalog_sha256: String::new(),
+            target,
+            agents: vec![entry],
+            refreshed: false,
+        };
+        snapshot.catalog_sha256 = snapshot.computed_sha256().unwrap();
+        snapshot.validate().unwrap();
+        snapshot
+    }
+
+    fn install_request(snapshot: &AgentCatalog, key: &str) -> ControlCall {
+        ControlCall::AgentInstall(asb_control::AgentInstallRequest {
+            binding: AgentLifecycleBinding {
+                agent_id: "codex".into(),
+                runner_instance_id: snapshot.runner_instance_id.clone(),
+                catalog_sha256: snapshot.catalog_sha256.clone(),
+            },
+            catalog_generation: snapshot.generation,
+            idempotency_key: key.into(),
+        })
+    }
+
+    fn seed_lifecycle_catalog(backend: &RunnerBackend, snapshot: &AgentCatalog) {
+        let mut catalog = backend.catalog.lock().unwrap();
+        catalog.agent_catalog_generation = snapshot.generation.0;
+        catalog.agent_catalog = Some(snapshot.clone());
+        commit_catalog(&backend.state_root, &catalog).unwrap();
+    }
+
+    fn install_signed_lifecycle_fixture(
+        state: &Path,
+        snapshot: &mut AgentCatalog,
+    ) -> (PathBuf, VerifierConfig) {
+        let bundle = state.join("fixture-bundle");
+        fs::create_dir_all(bundle.join("bin")).unwrap();
+        let license = b"MIT\n";
+        let executable = b"#!/bin/sh\nexit 0\n";
+        fs::write(bundle.join("LICENSE"), license).unwrap();
+        fs::write(bundle.join("bin/codex"), executable).unwrap();
+        fs::set_permissions(bundle.join("LICENSE"), fs::Permissions::from_mode(0o644)).unwrap();
+        fs::set_permissions(bundle.join("bin/codex"), fs::Permissions::from_mode(0o755)).unwrap();
+        let artifacts = vec![
+            asb_bundle::BundleArtifact {
+                path: "LICENSE".into(),
+                size: license.len() as u64,
+                sha256: format!("{:x}", Sha256::digest(license)),
+                mode: 0o644,
+                license_expression: "MIT".into(),
+                license_evidence: vec!["LICENSE".into()],
+                role: None,
+            },
+            asb_bundle::BundleArtifact {
+                path: "bin/codex".into(),
+                size: executable.len() as u64,
+                sha256: format!("{:x}", Sha256::digest(executable)),
+                mode: 0o755,
+                license_expression: "MIT".into(),
+                license_evidence: vec!["LICENSE".into()],
+                role: None,
+            },
+        ];
+        let spdx = serde_json::json!({
+            "spdxVersion":"SPDX-2.3", "SPDXID":"SPDXRef-DOCUMENT", "name":"fixture",
+            "dataLicense":"CC0-1.0", "documentNamespace":"https://example.invalid/asb/lifecycle",
+            "files": artifacts.iter().map(|artifact| serde_json::json!({
+                "fileName": artifact.path, "SPDXID": format!("SPDXRef-{}", artifact.path.replace('/', "-")),
+                "checksums":[{"algorithm":"SHA256","checksumValue":artifact.sha256}],
+                "licenseConcluded":artifact.license_expression
+            })).collect::<Vec<_>>()
+        });
+        let cyclonedx = serde_json::json!({
+            "bomFormat":"CycloneDX", "specVersion":"1.6",
+            "serialNumber":"urn:uuid:00000000-0000-4000-8000-000000000001", "version":1,
+            "components": artifacts.iter().map(|artifact| serde_json::json!({
+                "type":"file", "bom-ref":artifact.path, "name":artifact.path,
+                "hashes":[{"alg":"SHA-256","content":artifact.sha256}],
+                "licenses":[{"expression":artifact.license_expression}]
+            })).collect::<Vec<_>>()
+        });
+        let spdx_bytes = serde_json::to_vec(&spdx).unwrap();
+        let cyclonedx_bytes = serde_json::to_vec(&cyclonedx).unwrap();
+        fs::write(bundle.join("spdx.json"), &spdx_bytes).unwrap();
+        fs::write(bundle.join("cyclonedx.json"), &cyclonedx_bytes).unwrap();
+        let target = current_agent_target();
+        let manifest = asb_bundle::RuntimeBundleManifest {
+            schema_version: 2,
+            profile: asb_bundle::BundleProfile::Signed,
+            signature_status: asb_bundle::SignatureStatus::Signed,
+            bundle_id: "codex-positive".into(),
+            bundle_version: "1.0.0".into(),
+            target: asb_bundle::RuntimeTarget {
+                operating_system: target.operating_system.clone(),
+                architecture: target.architecture.clone(),
+                libc: target.libc.clone(),
+                libc_version: target.libc_version.clone(),
+            },
+            entrypoint: "bin/codex".into(),
+            artifacts: artifacts.clone(),
+            runtime_components: None,
+            content_sha256: asb_bundle::content_digest(&artifacts),
+            spdx: asb_bundle::SbomDocument {
+                path: "spdx.json".into(),
+                sha256: format!("{:x}", Sha256::digest(&spdx_bytes)),
+            },
+            cyclonedx: asb_bundle::SbomDocument {
+                path: "cyclonedx.json".into(),
+                sha256: format!("{:x}", Sha256::digest(&cyclonedx_bytes)),
+            },
+        };
+        let manifest_bytes = serde_json::to_vec(&manifest).unwrap();
+        fs::write(bundle.join("manifest.json"), &manifest_bytes).unwrap();
+        let key = state.join("fixture-release-key");
+        assert!(
+            Command::new("/usr/bin/ssh-keygen")
+                .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+                .arg(&key)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let public = fs::read_to_string(key.with_extension("pub")).unwrap();
+        let allowed = state.join("fixture-allowed-signers");
+        fs::write(&allowed, format!("test-release {public}")).unwrap();
+        assert!(
+            Command::new("/usr/bin/ssh-keygen")
+                .args(["-Y", "sign", "-q", "-f"])
+                .arg(&key)
+                .args(["-n", asb_bundle::SIGNATURE_NAMESPACE])
+                .arg(bundle.join("manifest.json"))
+                .status()
+                .unwrap()
+                .success()
+        );
+        let content_sha256 = manifest.content_sha256.clone();
+        let destination = state.join("agent-bundles").join(&content_sha256);
+        fs::create_dir_all(state.join("agent-bundles")).unwrap();
+        fs::rename(&bundle, &destination).unwrap();
+        let package = snapshot.agents[0].package.as_mut().unwrap();
+        package.package_id = manifest.bundle_id;
+        package.sha256 = content_sha256.clone();
+        package.signature_sha256 = format!(
+            "{:x}",
+            Sha256::digest(fs::read(destination.join("manifest.json.sig")).unwrap())
+        );
+        package.signer.principal = "test-release".into();
+        let provenance = snapshot.agents[0].provenance.as_mut().unwrap();
+        provenance.manifest_sha256 = format!("{:x}", Sha256::digest(&manifest_bytes));
+        provenance.sbom_sha256 = format!("{:x}", Sha256::digest(&spdx_bytes));
+        snapshot.catalog_sha256 = snapshot.computed_sha256().unwrap();
+        let verifier = VerifierConfig {
+            ssh_keygen: "/usr/bin/ssh-keygen".into(),
+            ssh_keygen_sha256: format!(
+                "{:x}",
+                Sha256::digest(fs::read("/usr/bin/ssh-keygen").unwrap())
+            ),
+            allowed_signers: allowed,
+            principal: "test-release".into(),
+        };
+        (destination, verifier)
+    }
+
+    #[test]
+    fn authenticated_lifecycle_activates_and_removes_signed_bundle() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let mut snapshot = lifecycle_test_catalog(&backend);
+        let (bundle, verifier) = install_signed_lifecycle_fixture(&state, &mut snapshot);
+        let expected = ExpectedTarget {
+            operating_system: &snapshot.target.operating_system,
+            architecture: &snapshot.target.architecture,
+            libc: &snapshot.target.libc,
+            libc_version: &snapshot.target.libc_version,
+        };
+        verify_bundle(&bundle, &verifier, &expected).unwrap();
+        drop(backend);
+        let backend = open_backend_with_verifier(state.clone(), verifier).unwrap();
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            catalog.agent_catalog_generation = snapshot.generation.0;
+            catalog.agent_catalog = Some(snapshot.clone());
+            commit_catalog(&backend.state_root, &catalog).unwrap();
+        }
+        let install = install_request(&snapshot, "install-positive-1");
+        let result = backend.execute(&install, deadline()).unwrap();
+        let ControlResult::AgentLifecycle(active) = result.result else {
+            panic!("install result");
+        };
+        assert_eq!(
+            active.state,
+            AgentLifecycleState::Active,
+            "typed lifecycle failure: {:?}",
+            active.failure
+        );
+        assert!(state.join("agents/codex/active.json").is_file());
+        assert!(
+            state
+                .join("agents/codex/versions")
+                .join(&snapshot.agents[0].package.as_ref().unwrap().sha256)
+                .is_dir()
+        );
+        assert!(bundle.is_dir());
+        let remove = ControlCall::AgentRemove(asb_control::AgentRemoveRequest {
+            binding: snapshot_binding(&snapshot),
+            idempotency_key: "remove-positive-1".into(),
+        });
+        let result = backend.execute(&remove, deadline()).unwrap();
+        let ControlResult::AgentLifecycle(removed) = result.result else {
+            panic!("remove result");
+        };
+        assert_eq!(removed.state, AgentLifecycleState::Removed);
+        assert!(!state.join("agents/codex").exists());
+    }
+
+    fn snapshot_binding(snapshot: &AgentCatalog) -> AgentLifecycleBinding {
+        AgentLifecycleBinding {
+            agent_id: "codex".into(),
+            runner_instance_id: snapshot.runner_instance_id.clone(),
+            catalog_sha256: snapshot.catalog_sha256.clone(),
+        }
+    }
+
+    #[test]
+    fn authenticated_lifecycle_missing_trust_is_typed_idempotent_and_private() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let snapshot = lifecycle_test_catalog(&backend);
+        seed_lifecycle_catalog(&backend, &snapshot);
+        let call = install_request(&snapshot, "install-private-1");
+        let first = backend.execute(&call, deadline()).unwrap();
+        let second = backend.execute(&call, deadline()).unwrap();
+        assert_eq!(first, second);
+        let ControlResult::AgentLifecycle(response) = first.result else {
+            panic!("lifecycle result");
+        };
+        assert_eq!(response.state, AgentLifecycleState::Failed);
+        assert_eq!(
+            response.failure,
+            Some(AgentLifecycleFailure::UnauthenticatedCatalog)
+        );
+        let encoded = serde_json::to_string(&response).unwrap();
+        assert!(!encoded.contains("manifest.json"));
+        assert!(!encoded.contains("/tmp"));
+    }
+
+    #[test]
+    fn authenticated_lifecycle_cancel_and_restart_reconcile_staging() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let snapshot = lifecycle_test_catalog(&backend);
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            catalog.agent_catalog_generation = snapshot.generation.0;
+            catalog.agent_catalog = Some(snapshot.clone());
+            let binding = AgentLifecycleBinding {
+                agent_id: "codex".into(),
+                runner_instance_id: snapshot.runner_instance_id.clone(),
+                catalog_sha256: snapshot.catalog_sha256.clone(),
+            };
+            let response = AgentLifecycleResponse {
+                binding: binding.clone(),
+                operation_id: "agent-op-staging".into(),
+                state: AgentLifecycleState::Staging,
+                generation: Revision(2),
+                progress_percent: 0,
+                failure: None,
+            };
+            catalog.agent_lifecycle_generation = 2;
+            catalog
+                .agent_lifecycles
+                .insert(response.operation_id.clone(), response);
+            commit_catalog(&backend.state_root, &catalog).unwrap();
+            drop(catalog);
+            let cancel = ControlCall::AgentCancel(asb_control::AgentCancelRequest {
+                binding,
+                operation_id: "agent-op-staging".into(),
+                idempotency_key: "cancel-staging-1".into(),
+            });
+            let first = backend.execute(&cancel, deadline()).unwrap();
+            let ControlResult::AgentLifecycle(result) = first.result.clone() else {
+                panic!("cancel result");
+            };
+            assert_eq!(result.state, AgentLifecycleState::Cancelled);
+            assert_eq!(backend.execute(&cancel, deadline()).unwrap(), first);
+            let status = ControlCall::AgentStatus(asb_control::AgentStatusRequest {
+                binding: result.binding.clone(),
+                operation_id: Some(result.operation_id.clone()),
+            });
+            assert!(matches!(
+                backend.execute(&status, deadline()).unwrap().result,
+                ControlResult::AgentLifecycle(value) if value.state == AgentLifecycleState::Cancelled
+            ));
+            let rejected_cancel = ControlCall::AgentCancel(asb_control::AgentCancelRequest {
+                binding: result.binding.clone(),
+                operation_id: result.operation_id.clone(),
+                idempotency_key: "cancel-after-terminal".into(),
+            });
+            assert_eq!(
+                backend.execute(&rejected_cancel, deadline()),
+                Err(BackendFailure::Rejected)
+            );
+            let rejected_retry = ControlCall::AgentRetry(asb_control::AgentRetryRequest {
+                binding: result.binding.clone(),
+                operation_id: result.operation_id.clone(),
+                idempotency_key: "retry-cancelled".into(),
+            });
+            assert_eq!(
+                backend.execute(&rejected_retry, deadline()),
+                Err(BackendFailure::Rejected)
+            );
+            let remove = ControlCall::AgentRemove(asb_control::AgentRemoveRequest {
+                binding: result.binding,
+                idempotency_key: "remove-before-active".into(),
+            });
+            assert_eq!(
+                backend.execute(&remove, deadline()),
+                Err(BackendFailure::NotFound)
+            );
+        }
+        drop(backend);
+        let restarted = open_backend(state).unwrap();
+        let catalog = restarted.catalog.lock().unwrap();
+        assert_eq!(catalog.agent_lifecycles.len(), 1);
+        assert_eq!(
+            catalog.agent_lifecycles.values().next().unwrap().state,
+            AgentLifecycleState::Cancelled
+        );
+    }
+
+    #[test]
+    fn authenticated_lifecycle_restart_fences_unfinished_intent() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let snapshot = lifecycle_test_catalog(&backend);
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            catalog.agent_catalog_generation = snapshot.generation.0;
+            catalog.agent_catalog = Some(snapshot.clone());
+            let response = AgentLifecycleResponse {
+                binding: AgentLifecycleBinding {
+                    agent_id: "codex".into(),
+                    runner_instance_id: snapshot.runner_instance_id.clone(),
+                    catalog_sha256: snapshot.catalog_sha256.clone(),
+                },
+                operation_id: "agent-op-interrupted".into(),
+                state: AgentLifecycleState::Staging,
+                generation: Revision(2),
+                progress_percent: 50,
+                failure: None,
+            };
+            catalog.agent_lifecycle_generation = 2;
+            catalog
+                .agent_lifecycles
+                .insert(response.operation_id.clone(), response);
+            commit_catalog(&backend.state_root, &catalog).unwrap();
+        }
+        drop(backend);
+        let restarted = open_backend(state).unwrap();
+        let catalog = restarted.catalog.lock().unwrap();
+        let response = catalog
+            .agent_lifecycles
+            .get("agent-op-interrupted")
+            .unwrap();
+        assert_eq!(response.state, AgentLifecycleState::Failed);
+        assert_eq!(
+            response.failure,
+            Some(AgentLifecycleFailure::NeedsReconciliation)
+        );
+        assert_eq!(response.progress_percent, 0);
+    }
+
+    #[test]
+    fn authenticated_lifecycle_rejects_target_mismatch_without_activation() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let mut snapshot = lifecycle_test_catalog(&backend);
+        let _bundle = install_signed_lifecycle_fixture(&state, &mut snapshot).0;
+        snapshot.target.libc_version = "mismatched-abi".into();
+        snapshot.agents[0].target = snapshot.target.clone();
+        snapshot.catalog_sha256 = snapshot.computed_sha256().unwrap();
+        seed_lifecycle_catalog(&backend, &snapshot);
+
+        let result = backend
+            .execute(&install_request(&snapshot, "target-mismatch"), deadline())
+            .unwrap();
+        let ControlResult::AgentLifecycle(response) = result.result else {
+            panic!("target mismatch result");
+        };
+        assert_eq!(response.state, AgentLifecycleState::Failed);
+        assert_eq!(
+            response.failure,
+            Some(AgentLifecycleFailure::IncompatibleTarget)
+        );
+        assert!(!state.join("agents/codex").exists());
+    }
+
+    #[test]
+    fn authenticated_lifecycle_rejects_provenance_and_retries_idempotently() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let mut snapshot = lifecycle_test_catalog(&backend);
+        let (_, verifier) = install_signed_lifecycle_fixture(&state, &mut snapshot);
+        snapshot.agents[0]
+            .package
+            .as_mut()
+            .unwrap()
+            .signature_sha256 = "f".repeat(64);
+        snapshot.catalog_sha256 = snapshot.computed_sha256().unwrap();
+        drop(backend);
+        let backend = open_backend_with_verifier(state, verifier).unwrap();
+        seed_lifecycle_catalog(&backend, &snapshot);
+
+        let install = install_request(&snapshot, "bad-signature");
+        let first = backend.execute(&install, deadline()).unwrap();
+        let ControlResult::AgentLifecycle(failed) = first.result.clone() else {
+            panic!("provenance result");
+        };
+        assert_eq!(failed.state, AgentLifecycleState::Failed);
+        assert_eq!(
+            failed.failure,
+            Some(AgentLifecycleFailure::VerificationFailed)
+        );
+        let retry = ControlCall::AgentRetry(asb_control::AgentRetryRequest {
+            binding: failed.binding.clone(),
+            operation_id: failed.operation_id.clone(),
+            idempotency_key: "bad-signature-retry".into(),
+        });
+        let retry_result = backend.execute(&retry, deadline()).unwrap();
+        let ControlResult::AgentLifecycle(retried) = retry_result.result.clone() else {
+            panic!("retry result");
+        };
+        assert_eq!(retried.state, AgentLifecycleState::Failed);
+        assert_eq!(
+            retried.failure,
+            Some(AgentLifecycleFailure::VerificationFailed)
+        );
+        assert_eq!(backend.execute(&retry, deadline()).unwrap(), retry_result);
+        let status = ControlCall::AgentStatus(asb_control::AgentStatusRequest {
+            binding: retried.binding,
+            operation_id: Some(retried.operation_id),
+        });
+        assert!(matches!(
+            backend.execute(&status, deadline()).unwrap().result,
+            ControlResult::AgentLifecycle(value) if value.state == AgentLifecycleState::Failed
+        ));
+    }
+
+    #[test]
+    fn authenticated_lifecycle_rejects_private_bundle_root() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let mut snapshot = lifecycle_test_catalog(&backend);
+        let (_, verifier) = install_signed_lifecycle_fixture(&state, &mut snapshot);
+        let bundles = state.join("agent-bundles");
+        let retained = state.join("retained-agent-bundles");
+        fs::rename(&bundles, &retained).unwrap();
+        symlink(&retained, &bundles).unwrap();
+        drop(backend);
+        let backend = open_backend_with_verifier(state.clone(), verifier).unwrap();
+        seed_lifecycle_catalog(&backend, &snapshot);
+        let result = backend
+            .execute(&install_request(&snapshot, "symlink-root"), deadline())
+            .unwrap();
+        let ControlResult::AgentLifecycle(response) = result.result else {
+            panic!("private root result");
+        };
+        assert_eq!(response.state, AgentLifecycleState::Failed);
+        assert_eq!(
+            response.failure,
+            Some(AgentLifecycleFailure::VerificationFailed)
+        );
+        assert!(!state.join("agents/codex").exists());
+    }
+
+    #[test]
+    fn authenticated_lifecycle_expired_install_does_not_commit_intent() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let snapshot = lifecycle_test_catalog(&backend);
+        seed_lifecycle_catalog(&backend, &snapshot);
+        let call = install_request(&snapshot, "expired-install");
+        let expired = RequestDeadline::start(1).unwrap();
+        thread::sleep(Duration::from_millis(5));
+        assert_eq!(
+            backend.execute(&call, expired),
+            Err(BackendFailure::NeedsReconciliation)
+        );
+        let catalog = backend.catalog.lock().unwrap();
+        assert!(!catalog.agent_idempotency.contains_key("expired-install"));
+        assert!(catalog.agent_lifecycles.is_empty());
     }
 
     #[test]

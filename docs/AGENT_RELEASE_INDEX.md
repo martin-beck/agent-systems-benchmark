@@ -21,6 +21,14 @@ catalog digest, and rejects incomplete or contradictory entries. Missing trust
 configuration leaves the truthful unavailable roster in place; it never
 promotes an unsigned or partially verified entry.
 
+When an entry is selected for lifecycle installation, the runner resolves its
+authenticated source beneath the private state root at
+`agent-bundles/<package.sha256>`. The directory is never supplied by a
+frontend and is not treated as an arbitrary path. The signed bundle manifest,
+detached signature digest, target/libc identity, manifest digest, and SPDX
+digest must all match the selected catalog entry before the bundle is copied to
+the runner-owned version store and activated.
+
 The private runtime configuration supplies the explicit trust root through:
 
 - `ASB_RELEASE_INDEX_SSH_KEYGEN`
