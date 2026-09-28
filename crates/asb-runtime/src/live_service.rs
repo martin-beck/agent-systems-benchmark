@@ -18,8 +18,9 @@ use crate::sandbox::{
 };
 use asb_control::{
     AuthenticatedChainEnrollmentV1, ControlCall, ControlClient, ControlResult, ControlSuccess,
-    IssuedCertificateChainV1, RuntimeEnrollmentReceiptV1, RuntimeReceiptRequestV1,
-    RuntimeReceiptResponseV1,
+    IssuedCertificateChainV1, RuntimeBootstrapRequestV1 as ControlRuntimeBootstrapRequestV1,
+    RuntimeBootstrapResponseV1 as ControlRuntimeBootstrapResponseV1, RuntimeEnrollmentReceiptV1,
+    RuntimeReceiptRequestV1, RuntimeReceiptResponseV1,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -1436,6 +1437,96 @@ impl LiveProviderRuntimeBridge {
             .map_err(|_| LiveProviderControlAdapterError::ChainUnavailable)?;
         self.ingest_control_response(&request, result, &chain, now_unix_ms)
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)
+    }
+
+    /// Request one authenticated platform bootstrap from the control plane.
+    ///
+    /// The client contributes only a kernel-bound session digest, nonce, and
+    /// restart binding. Authority, chain, expiry, cancellation binding, and
+    /// all provider selection are issued by the runner; no caller-supplied
+    /// runtime paths or policy objects enter this adapter.
+    pub fn request_control_bootstrap(
+        &self,
+        client: &mut ControlClient,
+        request: ControlRuntimeBootstrapRequestV1,
+        now_unix_ms: u64,
+    ) -> Result<ControlRuntimeBootstrapResponseV1, LiveProviderControlAdapterError> {
+        request
+            .validate()
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        if client
+            .session_identity_sha256()
+            .map_err(|_| LiveProviderControlAdapterError::Transport)?
+            != request.control_session_sha256
+        {
+            return Err(LiveProviderControlAdapterError::AttestationMismatch);
+        }
+        let response = client
+            .call(ControlCall::RuntimeBootstrap(request.clone()), 60_000)
+            .map_err(|_| LiveProviderControlAdapterError::Transport)?;
+        let result = response
+            .result()
+            .and_then(|success| match success {
+                ControlSuccess::Operation(bound) => Some(&bound.result),
+                ControlSuccess::Negotiated(_) => None,
+            })
+            .and_then(|result| match result {
+                ControlResult::RuntimeBootstrap(value) => Some(value),
+                _ => None,
+            })
+            .ok_or(LiveProviderControlAdapterError::InvalidResponse)?;
+        result
+            .validate_for(&request)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        if now_unix_ms >= result.expires_at_unix_ms
+            || result.receipt.expires_at_unix_ms != result.expires_at_unix_ms
+        {
+            return Err(LiveProviderControlAdapterError::AttestationMismatch);
+        }
+        result
+            .chain
+            .issue_runtime_chain(now_unix_ms / 1_000)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        Ok(result.clone())
+    }
+
+    /// Revoke one control-issued bootstrap capability using its opaque
+    /// cancellation binding. The operation is idempotent and fail-closed.
+    pub fn cancel_control_bootstrap(
+        &self,
+        client: &mut ControlClient,
+        request: asb_control::RuntimeBootstrapCancelRequestV1,
+    ) -> Result<(), LiveProviderControlAdapterError> {
+        request
+            .validate()
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        if client
+            .session_identity_sha256()
+            .map_err(|_| LiveProviderControlAdapterError::Transport)?
+            != request.control_session_sha256
+        {
+            return Err(LiveProviderControlAdapterError::AttestationMismatch);
+        }
+        let response = client
+            .call(ControlCall::RuntimeBootstrapCancel(request), 60_000)
+            .map_err(|_| LiveProviderControlAdapterError::Transport)?;
+        let accepted = response
+            .result()
+            .and_then(|success| match success {
+                ControlSuccess::Operation(bound) => Some(&bound.result),
+                ControlSuccess::Negotiated(_) => None,
+            })
+            .is_some_and(|result| {
+                matches!(
+                    result,
+                    ControlResult::Acknowledged(value) if value.accepted
+                )
+            });
+        if accepted {
+            Ok(())
+        } else {
+            Err(LiveProviderControlAdapterError::InvalidResponse)
+        }
     }
 }
 
