@@ -121,6 +121,25 @@ class BundleBuilderTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 handoff.stage(args)
 
+    def test_staging_rejects_malformed_external_authority_inputs(self) -> None:
+        handoff_module = Path(__file__).with_name("prepare_signing_handoff.py")
+        handoff_spec = importlib.util.spec_from_file_location("prepare_signing_handoff", handoff_module)
+        assert handoff_spec and handoff_spec.loader
+        handoff = importlib.util.module_from_spec(handoff_spec)
+        handoff_spec.loader.exec_module(handoff)
+        with self.assertRaises(SystemExit):
+            handoff.validate_authority_inputs("operator principal", "a" * 64)
+        with self.assertRaises(SystemExit):
+            handoff.validate_authority_inputs("asb-release", "A" * 64)
+
+    def test_staging_accepts_bounded_operator_authority_shape(self) -> None:
+        handoff_module = Path(__file__).with_name("prepare_signing_handoff.py")
+        handoff_spec = importlib.util.spec_from_file_location("prepare_signing_handoff", handoff_module)
+        assert handoff_spec and handoff_spec.loader
+        handoff = importlib.util.module_from_spec(handoff_spec)
+        handoff_spec.loader.exec_module(handoff)
+        handoff.validate_authority_inputs("operator@example", "a" * 64)
+
 
 if __name__ == "__main__":
     unittest.main()
