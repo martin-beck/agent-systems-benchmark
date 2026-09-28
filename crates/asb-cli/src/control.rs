@@ -5551,9 +5551,21 @@ mod tests {
         {
             let mut catalog = backend.catalog.lock().unwrap();
             let record = catalog.recording_campaign.as_mut().unwrap();
+            let capture = LocalMockProviderCapture::provision().unwrap();
             for entry in &mut record.coverage {
+                let result = capture
+                    .capture(&ProviderCaptureRequest {
+                        provider_profile_sha256: "a".repeat(64),
+                        agent_id: entry.agent_id.clone(),
+                        workload_id: entry.workload_id.clone(),
+                        scorer_revision: entry.scorer_revision.clone(),
+                        attempt_id: entry.attempt_id.clone(),
+                        generation: entry.generation,
+                    })
+                    .unwrap();
+                persist_cassette_artifact(&backend.state_root, &result).unwrap();
                 entry.state = "complete".into();
-                entry.cassette_sha256 = Some("a".repeat(64));
+                entry.cassette_sha256 = Some(result.cassette_sha256);
                 entry.redaction_verified = true;
                 entry.replay_verified = true;
             }
