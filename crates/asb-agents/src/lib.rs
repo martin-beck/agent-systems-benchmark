@@ -13,6 +13,7 @@ pub mod auth_backend;
 pub mod authenticated_request;
 pub mod codex;
 pub mod credential;
+pub mod development_fixture;
 pub mod gemini;
 pub mod goose;
 pub mod launch_bridge;
@@ -28,3 +29,10 @@ pub mod provider;
 pub mod provider_launch;
 pub mod qwen_code;
 pub mod strict_replay;
+
+pub use development_fixture::{
+    DEVELOPMENT_FIXTURE_SCHEMA_VERSION, DEVELOPMENT_FIXTURE_SEED, DevelopmentCaptureRequest,
+    DevelopmentCaptureResult, DevelopmentCredentialReceipt, DevelopmentFixtureError,
+    DevelopmentFixtureState, DevelopmentProviderFixture, DevelopmentProviderSelection,
+    DevelopmentReadiness,
+};

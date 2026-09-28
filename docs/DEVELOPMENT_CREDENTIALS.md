@@ -25,3 +25,27 @@ pair. It performs no network I/O. Other provider/model pairs are accepted only
 when the bounded compatibility matrix says the selected authentication route
 is valid; actual provider reachability and production credential hardening are
 owned by later work.
+
+## Local provider/capture fixture
+
+`asb_agents::DevelopmentProviderFixture` connects an enrolled development
+status to one provider/model selection and applies that selection atomically to
+the selected agent set. `default_for_all` creates the setup default, while
+`apply_to_all_defaults` replaces the complete set without permitting a mixed
+provider configuration. Every capture carries a generation-bound public
+receipt and an explicit fixture seed; stale generations, provider/model
+mismatches, malformed receipts, and idempotency conflicts fail closed.
+The receipt preserves the AR-1499 enrollment self-signature digest and also
+contains a separate seed-bound fixture signature; neither value is a
+production trust assertion.
+
+The fixture produces deterministic loopback-only mock exchanges, seals them
+through the normal redaction and cassette integrity boundary, and exposes the
+existing strict replay service. Replay has no provider fallback or network
+path. Serialization, cancellation, interrupted capture recovery, and complete
+selected/all-agent comparison readiness are covered by Rust tests. The fixture
+warnings about missing authentication, signature validation, and key
+management are intentionally visible but never block this development path.
+Restart state is bounded before JSON parsing and is integrity-checked on
+restore. It is not production provider evidence; production credential and
+signing hardening remains the responsibility of AR-1501.
