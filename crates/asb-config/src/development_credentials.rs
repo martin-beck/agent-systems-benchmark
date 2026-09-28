@@ -477,8 +477,10 @@ fn validate_request(
     {
         return Err(DevelopmentCredentialError::InvalidRequest);
     }
-    if request.operation != DevelopmentCredentialOperation::Enroll
-        && request.expected_generation == 0
+    if !matches!(
+        request.operation,
+        DevelopmentCredentialOperation::Enroll | DevelopmentCredentialOperation::Status
+    ) && request.expected_generation == 0
     {
         return Err(DevelopmentCredentialError::InvalidRequest);
     }
@@ -561,6 +563,12 @@ fn validate_bound_selection(
     request: &DevelopmentCredentialRequest,
 ) -> Result<(), DevelopmentCredentialError> {
     if status.identity.is_none() {
+        // Status is also the setup-discovery operation.  It must be readable
+        // before an identity exists (including after reset), while mutations
+        // and tests remain fail-closed until a selection is enrolled.
+        if request.operation == DevelopmentCredentialOperation::Status {
+            return Ok(());
+        }
         return Err(DevelopmentCredentialError::NotEnrolled);
     }
     if status.provider_id != request.provider_id
@@ -800,6 +808,37 @@ mod tests {
             store.apply(wrong_auth, DevelopmentServiceAvailability::default()),
             Err(DevelopmentCredentialError::SelectionMismatch)
         );
+    }
+
+    #[test]
+    fn status_is_available_before_enrollment_but_reset_is_not() {
+        let mut store = DevelopmentCredentialStore::new();
+        let fresh_status = store
+            .apply(
+                request(DevelopmentCredentialOperation::Status, "fresh-status", 0),
+                DevelopmentServiceAvailability::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            fresh_status.status.status,
+            DevelopmentEnrollmentStatus::Unenrolled
+        );
+        assert_eq!(fresh_status.status.generation, 0);
+        assert_eq!(fresh_status.status.provider_id, "");
+        assert_eq!(
+            store.apply(
+                request(DevelopmentCredentialOperation::Reset, "fresh-reset", 0),
+                DevelopmentServiceAvailability::default(),
+            ),
+            Err(DevelopmentCredentialError::InvalidRequest)
+        );
+        store
+            .cancel(&request(
+                DevelopmentCredentialOperation::Enroll,
+                "fresh-cancel",
+                0,
+            ))
+            .unwrap();
     }
 
     #[test]
