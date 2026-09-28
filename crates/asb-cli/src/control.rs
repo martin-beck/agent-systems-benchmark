@@ -3382,23 +3382,22 @@ impl RunnerBackend {
             .catalog
             .lock()
             .map_err(|_| BackendFailure::NeedsReconciliation)?;
-        let campaign =
-            catalog
-                .recording_campaign
-                .as_ref()
-                .map(|record| asb_control::RecordingCampaignPlan {
-                    runner_instance_id: self.runner_instance_id.clone(),
-                    generation: Revision(record.generation),
-                    campaign_id: record.campaign_id.clone(),
-                    provider_id: record.provider_id.clone(),
-                    model_id: record.model_id.clone(),
-                    agent_ids: record.agent_ids.clone(),
-                    workload_ids: record.workload_ids.clone(),
-                    tuple_count: record.tuple_count,
-                    state: record.state.clone(),
-                    offline_ready: record.offline_ready,
-                    unavailable_reason: record.unavailable_reason.clone(),
-                });
+        let campaign = catalog.recording_campaign.as_ref().map(|record| {
+            asb_control::RecordingCampaignLifecycle {
+                runner_instance_id: self.runner_instance_id.clone(),
+                generation: Revision(record.generation),
+                campaign_id: record.campaign_id.clone(),
+                provider_id: record.provider_id.clone(),
+                model_id: record.model_id.clone(),
+                agent_ids: record.agent_ids.clone(),
+                workload_ids: record.workload_ids.clone(),
+                tuple_count: record.tuple_count,
+                covered_tuple_count: record.covered_tuple_count,
+                state: record.state.clone(),
+                offline_ready: record.offline_ready,
+                unavailable_reason: record.unavailable_reason.clone(),
+            }
+        });
         let generation = catalog
             .configuration
             .as_ref()
@@ -5559,6 +5558,15 @@ mod tests {
             Err(BackendFailure::CapabilityUnavailable)
         );
         assert_eq!(execute(execute_call.clone()), Err(BackendFailure::Rejected));
+        let status_after_failure =
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: runner.clone(),
+            });
+        backend
+            .execute(&status_after_failure, deadline())
+            .unwrap()
+            .validate_for_call(&status_after_failure, ControlLimits::default())
+            .unwrap();
 
         let stale_runner_execute = asb_control::RecordingCampaignExecuteParams {
             idempotency_key: "lifecycle-stale-runner".into(),
@@ -5674,6 +5682,11 @@ mod tests {
             ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "cancelled"
         ));
         assert_eq!(execute(cancel_call.clone()).unwrap(), cancelled);
+        backend
+            .execute(&status_after_failure, deadline())
+            .unwrap()
+            .validate_for_call(&status_after_failure, ControlLimits::default())
+            .unwrap();
 
         {
             let mut catalog = backend.catalog.lock().unwrap();

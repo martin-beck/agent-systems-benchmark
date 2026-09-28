@@ -289,7 +289,7 @@ pub struct RecordingCampaignStatus {
     /// Current setup generation.
     pub generation: Revision,
     /// Last durable plan, if one has been created.
-    pub campaign: Option<RecordingCampaignPlan>,
+    pub campaign: Option<RecordingCampaignLifecycle>,
 }
 
 /// Idempotent request to admit a planned campaign for runtime-owned capture.
