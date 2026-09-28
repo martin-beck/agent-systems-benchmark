@@ -15,6 +15,16 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+pub mod development_credentials;
+
+pub use development_credentials::{
+    DEVELOPMENT_ENROLLMENT_SCHEMA_VERSION, DEVELOPMENT_MOCK_MODEL, DEVELOPMENT_MOCK_PROVIDER,
+    DevelopmentAuthMethod, DevelopmentCredentialError, DevelopmentCredentialOperation,
+    DevelopmentCredentialRequest, DevelopmentCredentialResponse, DevelopmentCredentialStatus,
+    DevelopmentCredentialStore, DevelopmentEnrollmentStatus, DevelopmentIdentity,
+    DevelopmentServiceAvailability, LocalMockProvider,
+};
+
 /// Current on-disk configuration schema.
 pub const CONFIG_SCHEMA_VERSION: u16 = 1;
 /// Exact dated free-model snapshot accepted by the user configuration.

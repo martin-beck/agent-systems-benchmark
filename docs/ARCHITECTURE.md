@@ -120,6 +120,11 @@ strictly offline and is evidence of the controlled runtime path, not fresh model
 quality or native platform performance. See [the workflow guide](workflows/live-benchmark.md)
 and the [provider support matrix](PROVIDER_LAUNCH.md).
 
+Development setup uses the bounded [`development credential contract`](DEVELOPMENT_CREDENTIALS.md).
+Its generated identity and local/mock qualification are deterministic fixture
+evidence only; missing production authentication, signature validation, or key
+management is a warning in development and never a production authorization.
+
 ## CSB decision
 
 CSB's bm-runner uses benchkit, native/container execution units and a MonitorFactory.
