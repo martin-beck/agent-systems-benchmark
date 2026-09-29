@@ -2954,6 +2954,10 @@
           "format": "uint64",
           "minimum": 0
         },
+        "namespace_sha256": {
+          "description": "Authenticated kernel-derived namespace binding.",
+          "type": "string"
+        },
         "receipt": {
           "description": "Authenticated public runtime receipt.",
           "$ref": "#/$defs/RuntimeEnrollmentReceiptV1"
@@ -2980,6 +2984,7 @@
         "request_nonce_sha256",
         "control_session_sha256",
         "restart_binding_sha256",
+        "namespace_sha256",
         "generation",
         "expires_at_unix_ms",
         "cancellation_binding_sha256",

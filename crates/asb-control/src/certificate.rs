@@ -197,6 +197,8 @@ pub struct RuntimeBootstrapRequestV1 {
     pub request_nonce_sha256: String,
     /// Restart binding retained by the runtime owner.
     pub restart_binding_sha256: String,
+    /// Kernel-derived namespace digest to bind into the issued authority.
+    pub namespace_sha256: String,
 }
 
 impl RuntimeBootstrapRequestV1 {
@@ -209,6 +211,7 @@ impl RuntimeBootstrapRequestV1 {
             || !is_digest(&self.control_session_sha256)
             || !is_digest(&self.request_nonce_sha256)
             || !is_digest(&self.restart_binding_sha256)
+            || !is_digest(&self.namespace_sha256)
         {
             return Err(CertificateError::InvalidReceiptRequest);
         }
@@ -228,6 +231,8 @@ pub struct RuntimeBootstrapResponseV1 {
     pub control_session_sha256: String,
     /// Restart binding copied from the request.
     pub restart_binding_sha256: String,
+    /// Authenticated kernel-derived namespace binding.
+    pub namespace_sha256: String,
     /// Monotonic authority generation.
     pub generation: u64,
     /// Bounded validity end for all returned capabilities.
@@ -251,6 +256,7 @@ impl RuntimeBootstrapResponseV1 {
             || self.request_nonce_sha256 != request.request_nonce_sha256
             || self.control_session_sha256 != request.control_session_sha256
             || self.restart_binding_sha256 != request.restart_binding_sha256
+            || self.namespace_sha256 != request.namespace_sha256
             || self.generation != request.generation
             || !is_digest(&self.cancellation_binding_sha256)
             || self.expires_at_unix_ms == 0
@@ -1364,6 +1370,7 @@ mod tests {
             control_session_sha256: "a".repeat(64),
             request_nonce_sha256: "b".repeat(64),
             restart_binding_sha256: "c".repeat(64),
+            namespace_sha256: "d".repeat(64),
         };
         assert!(request.validate().is_ok());
         request.control_session_sha256 = "not-a-digest".into();
@@ -1392,12 +1399,14 @@ mod tests {
             control_session_sha256: "a".repeat(64),
             request_nonce_sha256: "b".repeat(64),
             restart_binding_sha256: "c".repeat(64),
+            namespace_sha256: "d".repeat(64),
         };
         let response = RuntimeBootstrapResponseV1 {
             schema_version: 1,
             request_nonce_sha256: request.request_nonce_sha256.clone(),
             control_session_sha256: request.control_session_sha256.clone(),
             restart_binding_sha256: request.restart_binding_sha256.clone(),
+            namespace_sha256: request.namespace_sha256.clone(),
             generation: request.generation,
             expires_at_unix_ms: 2_000,
             cancellation_binding_sha256: "d".repeat(64),
@@ -1437,10 +1446,16 @@ mod tests {
             Err(CertificateError::InvalidReceiptResponse)
         );
 
-        let mut mismatched_receipt_expiry = response;
+        let mut mismatched_receipt_expiry = response.clone();
         mismatched_receipt_expiry.receipt.expires_at_unix_ms = 3_000;
         assert_eq!(
             mismatched_receipt_expiry.validate_for(&request),
+            Err(CertificateError::InvalidReceiptResponse)
+        );
+        let mut mismatched_namespace = response.clone();
+        mismatched_namespace.namespace_sha256 = "e".repeat(64);
+        assert_eq!(
+            mismatched_namespace.validate_for(&request),
             Err(CertificateError::InvalidReceiptResponse)
         );
     }

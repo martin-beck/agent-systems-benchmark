@@ -2173,6 +2173,7 @@ impl RunnerBackend {
                     request_nonce_sha256: params.request_nonce_sha256.clone(),
                     control_session_sha256: params.control_session_sha256.clone(),
                     restart_binding_sha256: params.restart_binding_sha256.clone(),
+                    namespace_sha256: params.namespace_sha256.clone(),
                     generation: params.generation,
                     expires_at_unix_ms: receipt.expires_at_unix_ms,
                     cancellation_binding_sha256: cancellation_binding_sha256.clone(),

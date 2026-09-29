@@ -461,6 +461,23 @@ pub(crate) struct RuntimeAuthorityInputs {
     namespace: NamespaceIdentity,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RuntimeAuthorityInputBinding {
+    namespace_sha256: String,
+    relay_root_sha256: String,
+    lease_root_sha256: String,
+}
+
+impl RuntimeAuthorityInputBinding {
+    fn from_inputs(inputs: &RuntimeAuthorityInputs) -> Self {
+        Self {
+            namespace_sha256: digest(inputs.namespace.as_str()),
+            relay_root_sha256: digest(&inputs.relay_root.display().to_string()),
+            lease_root_sha256: digest(&inputs.config.lease_root().display().to_string()),
+        }
+    }
+}
+
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeAuthorityInputResolverError {
@@ -491,9 +508,10 @@ pub(crate) struct RuntimeAuthorityInputResolver {
 
 #[allow(dead_code)]
 impl RuntimeAuthorityInputResolver {
-    pub(crate) fn from_authenticated_enrollment(
+    fn from_authenticated_enrollment(
         owner: String,
         profile: &LiveProviderRuntimeAuthorityProfile,
+        binding: RuntimeAuthorityInputBinding,
         inputs: RuntimeAuthorityInputs,
         state_path: PathBuf,
     ) -> Result<Self, RuntimeAuthorityInputResolverError> {
@@ -505,6 +523,7 @@ impl RuntimeAuthorityInputResolver {
             || claims.target != inputs.config.target().address()
             || claims.credential_ref_sha256 != inputs.config.credential_ref_sha256()
             || inputs.namespace.as_str().is_empty()
+            || RuntimeAuthorityInputBinding::from_inputs(&inputs) != binding
         {
             return Err(RuntimeAuthorityInputResolverError::InvalidRecord);
         }
@@ -1435,7 +1454,7 @@ impl RuntimeControlBootstrap {
             endpoint_identity_sha256: identity.endpoint_identity_sha256.clone(),
             credential_ref_sha256: response.receipt.credential_ref_sha256.clone(),
             control_session_sha256: response.control_session_sha256.clone(),
-            namespace_sha256: response.receipt.relay_root_sha256.clone(),
+            namespace_sha256: response.namespace_sha256.clone(),
             relay_root_sha256: response.receipt.relay_root_sha256.clone(),
             lease_root_sha256: response.receipt.lease_root_sha256.clone(),
             expires_at_unix_ms: response.expires_at_unix_ms,
@@ -1493,6 +1512,11 @@ impl RuntimeControlBootstrap {
         let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
             owner,
             &self.profile,
+            RuntimeAuthorityInputBinding {
+                namespace_sha256: self.response.namespace_sha256.clone(),
+                relay_root_sha256: self.response.receipt.relay_root_sha256.clone(),
+                lease_root_sha256: self.response.receipt.lease_root_sha256.clone(),
+            },
             inputs,
             state_path,
         )
@@ -2537,12 +2561,14 @@ mod tests {
             control_session_sha256: runtime_request.control_session_sha256.clone(),
             request_nonce_sha256: "2".repeat(64),
             restart_binding_sha256: "3".repeat(64),
+            namespace_sha256: runtime_request.namespace_sha256.clone(),
         };
         let response = ControlRuntimeBootstrapResponseV1 {
             schema_version: 1,
             request_nonce_sha256: request.request_nonce_sha256.clone(),
             control_session_sha256: request.control_session_sha256.clone(),
             restart_binding_sha256: request.restart_binding_sha256.clone(),
+            namespace_sha256: request.namespace_sha256.clone(),
             generation: request.generation,
             expires_at_unix_ms: receipt.expires_at_unix_ms,
             cancellation_binding_sha256: "4".repeat(64),
@@ -3745,6 +3771,7 @@ mod tests {
         let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
             "owner-1".into(),
             &profile,
+            RuntimeAuthorityInputBinding::from_inputs(&inputs),
             inputs,
             state_path.clone(),
         )
@@ -3782,6 +3809,7 @@ mod tests {
             RuntimeAuthorityInputResolver::from_authenticated_enrollment(
                 String::new(),
                 &profile,
+                RuntimeAuthorityInputBinding::from_inputs(&inputs),
                 inputs.clone(),
                 root().join("empty-owner.json"),
             ),
@@ -3791,8 +3819,45 @@ mod tests {
             RuntimeAuthorityInputResolver::from_authenticated_enrollment(
                 "owner-1".into(),
                 &profile,
+                RuntimeAuthorityInputBinding::from_inputs(&inputs),
                 inputs.clone(),
                 relative,
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+        let mut mismatched_binding = RuntimeAuthorityInputBinding::from_inputs(&inputs);
+        mismatched_binding.namespace_sha256 = "0".repeat(64);
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                mismatched_binding,
+                inputs.clone(),
+                root().join("mismatched-binding.json"),
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+        let mut mismatched_relay = RuntimeAuthorityInputBinding::from_inputs(&inputs);
+        mismatched_relay.relay_root_sha256 = "0".repeat(64);
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                mismatched_relay,
+                inputs.clone(),
+                root().join("mismatched-relay.json"),
+            ),
+            Err(RuntimeAuthorityInputResolverError::InvalidRecord)
+        ));
+        let mut mismatched_lease = RuntimeAuthorityInputBinding::from_inputs(&inputs);
+        mismatched_lease.lease_root_sha256 = "0".repeat(64);
+        assert!(matches!(
+            RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+                "owner-1".into(),
+                &profile,
+                mismatched_lease,
+                inputs.clone(),
+                root().join("mismatched-lease.json"),
             ),
             Err(RuntimeAuthorityInputResolverError::InvalidRecord)
         ));
@@ -3815,6 +3880,7 @@ mod tests {
             RuntimeAuthorityInputResolver::from_authenticated_enrollment(
                 "owner-1".into(),
                 &profile,
+                RuntimeAuthorityInputBinding::from_inputs(&wrong_generation),
                 wrong_generation,
                 root().join("wrong-generation.json"),
             ),
@@ -3839,6 +3905,7 @@ mod tests {
             RuntimeAuthorityInputResolver::from_authenticated_enrollment(
                 "owner-1".into(),
                 &profile,
+                RuntimeAuthorityInputBinding::from_inputs(&wrong_target),
                 wrong_target,
                 root().join("wrong-target.json"),
             ),
@@ -3852,6 +3919,7 @@ mod tests {
         let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
             "owner-1".into(),
             &profile,
+            RuntimeAuthorityInputBinding::from_inputs(&inputs),
             inputs,
             root().join("teardown.json"),
         )
@@ -3872,6 +3940,7 @@ mod tests {
             RuntimeAuthorityInputResolver::from_authenticated_enrollment(
                 "owner-1".into(),
                 &profile,
+                RuntimeAuthorityInputBinding::from_inputs(&inputs),
                 inputs,
                 root().join("source.json"),
             )
@@ -3899,6 +3968,7 @@ mod tests {
             RuntimeAuthorityInputResolver::from_authenticated_enrollment(
                 "owner-1".into(),
                 &profile,
+                RuntimeAuthorityInputBinding::from_inputs(&inputs),
                 inputs,
                 root().join("wrong-owner-source.json"),
             )
