@@ -479,12 +479,14 @@ pub(crate) struct RuntimePlatformAuthorityBinding {
     provider: String,
     generation: u64,
     expires_at_unix_ms: u64,
+    chain_sha256: String,
     endpoint_identity_sha256: String,
     credential_ref_sha256: String,
     namespace_sha256: String,
     relay_root_sha256: String,
     lease_root_sha256: String,
     tool_bundle_sha256: String,
+    target: SocketAddr,
 }
 
 impl RuntimePlatformAuthorityBinding {
@@ -499,6 +501,7 @@ impl RuntimePlatformAuthorityBinding {
             provider: profile.provider().to_owned(),
             generation: profile.generation(),
             expires_at_unix_ms: response.expires_at_unix_ms,
+            chain_sha256: profile.attestation.chain_sha256().to_owned(),
             endpoint_identity_sha256: profile
                 .attestation
                 .claims()
@@ -509,6 +512,7 @@ impl RuntimePlatformAuthorityBinding {
             relay_root_sha256: profile.attestation.claims().relay_root_sha256.clone(),
             lease_root_sha256: profile.attestation.claims().lease_root_sha256.clone(),
             tool_bundle_sha256: profile.attestation.claims().tool_bundle_sha256.clone(),
+            target: profile.attestation.claims().target,
         }
     }
 
@@ -516,6 +520,7 @@ impl RuntimePlatformAuthorityBinding {
         let mut digest = Sha256::new();
         let generation = self.generation.to_string();
         let expires_at_unix_ms = self.expires_at_unix_ms.to_string();
+        let target = self.target.to_string();
         for value in [
             self.control_session_sha256.as_str(),
             self.restart_binding_sha256.as_str(),
@@ -523,12 +528,14 @@ impl RuntimePlatformAuthorityBinding {
             self.provider.as_str(),
             generation.as_str(),
             expires_at_unix_ms.as_str(),
+            self.chain_sha256.as_str(),
             self.endpoint_identity_sha256.as_str(),
             self.credential_ref_sha256.as_str(),
             self.namespace_sha256.as_str(),
             self.relay_root_sha256.as_str(),
             self.lease_root_sha256.as_str(),
             self.tool_bundle_sha256.as_str(),
+            target.as_str(),
         ] {
             digest.update(value.as_bytes());
             digest.update([0]);
@@ -591,6 +598,46 @@ pub(crate) trait RuntimePlatformAuthorityProvider: Send + Sync {
     ) -> Result<RuntimePlatformAuthorityMaterial, RuntimePlatformAuthorityProviderError>;
 }
 
+/// Runtime-owned adapter for one authenticated platform materialization.
+///
+/// A platform/control integration constructs this handle only after obtaining
+/// the private values from its authenticated platform source. The constructor
+/// is crate-private and validates the complete binding before the handle can
+/// be handed to bootstrap; it does not discover values from a path, `PATH`, or
+/// caller configuration.
+#[allow(dead_code)]
+pub(crate) struct RuntimePlatformAuthorityProviderHandle {
+    material: RuntimePlatformAuthorityMaterial,
+}
+
+impl RuntimePlatformAuthorityProviderHandle {
+    #[allow(dead_code)]
+    pub(crate) fn from_authenticated_material(
+        binding: &RuntimePlatformAuthorityBinding,
+        material: RuntimePlatformAuthorityMaterial,
+    ) -> Result<Self, RuntimePlatformAuthorityProviderError> {
+        if !material.state_path.is_absolute()
+            || material.binding_sha256 != authority_material_digest(binding, &material.inputs)
+        {
+            return Err(RuntimePlatformAuthorityProviderError::BindingMismatch);
+        }
+        Ok(Self { material })
+    }
+}
+
+impl RuntimePlatformAuthorityProvider for RuntimePlatformAuthorityProviderHandle {
+    fn materialize(
+        &self,
+        binding: &RuntimePlatformAuthorityBinding,
+    ) -> Result<RuntimePlatformAuthorityMaterial, RuntimePlatformAuthorityProviderError> {
+        if self.material.binding_sha256 != authority_material_digest(binding, &self.material.inputs)
+        {
+            return Err(RuntimePlatformAuthorityProviderError::BindingMismatch);
+        }
+        Ok(self.material.clone())
+    }
+}
+
 fn authority_material_digest(
     binding: &RuntimePlatformAuthorityBinding,
     inputs: &RuntimeAuthorityInputs,
@@ -622,8 +669,8 @@ fn authority_material_digest(
         allowlist_sha256,
         tool_sha256,
         digest(&inputs.config.target().address().to_string()),
-        digest(&inputs.config.credential_ref_sha256().to_owned()),
-        digest(&inputs.config.generation().to_owned()),
+        digest(inputs.config.credential_ref_sha256()),
+        digest(inputs.config.generation()),
         digest(&inputs.config.lease_root().display().to_string()),
         digest(&inputs.relay_root.display().to_string()),
         digest(inputs.namespace.as_str()),
@@ -2868,14 +2915,15 @@ mod tests {
     #[test]
     fn control_bootstrap_materializes_only_matching_private_bindings() {
         let (mut bootstrap, inputs, binding) = materialization_bootstrap_fixture();
-        let provider = FixtureAuthorityProvider {
-            material: RuntimePlatformAuthorityMaterial::for_test(
+        let provider = RuntimePlatformAuthorityProviderHandle::from_authenticated_material(
+            &binding,
+            RuntimePlatformAuthorityMaterial::for_test(
                 &binding,
                 inputs.clone(),
                 root().join("materialized-authority.json"),
             ),
-            tamper: false,
-        };
+        )
+        .unwrap();
         bootstrap
             .materialize_provisioner("owner-1".into(), &provider)
             .unwrap();
