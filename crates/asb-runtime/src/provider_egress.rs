@@ -109,7 +109,13 @@ pub fn canonical_policy_binding_from_text(endpoint: &str) -> String {
 
 /// Canonical alternate-egress identity for private owner material.
 pub fn canonical_alternate_egress_binding(value: &str) -> String {
-    canonical_digest("provider-allowlist-v1", &[value])
+    if value.contains('\n') {
+        let mut values = value.split('\n').collect::<Vec<_>>();
+        values.sort_unstable();
+        canonical_digest("provider-allowlist-v1", &values)
+    } else {
+        canonical_digest("provider-allowlist-v1", &[value])
+    }
 }
 
 /// Canonical identity for a concrete allowlist, including its list boundary.
@@ -736,6 +742,17 @@ mod tests {
             canonical_alternate_egress_binding(&target_text),
             canonical_allowlist_binding(&[target])
         );
+        let second = ProviderEgressTarget::new("203.0.113.10:443".parse().unwrap()).unwrap();
+        let canonical_list = canonical_allowlist_binding(&[target, second]);
+        assert_eq!(
+            canonical_alternate_egress_binding(&format!(
+                "{}\n{}",
+                second.address(),
+                target.address()
+            )),
+            canonical_list
+        );
+        assert_ne!(canonical_list, target_digest);
     }
 
     #[test]

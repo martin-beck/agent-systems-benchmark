@@ -303,8 +303,10 @@ impl ProcessOwnerPrivateMaterialV1 {
                 .all(|root| root == lease_root_sha256 || root == relay_root_sha256)
     }
 
-    #[allow(dead_code)]
-    fn digests(&self) -> (String, String, String, String, String, String, String) {
+    /// Return the secret-free digest projection used by the authenticated
+    /// runtime/control contract.  The projection contains no private paths,
+    /// credentials, policy text, or launch arguments.
+    pub fn digests(&self) -> (String, String, String, String, String, String, String) {
         let mut roots = Sha256::new();
         for root in &self.private_roots {
             add(&mut roots, &root.to_string_lossy());

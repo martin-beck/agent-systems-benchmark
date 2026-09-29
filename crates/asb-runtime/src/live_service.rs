@@ -434,6 +434,25 @@ pub struct LiveProviderRuntimeSelection {
     network_policy: NetworkPolicy,
 }
 
+impl LiveProviderRuntimeSelection {
+    /// Construct a validated public selection for runtime-owned enrollment.
+    pub fn new(
+        target: ProviderEgressTarget,
+        generation: impl Into<String>,
+        route_sha256: String,
+        credential_ref_sha256: String,
+        network_policy: NetworkPolicy,
+    ) -> Self {
+        Self {
+            target,
+            generation: generation.into(),
+            route_sha256,
+            credential_ref_sha256,
+            network_policy,
+        }
+    }
+}
+
 /// Digest-only, versioned projection of runtime-owned authority inputs.
 #[allow(missing_docs)]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -465,6 +484,36 @@ pub(crate) struct RuntimeAuthorityInputs {
     taskset: ToolPin,
     live_launch_gate: ToolPin,
     namespace: NamespaceIdentity,
+}
+
+/// Runtime/control-owned inputs used to materialize one authenticated owner.
+///
+/// Every value in this projection is validated before it reaches the owner
+/// resolver.  It is intentionally separate from the CLI launch input: the
+/// runtime/control owner supplies these values after authenticated enrollment,
+/// while the CLI receives only the resulting lease and opaque dispatch source.
+#[derive(Clone)]
+pub struct RuntimeControlOwnerInputs {
+    /// Validated live runtime selection and lease root.
+    pub config: LiveProviderRuntimeConfig,
+    /// Authenticated endpoint policy.
+    pub policy: ProviderEgressPolicy,
+    /// Complete concrete egress allowlist.
+    pub allowlist: ProviderEgressAllowlist,
+    /// Runtime-owned relay root.
+    pub relay_root: PathBuf,
+    /// Pinned bubblewrap executable.
+    pub bubblewrap: ToolPin,
+    /// Pinned systemd-run executable.
+    pub systemd_run: ToolPin,
+    /// Pinned systemctl executable.
+    pub systemctl: ToolPin,
+    /// Pinned taskset executable.
+    pub taskset: ToolPin,
+    /// Pinned live launch gate executable.
+    pub live_launch_gate: ToolPin,
+    /// Runtime-observed network namespace identity.
+    pub namespace: NamespaceIdentity,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -540,16 +589,7 @@ impl RuntimeAuthorityInputResolver {
             target_sha256: digest(&inputs.config.target().address().to_string()),
             policy_sha256: canonical_policy_binding(inputs.policy.endpoint_sha256()),
             allowlist_sha256: inputs.allowlist.identity_sha256(),
-            tool_bundle_sha256: digest(
-                &[
-                    inputs.bubblewrap.version_line(),
-                    inputs.systemd_run.version_line(),
-                    inputs.systemctl.version_line(),
-                    inputs.taskset.version_line(),
-                    inputs.live_launch_gate.version_line(),
-                ]
-                .join("\n"),
-            ),
+            tool_bundle_sha256: claims.tool_bundle_sha256.clone(),
             lease_root_sha256: digest(&inputs.config.lease_root().display().to_string()),
             relay_root_sha256: digest(&inputs.relay_root.display().to_string()),
             namespace: inputs.namespace.as_str().to_string(),
@@ -1559,6 +1599,56 @@ impl RuntimeControlBootstrap {
         Ok(RuntimeProcessOwnerMaterialCaller::new(store))
     }
 
+    /// Build the secret-free owner contract after runtime materialization.
+    ///
+    /// The authenticated resolver supplies every enrollment identity,
+    /// including the complete allowlist identity.  This helper is intended
+    /// for the runtime/control issuer; it cannot be called successfully
+    /// before [`Self::materialize_runtime_owner`] has installed that resolver.
+    pub fn process_owner_material_contract(
+        &self,
+        material: &ProcessOwnerPrivateMaterialV1,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+        capability_ref_sha256: String,
+    ) -> Result<ProcessOwnerMaterialContractV1, ProcessOwnerMaterialError> {
+        let enrollment = self.process_owner_enrollment_binding();
+        let owner_id = self
+            .owner_id
+            .clone()
+            .ok_or(ProcessOwnerMaterialError::MaterialMismatch)?;
+        let (private_roots, tool_bundle, policy, credential, target, alternate_egress, launch) =
+            material.digests();
+        let contract = ProcessOwnerMaterialContractV1 {
+            schema_version: crate::process_owner_material::PROCESS_OWNER_MATERIAL_SCHEMA_VERSION,
+            owner_id,
+            provider: enrollment.provider,
+            endpoint_identity_sha256: enrollment.endpoint_identity_sha256,
+            namespace_sha256: enrollment.namespace_sha256,
+            control_session_sha256: enrollment.control_session_sha256,
+            generation: enrollment.generation,
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+            restart_binding_sha256: enrollment.restart_binding_sha256,
+            cancellation_binding_sha256: enrollment.cancellation_binding_sha256,
+            revocation_binding_sha256: enrollment.revocation_binding_sha256,
+            teardown_binding_sha256: enrollment.teardown_binding_sha256,
+            private_roots_sha256: private_roots,
+            tool_bundle_sha256: tool_bundle,
+            policy_sha256: policy,
+            credential_capability_sha256: credential,
+            target_sha256: target,
+            alternate_egress_sha256: alternate_egress,
+            lease_root_sha256: enrollment.lease_root_sha256,
+            relay_root_sha256: enrollment.relay_root_sha256,
+            launch_provenance_sha256: launch,
+            capability_ref_sha256,
+            enrollment_binding_sha256: enrollment.binding_sha256,
+        };
+        contract.validate()?;
+        Ok(contract)
+    }
+
     fn process_owner_enrollment_binding(&self) -> ProcessOwnerEnrollmentBinding {
         let receipt = &self.response.receipt;
         let binding_sha256 = owner_enrollment_binding_sha256(&self.response);
@@ -1680,6 +1770,36 @@ impl RuntimeControlBootstrap {
         self.resolver = Some(resolver);
         self.handle = Some(handle);
         Ok(())
+    }
+
+    /// Materialize runtime-owned authority before issuing an owner lease.
+    ///
+    /// This is the public runtime/control handoff used by the CLI bridge.  It
+    /// keeps private roots, policies, tools, and namespace state inside the
+    /// runtime while making the ordering explicit: materialization must occur
+    /// before owner-material acquisition.
+    pub fn materialize_runtime_owner(
+        &mut self,
+        owner: String,
+        inputs: RuntimeControlOwnerInputs,
+        state_path: PathBuf,
+    ) -> Result<(), LiveProviderControlAdapterError> {
+        self.materialize_provisioner(
+            owner,
+            RuntimeAuthorityInputs {
+                config: inputs.config,
+                policy: inputs.policy,
+                allowlist: inputs.allowlist,
+                relay_root: inputs.relay_root,
+                bubblewrap: inputs.bubblewrap,
+                systemd_run: inputs.systemd_run,
+                systemctl: inputs.systemctl,
+                taskset: inputs.taskset,
+                live_launch_gate: inputs.live_launch_gate,
+                namespace: inputs.namespace,
+            },
+            state_path,
+        )
     }
 
     /// Take the provisioner for scheduler composition.
