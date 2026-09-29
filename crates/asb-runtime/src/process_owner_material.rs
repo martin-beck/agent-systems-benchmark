@@ -886,4 +886,91 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn shape_rejections_and_debug_projections_are_bounded() {
+        let (contract, material, root) = fixture();
+        assert!(
+            OwnerToolProvenance::new(
+                PathBuf::from("relative/tool"),
+                "a".repeat(64),
+                "adapter-v1".into(),
+                "b".repeat(64),
+            )
+            .is_err()
+        );
+        assert!(
+            ProcessOwnerPrivateMaterialV1::new(
+                Vec::new(),
+                String::new(),
+                Vec::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+            )
+            .is_err()
+        );
+
+        let store =
+            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let caller = RuntimeProcessOwnerMaterialCaller::new(store.clone());
+        let (capability, lease) = caller.acquire("8".repeat(64), 1_100).unwrap();
+        assert!(format!("{store:?}").contains("<private>"));
+        assert!(format!("{caller:?}").contains("<owner>"));
+        assert!(format!("{capability:?}").contains("owner-1"));
+        assert!(format!("{lease:?}").contains("owner-1"));
+        assert!(format!("{:?}", lease.material).contains("<opaque>"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn lifecycle_transitions_and_time_fences_are_fail_closed() {
+        let (contract, material, root) = fixture();
+        let mut mismatched = contract.clone();
+        mismatched.private_roots_sha256 = "f".repeat(64);
+        assert!(matches!(
+            ProcessOwnerMaterialStore::from_runtime_authenticated(mismatched, material.clone()),
+            Err(ProcessOwnerMaterialError::MaterialMismatch)
+        ));
+
+        let store =
+            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let caller = RuntimeProcessOwnerMaterialCaller::new(store.clone());
+        assert!(matches!(
+            caller.acquire("9".repeat(64), 999),
+            Err(ProcessOwnerMaterialError::ReplayOrExpired)
+        ));
+        let (capability, lease) = caller.acquire("a".repeat(64), 1_100).unwrap();
+        assert_eq!(
+            lease.active(999),
+            Err(ProcessOwnerMaterialError::Unavailable)
+        );
+        assert!(matches!(
+            capability.materialize(2_000),
+            Err(ProcessOwnerMaterialError::Unavailable)
+        ));
+        caller
+            .fence(&capability, ProcessOwnerMaterialOperation::Cancel, 1_200)
+            .unwrap();
+        assert_eq!(
+            caller.fence(&capability, ProcessOwnerMaterialOperation::Revoke, 1_201),
+            Err(ProcessOwnerMaterialError::InvalidTransition)
+        );
+        let _ = std::fs::remove_dir_all(root);
+
+        let (contract, material, root) = fixture();
+        let store =
+            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let caller = RuntimeProcessOwnerMaterialCaller::new(store);
+        let (capability, _) = caller.acquire("b".repeat(64), 1_100).unwrap();
+        caller
+            .fence(&capability, ProcessOwnerMaterialOperation::Restart, 1_200)
+            .unwrap();
+        caller
+            .fence(&capability, ProcessOwnerMaterialOperation::Teardown, 1_201)
+            .unwrap();
+        let _ = std::fs::remove_dir_all(root);
+    }
 }
