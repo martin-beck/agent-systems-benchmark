@@ -1651,7 +1651,6 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 }
                 (
                     MutationTarget::AuthEnroll { provider }
-                    | MutationTarget::AuthHelperInvoke { provider }
                     | MutationTarget::AuthRotate { provider }
                     | MutationTarget::AuthRevoke { provider },
                     ControlResult::Acknowledged(_),
@@ -1659,6 +1658,17 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     .auth
                     .get(provider)
                     .is_some_and(|record| record.provider == *provider),
+                (
+                    MutationTarget::AuthHelperInvoke { provider },
+                    ControlResult::AuthStatus(status),
+                ) => catalog.auth.get(provider).is_some_and(|record| {
+                    record.provider == *provider
+                        && status.provider == *provider
+                        && status.endpoint_identity_sha256 == record.endpoint_identity_sha256
+                        && status.credential_locator_sha256 == record.credential_locator_sha256
+                        && status.generation == record.generation
+                        && status.status == record.status
+                }),
                 (MutationTarget::ConfigurationApply, ControlResult::Configuration(snapshot)) => {
                     catalog.configuration.as_ref().is_some_and(|configuration| {
                         snapshot.configured
@@ -8036,6 +8046,68 @@ mod tests {
             status.result,
             ControlResult::AuthStatus(ref value) if value.status == "revoked"
         ));
+    }
+
+    #[test]
+    fn auth_helper_status_mutation_reconciles_and_rejects_mismatched_projection() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+            provider: "openai".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: "b".repeat(64),
+            idempotency_key: "helper-status-binding".into(),
+        });
+        let status = AuthStatusResponse {
+            provider: "openai".into(),
+            endpoint_identity_sha256: "a".repeat(64),
+            credential_locator_sha256: "b".repeat(64),
+            generation: 2,
+            status: "active".into(),
+        };
+        let result =
+            BoundControlResult::new(&call, ControlResult::AuthStatus(status.clone())).unwrap();
+        let mut catalog = backend.catalog.lock().unwrap().clone();
+        catalog.auth.insert(
+            "openai".into(),
+            AuthRecord {
+                provider: "openai".into(),
+                endpoint_identity_sha256: "a".repeat(64),
+                credential_locator_sha256: "b".repeat(64),
+                generation: 2,
+                status: "active".into(),
+            },
+        );
+        catalog.mutations.insert(
+            format!("{:x}", Sha256::digest(b"helper-status-binding")),
+            MutationRecord {
+                request_sha256: result.request_sha256.clone(),
+                target: MutationTarget::AuthHelperInvoke {
+                    provider: "openai".into(),
+                },
+                state: MutationState::Committed,
+                result: Some(result),
+            },
+        );
+        assert!(validate_catalog(&catalog).is_ok());
+
+        let mut mismatched = catalog;
+        let mutation = mismatched
+            .mutations
+            .values_mut()
+            .next()
+            .expect("helper mutation");
+        let Some(BoundControlResult {
+            result: ControlResult::AuthStatus(response),
+            ..
+        }) = mutation.result.as_mut()
+        else {
+            panic!("helper status result");
+        };
+        response.generation = 1;
+        assert!(validate_catalog(&mismatched).is_err());
     }
 
     #[test]
