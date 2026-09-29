@@ -15,7 +15,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::Duration;
 
 /// A launch authority that can only be issued by the runtime factory.
@@ -370,6 +373,7 @@ pub struct LiveLaunchFactory;
 pub struct LiveProviderAttempt {
     context: Option<LiveLaunchContext>,
     relay: Option<crate::live_relay::LiveProviderRelay>,
+    fence: Arc<AtomicBool>,
 }
 
 /// Runtime-owned source of one fresh live-provider capability per scheduler
@@ -555,6 +559,7 @@ impl LiveLaunchFactory {
     ///
     /// The authority is consumed immediately; dropping the returned attempt
     /// revokes the namespace capability and tears down the relay.
+    #[allow(clippy::too_many_arguments)]
     pub fn acquire(
         token: RuntimeLaunchToken,
         input: SandboxLaunchInput,
@@ -563,11 +568,16 @@ impl LiveLaunchFactory {
         namespace: NamespaceIdentity,
         now_unix_ms: u64,
         relay: crate::live_relay::LiveProviderRelay,
+        fence: Arc<AtomicBool>,
     ) -> Result<LiveProviderAttempt, LaunchAuthorityError> {
+        if fence.load(Ordering::Acquire) {
+            return Err(LaunchAuthorityError::InvalidLaunchInput);
+        }
         let authority = Self::issue(token, input, lease, backend, namespace, now_unix_ms)?;
         Ok(LiveProviderAttempt {
             context: Some(authority.consume()),
             relay: Some(relay),
+            fence,
         })
     }
 }
@@ -630,12 +640,18 @@ impl LiveProviderAttempt {
         now_unix_ms: u64,
     ) -> Result<std::thread::JoinHandle<Result<(), crate::live_relay::LiveRelayError>>, SandboxError>
     {
+        if self.fence.load(Ordering::Acquire) {
+            return Err(SandboxError::LiveHandoff);
+        }
         let mut relay = self.relay.take().ok_or(SandboxError::LiveHandoff)?;
         Ok(std::thread::spawn(move || relay.serve_once(now_unix_ms)))
     }
 
     /// Consume the runtime-issued context exactly once for spawning.
     pub fn spawn(&mut self) -> Result<crate::sandbox::SandboxProcess, SandboxError> {
+        if self.fence.load(Ordering::Acquire) {
+            return Err(SandboxError::LiveHandoff);
+        }
         self.context
             .take()
             .ok_or(SandboxError::LiveHandoff)?
@@ -650,6 +666,7 @@ impl LiveProviderAttempt {
 
     /// Revoke before cancellation or an early spawn failure.
     pub fn revoke(&self) {
+        self.fence.store(true, Ordering::Release);
         if let Some(context) = &self.context {
             context.revoke();
         }

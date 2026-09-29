@@ -17,8 +17,9 @@ use crate::sandbox::{
     SandboxLaunchInput, ToolPin,
 };
 use asb_control::{
-    AuthenticatedChainEnrollmentV1, ControlCall, ControlClient, ControlResult, ControlSuccess,
-    IssuedCertificateChainV1, RuntimeBootstrapRequestV1 as ControlRuntimeBootstrapRequestV1,
+    AuthenticatedChainEnrollmentV1, CertificateAuthorityV1, ControlCall, ControlClient,
+    ControlResult, ControlSuccess, IssuedCertificateChainV1,
+    RuntimeBootstrapRequestV1 as ControlRuntimeBootstrapRequestV1,
     RuntimeBootstrapResponseV1 as ControlRuntimeBootstrapResponseV1, RuntimeEnrollmentReceiptV1,
     RuntimeReceiptRequestV1, RuntimeReceiptResponseV1,
 };
@@ -30,7 +31,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1391,7 +1392,156 @@ impl LiveProviderRuntimeBridge {
             attestation,
         })
     }
+}
 
+/// Runtime-owned state produced by one authenticated control bootstrap.
+/// The response is consumed into a local chain store and opaque authority
+/// profile before this object is returned to its runtime owner.
+pub struct RuntimeControlBootstrap {
+    response: ControlRuntimeBootstrapResponseV1,
+    chain_store: RuntimeCertificateChainStore,
+    profile: LiveProviderRuntimeAuthorityProfile,
+    resolver: Option<RuntimeAuthorityInputResolver>,
+    handle: Option<LiveProviderRuntimeHandle>,
+    provisioner_fence: Option<Arc<AtomicBool>>,
+}
+
+impl std::fmt::Debug for RuntimeControlBootstrap {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("RuntimeControlBootstrap(..)")
+    }
+}
+
+impl RuntimeControlBootstrap {
+    fn from_response(
+        response: ControlRuntimeBootstrapResponseV1,
+        request: &ControlRuntimeBootstrapRequestV1,
+        now_unix_ms: u64,
+    ) -> Result<Self, LiveProviderControlAdapterError> {
+        let identity = response
+            .chain
+            .chain
+            .first()
+            .ok_or(LiveProviderControlAdapterError::AttestationMismatch)?;
+        let authority = CertificateAuthorityV1::with_trust_anchor_digest_and_endpoint(
+            identity.trust_anchor_sha256.clone(),
+            response.generation,
+            identity.endpoint_identity_sha256.clone(),
+        )
+        .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        let runtime_request = RuntimeBootstrapRequestV1 {
+            provider: response.receipt.provider.clone(),
+            generation: response.generation,
+            endpoint_identity_sha256: identity.endpoint_identity_sha256.clone(),
+            credential_ref_sha256: response.receipt.credential_ref_sha256.clone(),
+            control_session_sha256: response.control_session_sha256.clone(),
+            namespace_sha256: response.receipt.relay_root_sha256.clone(),
+            relay_root_sha256: response.receipt.relay_root_sha256.clone(),
+            lease_root_sha256: response.receipt.lease_root_sha256.clone(),
+            expires_at_unix_ms: response.expires_at_unix_ms,
+        };
+        let source =
+            RuntimeCertificateAuthoritySource::new(authority, runtime_request.binding_sha256())
+                .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        let chain_store = RuntimeCertificateChainStore::new();
+        chain_store
+            .enroll_from_authority(&source, &response.chain, &runtime_request, now_unix_ms)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        let chain = chain_store
+            .chain_at(&runtime_request.binding_sha256(), now_unix_ms)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        let bridge = LiveProviderRuntimeBridge::new();
+        let profile = bridge
+            .materialize_control_receipt_profile(&response.receipt, &chain, now_unix_ms)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        if request.provider != profile.provider()
+            || request.generation != profile.generation()
+            || response.chain.pairing_fingerprint_sha256 != request.control_session_sha256
+        {
+            return Err(LiveProviderControlAdapterError::AttestationMismatch);
+        }
+        Ok(Self {
+            response,
+            chain_store,
+            profile,
+            resolver: None,
+            handle: None,
+            provisioner_fence: None,
+        })
+    }
+
+    /// Return the generation bound to this local bootstrap.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.response.generation
+    }
+
+    /// Return the opaque cancellation binding issued by control.
+    #[must_use]
+    pub fn cancellation_binding_sha256(&self) -> &str {
+        &self.response.cancellation_binding_sha256
+    }
+
+    /// Materialize private runtime inputs into an opaque provisioner.
+    #[allow(dead_code)]
+    pub(crate) fn materialize_provisioner(
+        &mut self,
+        owner: String,
+        inputs: RuntimeAuthorityInputs,
+        state_path: PathBuf,
+    ) -> Result<(), LiveProviderControlAdapterError> {
+        let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
+            owner,
+            &self.profile,
+            inputs,
+            state_path,
+        )
+        .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        let owner = resolver
+            .record()
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?
+            .owner;
+        let handle = self
+            .profile
+            .clone()
+            .materialize_handle_from_resolver(&resolver, &owner)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        self.provisioner_fence = Some(handle.revoked.clone());
+        self.resolver = Some(resolver);
+        self.handle = Some(handle);
+        Ok(())
+    }
+
+    /// Take the provisioner for scheduler composition.
+    #[allow(dead_code)]
+    pub(crate) fn take_handle(
+        &mut self,
+    ) -> Result<LiveProviderRuntimeHandle, LiveProviderControlAdapterError> {
+        self.handle
+            .take()
+            .ok_or(LiveProviderControlAdapterError::ChainUnavailable)
+    }
+
+    fn revoke_local(&mut self) -> Result<(), LiveProviderControlAdapterError> {
+        self.chain_store
+            .revoke(self.response.generation)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        if let Some(resolver) = &self.resolver {
+            resolver
+                .cancel()
+                .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        }
+        if let Some(fence) = &self.provisioner_fence {
+            fence.store(true, Ordering::Release);
+        }
+        if let Some(handle) = &self.handle {
+            handle.revoke();
+        }
+        Ok(())
+    }
+}
+
+impl LiveProviderRuntimeBridge {
     /// Consume one authenticated control response for the runtime dispatch
     /// path. The request binding and certificate chain are supplied by the
     /// control/runtime boundary; callers cannot turn a fabricated response
@@ -1450,7 +1600,7 @@ impl LiveProviderRuntimeBridge {
         client: &mut ControlClient,
         request: ControlRuntimeBootstrapRequestV1,
         now_unix_ms: u64,
-    ) -> Result<ControlRuntimeBootstrapResponseV1, LiveProviderControlAdapterError> {
+    ) -> Result<RuntimeControlBootstrap, LiveProviderControlAdapterError> {
         request
             .validate()
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
@@ -1483,11 +1633,7 @@ impl LiveProviderRuntimeBridge {
         {
             return Err(LiveProviderControlAdapterError::AttestationMismatch);
         }
-        result
-            .chain
-            .issue_runtime_chain(now_unix_ms / 1_000)
-            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
-        Ok(result.clone())
+        RuntimeControlBootstrap::from_response(result.clone(), &request, now_unix_ms)
     }
 
     /// Revoke one control-issued bootstrap capability using its opaque
@@ -1495,6 +1641,7 @@ impl LiveProviderRuntimeBridge {
     pub fn cancel_control_bootstrap(
         &self,
         client: &mut ControlClient,
+        bootstrap: &mut RuntimeControlBootstrap,
         request: asb_control::RuntimeBootstrapCancelRequestV1,
     ) -> Result<(), LiveProviderControlAdapterError> {
         request
@@ -1504,6 +1651,11 @@ impl LiveProviderRuntimeBridge {
             .session_identity_sha256()
             .map_err(|_| LiveProviderControlAdapterError::Transport)?
             != request.control_session_sha256
+        {
+            return Err(LiveProviderControlAdapterError::AttestationMismatch);
+        }
+        if request.generation != bootstrap.generation()
+            || request.cancellation_binding_sha256 != bootstrap.cancellation_binding_sha256()
         {
             return Err(LiveProviderControlAdapterError::AttestationMismatch);
         }
@@ -1523,7 +1675,7 @@ impl LiveProviderRuntimeBridge {
                 )
             });
         if accepted {
-            Ok(())
+            bootstrap.revoke_local()
         } else {
             Err(LiveProviderControlAdapterError::InvalidResponse)
         }
@@ -1710,11 +1862,20 @@ pub enum LiveProviderEnrollmentError {
 /// policy, backend, relay-root, namespace, lease, or credential authority.
 pub struct LiveProviderRuntimeHandle {
     provisioner: LiveProviderProvisioner,
+    revoked: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for LiveProviderRuntimeHandle {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("LiveProviderRuntimeHandle(..)")
+    }
+}
+
+impl LiveProviderRuntimeHandle {
+    /// Revoke this runtime-owned provisioner and fence all further attempts.
+    pub(crate) fn revoke(&self) {
+        self.revoked.store(true, Ordering::Release);
+        self.provisioner.revoke();
     }
 }
 
@@ -1752,6 +1913,9 @@ impl LiveProviderRuntimeService {
         adapter_sha256: &str,
         now_unix_ms: u64,
     ) -> Result<LiveProviderAttempt, LiveProviderProvisionError> {
+        if handle.revoked.load(Ordering::Acquire) {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
         handle
             .provisioner
             .acquire(attempt_id, input, limits, adapter_sha256, now_unix_ms)
@@ -1974,7 +2138,10 @@ impl LiveProviderBootstrapSpec {
             backend,
             &self.relay_root,
         )
-        .map(|provisioner| LiveProviderRuntimeHandle { provisioner })
+        .map(|provisioner| LiveProviderRuntimeHandle {
+            revoked: provisioner.revoked.clone(),
+            provisioner,
+        })
         .map_err(|_| LiveProviderBootstrapError::Backend)
     }
 }
@@ -1991,6 +2158,7 @@ pub struct LiveProviderProvisioner {
     allowlist: ProviderEgressAllowlist,
     backend: SandboxBackend,
     relay_root: PathBuf,
+    revoked: Arc<AtomicBool>,
 }
 
 /// Errors intentionally omit paths, subprocess output and credential data.
@@ -2034,7 +2202,13 @@ impl LiveProviderProvisioner {
             allowlist,
             backend,
             relay_root: relay_root.to_owned(),
+            revoked: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    /// Revoke this provisioner and fence future or active launch attempts.
+    pub(crate) fn revoke(&self) {
+        self.revoked.store(true, Ordering::Release);
     }
 
     /// Acquire one opaque attempt, binding every authority to the runtime's
@@ -2048,6 +2222,9 @@ impl LiveProviderProvisioner {
         adapter_sha256: &str,
         now_unix_ms: u64,
     ) -> Result<LiveProviderAttempt, LiveProviderProvisionError> {
+        if self.revoked.load(Ordering::Acquire) {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
         if attempt_id == 0
             || !valid_digest(adapter_sha256)
             || input.spec().network_policy() != NetworkPolicy::Deny
@@ -2104,6 +2281,7 @@ impl LiveProviderProvisioner {
             namespace,
             now_unix_ms,
             relay,
+            self.revoked.clone(),
         )
         .map_err(|error| match error {
             LaunchAuthorityError::InvalidLaunchInput
@@ -2332,6 +2510,77 @@ mod tests {
         let source =
             RuntimeCertificateAuthoritySource::new(authority, request.binding_sha256()).unwrap();
         (request, enrollment, source)
+    }
+
+    fn control_bootstrap_fixture() -> (
+        ControlRuntimeBootstrapRequestV1,
+        ControlRuntimeBootstrapResponseV1,
+    ) {
+        let (runtime_request, enrollment, _source) = bootstrap_fixture(5_000);
+        let chain = enrollment.issue_runtime_chain(1).unwrap();
+        let receipt = chain
+            .issue_runtime_receipt(
+                runtime_request.provider.clone(),
+                runtime_request.credential_ref_sha256.clone(),
+                "203.0.113.10:443".into(),
+                "1".repeat(64),
+                runtime_request.lease_root_sha256.clone(),
+                runtime_request.relay_root_sha256.clone(),
+                1_000,
+                5_000,
+            )
+            .unwrap();
+        let request = ControlRuntimeBootstrapRequestV1 {
+            schema_version: 1,
+            provider: runtime_request.provider,
+            generation: runtime_request.generation,
+            control_session_sha256: runtime_request.control_session_sha256.clone(),
+            request_nonce_sha256: "2".repeat(64),
+            restart_binding_sha256: "3".repeat(64),
+        };
+        let response = ControlRuntimeBootstrapResponseV1 {
+            schema_version: 1,
+            request_nonce_sha256: request.request_nonce_sha256.clone(),
+            control_session_sha256: request.control_session_sha256.clone(),
+            restart_binding_sha256: request.restart_binding_sha256.clone(),
+            generation: request.generation,
+            expires_at_unix_ms: receipt.expires_at_unix_ms,
+            cancellation_binding_sha256: "4".repeat(64),
+            chain: enrollment,
+            receipt,
+        };
+        (request, response)
+    }
+
+    #[test]
+    fn control_bootstrap_response_is_consumed_into_runtime_chain_and_profile() {
+        let (request, response) = control_bootstrap_fixture();
+        let bootstrap =
+            RuntimeControlBootstrap::from_response(response.clone(), &request, 1_500).unwrap();
+        assert_eq!(bootstrap.generation(), request.generation);
+        assert_eq!(bootstrap.cancellation_binding_sha256(), "4".repeat(64));
+        assert!(
+            bootstrap
+                .chain_store
+                .active_chain_for_receipt(&response.receipt, 1_500)
+                .is_ok()
+        );
+        assert_eq!(bootstrap.profile.provider(), "openrouter");
+    }
+
+    #[test]
+    fn control_bootstrap_local_cancellation_revokes_chain_and_fences_reuse() {
+        let (request, response) = control_bootstrap_fixture();
+        let mut bootstrap =
+            RuntimeControlBootstrap::from_response(response.clone(), &request, 1_500).unwrap();
+        bootstrap.revoke_local().unwrap();
+        assert_eq!(
+            bootstrap
+                .chain_store
+                .active_chain_for_receipt(&response.receipt, 1_500),
+            Err(RuntimeCertificateChainStoreError::Revoked)
+        );
+        assert!(bootstrap.revoke_local().is_ok());
     }
 
     #[test]
