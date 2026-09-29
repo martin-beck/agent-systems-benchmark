@@ -1029,6 +1029,14 @@ impl Drop for LocalProviderAuthority {
 /// scheduler identity at the runtime boundary.
 pub struct LiveProviderRuntimeScheduler {
     factory: LiveProviderAttemptFactory,
+    binding: LiveProviderRuntimeDispatchBinding,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LiveProviderRuntimeDispatchBinding {
+    policy_sha256: String,
+    target_sha256: String,
+    alternate_egress_sha256: String,
 }
 
 /// Opaque runtime-owned source consumed by production run and sweep dispatch.
@@ -1063,6 +1071,7 @@ impl LiveProviderRuntimeScheduler {
                 }
                 factory.acquire(attempt_id, warmup)
             }),
+            binding: self.binding,
         }
     }
 }
@@ -1527,8 +1536,7 @@ impl RuntimeControlBootstrap {
     /// Bind private owner material to this authenticated control enrollment.
     /// The caller contributes no identity, endpoint, generation, or trust
     /// root: those values must match the certificate-backed bootstrap.
-    #[allow(dead_code)]
-    pub(crate) fn process_owner_material_caller(
+    pub fn process_owner_material_caller(
         &self,
         contract: ProcessOwnerMaterialContractV1,
         material: ProcessOwnerPrivateMaterialV1,
@@ -1563,6 +1571,7 @@ impl RuntimeControlBootstrap {
             credential_ref_sha256: receipt.credential_ref_sha256.clone(),
             target_sha256: digest(&receipt.target.to_string()),
             alternate_egress_sha256: digest(&receipt.target.to_string()),
+            policy_sha256: digest(&receipt.endpoint_identity_sha256),
             tool_bundle_sha256: receipt.tool_bundle_sha256.clone(),
             lease_root_sha256: receipt.lease_root_sha256.clone(),
             relay_root_sha256: receipt.relay_root_sha256.clone(),
@@ -1571,8 +1580,7 @@ impl RuntimeControlBootstrap {
     }
 
     /// Acquire one authenticated owner lease for the ordinary dispatch path.
-    #[allow(dead_code)]
-    pub(crate) fn acquire_process_owner_material(
+    pub fn acquire_process_owner_material(
         &self,
         contract: ProcessOwnerMaterialContractV1,
         material: ProcessOwnerPrivateMaterialV1,
@@ -1592,8 +1600,7 @@ impl RuntimeControlBootstrap {
     /// Compose the authenticated bootstrap, owner lease and runtime-minted
     /// dispatch source for ordinary run/sweep. The source is created from the
     /// bootstrap-owned handle; callers cannot inject a provider handle.
-    #[allow(dead_code)]
-    pub(crate) fn bridge_process_owner_material(
+    pub fn bridge_process_owner_material(
         &mut self,
         lease: ProcessOwnerMaterialLease,
         input: SandboxLaunchInput,
@@ -1604,12 +1611,14 @@ impl RuntimeControlBootstrap {
         crate::process_owner_material::ProcessOwnerMaterialDispatchBridge,
         ProcessOwnerMaterialError,
     > {
+        lease.validate_dispatch_input(&input, adapter_sha256)?;
         let handle = self
             .take_handle()
             .map_err(|_| ProcessOwnerMaterialError::SourceBindingMismatch)?;
         let source =
             LiveProviderRuntimeDispatchSource::from_handle(handle, input, limits, adapter_sha256)
                 .map_err(|_| ProcessOwnerMaterialError::SourceBindingMismatch)?;
+        lease.validate_dispatch_source(&source)?;
         lease.into_dispatch_source(source, now_unix_ms)
     }
 
@@ -2157,6 +2166,7 @@ impl LiveProviderRuntimeScheduler {
         {
             return Err(LiveProviderProvisionError::InvalidConfiguration);
         }
+        let binding = handle.provisioner.dispatch_binding();
         let adapter_sha256 = adapter_sha256.to_owned();
         let service = LiveProviderRuntimeService;
         let factory = LiveProviderAttemptFactory::from_fn(move |attempt_id, _warmup| {
@@ -2177,7 +2187,7 @@ impl LiveProviderRuntimeScheduler {
                 )
                 .map_err(|_| LaunchAuthorityError::InvalidLaunchInput)
         });
-        Ok(Self { factory })
+        Ok(Self { factory, binding })
     }
 
     /// Return the opaque per-attempt factory for a run or sweep scheduler.
@@ -2223,6 +2233,24 @@ impl LiveProviderRuntimeDispatchSource {
 
     pub(crate) fn owner_enrollment_binding_sha256(&self) -> &str {
         &self.owner_enrollment_binding_sha256
+    }
+
+    /// Verify that this source carries the policy and egress identities
+    /// authenticated by an owner lease. Shape-valid caller input is not
+    /// sufficient to cross the lease-to-dispatch boundary.
+    pub(crate) fn validate_process_owner_material(
+        &self,
+        contract: &ProcessOwnerMaterialContractV1,
+    ) -> Result<(), LiveProviderProvisionError> {
+        let binding = &self.scheduler.binding;
+        if self.owner_enrollment_binding_sha256 != contract.enrollment_binding_sha256
+            || binding.policy_sha256 != contract.policy_sha256
+            || binding.target_sha256 != contract.target_sha256
+            || binding.alternate_egress_sha256 != contract.alternate_egress_sha256
+        {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
+        Ok(())
     }
 
     pub(crate) fn bind_process_owner_fence(
@@ -2403,6 +2431,15 @@ impl LiveProviderProvisioner {
     /// Revoke this provisioner and fence future or active launch attempts.
     pub(crate) fn revoke(&self) {
         self.revoked.store(true, Ordering::Release);
+    }
+
+    fn dispatch_binding(&self) -> LiveProviderRuntimeDispatchBinding {
+        let target_sha256 = digest(&self.config.target().address().to_string());
+        LiveProviderRuntimeDispatchBinding {
+            policy_sha256: digest(self.policy.endpoint_sha256()),
+            target_sha256: target_sha256.clone(),
+            alternate_egress_sha256: target_sha256,
+        }
     }
 
     /// Acquire one opaque attempt, binding every authority to the runtime's

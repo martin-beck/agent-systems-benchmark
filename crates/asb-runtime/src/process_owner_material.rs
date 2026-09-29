@@ -8,6 +8,7 @@
 //! mistaken for authenticated launch authority.
 
 use crate::live_service::LiveProviderRuntimeDispatchSource;
+use crate::sandbox::SandboxLaunchInput;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -442,6 +443,36 @@ impl ProcessOwnerMaterialLease {
         &self.contract
     }
 
+    /// Verify that a launch request names the exact adapter executable and
+    /// adapter material authenticated by this owner lease.
+    pub(crate) fn validate_dispatch_input(
+        &self,
+        input: &SandboxLaunchInput,
+        adapter_sha256: &str,
+    ) -> Result<(), ProcessOwnerMaterialError> {
+        if input.spec().network_policy() != crate::sandbox::NetworkPolicy::Deny
+            || !valid_digest(adapter_sha256)
+            || !self.material.pinned_tools.iter().any(|tool| {
+                tool.executable.as_path() == Path::new(input.spec().program())
+                    && tool.adapter_sha256 == adapter_sha256
+            })
+        {
+            return Err(ProcessOwnerMaterialError::SourceBindingMismatch);
+        }
+        Ok(())
+    }
+
+    /// Verify a runtime-minted dispatch source against this authenticated
+    /// lease before ordinary run/sweep dispatch consumes it.
+    pub(crate) fn validate_dispatch_source(
+        &self,
+        source: &LiveProviderRuntimeDispatchSource,
+    ) -> Result<(), ProcessOwnerMaterialError> {
+        source
+            .validate_process_owner_material(&self.contract)
+            .map_err(|_| ProcessOwnerMaterialError::SourceBindingMismatch)
+    }
+
     fn active(&self, now_unix_ms: u64) -> Result<(), ProcessOwnerMaterialError> {
         let state = self
             .store
@@ -588,6 +619,7 @@ impl ProcessOwnerMaterialStore {
             || contract.credential_capability_sha256 != enrollment.credential_ref_sha256
             || contract.target_sha256 != enrollment.target_sha256
             || contract.alternate_egress_sha256 != enrollment.alternate_egress_sha256
+            || contract.policy_sha256 != enrollment.policy_sha256
             || contract.tool_bundle_sha256 != enrollment.tool_bundle_sha256
             || contract.lease_root_sha256 != enrollment.lease_root_sha256
             || contract.relay_root_sha256 != enrollment.relay_root_sha256
@@ -718,6 +750,7 @@ pub(crate) struct ProcessOwnerEnrollmentBinding {
     pub(crate) credential_ref_sha256: String,
     pub(crate) target_sha256: String,
     pub(crate) alternate_egress_sha256: String,
+    pub(crate) policy_sha256: String,
     pub(crate) tool_bundle_sha256: String,
     pub(crate) lease_root_sha256: String,
     pub(crate) relay_root_sha256: String,
@@ -882,6 +915,8 @@ fn current_unix_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sandbox::{CpuSet, NetworkPolicy, Resources, SandboxSpec};
+    use std::collections::BTreeMap;
     use std::os::unix::fs::PermissionsExt;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -988,6 +1023,60 @@ mod tests {
             lease.active(1_201),
             Err(ProcessOwnerMaterialError::Unavailable)
         ));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn dispatch_input_requires_the_pinned_executable_and_adapter_digest() {
+        let (contract, material, root) = fixture();
+        let adapter = material.pinned_tools[0].executable.clone();
+        let adapter_sha256 = material.pinned_tools[0].adapter_sha256.clone();
+        let store = test_store(contract, material).unwrap();
+        let caller = RuntimeProcessOwnerMaterialCaller::new(store);
+        let (_, lease) = caller.acquire("8".repeat(64), 1_100).unwrap();
+        let resources =
+            Resources::new(64 * 1024 * 1024, 16, 100, CpuSet::new(vec![0]).unwrap()).unwrap();
+        let input = SandboxLaunchInput::new(
+            SandboxSpec::new(
+                &root,
+                PathBuf::from("."),
+                adapter.to_string_lossy().into_owned(),
+                Vec::new(),
+                BTreeMap::new(),
+                resources,
+                NetworkPolicy::Deny,
+            )
+            .unwrap(),
+            crate::ProcessLimits::default(),
+        )
+        .unwrap();
+        assert!(
+            lease
+                .validate_dispatch_input(&input, &adapter_sha256)
+                .is_ok()
+        );
+        assert_eq!(
+            lease.validate_dispatch_input(&input, &"c".repeat(64)),
+            Err(ProcessOwnerMaterialError::SourceBindingMismatch)
+        );
+        let wrong_program = SandboxLaunchInput::new(
+            SandboxSpec::new(
+                &root,
+                PathBuf::from("."),
+                "/bin/true".into(),
+                Vec::new(),
+                BTreeMap::new(),
+                Resources::new(64 * 1024 * 1024, 16, 100, CpuSet::new(vec![0]).unwrap()).unwrap(),
+                NetworkPolicy::Deny,
+            )
+            .unwrap(),
+            crate::ProcessLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            lease.validate_dispatch_input(&wrong_program, &adapter_sha256),
+            Err(ProcessOwnerMaterialError::SourceBindingMismatch)
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -1137,6 +1226,7 @@ mod tests {
             credential_ref_sha256: contract.credential_capability_sha256.clone(),
             target_sha256: contract.target_sha256.clone(),
             alternate_egress_sha256: contract.alternate_egress_sha256.clone(),
+            policy_sha256: contract.policy_sha256.clone(),
             tool_bundle_sha256: contract.tool_bundle_sha256.clone(),
             lease_root_sha256: contract.lease_root_sha256.clone(),
             relay_root_sha256: contract.relay_root_sha256.clone(),

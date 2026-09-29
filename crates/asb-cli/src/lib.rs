@@ -355,6 +355,30 @@ fn run_local_mock_entry(
     }
 }
 
+fn run_local_mock_dispatch(
+    args: &[OsString],
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    if args.len() != 3 {
+        let _ = writeln!(stderr, "runtime local/mock entry expects run or sweep");
+        return 3;
+    }
+    let owner = match LocalMockRuntimeControlOwner::provision(
+        "cli-local-mock".into(),
+        1,
+        "a".repeat(64),
+        "b".repeat(64),
+    ) {
+        Ok(owner) => owner,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned local/mock owner unavailable");
+            return 2;
+        }
+    };
+    run_with_runtime_control_local_mock_owner(&args[..2], owner, stdout, stderr)
+}
+
 fn dispatch(
     args: &[OsString],
     stdout: &mut dyn Write,
@@ -400,6 +424,9 @@ fn dispatch(
         [command, path, flag, selection] if command == "plan" && flag == "--provider-selection" => {
             plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
         }
+        [command, _path, flag] if command == "run" && flag == "--local-mock" => {
+            Ok(run_local_mock_dispatch(args, stdout, stderr))
+        }
         [command, path] if command == "run" => {
             execute(Path::new(path), false, false, None, stdout, stderr)
         }
@@ -433,6 +460,9 @@ fn dispatch(
         }
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
             execute(Path::new(path), false, true, live_factory, stdout, stderr)
+        }
+        [command, _path, flag] if command == "sweep" && flag == "--local-mock" => {
+            Ok(run_local_mock_dispatch(args, stdout, stderr))
         }
         [command, path] if command == "sweep" => {
             execute(Path::new(path), true, false, None, stdout, stderr)
@@ -797,7 +827,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
@@ -5840,6 +5870,50 @@ mod tests {
             run_with_runtime_control_local_mock_owner(
                 &["sweep".into(), sweep_path.as_os_str().to_owned()],
                 sweep_owner,
+                &mut sweep_output,
+                &mut sweep_progress,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&sweep_output).unwrap()["ok"],
+            true
+        );
+    }
+
+    #[test]
+    fn ordinary_run_and_sweep_dispatch_can_select_runtime_local_mock_owner() {
+        let scratch = Scratch::new("runtime-local-owner-dispatch");
+        let (run_path, _) = plan_fixture(&scratch.0, "runtime-owner-dispatch-run");
+        let mut run_output = Vec::new();
+        let mut run_progress = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "run".into(),
+                    run_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut run_output,
+                &mut run_progress,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&run_output).unwrap()["ok"],
+            true
+        );
+
+        let (sweep_path, _) = plan_fixture(&scratch.0, "runtime-owner-dispatch-sweep");
+        let mut sweep_output = Vec::new();
+        let mut sweep_progress = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "sweep".into(),
+                    sweep_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
                 &mut sweep_output,
                 &mut sweep_progress,
             ),
