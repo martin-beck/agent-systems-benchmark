@@ -652,16 +652,7 @@ fn authority_material_digest(
             .collect::<Vec<_>>()
             .join(","),
     );
-    let tool_sha256 = digest(
-        &[
-            inputs.bubblewrap.version_line(),
-            inputs.systemd_run.version_line(),
-            inputs.systemctl.version_line(),
-            inputs.taskset.version_line(),
-            inputs.live_launch_gate.version_line(),
-        ]
-        .join("\n"),
-    );
+    let tool_sha256 = authority_tool_bundle_digest(inputs);
     let mut value = Sha256::new();
     for item in [
         binding.digest(),
@@ -679,6 +670,19 @@ fn authority_material_digest(
         value.update([0]);
     }
     format!("{:x}", value.finalize())
+}
+
+fn authority_tool_bundle_digest(inputs: &RuntimeAuthorityInputs) -> String {
+    digest(
+        &[
+            inputs.bubblewrap.version_line(),
+            inputs.systemd_run.version_line(),
+            inputs.systemctl.version_line(),
+            inputs.taskset.version_line(),
+            inputs.live_launch_gate.version_line(),
+        ]
+        .join("\n"),
+    )
 }
 
 impl RuntimeAuthorityInputBinding {
@@ -1728,6 +1732,7 @@ impl RuntimeControlBootstrap {
             .materialize(&binding)
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
         if material.binding_sha256 != authority_material_digest(&binding, &material.inputs)
+            || authority_tool_bundle_digest(&material.inputs) != binding.tool_bundle_sha256
             || !material.state_path.is_absolute()
         {
             return Err(LiveProviderControlAdapterError::AttestationMismatch);
@@ -2849,7 +2854,7 @@ mod tests {
         response.receipt.generation = 7;
         response.receipt.relay_root_sha256 = binding.relay_root_sha256;
         response.receipt.lease_root_sha256 = binding.lease_root_sha256;
-        let bootstrap = RuntimeControlBootstrap {
+        let mut bootstrap = RuntimeControlBootstrap {
             response,
             chain_store: RuntimeCertificateChainStore::new(),
             profile,
@@ -2857,6 +2862,10 @@ mod tests {
             handle: None,
             provisioner_fence: None,
         };
+        // The fixture pins its own deterministic tool identity; the provider
+        // contract requires that identity to match the authenticated claim.
+        bootstrap.profile.attestation.claims.tool_bundle_sha256 =
+            authority_tool_bundle_digest(&inputs);
         let provider_binding = RuntimePlatformAuthorityBinding::from_bootstrap(
             &bootstrap.response,
             &bootstrap.profile,
