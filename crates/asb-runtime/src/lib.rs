@@ -20,6 +20,8 @@ pub mod live_relay;
 pub mod live_service;
 /// A per-launch, authenticated loopback-to-Unix relay for strict replay.
 pub mod loopback_sidecar;
+/// Runtime-owned authenticated process-owner material and lease dispatch.
+pub mod process_owner_material;
 pub mod provider_capture;
 /// Typed, fail-closed identity for a future live-provider egress handoff.
 pub mod provider_egress;

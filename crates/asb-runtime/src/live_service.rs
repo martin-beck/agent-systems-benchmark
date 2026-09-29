@@ -9,6 +9,10 @@ use crate::launch_factory::{
 };
 use crate::live_namespace::NamespaceIdentity;
 use crate::live_relay::LiveProviderRelay;
+use crate::process_owner_material::{
+    ProcessOwnerMaterialContractV1, ProcessOwnerMaterialError, ProcessOwnerMaterialLease,
+    ProcessOwnerMaterialStore, ProcessOwnerPrivateMaterialV1, RuntimeProcessOwnerMaterialCaller,
+};
 use crate::provider_egress::{
     ProviderEgressAllowlist, ProviderEgressHandoff, ProviderEgressPolicy, ProviderEgressTarget,
 };
@@ -1500,6 +1504,45 @@ impl RuntimeControlBootstrap {
     #[must_use]
     pub fn cancellation_binding_sha256(&self) -> &str {
         &self.response.cancellation_binding_sha256
+    }
+
+    /// Bind private owner material to this authenticated control enrollment.
+    /// The caller contributes no identity, endpoint, generation, or trust
+    /// root: those values must match the certificate-backed bootstrap.
+    #[allow(dead_code)]
+    pub(crate) fn process_owner_material_caller(
+        &self,
+        contract: ProcessOwnerMaterialContractV1,
+        material: ProcessOwnerPrivateMaterialV1,
+    ) -> Result<RuntimeProcessOwnerMaterialCaller, ProcessOwnerMaterialError> {
+        if contract.provider != self.response.receipt.provider
+            || contract.generation != self.response.generation
+            || contract.control_session_sha256 != self.response.control_session_sha256
+            || contract.expires_at_unix_ms > self.response.expires_at_unix_ms
+        {
+            return Err(ProcessOwnerMaterialError::InvalidRequest);
+        }
+        let store = ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material)?;
+        Ok(RuntimeProcessOwnerMaterialCaller::new(store))
+    }
+
+    /// Acquire one authenticated owner lease for the ordinary dispatch path.
+    #[allow(dead_code)]
+    pub(crate) fn acquire_process_owner_material(
+        &self,
+        contract: ProcessOwnerMaterialContractV1,
+        material: ProcessOwnerPrivateMaterialV1,
+        request_nonce_sha256: String,
+        now_unix_ms: u64,
+    ) -> Result<
+        (
+            crate::process_owner_material::ProcessOwnerMaterialCapability,
+            ProcessOwnerMaterialLease,
+        ),
+        ProcessOwnerMaterialError,
+    > {
+        self.process_owner_material_caller(contract, material)?
+            .acquire(request_nonce_sha256, now_unix_ms)
     }
 
     /// Materialize private runtime inputs into an opaque provisioner.

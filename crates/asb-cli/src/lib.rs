@@ -38,6 +38,7 @@ use asb_runtime::launch_factory::{
 use asb_runtime::live_service::{
     LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler, LocalProviderMockBackend,
 };
+use asb_runtime::process_owner_material::ProcessOwnerMaterialDispatchBridge;
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
@@ -214,6 +215,27 @@ pub fn run_with_runtime_live_provider_source(
     stderr: &mut dyn Write,
 ) -> u8 {
     run_with_runtime_live_provider_scheduler(args, source.into_scheduler(), stdout, stderr)
+}
+
+/// Execute an ordinary `run` or `sweep` from an authenticated owner lease.
+/// The lease is rechecked immediately before the opaque dispatch source is
+/// consumed, so expiry, cancellation, remote revoke, restart, and teardown
+/// cannot be bypassed by retaining a frontend object.
+pub fn run_with_process_owner_material_bridge(
+    args: &[OsString],
+    bridge: ProcessOwnerMaterialDispatchBridge,
+    now_unix_ms: u64,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    let source = match bridge.into_dispatch_source(now_unix_ms) {
+        Ok(source) => source,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned owner lease unavailable");
+            return 2;
+        }
+    };
+    run_with_runtime_live_provider_source(args, source, stdout, stderr)
 }
 
 /// Fail-closed error returned when the runtime/control owner cannot provide a
