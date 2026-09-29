@@ -39,6 +39,7 @@ fail as a whole; per-agent overrides are deliberately a separate choice.
 - [Worker process](docs/DEVELOPMENT.md)
 - [Offline quickstart](docs/QUICKSTART.md)
 - [Agent and workload extensions](docs/EXTENSIONS.md)
+- [Authenticated process-owner material](docs/PROCESS_OWNER_MATERIAL.md)
 - [Provider authentication enrollment](docs/AUTH_ENROLLMENT.md)
 - [Reproducibility guide](docs/REPRODUCIBILITY.md)
 - [Coordination tasks](https://github.com/martin-beck/agent-systems-benchmark-state)

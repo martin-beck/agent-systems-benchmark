@@ -167,8 +167,8 @@ fn isolated_asb_command_with_sink(sink: Option<&OsStr>) -> Result<Command, ()> {
 fn isolated_asb_command() -> Command {
     let sink = std::env::var_os("LLVM_PROFILE_FILE").or_else(|| {
         cfg!(coverage).then(|| {
-            workspace_root()
-                .join("target/asb-capability-%p-%m.profraw")
+            std::env::temp_dir()
+                .join("asb-capability-%p-%m.profraw")
                 .into_os_string()
         })
     });

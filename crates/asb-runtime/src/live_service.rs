@@ -9,8 +9,14 @@ use crate::launch_factory::{
 };
 use crate::live_namespace::NamespaceIdentity;
 use crate::live_relay::LiveProviderRelay;
+use crate::process_owner_material::{
+    ProcessOwnerEnrollmentBinding, ProcessOwnerMaterialContractV1, ProcessOwnerMaterialError,
+    ProcessOwnerMaterialLease, ProcessOwnerMaterialStore, ProcessOwnerPrivateMaterialV1,
+    RuntimeProcessOwnerMaterialCaller,
+};
 use crate::provider_egress::{
     ProviderEgressAllowlist, ProviderEgressHandoff, ProviderEgressPolicy, ProviderEgressTarget,
+    canonical_alternate_egress_binding, canonical_policy_binding,
 };
 use crate::sandbox::{
     CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease, SandboxBackend,
@@ -428,6 +434,25 @@ pub struct LiveProviderRuntimeSelection {
     network_policy: NetworkPolicy,
 }
 
+impl LiveProviderRuntimeSelection {
+    /// Construct a validated public selection for runtime-owned enrollment.
+    pub fn new(
+        target: ProviderEgressTarget,
+        generation: impl Into<String>,
+        route_sha256: String,
+        credential_ref_sha256: String,
+        network_policy: NetworkPolicy,
+    ) -> Self {
+        Self {
+            target,
+            generation: generation.into(),
+            route_sha256,
+            credential_ref_sha256,
+            network_policy,
+        }
+    }
+}
+
 /// Digest-only, versioned projection of runtime-owned authority inputs.
 #[allow(missing_docs)]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -459,6 +484,36 @@ pub(crate) struct RuntimeAuthorityInputs {
     taskset: ToolPin,
     live_launch_gate: ToolPin,
     namespace: NamespaceIdentity,
+}
+
+/// Runtime/control-owned inputs used to materialize one authenticated owner.
+///
+/// Every value in this projection is validated before it reaches the owner
+/// resolver.  It is intentionally separate from the CLI launch input: the
+/// runtime/control owner supplies these values after authenticated enrollment,
+/// while the CLI receives only the resulting lease and opaque dispatch source.
+#[derive(Clone)]
+pub struct RuntimeControlOwnerInputs {
+    /// Validated live runtime selection and lease root.
+    pub config: LiveProviderRuntimeConfig,
+    /// Authenticated endpoint policy.
+    pub policy: ProviderEgressPolicy,
+    /// Complete concrete egress allowlist.
+    pub allowlist: ProviderEgressAllowlist,
+    /// Runtime-owned relay root.
+    pub relay_root: PathBuf,
+    /// Pinned bubblewrap executable.
+    pub bubblewrap: ToolPin,
+    /// Pinned systemd-run executable.
+    pub systemd_run: ToolPin,
+    /// Pinned systemctl executable.
+    pub systemctl: ToolPin,
+    /// Pinned taskset executable.
+    pub taskset: ToolPin,
+    /// Pinned live launch gate executable.
+    pub live_launch_gate: ToolPin,
+    /// Runtime-observed network namespace identity.
+    pub namespace: NamespaceIdentity,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -532,26 +587,9 @@ impl RuntimeAuthorityInputResolver {
             owner,
             generation: claims.generation.to_string(),
             target_sha256: digest(&inputs.config.target().address().to_string()),
-            policy_sha256: digest(inputs.policy.endpoint_sha256()),
-            allowlist_sha256: digest(
-                &inputs
-                    .allowlist
-                    .targets()
-                    .iter()
-                    .map(|target| target.address().to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            ),
-            tool_bundle_sha256: digest(
-                &[
-                    inputs.bubblewrap.version_line(),
-                    inputs.systemd_run.version_line(),
-                    inputs.systemctl.version_line(),
-                    inputs.taskset.version_line(),
-                    inputs.live_launch_gate.version_line(),
-                ]
-                .join("\n"),
-            ),
+            policy_sha256: canonical_policy_binding(inputs.policy.endpoint_sha256()),
+            allowlist_sha256: inputs.allowlist.identity_sha256(),
+            tool_bundle_sha256: claims.tool_bundle_sha256.clone(),
             lease_root_sha256: digest(&inputs.config.lease_root().display().to_string()),
             relay_root_sha256: digest(&inputs.relay_root.display().to_string()),
             namespace: inputs.namespace.as_str().to_string(),
@@ -1024,6 +1062,14 @@ impl Drop for LocalProviderAuthority {
 /// scheduler identity at the runtime boundary.
 pub struct LiveProviderRuntimeScheduler {
     factory: LiveProviderAttemptFactory,
+    binding: LiveProviderRuntimeDispatchBinding,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LiveProviderRuntimeDispatchBinding {
+    policy_sha256: String,
+    target_sha256: String,
+    alternate_egress_sha256: String,
 }
 
 /// Opaque runtime-owned source consumed by production run and sweep dispatch.
@@ -1033,6 +1079,7 @@ pub struct LiveProviderRuntimeScheduler {
 /// CLI boundary, but cannot provide or inspect any authority inputs.
 pub struct LiveProviderRuntimeDispatchSource {
     scheduler: LiveProviderRuntimeScheduler,
+    owner_enrollment_binding_sha256: String,
 }
 
 impl std::fmt::Debug for LiveProviderRuntimeDispatchSource {
@@ -1044,6 +1091,21 @@ impl std::fmt::Debug for LiveProviderRuntimeDispatchSource {
 impl std::fmt::Debug for LiveProviderRuntimeScheduler {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("LiveProviderRuntimeScheduler(..)")
+    }
+}
+
+impl LiveProviderRuntimeScheduler {
+    fn with_fence(self, fence: Arc<dyn Fn() -> bool + Send + Sync>) -> Self {
+        let factory = self.factory;
+        Self {
+            factory: LiveProviderAttemptFactory::from_fn(move |attempt_id, warmup| {
+                if !(fence)() {
+                    return Err(LaunchAuthorityError::InvalidLaunchInput);
+                }
+                factory.acquire(attempt_id, warmup)
+            }),
+            binding: self.binding,
+        }
     }
 }
 
@@ -1423,6 +1485,7 @@ pub struct RuntimeControlBootstrap {
     resolver: Option<RuntimeAuthorityInputResolver>,
     handle: Option<LiveProviderRuntimeHandle>,
     provisioner_fence: Option<Arc<AtomicBool>>,
+    owner_id: Option<String>,
 }
 
 impl std::fmt::Debug for RuntimeControlBootstrap {
@@ -1432,6 +1495,25 @@ impl std::fmt::Debug for RuntimeControlBootstrap {
 }
 
 impl RuntimeControlBootstrap {
+    /// Consume a response already authenticated by the control adapter into
+    /// a runtime-owned bootstrap.  The control-client entrypoint uses the
+    /// same constructor after validating transport and request bindings;
+    /// exposing this narrow composition seam lets the runtime/control owner
+    /// hand the bootstrap to the CLI without exposing certificate material.
+    pub fn from_authenticated_response(
+        response: ControlRuntimeBootstrapResponseV1,
+        request: &ControlRuntimeBootstrapRequestV1,
+        now_unix_ms: u64,
+    ) -> Result<Self, LiveProviderControlAdapterError> {
+        request
+            .validate()
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        response
+            .validate_for(request)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        Self::from_response(response, request, now_unix_ms)
+    }
+
     fn from_response(
         response: ControlRuntimeBootstrapResponseV1,
         request: &ControlRuntimeBootstrapRequestV1,
@@ -1487,6 +1569,7 @@ impl RuntimeControlBootstrap {
             resolver: None,
             handle: None,
             provisioner_fence: None,
+            owner_id: None,
         })
     }
 
@@ -1500,6 +1583,156 @@ impl RuntimeControlBootstrap {
     #[must_use]
     pub fn cancellation_binding_sha256(&self) -> &str {
         &self.response.cancellation_binding_sha256
+    }
+
+    /// Bind private owner material to this authenticated control enrollment.
+    /// The caller contributes no identity, endpoint, generation, or trust
+    /// root: those values must match the certificate-backed bootstrap.
+    pub fn process_owner_material_caller(
+        &self,
+        contract: ProcessOwnerMaterialContractV1,
+        material: ProcessOwnerPrivateMaterialV1,
+    ) -> Result<RuntimeProcessOwnerMaterialCaller, ProcessOwnerMaterialError> {
+        let enrollment = self.process_owner_enrollment_binding();
+        let store =
+            ProcessOwnerMaterialStore::from_runtime_enrollment(contract, material, &enrollment)?;
+        Ok(RuntimeProcessOwnerMaterialCaller::new(store))
+    }
+
+    /// Build the secret-free owner contract after runtime materialization.
+    ///
+    /// The authenticated resolver supplies every enrollment identity,
+    /// including the complete allowlist identity.  This helper is intended
+    /// for the runtime/control issuer; it cannot be called successfully
+    /// before [`Self::materialize_runtime_owner`] has installed that resolver.
+    pub fn process_owner_material_contract(
+        &self,
+        material: &ProcessOwnerPrivateMaterialV1,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+        capability_ref_sha256: String,
+    ) -> Result<ProcessOwnerMaterialContractV1, ProcessOwnerMaterialError> {
+        let enrollment = self.process_owner_enrollment_binding();
+        let owner_id = self
+            .owner_id
+            .clone()
+            .ok_or(ProcessOwnerMaterialError::MaterialMismatch)?;
+        let (private_roots, tool_bundle, policy, credential, target, alternate_egress, launch) =
+            material.digests();
+        let contract = ProcessOwnerMaterialContractV1 {
+            schema_version: crate::process_owner_material::PROCESS_OWNER_MATERIAL_SCHEMA_VERSION,
+            owner_id,
+            provider: enrollment.provider,
+            endpoint_identity_sha256: enrollment.endpoint_identity_sha256,
+            namespace_sha256: enrollment.namespace_sha256,
+            control_session_sha256: enrollment.control_session_sha256,
+            generation: enrollment.generation,
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+            restart_binding_sha256: enrollment.restart_binding_sha256,
+            cancellation_binding_sha256: enrollment.cancellation_binding_sha256,
+            revocation_binding_sha256: enrollment.revocation_binding_sha256,
+            teardown_binding_sha256: enrollment.teardown_binding_sha256,
+            private_roots_sha256: private_roots,
+            tool_bundle_sha256: tool_bundle,
+            policy_sha256: policy,
+            credential_capability_sha256: credential,
+            target_sha256: target,
+            alternate_egress_sha256: alternate_egress,
+            lease_root_sha256: enrollment.lease_root_sha256,
+            relay_root_sha256: enrollment.relay_root_sha256,
+            launch_provenance_sha256: launch,
+            capability_ref_sha256,
+            enrollment_binding_sha256: enrollment.binding_sha256,
+        };
+        contract.validate()?;
+        Ok(contract)
+    }
+
+    fn process_owner_enrollment_binding(&self) -> ProcessOwnerEnrollmentBinding {
+        let receipt = &self.response.receipt;
+        let binding_sha256 = owner_enrollment_binding_sha256(&self.response);
+        // The authenticated runtime resolver is the source of truth for the
+        // concrete allowlist.  The control receipt carries only the selected
+        // target, so deriving this binding from `receipt.target` would make a
+        // singleton allowlist look valid while silently discarding any
+        // alternate egress entries.
+        let alternate_egress_sha256 = self
+            .resolver
+            .as_ref()
+            .and_then(|resolver| resolver.record().ok())
+            .map(|record| record.allowlist_sha256)
+            .unwrap_or_else(|| canonical_alternate_egress_binding(&receipt.target));
+        ProcessOwnerEnrollmentBinding {
+            owner_id: self.owner_id.clone().unwrap_or_default(),
+            provider: receipt.provider.clone(),
+            endpoint_identity_sha256: receipt.endpoint_identity_sha256.clone(),
+            namespace_sha256: self.response.namespace_sha256.clone(),
+            control_session_sha256: self.response.control_session_sha256.clone(),
+            generation: self.response.generation,
+            expires_at_unix_ms: self.response.expires_at_unix_ms,
+            restart_binding_sha256: self.response.restart_binding_sha256.clone(),
+            cancellation_binding_sha256: self.response.cancellation_binding_sha256.clone(),
+            revocation_binding_sha256: fence_binding_sha256(
+                &self.response.cancellation_binding_sha256,
+                "revoke",
+            ),
+            teardown_binding_sha256: fence_binding_sha256(
+                &self.response.cancellation_binding_sha256,
+                "teardown",
+            ),
+            credential_ref_sha256: receipt.credential_ref_sha256.clone(),
+            target_sha256: digest(&receipt.target.to_string()),
+            alternate_egress_sha256,
+            policy_sha256: canonical_policy_binding(&receipt.endpoint_identity_sha256),
+            tool_bundle_sha256: receipt.tool_bundle_sha256.clone(),
+            lease_root_sha256: receipt.lease_root_sha256.clone(),
+            relay_root_sha256: receipt.relay_root_sha256.clone(),
+            binding_sha256,
+        }
+    }
+
+    /// Acquire one authenticated owner lease for the ordinary dispatch path.
+    pub fn acquire_process_owner_material(
+        &self,
+        contract: ProcessOwnerMaterialContractV1,
+        material: ProcessOwnerPrivateMaterialV1,
+        request_nonce_sha256: String,
+        now_unix_ms: u64,
+    ) -> Result<
+        (
+            crate::process_owner_material::ProcessOwnerMaterialCapability,
+            ProcessOwnerMaterialLease,
+        ),
+        ProcessOwnerMaterialError,
+    > {
+        self.process_owner_material_caller(contract, material)?
+            .acquire(request_nonce_sha256, now_unix_ms)
+    }
+
+    /// Compose the authenticated bootstrap, owner lease and runtime-minted
+    /// dispatch source for ordinary run/sweep. The source is created from the
+    /// bootstrap-owned handle; callers cannot inject a provider handle.
+    pub fn bridge_process_owner_material(
+        &mut self,
+        lease: ProcessOwnerMaterialLease,
+        input: SandboxLaunchInput,
+        limits: ProcessLimits,
+        adapter_sha256: &str,
+        now_unix_ms: u64,
+    ) -> Result<
+        crate::process_owner_material::ProcessOwnerMaterialDispatchBridge,
+        ProcessOwnerMaterialError,
+    > {
+        lease.validate_dispatch_input(&input, adapter_sha256)?;
+        let handle = self
+            .take_handle()
+            .map_err(|_| ProcessOwnerMaterialError::SourceBindingMismatch)?;
+        let source =
+            LiveProviderRuntimeDispatchSource::from_handle(handle, input, limits, adapter_sha256)
+                .map_err(|_| ProcessOwnerMaterialError::SourceBindingMismatch)?;
+        lease.validate_dispatch_source(&source)?;
+        lease.into_dispatch_source(source, now_unix_ms)
     }
 
     /// Materialize private runtime inputs into an opaque provisioner.
@@ -1526,15 +1759,47 @@ impl RuntimeControlBootstrap {
             .record()
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?
             .owner;
-        let handle = self
+        self.owner_id = Some(owner.clone());
+        let mut handle = self
             .profile
             .clone()
             .materialize_handle_from_resolver(&resolver, &owner)
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        handle.attach_owner_enrollment_binding(owner_enrollment_binding_sha256(&self.response));
         self.provisioner_fence = Some(handle.revoked.clone());
         self.resolver = Some(resolver);
         self.handle = Some(handle);
         Ok(())
+    }
+
+    /// Materialize runtime-owned authority before issuing an owner lease.
+    ///
+    /// This is the public runtime/control handoff used by the CLI bridge.  It
+    /// keeps private roots, policies, tools, and namespace state inside the
+    /// runtime while making the ordering explicit: materialization must occur
+    /// before owner-material acquisition.
+    pub fn materialize_runtime_owner(
+        &mut self,
+        owner: String,
+        inputs: RuntimeControlOwnerInputs,
+        state_path: PathBuf,
+    ) -> Result<(), LiveProviderControlAdapterError> {
+        self.materialize_provisioner(
+            owner,
+            RuntimeAuthorityInputs {
+                config: inputs.config,
+                policy: inputs.policy,
+                allowlist: inputs.allowlist,
+                relay_root: inputs.relay_root,
+                bubblewrap: inputs.bubblewrap,
+                systemd_run: inputs.systemd_run,
+                systemctl: inputs.systemctl,
+                taskset: inputs.taskset,
+                live_launch_gate: inputs.live_launch_gate,
+                namespace: inputs.namespace,
+            },
+            state_path,
+        )
     }
 
     /// Take the provisioner for scheduler composition.
@@ -1722,6 +1987,37 @@ fn expected_nonce(attestation: &LiveProviderControlAttestation) -> String {
     format!("{:x}", digest.finalize())
 }
 
+fn owner_enrollment_binding_sha256(response: &ControlRuntimeBootstrapResponseV1) -> String {
+    let mut digest = Sha256::new();
+    for value in [
+        response.receipt.provider.as_str(),
+        response.receipt.endpoint_identity_sha256.as_str(),
+        response.receipt.credential_ref_sha256.as_str(),
+        response.control_session_sha256.as_str(),
+        response.namespace_sha256.as_str(),
+        response.receipt.lease_root_sha256.as_str(),
+        response.receipt.relay_root_sha256.as_str(),
+        response.receipt.tool_bundle_sha256.as_str(),
+        response.restart_binding_sha256.as_str(),
+        response.cancellation_binding_sha256.as_str(),
+    ] {
+        digest.update(value.as_bytes());
+        digest.update([0]);
+    }
+    digest.update(response.generation.to_le_bytes());
+    digest.update(response.receipt.target.to_string().as_bytes());
+    digest.update(response.expires_at_unix_ms.to_le_bytes());
+    format!("{:x}", digest.finalize())
+}
+
+fn fence_binding_sha256(cancellation_binding_sha256: &str, operation: &str) -> String {
+    let mut digest = Sha256::new();
+    digest.update(cancellation_binding_sha256.as_bytes());
+    digest.update([0]);
+    digest.update(operation.as_bytes());
+    format!("{:x}", digest.finalize())
+}
+
 /// Runtime-owned replay ledger for one-way enrollment record consumption.
 #[derive(Debug, Default)]
 pub struct LiveProviderEnrollmentLedger {
@@ -1888,6 +2184,7 @@ pub enum LiveProviderEnrollmentError {
 pub struct LiveProviderRuntimeHandle {
     provisioner: LiveProviderProvisioner,
     revoked: Arc<AtomicBool>,
+    owner_enrollment_binding_sha256: String,
 }
 
 impl std::fmt::Debug for LiveProviderRuntimeHandle {
@@ -1901,6 +2198,10 @@ impl LiveProviderRuntimeHandle {
     pub(crate) fn revoke(&self) {
         self.revoked.store(true, Ordering::Release);
         self.provisioner.revoke();
+    }
+
+    pub(crate) fn attach_owner_enrollment_binding(&mut self, binding_sha256: String) {
+        self.owner_enrollment_binding_sha256 = binding_sha256;
     }
 }
 
@@ -2008,6 +2309,7 @@ impl LiveProviderRuntimeScheduler {
         {
             return Err(LiveProviderProvisionError::InvalidConfiguration);
         }
+        let binding = handle.provisioner.dispatch_binding();
         let adapter_sha256 = adapter_sha256.to_owned();
         let service = LiveProviderRuntimeService;
         let factory = LiveProviderAttemptFactory::from_fn(move |attempt_id, _warmup| {
@@ -2028,7 +2330,7 @@ impl LiveProviderRuntimeScheduler {
                 )
                 .map_err(|_| LaunchAuthorityError::InvalidLaunchInput)
         });
-        Ok(Self { factory })
+        Ok(Self { factory, binding })
     }
 
     /// Return the opaque per-attempt factory for a run or sweep scheduler.
@@ -2065,8 +2367,45 @@ impl LiveProviderRuntimeDispatchSource {
         limits: ProcessLimits,
         adapter_sha256: &str,
     ) -> Result<Self, LiveProviderProvisionError> {
+        let owner_enrollment_binding_sha256 = handle.owner_enrollment_binding_sha256.clone();
         Ok(Self {
             scheduler: LiveProviderRuntimeScheduler::new(handle, input, limits, adapter_sha256)?,
+            owner_enrollment_binding_sha256,
+        })
+    }
+
+    pub(crate) fn owner_enrollment_binding_sha256(&self) -> &str {
+        &self.owner_enrollment_binding_sha256
+    }
+
+    /// Verify that this source carries the policy and egress identities
+    /// authenticated by an owner lease. Shape-valid caller input is not
+    /// sufficient to cross the lease-to-dispatch boundary.
+    pub(crate) fn validate_process_owner_material(
+        &self,
+        contract: &ProcessOwnerMaterialContractV1,
+    ) -> Result<(), LiveProviderProvisionError> {
+        let binding = &self.scheduler.binding;
+        if self.owner_enrollment_binding_sha256 != contract.enrollment_binding_sha256
+            || binding.policy_sha256 != contract.policy_sha256
+            || binding.target_sha256 != contract.target_sha256
+            || binding.alternate_egress_sha256 != contract.alternate_egress_sha256
+        {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn bind_process_owner_fence(
+        self,
+        fence: Arc<dyn Fn() -> bool + Send + Sync>,
+    ) -> Result<Self, LiveProviderProvisionError> {
+        if self.owner_enrollment_binding_sha256.is_empty() {
+            return Err(LiveProviderProvisionError::InvalidConfiguration);
+        }
+        Ok(Self {
+            scheduler: self.scheduler.with_fence(fence),
+            owner_enrollment_binding_sha256: self.owner_enrollment_binding_sha256,
         })
     }
 
@@ -2166,6 +2505,7 @@ impl LiveProviderBootstrapSpec {
         .map(|provisioner| LiveProviderRuntimeHandle {
             revoked: provisioner.revoked.clone(),
             provisioner,
+            owner_enrollment_binding_sha256: String::new(),
         })
         .map_err(|_| LiveProviderBootstrapError::Backend)
     }
@@ -2234,6 +2574,15 @@ impl LiveProviderProvisioner {
     /// Revoke this provisioner and fence future or active launch attempts.
     pub(crate) fn revoke(&self) {
         self.revoked.store(true, Ordering::Release);
+    }
+
+    fn dispatch_binding(&self) -> LiveProviderRuntimeDispatchBinding {
+        let target_sha256 = digest(&self.config.target().address().to_string());
+        LiveProviderRuntimeDispatchBinding {
+            policy_sha256: canonical_policy_binding(self.policy.endpoint_sha256()),
+            target_sha256: target_sha256.clone(),
+            alternate_egress_sha256: self.allowlist.identity_sha256(),
+        }
     }
 
     /// Acquire one opaque attempt, binding every authority to the runtime's
@@ -2596,6 +2945,7 @@ mod tests {
                 resolver: None,
                 handle: None,
                 provisioner_fence: None,
+                owner_id: None,
             },
             inputs,
         )
@@ -2605,7 +2955,8 @@ mod tests {
     fn control_bootstrap_response_is_consumed_into_runtime_chain_and_profile() {
         let (request, response) = control_bootstrap_fixture();
         let bootstrap =
-            RuntimeControlBootstrap::from_response(response.clone(), &request, 1_500).unwrap();
+            RuntimeControlBootstrap::from_authenticated_response(response.clone(), &request, 1_500)
+                .unwrap();
         assert_eq!(bootstrap.generation(), request.generation);
         assert_eq!(bootstrap.cancellation_binding_sha256(), "4".repeat(64));
         assert!(
@@ -2667,6 +3018,27 @@ mod tests {
                 root().join("mismatched-materialized-authority.json"),
             ),
             Err(LiveProviderControlAdapterError::AttestationMismatch)
+        );
+    }
+
+    #[test]
+    fn owner_material_binding_uses_resolved_allowlist_not_selected_target() {
+        let (mut bootstrap, inputs) = materialization_bootstrap_fixture();
+        bootstrap
+            .materialize_provisioner(
+                "owner-1".into(),
+                inputs.clone(),
+                root().join("owner-material-allowlist.json"),
+            )
+            .unwrap();
+        let binding = bootstrap.process_owner_enrollment_binding();
+        assert_eq!(
+            binding.alternate_egress_sha256,
+            inputs.allowlist.identity_sha256()
+        );
+        assert_ne!(
+            binding.alternate_egress_sha256,
+            digest(&inputs.config.target().address().to_string())
         );
     }
 
@@ -2982,6 +3354,26 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error, LiveProviderProvisionError::InvalidConfiguration);
+        let _ = std::fs::remove_dir_all(relay_root);
+    }
+
+    #[test]
+    fn process_owner_fence_survives_source_consumption() {
+        let (spec, relay_root) = bootstrap_spec();
+        let mut handle = spec.provisioner().unwrap();
+        handle.attach_owner_enrollment_binding("f".repeat(64));
+        let input = launch_input(&root());
+        let limits = input.limits();
+        let source =
+            LiveProviderRuntimeDispatchSource::from_handle(handle, input, limits, &"f".repeat(64))
+                .unwrap()
+                .bind_process_owner_fence(Arc::new(|| false))
+                .unwrap();
+        let factory = source.into_scheduler().into_factory();
+        assert!(matches!(
+            factory.acquire(1, false),
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        ));
         let _ = std::fs::remove_dir_all(relay_root);
     }
 

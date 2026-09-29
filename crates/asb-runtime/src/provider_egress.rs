@@ -73,6 +73,70 @@ impl ProviderEgressAllowlist {
     pub fn targets(&self) -> &[ProviderEgressTarget] {
         &self.targets
     }
+
+    /// Stable authenticated identity for the complete concrete allowlist.
+    ///
+    /// The domain-separated binding keeps the allowlist identity distinct
+    /// from the selected target identity, even when the list contains one
+    /// target.  Callers cannot turn a target digest into an allowlist proof.
+    pub fn identity_sha256(&self) -> String {
+        canonical_allowlist_binding(&self.targets)
+    }
+}
+
+/// Canonical policy identity shared by control enrollment, owner material,
+/// and live dispatch.  The endpoint identity is already an authenticated
+/// digest, so this deliberately performs one domain-separated binding rather
+/// than allowing each layer to choose its own hash depth.
+pub fn canonical_policy_binding(endpoint_identity_sha256: &str) -> String {
+    canonical_digest("provider-policy-v1", &[endpoint_identity_sha256])
+}
+
+/// Canonical policy identity for owner material, which retains the endpoint
+/// text only behind the private runtime boundary.
+pub fn canonical_policy_binding_from_text(endpoint: &str) -> String {
+    let endpoint_identity = if endpoint.len() == 64
+        && endpoint
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        endpoint.to_owned()
+    } else {
+        format!("{:x}", Sha256::digest(endpoint.as_bytes()))
+    };
+    canonical_policy_binding(&endpoint_identity)
+}
+
+/// Canonical alternate-egress identity for private owner material.
+pub fn canonical_alternate_egress_binding(value: &str) -> String {
+    if value.contains('\n') {
+        let mut values = value.split('\n').collect::<Vec<_>>();
+        values.sort_unstable();
+        canonical_digest("provider-allowlist-v1", &values)
+    } else {
+        canonical_digest("provider-allowlist-v1", &[value])
+    }
+}
+
+/// Canonical identity for a concrete allowlist, including its list boundary.
+pub fn canonical_allowlist_binding(targets: &[ProviderEgressTarget]) -> String {
+    let values = targets
+        .iter()
+        .map(|target| target.address().to_string())
+        .collect::<Vec<_>>();
+    let references = values.iter().map(String::as_str).collect::<Vec<_>>();
+    canonical_digest("provider-allowlist-v1", &references)
+}
+
+fn canonical_digest(domain: &str, values: &[&str]) -> String {
+    let mut digest = Sha256::new();
+    digest.update(domain.as_bytes());
+    digest.update([0]);
+    for value in values {
+        digest.update((value.len() as u64).to_le_bytes());
+        digest.update(value.as_bytes());
+    }
+    format!("{:x}", digest.finalize())
 }
 
 fn is_public_address(address: IpAddr) -> bool {
@@ -185,7 +249,7 @@ impl ProviderEgressHandoff {
         route_sha256: impl Into<String>,
         deadline_unix_ms: u64,
     ) -> Self {
-        let policy_sha256 = format!("{:x}", Sha256::digest(policy.endpoint_sha256.as_bytes()));
+        let policy_sha256 = canonical_policy_binding(&policy.endpoint_sha256);
         Self {
             policy_sha256,
             generation: generation.into(),
@@ -230,8 +294,7 @@ impl ProviderEgressAuthorization {
         generation: &str,
         route_sha256: &str,
     ) -> Result<Self, ProviderEgressError> {
-        if handoff.policy_sha256
-            != format!("{:x}", Sha256::digest(policy.endpoint_sha256.as_bytes()))
+        if handoff.policy_sha256 != canonical_policy_binding(&policy.endpoint_sha256)
             || handoff.generation != generation
             || handoff.route_sha256 != route_sha256
             || now_unix_ms >= handoff.deadline_unix_ms
@@ -569,6 +632,13 @@ mod tests {
             ProviderEgressHandoff::issue(&policy).policy_sha256(),
             policy.endpoint_sha256()
         );
+        assert_eq!(
+            ProviderEgressHandoff::issue(&policy).policy_sha256(),
+            canonical_policy_binding(&format!(
+                "{:x}",
+                Sha256::digest(policy.endpoint().as_bytes())
+            ))
+        );
     }
 
     #[test]
@@ -618,6 +688,17 @@ mod tests {
         let second = ProviderEgressTarget::new("198.51.100.11:443".parse().unwrap()).unwrap();
         let policy = ProviderEgressAllowlist::new(vec![second, first]).unwrap();
         assert_eq!(policy.targets(), &[first, second]);
+        assert_ne!(
+            policy.identity_sha256(),
+            format!(
+                "{:x}",
+                Sha256::digest(first.address().to_string().as_bytes())
+            )
+        );
+        assert_eq!(
+            policy.identity_sha256(),
+            canonical_allowlist_binding(policy.targets())
+        );
         assert!(policy.permits(first.address()));
         assert!(!policy.permits("198.51.100.10:8443".parse().unwrap()));
         assert!(ProviderEgressAllowlist::new(vec![first, first]).is_err());
@@ -633,6 +714,45 @@ mod tests {
                 Err(ProviderEgressError::InvalidTarget)
             );
         }
+    }
+
+    #[test]
+    fn canonical_bindings_are_domain_separated_and_policy_text_is_normalized_once() {
+        let endpoint = "https://provider.example/v1";
+        let endpoint_identity = format!("{:x}", Sha256::digest(endpoint.as_bytes()));
+        assert_eq!(
+            canonical_policy_binding_from_text(endpoint),
+            canonical_policy_binding(&endpoint_identity)
+        );
+        assert_eq!(
+            canonical_policy_binding_from_text(&endpoint_identity),
+            canonical_policy_binding(&endpoint_identity)
+        );
+        let target = ProviderEgressTarget::new("198.51.100.10:443".parse().unwrap()).unwrap();
+        let target_digest = format!(
+            "{:x}",
+            Sha256::digest(target.address().to_string().as_bytes())
+        );
+        let target_text = target.address().to_string();
+        assert_ne!(
+            canonical_alternate_egress_binding(&target_text),
+            target_digest
+        );
+        assert_eq!(
+            canonical_alternate_egress_binding(&target_text),
+            canonical_allowlist_binding(&[target])
+        );
+        let second = ProviderEgressTarget::new("203.0.113.10:443".parse().unwrap()).unwrap();
+        let canonical_list = canonical_allowlist_binding(&[target, second]);
+        assert_eq!(
+            canonical_alternate_egress_binding(&format!(
+                "{}\n{}",
+                second.address(),
+                target.address()
+            )),
+            canonical_list
+        );
+        assert_ne!(canonical_list, target_digest);
     }
 
     #[test]

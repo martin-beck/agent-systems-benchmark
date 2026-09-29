@@ -37,6 +37,11 @@ use asb_runtime::launch_factory::{
 };
 use asb_runtime::live_service::{
     LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler, LocalProviderMockBackend,
+    RuntimeControlBootstrap, RuntimeControlOwnerInputs,
+};
+use asb_runtime::process_owner_material::{
+    ProcessOwnerMaterialContractV1, ProcessOwnerMaterialDispatchBridge,
+    ProcessOwnerPrivateMaterialV1,
 };
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
@@ -216,6 +221,100 @@ pub fn run_with_runtime_live_provider_source(
     run_with_runtime_live_provider_scheduler(args, source.into_scheduler(), stdout, stderr)
 }
 
+/// Execute an ordinary `run` or `sweep` from an authenticated owner lease.
+/// The lease is rechecked immediately before the opaque dispatch source is
+/// consumed, so expiry, cancellation, remote revoke, restart, and teardown
+/// cannot be bypassed by retaining a frontend object.
+pub fn run_with_process_owner_material_bridge(
+    args: &[OsString],
+    bridge: ProcessOwnerMaterialDispatchBridge,
+    now_unix_ms: u64,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    let source = match bridge.into_dispatch_source(now_unix_ms) {
+        Ok(source) => source,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned owner lease unavailable");
+            return 2;
+        }
+    };
+    run_with_runtime_live_provider_source(args, source, stdout, stderr)
+}
+
+/// Inputs for the runtime-owned bootstrap -> owner lease -> dispatch-source
+/// bridge used by ordinary `run` and `sweep` commands.
+pub struct RuntimeControlBootstrapRunInput {
+    /// The authenticated public owner-material contract.
+    pub contract: ProcessOwnerMaterialContractV1,
+    /// Private owner material held by runtime/control for this lease.
+    pub material: ProcessOwnerPrivateMaterialV1,
+    /// Validated sandbox launch input for the dispatch source.
+    pub launch_input: asb_runtime::sandbox::SandboxLaunchInput,
+    /// Bounded process limits for the dispatch source.
+    pub limits: ProcessLimits,
+    /// Pinned adapter executable identity.
+    pub adapter_sha256: String,
+    /// Fresh authenticated request nonce identity.
+    pub request_nonce_sha256: String,
+    /// Current runtime time used for lease and dispatch fences.
+    pub now_unix_ms: u64,
+    /// Authenticated runtime-owned inputs materialized before lease issuance.
+    pub owner_inputs: RuntimeControlOwnerInputs,
+    /// Runtime/control owner identity for the materialization resolver.
+    pub owner_id: String,
+    /// Digest-only state path retained by the runtime resolver.
+    pub owner_state_path: PathBuf,
+}
+
+/// Execute an ordinary `run` or `sweep` through the complete runtime-owned
+/// bootstrap -> owner lease -> dispatch-source bridge.  This is the
+/// production composition seam: the CLI receives only the validated public
+/// contract, private material owned by runtime/control, and the final launch
+/// input; it never resolves control identities or constructs a provider
+/// source itself.
+pub fn run_with_runtime_control_bootstrap(
+    args: &[OsString],
+    bootstrap: &mut RuntimeControlBootstrap,
+    input: RuntimeControlBootstrapRunInput,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    if bootstrap
+        .materialize_runtime_owner(input.owner_id, input.owner_inputs, input.owner_state_path)
+        .is_err()
+    {
+        let _ = writeln!(stderr, "runtime-owned owner material unavailable");
+        return 2;
+    }
+    let (_, lease) = match bootstrap.acquire_process_owner_material(
+        input.contract,
+        input.material,
+        input.request_nonce_sha256,
+        input.now_unix_ms,
+    ) {
+        Ok(value) => value,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned owner lease unavailable");
+            return 2;
+        }
+    };
+    let bridge = match bootstrap.bridge_process_owner_material(
+        lease,
+        input.launch_input,
+        input.limits,
+        &input.adapter_sha256,
+        input.now_unix_ms,
+    ) {
+        Ok(value) => value,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned dispatch source unavailable");
+            return 2;
+        }
+    };
+    run_with_process_owner_material_bridge(args, bridge, input.now_unix_ms, stdout, stderr)
+}
+
 /// Fail-closed error returned when the runtime/control owner cannot provide a
 /// fresh opaque dispatch source. The CLI never receives the underlying cause,
 /// authority, paths, or credentials.
@@ -333,6 +432,30 @@ fn run_local_mock_entry(
     }
 }
 
+fn run_local_mock_dispatch(
+    args: &[OsString],
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    if args.len() != 3 {
+        let _ = writeln!(stderr, "runtime local/mock entry expects run or sweep");
+        return 3;
+    }
+    let owner = match LocalMockRuntimeControlOwner::provision(
+        "cli-local-mock".into(),
+        1,
+        "a".repeat(64),
+        "b".repeat(64),
+    ) {
+        Ok(owner) => owner,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned local/mock owner unavailable");
+            return 2;
+        }
+    };
+    run_with_runtime_control_local_mock_owner(&args[..2], owner, stdout, stderr)
+}
+
 fn dispatch(
     args: &[OsString],
     stdout: &mut dyn Write,
@@ -378,6 +501,9 @@ fn dispatch(
         [command, path, flag, selection] if command == "plan" && flag == "--provider-selection" => {
             plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
         }
+        [command, _path, flag] if command == "run" && flag == "--local-mock" => {
+            Ok(run_local_mock_dispatch(args, stdout, stderr))
+        }
         [command, path] if command == "run" => {
             execute(Path::new(path), false, false, None, stdout, stderr)
         }
@@ -411,6 +537,9 @@ fn dispatch(
         }
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
             execute(Path::new(path), false, true, live_factory, stdout, stderr)
+        }
+        [command, _path, flag] if command == "sweep" && flag == "--local-mock" => {
+            Ok(run_local_mock_dispatch(args, stdout, stderr))
         }
         [command, path] if command == "sweep" => {
             execute(Path::new(path), true, false, None, stdout, stderr)
@@ -775,7 +904,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
@@ -5209,6 +5338,7 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_runtime::process_owner_material::OwnerToolProvenance;
     use std::os::unix::fs::PermissionsExt;
     use std::sync::atomic::AtomicU64;
 
@@ -5236,6 +5366,210 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    fn runtime_control_bootstrap_fixture() -> (
+        RuntimeControlBootstrap,
+        RuntimeControlOwnerInputs,
+        PathBuf,
+        ProcessOwnerMaterialContractV1,
+        ProcessOwnerPrivateMaterialV1,
+        asb_runtime::sandbox::SandboxLaunchInput,
+        ProcessLimits,
+    ) {
+        let root = std::env::temp_dir().join(format!(
+            "asb-cli-runtime-control-{}-{}",
+            std::process::id(),
+            NONCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let lease_root = root.join("lease");
+        let relay_root = root.join("relay");
+        let workspace = root.join("workspace");
+        fs::create_dir_all(&lease_root).unwrap();
+        fs::create_dir_all(&relay_root).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        let target =
+            asb_runtime::provider_egress::ProviderEgressTarget::new("8.8.8.8:443".parse().unwrap())
+                .unwrap();
+        let alternate =
+            asb_runtime::provider_egress::ProviderEgressTarget::new("8.8.4.4:443".parse().unwrap())
+                .unwrap();
+        let allowlist =
+            asb_runtime::provider_egress::ProviderEgressAllowlist::new(vec![target, alternate])
+                .unwrap();
+        let endpoint = "https://openrouter.ai/api/v1";
+        let endpoint_identity_sha256 = format!("{:x}", Sha256::digest(endpoint.as_bytes()));
+        let credential_capability = "c".repeat(64);
+        let credential_ref_sha256 =
+            format!("{:x}", Sha256::digest(credential_capability.as_bytes()));
+        let namespace = asb_runtime::live_namespace::NamespaceIdentity::new("net:[owner]").unwrap();
+        let (executable, executable_sha256) = executable(&root);
+        let tool = OwnerToolProvenance::new(
+            executable.clone(),
+            executable_sha256,
+            "adapter-v1".into(),
+            "a".repeat(64),
+        )
+        .unwrap();
+        let material = ProcessOwnerPrivateMaterialV1::new(
+            vec![lease_root.clone(), relay_root.clone()],
+            namespace.as_str().into(),
+            endpoint_identity_sha256.clone(),
+            vec![tool],
+            endpoint.into(),
+            credential_capability,
+            target.address().to_string(),
+            format!("{}\n{}", target.address(), alternate.address()),
+            "launch-provenance-v1".into(),
+        )
+        .unwrap();
+        let policy =
+            asb_runtime::provider_egress::ProviderEgressPolicy::new(endpoint, "openrouter.ai")
+                .unwrap();
+        let pin = || asb_runtime::sandbox::ToolPin::new("/bin/true".into(), "test".into()).unwrap();
+        let selection = asb_runtime::live_service::LiveProviderRuntimeSelection::new(
+            target,
+            "1",
+            "e".repeat(64),
+            credential_ref_sha256.clone(),
+            asb_runtime::sandbox::NetworkPolicy::Deny,
+        );
+        let config = asb_runtime::live_service::LiveProviderRuntimeConfig::new(
+            &lease_root,
+            &allowlist,
+            selection,
+            asb_runtime::sandbox::CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let owner_inputs = RuntimeControlOwnerInputs {
+            config,
+            policy,
+            allowlist: allowlist.clone(),
+            relay_root: relay_root.clone(),
+            bubblewrap: pin(),
+            systemd_run: pin(),
+            systemctl: pin(),
+            taskset: pin(),
+            live_launch_gate: pin(),
+            namespace: namespace.clone(),
+        };
+        let (_, tool_bundle_sha256, _, _, _, _, _) = material.digests();
+        let runtime_request = asb_runtime::live_service::RuntimeBootstrapRequestV1 {
+            provider: "openrouter".into(),
+            generation: 1,
+            endpoint_identity_sha256: endpoint_identity_sha256.clone(),
+            credential_ref_sha256,
+            control_session_sha256: "d".repeat(64),
+            namespace_sha256: format!("{:x}", Sha256::digest(namespace.as_str().as_bytes())),
+            relay_root_sha256: format!(
+                "{:x}",
+                Sha256::digest(relay_root.display().to_string().as_bytes())
+            ),
+            lease_root_sha256: format!(
+                "{:x}",
+                Sha256::digest(lease_root.display().to_string().as_bytes())
+            ),
+            expires_at_unix_ms: 5_000,
+        };
+        let enrollment = asb_control::AuthenticatedChainEnrollmentV1 {
+            schema_version: 1,
+            chain: vec![asb_control::CertificateIdentityV1 {
+                schema_version: 1,
+                subject_sha256: runtime_request.control_session_sha256.clone(),
+                issuer_sha256: "3".repeat(64),
+                certificate_sha256: "3".repeat(64),
+                trust_anchor_sha256: "a".repeat(64),
+                generation: 1,
+                not_before: 1,
+                not_after: 10_000,
+                role: "operator".into(),
+                endpoint_identity_sha256: runtime_request.endpoint_identity_sha256.clone(),
+            }],
+            pairing_fingerprint_sha256: runtime_request.control_session_sha256.clone(),
+            generation: 1,
+        };
+        let chain = enrollment.issue_runtime_chain(1).unwrap();
+        let receipt = chain
+            .issue_runtime_receipt(
+                runtime_request.provider.clone(),
+                runtime_request.credential_ref_sha256.clone(),
+                target.address().to_string(),
+                tool_bundle_sha256.clone(),
+                runtime_request.lease_root_sha256.clone(),
+                runtime_request.relay_root_sha256.clone(),
+                1_000,
+                5_000,
+            )
+            .unwrap();
+        let request = asb_control::RuntimeBootstrapRequestV1 {
+            schema_version: 1,
+            provider: runtime_request.provider.clone(),
+            generation: runtime_request.generation,
+            control_session_sha256: runtime_request.control_session_sha256.clone(),
+            request_nonce_sha256: "2".repeat(64),
+            restart_binding_sha256: "3".repeat(64),
+            namespace_sha256: runtime_request.namespace_sha256.clone(),
+        };
+        let response = asb_control::RuntimeBootstrapResponseV1 {
+            schema_version: 1,
+            request_nonce_sha256: request.request_nonce_sha256.clone(),
+            control_session_sha256: request.control_session_sha256.clone(),
+            restart_binding_sha256: request.restart_binding_sha256.clone(),
+            namespace_sha256: request.namespace_sha256.clone(),
+            generation: request.generation,
+            expires_at_unix_ms: receipt.expires_at_unix_ms,
+            cancellation_binding_sha256: "4".repeat(64),
+            chain: enrollment,
+            receipt,
+        };
+        let mut contract_bootstrap =
+            RuntimeControlBootstrap::from_authenticated_response(response.clone(), &request, 1_500)
+                .unwrap();
+        let state_path = root.join("owner-state.json");
+        contract_bootstrap
+            .materialize_runtime_owner("owner-1".into(), owner_inputs.clone(), state_path.clone())
+            .unwrap();
+        let contract = contract_bootstrap
+            .process_owner_material_contract(&material, 1_000, 2_000, "1".repeat(64))
+            .unwrap();
+        let bootstrap =
+            RuntimeControlBootstrap::from_authenticated_response(response, &request, 1_500)
+                .unwrap();
+        let limits = ProcessLimits::new(
+            4096,
+            4096,
+            Duration::from_secs(1),
+            Duration::from_millis(100),
+            Duration::from_millis(5),
+        )
+        .unwrap();
+        let resources = asb_runtime::sandbox::Resources::new(
+            64 * 1024 * 1024,
+            16,
+            100,
+            asb_runtime::sandbox::CpuSet::new(vec![0]).unwrap(),
+        )
+        .unwrap();
+        let spec = asb_runtime::sandbox::SandboxSpec::new(
+            &workspace,
+            PathBuf::from("."),
+            executable.to_string_lossy().into_owned(),
+            Vec::new(),
+            BTreeMap::new(),
+            resources,
+            asb_runtime::sandbox::NetworkPolicy::Deny,
+        )
+        .unwrap();
+        let launch_input = asb_runtime::sandbox::SandboxLaunchInput::new(spec, limits).unwrap();
+        (
+            bootstrap,
+            owner_inputs,
+            state_path,
+            contract,
+            material,
+            launch_input,
+            limits,
+        )
     }
 
     fn executable(root: &Path) -> (PathBuf, String) {
@@ -5778,6 +6112,130 @@ mod tests {
     }
 
     #[test]
+    fn runtime_control_bootstrap_materializes_and_mints_dispatch_source() {
+        let (
+            mut bootstrap,
+            owner_inputs,
+            owner_state_path,
+            contract,
+            material,
+            launch_input,
+            limits,
+        ) = runtime_control_bootstrap_fixture();
+        bootstrap
+            .materialize_runtime_owner("owner-1".into(), owner_inputs, owner_state_path)
+            .unwrap();
+        let (_, lease) = bootstrap
+            .acquire_process_owner_material(contract, material, "b".repeat(64), 1_500)
+            .unwrap();
+        let bridge = bootstrap
+            .bridge_process_owner_material(lease, launch_input, limits, &"a".repeat(64), 1_500)
+            .unwrap();
+        assert_eq!(bridge.contract().owner_id, "owner-1");
+        assert!(bridge.into_dispatch_source(1_500).is_ok());
+    }
+
+    #[test]
+    fn runtime_control_bootstrap_run_and_sweep_consume_owner_lease_before_dispatch() {
+        let (
+            mut bootstrap,
+            owner_inputs,
+            owner_state_path,
+            contract,
+            material,
+            launch_input,
+            limits,
+        ) = runtime_control_bootstrap_fixture();
+        let root = owner_state_path.parent().unwrap();
+        let (selection_path, selection) =
+            provider_selection_fixture(root, "run-selection.json", "openrouter", &["codex"]);
+        let (run_path, mut plan) = plan_fixture(root, "runtime-control-run");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        plan.point.measured = 1;
+        plan.point.warmups = 0;
+        fs::write(&run_path, toml::to_string(&plan).unwrap()).unwrap();
+        let input = RuntimeControlBootstrapRunInput {
+            contract,
+            material,
+            launch_input: launch_input.clone(),
+            limits,
+            adapter_sha256: "a".repeat(64),
+            request_nonce_sha256: "b".repeat(64),
+            now_unix_ms: 1_500,
+            owner_inputs,
+            owner_id: "owner-1".into(),
+            owner_state_path,
+        };
+        let mut run_output = Vec::new();
+        let mut run_stderr = Vec::new();
+        let run_code = run_with_runtime_control_bootstrap(
+            &[
+                "run".into(),
+                run_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+                "--live-provider".into(),
+            ],
+            &mut bootstrap,
+            input,
+            &mut run_output,
+            &mut run_stderr,
+        );
+        assert_eq!(run_code, 6, "stderr={run_stderr:?} output={run_output:?}");
+        let run_result = serde_json::from_slice::<Value>(&run_output).unwrap();
+        assert_eq!(run_result["ok"], false);
+        assert_eq!(run_result["points"][0]["infrastructure_failures"], 1);
+
+        let (
+            mut sweep_bootstrap,
+            owner_inputs,
+            owner_state_path,
+            contract,
+            material,
+            launch_input,
+            limits,
+        ) = runtime_control_bootstrap_fixture();
+        let root = owner_state_path.parent().unwrap();
+        let (selection_path, selection) =
+            provider_selection_fixture(root, "sweep-selection.json", "openrouter", &["codex"]);
+        let (sweep_path, mut plan) = plan_fixture(root, "runtime-control-sweep");
+        bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+        plan.point.measured = 1;
+        plan.point.warmups = 0;
+        fs::write(&sweep_path, toml::to_string(&plan).unwrap()).unwrap();
+        let mut sweep_output = Vec::new();
+        let mut sweep_stderr = Vec::new();
+        let sweep_code = run_with_runtime_control_bootstrap(
+            &[
+                "sweep".into(),
+                sweep_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+                "--live-provider".into(),
+            ],
+            &mut sweep_bootstrap,
+            RuntimeControlBootstrapRunInput {
+                contract,
+                material,
+                launch_input,
+                limits,
+                adapter_sha256: "a".repeat(64),
+                request_nonce_sha256: "b".repeat(64),
+                now_unix_ms: 1_500,
+                owner_inputs,
+                owner_id: "owner-1".into(),
+                owner_state_path,
+            },
+            &mut sweep_output,
+            &mut sweep_stderr,
+        );
+        assert_eq!(sweep_code, 6, "{sweep_stderr:?}");
+        let sweep_result = serde_json::from_slice::<Value>(&sweep_output).unwrap();
+        assert_eq!(sweep_result["ok"], false);
+        assert_eq!(sweep_result["points"][0]["infrastructure_failures"], 1);
+    }
+
+    #[test]
     fn runtime_local_mock_owner_wires_run_and_sweep_and_tears_down() {
         let scratch = Scratch::new("runtime-local-owner-entry");
         let (run_path, _) = plan_fixture(&scratch.0, "runtime-owner-run");
@@ -5818,6 +6276,50 @@ mod tests {
             run_with_runtime_control_local_mock_owner(
                 &["sweep".into(), sweep_path.as_os_str().to_owned()],
                 sweep_owner,
+                &mut sweep_output,
+                &mut sweep_progress,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&sweep_output).unwrap()["ok"],
+            true
+        );
+    }
+
+    #[test]
+    fn ordinary_run_and_sweep_dispatch_can_select_runtime_local_mock_owner() {
+        let scratch = Scratch::new("runtime-local-owner-dispatch");
+        let (run_path, _) = plan_fixture(&scratch.0, "runtime-owner-dispatch-run");
+        let mut run_output = Vec::new();
+        let mut run_progress = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "run".into(),
+                    run_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut run_output,
+                &mut run_progress,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&run_output).unwrap()["ok"],
+            true
+        );
+
+        let (sweep_path, _) = plan_fixture(&scratch.0, "runtime-owner-dispatch-sweep");
+        let mut sweep_output = Vec::new();
+        let mut sweep_progress = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "sweep".into(),
+                    sweep_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
                 &mut sweep_output,
                 &mut sweep_progress,
             ),
