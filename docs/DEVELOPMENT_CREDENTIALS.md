@@ -49,3 +49,12 @@ management are intentionally visible but never block this development path.
 Restart state is bounded before JSON parsing and is integrity-checked on
 restore. It is not production provider evidence; production credential and
 signing hardening remains the responsibility of AR-1501.
+
+The control-runtime `auth_helper_invoke` mutation commits its public
+`AuthStatus` projection together with the digest-only enrollment record. The
+runner binds provider, endpoint digest, locator digest, generation, and status
+before accepting the catalog commit; a mismatched projection remains
+`needs_reconciliation` and is never silently retried. Repeating the same
+idempotency key returns the committed projection after restart. This is a
+provider-free runtime consistency guarantee, not production authorization or
+provider-reachability evidence.
