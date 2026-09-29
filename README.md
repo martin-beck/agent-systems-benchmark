@@ -40,6 +40,7 @@ fail as a whole; per-agent overrides are deliberately a separate choice.
 - [Offline quickstart](docs/QUICKSTART.md)
 - [Agent and workload extensions](docs/EXTENSIONS.md)
 - [Provider authentication enrollment](docs/AUTH_ENROLLMENT.md)
+- [Platform-owned authority provider](docs/PLATFORM_AUTHORITY_PROVIDER.md)
 - [Reproducibility guide](docs/REPRODUCIBILITY.md)
 - [Coordination tasks](https://github.com/martin-beck/agent-systems-benchmark-state)
 

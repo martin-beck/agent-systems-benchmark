@@ -468,6 +468,172 @@ struct RuntimeAuthorityInputBinding {
     lease_root_sha256: String,
 }
 
+/// The public, secret-free binding presented to the platform authority
+/// provider.  Every field comes from the authenticated AR-1505 bootstrap;
+/// callers cannot choose roots, tools, policy, or a persistence location.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RuntimePlatformAuthorityBinding {
+    control_session_sha256: String,
+    restart_binding_sha256: String,
+    cancellation_binding_sha256: String,
+    provider: String,
+    generation: u64,
+    expires_at_unix_ms: u64,
+    endpoint_identity_sha256: String,
+    credential_ref_sha256: String,
+    namespace_sha256: String,
+    relay_root_sha256: String,
+    lease_root_sha256: String,
+    tool_bundle_sha256: String,
+}
+
+impl RuntimePlatformAuthorityBinding {
+    fn from_bootstrap(
+        response: &ControlRuntimeBootstrapResponseV1,
+        profile: &LiveProviderRuntimeAuthorityProfile,
+    ) -> Self {
+        Self {
+            control_session_sha256: response.control_session_sha256.clone(),
+            restart_binding_sha256: response.restart_binding_sha256.clone(),
+            cancellation_binding_sha256: response.cancellation_binding_sha256.clone(),
+            provider: profile.provider().to_owned(),
+            generation: profile.generation(),
+            expires_at_unix_ms: response.expires_at_unix_ms,
+            endpoint_identity_sha256: profile
+                .attestation
+                .claims()
+                .endpoint_identity_sha256
+                .clone(),
+            credential_ref_sha256: profile.attestation.claims().credential_ref_sha256.clone(),
+            namespace_sha256: response.namespace_sha256.clone(),
+            relay_root_sha256: profile.attestation.claims().relay_root_sha256.clone(),
+            lease_root_sha256: profile.attestation.claims().lease_root_sha256.clone(),
+            tool_bundle_sha256: profile.attestation.claims().tool_bundle_sha256.clone(),
+        }
+    }
+
+    fn digest(&self) -> String {
+        let mut digest = Sha256::new();
+        let generation = self.generation.to_string();
+        let expires_at_unix_ms = self.expires_at_unix_ms.to_string();
+        for value in [
+            self.control_session_sha256.as_str(),
+            self.restart_binding_sha256.as_str(),
+            self.cancellation_binding_sha256.as_str(),
+            self.provider.as_str(),
+            generation.as_str(),
+            expires_at_unix_ms.as_str(),
+            self.endpoint_identity_sha256.as_str(),
+            self.credential_ref_sha256.as_str(),
+            self.namespace_sha256.as_str(),
+            self.relay_root_sha256.as_str(),
+            self.lease_root_sha256.as_str(),
+            self.tool_bundle_sha256.as_str(),
+        ] {
+            digest.update(value.as_bytes());
+            digest.update([0]);
+        }
+        format!("{:x}", digest.finalize())
+    }
+}
+
+/// Private material returned by a platform-owned authority provider.  This
+/// type never crosses the CLI/control transport and has no public
+/// constructor.  The provider owns the state path; bootstrap callers cannot
+/// inject a fixed path or reconstruct this value from digest claims.
+#[derive(Clone)]
+pub(crate) struct RuntimePlatformAuthorityMaterial {
+    inputs: RuntimeAuthorityInputs,
+    state_path: PathBuf,
+    binding_sha256: String,
+}
+
+impl RuntimePlatformAuthorityMaterial {
+    #[cfg(test)]
+    fn for_test(
+        binding: &RuntimePlatformAuthorityBinding,
+        inputs: RuntimeAuthorityInputs,
+        state_path: PathBuf,
+    ) -> Self {
+        let binding_sha256 = authority_material_digest(binding, &inputs);
+        Self {
+            inputs,
+            state_path,
+            binding_sha256,
+        }
+    }
+}
+
+/// Errors from the runtime/platform authority provider boundary.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RuntimePlatformAuthorityProviderError {
+    /// No platform-owned authority is available for this authenticated session.
+    Unavailable,
+    /// The provider returned material for a different bootstrap binding.
+    BindingMismatch,
+    /// The authority is stale, expired, revoked, restarted, or cancelled.
+    Revoked,
+    /// The provider returned tampered or incomplete private material.
+    Tampered,
+}
+
+/// Runtime-owned provider contract for private launch authority.
+///
+/// This trait is intentionally crate-private and not exported from the runtime
+/// crate: only runtime/control platform adapters can implement it. A frontend
+/// can request material only for the binding supplied by an authenticated
+/// AR-1505 bootstrap.
+pub(crate) trait RuntimePlatformAuthorityProvider: Send + Sync {
+    fn materialize(
+        &self,
+        binding: &RuntimePlatformAuthorityBinding,
+    ) -> Result<RuntimePlatformAuthorityMaterial, RuntimePlatformAuthorityProviderError>;
+}
+
+fn authority_material_digest(
+    binding: &RuntimePlatformAuthorityBinding,
+    inputs: &RuntimeAuthorityInputs,
+) -> String {
+    let policy_sha256 = digest(inputs.policy.endpoint_sha256());
+    let allowlist_sha256 = digest(
+        &inputs
+            .allowlist
+            .targets()
+            .iter()
+            .map(|target| target.address().to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    let tool_sha256 = digest(
+        &[
+            inputs.bubblewrap.version_line(),
+            inputs.systemd_run.version_line(),
+            inputs.systemctl.version_line(),
+            inputs.taskset.version_line(),
+            inputs.live_launch_gate.version_line(),
+        ]
+        .join("\n"),
+    );
+    let mut value = Sha256::new();
+    for item in [
+        binding.digest(),
+        policy_sha256,
+        allowlist_sha256,
+        tool_sha256,
+        digest(&inputs.config.target().address().to_string()),
+        digest(&inputs.config.credential_ref_sha256().to_owned()),
+        digest(&inputs.config.generation().to_owned()),
+        digest(&inputs.config.lease_root().display().to_string()),
+        digest(&inputs.relay_root.display().to_string()),
+        digest(inputs.namespace.as_str()),
+    ] {
+        value.update(item.as_bytes());
+        value.update([0]);
+    }
+    format!("{:x}", value.finalize())
+}
+
 impl RuntimeAuthorityInputBinding {
     fn from_inputs(inputs: &RuntimeAuthorityInputs) -> Self {
         Self {
@@ -1507,9 +1673,19 @@ impl RuntimeControlBootstrap {
     pub(crate) fn materialize_provisioner(
         &mut self,
         owner: String,
-        inputs: RuntimeAuthorityInputs,
-        state_path: PathBuf,
+        provider: &dyn RuntimePlatformAuthorityProvider,
     ) -> Result<(), LiveProviderControlAdapterError> {
+        let binding =
+            RuntimePlatformAuthorityBinding::from_bootstrap(&self.response, &self.profile);
+        let material = provider
+            .materialize(&binding)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        if material.binding_sha256 != authority_material_digest(&binding, &material.inputs)
+            || !material.state_path.is_absolute()
+        {
+            return Err(LiveProviderControlAdapterError::AttestationMismatch);
+        }
+        let inputs = material.inputs;
         let resolver = RuntimeAuthorityInputResolver::from_authenticated_enrollment(
             owner,
             &self.profile,
@@ -1519,7 +1695,7 @@ impl RuntimeControlBootstrap {
                 lease_root_sha256: self.response.receipt.lease_root_sha256.clone(),
             },
             inputs,
-            state_path,
+            material.state_path,
         )
         .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
         let owner = resolver
@@ -2579,7 +2755,45 @@ mod tests {
         (request, response)
     }
 
-    fn materialization_bootstrap_fixture() -> (RuntimeControlBootstrap, RuntimeAuthorityInputs) {
+    struct FixtureAuthorityProvider {
+        material: RuntimePlatformAuthorityMaterial,
+        tamper: bool,
+    }
+
+    impl RuntimePlatformAuthorityProvider for FixtureAuthorityProvider {
+        fn materialize(
+            &self,
+            binding: &RuntimePlatformAuthorityBinding,
+        ) -> Result<RuntimePlatformAuthorityMaterial, RuntimePlatformAuthorityProviderError>
+        {
+            let mut material = self.material.clone();
+            if self.tamper {
+                material.inputs.namespace = NamespaceIdentity::new("net:[tampered]").unwrap();
+            }
+            if material.binding_sha256 != authority_material_digest(binding, &material.inputs) {
+                return Err(RuntimePlatformAuthorityProviderError::Tampered);
+            }
+            Ok(material)
+        }
+    }
+
+    struct UnavailableAuthorityProvider;
+
+    impl RuntimePlatformAuthorityProvider for UnavailableAuthorityProvider {
+        fn materialize(
+            &self,
+            _binding: &RuntimePlatformAuthorityBinding,
+        ) -> Result<RuntimePlatformAuthorityMaterial, RuntimePlatformAuthorityProviderError>
+        {
+            Err(RuntimePlatformAuthorityProviderError::Unavailable)
+        }
+    }
+
+    fn materialization_bootstrap_fixture() -> (
+        RuntimeControlBootstrap,
+        RuntimeAuthorityInputs,
+        RuntimePlatformAuthorityBinding,
+    ) {
         let (profile, inputs) = resolver_inputs();
         let (_, mut response) = control_bootstrap_fixture();
         let binding = RuntimeAuthorityInputBinding::from_inputs(&inputs);
@@ -2588,17 +2802,19 @@ mod tests {
         response.receipt.generation = 7;
         response.receipt.relay_root_sha256 = binding.relay_root_sha256;
         response.receipt.lease_root_sha256 = binding.lease_root_sha256;
-        (
-            RuntimeControlBootstrap {
-                response,
-                chain_store: RuntimeCertificateChainStore::new(),
-                profile,
-                resolver: None,
-                handle: None,
-                provisioner_fence: None,
-            },
-            inputs,
-        )
+        let bootstrap = RuntimeControlBootstrap {
+            response,
+            chain_store: RuntimeCertificateChainStore::new(),
+            profile,
+            resolver: None,
+            handle: None,
+            provisioner_fence: None,
+        };
+        let provider_binding = RuntimePlatformAuthorityBinding::from_bootstrap(
+            &bootstrap.response,
+            &bootstrap.profile,
+        );
+        (bootstrap, inputs, provider_binding)
     }
 
     #[test]
@@ -2651,21 +2867,68 @@ mod tests {
 
     #[test]
     fn control_bootstrap_materializes_only_matching_private_bindings() {
-        let (mut bootstrap, inputs) = materialization_bootstrap_fixture();
-        let state_path = root().join("materialized-authority.json");
+        let (mut bootstrap, inputs, binding) = materialization_bootstrap_fixture();
+        let provider = FixtureAuthorityProvider {
+            material: RuntimePlatformAuthorityMaterial::for_test(
+                &binding,
+                inputs.clone(),
+                root().join("materialized-authority.json"),
+            ),
+            tamper: false,
+        };
         bootstrap
-            .materialize_provisioner("owner-1".into(), inputs.clone(), state_path)
+            .materialize_provisioner("owner-1".into(), &provider)
             .unwrap();
         assert!(bootstrap.take_handle().is_ok());
 
-        let (mut bootstrap, mut inputs) = materialization_bootstrap_fixture();
-        inputs.namespace = NamespaceIdentity::new("net:[different]").unwrap();
-        assert_eq!(
-            bootstrap.materialize_provisioner(
-                "owner-1".into(),
+        let (mut bootstrap, inputs, binding) = materialization_bootstrap_fixture();
+        let provider = FixtureAuthorityProvider {
+            material: RuntimePlatformAuthorityMaterial::for_test(
+                &binding,
                 inputs,
                 root().join("mismatched-materialized-authority.json"),
             ),
+            tamper: true,
+        };
+        assert_eq!(
+            bootstrap.materialize_provisioner("owner-1".into(), &provider),
+            Err(LiveProviderControlAdapterError::AttestationMismatch)
+        );
+    }
+
+    #[test]
+    fn control_bootstrap_fails_closed_without_platform_authority() {
+        let (mut bootstrap, _, _) = materialization_bootstrap_fixture();
+        assert_eq!(
+            bootstrap.materialize_provisioner("owner-1".into(), &UnavailableAuthorityProvider),
+            Err(LiveProviderControlAdapterError::AttestationMismatch)
+        );
+        assert!(bootstrap.take_handle().is_err());
+    }
+
+    #[test]
+    fn control_bootstrap_rejects_provider_owned_relative_state_path() {
+        let (mut bootstrap, inputs, binding) = materialization_bootstrap_fixture();
+        let mut material = RuntimePlatformAuthorityMaterial::for_test(
+            &binding,
+            inputs,
+            PathBuf::from("authority.json"),
+        );
+        // The provider owns this location, but bootstrap still rejects a
+        // relative path so a frontend cannot redirect durable authority state.
+        material.state_path = PathBuf::from("authority.json");
+        struct RelativePathProvider(RuntimePlatformAuthorityMaterial);
+        impl RuntimePlatformAuthorityProvider for RelativePathProvider {
+            fn materialize(
+                &self,
+                _binding: &RuntimePlatformAuthorityBinding,
+            ) -> Result<RuntimePlatformAuthorityMaterial, RuntimePlatformAuthorityProviderError>
+            {
+                Ok(self.0.clone())
+            }
+        }
+        assert_eq!(
+            bootstrap.materialize_provisioner("owner-1".into(), &RelativePathProvider(material),),
             Err(LiveProviderControlAdapterError::AttestationMismatch)
         );
     }
