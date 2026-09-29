@@ -53,6 +53,17 @@ unsupported roles, stale generations, and unknown fields fail closed. Only bound
 identity digests and authorization outcomes are suitable for durable public evidence;
 certificate and private-key bytes must remain in the caller's protected memory/store.
 
+The negotiated `control v1.11` `runtime_bootstrap` operation is the
+platform-owned handoff for a live runtime. The request contains only the
+provider generation, a session digest derived from the kernel-authenticated
+control connection, a fresh nonce, and a restart binding. The response adds a
+bounded expiry and opaque cancellation binding to the existing chain and
+receipt metadata. `runtime_bootstrap_cancel` revokes that exact session and
+generation; a later bootstrap for the revoked session/restart binding is
+rejected. A caller-supplied session digest is rejected by the backend unless
+it matches the authenticated peer identity, so the digest is not an authority
+input.
+
 The runtime receipt response carries bounded public
 `AuthenticatedChainEnrollmentV1` metadata. Control binds its canonical chain
 digest to the receipt before sending it over the owner-authenticated control

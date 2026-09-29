@@ -303,6 +303,14 @@ fn remove_lifecycle_variants(value: &mut Value) {
         remove_tagged_variant(value, "/oneOf", tag);
         remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
     }
+    remove_runtime_bootstrap_variants(value);
+}
+
+fn remove_runtime_bootstrap_variants(value: &mut Value) {
+    for tag in ["runtime_bootstrap", "runtime_bootstrap_cancel"] {
+        remove_tagged_variant(value, "/oneOf", tag);
+        remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
+    }
 }
 
 fn remove_auth_variants(value: &mut Value) {
@@ -526,6 +534,7 @@ pub fn control_request_schema_v1_5() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_runtime_bootstrap_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.5 request schema remains valid")
 }
@@ -539,6 +548,7 @@ pub fn control_response_schema_v1_5() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_runtime_bootstrap_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.5 response schema remains valid")
 }
@@ -550,6 +560,7 @@ pub fn control_request_schema_v1_6() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_runtime_bootstrap_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.6 request schema remains valid")
 }
@@ -563,6 +574,7 @@ pub fn control_response_schema_v1_6() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_runtime_bootstrap_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.6 response schema remains valid")
 }
@@ -571,6 +583,7 @@ pub fn control_response_schema_v1_6() -> Schema {
 pub fn control_request_schema_v1_7() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_recording_lifecycle_variants(&mut value);
+    remove_runtime_bootstrap_variants(&mut value);
     remove_provider_registration_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.7 request schema remains valid")
@@ -582,6 +595,7 @@ pub fn control_response_schema_v1_7() -> Schema {
     settings_validation_invariant(&mut schema);
     let mut value = serde_json::to_value(schema).expect("v1.7 response schema serializes");
     remove_recording_lifecycle_variants(&mut value);
+    remove_runtime_bootstrap_variants(&mut value);
     remove_provider_registration_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.7 response schema remains valid")
@@ -606,6 +620,18 @@ pub fn control_request_schema_v1_9() -> Schema {
 
 /// Canonical response schema for control v1.9 provider-profile registration.
 pub fn control_response_schema_v1_9() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    schema
+}
+
+/// Canonical request schema for control v1.11 runtime bootstrap authority.
+pub fn control_request_schema_v1_11() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for control v1.11 runtime bootstrap authority.
+pub fn control_response_schema_v1_11() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema

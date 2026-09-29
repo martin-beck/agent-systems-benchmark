@@ -10,6 +10,7 @@ use std::thread;
 #[cfg(test)]
 use std::time::Duration;
 
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
@@ -89,6 +90,20 @@ pub trait ControlBackend {
         _version: ControlVersion,
     ) -> Result<BoundControlResult, BackendFailure> {
         self.execute(call, deadline)
+    }
+
+    /// Execute with the kernel-authenticated local peer identity.
+    ///
+    /// The default preserves existing backends; authority-sensitive backends
+    /// override this hook rather than accepting caller-supplied identity data.
+    fn execute_authenticated(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+        version: ControlVersion,
+        _peer: PeerIdentity,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        self.execute_versioned(call, deadline, version)
     }
 }
 
@@ -325,6 +340,9 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         limits: ControlLimits,
         stream: &mut UnixStream,
     ) -> Result<(), EndpointError> {
+        let peer = PeerIdentity::from_fd(&mut *stream).map_err(EndpointError::Transport)?;
+        peer.require_owner(rustix::process::geteuid().as_raw())
+            .map_err(EndpointError::Transport)?;
         let mut session = ControlSession::new(limits)?;
         let ingress = RequestDeadline::start(limits.max_timeout_ms)?;
         let first: ControlRequest = read_frame_until(stream, limits, ingress)?;
@@ -362,7 +380,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
             };
             let id = admission.id;
             let deadline = admission.deadline();
-            let outcome = backend.execute_versioned(&request.call, deadline, version);
+            let outcome = backend.execute_authenticated(&request.call, deadline, version, peer);
             let response = match outcome {
                 Ok(result) => {
                     deadline.check()?;
@@ -518,6 +536,24 @@ impl ControlClient {
     #[must_use]
     pub fn negotiated(&self) -> &Negotiated {
         &self.negotiated
+    }
+
+    /// Return the server-bound session identity digest for authority requests.
+    ///
+    /// The digest binds the negotiated runner identity to this client process
+    /// and kernel credentials. It contains no path, credential, or host data.
+    pub fn session_identity_sha256(&self) -> Result<String, EndpointError> {
+        let uid = rustix::process::geteuid().as_raw();
+        let gid = rustix::process::getegid().as_raw();
+        let pid = std::process::id();
+        let mut digest = Sha256::new();
+        digest.update(b"asb-control-session-v1\0");
+        digest.update((self.negotiated.runner_instance_id.len() as u64).to_le_bytes());
+        digest.update(self.negotiated.runner_instance_id.as_bytes());
+        digest.update(uid.to_le_bytes());
+        digest.update(gid.to_le_bytes());
+        digest.update(pid.to_le_bytes());
+        Ok(format!("{:x}", digest.finalize()))
     }
 
     /// Execute one typed call and return its validated public response.

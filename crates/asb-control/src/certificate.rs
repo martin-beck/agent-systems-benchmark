@@ -178,6 +178,135 @@ pub struct RuntimeReceiptResponseV1 {
     pub receipt: RuntimeEnrollmentReceiptV1,
 }
 
+/// Versioned request for a runtime-owned bootstrap capability.
+///
+/// The request carries only identities and freshness proofs.  It cannot carry
+/// a filesystem path, endpoint, certificate, credential, or authority object.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeBootstrapRequestV1 {
+    /// Bootstrap protocol schema version.
+    pub schema_version: u16,
+    /// Provider identity selected by the runner.
+    pub provider: String,
+    /// Expected monotonic authority generation.
+    pub generation: u64,
+    /// Digest of the authenticated control session and runner identity.
+    pub control_session_sha256: String,
+    /// Fresh request nonce preventing response confusion and replay.
+    pub request_nonce_sha256: String,
+    /// Restart binding retained by the runtime owner.
+    pub restart_binding_sha256: String,
+    /// Kernel-derived namespace digest to bind into the issued authority.
+    pub namespace_sha256: String,
+}
+
+impl RuntimeBootstrapRequestV1 {
+    /// Validate the bounded, identity-only bootstrap request.
+    pub fn validate(&self) -> Result<(), CertificateError> {
+        if self.schema_version != 1
+            || self.provider.is_empty()
+            || self.provider.len() > 64
+            || self.generation == 0
+            || !is_digest(&self.control_session_sha256)
+            || !is_digest(&self.request_nonce_sha256)
+            || !is_digest(&self.restart_binding_sha256)
+            || !is_digest(&self.namespace_sha256)
+        {
+            return Err(CertificateError::InvalidReceiptRequest);
+        }
+        Ok(())
+    }
+}
+
+/// Secret-free response from the platform control authority.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeBootstrapResponseV1 {
+    /// Bootstrap protocol schema version.
+    pub schema_version: u16,
+    /// Request nonce copied after exact request validation.
+    pub request_nonce_sha256: String,
+    /// Authenticated control-session binding.
+    pub control_session_sha256: String,
+    /// Restart binding copied from the request.
+    pub restart_binding_sha256: String,
+    /// Authenticated kernel-derived namespace binding.
+    pub namespace_sha256: String,
+    /// Monotonic authority generation.
+    pub generation: u64,
+    /// Bounded validity end for all returned capabilities.
+    pub expires_at_unix_ms: u64,
+    /// Stable cancellation/revocation binding.
+    pub cancellation_binding_sha256: String,
+    /// Public enrollment metadata; certificate and credential bytes never cross.
+    pub chain: AuthenticatedChainEnrollmentV1,
+    /// Authenticated public runtime receipt.
+    pub receipt: RuntimeEnrollmentReceiptV1,
+}
+
+impl RuntimeBootstrapResponseV1 {
+    /// Validate the response against its exact request and public chain.
+    pub fn validate_for(
+        &self,
+        request: &RuntimeBootstrapRequestV1,
+    ) -> Result<(), CertificateError> {
+        request.validate()?;
+        if self.schema_version != 1
+            || self.request_nonce_sha256 != request.request_nonce_sha256
+            || self.control_session_sha256 != request.control_session_sha256
+            || self.restart_binding_sha256 != request.restart_binding_sha256
+            || self.namespace_sha256 != request.namespace_sha256
+            || self.generation != request.generation
+            || !is_digest(&self.cancellation_binding_sha256)
+            || self.expires_at_unix_ms == 0
+            || self.receipt.generation != request.generation
+            || self.receipt.provider != request.provider
+            || self.receipt.expires_at_unix_ms != self.expires_at_unix_ms
+            || self.receipt.chain_sha256 != self.chain.chain_sha256()
+        {
+            return Err(CertificateError::InvalidReceiptResponse);
+        }
+        Ok(())
+    }
+}
+
+/// Versioned cancellation request for a previously issued bootstrap.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeBootstrapCancelRequestV1 {
+    /// Bootstrap protocol schema version.
+    pub schema_version: u16,
+    /// Provider identity bound to the bootstrap.
+    pub provider: String,
+    /// Expected generation.
+    pub generation: u64,
+    /// Session binding selected during bootstrap.
+    pub control_session_sha256: String,
+    /// Cancellation binding returned by bootstrap.
+    pub cancellation_binding_sha256: String,
+    /// Retry-safe idempotency key.
+    pub idempotency_key: String,
+}
+
+impl RuntimeBootstrapCancelRequestV1 {
+    /// Validate cancellation without accepting private authority inputs.
+    pub fn validate(&self) -> Result<(), CertificateError> {
+        if self.schema_version != 1
+            || self.provider.is_empty()
+            || self.provider.len() > 64
+            || self.generation == 0
+            || !is_digest(&self.control_session_sha256)
+            || !is_digest(&self.cancellation_binding_sha256)
+            || self.idempotency_key.is_empty()
+            || self.idempotency_key.len() > 128
+        {
+            return Err(CertificateError::InvalidReceiptRequest);
+        }
+        Ok(())
+    }
+}
+
 impl RuntimeReceiptResponseV1 {
     /// Validate response binding without exposing certificate or credential bytes.
     pub fn validate_for(&self, request: &RuntimeReceiptRequestV1) -> Result<(), CertificateError> {
@@ -1230,5 +1359,122 @@ mod tests {
             "endpoint": "must-not-be-cli-authority"
         });
         assert!(serde_json::from_value::<RuntimeReceiptRequestV1>(value).is_err());
+    }
+
+    #[test]
+    fn runtime_bootstrap_request_is_identity_only_and_fail_closed() {
+        let mut request = RuntimeBootstrapRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 7,
+            control_session_sha256: "a".repeat(64),
+            request_nonce_sha256: "b".repeat(64),
+            restart_binding_sha256: "c".repeat(64),
+            namespace_sha256: "d".repeat(64),
+        };
+        assert!(request.validate().is_ok());
+        request.control_session_sha256 = "not-a-digest".into();
+        assert_eq!(
+            request.validate(),
+            Err(CertificateError::InvalidReceiptRequest)
+        );
+        let value = serde_json::json!({
+            "schema_version": 1,
+            "provider": "openrouter",
+            "generation": 7,
+            "control_session_sha256": "a".repeat(64),
+            "request_nonce_sha256": "b".repeat(64),
+            "restart_binding_sha256": "c".repeat(64),
+            "relay_root": "/private/path"
+        });
+        assert!(serde_json::from_value::<RuntimeBootstrapRequestV1>(value).is_err());
+    }
+
+    #[test]
+    fn runtime_bootstrap_response_binds_session_generation_nonce_and_restart() {
+        let request = RuntimeBootstrapRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 7,
+            control_session_sha256: "a".repeat(64),
+            request_nonce_sha256: "b".repeat(64),
+            restart_binding_sha256: "c".repeat(64),
+            namespace_sha256: "d".repeat(64),
+        };
+        let response = RuntimeBootstrapResponseV1 {
+            schema_version: 1,
+            request_nonce_sha256: request.request_nonce_sha256.clone(),
+            control_session_sha256: request.control_session_sha256.clone(),
+            restart_binding_sha256: request.restart_binding_sha256.clone(),
+            namespace_sha256: request.namespace_sha256.clone(),
+            generation: request.generation,
+            expires_at_unix_ms: 2_000,
+            cancellation_binding_sha256: "d".repeat(64),
+            chain: AuthenticatedChainEnrollmentV1 {
+                schema_version: 1,
+                chain: Vec::new(),
+                pairing_fingerprint_sha256: request.control_session_sha256.clone(),
+                generation: request.generation,
+            },
+            receipt: RuntimeEnrollmentReceiptV1 {
+                schema_version: 1,
+                chain_sha256: canonical_chain_digest(&[]),
+                provider: request.provider.clone(),
+                endpoint_identity_sha256: "f".repeat(64),
+                credential_ref_sha256: "1".repeat(64),
+                generation: request.generation,
+                target: "203.0.113.10:443".into(),
+                tool_bundle_sha256: "2".repeat(64),
+                lease_root_sha256: "3".repeat(64),
+                relay_root_sha256: "4".repeat(64),
+                issued_at_unix_ms: 1_000,
+                expires_at_unix_ms: 2_000,
+                nonce_sha256: "5".repeat(64),
+            },
+        };
+        assert!(response.validate_for(&request).is_ok());
+        let mut stale = response.clone();
+        stale.restart_binding_sha256 = "6".repeat(64);
+        assert_eq!(
+            stale.validate_for(&request),
+            Err(CertificateError::InvalidReceiptResponse)
+        );
+        let mut expired = response.clone();
+        expired.expires_at_unix_ms = 0;
+        assert_eq!(
+            expired.validate_for(&request),
+            Err(CertificateError::InvalidReceiptResponse)
+        );
+
+        let mut mismatched_receipt_expiry = response.clone();
+        mismatched_receipt_expiry.receipt.expires_at_unix_ms = 3_000;
+        assert_eq!(
+            mismatched_receipt_expiry.validate_for(&request),
+            Err(CertificateError::InvalidReceiptResponse)
+        );
+        let mut mismatched_namespace = response.clone();
+        mismatched_namespace.namespace_sha256 = "e".repeat(64);
+        assert_eq!(
+            mismatched_namespace.validate_for(&request),
+            Err(CertificateError::InvalidReceiptResponse)
+        );
+    }
+
+    #[test]
+    fn runtime_bootstrap_cancel_rejects_forged_or_unknown_binding() {
+        let mut request = RuntimeBootstrapCancelRequestV1 {
+            schema_version: 1,
+            provider: "openrouter".into(),
+            generation: 7,
+            control_session_sha256: "a".repeat(64),
+            cancellation_binding_sha256: "b".repeat(64),
+            idempotency_key: "cancel-1".into(),
+        };
+        assert!(request.validate().is_ok());
+        request.cancellation_binding_sha256 = "bad".into();
+        assert_eq!(
+            request.validate(),
+            Err(CertificateError::InvalidReceiptRequest)
+        );
     }
 }

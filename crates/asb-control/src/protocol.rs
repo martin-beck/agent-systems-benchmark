@@ -4,7 +4,10 @@
 
 use std::collections::BTreeSet;
 
-use crate::{RuntimeReceiptRequestV1, RuntimeReceiptResponseV1};
+use crate::{
+    RuntimeBootstrapCancelRequestV1, RuntimeBootstrapRequestV1, RuntimeBootstrapResponseV1,
+    RuntimeReceiptRequestV1, RuntimeReceiptResponseV1,
+};
 use asb_protocol::{
     MAX_MEASUREMENT_CATALOG_WIRE_BYTES, MeasurementCatalogV1, MeasurementSelectionReason,
     baseline_measurement_catalog,
@@ -42,6 +45,11 @@ pub const CONTROL_AUTH_HELPER_V1: ControlVersion = ControlVersion {
 };
 /// Version of the authenticated runtime receipt source operation.
 pub const CONTROL_RUNTIME_RECEIPT_V1: ControlVersion = CONTROL_AUTH_HELPER_V1;
+/// Version of the authenticated runtime bootstrap authority operation.
+pub const CONTROL_RUNTIME_BOOTSTRAP_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 11,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -49,7 +57,7 @@ pub const CONTROL_RUNTIME_RECEIPT_V1: ControlVersion = CONTROL_AUTH_HELPER_V1;
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 9] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 10] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -59,6 +67,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 9] = [
     CONTROL_PROVIDER_CATALOG_V1,
     CONTROL_RECORDING_LIFECYCLE_V1,
     CONTROL_AUTH_HELPER_V1,
+    CONTROL_RUNTIME_BOOTSTRAP_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -246,6 +255,10 @@ pub enum ControlCall {
     AuthHelperInvoke(AuthHelperInvokeParams),
     /// Issue one runtime-bound receipt from runner-owned authority material.
     RuntimeReceipt(RuntimeReceiptRequestV1),
+    /// Issue a session-, generation-, and restart-bound runtime bootstrap authority.
+    RuntimeBootstrap(RuntimeBootstrapRequestV1),
+    /// Revoke a previously issued runtime bootstrap authority.
+    RuntimeBootstrapCancel(RuntimeBootstrapCancelRequestV1),
     /// Read or refresh the authenticated provider/model catalog.
     ProviderCatalog(crate::ProviderCatalogRequest),
     /// Read the current privacy-safe setup projection.
@@ -398,6 +411,9 @@ impl ControlCall {
             | Self::AuthRevoke(_) => CONTROL_AUTH_V1,
             Self::AuthHelperInvoke(_) => CONTROL_AUTH_HELPER_V1,
             Self::RuntimeReceipt(_) => CONTROL_RUNTIME_RECEIPT_V1,
+            Self::RuntimeBootstrap(_) | Self::RuntimeBootstrapCancel(_) => {
+                CONTROL_RUNTIME_BOOTSTRAP_V1
+            }
             Self::ProviderCatalog(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationStatus(_) => CONTROL_PROVIDER_CATALOG_V1,
             Self::ConfigurationApply(_) => CONTROL_PROVIDER_CATALOG_V1,
@@ -1431,6 +1447,8 @@ pub enum ControlResult {
     AuthStatus(AuthStatusResponse),
     /// Authenticated runtime-bound receipt response.
     RuntimeReceipt(RuntimeReceiptResponseV1),
+    /// Authenticated runtime-owned bootstrap authority response.
+    RuntimeBootstrap(RuntimeBootstrapResponseV1),
     /// Authenticated provider/model catalog snapshot.
     ProviderCatalog(crate::ProviderCatalog),
     /// Provider catalog returned after a generation-fenced profile update.
@@ -1600,6 +1618,25 @@ impl ControlResult {
                     Ok(())
                 }
             }
+            Self::RuntimeBootstrap(value) => {
+                if value.schema_version != 1
+                    || validate_digest(&value.request_nonce_sha256).is_err()
+                    || validate_digest(&value.control_session_sha256).is_err()
+                    || validate_digest(&value.restart_binding_sha256).is_err()
+                    || validate_digest(&value.cancellation_binding_sha256).is_err()
+                    || value.generation == 0
+                    || value.expires_at_unix_ms == 0
+                    || value.receipt.expires_at_unix_ms != value.expires_at_unix_ms
+                {
+                    Err(ProtocolError::InvalidResponse)
+                } else {
+                    value
+                        .chain
+                        .issue_runtime_chain(value.expires_at_unix_ms / 1_000)
+                        .map(|_| ())
+                        .map_err(|_| ProtocolError::InvalidResponse)
+                }
+            }
             Self::SettingsValidation(value) => {
                 if value.issues.len() > usize::from(limits.validate()?.max_page_items) {
                     Err(ProtocolError::UnsafePublicValue)
@@ -1721,6 +1758,11 @@ impl ControlResult {
                 | (ControlCall::AuthStatus(_), Self::AuthStatus(_))
                 | (ControlCall::AuthHelperInvoke(_), Self::AuthStatus(_))
                 | (ControlCall::RuntimeReceipt(_), Self::RuntimeReceipt(_))
+                | (ControlCall::RuntimeBootstrap(_), Self::RuntimeBootstrap(_))
+                | (
+                    ControlCall::RuntimeBootstrapCancel(_),
+                    Self::Acknowledged(_)
+                )
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
                 | (
                     ControlCall::ProviderProfileUpsert(_),
@@ -1923,6 +1965,12 @@ impl ControlResult {
             (ControlCall::RuntimeReceipt(request), Self::RuntimeReceipt(response)) => {
                 response.validate_for(request).is_ok()
             }
+            (ControlCall::RuntimeBootstrap(request), Self::RuntimeBootstrap(response)) => {
+                response.validate_for(request).is_ok()
+            }
+            (ControlCall::RuntimeBootstrapCancel(request), Self::Acknowledged(response)) => {
+                request.validate().is_ok() && response.accepted
+            }
             _ => true,
         };
         if causally_matches {
@@ -2113,6 +2161,12 @@ pub fn validate_request(
             }
         }
         ControlCall::RuntimeReceipt(params) => params
+            .validate()
+            .map_err(|_| ProtocolError::InvalidResponse)?,
+        ControlCall::RuntimeBootstrap(params) => params
+            .validate()
+            .map_err(|_| ProtocolError::InvalidResponse)?,
+        ControlCall::RuntimeBootstrapCancel(params) => params
             .validate()
             .map_err(|_| ProtocolError::InvalidResponse)?,
         ControlCall::ProviderCatalog(params) => params.validate()?,

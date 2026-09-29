@@ -13,10 +13,10 @@ use asb_control::{
     CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, CertificateAuthorityV1, ConfigurationSnapshot,
     ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
     ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
-    MeasurementSettingsIssue, MutationAcknowledgement, Page, PlanReference, ProviderAuthMethod,
-    ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogEntry,
-    ProviderCatalogRequest, ProviderModel, ProvisionedControlServer, PublicRunState,
-    RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1,
+    MeasurementSettingsIssue, MutationAcknowledgement, Page, PeerIdentity, PlanReference,
+    ProviderAuthMethod, ProviderAvailability, ProviderCatalog, ProviderCatalogAction,
+    ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel, ProvisionedControlServer,
+    PublicRunState, RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1,
     RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
 };
 use asb_orchestrator::{
@@ -323,6 +323,8 @@ enum MutationTarget {
     AuthHelperInvoke { provider: String },
     AuthRotate { provider: String },
     AuthRevoke { provider: String },
+    RuntimeBootstrap { provider: String },
+    RuntimeBootstrapCancel { provider: String },
 }
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
@@ -347,6 +349,8 @@ struct Catalog {
     auth: BTreeMap<String, AuthRecord>,
     #[serde(default)]
     runtime_authorities: BTreeMap<String, RuntimeAuthorityRecord>,
+    #[serde(default)]
+    runtime_bootstraps: BTreeMap<String, RuntimeBootstrapRecord>,
     #[serde(default)]
     configuration: Option<ConfigurationRecord>,
     #[serde(default)]
@@ -379,6 +383,20 @@ fn default_agent_catalog_generation() -> u64 {
 
 fn default_agent_lifecycle_generation() -> u64 {
     1
+}
+
+fn runtime_control_session_digest(
+    runner_instance_id: &str,
+    peer: asb_control::PeerIdentity,
+) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"asb-control-session-v1\0");
+    digest.update((runner_instance_id.len() as u64).to_le_bytes());
+    digest.update(runner_instance_id.as_bytes());
+    digest.update(peer.uid().to_le_bytes());
+    digest.update(peer.gid().to_le_bytes());
+    digest.update(u32::try_from(peer.pid()).unwrap_or_default().to_le_bytes());
+    format!("{:x}", digest.finalize())
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -560,6 +578,19 @@ struct RuntimeAuthorityRecord {
     endpoint_identity_sha256: String,
     chain: AuthenticatedChainEnrollmentV1,
     enrollment: RuntimeAuthorityEnrollmentV1,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RuntimeBootstrapRecord {
+    provider: String,
+    request_nonce_sha256: String,
+    generation: u64,
+    control_session_sha256: String,
+    restart_binding_sha256: String,
+    cancellation_binding_sha256: String,
+    expires_at_unix_ms: u64,
+    revoked: bool,
 }
 
 impl RuntimeAuthorityRecord {
@@ -1208,6 +1239,7 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         events: Vec::new(),
         auth: BTreeMap::new(),
         runtime_authorities: BTreeMap::new(),
+        runtime_bootstraps: BTreeMap::new(),
         configuration: None,
         recording_campaign: None,
         provider_generation: 1,
@@ -1532,6 +1564,12 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             | MutationTarget::AuthRevoke { provider } => {
                 asb_control::validate_identity(provider)
                     .map_err(|_| CliError::operation("control auth mutation target is invalid"))?;
+            }
+            MutationTarget::RuntimeBootstrap { provider }
+            | MutationTarget::RuntimeBootstrapCancel { provider } => {
+                asb_control::validate_identity(provider).map_err(|_| {
+                    CliError::operation("control runtime bootstrap mutation target is invalid")
+                })?;
             }
             MutationTarget::ConfigurationApply => {}
             MutationTarget::ProviderProfileUpsert { provider_id } => {
@@ -1945,7 +1983,9 @@ fn reconcile_catalog(
             | MutationTarget::ConfigurationApply
             | MutationTarget::ProviderProfileUpsert { .. }
             | MutationTarget::RecordingCampaignPlan
-            | MutationTarget::RecordingCampaignLifecycle { .. } => {}
+            | MutationTarget::RecordingCampaignLifecycle { .. }
+            | MutationTarget::RuntimeBootstrap { .. }
+            | MutationTarget::RuntimeBootstrapCancel { .. } => {}
             MutationTarget::CreatePlan | MutationTarget::Repeat { .. } => {}
         }
     }
@@ -2070,6 +2110,136 @@ impl RunnerBackend {
         result: ControlResult,
     ) -> Result<BoundControlResult, BackendFailure> {
         BoundControlResult::new(call, result).map_err(|_| BackendFailure::Rejected)
+    }
+
+    fn runtime_bootstrap(
+        &self,
+        call: &ControlCall,
+        params: &asb_control::RuntimeBootstrapRequestV1,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        params.validate().map_err(|_| BackendFailure::Rejected)?;
+        let key = format!("runtime-bootstrap:{}", params.request_nonce_sha256);
+        self.mutation(
+            call,
+            &key,
+            MutationTarget::RuntimeBootstrap {
+                provider: params.provider.clone(),
+            },
+            deadline,
+            |catalog| {
+                let auth = catalog
+                    .auth
+                    .get(&params.provider)
+                    .ok_or(BackendFailure::CapabilityUnavailable)?;
+                if auth.status != "active" || auth.generation != params.generation {
+                    return Err(BackendFailure::StaleIdentity);
+                }
+                if catalog.runtime_bootstraps.values().any(|record| {
+                    record.provider == params.provider
+                        && record.generation == params.generation
+                        && record.control_session_sha256 == params.control_session_sha256
+                        && record.restart_binding_sha256 == params.restart_binding_sha256
+                        && record.revoked
+                }) {
+                    return Err(BackendFailure::Rejected);
+                }
+                let authority = catalog
+                    .runtime_authorities
+                    .get(&params.provider)
+                    .ok_or(BackendFailure::CapabilityUnavailable)?;
+                let now_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_err(|_| BackendFailure::Rejected)?
+                    .as_millis() as u64;
+                let receipt = authority.issue_receipt(now_ms / 1_000)?;
+                if receipt.generation != params.generation || receipt.expires_at_unix_ms <= now_ms {
+                    return Err(BackendFailure::Rejected);
+                }
+                let cancellation_binding_sha256 = format!(
+                    "{:x}",
+                    Sha256::digest(
+                        format!(
+                            "asb-runtime-bootstrap-cancel-v1:{}:{}:{}",
+                            params.control_session_sha256,
+                            params.request_nonce_sha256,
+                            params.generation
+                        )
+                        .as_bytes()
+                    )
+                );
+                let response = asb_control::RuntimeBootstrapResponseV1 {
+                    schema_version: 1,
+                    request_nonce_sha256: params.request_nonce_sha256.clone(),
+                    control_session_sha256: params.control_session_sha256.clone(),
+                    restart_binding_sha256: params.restart_binding_sha256.clone(),
+                    namespace_sha256: params.namespace_sha256.clone(),
+                    generation: params.generation,
+                    expires_at_unix_ms: receipt.expires_at_unix_ms,
+                    cancellation_binding_sha256: cancellation_binding_sha256.clone(),
+                    chain: authority.chain.clone(),
+                    receipt,
+                };
+                response
+                    .validate_for(params)
+                    .map_err(|_| BackendFailure::Rejected)?;
+                catalog.runtime_bootstraps.insert(
+                    params.request_nonce_sha256.clone(),
+                    RuntimeBootstrapRecord {
+                        provider: params.provider.clone(),
+                        request_nonce_sha256: params.request_nonce_sha256.clone(),
+                        generation: params.generation,
+                        control_session_sha256: params.control_session_sha256.clone(),
+                        restart_binding_sha256: params.restart_binding_sha256.clone(),
+                        cancellation_binding_sha256,
+                        expires_at_unix_ms: response.expires_at_unix_ms,
+                        revoked: false,
+                    },
+                );
+                Ok(ControlResult::RuntimeBootstrap(response))
+            },
+        )
+    }
+
+    fn runtime_bootstrap_cancel(
+        &self,
+        call: &ControlCall,
+        params: &asb_control::RuntimeBootstrapCancelRequestV1,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        params.validate().map_err(|_| BackendFailure::Rejected)?;
+        self.mutation(
+            call,
+            &params.idempotency_key,
+            MutationTarget::RuntimeBootstrapCancel {
+                provider: params.provider.clone(),
+            },
+            deadline,
+            |catalog| {
+                let record = catalog
+                    .runtime_bootstraps
+                    .values_mut()
+                    .find(|record| {
+                        record.provider == params.provider
+                            && record.generation == params.generation
+                            && record.control_session_sha256 == params.control_session_sha256
+                            && record.cancellation_binding_sha256
+                                == params.cancellation_binding_sha256
+                    })
+                    .ok_or(BackendFailure::StaleIdentity)?;
+                record.revoked = true;
+                let bootstrap_key = format!(
+                    "{:x}",
+                    Sha256::digest(
+                        format!("runtime-bootstrap:{}", record.request_nonce_sha256).as_bytes()
+                    )
+                );
+                catalog.mutations.remove(&bootstrap_key);
+                Ok(ControlResult::Acknowledged(MutationAcknowledgement {
+                    accepted: true,
+                }))
+            },
+        )
     }
 
     fn mutation(
@@ -2566,6 +2736,31 @@ impl ControlBackend for RunnerBackend {
         self.catalog
             .lock()
             .map_or(Revision(0), |catalog| catalog.revision)
+    }
+
+    fn execute_authenticated(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+        version: ControlVersion,
+        peer: PeerIdentity,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        match call {
+            ControlCall::RuntimeBootstrap(request)
+                if request.control_session_sha256
+                    != runtime_control_session_digest(&self.runner_instance_id, peer) =>
+            {
+                return Err(BackendFailure::Rejected);
+            }
+            ControlCall::RuntimeBootstrapCancel(request)
+                if request.control_session_sha256
+                    != runtime_control_session_digest(&self.runner_instance_id, peer) =>
+            {
+                return Err(BackendFailure::Rejected);
+            }
+            _ => {}
+        }
+        self.execute_versioned(call, deadline, version)
     }
 
     fn execute(
@@ -3200,6 +3395,10 @@ impl ControlBackend for RunnerBackend {
                     .validate_for(params)
                     .map_err(|_| BackendFailure::Rejected)?;
                 self.bind(call, ControlResult::RuntimeReceipt(response))
+            }
+            ControlCall::RuntimeBootstrap(params) => self.runtime_bootstrap(call, params, deadline),
+            ControlCall::RuntimeBootstrapCancel(params) => {
+                self.runtime_bootstrap_cancel(call, params, deadline)
             }
             ControlCall::AuthRotate(params) => self.mutation(
                 call,
