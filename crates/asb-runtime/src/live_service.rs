@@ -16,6 +16,7 @@ use crate::process_owner_material::{
 };
 use crate::provider_egress::{
     ProviderEgressAllowlist, ProviderEgressHandoff, ProviderEgressPolicy, ProviderEgressTarget,
+    canonical_alternate_egress_binding, canonical_policy_binding,
 };
 use crate::sandbox::{
     CpuSet, LeaseClass, LeaseError, NetworkPolicy, ResourceLease, SandboxBackend,
@@ -537,16 +538,8 @@ impl RuntimeAuthorityInputResolver {
             owner,
             generation: claims.generation.to_string(),
             target_sha256: digest(&inputs.config.target().address().to_string()),
-            policy_sha256: digest(inputs.policy.endpoint_sha256()),
-            allowlist_sha256: digest(
-                &inputs
-                    .allowlist
-                    .targets()
-                    .iter()
-                    .map(|target| target.address().to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            ),
+            policy_sha256: canonical_policy_binding(inputs.policy.endpoint_sha256()),
+            allowlist_sha256: inputs.allowlist.identity_sha256(),
             tool_bundle_sha256: digest(
                 &[
                     inputs.bubblewrap.version_line(),
@@ -1462,6 +1455,25 @@ impl std::fmt::Debug for RuntimeControlBootstrap {
 }
 
 impl RuntimeControlBootstrap {
+    /// Consume a response already authenticated by the control adapter into
+    /// a runtime-owned bootstrap.  The control-client entrypoint uses the
+    /// same constructor after validating transport and request bindings;
+    /// exposing this narrow composition seam lets the runtime/control owner
+    /// hand the bootstrap to the CLI without exposing certificate material.
+    pub fn from_authenticated_response(
+        response: ControlRuntimeBootstrapResponseV1,
+        request: &ControlRuntimeBootstrapRequestV1,
+        now_unix_ms: u64,
+    ) -> Result<Self, LiveProviderControlAdapterError> {
+        request
+            .validate()
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        response
+            .validate_for(request)
+            .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
+        Self::from_response(response, request, now_unix_ms)
+    }
+
     fn from_response(
         response: ControlRuntimeBootstrapResponseV1,
         request: &ControlRuntimeBootstrapRequestV1,
@@ -1570,8 +1582,8 @@ impl RuntimeControlBootstrap {
             ),
             credential_ref_sha256: receipt.credential_ref_sha256.clone(),
             target_sha256: digest(&receipt.target.to_string()),
-            alternate_egress_sha256: digest(&receipt.target.to_string()),
-            policy_sha256: digest(&receipt.endpoint_identity_sha256),
+            alternate_egress_sha256: canonical_alternate_egress_binding(&receipt.target),
+            policy_sha256: canonical_policy_binding(&receipt.endpoint_identity_sha256),
             tool_bundle_sha256: receipt.tool_bundle_sha256.clone(),
             lease_root_sha256: receipt.lease_root_sha256.clone(),
             relay_root_sha256: receipt.relay_root_sha256.clone(),
@@ -2436,9 +2448,9 @@ impl LiveProviderProvisioner {
     fn dispatch_binding(&self) -> LiveProviderRuntimeDispatchBinding {
         let target_sha256 = digest(&self.config.target().address().to_string());
         LiveProviderRuntimeDispatchBinding {
-            policy_sha256: digest(self.policy.endpoint_sha256()),
+            policy_sha256: canonical_policy_binding(self.policy.endpoint_sha256()),
             target_sha256: target_sha256.clone(),
-            alternate_egress_sha256: target_sha256,
+            alternate_egress_sha256: self.allowlist.identity_sha256(),
         }
     }
 

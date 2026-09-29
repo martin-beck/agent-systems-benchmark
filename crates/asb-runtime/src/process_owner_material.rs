@@ -8,6 +8,9 @@
 //! mistaken for authenticated launch authority.
 
 use crate::live_service::LiveProviderRuntimeDispatchSource;
+use crate::provider_egress::{
+    canonical_alternate_egress_binding, canonical_policy_binding_from_text,
+};
 use crate::sandbox::SandboxLaunchInput;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -310,15 +313,13 @@ impl ProcessOwnerPrivateMaterialV1 {
         for tool in &self.pinned_tools {
             tool.digest_fields(&mut tools);
         }
-        let mut policy = Sha256::new();
-        add(&mut policy, &self.policy);
         (
             digest_bytes(roots),
             digest_bytes(tools),
-            digest_bytes(policy),
+            canonical_policy_binding_from_text(&self.policy),
             digest_text(&self.credential_capability),
             digest_text(&self.target),
-            digest_text(&self.alternate_egress),
+            canonical_alternate_egress_binding(&self.alternate_egress),
             digest_text(&self.launch_provenance),
         )
     }

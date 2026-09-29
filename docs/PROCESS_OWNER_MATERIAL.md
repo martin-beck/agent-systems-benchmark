@@ -19,12 +19,19 @@ unknown-field, replay, and digest drift fail closed.
 
 The dispatch bridge accepts only the exact sandbox launch input and adapter
 digest carried by that lease.  It also rechecks the source's enrollment-bound
-policy, target, and alternate-egress digests before consuming the lease, so a
-caller cannot substitute a merely well-shaped executable or adapter.  The
-ordinary provider-free CLI path exposes this composition as `asb run
-EXPERIMENT.toml --local-mock` and `asb sweep EXPERIMENT.toml --local-mock`;
-these commands exercise the same enrollment and teardown boundary without
-claiming provider reachability.
+policy, selected target, and distinct canonical allowlist/alternate-egress
+digests before consuming the lease, so a caller cannot substitute a merely
+well-shaped executable or adapter.  Policy identity uses one shared
+domain-separated binding from the authenticated endpoint identity; it is not
+hashed independently by bootstrap, owner material, and dispatch.
+
+The production CLI composition is `run_with_runtime_control_bootstrap`: the
+runtime/control owner supplies an authenticated `RuntimeControlBootstrap`,
+which is consumed in order to acquire the owner lease, mint the dispatch
+source, and invoke ordinary `run` or `sweep`.  The provider-free
+`asb run EXPERIMENT.toml --local-mock` and `asb sweep EXPERIMENT.toml
+--local-mock` commands remain a separate deterministic qualification fixture;
+they do not claim provider reachability.
 
 This boundary qualifies provider-free control composition.  It does not claim
 that a provider is reachable or that a live provider was contacted.

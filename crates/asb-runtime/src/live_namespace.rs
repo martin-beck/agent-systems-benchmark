@@ -1,7 +1,9 @@
 // Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 // SPDX-License-Identifier: MIT
 //! Namespace-bound live provider relay capability.
-use crate::provider_egress::{ProviderEgressHandoff, ProviderEgressPolicy};
+use crate::provider_egress::{
+    ProviderEgressHandoff, ProviderEgressPolicy, canonical_policy_binding,
+};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
@@ -203,7 +205,7 @@ impl LiveProviderNamespaceHandoff {
         let credential_ref = digest(credential_ref.into())?;
         socket(&relay)?;
         endpoint(&child)?;
-        let policy_sha256 = format!("{:x}", Sha256::digest(policy.endpoint_sha256().as_bytes()));
+        let policy_sha256 = canonical_policy_binding(policy.endpoint_sha256());
         if deadline <= now
             || deadline - now > MAX_AGE
             || handoff.policy_sha256() != policy_sha256

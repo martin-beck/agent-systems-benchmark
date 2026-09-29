@@ -37,8 +37,12 @@ use asb_runtime::launch_factory::{
 };
 use asb_runtime::live_service::{
     LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler, LocalProviderMockBackend,
+    RuntimeControlBootstrap,
 };
-use asb_runtime::process_owner_material::ProcessOwnerMaterialDispatchBridge;
+use asb_runtime::process_owner_material::{
+    ProcessOwnerMaterialContractV1, ProcessOwnerMaterialDispatchBridge,
+    ProcessOwnerPrivateMaterialV1,
+};
 use asb_runtime::sandbox::SandboxProcess;
 use asb_runtime::scheduler::{
     AttemptOutcome, CapacityDecision, CapacityPoint, LoadModel, MissReason, PointPlan, Scheduler,
@@ -236,6 +240,66 @@ pub fn run_with_process_owner_material_bridge(
         }
     };
     run_with_runtime_live_provider_source(args, source, stdout, stderr)
+}
+
+/// Inputs for the runtime-owned bootstrap -> owner lease -> dispatch-source
+/// bridge used by ordinary `run` and `sweep` commands.
+pub struct RuntimeControlBootstrapRunInput {
+    /// The authenticated public owner-material contract.
+    pub contract: ProcessOwnerMaterialContractV1,
+    /// Private owner material held by runtime/control for this lease.
+    pub material: ProcessOwnerPrivateMaterialV1,
+    /// Validated sandbox launch input for the dispatch source.
+    pub launch_input: asb_runtime::sandbox::SandboxLaunchInput,
+    /// Bounded process limits for the dispatch source.
+    pub limits: ProcessLimits,
+    /// Pinned adapter executable identity.
+    pub adapter_sha256: String,
+    /// Fresh authenticated request nonce identity.
+    pub request_nonce_sha256: String,
+    /// Current runtime time used for lease and dispatch fences.
+    pub now_unix_ms: u64,
+}
+
+/// Execute an ordinary `run` or `sweep` through the complete runtime-owned
+/// bootstrap -> owner lease -> dispatch-source bridge.  This is the
+/// production composition seam: the CLI receives only the validated public
+/// contract, private material owned by runtime/control, and the final launch
+/// input; it never resolves control identities or constructs a provider
+/// source itself.
+pub fn run_with_runtime_control_bootstrap(
+    args: &[OsString],
+    bootstrap: &mut RuntimeControlBootstrap,
+    input: RuntimeControlBootstrapRunInput,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
+    let (_, lease) = match bootstrap.acquire_process_owner_material(
+        input.contract,
+        input.material,
+        input.request_nonce_sha256,
+        input.now_unix_ms,
+    ) {
+        Ok(value) => value,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned owner lease unavailable");
+            return 2;
+        }
+    };
+    let bridge = match bootstrap.bridge_process_owner_material(
+        lease,
+        input.launch_input,
+        input.limits,
+        &input.adapter_sha256,
+        input.now_unix_ms,
+    ) {
+        Ok(value) => value,
+        Err(_) => {
+            let _ = writeln!(stderr, "runtime-owned dispatch source unavailable");
+            return 2;
+        }
+    };
+    run_with_process_owner_material_bridge(args, bridge, input.now_unix_ms, stdout, stderr)
 }
 
 /// Fail-closed error returned when the runtime/control owner cannot provide a
