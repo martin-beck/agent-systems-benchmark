@@ -21,6 +21,8 @@ pub const PROCESS_OWNER_MATERIAL_SCHEMA_VERSION: u16 = 1;
 const MAX_ID_BYTES: usize = 128;
 const MAX_LIFETIME_MS: u64 = 15 * 60 * 1_000;
 const MAX_TOOLS: usize = 16;
+const MAX_PRIVATE_TEXT_BYTES: usize = 4 * 1024;
+const MAX_PATH_BYTES: usize = 4 * 1024;
 
 /// Authenticated, secret-free projection of owner material.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -32,6 +34,10 @@ pub struct ProcessOwnerMaterialContractV1 {
     pub owner_id: String,
     /// Provider identity.
     pub provider: String,
+    /// Authenticated control endpoint identity.
+    pub endpoint_identity_sha256: String,
+    /// Authenticated runtime namespace identity.
+    pub namespace_sha256: String,
     /// Control-session identity.
     pub control_session_sha256: String,
     /// Enrollment generation.
@@ -58,10 +64,18 @@ pub struct ProcessOwnerMaterialContractV1 {
     pub credential_capability_sha256: String,
     /// Digest of the launch target and alternate egress binding.
     pub target_sha256: String,
+    /// Digest of the alternate egress binding.
+    pub alternate_egress_sha256: String,
+    /// Digest of the authenticated lease root.
+    pub lease_root_sha256: String,
+    /// Digest of the authenticated relay root.
+    pub relay_root_sha256: String,
     /// Digest of the launch provenance.
     pub launch_provenance_sha256: String,
     /// Opaque capability reference.
     pub capability_ref_sha256: String,
+    /// Digest binding this material to one authenticated enrollment.
+    pub enrollment_binding_sha256: String,
 }
 
 impl ProcessOwnerMaterialContractV1 {
@@ -89,9 +103,11 @@ impl ProcessOwnerMaterialContractV1 {
         Ok(format!("{:x}", Sha256::digest(bytes)))
     }
 
-    fn digests(&self) -> [&str; 12] {
+    fn digests(&self) -> [&str; 18] {
         [
             &self.control_session_sha256,
+            &self.endpoint_identity_sha256,
+            &self.namespace_sha256,
             &self.restart_binding_sha256,
             &self.cancellation_binding_sha256,
             &self.revocation_binding_sha256,
@@ -101,8 +117,12 @@ impl ProcessOwnerMaterialContractV1 {
             &self.policy_sha256,
             &self.credential_capability_sha256,
             &self.target_sha256,
+            &self.alternate_egress_sha256,
+            &self.lease_root_sha256,
+            &self.relay_root_sha256,
             &self.launch_provenance_sha256,
             &self.capability_ref_sha256,
+            &self.enrollment_binding_sha256,
         ]
     }
 }
@@ -125,6 +145,7 @@ impl OwnerToolProvenance {
         adapter_sha256: String,
     ) -> Result<Self, ProcessOwnerMaterialError> {
         if !absolute_plain_path(&executable)
+            || executable.as_os_str().len() > MAX_PATH_BYTES
             || !valid_digest(&executable_sha256)
             || adapter_id.is_empty()
             || adapter_id.len() > MAX_ID_BYTES
@@ -176,6 +197,7 @@ impl OwnerToolProvenance {
 pub struct ProcessOwnerPrivateMaterialV1 {
     private_roots: Vec<PathBuf>,
     namespace: String,
+    endpoint_identity_sha256: String,
     pinned_tools: Vec<OwnerToolProvenance>,
     policy: String,
     credential_capability: String,
@@ -202,6 +224,7 @@ impl ProcessOwnerPrivateMaterialV1 {
     pub fn new(
         private_roots: Vec<PathBuf>,
         namespace: String,
+        endpoint_identity_sha256: String,
         pinned_tools: Vec<OwnerToolProvenance>,
         policy: String,
         credential_capability: String,
@@ -211,21 +234,30 @@ impl ProcessOwnerPrivateMaterialV1 {
     ) -> Result<Self, ProcessOwnerMaterialError> {
         if private_roots.is_empty()
             || private_roots.len() > 8
-            || private_roots.iter().any(|path| !absolute_plain_path(path))
+            || private_roots
+                .iter()
+                .any(|path| !absolute_plain_path(path) || path.as_os_str().len() > MAX_PATH_BYTES)
             || namespace.is_empty()
+            || namespace.len() > MAX_PRIVATE_TEXT_BYTES
+            || !valid_digest(&endpoint_identity_sha256)
             || pinned_tools.is_empty()
             || pinned_tools.len() > MAX_TOOLS
             || policy.is_empty()
-            || credential_capability.is_empty()
+            || policy.len() > MAX_PRIVATE_TEXT_BYTES
+            || !valid_digest(&credential_capability)
             || target.is_empty()
+            || target.len() > MAX_PRIVATE_TEXT_BYTES
             || alternate_egress.is_empty()
+            || alternate_egress.len() > MAX_PRIVATE_TEXT_BYTES
             || launch_provenance.is_empty()
+            || launch_provenance.len() > MAX_PRIVATE_TEXT_BYTES
         {
             return Err(ProcessOwnerMaterialError::InvalidPrivateMaterial);
         }
         Ok(Self {
             private_roots,
             namespace,
+            endpoint_identity_sha256,
             pinned_tools,
             policy,
             credential_capability,
@@ -253,8 +285,22 @@ impl ProcessOwnerPrivateMaterialV1 {
         Ok(())
     }
 
+    fn matches_enrollment_roots(&self, lease_root_sha256: &str, relay_root_sha256: &str) -> bool {
+        let roots = self
+            .private_roots
+            .iter()
+            .map(|root| digest_text(&root.to_string_lossy()))
+            .collect::<BTreeSet<_>>();
+        self.private_roots.len() <= 2
+            && roots.contains(lease_root_sha256)
+            && roots.contains(relay_root_sha256)
+            && roots
+                .iter()
+                .all(|root| root == lease_root_sha256 || root == relay_root_sha256)
+    }
+
     #[allow(dead_code)]
-    fn digests(&self) -> (String, String, String, String, String, String) {
+    fn digests(&self) -> (String, String, String, String, String, String, String) {
         let mut roots = Sha256::new();
         for root in &self.private_roots {
             add(&mut roots, &root.to_string_lossy());
@@ -265,15 +311,13 @@ impl ProcessOwnerPrivateMaterialV1 {
         }
         let mut policy = Sha256::new();
         add(&mut policy, &self.policy);
-        let mut target = Sha256::new();
-        add(&mut target, &self.target);
-        add(&mut target, &self.alternate_egress);
         (
             digest_bytes(roots),
             digest_bytes(tools),
             digest_bytes(policy),
             digest_text(&self.credential_capability),
-            digest_bytes(target),
+            digest_text(&self.target),
+            digest_text(&self.alternate_egress),
             digest_text(&self.launch_provenance),
         )
     }
@@ -423,6 +467,25 @@ impl ProcessOwnerMaterialLease {
         now_unix_ms: u64,
     ) -> Result<ProcessOwnerMaterialDispatchBridge, ProcessOwnerMaterialError> {
         self.active(now_unix_ms)?;
+        if source.owner_enrollment_binding_sha256() != self.contract.enrollment_binding_sha256 {
+            return Err(ProcessOwnerMaterialError::SourceBindingMismatch);
+        }
+        let store = Arc::clone(&self.store);
+        let request = self.request.clone();
+        let contract = self.contract.clone();
+        let source = source
+            .bind_process_owner_fence(Arc::new(move || {
+                let Ok(state) = store.lock() else {
+                    return false;
+                };
+                let now = current_unix_ms();
+                validate_request(&state.contract, &request).is_ok()
+                    && state.contract == contract
+                    && state.lifecycle == OwnerLifecycle::Active
+                    && state.contract.issued_at_unix_ms <= now
+                    && now < state.contract.expires_at_unix_ms
+            }))
+            .map_err(|_| ProcessOwnerMaterialError::SourceBindingMismatch)?;
         Ok(ProcessOwnerMaterialDispatchBridge {
             lease: self,
             source: Some(source),
@@ -476,7 +539,7 @@ pub enum ProcessOwnerMaterialOperation {
 impl ProcessOwnerMaterialStore {
     /// Construct a store only from an opaque runtime-owner issuer.
     #[allow(dead_code)]
-    pub(crate) fn from_authenticated_issuer(
+    fn from_authenticated_issuer(
         issuer: AuthenticatedProcessOwnerIssuer,
     ) -> Result<Self, ProcessOwnerMaterialError> {
         let state = issuer
@@ -485,12 +548,14 @@ impl ProcessOwnerMaterialStore {
             .map_err(|_| ProcessOwnerMaterialError::StateUnavailable)?;
         state.contract.validate()?;
         state.material.validate_provenance()?;
-        let (roots, tools, policy, credential, target, launch) = state.material.digests();
+        let (roots, tools, policy, credential, target, alternate_egress, launch) =
+            state.material.digests();
         if state.contract.private_roots_sha256 != roots
             || state.contract.tool_bundle_sha256 != tools
             || state.contract.policy_sha256 != policy
             || state.contract.credential_capability_sha256 != credential
             || state.contract.target_sha256 != target
+            || state.contract.alternate_egress_sha256 != alternate_egress
             || state.contract.launch_provenance_sha256 != launch
         {
             return Err(ProcessOwnerMaterialError::MaterialMismatch);
@@ -501,14 +566,41 @@ impl ProcessOwnerMaterialStore {
         })
     }
 
-    /// Create a store from an already-authenticated runtime enrollment.
-    /// This crate-private boundary is the only production issuer path;
-    /// frontends and config parsers cannot manufacture an issuer.
-    #[allow(dead_code)]
-    pub(crate) fn from_runtime_authenticated(
+    /// Construct a store only after the authenticated bootstrap has matched
+    /// every identity carried by the private material and public contract.
+    pub(crate) fn from_runtime_enrollment(
         contract: ProcessOwnerMaterialContractV1,
         material: ProcessOwnerPrivateMaterialV1,
+        enrollment: &ProcessOwnerEnrollmentBinding,
     ) -> Result<Self, ProcessOwnerMaterialError> {
+        contract.validate()?;
+        if contract.owner_id != enrollment.owner_id
+            || contract.provider != enrollment.provider
+            || contract.endpoint_identity_sha256 != enrollment.endpoint_identity_sha256
+            || contract.namespace_sha256 != enrollment.namespace_sha256
+            || contract.control_session_sha256 != enrollment.control_session_sha256
+            || contract.generation != enrollment.generation
+            || contract.expires_at_unix_ms > enrollment.expires_at_unix_ms
+            || contract.restart_binding_sha256 != enrollment.restart_binding_sha256
+            || contract.cancellation_binding_sha256 != enrollment.cancellation_binding_sha256
+            || contract.revocation_binding_sha256 != enrollment.revocation_binding_sha256
+            || contract.teardown_binding_sha256 != enrollment.teardown_binding_sha256
+            || contract.credential_capability_sha256 != enrollment.credential_ref_sha256
+            || contract.target_sha256 != enrollment.target_sha256
+            || contract.alternate_egress_sha256 != enrollment.alternate_egress_sha256
+            || contract.tool_bundle_sha256 != enrollment.tool_bundle_sha256
+            || contract.lease_root_sha256 != enrollment.lease_root_sha256
+            || contract.relay_root_sha256 != enrollment.relay_root_sha256
+            || contract.enrollment_binding_sha256 != enrollment.binding_sha256
+            || material.endpoint_identity_sha256 != enrollment.endpoint_identity_sha256
+            || digest_text(&material.namespace) != enrollment.namespace_sha256
+            || !material.matches_enrollment_roots(
+                &enrollment.lease_root_sha256,
+                &enrollment.relay_root_sha256,
+            )
+        {
+            return Err(ProcessOwnerMaterialError::MaterialMismatch);
+        }
         let issuer = AuthenticatedProcessOwnerIssuer {
             state: Arc::new(Mutex::new(StoreState {
                 contract,
@@ -609,6 +701,29 @@ impl ProcessOwnerMaterialStore {
     }
 }
 
+/// Runtime-only identity binding minted from one authenticated enrollment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ProcessOwnerEnrollmentBinding {
+    pub(crate) owner_id: String,
+    pub(crate) provider: String,
+    pub(crate) endpoint_identity_sha256: String,
+    pub(crate) namespace_sha256: String,
+    pub(crate) control_session_sha256: String,
+    pub(crate) generation: u64,
+    pub(crate) expires_at_unix_ms: u64,
+    pub(crate) restart_binding_sha256: String,
+    pub(crate) cancellation_binding_sha256: String,
+    pub(crate) revocation_binding_sha256: String,
+    pub(crate) teardown_binding_sha256: String,
+    pub(crate) credential_ref_sha256: String,
+    pub(crate) target_sha256: String,
+    pub(crate) alternate_egress_sha256: String,
+    pub(crate) tool_bundle_sha256: String,
+    pub(crate) lease_root_sha256: String,
+    pub(crate) relay_root_sha256: String,
+    pub(crate) binding_sha256: String,
+}
+
 impl ProcessOwnerMaterialCapability {
     /// Materialize one private lease while the authenticated owner is active.
     pub fn materialize(
@@ -704,6 +819,8 @@ pub enum ProcessOwnerMaterialError {
     InvalidTransition,
     /// Runtime state is unavailable.
     StateUnavailable,
+    /// Dispatch source was not minted for this authenticated enrollment.
+    SourceBindingMismatch,
     /// Bounded encoding failed.
     Malformed,
 }
@@ -754,6 +871,14 @@ fn valid_digest(value: &str) -> bool {
             .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
+fn current_unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| duration.as_millis().try_into().ok())
+        .unwrap_or(u64::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -790,19 +915,23 @@ mod tests {
         let material = ProcessOwnerPrivateMaterialV1::new(
             vec![root.clone()],
             "net:[owner]".into(),
+            "b".repeat(64),
             vec![tool],
             "https://provider.example/v1".into(),
-            "opaque-credential-capability".into(),
+            "c".repeat(64),
             "198.51.100.10:443".into(),
             "198.51.100.11:443".into(),
             "launch-provenance-v1".into(),
         )
         .unwrap();
-        let (roots, tools, policy, credential, target, launch) = material.digests();
+        let (roots, tools, policy, credential, target, alternate_egress, launch) =
+            material.digests();
         let contract = ProcessOwnerMaterialContractV1 {
             schema_version: 1,
             owner_id: "owner-1".into(),
             provider: "provider-v1".into(),
+            endpoint_identity_sha256: "b".repeat(64),
+            namespace_sha256: digest_text("net:[owner]"),
             control_session_sha256: "1".repeat(64),
             generation: 7,
             issued_at_unix_ms: 1_000,
@@ -816,17 +945,35 @@ mod tests {
             policy_sha256: policy,
             credential_capability_sha256: credential,
             target_sha256: target,
+            alternate_egress_sha256: alternate_egress,
+            lease_root_sha256: digest_text(&root.to_string_lossy()),
+            relay_root_sha256: digest_text(&root.to_string_lossy()),
             launch_provenance_sha256: launch,
             capability_ref_sha256: "6".repeat(64),
+            enrollment_binding_sha256: "7".repeat(64),
         };
         (contract, material, root)
+    }
+
+    fn test_store(
+        contract: ProcessOwnerMaterialContractV1,
+        material: ProcessOwnerPrivateMaterialV1,
+    ) -> Result<ProcessOwnerMaterialStore, ProcessOwnerMaterialError> {
+        let issuer = AuthenticatedProcessOwnerIssuer {
+            state: Arc::new(Mutex::new(StoreState {
+                contract,
+                material,
+                consumed_nonces: BTreeSet::new(),
+                lifecycle: OwnerLifecycle::Active,
+            })),
+        };
+        ProcessOwnerMaterialStore::from_authenticated_issuer(issuer)
     }
 
     #[test]
     fn authenticated_issuer_consumes_nonce_and_fences_lifecycle() {
         let (contract, material, root) = fixture();
-        let store =
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let store = test_store(contract, material).unwrap();
         let caller = RuntimeProcessOwnerMaterialCaller::new(store.clone());
         let (capability, lease) = caller.acquire("7".repeat(64), 1_100).unwrap();
         assert_eq!(lease.contract().generation, 7);
@@ -850,13 +997,13 @@ mod tests {
         let mut wrong = material.clone();
         wrong.pinned_tools[0].executable_sha256 = "a".repeat(64);
         assert!(matches!(
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract.clone(), wrong),
+            test_store(contract.clone(), wrong),
             Err(ProcessOwnerMaterialError::ExecutableDigestMismatch)
         ));
         let mut missing = material.clone();
         missing.pinned_tools[0].executable = root.join("tools/missing");
         assert!(matches!(
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract.clone(), missing),
+            test_store(contract.clone(), missing),
             Err(ProcessOwnerMaterialError::InvalidExecutable)
                 | Err(ProcessOwnerMaterialError::MaterialMismatch)
         ));
@@ -866,7 +1013,7 @@ mod tests {
         std::os::unix::fs::symlink(&target, &link).unwrap();
         symlink.pinned_tools[0].executable = link;
         assert!(matches!(
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, symlink),
+            test_store(contract, symlink),
             Err(ProcessOwnerMaterialError::InvalidExecutable)
                 | Err(ProcessOwnerMaterialError::MaterialMismatch)
         ));
@@ -881,7 +1028,7 @@ mod tests {
         assert!(serde_json::from_value::<ProcessOwnerMaterialContractV1>(value).is_err());
         contract.expires_at_unix_ms = contract.issued_at_unix_ms + MAX_LIFETIME_MS + 1;
         assert!(matches!(
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material),
+            test_store(contract, material),
             Err(ProcessOwnerMaterialError::InvalidContract)
         ));
         let _ = std::fs::remove_dir_all(root);
@@ -903,6 +1050,7 @@ mod tests {
             ProcessOwnerPrivateMaterialV1::new(
                 Vec::new(),
                 String::new(),
+                String::new(),
                 Vec::new(),
                 String::new(),
                 String::new(),
@@ -913,8 +1061,7 @@ mod tests {
             .is_err()
         );
 
-        let store =
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let store = test_store(contract, material).unwrap();
         let caller = RuntimeProcessOwnerMaterialCaller::new(store.clone());
         let (capability, lease) = caller.acquire("8".repeat(64), 1_100).unwrap();
         assert!(format!("{store:?}").contains("<private>"));
@@ -931,12 +1078,11 @@ mod tests {
         let mut mismatched = contract.clone();
         mismatched.private_roots_sha256 = "f".repeat(64);
         assert!(matches!(
-            ProcessOwnerMaterialStore::from_runtime_authenticated(mismatched, material.clone()),
+            test_store(mismatched, material.clone()),
             Err(ProcessOwnerMaterialError::MaterialMismatch)
         ));
 
-        let store =
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let store = test_store(contract, material).unwrap();
         let caller = RuntimeProcessOwnerMaterialCaller::new(store.clone());
         assert!(matches!(
             caller.acquire("9".repeat(64), 999),
@@ -961,8 +1107,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
 
         let (contract, material, root) = fixture();
-        let store =
-            ProcessOwnerMaterialStore::from_runtime_authenticated(contract, material).unwrap();
+        let store = test_store(contract, material).unwrap();
         let caller = RuntimeProcessOwnerMaterialCaller::new(store);
         let (capability, _) = caller.acquire("b".repeat(64), 1_100).unwrap();
         caller
@@ -971,6 +1116,84 @@ mod tests {
         caller
             .fence(&capability, ProcessOwnerMaterialOperation::Teardown, 1_201)
             .unwrap();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn enrollment_binding_rejects_self_consistent_caller_material() {
+        let (contract, material, root) = fixture();
+        let enrollment = ProcessOwnerEnrollmentBinding {
+            owner_id: contract.owner_id.clone(),
+            provider: contract.provider.clone(),
+            endpoint_identity_sha256: contract.endpoint_identity_sha256.clone(),
+            namespace_sha256: contract.namespace_sha256.clone(),
+            control_session_sha256: contract.control_session_sha256.clone(),
+            generation: contract.generation,
+            expires_at_unix_ms: contract.expires_at_unix_ms,
+            restart_binding_sha256: contract.restart_binding_sha256.clone(),
+            cancellation_binding_sha256: contract.cancellation_binding_sha256.clone(),
+            revocation_binding_sha256: contract.revocation_binding_sha256.clone(),
+            teardown_binding_sha256: contract.teardown_binding_sha256.clone(),
+            credential_ref_sha256: contract.credential_capability_sha256.clone(),
+            target_sha256: contract.target_sha256.clone(),
+            alternate_egress_sha256: contract.alternate_egress_sha256.clone(),
+            tool_bundle_sha256: contract.tool_bundle_sha256.clone(),
+            lease_root_sha256: contract.lease_root_sha256.clone(),
+            relay_root_sha256: contract.relay_root_sha256.clone(),
+            binding_sha256: contract.enrollment_binding_sha256.clone(),
+        };
+        assert!(
+            ProcessOwnerMaterialStore::from_runtime_enrollment(
+                contract.clone(),
+                material.clone(),
+                &enrollment,
+            )
+            .is_ok()
+        );
+
+        for mutate in [
+            |value: &mut ProcessOwnerMaterialContractV1| value.owner_id = "forged-owner".into(),
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.endpoint_identity_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| value.namespace_sha256 = "8".repeat(64),
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.credential_capability_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| value.lease_root_sha256 = "8".repeat(64),
+            |value: &mut ProcessOwnerMaterialContractV1| value.relay_root_sha256 = "8".repeat(64),
+            |value: &mut ProcessOwnerMaterialContractV1| value.target_sha256 = "8".repeat(64),
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.alternate_egress_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| value.tool_bundle_sha256 = "8".repeat(64),
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.restart_binding_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.cancellation_binding_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.revocation_binding_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.teardown_binding_sha256 = "8".repeat(64)
+            },
+            |value: &mut ProcessOwnerMaterialContractV1| {
+                value.enrollment_binding_sha256 = "8".repeat(64)
+            },
+        ] {
+            let mut forged = contract.clone();
+            mutate(&mut forged);
+            assert!(matches!(
+                ProcessOwnerMaterialStore::from_runtime_enrollment(
+                    forged,
+                    material.clone(),
+                    &enrollment,
+                ),
+                Err(ProcessOwnerMaterialError::MaterialMismatch)
+            ));
+        }
         let _ = std::fs::remove_dir_all(root);
     }
 }
