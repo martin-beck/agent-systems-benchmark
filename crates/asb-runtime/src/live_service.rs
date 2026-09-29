@@ -1475,6 +1475,7 @@ impl RuntimeControlBootstrap {
             .map_err(|_| LiveProviderControlAdapterError::AttestationMismatch)?;
         if request.provider != profile.provider()
             || request.generation != profile.generation()
+            || response.namespace_sha256 != request.namespace_sha256
             || response.chain.pairing_fingerprint_sha256 != request.control_session_sha256
         {
             return Err(LiveProviderControlAdapterError::AttestationMismatch);
@@ -2578,6 +2579,28 @@ mod tests {
         (request, response)
     }
 
+    fn materialization_bootstrap_fixture() -> (RuntimeControlBootstrap, RuntimeAuthorityInputs) {
+        let (profile, inputs) = resolver_inputs();
+        let (_, mut response) = control_bootstrap_fixture();
+        let binding = RuntimeAuthorityInputBinding::from_inputs(&inputs);
+        response.generation = 7;
+        response.namespace_sha256 = binding.namespace_sha256;
+        response.receipt.generation = 7;
+        response.receipt.relay_root_sha256 = binding.relay_root_sha256;
+        response.receipt.lease_root_sha256 = binding.lease_root_sha256;
+        (
+            RuntimeControlBootstrap {
+                response,
+                chain_store: RuntimeCertificateChainStore::new(),
+                profile,
+                resolver: None,
+                handle: None,
+                provisioner_fence: None,
+            },
+            inputs,
+        )
+    }
+
     #[test]
     fn control_bootstrap_response_is_consumed_into_runtime_chain_and_profile() {
         let (request, response) = control_bootstrap_fixture();
@@ -2607,6 +2630,44 @@ mod tests {
             Err(RuntimeCertificateChainStoreError::Revoked)
         );
         assert!(bootstrap.revoke_local().is_ok());
+    }
+
+    #[test]
+    fn control_bootstrap_rejects_empty_chain_and_namespace_mismatch() {
+        let (request, mut response) = control_bootstrap_fixture();
+        response.chain.chain.clear();
+        assert!(matches!(
+            RuntimeControlBootstrap::from_response(response, &request, 1_500),
+            Err(LiveProviderControlAdapterError::AttestationMismatch)
+        ));
+
+        let (request, mut response) = control_bootstrap_fixture();
+        response.namespace_sha256 = "0".repeat(64);
+        assert!(matches!(
+            RuntimeControlBootstrap::from_response(response, &request, 1_500),
+            Err(LiveProviderControlAdapterError::AttestationMismatch)
+        ));
+    }
+
+    #[test]
+    fn control_bootstrap_materializes_only_matching_private_bindings() {
+        let (mut bootstrap, inputs) = materialization_bootstrap_fixture();
+        let state_path = root().join("materialized-authority.json");
+        bootstrap
+            .materialize_provisioner("owner-1".into(), inputs.clone(), state_path)
+            .unwrap();
+        assert!(bootstrap.take_handle().is_ok());
+
+        let (mut bootstrap, mut inputs) = materialization_bootstrap_fixture();
+        inputs.namespace = NamespaceIdentity::new("net:[different]").unwrap();
+        assert_eq!(
+            bootstrap.materialize_provisioner(
+                "owner-1".into(),
+                inputs,
+                root().join("mismatched-materialized-authority.json"),
+            ),
+            Err(LiveProviderControlAdapterError::AttestationMismatch)
+        );
     }
 
     #[test]
