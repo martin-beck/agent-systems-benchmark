@@ -1562,6 +1562,17 @@ impl RuntimeControlBootstrap {
     fn process_owner_enrollment_binding(&self) -> ProcessOwnerEnrollmentBinding {
         let receipt = &self.response.receipt;
         let binding_sha256 = owner_enrollment_binding_sha256(&self.response);
+        // The authenticated runtime resolver is the source of truth for the
+        // concrete allowlist.  The control receipt carries only the selected
+        // target, so deriving this binding from `receipt.target` would make a
+        // singleton allowlist look valid while silently discarding any
+        // alternate egress entries.
+        let alternate_egress_sha256 = self
+            .resolver
+            .as_ref()
+            .and_then(|resolver| resolver.record().ok())
+            .map(|record| record.allowlist_sha256)
+            .unwrap_or_else(|| canonical_alternate_egress_binding(&receipt.target));
         ProcessOwnerEnrollmentBinding {
             owner_id: self.owner_id.clone().unwrap_or_default(),
             provider: receipt.provider.clone(),
@@ -1582,7 +1593,7 @@ impl RuntimeControlBootstrap {
             ),
             credential_ref_sha256: receipt.credential_ref_sha256.clone(),
             target_sha256: digest(&receipt.target.to_string()),
-            alternate_egress_sha256: canonical_alternate_egress_binding(&receipt.target),
+            alternate_egress_sha256,
             policy_sha256: canonical_policy_binding(&receipt.endpoint_identity_sha256),
             tool_bundle_sha256: receipt.tool_bundle_sha256.clone(),
             lease_root_sha256: receipt.lease_root_sha256.clone(),
@@ -2824,7 +2835,8 @@ mod tests {
     fn control_bootstrap_response_is_consumed_into_runtime_chain_and_profile() {
         let (request, response) = control_bootstrap_fixture();
         let bootstrap =
-            RuntimeControlBootstrap::from_response(response.clone(), &request, 1_500).unwrap();
+            RuntimeControlBootstrap::from_authenticated_response(response.clone(), &request, 1_500)
+                .unwrap();
         assert_eq!(bootstrap.generation(), request.generation);
         assert_eq!(bootstrap.cancellation_binding_sha256(), "4".repeat(64));
         assert!(
@@ -2886,6 +2898,27 @@ mod tests {
                 root().join("mismatched-materialized-authority.json"),
             ),
             Err(LiveProviderControlAdapterError::AttestationMismatch)
+        );
+    }
+
+    #[test]
+    fn owner_material_binding_uses_resolved_allowlist_not_selected_target() {
+        let (mut bootstrap, inputs) = materialization_bootstrap_fixture();
+        bootstrap
+            .materialize_provisioner(
+                "owner-1".into(),
+                inputs.clone(),
+                root().join("owner-material-allowlist.json"),
+            )
+            .unwrap();
+        let binding = bootstrap.process_owner_enrollment_binding();
+        assert_eq!(
+            binding.alternate_egress_sha256,
+            inputs.allowlist.identity_sha256()
+        );
+        assert_ne!(
+            binding.alternate_egress_sha256,
+            digest(&inputs.config.target().address().to_string())
         );
     }
 

@@ -711,6 +711,34 @@ mod tests {
     }
 
     #[test]
+    fn canonical_bindings_are_domain_separated_and_policy_text_is_normalized_once() {
+        let endpoint = "https://provider.example/v1";
+        let endpoint_identity = format!("{:x}", Sha256::digest(endpoint.as_bytes()));
+        assert_eq!(
+            canonical_policy_binding_from_text(endpoint),
+            canonical_policy_binding(&endpoint_identity)
+        );
+        assert_eq!(
+            canonical_policy_binding_from_text(&endpoint_identity),
+            canonical_policy_binding(&endpoint_identity)
+        );
+        let target = ProviderEgressTarget::new("198.51.100.10:443".parse().unwrap()).unwrap();
+        let target_digest = format!(
+            "{:x}",
+            Sha256::digest(target.address().to_string().as_bytes())
+        );
+        let target_text = target.address().to_string();
+        assert_ne!(
+            canonical_alternate_egress_binding(&target_text),
+            target_digest
+        );
+        assert_eq!(
+            canonical_alternate_egress_binding(&target_text),
+            canonical_allowlist_binding(&[target])
+        );
+    }
+
+    #[test]
     fn relay_connects_only_authorized_exact_target_and_bounds_forwarding() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();

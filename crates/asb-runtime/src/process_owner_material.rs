@@ -916,6 +916,7 @@ fn current_unix_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::provider_egress::canonical_policy_binding;
     use crate::sandbox::{CpuSet, NetworkPolicy, Resources, SandboxSpec};
     use std::collections::BTreeMap;
     use std::os::unix::fs::PermissionsExt;
@@ -989,6 +990,15 @@ mod tests {
             enrollment_binding_sha256: "7".repeat(64),
         };
         (contract, material, root)
+    }
+
+    #[test]
+    fn policy_digest_accepts_an_already_authenticated_endpoint_identity() {
+        let (_, mut material, root) = fixture();
+        material.policy = "b".repeat(64);
+        let (_, _, policy, _, _, _, _) = material.digests();
+        assert_eq!(policy, canonical_policy_binding("b".repeat(64).as_str()));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     fn test_store(
