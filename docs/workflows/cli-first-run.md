@@ -14,9 +14,11 @@ asb doctor
 asb plan /absolute/path/EXPERIMENT.toml
 ```
 
-Expected state: `doctor` reports the supported command/workload inventory and
-`plan` returns structured JSON with command `plan`. No result or work directory
-is created by `plan` when validation fails.
+Expected state: `doctor` prints a concise human-readable readiness summary and
+`plan` prints the validated plan path and summary. No result or work directory
+is created by `plan` when validation fails. Add the global `--json` flag before
+the command when a script needs the stable JSON envelope, for example
+`asb --json plan /absolute/path/EXPERIMENT.toml`.
 
 Create a plan from the current runnable workload catalog with one workload per
 plan (repeat this for a campaign):
@@ -68,9 +70,11 @@ asb run /absolute/path/EXPERIMENT.toml --provider-selection selection.json
 asb sweep /absolute/path/EXPERIMENT.toml --provider-selection selection.json
 ```
 
-The command prints JSON on stdout and progress on stderr. A successful response
-contains a run identifier and terminal evidence. A nonzero exit with a
-structured error is authoritative; never turn a missing measurement into zero.
+The command prints a concise human-readable result on stdout and progress on
+stderr. A successful response contains a run identifier and terminal evidence.
+Use `asb --json run ...` for the same result as a machine-readable envelope. A
+nonzero exit with a structured error is authoritative; never turn a missing
+measurement into zero.
 
 ## Follow, finish, and compare
 
