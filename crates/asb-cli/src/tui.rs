@@ -47,6 +47,8 @@ const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
 const DEV_GIT: &str = "/usr/bin/git";
 const DEV_CARGO: &str = "/usr/bin/cargo";
 const DEV_SETSID: &str = "/usr/bin/setsid";
+const ASB_SOURCE_COMMIT: &str = "357b1ef6600fb12bcea1df80c4fe25018f5af583";
+const ASB_SOURCE_TREE: &str = "0c1f172d67b72564a8a5ca678e518365051ffe8e";
 const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
 const MAX_DEV_WORKSPACE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
@@ -131,7 +133,7 @@ impl RouterError {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RouterResponse {
     schema_version: u64,
@@ -262,14 +264,17 @@ struct ActiveInstallation {
     classification: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct DevelopmentInstallation {
     schema_version: u64,
-    channel: &'static str,
+    channel: String,
     development_only: bool,
-    source_repository: &'static str,
+    source_repository: String,
     source_commit: String,
+    source_tree: String,
+    asb_source_commit: String,
+    asb_source_tree: String,
     executable_sha256: String,
     installed_unix: u64,
 }
@@ -425,9 +430,12 @@ fn annotate_channel(response: &mut RouterResponse, operation: Operation, request
         response.development_only = requested == Channel::Dev;
     } else {
         // Status, doctor, remove, and launch describe an already-installed
-        // extension. They must not inherit the install selector's default.
-        response.channel = "stable";
-        response.development_only = false;
+        // extension. Preserve an explicitly development-only response while
+        // keeping stable installations channel-neutral.
+        if !(response.development_only && response.executable_sha256.is_some()) {
+            response.development_only = false;
+            response.channel = "stable";
+        }
     }
 }
 
@@ -537,9 +545,23 @@ fn execute(
             install_or_upgrade(operation, options, paths, source, now)
         }
         Operation::Status | Operation::Remove | Operation::Launch => {
-            delegate_existing(operation, paths)
+            if development_active(paths)?.is_some() {
+                execute_development_existing(operation, paths)
+            } else {
+                delegate_existing(operation, paths)
+            }
         }
-        Operation::Doctor => doctor(paths),
+        Operation::Doctor => {
+            if let Some((active, _)) = development_active(paths)? {
+                Ok(development_response(
+                    Operation::Doctor,
+                    "development_verified",
+                    &active,
+                ))
+            } else {
+                doctor(paths)
+            }
+        }
         Operation::Version => unreachable!(),
     }
 }
@@ -776,6 +798,19 @@ fn materialize_development(
             ]);
         run_development_command(build, &root)?;
         enforce_workspace_quota(&root)?;
+        let mut source_tree_command = Command::new(DEV_SETSID);
+        source_tree_command
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .current_dir(&source)
+            .args(["--wait", DEV_GIT, "rev-parse", "HEAD^{tree}"]);
+        let source_tree = String::from_utf8(run_development_command(source_tree_command, &root)?)
+            .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
+            .trim()
+            .to_owned();
+        if !valid_hex(&source_tree, 40) {
+            return Err(RouterError::policy("dev_source_identity_invalid"));
+        }
         let executable = source.join("target/release/asb-tui");
         let bytes = read_bounded(&executable, MAX_ARTIFACT_BYTES as usize)?;
         let executable_sha256 = digest(&bytes);
@@ -788,10 +823,13 @@ fn materialize_development(
         atomic_private(&version.join("asb-tui"), &bytes, 0o700)?;
         let metadata = serde_json::to_vec(&DevelopmentInstallation {
             schema_version: 1,
-            channel: "dev",
+            channel: "dev".to_owned(),
             development_only: true,
-            source_repository: DEV_REPOSITORY_URL,
+            source_repository: DEV_REPOSITORY_URL.to_owned(),
             source_commit: commit,
+            source_tree,
+            asb_source_commit: ASB_SOURCE_COMMIT.to_owned(),
+            asb_source_tree: ASB_SOURCE_TREE.to_owned(),
             executable_sha256: executable_sha256.clone(),
             installed_unix: now,
         })
@@ -817,6 +855,131 @@ fn materialize_development(
         (Err(error), Ok(())) => Err(error),
         (Ok(_), Err(_)) | (Err(_), Err(_)) => Err(RouterError::operation("dev_cleanup_failed")),
     }
+}
+
+fn development_response(
+    operation: Operation,
+    code: &'static str,
+    active: &DevelopmentInstallation,
+) -> RouterResponse {
+    let mut response = RouterResponse::result(operation, true, code, "denied");
+    response.channel = "dev";
+    response.development_only = true;
+    response.executable_sha256 = Some(active.executable_sha256.clone());
+    response.verified = Some(false);
+    response
+}
+
+fn development_active(
+    paths: &RouterPaths,
+) -> Result<Option<(DevelopmentInstallation, PathBuf)>, RouterError> {
+    let marker = paths.install_root.join("active-dev.json");
+    if !marker.exists() {
+        return Ok(None);
+    }
+    validate_private_directory(&paths.install_root)?;
+    let bytes = read_bounded(&marker, 64 * 1024)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    let active: DevelopmentInstallation = serde_json::from_slice(&bytes)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    if active.schema_version != 1
+        || !active.development_only
+        || active.channel != "dev"
+        || active.source_repository != DEV_REPOSITORY_URL
+        || !valid_hex(&active.source_commit, 40)
+        || !valid_hex(&active.source_tree, 40)
+        || active.asb_source_commit != ASB_SOURCE_COMMIT
+        || active.asb_source_tree != ASB_SOURCE_TREE
+        || !valid_hex(&active.executable_sha256, 64)
+    {
+        return Err(RouterError::policy("development_installation_invalid"));
+    }
+    let executable = paths
+        .install_root
+        .join("dev-versions")
+        .join(&active.executable_sha256)
+        .join("asb-tui");
+    read_bounded_digest(&executable, MAX_ARTIFACT_BYTES, &active.executable_sha256)?;
+    Ok(Some((active, executable)))
+}
+
+fn execute_development_existing(
+    operation: Operation,
+    paths: &RouterPaths,
+) -> Result<RouterResponse, RouterError> {
+    let Some((active, executable)) = development_active(paths)? else {
+        return Err(RouterError::policy("extension_not_installed"));
+    };
+    match operation {
+        Operation::Status => Ok(development_response(
+            operation,
+            "development_installed",
+            &active,
+        )),
+        Operation::Remove => {
+            remove_development_installation(paths, &active, false)?;
+            Ok(development_response(
+                operation,
+                "development_removed",
+                &active,
+            ))
+        }
+        Operation::Launch => {
+            let status = Command::new(&executable)
+                .status()
+                .map_err(|_| RouterError::operation("development_launch_failed"))?;
+            if !status.success() {
+                return Err(RouterError::operation("development_launch_failed"));
+            }
+            Ok(development_response(
+                operation,
+                "development_launched",
+                &active,
+            ))
+        }
+        _ => Err(RouterError::policy("development_operation_invalid")),
+    }
+}
+
+fn remove_development_installation(
+    paths: &RouterPaths,
+    active: &DevelopmentInstallation,
+    fail_final_delete: bool,
+) -> Result<(), RouterError> {
+    let marker = paths.install_root.join("active-dev.json");
+    let version = paths
+        .install_root
+        .join("dev-versions")
+        .join(&active.executable_sha256);
+    let trash = paths.install_root.join(format!(
+        ".dev-remove-{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    prepare_private_directory(&trash)?;
+    let trash_marker = trash.join("active-dev.json");
+    let trash_version = trash.join("version");
+    if fs::rename(&marker, &trash_marker).is_err() {
+        let _ = fs::remove_dir_all(&trash);
+        return Err(RouterError::operation("development_remove_failed"));
+    }
+    if fs::rename(&version, &trash_version).is_err() {
+        let _ = fs::rename(&trash_marker, &marker);
+        let _ = fs::remove_dir_all(&trash);
+        return Err(RouterError::operation("development_remove_failed"));
+    }
+    let final_delete = if fail_final_delete {
+        Err(())
+    } else {
+        fs::remove_dir_all(&trash).map_err(|_| ())
+    };
+    if final_delete.is_ok() {
+        return Ok(());
+    }
+    let _ = fs::rename(&trash_version, &version);
+    let _ = fs::rename(&trash_marker, &marker);
+    let _ = fs::remove_dir_all(&trash);
+    Err(RouterError::operation("development_remove_failed"))
 }
 
 fn run_development_command(command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
@@ -2604,10 +2767,13 @@ mod tests {
     fn development_metadata_is_explicitly_non_production() {
         let metadata = DevelopmentInstallation {
             schema_version: 1,
-            channel: "dev",
+            channel: "dev".to_owned(),
             development_only: true,
-            source_repository: DEV_REPOSITORY_URL,
+            source_repository: DEV_REPOSITORY_URL.to_owned(),
             source_commit: "a".repeat(40),
+            source_tree: "c".repeat(40),
+            asb_source_commit: ASB_SOURCE_COMMIT.to_owned(),
+            asb_source_tree: ASB_SOURCE_TREE.to_owned(),
             executable_sha256: "b".repeat(64),
             installed_unix: 1,
         };
@@ -2615,6 +2781,59 @@ mod tests {
         assert_eq!(encoded["channel"], "dev");
         assert_eq!(encoded["development_only"], true);
         assert_eq!(encoded["source_commit"].as_str().unwrap().len(), 40);
+    }
+
+    #[test]
+    fn development_lifecycle_status_and_remove_are_atomic_and_typed() {
+        let scratch = Scratch::new("dev-lifecycle");
+        let paths = RouterPaths {
+            install_root: scratch.0.join("install"),
+            state_root: scratch.0.join("state"),
+            cache_root: scratch.0.join("cache"),
+        };
+        prepare_private_directory(&paths.install_root).unwrap();
+        let bytes = b"development executable";
+        let executable_sha256 = digest(bytes);
+        let version = paths
+            .install_root
+            .join("dev-versions")
+            .join(&executable_sha256);
+        prepare_private_directory(&version).unwrap();
+        atomic_private(&version.join("asb-tui"), bytes, 0o700).unwrap();
+        let metadata = DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev".to_owned(),
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL.to_owned(),
+            source_commit: "a".repeat(40),
+            source_tree: "b".repeat(40),
+            asb_source_commit: ASB_SOURCE_COMMIT.to_owned(),
+            asb_source_tree: ASB_SOURCE_TREE.to_owned(),
+            executable_sha256,
+            installed_unix: 1,
+        };
+        atomic_private(
+            &paths.install_root.join("active-dev.json"),
+            &serde_json::to_vec(&metadata).unwrap(),
+            0o600,
+        )
+        .unwrap();
+        let status = execute_development_existing(Operation::Status, &paths).unwrap();
+        assert_eq!(status.code, "development_installed");
+        assert!(status.development_only);
+        assert_eq!(status.channel, "dev");
+        let active_before_remove = development_active(&paths).unwrap().unwrap().0;
+        assert_eq!(
+            remove_development_installation(&paths, &active_before_remove, true)
+                .unwrap_err()
+                .code,
+            "development_remove_failed"
+        );
+        assert!(paths.install_root.join("active-dev.json").exists());
+        assert!(version.exists());
+        execute_development_existing(Operation::Remove, &paths).unwrap();
+        assert!(!paths.install_root.join("active-dev.json").exists());
+        assert!(!version.exists());
     }
 
     #[test]
