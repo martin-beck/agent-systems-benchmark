@@ -46,8 +46,10 @@ const MAX_REDIRECTS: usize = 3;
 const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
 const DEV_GIT: &str = "/usr/bin/git";
 const DEV_CARGO: &str = "/usr/bin/cargo";
+const DEV_SETSID: &str = "/usr/bin/setsid";
 const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
+const MAX_DEV_WORKSPACE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -699,6 +701,7 @@ fn materialize_development(
 ) -> Result<RouterResponse, RouterError> {
     validate_tool(DEV_GIT)?;
     validate_tool(DEV_CARGO)?;
+    validate_tool(DEV_SETSID)?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
         "dev-build-{}-{}",
@@ -707,8 +710,10 @@ fn materialize_development(
     ));
     prepare_private_directory(&root)?;
     let result = (|| {
-        let mut head = Command::new(DEV_GIT);
+        let mut head = Command::new(DEV_SETSID);
         head.env_clear().env("LANG", "C.UTF-8").args([
+            "--wait",
+            DEV_GIT,
             "ls-remote",
             DEV_REPOSITORY_URL,
             "refs/heads/main",
@@ -722,31 +727,55 @@ fn materialize_development(
             .filter(|value| valid_hex(value, 40))
             .ok_or_else(|| RouterError::policy("dev_source_identity_invalid"))?;
         let source = root.join("source");
-        let mut clone = Command::new(DEV_GIT);
+        let mut clone = Command::new(DEV_SETSID);
         clone
             .env_clear()
             .env("LANG", "C.UTF-8")
-            .args(["clone", "--no-checkout", "--", DEV_REPOSITORY_URL])
+            .args([
+                "--wait",
+                DEV_GIT,
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--no-checkout",
+                "--single-branch",
+                "--branch",
+                "main",
+                "--",
+                DEV_REPOSITORY_URL,
+            ])
             .arg(&source);
         run_development_command(clone, &root)?;
-        let mut checkout = Command::new(DEV_GIT);
+        enforce_workspace_quota(&root)?;
+        let mut checkout = Command::new(DEV_SETSID);
         checkout
             .env_clear()
             .env("LANG", "C.UTF-8")
             .current_dir(&source);
-        checkout.args(["checkout", "--detach", &commit]);
+        checkout.args(["--wait", DEV_GIT, "checkout", "--detach", &commit]);
         run_development_command(checkout, &root)?;
+        enforce_workspace_quota(&root)?;
         let cargo_home = root.join("cargo-home");
         prepare_private_directory(&cargo_home)?;
-        let mut build = Command::new(DEV_CARGO);
+        let mut build = Command::new(DEV_SETSID);
         build
             .env_clear()
             .env("LANG", "C.UTF-8")
             .env("HOME", &root)
             .env("CARGO_HOME", &cargo_home)
             .current_dir(&source)
-            .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
+            .args([
+                "--wait",
+                DEV_CARGO,
+                "build",
+                "--locked",
+                "--release",
+                "--bin",
+                "asb-tui",
+            ]);
         run_development_command(build, &root)?;
+        enforce_workspace_quota(&root)?;
         let executable = source.join("target/release/asb-tui");
         let bytes = read_bounded(&executable, MAX_ARTIFACT_BYTES as usize)?;
         let executable_sha256 = digest(&bytes);
@@ -819,6 +848,9 @@ fn run_development_command_with_timeout(
             return Ok(bytes);
         }
         if Instant::now() >= deadline {
+            if let Some(pid) = Pid::from_raw(child.id() as i32) {
+                let _ = kill_process_group(pid, Signal::KILL);
+            }
             let _ = child.kill();
             let _ = child.wait();
             let _ = fs::remove_dir_all(root);
@@ -826,6 +858,36 @@ fn run_development_command_with_timeout(
         }
         thread::sleep(Duration::from_millis(50));
     }
+}
+
+fn enforce_workspace_quota(root: &Path) -> Result<(), RouterError> {
+    if bounded_directory_size(root, MAX_DEV_WORKSPACE_BYTES)? > MAX_DEV_WORKSPACE_BYTES {
+        return Err(RouterError::policy("dev_workspace_quota_exceeded"));
+    }
+    Ok(())
+}
+
+fn bounded_directory_size(root: &Path, limit: u64) -> Result<u64, RouterError> {
+    let metadata = fs::symlink_metadata(root)
+        .map_err(|_| RouterError::operation("dev_workspace_unavailable"))?;
+    if metadata.file_type().is_symlink() {
+        return Err(RouterError::policy("dev_workspace_unsafe"));
+    }
+    if metadata.is_file() {
+        return Ok(metadata.len());
+    }
+    let mut total = 0_u64;
+    for entry in
+        fs::read_dir(root).map_err(|_| RouterError::operation("dev_workspace_unavailable"))?
+    {
+        let entry = entry.map_err(|_| RouterError::operation("dev_workspace_unavailable"))?;
+        let size = bounded_directory_size(&entry.path(), limit.saturating_sub(total))?;
+        total = total.saturating_add(size);
+        if total > limit {
+            return Ok(total);
+        }
+    }
+    Ok(total)
 }
 
 fn doctor(paths: &RouterPaths) -> Result<RouterResponse, RouterError> {
@@ -2436,12 +2498,26 @@ mod tests {
                 .unwrap(),
             b"bounded"
         );
-        let mut timeout = Command::new("/bin/sh");
-        timeout.args(["-c", "sleep 2"]);
+        let mut timeout = Command::new(DEV_SETSID);
+        timeout.args(["--wait", "/bin/sh", "-c", "sleep 2"]);
         let error =
             run_development_command_with_timeout(timeout, &scratch.0, Duration::from_millis(10))
                 .unwrap_err();
         assert_eq!(error.code, "dev_command_timeout");
+    }
+
+    #[test]
+    fn development_workspace_quota_rejects_excess_and_symlinks() {
+        let scratch = Scratch::new("dev-quota");
+        fs::write(scratch.0.join("payload"), b"12345").unwrap();
+        assert!(bounded_directory_size(&scratch.0, 4).unwrap() > 4);
+        symlink(scratch.0.join("payload"), scratch.0.join("link")).unwrap();
+        assert_eq!(
+            bounded_directory_size(&scratch.0, MAX_DEV_WORKSPACE_BYTES)
+                .unwrap_err()
+                .code,
+            "dev_workspace_unsafe"
+        );
     }
 
     #[cfg(unix)]
