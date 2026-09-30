@@ -72,9 +72,40 @@ impl Operation {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct Options {
+    channel: Channel,
     offline: bool,
     dry_run: bool,
     launch: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum Channel {
+    #[default]
+    Dev,
+    Stable,
+    Nightly,
+    Experimental,
+}
+
+impl Channel {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Dev => "dev",
+            Self::Stable => "stable",
+            Self::Nightly => "nightly",
+            Self::Experimental => "experimental",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, CliError> {
+        match value {
+            "dev" => Ok(Self::Dev),
+            "stable" => Ok(Self::Stable),
+            "nightly" => Ok(Self::Nightly),
+            "experimental" => Ok(Self::Experimental),
+            _ => Err(CliError::usage("unsupported asb tui channel")),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -102,6 +133,8 @@ struct RouterResponse {
     operation: &'static str,
     code: &'static str,
     network: &'static str,
+    channel: &'static str,
+    development_only: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     release: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,6 +152,8 @@ impl RouterResponse {
             operation: operation.name(),
             code,
             network,
+            channel: "dev",
+            development_only: true,
             release: None,
             executable_sha256: None,
             verified: None,
@@ -352,11 +387,16 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
             } else {
                 "denied"
             };
-            let response = RouterResponse::result(operation, false, error.code, network);
+            let mut response = RouterResponse::result(operation, false, error.code, network);
+            response.channel = options.channel.name();
+            response.development_only = options.channel == Channel::Dev;
             write_json(output, &response)?;
             return Ok(error.exit_code);
         }
     };
+    let mut response = response;
+    response.channel = options.channel.name();
+    response.development_only = options.channel == Channel::Dev;
     let exit = if response.ok { 0 } else { 3 };
     write_json(output, &response)?;
     Ok(exit)
@@ -374,7 +414,23 @@ fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
         }
         [operation, flags @ ..] if operation == "install" || operation == "upgrade" => {
             let mut options = Options::default();
-            for flag in flags {
+            let mut channel_seen = false;
+            let mut index = 0;
+            while index < flags.len() {
+                let flag = &flags[index];
+                if flag == "--channel" {
+                    if channel_seen {
+                        return Err(CliError::usage("duplicate asb tui option"));
+                    }
+                    channel_seen = true;
+                    index += 1;
+                    let value = flags
+                        .get(index)
+                        .ok_or_else(|| CliError::usage("--channel requires a value"))?;
+                    options.channel = Channel::parse(value)?;
+                    index += 1;
+                    continue;
+                }
                 let slot = match flag.as_str() {
                     "--offline" => &mut options.offline,
                     "--dry-run" => &mut options.dry_run,
@@ -385,6 +441,7 @@ fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
                     return Err(CliError::usage("duplicate asb tui option"));
                 }
                 *slot = true;
+                index += 1;
             }
             if options.dry_run && options.launch {
                 return Err(CliError::usage(
@@ -442,6 +499,13 @@ fn execute(
 ) -> Result<RouterResponse, RouterError> {
     match operation {
         Operation::Install | Operation::Upgrade => {
+            if options.channel != Channel::Stable {
+                return Err(RouterError::policy(if options.channel == Channel::Dev {
+                    "dev_channel_requires_build"
+                } else {
+                    "channel_unavailable"
+                }));
+            }
             install_or_upgrade(operation, options, paths, source, now)
         }
         Operation::Status | Operation::Remove | Operation::Launch => {
@@ -677,6 +741,8 @@ fn response_from_delegated(
         operation: operation.name(),
         code,
         network,
+        channel: "stable",
+        development_only: false,
         release: delegated.release,
         executable_sha256: delegated.executable_sha256,
         verified: delegated.verified,
@@ -2168,6 +2234,22 @@ mod tests {
     fn parser_is_closed_and_typed() {
         assert_eq!(parse(&[]).unwrap().0, Operation::Launch);
         assert_eq!(parse(&["status".into()]).unwrap().0, Operation::Status);
+        assert_eq!(parse(&["install".into()]).unwrap().1.channel, Channel::Dev);
+        for name in ["dev", "stable", "nightly", "experimental"] {
+            let parsed = parse(&["install".into(), "--channel".into(), name.into()]);
+            assert_eq!(parsed.unwrap().1.channel.name(), name);
+        }
+        assert!(parse(&["install".into(), "--channel".into()]).is_err());
+        assert!(
+            parse(&[
+                "install".into(),
+                "--channel".into(),
+                "stable".into(),
+                "--channel".into(),
+                "dev".into()
+            ])
+            .is_err()
+        );
         assert!(
             parse(&[
                 "install".into(),
