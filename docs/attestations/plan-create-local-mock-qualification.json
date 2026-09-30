@@ -2,21 +2,29 @@
   "schema_version": 1,
   "workflow": "plan-create-local-mock-v1",
   "scope": "ASB CLI generated plan qualification",
-  "base_revision": "ecf1bda",
+  "base_revision": "d178ef34747e99747e00b0ef7350c789eec62198",
   "workload_selection": "original.bug-fix",
   "selection_authority": "canonical workload_catalog filtered by select_workload for the host platform",
   "plan_schema_version": 2,
   "measurement_selection": "explicit empty selection bound to the canonical measurement catalog",
   "provider_contact": false,
+  "output_modes": {
+    "human_default": "verified for plan-create and plan",
+    "json_global": "verified for plan, run, report, and compare"
+  },
+  "tests": {
+    "cargo_test_locked_p_asb_cli_lib": "136 passed",
+    "workflow_transcript": "3 passed"
+  },
   "runs": [
     {
-      "run_id": "qualification-a",
+      "run_id": "final-c",
       "mode": "local-mock",
       "terminal_state": "completed",
       "report": "ok"
     },
     {
-      "run_id": "qualification-b",
+      "run_id": "final-d",
       "mode": "local-mock",
       "terminal_state": "completed",
       "report": "ok"
@@ -36,6 +44,6 @@
     "asb plan PLAN.toml",
     "asb run PLAN.toml --local-mock",
     "asb report RESULT_ROOT/runs/RUN_ID",
-    "asb compare RESULT_ROOT/runs/qualification-a RESULT_ROOT/runs/qualification-b"
+    "asb compare RESULT_ROOT/runs/final-c RESULT_ROOT/runs/final-d"
   ]
 }
