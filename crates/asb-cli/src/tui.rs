@@ -786,12 +786,20 @@ fn materialize_development(
     }
 }
 
-fn run_development_command(mut command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
+fn run_development_command(command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
+    run_development_command_with_timeout(command, root, DEV_COMMAND_TIMEOUT)
+}
+
+fn run_development_command_with_timeout(
+    mut command: Command,
+    root: &Path,
+    timeout: Duration,
+) -> Result<Vec<u8>, RouterError> {
     command.stdout(Stdio::piped()).stderr(Stdio::null());
     let mut child = command
         .spawn()
         .map_err(|_| RouterError::operation("dev_command_unavailable"))?;
-    let deadline = Instant::now() + DEV_COMMAND_TIMEOUT;
+    let deadline = Instant::now() + timeout;
     loop {
         if let Some(status) = child
             .try_wait()
@@ -2415,6 +2423,43 @@ mod tests {
         );
         assert!(parse(&["install".into(), "--offline".into(), "--offline".into()]).is_err());
         assert!(parse(&["render".into()]).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_commands_are_bounded_and_timeout_cleanup_is_private() {
+        let scratch = Scratch::new("dev-command");
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf bounded"]);
+        assert_eq!(
+            run_development_command_with_timeout(command, &scratch.0, Duration::from_secs(1))
+                .unwrap(),
+            b"bounded"
+        );
+        let mut timeout = Command::new("/bin/sh");
+        timeout.args(["-c", "sleep 2"]);
+        let error =
+            run_development_command_with_timeout(timeout, &scratch.0, Duration::from_millis(10))
+                .unwrap_err();
+        assert_eq!(error.code, "dev_command_timeout");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_metadata_is_explicitly_non_production() {
+        let metadata = DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev",
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL,
+            source_commit: "a".repeat(40),
+            executable_sha256: "b".repeat(64),
+            installed_unix: 1,
+        };
+        let encoded = serde_json::to_value(metadata).unwrap();
+        assert_eq!(encoded["channel"], "dev");
+        assert_eq!(encoded["development_only"], true);
+        assert_eq!(encoded["source_commit"].as_str().unwrap().len(), 40);
     }
 
     #[test]
