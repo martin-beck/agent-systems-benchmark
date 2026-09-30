@@ -120,6 +120,7 @@ fn run(arguments: &[String]) -> Output {
         .env_clear()
         .env("LANG", "C")
         .env("LC_ALL", "C")
+        .arg("--json")
         .args(arguments);
     if std::env::var_os("LLVM_PROFILE_FILE").is_some() {
         // Keep instrumented child profiles below target/. The default relative sink would

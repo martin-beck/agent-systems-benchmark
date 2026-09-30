@@ -178,6 +178,7 @@ fn isolated_asb_command() -> Command {
 
 fn run_capabilities(arguments: &[&str]) -> Output {
     isolated_asb_command()
+        .arg("--json")
         .arg("capabilities")
         .args(arguments)
         .output()
@@ -524,7 +525,7 @@ fn canonical_and_failing_children_are_parallel_safe_and_leave_checkout_clean() {
 fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
     let profile = workspace_root().join("target/asb-capability-%p-%m.profraw");
     let output = Command::new(env!("CARGO_BIN_EXE_asb"))
-        .args(["capabilities", "--format", "json"])
+        .args(["--json", "capabilities", "--format", "json"])
         .env("LLVM_PROFILE_FILE", &profile)
         .env("ASB_SECRET_SENTINEL", "must-not-appear")
         .env("USER", "private-user")
