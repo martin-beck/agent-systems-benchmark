@@ -18,6 +18,19 @@ Expected state: `doctor` reports the supported command/workload inventory and
 `plan` returns structured JSON with command `plan`. No result or work directory
 is created by `plan` when validation fails.
 
+Create a plan from the current runnable workload catalog with one workload per
+plan (repeat this for a campaign):
+
+```sh
+asb plan create --workload original.bug-fix \
+  --agent-executable /absolute/path/to/pinned-agent \
+  --output /absolute/path/experiment.toml
+```
+
+The selector derives from the canonical catalog and fails closed for
+methodology-only, unavailable, or unsupported-platform entries. Validate the
+generated TOML with `asb plan /absolute/path/experiment.toml` before launching.
+
 New plans use `schema_version = 2` and include a closed `measurement_selection`
 table generated from the exact content-addressed measurement catalog. The table
 contains `schema_version = 1`, `catalog_schema_version = 1`, the catalog and
