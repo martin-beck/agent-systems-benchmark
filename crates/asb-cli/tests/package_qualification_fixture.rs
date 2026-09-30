@@ -59,6 +59,7 @@ fn invoke(root: &TempRoot, args: &[&str]) -> (bool, Value) {
         .env("XDG_CACHE_HOME", &cache)
         .env("LANG", "C")
         .env("LC_ALL", "C")
+        .arg("--json")
         .args(args)
         .output()
         .expect("run asb qualification command");

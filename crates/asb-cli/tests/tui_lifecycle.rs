@@ -39,7 +39,7 @@ impl Scratch {
     fn command(&self, operation: &str) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_asb"));
         command
-            .args(["tui", operation])
+            .args(["--json", "tui", operation])
             .env_clear()
             .env("HOME", self.0.join("home"))
             .env("XDG_DATA_HOME", self.0.join("data"))
@@ -194,7 +194,7 @@ fn launch_keeps_lifecycle_json_separate_from_controlling_terminal() {
     let runner_sentinel = scratch.0.join("runner-owned-state");
     fs::write(&runner_sentinel, b"runner-owns-this\n").unwrap();
 
-    let command = format!("{} tui launch", env!("CARGO_BIN_EXE_asb"));
+    let command = format!("{} --json tui launch", env!("CARGO_BIN_EXE_asb"));
     let mut child = Command::new("/usr/bin/script")
         .args(["-q", "-e", "-c", &command, "/dev/null"])
         .env("HOME", scratch.0.join("home"))

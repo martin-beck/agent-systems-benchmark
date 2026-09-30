@@ -120,7 +120,7 @@ fn cancellation_plan(root: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 #[test]
 fn piped_doctor_is_json_without_terminal_escapes() {
     let output = Command::new(env!("CARGO_BIN_EXE_asb"))
-        .arg("doctor")
+        .args(["--json", "doctor"])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -134,7 +134,7 @@ fn piped_doctor_is_json_without_terminal_escapes() {
 
 #[test]
 fn pseudo_terminal_doctor_remains_clean_and_machine_readable() {
-    let command = format!("{} doctor", env!("CARGO_BIN_EXE_asb"));
+    let command = format!("{} --json doctor", env!("CARGO_BIN_EXE_asb"));
     let output = Command::new("/usr/bin/script")
         .args(["-q", "-e", "-c", &command, "/dev/null"])
         .output()
@@ -157,7 +157,7 @@ fn sigint_cancels_process_group_persists_terminal_state_and_returns_json() {
     let scratch = Scratch::new();
     let (plan, result_root, executable, launches) = cancellation_plan(&scratch.0);
     let child = Command::new(env!("CARGO_BIN_EXE_asb"))
-        .args(["run", plan.to_str().unwrap()])
+        .args(["--json", "run", plan.to_str().unwrap()])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
