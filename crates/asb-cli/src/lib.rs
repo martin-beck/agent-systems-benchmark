@@ -6893,6 +6893,42 @@ mod tests {
     }
 
     #[test]
+    fn plan_create_is_noninteractive_without_a_workload_and_rejects_unavailable_entries() {
+        let scratch = Scratch::new("plan-create-selection");
+        let output_path = scratch.0.join("should-not-exist.toml");
+        let missing_workload: Vec<OsString> = [
+            "plan",
+            "create",
+            "--agent-executable",
+            "/usr/bin/true",
+            "--output",
+            output_path.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&missing_workload, &mut output, &mut Vec::new()), 0);
+        assert!(!output_path.exists());
+        let unavailable: Vec<OsString> = [
+            "plan",
+            "create",
+            "--workload",
+            "agentops",
+            "--agent-executable",
+            "/usr/bin/true",
+            "--output",
+            output_path.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        output.clear();
+        assert_ne!(run(&unavailable, &mut output, &mut Vec::new()), 0);
+        assert!(!output_path.exists());
+    }
+
+    #[test]
     fn provider_catalog_and_multi_agent_plan_are_stable_and_secret_free() {
         let (exit, catalog) = run_json(&["provider-catalog".into()]);
         assert_eq!(exit, 0);
