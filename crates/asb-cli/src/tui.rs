@@ -43,6 +43,11 @@ const DELEGATE_TIMEOUT: Duration = Duration::from_secs(30);
 const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
+const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
+const DEV_GIT: &str = "/usr/bin/git";
+const DEV_CARGO: &str = "/usr/bin/cargo";
+const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -253,6 +258,18 @@ struct ActiveInstallation {
     quality_version: String,
     quality_commit: String,
     classification: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DevelopmentInstallation {
+    schema_version: u64,
+    channel: &'static str,
+    development_only: bool,
+    source_repository: &'static str,
+    source_commit: String,
+    executable_sha256: String,
+    installed_unix: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -509,12 +526,11 @@ fn execute(
 ) -> Result<RouterResponse, RouterError> {
     match operation {
         Operation::Install | Operation::Upgrade => {
+            if options.channel == Channel::Dev {
+                return materialize_development(operation, paths, now);
+            }
             if options.channel != Channel::Stable {
-                return Err(RouterError::policy(if options.channel == Channel::Dev {
-                    "dev_channel_requires_build"
-                } else {
-                    "channel_unavailable"
-                }));
+                return Err(RouterError::policy("channel_unavailable"));
             }
             install_or_upgrade(operation, options, paths, source, now)
         }
@@ -674,6 +690,134 @@ fn install_or_upgrade(
         };
     }
     Ok(response)
+}
+
+fn materialize_development(
+    operation: Operation,
+    paths: &RouterPaths,
+    now: u64,
+) -> Result<RouterResponse, RouterError> {
+    validate_tool(DEV_GIT)?;
+    validate_tool(DEV_CARGO)?;
+    prepare_private_directory(&paths.cache_root)?;
+    let root = paths.cache_root.join(format!(
+        "dev-build-{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    prepare_private_directory(&root)?;
+    let result = (|| {
+        let mut head = Command::new(DEV_GIT);
+        head.env_clear().env("LANG", "C.UTF-8").args([
+            "ls-remote",
+            DEV_REPOSITORY_URL,
+            "refs/heads/main",
+        ]);
+        let output = run_development_command(head, &root)?;
+        let commit = String::from_utf8(output)
+            .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
+            .split_whitespace()
+            .next()
+            .map(str::to_owned)
+            .filter(|value| valid_hex(value, 40))
+            .ok_or_else(|| RouterError::policy("dev_source_identity_invalid"))?;
+        let source = root.join("source");
+        let mut clone = Command::new(DEV_GIT);
+        clone
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .args(["clone", "--no-checkout", "--", DEV_REPOSITORY_URL])
+            .arg(&source);
+        run_development_command(clone, &root)?;
+        let mut checkout = Command::new(DEV_GIT);
+        checkout
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .current_dir(&source);
+        checkout.args(["checkout", "--detach", &commit]);
+        run_development_command(checkout, &root)?;
+        let cargo_home = root.join("cargo-home");
+        prepare_private_directory(&cargo_home)?;
+        let mut build = Command::new(DEV_CARGO);
+        build
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .env("HOME", &root)
+            .env("CARGO_HOME", &cargo_home)
+            .current_dir(&source)
+            .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
+        run_development_command(build, &root)?;
+        let executable = source.join("target/release/asb-tui");
+        let bytes = read_bounded(&executable, MAX_ARTIFACT_BYTES as usize)?;
+        let executable_sha256 = digest(&bytes);
+        prepare_private_directory(&paths.install_root)?;
+        let version = paths
+            .install_root
+            .join("dev-versions")
+            .join(&executable_sha256);
+        prepare_private_directory(&version)?;
+        atomic_private(&version.join("asb-tui"), &bytes, 0o700)?;
+        let metadata = serde_json::to_vec(&DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev",
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL,
+            source_commit: commit,
+            executable_sha256: executable_sha256.clone(),
+            installed_unix: now,
+        })
+        .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
+        atomic_private(
+            &paths.install_root.join("active-dev.json"),
+            &metadata,
+            0o600,
+        )?;
+        let mut response = RouterResponse::result(operation, true, "development_built", "used");
+        response.channel = "dev";
+        response.development_only = true;
+        response.executable_sha256 = Some(executable_sha256);
+        Ok(response)
+    })();
+    let cleanup = fs::remove_dir_all(&root);
+    match (result, cleanup) {
+        (Ok(response), Ok(())) => Ok(response),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(_), Err(_)) | (Err(_), Err(_)) => Err(RouterError::operation("dev_cleanup_failed")),
+    }
+}
+
+fn run_development_command(mut command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
+    command.stdout(Stdio::piped()).stderr(Stdio::null());
+    let mut child = command
+        .spawn()
+        .map_err(|_| RouterError::operation("dev_command_unavailable"))?;
+    let deadline = Instant::now() + DEV_COMMAND_TIMEOUT;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|_| RouterError::operation("dev_command_failed"))?
+        {
+            let mut bytes = Vec::new();
+            if let Some(mut stdout) = child.stdout.take() {
+                stdout
+                    .by_ref()
+                    .take(MAX_DEV_COMMAND_OUTPUT as u64 + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(|_| RouterError::operation("dev_command_failed"))?;
+            }
+            if bytes.len() > MAX_DEV_COMMAND_OUTPUT || !status.success() {
+                return Err(RouterError::operation("dev_command_failed"));
+            }
+            return Ok(bytes);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = fs::remove_dir_all(root);
+            return Err(RouterError::operation("dev_command_timeout"));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
 }
 
 fn doctor(paths: &RouterPaths) -> Result<RouterResponse, RouterError> {
