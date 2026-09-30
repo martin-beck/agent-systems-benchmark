@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
@@ -43,6 +43,13 @@ const DELEGATE_TIMEOUT: Duration = Duration::from_secs(30);
 const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
+const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
+const DEV_GIT: &str = "/usr/bin/git";
+const DEV_CARGO: &str = "/usr/bin/cargo";
+const DEV_SETSID: &str = "/usr/bin/setsid";
+const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
+const MAX_DEV_WORKSPACE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -253,6 +260,18 @@ struct ActiveInstallation {
     quality_version: String,
     quality_commit: String,
     classification: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DevelopmentInstallation {
+    schema_version: u64,
+    channel: &'static str,
+    development_only: bool,
+    source_repository: &'static str,
+    source_commit: String,
+    executable_sha256: String,
+    installed_unix: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -509,12 +528,11 @@ fn execute(
 ) -> Result<RouterResponse, RouterError> {
     match operation {
         Operation::Install | Operation::Upgrade => {
+            if options.channel == Channel::Dev {
+                return materialize_development(operation, paths, now);
+            }
             if options.channel != Channel::Stable {
-                return Err(RouterError::policy(if options.channel == Channel::Dev {
-                    "dev_channel_requires_build"
-                } else {
-                    "channel_unavailable"
-                }));
+                return Err(RouterError::policy("channel_unavailable"));
             }
             install_or_upgrade(operation, options, paths, source, now)
         }
@@ -674,6 +692,239 @@ fn install_or_upgrade(
         };
     }
     Ok(response)
+}
+
+fn materialize_development(
+    operation: Operation,
+    paths: &RouterPaths,
+    now: u64,
+) -> Result<RouterResponse, RouterError> {
+    validate_tool(DEV_GIT)?;
+    validate_tool(DEV_CARGO)?;
+    validate_tool(DEV_SETSID)?;
+    prepare_private_directory(&paths.cache_root)?;
+    let root = paths.cache_root.join(format!(
+        "dev-build-{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    prepare_private_directory(&root)?;
+    let result = (|| {
+        let mut head = Command::new(DEV_SETSID);
+        head.env_clear().env("LANG", "C.UTF-8").args([
+            "--wait",
+            DEV_GIT,
+            "ls-remote",
+            DEV_REPOSITORY_URL,
+            "refs/heads/main",
+        ]);
+        let output = run_development_command(head, &root)?;
+        let commit = String::from_utf8(output)
+            .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
+            .split_whitespace()
+            .next()
+            .map(str::to_owned)
+            .filter(|value| valid_hex(value, 40))
+            .ok_or_else(|| RouterError::policy("dev_source_identity_invalid"))?;
+        let source = root.join("source");
+        let mut clone = Command::new(DEV_SETSID);
+        clone
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .args([
+                "--wait",
+                DEV_GIT,
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--no-checkout",
+                "--single-branch",
+                "--branch",
+                "main",
+                "--",
+                DEV_REPOSITORY_URL,
+            ])
+            .arg(&source);
+        run_development_command(clone, &root)?;
+        enforce_workspace_quota(&root)?;
+        let mut checkout = Command::new(DEV_SETSID);
+        checkout
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .current_dir(&source);
+        checkout.args(["--wait", DEV_GIT, "checkout", "--detach", &commit]);
+        run_development_command(checkout, &root)?;
+        enforce_workspace_quota(&root)?;
+        let cargo_home = root.join("cargo-home");
+        prepare_private_directory(&cargo_home)?;
+        let mut build = Command::new(DEV_SETSID);
+        build
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .env("HOME", &root)
+            .env("CARGO_HOME", &cargo_home)
+            .current_dir(&source)
+            .args([
+                "--wait",
+                DEV_CARGO,
+                "build",
+                "--locked",
+                "--release",
+                "--bin",
+                "asb-tui",
+            ]);
+        run_development_command(build, &root)?;
+        enforce_workspace_quota(&root)?;
+        let executable = source.join("target/release/asb-tui");
+        let bytes = read_bounded(&executable, MAX_ARTIFACT_BYTES as usize)?;
+        let executable_sha256 = digest(&bytes);
+        prepare_private_directory(&paths.install_root)?;
+        let version = paths
+            .install_root
+            .join("dev-versions")
+            .join(&executable_sha256);
+        prepare_private_directory(&version)?;
+        atomic_private(&version.join("asb-tui"), &bytes, 0o700)?;
+        let metadata = serde_json::to_vec(&DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev",
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL,
+            source_commit: commit,
+            executable_sha256: executable_sha256.clone(),
+            installed_unix: now,
+        })
+        .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
+        atomic_private(
+            &paths.install_root.join("active-dev.json"),
+            &metadata,
+            0o600,
+        )?;
+        let mut response = RouterResponse::result(operation, true, "development_built", "used");
+        response.channel = "dev";
+        response.development_only = true;
+        response.executable_sha256 = Some(executable_sha256);
+        Ok(response)
+    })();
+    let cleanup = match fs::remove_dir_all(&root) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
+    match (result, cleanup) {
+        (Ok(response), Ok(())) => Ok(response),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(_), Err(_)) | (Err(_), Err(_)) => Err(RouterError::operation("dev_cleanup_failed")),
+    }
+}
+
+fn run_development_command(command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
+    run_development_command_with_limits(command, root, DEV_COMMAND_TIMEOUT, MAX_DEV_WORKSPACE_BYTES)
+}
+
+fn run_development_command_with_limits(
+    mut command: Command,
+    root: &Path,
+    timeout: Duration,
+    quota: u64,
+) -> Result<Vec<u8>, RouterError> {
+    command.stdout(Stdio::piped()).stderr(Stdio::null());
+    let mut child = command
+        .spawn()
+        .map_err(|_| RouterError::operation("dev_command_unavailable"))?;
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| RouterError::operation("dev_command_unavailable"))?;
+    let output_reader = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let mut buffer = [0_u8; 8192];
+        let mut oversized = false;
+        loop {
+            let count = stdout.read(&mut buffer).map_err(|_| ())?;
+            if count == 0 {
+                return Ok::<_, ()>((bytes, oversized));
+            }
+            if bytes.len() < MAX_DEV_COMMAND_OUTPUT {
+                let retained = count.min(MAX_DEV_COMMAND_OUTPUT - bytes.len());
+                bytes.extend_from_slice(&buffer[..retained]);
+                oversized |= retained != count;
+            } else {
+                oversized = true;
+            }
+        }
+    });
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|_| RouterError::operation("dev_command_failed"))?
+        {
+            let (bytes, oversized) = output_reader
+                .join()
+                .map_err(|_| RouterError::operation("dev_command_failed"))?
+                .map_err(|_| RouterError::operation("dev_command_failed"))?;
+            if oversized || !status.success() {
+                return Err(RouterError::operation("dev_command_failed"));
+            }
+            return Ok(bytes);
+        }
+        if bounded_directory_size(root, quota)
+            .map(|size| size > quota)
+            .unwrap_or(true)
+        {
+            if let Some(pid) = Pid::from_raw(child.id() as i32) {
+                let _ = kill_process_group(pid, Signal::KILL);
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = output_reader.join();
+            let _ = fs::remove_dir_all(root);
+            return Err(RouterError::policy("dev_workspace_quota_exceeded"));
+        }
+        if Instant::now() >= deadline {
+            if let Some(pid) = Pid::from_raw(child.id() as i32) {
+                let _ = kill_process_group(pid, Signal::KILL);
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = output_reader.join();
+            let _ = fs::remove_dir_all(root);
+            return Err(RouterError::operation("dev_command_timeout"));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn enforce_workspace_quota(root: &Path) -> Result<(), RouterError> {
+    if bounded_directory_size(root, MAX_DEV_WORKSPACE_BYTES)? > MAX_DEV_WORKSPACE_BYTES {
+        return Err(RouterError::policy("dev_workspace_quota_exceeded"));
+    }
+    Ok(())
+}
+
+fn bounded_directory_size(root: &Path, limit: u64) -> Result<u64, RouterError> {
+    let metadata = fs::symlink_metadata(root)
+        .map_err(|_| RouterError::operation("dev_workspace_unavailable"))?;
+    if metadata.file_type().is_symlink() {
+        return Err(RouterError::policy("dev_workspace_unsafe"));
+    }
+    if metadata.is_file() {
+        return Ok(metadata.len());
+    }
+    let mut total = 0_u64;
+    for entry in
+        fs::read_dir(root).map_err(|_| RouterError::operation("dev_workspace_unavailable"))?
+    {
+        let entry = entry.map_err(|_| RouterError::operation("dev_workspace_unavailable"))?;
+        let size = bounded_directory_size(&entry.path(), limit.saturating_sub(total))?;
+        total = total.saturating_add(size);
+        if total > limit {
+            return Ok(total);
+        }
+    }
+    Ok(total)
 }
 
 fn doctor(paths: &RouterPaths) -> Result<RouterResponse, RouterError> {
@@ -2271,6 +2522,99 @@ mod tests {
         );
         assert!(parse(&["install".into(), "--offline".into(), "--offline".into()]).is_err());
         assert!(parse(&["render".into()]).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_commands_are_bounded_and_timeout_cleanup_is_private() {
+        let scratch = Scratch::new("dev-command");
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf bounded"]);
+        assert_eq!(
+            run_development_command_with_limits(
+                command,
+                &scratch.0,
+                Duration::from_secs(1),
+                MAX_DEV_WORKSPACE_BYTES,
+            )
+            .unwrap(),
+            b"bounded"
+        );
+        let timeout_scratch = Scratch::new("dev-timeout");
+        let mut timeout = Command::new(DEV_SETSID);
+        timeout.args(["--wait", "/bin/sh", "-c", "sleep 2"]);
+        let error = run_development_command_with_limits(
+            timeout,
+            &timeout_scratch.0,
+            Duration::from_millis(10),
+            MAX_DEV_WORKSPACE_BYTES,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "dev_command_timeout");
+        assert!(!timeout_scratch.0.exists());
+        let noisy_scratch = Scratch::new("dev-noisy");
+        let mut noisy = Command::new(DEV_SETSID);
+        noisy.args(["--wait", "/bin/sh", "-c", "head -c 200000 /dev/zero"]);
+        assert_eq!(
+            run_development_command_with_limits(
+                noisy,
+                &noisy_scratch.0,
+                Duration::from_secs(1),
+                MAX_DEV_WORKSPACE_BYTES,
+            )
+            .unwrap_err()
+            .code,
+            "dev_command_failed"
+        );
+    }
+
+    #[test]
+    fn development_workspace_quota_rejects_excess_and_symlinks() {
+        let scratch = Scratch::new("dev-quota");
+        fs::write(scratch.0.join("payload"), b"12345").unwrap();
+        assert!(bounded_directory_size(&scratch.0, 4).unwrap() > 4);
+        symlink(scratch.0.join("payload"), scratch.0.join("link")).unwrap();
+        assert_eq!(
+            bounded_directory_size(&scratch.0, MAX_DEV_WORKSPACE_BYTES)
+                .unwrap_err()
+                .code,
+            "dev_workspace_unsafe"
+        );
+        let mut producer = Command::new(DEV_SETSID);
+        producer.args([
+            "--wait",
+            "/bin/sh",
+            "-c",
+            &format!(
+                "head -c 4096 /dev/zero > {}/descendant",
+                scratch.0.display()
+            ),
+        ]);
+        assert_eq!(
+            run_development_command_with_limits(producer, &scratch.0, Duration::from_secs(2), 64,)
+                .unwrap_err()
+                .code,
+            "dev_workspace_quota_exceeded"
+        );
+        assert!(!scratch.0.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_metadata_is_explicitly_non_production() {
+        let metadata = DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev",
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL,
+            source_commit: "a".repeat(40),
+            executable_sha256: "b".repeat(64),
+            installed_unix: 1,
+        };
+        let encoded = serde_json::to_value(metadata).unwrap();
+        assert_eq!(encoded["channel"], "dev");
+        assert_eq!(encoded["development_only"], true);
+        assert_eq!(encoded["source_commit"].as_str().unwrap().len(), 40);
     }
 
     #[test]
