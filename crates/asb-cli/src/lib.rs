@@ -93,13 +93,22 @@ const MAX_SELECTED_AGENTS: usize = 9;
 pub fn entry(args: Vec<OsString>) -> ExitCode {
     let mut stdout = io::stdout().lock();
     let mut stderr = io::stderr().lock();
-    ExitCode::from(run(&args, &mut stdout, &mut stderr))
+    ExitCode::from(run_with_default_mode(&args, &mut stdout, &mut stderr, true))
 }
 
 /// Execute one CLI request with injected output streams.
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
-    match dispatch(args, stdout, stderr, None, None) {
-        Ok(exit_code) => exit_code,
+    run_with_default_mode(args, stdout, stderr, false)
+}
+
+fn run_with_default_mode(
+    args: &[OsString],
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    human_default: bool,
+) -> u8 {
+    let (json, normalized) = match parse_output_mode(args) {
+        Ok(value) => value,
         Err(error) => {
             let envelope = ErrorEnvelope {
                 schema_version: OUTPUT_SCHEMA_VERSION,
@@ -107,11 +116,111 @@ pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) ->
                 command: command_name(args),
                 error,
             };
-            if write_json(stdout, &envelope).is_err() {
+            let _ = write_json(stdout, &envelope);
+            return envelope.error.exit_code;
+        }
+    };
+    let human = human_default && !json;
+    let mut captured = Vec::new();
+    match dispatch(&normalized, &mut captured, stderr, None, None) {
+        Ok(exit_code) => {
+            let result = if human {
+                render_human(&captured, stdout)
+            } else {
+                stdout.write_all(&captured)
+            };
+            if result.is_err() {
+                let _ = writeln!(stderr, "ASB could not write output");
+                4
+            } else {
+                exit_code
+            }
+        }
+        Err(error) => {
+            let envelope = ErrorEnvelope {
+                schema_version: OUTPUT_SCHEMA_VERSION,
+                ok: false,
+                command: command_name(&normalized),
+                error,
+            };
+            if human {
+                if render_human_error(&envelope, stdout).is_err() {
+                    let _ = writeln!(stderr, "ASB could not write output");
+                    return 4;
+                }
+            } else if write_json(stdout, &envelope).is_err() {
                 let _ = writeln!(stderr, "ASB could not write structured error output");
             }
             envelope.error.exit_code
         }
+    }
+}
+
+fn parse_output_mode(args: &[OsString]) -> Result<(bool, Vec<OsString>), CliError> {
+    let mut json = false;
+    let mut normalized = Vec::with_capacity(args.len());
+    for arg in args {
+        if arg == "--json" {
+            if json {
+                return Err(CliError::usage("--json was supplied more than once"));
+            }
+            json = true;
+        } else {
+            normalized.push(arg.clone());
+        }
+    }
+    Ok((json, normalized))
+}
+
+fn render_human(captured: &[u8], output: &mut dyn Write) -> io::Result<()> {
+    match serde_json::from_slice::<Value>(captured) {
+        Ok(value) => render_human_value(&value, output, 0),
+        Err(_) => output.write_all(captured),
+    }
+}
+
+fn render_human_error(envelope: &ErrorEnvelope, output: &mut dyn Write) -> io::Result<()> {
+    writeln!(output, "{} failed", envelope.command)?;
+    writeln!(output, "error: {}", envelope.error.message)?;
+    writeln!(output, "code: {}", envelope.error.code)
+}
+
+fn render_human_value(value: &Value, output: &mut dyn Write, indent: usize) -> io::Result<()> {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map {
+                if matches!(child, Value::Object(_) | Value::Array(_)) {
+                    writeln!(output, "{}{}:", " ".repeat(indent), key)?;
+                    render_human_value(child, output, indent + 2)?;
+                } else {
+                    writeln!(
+                        output,
+                        "{}{}: {}",
+                        " ".repeat(indent),
+                        key,
+                        human_scalar(child)
+                    )?;
+                }
+            }
+            Ok(())
+        }
+        Value::Array(items) => {
+            for item in items {
+                writeln!(output, "{}- {}", " ".repeat(indent), human_scalar(item))?;
+            }
+            Ok(())
+        }
+        _ => writeln!(output, "{}{}", " ".repeat(indent), human_scalar(value)),
+    }
+}
+
+fn human_scalar(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        Value::Null => "-".to_owned(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::Object(_) | Value::Array(_) => serde_json::to_string(value).unwrap_or_default(),
     }
 }
 
@@ -5850,6 +5959,35 @@ mod tests {
         assert_eq!(run(&["unknown".into()], &mut output, &mut diagnostic), 2);
         let error: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(error["error"]["code"], "usage");
+    }
+
+    #[test]
+    fn global_json_forces_machine_output_and_human_mode_is_not_json() {
+        let mut json_output = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run(
+                &["doctor".into(), "--json".into()],
+                &mut json_output,
+                &mut diagnostic
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&json_output).unwrap()["command"],
+            "doctor"
+        );
+        let mut human_output = Vec::new();
+        assert_eq!(
+            run_with_default_mode(&["doctor".into()], &mut human_output, &mut diagnostic, true),
+            0
+        );
+        assert!(!human_output.starts_with(b"{"));
+        assert!(
+            String::from_utf8(human_output)
+                .unwrap()
+                .contains("command: doctor")
+        );
     }
 
     #[test]
