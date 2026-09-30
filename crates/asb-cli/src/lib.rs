@@ -501,9 +501,7 @@ fn dispatch(
         [command, path, flag, selection] if command == "plan" && flag == "--provider-selection" => {
             plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
         }
-        [command, subcommand, create_args @ ..]
-            if command == "plan" && subcommand == "create" =>
-        {
+        [command, subcommand, create_args @ ..] if command == "plan" && subcommand == "create" => {
             create_plan(create_args, stdout, stderr).map(|()| 0)
         }
         [command, _path, flag] if command == "run" && flag == "--local-mock" => {
@@ -2104,10 +2102,26 @@ fn create_plan(
             "--run-id" => run_id = Some(value(&mut index)?),
             "--result-root" => result_root = PathBuf::from(value(&mut index)?),
             "--work-root" => work_root = PathBuf::from(value(&mut index)?),
-            "--measured" => measured = value(&mut index)?.parse().map_err(|_| CliError::validation("measured must be an integer"))?,
-            "--warmups" => warmups = value(&mut index)?.parse().map_err(|_| CliError::validation("warmups must be an integer"))?,
-            "--concurrency" => concurrency = value(&mut index)?.parse().map_err(|_| CliError::validation("concurrency must be an integer"))?,
-            "--timeout-ms" => timeout_ms = value(&mut index)?.parse().map_err(|_| CliError::validation("timeout-ms must be an integer"))?,
+            "--measured" => {
+                measured = value(&mut index)?
+                    .parse()
+                    .map_err(|_| CliError::validation("measured must be an integer"))?
+            }
+            "--warmups" => {
+                warmups = value(&mut index)?
+                    .parse()
+                    .map_err(|_| CliError::validation("warmups must be an integer"))?
+            }
+            "--concurrency" => {
+                concurrency = value(&mut index)?
+                    .parse()
+                    .map_err(|_| CliError::validation("concurrency must be an integer"))?
+            }
+            "--timeout-ms" => {
+                timeout_ms = value(&mut index)?
+                    .parse()
+                    .map_err(|_| CliError::validation("timeout-ms must be an integer"))?
+            }
             _ => return Err(CliError::usage("unsupported plan create option")),
         }
         index += 1;
@@ -2120,31 +2134,46 @@ fn create_plan(
                 .into_iter()
                 .filter(|entry| select_workload(&entry.id, &platform).is_ok())
                 .collect::<Vec<_>>();
-            writeln!(progress, "Select a workload:")
-                .map_err(output_error)?;
+            writeln!(progress, "Select a workload:").map_err(output_error)?;
             for (number, entry) in candidates.iter().enumerate() {
                 writeln!(progress, "  {}. {}", number + 1, entry.id).map_err(output_error)?;
             }
             write!(progress, "> ").map_err(output_error)?;
             progress.flush().map_err(output_error)?;
             let mut selection = String::new();
-            io::stdin().read_line(&mut selection).map_err(output_error)?;
-            let number: usize = selection.trim().parse().map_err(|_| CliError::validation("workload selection must be a number"))?;
-            candidates.get(number.saturating_sub(1)).map(|entry| entry.id.clone()).ok_or_else(|| CliError::validation("workload selection is out of range"))?
+            io::stdin()
+                .read_line(&mut selection)
+                .map_err(output_error)?;
+            let number: usize = selection
+                .trim()
+                .parse()
+                .map_err(|_| CliError::validation("workload selection must be a number"))?;
+            candidates
+                .get(number.saturating_sub(1))
+                .map(|entry| entry.id.clone())
+                .ok_or_else(|| CliError::validation("workload selection is out of range"))?
         }
-        None => return Err(CliError::usage("plan create requires --workload in noninteractive mode")),
+        None => {
+            return Err(CliError::usage(
+                "plan create requires --workload in noninteractive mode",
+            ));
+        }
     };
     let platform = format!("linux-{}", std::env::consts::ARCH);
-    let selected = select_workload(&workload, &platform)
-        .map_err(|_| CliError::validation("workload is not currently supported for runnable selection"))?;
-    let executable = executable.ok_or_else(|| CliError::usage("plan create requires --agent-executable"))?;
+    let selected = select_workload(&workload, &platform).map_err(|_| {
+        CliError::validation("workload is not currently supported for runnable selection")
+    })?;
+    let executable =
+        executable.ok_or_else(|| CliError::usage("plan create requires --agent-executable"))?;
     let executable = fs::canonicalize(&executable)
         .map_err(|_| CliError::validation("agent executable is unavailable"))?;
     let executable_sha256 = digest_file(&executable)?;
     let manifest_workload = describe_workload(&selected.id)
         .map_err(|_| CliError::validation("selected workload has no executable manifest"))?;
-    let mut experiment: ExperimentManifestV1 = serde_json::from_str(include_str!("../../asb-protocol/fixtures/v1/experiment-manifest.json"))
-        .map_err(|_| CliError::operation("built-in experiment template is invalid"))?;
+    let mut experiment: ExperimentManifestV1 = serde_json::from_str(include_str!(
+        "../../asb-protocol/fixtures/v1/experiment-manifest.json"
+    ))
+    .map_err(|_| CliError::operation("built-in experiment template is invalid"))?;
     experiment.agent.binary_sha256 = executable_sha256.clone();
     experiment.workload.workload = manifest_workload.workload_id.0;
     experiment.workload.workload_revision = manifest_workload.version;
@@ -2153,32 +2182,66 @@ fn create_plan(
     experiment.platform.architecture = std::env::consts::ARCH.to_owned();
     experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
     experiment.controls.replay.cassette_sha256 = None;
-    experiment.refresh_content_address().map_err(|_| CliError::validation("selected workload manifest is invalid"))?;
-    let measurement_selection = process_measurement_selection(experiment.controls.replay.mode, 5_000_000)?;
+    experiment
+        .refresh_content_address()
+        .map_err(|_| CliError::validation("selected workload manifest is invalid"))?;
+    let measurement_selection =
+        process_measurement_selection(experiment.controls.replay.mode, 5_000_000)?;
     let plan = PlanFile {
         schema_version: PLAN_SCHEMA_VERSION,
         run_id: run_id.unwrap_or_else(|| format!("asb-{}", selected.id)),
         result_root,
         work_root,
         workload: selected.id,
-        agent: BatchAgent { executable, executable_sha256, arguments: Vec::new() },
-        point: PointInput { measured, warmups, concurrency, queue: 0, max_failures: 0, timeout_ms, poll_ms: 5, seed: 7, open_loop_interval_ms: None, sweep_max_concurrency: None },
+        agent: BatchAgent {
+            executable,
+            executable_sha256,
+            arguments: Vec::new(),
+        },
+        point: PointInput {
+            measured,
+            warmups,
+            concurrency,
+            queue: 0,
+            max_failures: 0,
+            timeout_ms,
+            poll_ms: 5,
+            seed: 7,
+            open_loop_interval_ms: None,
+            sweep_max_concurrency: None,
+        },
         experiment,
         replay_cassette_path: None,
         measurement_selection: Some(measurement_selection),
     };
     validate_plan(&plan)?;
-    let destination = destination.ok_or_else(|| CliError::usage("plan create requires --output"))?;
+    let destination =
+        destination.ok_or_else(|| CliError::usage("plan create requires --output"))?;
     if !destination.is_absolute() || destination.exists() {
-        return Err(CliError::validation("plan output must be an absolute unused path"));
+        return Err(CliError::validation(
+            "plan output must be an absolute unused path",
+        ));
     }
-    let parent = destination.parent().ok_or_else(|| CliError::validation("plan output parent is unavailable"))?;
+    let parent = destination
+        .parent()
+        .ok_or_else(|| CliError::validation("plan output parent is unavailable"))?;
     if !parent.is_dir() || fs::canonicalize(parent).ok().as_deref() != Some(parent) {
-        return Err(CliError::validation("plan output parent is unavailable or unsafe"));
+        return Err(CliError::validation(
+            "plan output parent is unavailable or unsafe",
+        ));
     }
-    let text = toml::to_string_pretty(&plan).map_err(|_| CliError::operation("plan cannot be encoded"))?;
-    OpenOptions::new().write(true).create_new(true).open(&destination).and_then(|mut file| file.write_all(text.as_bytes())).map_err(|_| CliError::operation("plan output cannot be written"))?;
-    write_json(output, &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "plan-create", "plan": destination, "workload": plan.workload, "experiment_sha256": plan.experiment.experiment_sha256}))
+    let text =
+        toml::to_string_pretty(&plan).map_err(|_| CliError::operation("plan cannot be encoded"))?;
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&destination)
+        .and_then(|mut file| file.write_all(text.as_bytes()))
+        .map_err(|_| CliError::operation("plan output cannot be written"))?;
+    write_json(
+        output,
+        &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "plan-create", "plan": destination, "workload": plan.workload, "experiment_sha256": plan.experiment.experiment_sha256}),
+    )
 }
 
 fn plan_with_selection(
@@ -6808,11 +6871,18 @@ mod tests {
         let scratch = Scratch::new("plan-create");
         let destination = scratch.0.join("generated.toml");
         let args: Vec<OsString> = vec![
-            "plan".into(), "create".into(), "--workload".into(),
-            "original.bug-fix".into(), "--agent-executable".into(),
-            "/usr/bin/true".into(), "--output".into(),
+            "plan".into(),
+            "create".into(),
+            "--workload".into(),
+            "original.bug-fix".into(),
+            "--agent-executable".into(),
+            "/usr/bin/true".into(),
+            "--output".into(),
             destination.to_string_lossy().into_owned(),
-        ].into_iter().map(OsString::from).collect();
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
         let mut output = Vec::new();
         assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
         let response: Value = serde_json::from_slice(&output).unwrap();
