@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
@@ -807,7 +807,11 @@ fn materialize_development(
         response.executable_sha256 = Some(executable_sha256);
         Ok(response)
     })();
-    let cleanup = fs::remove_dir_all(&root);
+    let cleanup = match fs::remove_dir_all(&root) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
     match (result, cleanup) {
         (Ok(response), Ok(())) => Ok(response),
         (Err(error), Ok(())) => Err(error),
@@ -816,36 +820,68 @@ fn materialize_development(
 }
 
 fn run_development_command(command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
-    run_development_command_with_timeout(command, root, DEV_COMMAND_TIMEOUT)
+    run_development_command_with_limits(command, root, DEV_COMMAND_TIMEOUT, MAX_DEV_WORKSPACE_BYTES)
 }
 
-fn run_development_command_with_timeout(
+fn run_development_command_with_limits(
     mut command: Command,
     root: &Path,
     timeout: Duration,
+    quota: u64,
 ) -> Result<Vec<u8>, RouterError> {
     command.stdout(Stdio::piped()).stderr(Stdio::null());
     let mut child = command
         .spawn()
         .map_err(|_| RouterError::operation("dev_command_unavailable"))?;
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| RouterError::operation("dev_command_unavailable"))?;
+    let output_reader = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let mut buffer = [0_u8; 8192];
+        let mut oversized = false;
+        loop {
+            let count = stdout.read(&mut buffer).map_err(|_| ())?;
+            if count == 0 {
+                return Ok::<_, ()>((bytes, oversized));
+            }
+            if bytes.len() < MAX_DEV_COMMAND_OUTPUT {
+                let retained = count.min(MAX_DEV_COMMAND_OUTPUT - bytes.len());
+                bytes.extend_from_slice(&buffer[..retained]);
+                oversized |= retained != count;
+            } else {
+                oversized = true;
+            }
+        }
+    });
     let deadline = Instant::now() + timeout;
     loop {
         if let Some(status) = child
             .try_wait()
             .map_err(|_| RouterError::operation("dev_command_failed"))?
         {
-            let mut bytes = Vec::new();
-            if let Some(mut stdout) = child.stdout.take() {
-                stdout
-                    .by_ref()
-                    .take(MAX_DEV_COMMAND_OUTPUT as u64 + 1)
-                    .read_to_end(&mut bytes)
-                    .map_err(|_| RouterError::operation("dev_command_failed"))?;
-            }
-            if bytes.len() > MAX_DEV_COMMAND_OUTPUT || !status.success() {
+            let (bytes, oversized) = output_reader
+                .join()
+                .map_err(|_| RouterError::operation("dev_command_failed"))?
+                .map_err(|_| RouterError::operation("dev_command_failed"))?;
+            if oversized || !status.success() {
                 return Err(RouterError::operation("dev_command_failed"));
             }
             return Ok(bytes);
+        }
+        if bounded_directory_size(root, quota)
+            .map(|size| size > quota)
+            .unwrap_or(true)
+        {
+            if let Some(pid) = Pid::from_raw(child.id() as i32) {
+                let _ = kill_process_group(pid, Signal::KILL);
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = output_reader.join();
+            let _ = fs::remove_dir_all(root);
+            return Err(RouterError::policy("dev_workspace_quota_exceeded"));
         }
         if Instant::now() >= deadline {
             if let Some(pid) = Pid::from_raw(child.id() as i32) {
@@ -853,6 +889,7 @@ fn run_development_command_with_timeout(
             }
             let _ = child.kill();
             let _ = child.wait();
+            let _ = output_reader.join();
             let _ = fs::remove_dir_all(root);
             return Err(RouterError::operation("dev_command_timeout"));
         }
@@ -2494,16 +2531,41 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", "printf bounded"]);
         assert_eq!(
-            run_development_command_with_timeout(command, &scratch.0, Duration::from_secs(1))
-                .unwrap(),
+            run_development_command_with_limits(
+                command,
+                &scratch.0,
+                Duration::from_secs(1),
+                MAX_DEV_WORKSPACE_BYTES,
+            )
+            .unwrap(),
             b"bounded"
         );
+        let timeout_scratch = Scratch::new("dev-timeout");
         let mut timeout = Command::new(DEV_SETSID);
         timeout.args(["--wait", "/bin/sh", "-c", "sleep 2"]);
-        let error =
-            run_development_command_with_timeout(timeout, &scratch.0, Duration::from_millis(10))
-                .unwrap_err();
+        let error = run_development_command_with_limits(
+            timeout,
+            &timeout_scratch.0,
+            Duration::from_millis(10),
+            MAX_DEV_WORKSPACE_BYTES,
+        )
+        .unwrap_err();
         assert_eq!(error.code, "dev_command_timeout");
+        assert!(!timeout_scratch.0.exists());
+        let noisy_scratch = Scratch::new("dev-noisy");
+        let mut noisy = Command::new(DEV_SETSID);
+        noisy.args(["--wait", "/bin/sh", "-c", "head -c 200000 /dev/zero"]);
+        assert_eq!(
+            run_development_command_with_limits(
+                noisy,
+                &noisy_scratch.0,
+                Duration::from_secs(1),
+                MAX_DEV_WORKSPACE_BYTES,
+            )
+            .unwrap_err()
+            .code,
+            "dev_command_failed"
+        );
     }
 
     #[test]
@@ -2518,6 +2580,23 @@ mod tests {
                 .code,
             "dev_workspace_unsafe"
         );
+        let mut producer = Command::new(DEV_SETSID);
+        producer.args([
+            "--wait",
+            "/bin/sh",
+            "-c",
+            &format!(
+                "head -c 4096 /dev/zero > {}/descendant",
+                scratch.0.display()
+            ),
+        ]);
+        assert_eq!(
+            run_development_command_with_limits(producer, &scratch.0, Duration::from_secs(2), 64,)
+                .unwrap_err()
+                .code,
+            "dev_workspace_quota_exceeded"
+        );
+        assert!(!scratch.0.exists());
     }
 
     #[cfg(unix)]
