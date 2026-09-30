@@ -34,6 +34,11 @@ When `--workload` is omitted on a terminal, the command presents the same
 catalog-derived runnable choices interactively; automation should always pass
 `--workload` explicitly.
 
+The local/mock qualification receipt at
+`docs/attestations/plan-create-local-mock-qualification.json` records the
+validated plan, two reportable completed runs, and an empty-difference
+comparison without provider contact.
+
 New plans use `schema_version = 2` and include a closed `measurement_selection`
 table generated from the exact content-addressed measurement catalog. The table
 contains `schema_version = 1`, `catalog_schema_version = 1`, the catalog and

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow": "plan-create-local-mock-v1",
+  "scope": "ASB CLI generated plan qualification",
+  "base_revision": "ecf1bda",
+  "workload_selection": "original.bug-fix",
+  "selection_authority": "canonical workload_catalog filtered by select_workload for the host platform",
+  "plan_schema_version": 2,
+  "measurement_selection": "explicit empty selection bound to the canonical measurement catalog",
+  "provider_contact": false,
+  "runs": [
+    {
+      "run_id": "qualification-a",
+      "mode": "local-mock",
+      "terminal_state": "completed",
+      "report": "ok"
+    },
+    {
+      "run_id": "qualification-b",
+      "mode": "local-mock",
+      "terminal_state": "completed",
+      "report": "ok"
+    }
+  ],
+  "comparison": {
+    "comparable": true,
+    "differences": []
+  },
+  "fail_closed_cases": [
+    "missing --workload in noninteractive mode",
+    "methodology-only or unavailable catalog entry",
+    "existing or unsafe output path"
+  ],
+  "commands": [
+    "asb plan create --workload original.bug-fix --agent-executable /usr/bin/true --output PLAN.toml",
+    "asb plan PLAN.toml",
+    "asb run PLAN.toml --local-mock",
+    "asb report RESULT_ROOT/runs/RUN_ID",
+    "asb compare RESULT_ROOT/runs/qualification-a RESULT_ROOT/runs/qualification-b"
+  ]
+}
