@@ -2294,8 +2294,17 @@ fn create_plan(
     experiment
         .refresh_content_address()
         .map_err(|_| CliError::validation("selected workload manifest is invalid"))?;
-    let measurement_selection =
-        process_measurement_selection(experiment.controls.replay.mode, 5_000_000)?;
+    // The local/mock backend does not claim optional metric samples. Keep the
+    // generated plan explicitly empty and catalog-bound so its terminal
+    // evidence remains reportable; live callers can choose measurements in a
+    // deliberate plan revision.
+    let measurement_selection = MeasurementSelectionV1::new(
+        &baseline_measurement_catalog(),
+        Vec::<String>::new(),
+        experiment.controls.replay.mode,
+        None,
+    )
+    .map_err(|_| CliError::validation("generated measurement selection is invalid"))?;
     let plan = PlanFile {
         schema_version: PLAN_SCHEMA_VERSION,
         run_id: run_id.unwrap_or_else(|| format!("asb-{}", selected.id)),
