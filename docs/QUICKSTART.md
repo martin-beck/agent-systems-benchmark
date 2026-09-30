@@ -42,8 +42,10 @@ asb report /absolute/result/root/runs/RUN_ID
 ```
 
 `plan` has no launch effect. `run` executes one capacity point. `sweep`
-executes the deterministic bounded capacity order. Results are JSON on stdout;
-progress is on stderr. A nonzero exit and structured error are authoritative.
+executes the deterministic bounded capacity order. Human-readable output is
+the default; pass the global `--json` flag (for example, `asb --json plan ...`)
+for the stable machine-readable envelope. Progress is on stderr. A nonzero
+exit and structured error are authoritative.
 Never treat absent measurements as zero or a failed/inconclusive point as pass.
 
 ## Complete benchmark workflow
