@@ -30,6 +30,9 @@ asb plan create --workload original.bug-fix \
 The selector derives from the canonical catalog and fails closed for
 methodology-only, unavailable, or unsupported-platform entries. Validate the
 generated TOML with `asb plan /absolute/path/experiment.toml` before launching.
+When `--workload` is omitted on a terminal, the command presents the same
+catalog-derived runnable choices interactively; automation should always pass
+`--workload` explicitly.
 
 New plans use `schema_version = 2` and include a closed `measurement_selection`
 table generated from the exact content-addressed measurement catalog. The table
