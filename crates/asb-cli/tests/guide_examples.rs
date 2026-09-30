@@ -41,6 +41,7 @@ impl Drop for Scratch {
 
 fn asb(arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_asb"))
+        .arg("--json")
         .args(arguments)
         .output()
         .unwrap()
