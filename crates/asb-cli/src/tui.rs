@@ -388,18 +388,28 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
                 "denied"
             };
             let mut response = RouterResponse::result(operation, false, error.code, network);
-            response.channel = options.channel.name();
-            response.development_only = options.channel == Channel::Dev;
+            annotate_channel(&mut response, operation, options.channel);
             write_json(output, &response)?;
             return Ok(error.exit_code);
         }
     };
     let mut response = response;
-    response.channel = options.channel.name();
-    response.development_only = options.channel == Channel::Dev;
+    annotate_channel(&mut response, operation, options.channel);
     let exit = if response.ok { 0 } else { 3 };
     write_json(output, &response)?;
     Ok(exit)
+}
+
+fn annotate_channel(response: &mut RouterResponse, operation: Operation, requested: Channel) {
+    if matches!(operation, Operation::Install | Operation::Upgrade) {
+        response.channel = requested.name();
+        response.development_only = requested == Channel::Dev;
+    } else {
+        // Status, doctor, remove, and launch describe an already-installed
+        // extension. They must not inherit the install selector's default.
+        response.channel = "stable";
+        response.development_only = false;
+    }
 }
 
 fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
@@ -2261,6 +2271,17 @@ mod tests {
         );
         assert!(parse(&["install".into(), "--offline".into(), "--offline".into()]).is_err());
         assert!(parse(&["render".into()]).is_err());
+    }
+
+    #[test]
+    fn non_install_operations_are_channel_neutral() {
+        let mut response = RouterResponse::result(Operation::Status, true, "ok", "denied");
+        annotate_channel(&mut response, Operation::Status, Channel::Dev);
+        assert_eq!(response.channel, "stable");
+        assert!(!response.development_only);
+        annotate_channel(&mut response, Operation::Launch, Channel::Experimental);
+        assert_eq!(response.channel, "stable");
+        assert!(!response.development_only);
     }
 
     #[test]
