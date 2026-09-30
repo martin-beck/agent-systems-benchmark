@@ -917,21 +917,7 @@ fn execute_development_existing(
             &active,
         )),
         Operation::Remove => {
-            let marker = paths.install_root.join("active-dev.json");
-            let backup = paths.install_root.join("active-dev.json.pending-remove");
-            fs::rename(&marker, &backup)
-                .map_err(|_| RouterError::operation("development_remove_failed"))?;
-            let version = paths
-                .install_root
-                .join("dev-versions")
-                .join(&active.executable_sha256);
-            if let Err(error) = fs::remove_dir_all(&version) {
-                let _ = fs::rename(&backup, &marker);
-                let _ = error;
-                return Err(RouterError::operation("development_remove_failed"));
-            }
-            fs::remove_file(&backup)
-                .map_err(|_| RouterError::operation("development_remove_failed"))?;
+            remove_development_installation(paths, &active, false)?;
             Ok(development_response(
                 operation,
                 "development_removed",
@@ -953,6 +939,47 @@ fn execute_development_existing(
         }
         _ => Err(RouterError::policy("development_operation_invalid")),
     }
+}
+
+fn remove_development_installation(
+    paths: &RouterPaths,
+    active: &DevelopmentInstallation,
+    fail_final_delete: bool,
+) -> Result<(), RouterError> {
+    let marker = paths.install_root.join("active-dev.json");
+    let version = paths
+        .install_root
+        .join("dev-versions")
+        .join(&active.executable_sha256);
+    let trash = paths.install_root.join(format!(
+        ".dev-remove-{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    prepare_private_directory(&trash)?;
+    let trash_marker = trash.join("active-dev.json");
+    let trash_version = trash.join("version");
+    if fs::rename(&marker, &trash_marker).is_err() {
+        let _ = fs::remove_dir_all(&trash);
+        return Err(RouterError::operation("development_remove_failed"));
+    }
+    if fs::rename(&version, &trash_version).is_err() {
+        let _ = fs::rename(&trash_marker, &marker);
+        let _ = fs::remove_dir_all(&trash);
+        return Err(RouterError::operation("development_remove_failed"));
+    }
+    let final_delete = if fail_final_delete {
+        Err(())
+    } else {
+        fs::remove_dir_all(&trash).map_err(|_| ())
+    };
+    if final_delete.is_ok() {
+        return Ok(());
+    }
+    let _ = fs::rename(&trash_version, &version);
+    let _ = fs::rename(&trash_marker, &marker);
+    let _ = fs::remove_dir_all(&trash);
+    Err(RouterError::operation("development_remove_failed"))
 }
 
 fn run_development_command(command: Command, root: &Path) -> Result<Vec<u8>, RouterError> {
@@ -2795,6 +2822,15 @@ mod tests {
         assert_eq!(status.code, "development_installed");
         assert!(status.development_only);
         assert_eq!(status.channel, "dev");
+        let active_before_remove = development_active(&paths).unwrap().unwrap().0;
+        assert_eq!(
+            remove_development_installation(&paths, &active_before_remove, true)
+                .unwrap_err()
+                .code,
+            "development_remove_failed"
+        );
+        assert!(paths.install_root.join("active-dev.json").exists());
+        assert!(version.exists());
         execute_development_existing(Operation::Remove, &paths).unwrap();
         assert!(!paths.install_root.join("active-dev.json").exists());
         assert!(!version.exists());
