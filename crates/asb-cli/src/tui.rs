@@ -2946,6 +2946,31 @@ mod tests {
         }));
     }
 
+    #[test]
+    fn development_launch_kills_descendants_holding_inherited_channel() {
+        let scratch = Scratch::new("broker-descendant");
+        let pid_file = scratch.0.join("descendant.pid");
+        let script = format!(
+            "sleep 60 & echo $! > {}; exit 0",
+            pid_file.to_string_lossy()
+        );
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", &script]);
+        let error = launch_development_broker(command, &scratch.0)
+            .expect_err("child without broker request must fail closed");
+        assert_eq!(error.code, "development_channel_rejected");
+        let pid: i32 = fs::read_to_string(pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline && Path::new(&format!("/proc/{pid}")).exists() {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&format!("/proc/{pid}")).exists());
+    }
+
     impl Drop for Scratch {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
