@@ -803,10 +803,7 @@ pub fn control_request_schema_v1_12() -> Schema {
 pub fn control_response_schema_v1_12() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
-    let mut value = serde_json::to_value(schema).expect("schema serializes");
-    remove_recording_repair_variants(&mut value);
-    prune_unused_definitions(&mut value);
-    serde_json::from_value(value).expect("v1.12 response schema remains valid")
+    schema
 }
 
 /// Canonical request schema for recording lifecycle repair operations.
