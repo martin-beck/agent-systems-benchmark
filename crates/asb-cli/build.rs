@@ -4,7 +4,7 @@
 
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn valid_identity(value: &str) -> bool {
@@ -18,7 +18,15 @@ fn identity(name: &str, revision: &str) -> Option<String> {
         }
         return Some(value);
     }
-    let output = Command::new("git").args(["rev-parse", revision]).output();
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source_root = manifest_dir.parent()?.parent()?;
+    if !source_root.join(".git").exists() {
+        return None;
+    }
+    let output = Command::new("git")
+        .current_dir(source_root)
+        .args(["rev-parse", revision])
+        .output();
     let output = output.ok()?;
     if !output.status.success() {
         return None;
