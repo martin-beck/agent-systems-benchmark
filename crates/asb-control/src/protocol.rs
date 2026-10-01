@@ -39,7 +39,7 @@ pub const CONTROL_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion { major: 
 /// Version of the additive benchmark catalog operation.
 pub const CONTROL_BENCHMARK_CATALOG_V1: ControlVersion = ControlVersion {
     major: 1,
-    minor: 12,
+    minor: 10,
 };
 /// Version of the additive recording-campaign lifecycle operations.
 pub const CONTROL_RECORDING_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 8 };
@@ -2598,6 +2598,36 @@ mod benchmark_catalog_tests {
         assert_eq!(
             result.validate_for_call_and_version(&call, ControlLimits::default(), CONTROL_V1,),
             Err(ProtocolError::InvalidResponse)
+        );
+    }
+
+    #[test]
+    fn benchmark_catalog_uses_tui_common_v1_10_and_rejects_older_downgrade() {
+        assert_eq!(CONTROL_BENCHMARK_CATALOG_V1, CONTROL_AUTH_HELPER_V1);
+        assert!(SUPPORTED_CONTROL_VERSIONS.contains(&CONTROL_BENCHMARK_CATALOG_V1));
+        let call = ControlCall::BenchmarkCatalog;
+        let response = BoundControlResult::new(
+            &call,
+            ControlResult::BenchmarkCatalog(BenchmarkCatalogPublication::built_in()),
+        )
+        .unwrap();
+        assert!(
+            response
+                .validate_for_call_and_version(
+                    &call,
+                    ControlLimits::default(),
+                    CONTROL_AUTH_HELPER_V1
+                )
+                .is_ok()
+        );
+        assert!(
+            response
+                .validate_for_call_and_version(
+                    &call,
+                    ControlLimits::default(),
+                    CONTROL_PROVIDER_CATALOG_V1
+                )
+                .is_err()
         );
     }
 }
