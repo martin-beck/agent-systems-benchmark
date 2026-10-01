@@ -8770,6 +8770,8 @@ mod tests {
         .unwrap();
         FAIL_RECORDING_INSTALL_AT.store(1, Ordering::Relaxed);
         let mut failure_output = Vec::new();
+        let original_first = fs::read(&cassette_path).unwrap();
+        let original_second = fs::read(&literature_cassette_path).unwrap();
         assert_eq!(
             run(
                 &[
@@ -8786,6 +8788,47 @@ mod tests {
         FAIL_RECORDING_INSTALL_AT.store(u64::MAX, Ordering::Relaxed);
         assert!(!failed_first_path.exists());
         assert!(!failed_second_path.exists());
+
+        let mut restored_output = Vec::new();
+        FAIL_RECORDING_INSTALL_AT.store(1, Ordering::Relaxed);
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "record-campaign".into(),
+                    manifest_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut restored_output,
+                &mut diagnostics,
+            ),
+            4
+        );
+        FAIL_RECORDING_INSTALL_AT.store(u64::MAX, Ordering::Relaxed);
+        assert_eq!(fs::read(&cassette_path).unwrap(), original_first);
+        assert_eq!(
+            fs::read(&literature_cassette_path).unwrap(),
+            original_second
+        );
+
+        let mut replacement_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "record-campaign".into(),
+                    manifest_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut replacement_output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&replacement_output).unwrap()["offline_ready"],
+            true
+        );
 
         let mut direct_without_opt_in = Vec::new();
         assert_eq!(
