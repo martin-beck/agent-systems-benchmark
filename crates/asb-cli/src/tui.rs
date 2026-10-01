@@ -295,7 +295,7 @@ struct ActiveInstallation {
     classification: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct DevelopmentInstallation {
     schema_version: u64,
@@ -1026,6 +1026,10 @@ fn publish_development_version(
     prepare_private_directory(&version)?;
     let publication = (|| {
         atomic_private(&version.join("asb-tui"), bytes, 0o700)?;
+        // Keep the exact provenance envelope beside the content-addressed
+        // executable.  The active pointer is only a selector; status and
+        // launch re-read this immutable per-version manifest before use.
+        atomic_private(&version.join("manifest.json"), metadata, 0o600)?;
         atomic_private(&install_root.join("active-dev.json"), metadata, 0o600)
     })();
     if let Err(error) = publication {
@@ -1092,6 +1096,18 @@ fn development_active(
         .join(&active.executable_sha256)
         .join("asb-tui");
     read_bounded_digest(&executable, MAX_ARTIFACT_BYTES, &active.executable_sha256)?;
+    let manifest = paths
+        .install_root
+        .join("dev-versions")
+        .join(&active.executable_sha256)
+        .join("manifest.json");
+    let manifest_bytes = read_bounded(&manifest, 64 * 1024)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    let recorded: DevelopmentInstallation = serde_json::from_slice(&manifest_bytes)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    if recorded != active {
+        return Err(RouterError::policy("development_installation_invalid"));
+    }
     Ok(Some((active, executable)))
 }
 
@@ -4568,6 +4584,12 @@ mod tests {
             0o600,
         )
         .unwrap();
+        atomic_private(
+            &version.join("manifest.json"),
+            &serde_json::to_vec(&metadata).unwrap(),
+            0o600,
+        )
+        .unwrap();
         let status = execute_development_existing(Operation::Status, &paths).unwrap();
         assert_eq!(status.code, "development_installed");
         assert!(status.development_only);
@@ -4627,6 +4649,12 @@ mod tests {
         };
         let mut tampered = serde_json::to_value(&metadata).unwrap();
         tampered["asb_source_commit"] = serde_json::Value::String("0".repeat(40));
+        atomic_private(
+            &version.join("manifest.json"),
+            &serde_json::to_vec(&metadata).unwrap(),
+            0o600,
+        )
+        .unwrap();
         atomic_private(
             &paths.install_root.join("active-dev.json"),
             &serde_json::to_vec(&tampered).unwrap(),

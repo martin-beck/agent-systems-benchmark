@@ -45,6 +45,17 @@ Hosted qualification is a prerequisite for changing the public channel classific
 
 The channel remains fail-closed until every required artifact and evidence identity is immutable.
 
+The default `dev` channel is a credential-free development qualification path. On a
+clean machine it resolves the standalone TUI repository's current `main` head,
+clones and checks out that exact commit in a private staging root, and records the
+ASB/TUI source commits, source tree, and executable SHA-256 in an immutable
+per-version `manifest.json`. The active pointer is accepted only when that
+manifest and executable still agree; a missing or substituted manifest returns a
+typed `development_installation_invalid` diagnostic. The development response is
+explicitly `development_only` and warns that authentication, signatures, and key
+management are unavailable; those warnings do not weaken the stable channel's
+fail-closed publication rules.
+
 CI evidence is retained by exact commit identity, never by a mutable branch name.
 
 Promotion records are auditable independently of transient CI runner availability.
