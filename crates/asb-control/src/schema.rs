@@ -729,12 +729,12 @@ pub fn control_response_schema_v1_11() -> Schema {
 }
 
 /// Canonical request schema for the benchmark-catalog extension.
-pub fn control_request_schema_v1_12() -> Schema {
+pub fn control_request_schema_v1_10() -> Schema {
     canonical::<ControlRequest>()
 }
 
 /// Canonical response schema for the benchmark-catalog extension.
-pub fn control_response_schema_v1_12() -> Schema {
+pub fn control_response_schema_v1_10() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema
