@@ -3625,6 +3625,44 @@ mod tests {
         }));
     }
 
+    #[test]
+    fn development_launch_rejects_spawn_failure_and_cleans_up() {
+        let scratch = Scratch::new("broker-spawn-failure");
+        let error = launch_development_broker(
+            Command::new("/definitely/missing/asb-development-frontend"),
+            &scratch.0,
+        )
+        .expect_err("a missing frontend must fail before any handoff");
+        assert_eq!(error.code, "development_launch_failed");
+        let entries = fs::read_dir(&scratch.0)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(entries.iter().all(|entry| {
+            !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".dev-broker-")
+        }));
+    }
+
+    #[test]
+    fn qualified_cassette_fixture_reopens_with_catalog_and_offline_campaign() {
+        let scratch = Scratch::new("qualified-cassette-fixture");
+        let (backend, campaign_id) =
+            crate::control::open_qualified_cassette_backend(scratch.0.clone())
+                .expect("qualified cassette fixture");
+        let request =
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+            });
+        let result = backend
+            .execute(&request, RequestDeadline::start(5_000).unwrap())
+            .expect("reopened campaign status");
+        assert!(!campaign_id.is_empty());
+        let _ = result;
+    }
+
     #[cfg(all(unix, feature = "cross-repo-qualification"))]
     #[ignore = "requires the explicitly pinned asb-tui qualification workflow"]
     #[test]
