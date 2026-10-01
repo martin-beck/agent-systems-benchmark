@@ -492,6 +492,16 @@ pub struct BrokerGeneration {
 }
 
 impl BrokerGeneration {
+    /// Construct continuity evidence for an already validated producer.
+    ///
+    /// This is crate-visible so adjacent control seams can validate inherited
+    /// descriptors without exposing mutable broker state. Callers must still
+    /// reject the zero epoch or sequence before adopting a stream.
+    #[cfg(test)]
+    pub(crate) const fn from_parts(epoch: [u8; 16], sequence: u64) -> Self {
+        Self { epoch, sequence }
+    }
+
     /// Fresh nonzero broker epoch.
     #[must_use]
     pub const fn epoch(self) -> [u8; 16] {

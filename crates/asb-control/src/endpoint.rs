@@ -240,6 +240,37 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         self.serve_stream(&mut stream)
     }
 
+    /// Serve one already-adopted development broker stream.
+    ///
+    /// The router uses this bounded seam after it has transferred a stream
+    /// carrying a validated broker generation.  It deliberately reuses the
+    /// ordinary negotiation and request loop: the negotiated protocol minor
+    /// and runner identity are still checked by the control endpoint, and no
+    /// stable authentication or signature gate is bypassed.  The generation
+    /// is continuity evidence for the caller and is checked here before any
+    /// bytes are accepted.
+    pub fn serve_adopted_stream(
+        &self,
+        mut stream: UnixStream,
+        generation: crate::BrokerGeneration,
+        expected_runner_identity: [u8; 32],
+    ) -> Result<(), EndpointError> {
+        if generation.epoch() == [0; 16]
+            || generation.sequence() == 0
+            || expected_runner_identity == [0; 32]
+        {
+            return Err(EndpointError::InvalidAdoptedGeneration);
+        }
+        let actual_runner_identity =
+            crate::runner_identity_digest(self.backend.runner_instance_id())
+                .map_err(|_| EndpointError::InvalidAdoptedGeneration)?;
+        if actual_runner_identity != expected_runner_identity {
+            return Err(EndpointError::AdoptedIdentityMismatch);
+        }
+        let _permit = self.admission.acquire();
+        Self::serve_stream_with(&self.backend, self.limits, &mut stream)
+    }
+
     /// Serve frontend connections until the process is stopped.
     ///
     /// Each connection is request-serial; a separate fixed worker ceiling lets
@@ -661,6 +692,12 @@ pub enum EndpointError {
     /// Client exhausted its non-repeating request ID space.
     #[error("control request identity exhausted")]
     RequestIdExhausted,
+    /// The broker generation supplied by an adopted development stream was invalid.
+    #[error("adopted control generation is invalid")]
+    InvalidAdoptedGeneration,
+    /// The adopted stream was bound to a different runner identity.
+    #[error("adopted control identity mismatch")]
+    AdoptedIdentityMismatch,
 }
 
 #[cfg(test)]
@@ -671,6 +708,174 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static SOCKET_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    struct AdoptedBackend;
+
+    impl ControlBackend for AdoptedBackend {
+        fn runner_instance_id(&self) -> &str {
+            "runner-adopted-test"
+        }
+
+        fn oldest_revision(&self) -> Revision {
+            Revision(0)
+        }
+
+        fn latest_revision(&self) -> Revision {
+            Revision(0)
+        }
+
+        fn execute(
+            &self,
+            _call: &ControlCall,
+            _deadline: RequestDeadline,
+        ) -> Result<BoundControlResult, BackendFailure> {
+            Err(BackendFailure::Rejected)
+        }
+    }
+
+    fn adopted_generation() -> crate::BrokerGeneration {
+        let (router, frontend) = crate::BrokerConnection::pair().expect("broker pair");
+        let request = crate::BrokerPacket {
+            operation: crate::BrokerOperation::Initial,
+            status: crate::HandoffStatus::Request,
+            epoch: [0; 16],
+            sequence: 0,
+            expected_runner_identity: [0; 32],
+        };
+        rustix::net::send(
+            &frontend,
+            &request.encode(),
+            rustix::net::SendFlags::NOSIGNAL,
+        )
+        .expect("request");
+        let request = router.receive_request().expect("receive request");
+        let mut state = crate::BrokerState::fresh().expect("generation");
+        state
+            .begin_request(request, std::time::Duration::ZERO)
+            .expect("pending")
+            .generation()
+    }
+
+    fn adopted_socket_path(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!(
+            "asb-control-adopted-root-{}-{}",
+            std::process::id(),
+            SOCKET_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).expect("private root");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .expect("private permissions");
+        (root.clone(), root.join(format!("{label}.sock")))
+    }
+
+    #[test]
+    fn adopted_stream_reuses_negotiation_and_binds_identity() {
+        let (root, path) = adopted_socket_path("valid");
+        let _ = std::fs::remove_file(&path);
+        let server =
+            ControlServer::bind(&path, ControlLimits::default(), AdoptedBackend).expect("server");
+        let (client_stream, server_stream) = UnixStream::pair().expect("stream pair");
+        let generation = adopted_generation();
+        let expected = crate::runner_identity_digest("runner-adopted-test").expect("identity");
+        let worker = std::thread::spawn(move || {
+            server.serve_adopted_stream(server_stream, generation, expected)
+        });
+        let client = ControlClient::from_stream(
+            client_stream,
+            ControlLimits::default(),
+            rustix::process::geteuid().as_raw(),
+        )
+        .expect("negotiation");
+        assert_eq!(
+            client.negotiated().runner_instance_id,
+            "runner-adopted-test"
+        );
+        drop(client);
+        worker.join().expect("worker join").expect("serve");
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
+
+    #[test]
+    fn adopted_stream_rejects_mismatched_identity_before_io() {
+        let (root, path) = adopted_socket_path("mismatch");
+        let _ = std::fs::remove_file(&path);
+        let server =
+            ControlServer::bind(&path, ControlLimits::default(), AdoptedBackend).expect("server");
+        let (_client_stream, server_stream) = UnixStream::pair().expect("stream pair");
+        let error = server
+            .serve_adopted_stream(server_stream, adopted_generation(), [7; 32])
+            .expect_err("mismatch must fail closed");
+        assert!(matches!(error, EndpointError::AdoptedIdentityMismatch));
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
+
+    #[test]
+    fn adopted_stream_rejects_zero_generation_and_identity() {
+        let (root, path) = adopted_socket_path("invalid");
+        let _ = std::fs::remove_file(&path);
+        let server =
+            ControlServer::bind(&path, ControlLimits::default(), AdoptedBackend).expect("server");
+        let (_client_stream, server_stream) = UnixStream::pair().expect("stream pair");
+        let zero = crate::BrokerGeneration::from_parts([0; 16], 0);
+        let error = server
+            .serve_adopted_stream(server_stream, zero, [0; 32])
+            .expect_err("zero evidence must fail closed");
+        assert!(matches!(error, EndpointError::InvalidAdoptedGeneration));
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
+
+    #[test]
+    fn adopted_stream_returns_bounded_error_for_malformed_input() {
+        let (root, path) = adopted_socket_path("malformed");
+        let _ = std::fs::remove_file(&path);
+        let limits = ControlLimits {
+            max_timeout_ms: 50,
+            ..ControlLimits::default()
+        };
+        let server = ControlServer::bind(&path, limits, AdoptedBackend).expect("server");
+        let (mut client_stream, server_stream) = UnixStream::pair().expect("stream pair");
+        let generation = adopted_generation();
+        let expected = crate::runner_identity_digest("runner-adopted-test").expect("identity");
+        let worker = std::thread::spawn(move || {
+            server.serve_adopted_stream(server_stream, generation, expected)
+        });
+        std::io::Write::write_all(&mut client_stream, b"not-json").expect("malformed frame");
+        let error = worker
+            .join()
+            .expect("worker join")
+            .expect_err("malformed input");
+        assert!(matches!(
+            error,
+            EndpointError::Frame(_) | EndpointError::Json(_)
+        ));
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
+
+    #[test]
+    fn adopted_stream_times_out_without_a_negotiation_frame() {
+        let (root, path) = adopted_socket_path("timeout");
+        let _ = std::fs::remove_file(&path);
+        let limits = ControlLimits {
+            max_timeout_ms: 25,
+            ..ControlLimits::default()
+        };
+        let server = ControlServer::bind(&path, limits, AdoptedBackend).expect("server");
+        let (_client_stream, server_stream) = UnixStream::pair().expect("stream pair");
+        let generation = adopted_generation();
+        let expected = crate::runner_identity_digest("runner-adopted-test").expect("identity");
+        let worker = std::thread::spawn(move || {
+            server.serve_adopted_stream(server_stream, generation, expected)
+        });
+        let error = worker.join().expect("worker join").expect_err("timeout");
+        assert!(matches!(error, EndpointError::Frame(_)));
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
 
     #[test]
     fn shared_admission_has_one_exact_sixteen_session_ceiling() {

@@ -41,6 +41,14 @@ must cooperatively stop before a commit at expiry or durably mark the effect
 connection worker until it returns, but is never detached and cannot mutate
 after a response.
 
+Development launchers that inherit an adopted broker stream may call
+`ControlServer::serve_adopted_stream` after the handoff layer has validated the
+nonzero generation and runner identity. The method reuses the exact ordinary
+negotiation/request loop and returns its typed result; it rejects zero or
+mismatched evidence before reading the stream. This is an additive,
+development-bounded seam for the subsequent ASB launch wiring (AR-1574), not
+an authentication or signature bypass for stable operation.
+
 Ordinary successful responses are a closed typed allowlist with validated
 identities, digests, pagination, and method/result association. Fixed error
 messages are bounded. Responses contain public summaries and content digests,
