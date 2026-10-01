@@ -51,6 +51,6 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Run exact inherited-fd qualification
         run: |
-          cargo test --locked -p asb-cli --lib -- \
+          cargo test --locked -p asb-cli --lib --features cross-repo-qualification -- \
             --exact tui::tests::pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up \
             --nocapture --test-threads=1

@@ -2888,14 +2888,18 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "cross-repo-qualification")]
     use crate::control::DevelopmentBackend;
     use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
+    #[cfg(feature = "cross-repo-qualification")]
     use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
+    #[cfg(feature = "cross-repo-qualification")]
     use rustix::termios::{Winsize, tcsetwinsize};
     use std::collections::VecDeque;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
+    #[cfg(feature = "cross-repo-qualification")]
     use std::sync::{Arc, Mutex};
 
     static NONCE: AtomicU64 = AtomicU64::new(0);
@@ -2921,11 +2925,13 @@ mod tests {
 
     struct Scratch(PathBuf);
 
+    #[cfg(feature = "cross-repo-qualification")]
     struct RecordingBackend {
         inner: DevelopmentBackend,
         calls: Arc<Mutex<Vec<ControlCall>>>,
     }
 
+    #[cfg(feature = "cross-repo-qualification")]
     impl ControlBackend for RecordingBackend {
         fn runner_instance_id(&self) -> &str {
             self.inner.runner_instance_id()
@@ -3183,7 +3189,7 @@ mod tests {
         }));
     }
 
-    #[cfg(unix)]
+    #[cfg(all(unix, feature = "cross-repo-qualification"))]
     #[ignore = "requires the explicitly pinned asb-tui qualification workflow"]
     #[test]
     fn pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up() {

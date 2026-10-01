@@ -7,6 +7,11 @@ license.workspace = true
 repository.workspace = true
 build = "build.rs"
 
+[features]
+# The exact-binary cross-repository qualification is intentionally opt-in;
+# ordinary workspace coverage must not compile an external-process fixture.
+cross-repo-qualification = []
+
 [dependencies]
 asb-agents = { version = "=0.1.0", path = "../asb-agents" }
 asb-bundle = { version = "=0.1.0", path = "../asb-bundle" }
