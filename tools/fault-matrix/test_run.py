@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import run
 
@@ -30,12 +31,73 @@ class FaultMatrixTests(unittest.TestCase):
     def test_runner_reports_expected_success(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "case"
-            result = run.run_case(Path("/bin/true"), {
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+                result = run.run_case(Path("/bin/true"), {
                 "name": "doctor", "kind": "recovery", "argv": [], "timeout": 1.0,
                 "expected_exit": 0, "cleanup": [], "development_warning_only": False,
-            }, root)
+                }, root)
             self.assertEqual(result["classification"], "passed")
             self.assertTrue(result["cleanup_ok"])
+            self.assertFalse(root.exists())
+
+    def test_network_isolation_failure_is_typed_and_cleans_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "case"
+            with mock.patch.object(run, "isolated_command", side_effect=RuntimeError("secret host detail")):
+                result = run.run_case(Path("/bin/true"), {
+                    "name": "network", "kind": "setup", "argv": [], "timeout": 1.0,
+                    "expected_exit": 0, "cleanup": [], "development_warning_only": False,
+                }, root)
+            self.assertEqual(result["classification"], "runner_unavailable")
+            self.assertTrue(result["cleanup_ok"])
+            self.assertNotIn("secret", json.dumps(result))
+            self.assertFalse(root.exists())
+
+    def test_streaming_output_is_capped_and_process_group_is_reaped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "case"
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+                result = run.run_case(Path("/bin/sh"), {
+                    "name": "noisy", "kind": "record",
+                    "argv": ["-c", "yes x | head -c 1000000"], "timeout": 2.0,
+                    "expected_exit": 0, "cleanup": [], "development_warning_only": False,
+                }, root)
+            self.assertEqual(result["classification"], "output_exceeded")
+            self.assertLessEqual(len(result["output"].encode()), run.MAX_OUTPUT)
+            self.assertTrue(result["cleanup_ok"])
+            self.assertFalse(root.exists())
+
+    def test_timeout_kills_process_group_and_removes_private_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "case"
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+                result = run.run_case(Path("/bin/sh"), {
+                    "name": "hang", "kind": "recovery", "argv": ["-c", "sleep 30"],
+                    "timeout": 0.1, "expected_exit": 0, "cleanup": [],
+                    "development_warning_only": False,
+                }, root)
+            self.assertEqual(result["classification"], "timeout")
+            self.assertTrue(result["cleanup_ok"])
+            self.assertFalse(root.exists())
+
+    def test_warning_requires_typed_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "case"
+            case = {"name": "warn", "kind": "setup", "argv": ["-c", "printf '{\"status\":\"warning\",\"code\":\"auth_unavailable\"}'"],
+                    "timeout": 1.0, "expected_exit": 0, "cleanup": [],
+                    "development_warning_only": True, "warning_code": "auth_unavailable"}
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+                result = run.run_case(Path("/bin/sh"), case, root)
+            self.assertEqual(result["classification"], "warning")
+
+    def test_manifest_rejects_network_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "matrix.json"
+            path.write_text(json.dumps({"schema_version": 1, "cases": [{
+                "name": "bad", "kind": "setup", "argv": ["x"], "network": "host"
+            }]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "network=none"):
+                run.load_manifest(path)
 
 
 if __name__ == "__main__":
