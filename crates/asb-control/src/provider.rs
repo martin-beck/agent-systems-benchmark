@@ -1145,4 +1145,74 @@ mod tests {
         catalog.entries.clear();
         assert!(catalog.validate().is_err());
     }
+
+    #[test]
+    fn cassette_requests_reject_zero_generation_and_bad_identity_fields() {
+        let digest = "c".repeat(64);
+        let mut catalog = RecordingCassetteCatalogRequest {
+            runner_instance_id: "runner-1".into(),
+            campaign_id: "campaign-1".into(),
+            expected_generation: Revision(0),
+        };
+        assert!(catalog.validate().is_err());
+        catalog.expected_generation = Revision(1);
+        catalog.runner_instance_id = "unsafe value".into();
+        assert!(catalog.validate().is_err());
+
+        let mut replay = RecordingReplayDispatchParams {
+            idempotency_key: "replay-1".into(),
+            runner_instance_id: "runner-1".into(),
+            expected_generation: Revision(0),
+            campaign_id: "campaign-1".into(),
+            provider_profile_sha256: digest.clone(),
+            agent_id: "agent-1".into(),
+            workload_id: "workload-1".into(),
+            cassette_sha256: digest,
+        };
+        assert!(replay.validate().is_err());
+        replay.expected_generation = Revision(1);
+        replay.provider_profile_sha256 = "bad".into();
+        assert!(replay.validate().is_err());
+        replay.provider_profile_sha256 = "c".repeat(64);
+        replay.agent_id = "unsafe value".into();
+        assert!(replay.validate().is_err());
+    }
+
+    #[test]
+    fn cassette_result_validation_rejects_identity_digest_and_size_drift() {
+        let digest = "d".repeat(64);
+        let mut result = RecordingReplayDispatch {
+            runner_instance_id: "runner-1".into(),
+            generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            provider_profile_sha256: digest.clone(),
+            agent_id: "agent-1".into(),
+            workload_id: "workload-1".into(),
+            cassette_sha256: digest,
+            offline_only: true,
+        };
+        result.runner_instance_id = "unsafe value".into();
+        assert!(result.validate().is_err());
+        result.runner_instance_id = "runner-1".into();
+        result.offline_only = false;
+        assert!(result.validate().is_err());
+
+        let mut catalog = RecordingCassetteCatalog {
+            runner_instance_id: "runner-1".into(),
+            generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            entries: Vec::new(),
+        };
+        assert!(catalog.validate().is_err());
+        catalog.generation = Revision(0);
+        catalog.entries.push(RecordingCassetteEntry {
+            cassette_id: "cassette-1".into(),
+            cassette_sha256: "e".repeat(64),
+            provider_profile_sha256: "e".repeat(64),
+            agent_id: "agent-1".into(),
+            workload_id: "workload-1".into(),
+            scorer_revision: "rev-1".into(),
+        });
+        assert!(catalog.validate().is_err());
+    }
 }

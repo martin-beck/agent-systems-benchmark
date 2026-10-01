@@ -2749,5 +2749,45 @@ mod benchmark_catalog_tests {
         assert!(SUPPORTED_CONTROL_VERSIONS.contains(&CONTROL_CASSETTE_CONTROL_V1));
         assert!(SUPPORTED_CONTROL_VERSIONS_LEGACY.contains(&CONTROL_RUNTIME_BOOTSTRAP_V1));
         assert!(!SUPPORTED_CONTROL_VERSIONS_LEGACY.contains(&CONTROL_CASSETTE_CONTROL_V1));
+
+        let catalog_call =
+            ControlCall::RecordingCassetteCatalog(crate::RecordingCassetteCatalogRequest {
+                runner_instance_id: "runner-1".into(),
+                campaign_id: "campaign-1".into(),
+                expected_generation: Revision(1),
+            });
+        let catalog = BoundControlResult::new(
+            &catalog_call,
+            ControlResult::RecordingCassetteCatalog(crate::RecordingCassetteCatalog {
+                runner_instance_id: "runner-1".into(),
+                generation: Revision(1),
+                campaign_id: "campaign-1".into(),
+                entries: vec![crate::RecordingCassetteEntry {
+                    cassette_id: "cassette-1".into(),
+                    cassette_sha256: "b".repeat(64),
+                    provider_profile_sha256: "c".repeat(64),
+                    agent_id: "agent-1".into(),
+                    workload_id: "workload-1".into(),
+                    scorer_revision: "rev-1".into(),
+                }],
+            }),
+        )
+        .unwrap();
+        assert!(
+            catalog
+                .validate_for_call(&catalog_call, ControlLimits::default())
+                .is_ok()
+        );
+        let mismatch =
+            ControlCall::RecordingCassetteCatalog(crate::RecordingCassetteCatalogRequest {
+                runner_instance_id: "runner-1".into(),
+                campaign_id: "other-campaign".into(),
+                expected_generation: Revision(1),
+            });
+        assert!(
+            catalog
+                .validate_for_call(&mismatch, ControlLimits::default())
+                .is_err()
+        );
     }
 }
