@@ -423,6 +423,7 @@ fn prune_unused_definitions(value: &mut Value) {
 pub fn control_request_schema() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "measurement_catalog");
+    remove_tagged_variant(&mut value, "/oneOf", "benchmark_catalog");
     remove_tagged_variant(&mut value, "/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
     remove_auth_variants(&mut value);
@@ -455,6 +456,11 @@ pub fn control_response_schema() -> Schema {
         &mut value,
         "/$defs/ControlResult/oneOf",
         "measurement_catalog",
+    );
+    remove_tagged_variant(
+        &mut value,
+        "/$defs/ControlResult/oneOf",
+        "benchmark_catalog",
     );
     remove_tagged_variant(&mut value, "/$defs/ControlResult/oneOf", "agent_catalog");
     remove_lifecycle_variants(&mut value);
@@ -654,6 +660,18 @@ pub fn control_response_schema_v1_11() -> Schema {
     let mut value = serde_json::to_value(schema).expect("v1.11 response schema serializes");
     remove_broker_generation(&mut value);
     schema = serde_json::from_value(value).expect("v1.11 response schema remains valid");
+    schema
+}
+
+/// Canonical request schema for the benchmark-catalog extension.
+pub fn control_request_schema_v1_12() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for the benchmark-catalog extension.
+pub fn control_response_schema_v1_12() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
     schema
 }
 

@@ -36,6 +36,11 @@ pub const CONTROL_AGENT_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1
 pub const CONTROL_AUTH_V1: ControlVersion = ControlVersion { major: 1, minor: 6 };
 /// Version of the additive provider/model catalog operation.
 pub const CONTROL_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion { major: 1, minor: 7 };
+/// Version of the additive benchmark catalog operation.
+pub const CONTROL_BENCHMARK_CATALOG_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 12,
+};
 /// Version of the additive recording-campaign lifecycle operations.
 pub const CONTROL_RECORDING_LIFECYCLE_V1: ControlVersion = ControlVersion { major: 1, minor: 8 };
 /// Version of runner-owned credential-helper invocation.
@@ -57,7 +62,7 @@ pub const CONTROL_RUNTIME_BOOTSTRAP_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 10] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 11] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -68,6 +73,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 10] = [
     CONTROL_RECORDING_LIFECYCLE_V1,
     CONTROL_AUTH_HELPER_V1,
     CONTROL_RUNTIME_BOOTSTRAP_V1,
+    CONTROL_BENCHMARK_CATALOG_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -285,6 +291,8 @@ pub enum ControlCall {
     RecordingCampaignOfflineDefault(crate::RecordingCampaignOfflineDefaultParams),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
+    /// Obtain the immutable catalog of selectable benchmark workloads.
+    BenchmarkCatalog,
     /// Validate settings without creating durable run state.
     ValidateSettings {
         /// Candidate settings document.
@@ -399,6 +407,7 @@ impl ControlCall {
     pub const fn minimum_version(&self) -> ControlVersion {
         match self {
             Self::MeasurementCatalog => CONTROL_MEASUREMENT_CATALOG_V1,
+            Self::BenchmarkCatalog => CONTROL_BENCHMARK_CATALOG_V1,
             Self::AgentCatalog(_) => CONTROL_AGENT_CATALOG_V1,
             Self::AgentInstall(_)
             | Self::AgentStatus(_)
@@ -1254,6 +1263,120 @@ impl MeasurementCatalogPublication {
     }
 }
 
+/// Immutable benchmark/workload catalog shared with the TUI selection layer.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BenchmarkCatalogPublication {
+    /// Monotonic catalog generation.
+    pub generation: Revision,
+    /// Digest of the canonical generation and entries.
+    pub catalog_sha256: String,
+    /// Bounded benchmark pools.
+    pub pools: Vec<BenchmarkCatalogPool>,
+}
+
+/// Grouped benchmark pool.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BenchmarkCatalogPool {
+    /// Stable pool identity.
+    pub id: String,
+    /// Non-empty benchmark groups.
+    pub groups: Vec<BenchmarkCatalogGroup>,
+}
+
+/// Group of selectable benchmarks.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BenchmarkCatalogGroup {
+    /// Stable group identity.
+    pub id: String,
+    /// Benchmarks in this group.
+    pub benchmarks: Vec<BenchmarkCatalogEntry>,
+}
+
+/// One benchmark and its required measurement IDs.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BenchmarkCatalogEntry {
+    /// Stable benchmark identity.
+    pub id: String,
+    /// Measurements collected by the benchmark.
+    pub measure_ids: Vec<String>,
+}
+
+impl BenchmarkCatalogPublication {
+    /// Return the bounded built-in development catalog.
+    pub fn built_in() -> Self {
+        let mut value = Self {
+            generation: Revision(1),
+            catalog_sha256: String::new(),
+            pools: vec![BenchmarkCatalogPool {
+                id: "builtin".into(),
+                groups: vec![BenchmarkCatalogGroup {
+                    id: "default".into(),
+                    benchmarks: vec![BenchmarkCatalogEntry {
+                        id: "builtin.smoke".into(),
+                        measure_ids: vec!["wall_time".into()],
+                    }],
+                }],
+            }],
+        };
+        value.catalog_sha256 = value.computed_digest().unwrap_or_default();
+        value
+    }
+
+    fn computed_digest(&self) -> Result<String, ProtocolError> {
+        let bytes = serde_json::to_vec(&(self.generation, &self.pools))
+            .map_err(|_| ProtocolError::InvalidResponse)?;
+        let mut hasher = Sha256::new();
+        hasher.update(b"asb-benchmark-catalog-v1\0");
+        hasher.update(bytes);
+        Ok(format!("{:x}", hasher.finalize()))
+    }
+
+    /// Validate identity, uniqueness, digest, and collection bounds.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        if self.generation.0 == 0
+            || self.pools.is_empty()
+            || self.pools.len() > 16
+            || self.catalog_sha256 != self.computed_digest()?
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        let mut pools = BTreeSet::new();
+        for pool in &self.pools {
+            if pool.id.is_empty() || !pools.insert(&pool.id) || pool.groups.is_empty() {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            let mut groups = BTreeSet::new();
+            for group in &pool.groups {
+                if group.id.is_empty() || !groups.insert(&group.id) || group.benchmarks.is_empty() {
+                    return Err(ProtocolError::InvalidResponse);
+                }
+                let mut benchmarks = BTreeSet::new();
+                for benchmark in &group.benchmarks {
+                    if benchmark.id.is_empty()
+                        || !benchmarks.insert(&benchmark.id)
+                        || benchmark.measure_ids.is_empty()
+                    {
+                        return Err(ProtocolError::InvalidResponse);
+                    }
+                    let mut measures = BTreeSet::new();
+                    if benchmark
+                        .measure_ids
+                        .iter()
+                        .any(|id| id.is_empty() || !measures.insert(id))
+                    {
+                        return Err(ProtocolError::InvalidResponse);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Stable, non-sensitive settings diagnostic.
 #[derive(
     Clone, Copy, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize,
@@ -1475,6 +1598,8 @@ pub enum ControlResult {
     AgentCatalog(crate::AgentCatalog),
     /// Immutable selectable-measurement catalog.
     MeasurementCatalog(MeasurementCatalogPublication),
+    /// Immutable selectable benchmark catalog.
+    BenchmarkCatalog(BenchmarkCatalogPublication),
     /// Settings validation outcome.
     SettingsValidation(SettingsValidation),
     /// Created or repeated immutable plan.
@@ -1629,6 +1754,7 @@ impl ControlResult {
             Self::RecordingCampaignLifecycle(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
+            Self::BenchmarkCatalog(value) => value.validate(),
             Self::Acknowledged(value) => {
                 if value.accepted {
                     Ok(())
@@ -1786,6 +1912,7 @@ impl ControlResult {
                 | (ControlCall::AgentRetry(_), Self::AgentLifecycle(_))
                 | (ControlCall::AgentRemove(_), Self::AgentLifecycle(_))
                 | (ControlCall::MeasurementCatalog, Self::MeasurementCatalog(_))
+                | (ControlCall::BenchmarkCatalog, Self::BenchmarkCatalog(_))
                 | (
                     ControlCall::ValidateSettings { .. },
                     Self::SettingsValidation(_)
@@ -2435,5 +2562,42 @@ mod generation_tests {
         ] {
             assert_eq!(value.validate(), Err(ProtocolError::InvalidResponse));
         }
+    }
+}
+
+#[cfg(test)]
+mod benchmark_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn built_in_catalog_has_stable_valid_digest() {
+        let catalog = BenchmarkCatalogPublication::built_in();
+        assert_eq!(catalog.validate(), Ok(()));
+        assert_eq!(catalog.catalog_sha256, catalog.computed_digest().unwrap());
+        assert_eq!(catalog, BenchmarkCatalogPublication::built_in());
+    }
+
+    #[test]
+    fn benchmark_catalog_is_rejected_for_measurement_call_and_old_version() {
+        let call = ControlCall::MeasurementCatalog;
+        let result = BoundControlResult::new(
+            &call,
+            ControlResult::BenchmarkCatalog(BenchmarkCatalogPublication::built_in()),
+        )
+        .unwrap();
+        assert_eq!(
+            result.validate_for_call(&call, ControlLimits::default()),
+            Err(ProtocolError::InvalidResponse)
+        );
+        let call = ControlCall::BenchmarkCatalog;
+        let result = BoundControlResult::new(
+            &call,
+            ControlResult::BenchmarkCatalog(BenchmarkCatalogPublication::built_in()),
+        )
+        .unwrap();
+        assert_eq!(
+            result.validate_for_call_and_version(&call, ControlLimits::default(), CONTROL_V1,),
+            Err(ProtocolError::InvalidResponse)
+        );
     }
 }
