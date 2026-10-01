@@ -1037,6 +1037,22 @@ struct SetupOutput {
     provider_contact: bool,
     provider_profile: Option<String>,
     model: Option<String>,
+    /// Development setup advertises the complete non-secret selection surface.
+    agents: &'static [&'static str],
+    providers: &'static [&'static str],
+    models: &'static [&'static str],
+    default_agent: &'static str,
+    default_provider: &'static str,
+    default_model: &'static str,
+    authentication: SetupAuthentication,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct SetupAuthentication {
+    development_only: bool,
+    status: &'static str,
+    warning: &'static str,
 }
 
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
@@ -1114,6 +1130,21 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         provider_contact: false,
         provider_profile,
         model,
+        agents: &AGENT_IDS,
+        providers: &["openai", "openrouter", "ollama"],
+        models: &[
+            asb_agents::openai::OPENAI_MODEL,
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            asb_agents::ollama::OLLAMA_MODEL,
+        ],
+        default_agent: "codex",
+        default_provider: "openai",
+        default_model: asb_agents::openai::OPENAI_MODEL,
+        authentication: SetupAuthentication {
+            development_only: true,
+            status: "unavailable",
+            warning: "development-only fixture; missing credentials do not block setup",
+        },
     };
     if let Some(path) = output_path {
         let encoded = serde_json::to_vec(&contract)
@@ -6142,6 +6173,16 @@ mod tests {
         assert_eq!(value["persistent_change"], false);
         assert_eq!(value["provider_contact"], false);
         assert_eq!(value["steps"].as_array().unwrap().len(), 4);
+        assert_eq!(value["default_agent"], "codex");
+        assert_eq!(value["default_provider"], "openai");
+        assert!(
+            value["agents"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("codex"))
+        );
+        assert_eq!(value["authentication"]["development_only"], true);
+        assert_eq!(value["authentication"]["status"], "unavailable");
     }
 
     #[test]
