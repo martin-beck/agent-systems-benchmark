@@ -74,6 +74,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const OUTPUT_SCHEMA_VERSION: u16 = 1;
+const SETUP_OUTPUT_SCHEMA_VERSION: u16 = 2;
 const LEGACY_PLAN_SCHEMA_VERSION: u16 = 1;
 const PLAN_SCHEMA_VERSION: u16 = 2;
 const MAX_PLAN_BYTES: u64 = 1024 * 1024;
@@ -1112,7 +1113,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         }
     }
     let contract = SetupOutput {
-        schema_version: OUTPUT_SCHEMA_VERSION,
+        schema_version: SETUP_OUTPUT_SCHEMA_VERSION,
         ok: true,
         command: "setup",
         mode: if output_path.is_some() {
