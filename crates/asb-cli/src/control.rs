@@ -707,6 +707,12 @@ impl ControlBackend for DevelopmentBackend {
                 | ControlCall::ConfigurationStatus(_)
                 | ControlCall::RecordingCampaignStatus(_)
                 | ControlCall::RecordingCampaignProgress(_)
+                // Cassette metadata and strict replay are read-only from the
+                // development frontend.  RunnerBackend still enforces the
+                // campaign, generation, tuple, and digest fences and always
+                // dispatches with provider egress disabled.
+                | ControlCall::RecordingCassetteCatalog(_)
+                | ControlCall::RecordingReplayDispatch(_)
                 | ControlCall::MeasurementCatalog
                 | ControlCall::BenchmarkCatalog
                 | ControlCall::ValidateSettings { .. }
@@ -7559,15 +7565,88 @@ mod tests {
             backend.execute(&wrong_runner, deadline()),
             Err(BackendFailure::StaleIdentity)
         );
+        // Exercise the same authenticated backend through the real Unix
+        // ControlServer/ControlClient boundary, rather than only calling the
+        // backend trait directly.  This is the external-client evidence used
+        // by the TUI cassette consumer.
+        let socket = scratch.0.join("cassette-control.sock");
+        let cassette_root = backend.state_root.clone();
+        let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
+        let service = thread::spawn(move || server.serve_one());
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            &socket,
+            ControlLimits::default(),
+            [asb_control::CONTROL_CASSETTE_CONTROL_V1],
+        )
+        .expect("connect cassette client");
+        let runner_instance_id = client.negotiated().runner_instance_id.clone();
+        let catalog_response = client
+            .call(
+                ControlCall::RecordingCassetteCatalog(
+                    asb_control::RecordingCassetteCatalogRequest {
+                        runner_instance_id: runner_instance_id.clone(),
+                        campaign_id: plan.campaign_id.clone(),
+                        expected_generation: Revision(2),
+                    },
+                ),
+                5_000,
+            )
+            .unwrap()
+            .into_result()
+            .unwrap();
+        let ControlSuccess::Operation(catalog_operation) = catalog_response else {
+            panic!("cassette catalog operation");
+        };
+        let ControlResult::RecordingCassetteCatalog(external_catalog) = catalog_operation.result
+        else {
+            panic!("cassette catalog result");
+        };
+        assert_eq!(external_catalog.entries.len(), 1);
+        let external_entry = external_catalog.entries[0].clone();
+        let replay_response = client
+            .call(
+                ControlCall::RecordingReplayDispatch(asb_control::RecordingReplayDispatchParams {
+                    idempotency_key: "external-replay".into(),
+                    runner_instance_id,
+                    expected_generation: Revision(2),
+                    campaign_id: plan.campaign_id.clone(),
+                    provider_profile_sha256: external_entry.provider_profile_sha256,
+                    agent_id: external_entry.agent_id,
+                    workload_id: external_entry.workload_id,
+                    cassette_sha256: external_entry.cassette_sha256,
+                }),
+                5_000,
+            )
+            .unwrap()
+            .into_result()
+            .unwrap();
+        let ControlSuccess::Operation(replay_operation) = replay_response else {
+            panic!("replay operation");
+        };
+        assert!(matches!(
+            replay_operation.result,
+            ControlResult::RecordingReplayDispatch(value) if value.offline_only
+        ));
+        drop(client);
+        service.join().unwrap().unwrap();
         fs::remove_file(
-            backend
-                .state_root
+            cassette_root
                 .join("cassettes")
                 .join(format!("{}.json", entry.cassette_sha256)),
         )
         .unwrap();
+        // Re-open the persisted backend after an artifact disappears.  The
+        // missing tuple must be surfaced as reconciliation, not silently
+        // regenerated or dispatched through a provider.
+        let restarted = open_backend(cassette_root).unwrap();
+        let restarted_catalog =
+            ControlCall::RecordingCassetteCatalog(asb_control::RecordingCassetteCatalogRequest {
+                runner_instance_id: restarted.runner_instance_id().into(),
+                campaign_id: plan.campaign_id,
+                expected_generation: Revision(2),
+            });
         assert_eq!(
-            backend.execute(&catalog_call, deadline()),
+            restarted.execute(&restarted_catalog, deadline()),
             Err(BackendFailure::NeedsReconciliation)
         );
     }
