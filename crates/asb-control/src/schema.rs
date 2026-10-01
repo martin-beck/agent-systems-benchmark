@@ -391,6 +391,10 @@ fn collect_definition_refs(value: &Value, refs: &mut BTreeSet<String>) {
 }
 
 fn prune_unused_definitions(value: &mut Value) {
+    // Existing v1 through v1.11 schema artifacts are immutable. The
+    // negotiated generation extension is reserved for a future schema
+    // version and must not alter an established wire contract.
+    remove_broker_generation(value);
     let mut reachable = BTreeSet::new();
     collect_definition_refs(value, &mut reachable);
     loop {
@@ -458,8 +462,21 @@ pub fn control_response_schema() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_broker_generation(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 response schema remains valid")
+}
+
+fn remove_broker_generation(value: &mut Value) {
+    if let Some(properties) = value
+        .pointer_mut("/$defs/Negotiated/properties")
+        .and_then(Value::as_object_mut)
+    {
+        properties.remove("broker_generation");
+    }
+    if let Some(definitions) = value.get_mut("$defs").and_then(Value::as_object_mut) {
+        definitions.remove("NegotiatedBrokerGeneration");
+    }
 }
 
 /// Canonical response schema for control v1.2.
@@ -634,6 +651,9 @@ pub fn control_request_schema_v1_11() -> Schema {
 pub fn control_response_schema_v1_11() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
+    let mut value = serde_json::to_value(schema).expect("v1.11 response schema serializes");
+    remove_broker_generation(&mut value);
+    schema = serde_json::from_value(value).expect("v1.11 response schema remains valid");
     schema
 }
 
