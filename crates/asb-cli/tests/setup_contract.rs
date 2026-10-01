@@ -5,7 +5,8 @@
 use serde_json::Value;
 use std::ffi::OsString;
 
-const SCHEMA: &str = include_str!("../schema/v1/setup-output.schema.json");
+const LEGACY_SCHEMA: &str = include_str!("../schema/v1/setup-output.schema.json");
+const SCHEMA: &str = include_str!("../schema/v2/setup-output.schema.json");
 
 fn output(args: &[&str]) -> Value {
     let args: Vec<OsString> = args.iter().map(OsString::from).collect();
@@ -26,6 +27,8 @@ fn setup_output_matches_checked_in_schema() {
         "gpt-4o-mini",
     ]);
     assert!(validator.is_valid(&value));
+    let legacy: Value = serde_json::from_str(LEGACY_SCHEMA).unwrap();
+    assert!(!jsonschema::validator_for(&legacy).unwrap().is_valid(&value));
 }
 
 #[test]

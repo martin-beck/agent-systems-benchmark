@@ -82,7 +82,12 @@ fn non_production_fixture_starts_owner_only_cli_journey() {
     assert!(setup_ok);
     assert_eq!(setup["command"], "setup");
     assert!(setup.is_object());
-    assert!(!setup.to_string().contains("credential"));
+    let rendered = setup.to_string();
+    // The development contract intentionally names its non-secret
+    // credential status.  Reject only secret material, not typed warnings.
+    assert!(!rendered.contains("api_key"));
+    assert!(!rendered.contains("secret"));
+    assert_eq!(setup["authentication"]["development_only"], true);
 }
 
 #[test]

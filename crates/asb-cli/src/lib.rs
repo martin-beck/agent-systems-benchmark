@@ -74,6 +74,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const OUTPUT_SCHEMA_VERSION: u16 = 1;
+const SETUP_OUTPUT_SCHEMA_VERSION: u16 = 2;
 const LEGACY_PLAN_SCHEMA_VERSION: u16 = 1;
 const PLAN_SCHEMA_VERSION: u16 = 2;
 const MAX_PLAN_BYTES: u64 = 1024 * 1024;
@@ -1037,6 +1038,22 @@ struct SetupOutput {
     provider_contact: bool,
     provider_profile: Option<String>,
     model: Option<String>,
+    /// Development setup advertises the complete non-secret selection surface.
+    agents: &'static [&'static str],
+    providers: &'static [&'static str],
+    models: &'static [&'static str],
+    default_agent: &'static str,
+    default_provider: &'static str,
+    default_model: &'static str,
+    authentication: SetupAuthentication,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct SetupAuthentication {
+    development_only: bool,
+    status: &'static str,
+    warning: &'static str,
 }
 
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
@@ -1096,7 +1113,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         }
     }
     let contract = SetupOutput {
-        schema_version: OUTPUT_SCHEMA_VERSION,
+        schema_version: SETUP_OUTPUT_SCHEMA_VERSION,
         ok: true,
         command: "setup",
         mode: if output_path.is_some() {
@@ -1114,6 +1131,22 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         provider_contact: false,
         provider_profile,
         model,
+        agents: &AGENT_IDS,
+        providers: &["openai", "openrouter", "ollama", "gemini"],
+        models: &[
+            asb_agents::openai::OPENAI_MODEL,
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            asb_agents::ollama::OLLAMA_MODEL,
+            GEMINI_MODEL,
+        ],
+        default_agent: "codex",
+        default_provider: "openai",
+        default_model: asb_agents::openai::OPENAI_MODEL,
+        authentication: SetupAuthentication {
+            development_only: true,
+            status: "unavailable",
+            warning: "development-only fixture; missing credentials do not block setup",
+        },
     };
     if let Some(path) = output_path {
         let encoded = serde_json::to_vec(&contract)
@@ -1559,7 +1592,7 @@ struct ProviderCatalogOutput {
     catalog_version: u16,
     catalog_sha256: String,
     agents: &'static [&'static str],
-    profiles: [ProviderCatalogEntry; 3],
+    profiles: [ProviderCatalogEntry; 4],
 }
 
 #[derive(Serialize)]
@@ -1584,6 +1617,8 @@ const AGENT_IDS: [&str; 9] = [
     "openhands",
 ];
 
+const GEMINI_MODEL: &str = "gemini-2.5-flash";
+
 fn provider_catalog_digest() -> String {
     let mut digest = Sha256::new();
     digest.update(b"asb-cli-provider-catalog-v1\0");
@@ -1598,6 +1633,9 @@ fn provider_catalog_digest() -> String {
     digest.update(b"\0environment\0selectable\0ollama\0");
     digest.update(asb_agents::ollama::OLLAMA_MODEL.as_bytes());
     digest.update(b"\0none\0requires-verified-daemon\0");
+    digest.update(b"gemini\0");
+    digest.update(GEMINI_MODEL.as_bytes());
+    digest.update(b"\0environment\0selectable\0");
     format!("{:x}", digest.finalize())
 }
 
@@ -1666,6 +1704,13 @@ fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
                     credential_source: "none",
                     selectable: false,
                     unavailable_reason: Some("verified local daemon evidence is unavailable"),
+                },
+                ProviderCatalogEntry {
+                    id: "gemini",
+                    model: GEMINI_MODEL,
+                    credential_source: "environment",
+                    selectable: true,
+                    unavailable_reason: None,
                 },
             ],
         },
@@ -6142,6 +6187,16 @@ mod tests {
         assert_eq!(value["persistent_change"], false);
         assert_eq!(value["provider_contact"], false);
         assert_eq!(value["steps"].as_array().unwrap().len(), 4);
+        assert_eq!(value["default_agent"], "codex");
+        assert_eq!(value["default_provider"], "openai");
+        assert!(
+            value["agents"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("codex"))
+        );
+        assert_eq!(value["authentication"]["development_only"], true);
+        assert_eq!(value["authentication"]["status"], "unavailable");
     }
 
     #[test]
