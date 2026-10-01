@@ -42,8 +42,9 @@ connection worker until it returns, but is never detached and cannot mutate
 after a response.
 
 Development launchers that inherit an adopted broker stream may call
-`ControlServer::serve_adopted_stream` after the handoff layer has validated the
-nonzero generation and runner identity. The method reuses the exact ordinary
+`ControlServer::serve_authenticated_generation` with the typed capability
+returned by the handoff layer. The capability has already validated the
+nonzero generation, peer, protocol, and runner identity. The method reuses the exact ordinary
 negotiation/request loop and returns its typed result; it rejects zero or
 mismatched evidence before reading the stream. This is an additive,
 development-bounded seam for the subsequent ASB launch wiring (AR-1574), not

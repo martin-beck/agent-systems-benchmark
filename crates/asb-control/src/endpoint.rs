@@ -14,11 +14,11 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
-    BoundControlResult, CONTROL_V1, ControlCall, ControlLimits, ControlRequest, ControlResponse,
-    ControlSession, ControlSuccess, ControlVersion, FrameError, Negotiated, OwnerSocket,
-    PeerIdentity, ProtocolError, RequestDeadline, RequestId, Revision, SUPPORTED_CONTROL_VERSIONS,
-    SessionError, authenticate_owner, error_code, read_frame_until, validate_identity,
-    write_frame_until,
+    BoundControlResult, CONTROL_AGENT_LIFECYCLE_V1, CONTROL_V1, ControlCall, ControlLimits,
+    ControlRequest, ControlResponse, ControlSession, ControlSuccess, ControlVersion, FrameError,
+    Negotiated, OwnerSocket, PeerIdentity, ProtocolError, RequestDeadline, RequestId, Revision,
+    SUPPORTED_CONTROL_VERSIONS, SessionError, authenticate_owner, error_code, read_frame_until,
+    validate_identity, write_frame_until,
 };
 
 const MAX_REQUESTS_PER_CONNECTION: usize = 1024;
@@ -240,7 +240,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         self.serve_stream(&mut stream)
     }
 
-    /// Serve one already-adopted development broker stream.
+    /// Serve one authenticated development broker generation.
     ///
     /// The router uses this bounded seam after it has transferred a stream
     /// carrying a validated broker generation.  It deliberately reuses the
@@ -249,7 +249,30 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
     /// stable authentication or signature gate is bypassed.  The generation
     /// is continuity evidence for the caller and is checked here before any
     /// bytes are accepted.
-    pub fn serve_adopted_stream(
+    pub fn serve_authenticated_generation(
+        &self,
+        authenticated: crate::AuthenticatedGeneration,
+    ) -> Result<(), EndpointError> {
+        if authenticated.protocol_version() != CONTROL_AGENT_LIFECYCLE_V1 {
+            return Err(EndpointError::UnsupportedAdoptedProtocol);
+        }
+        let expected_runner_identity = authenticated.expected_runner_identity();
+        let generation = authenticated.broker_generation();
+        let expected_peer = authenticated.kernel_peer();
+        let stream = authenticated.into_stream();
+        let peer = PeerIdentity::from_fd(&stream).map_err(EndpointError::Transport)?;
+        if peer != expected_peer {
+            return Err(EndpointError::AdoptedPeerMismatch);
+        }
+        self.serve_adopted_stream(stream, generation, expected_runner_identity)
+    }
+
+    /// Serve an adopted stream after the handoff layer has authenticated it.
+    ///
+    /// This remains private so callers cannot fabricate a stream, generation,
+    /// or identity tuple. Use [`Self::serve_authenticated_generation`] with
+    /// the capability returned by the authenticated handoff producer.
+    fn serve_adopted_stream(
         &self,
         mut stream: UnixStream,
         generation: crate::BrokerGeneration,
@@ -698,6 +721,12 @@ pub enum EndpointError {
     /// The adopted stream was bound to a different runner identity.
     #[error("adopted control identity mismatch")]
     AdoptedIdentityMismatch,
+    /// The handoff capability was negotiated for an unsupported protocol minor.
+    #[error("adopted control protocol is unsupported")]
+    UnsupportedAdoptedProtocol,
+    /// The stream peer differs from the handoff capability's peer evidence.
+    #[error("adopted control peer mismatch")]
+    AdoptedPeerMismatch,
 }
 
 #[cfg(test)]
@@ -778,9 +807,16 @@ mod tests {
         let (client_stream, server_stream) = UnixStream::pair().expect("stream pair");
         let generation = adopted_generation();
         let expected = crate::runner_identity_digest("runner-adopted-test").expect("identity");
-        let worker = std::thread::spawn(move || {
-            server.serve_adopted_stream(server_stream, generation, expected)
-        });
+        let peer = PeerIdentity::from_fd(&server_stream).expect("peer");
+        let authenticated = crate::AuthenticatedGeneration::for_test(
+            server_stream,
+            generation,
+            peer,
+            expected,
+            CONTROL_AGENT_LIFECYCLE_V1,
+        );
+        let worker =
+            std::thread::spawn(move || server.serve_authenticated_generation(authenticated));
         let client = ControlClient::from_stream(
             client_stream,
             ControlLimits::default(),
