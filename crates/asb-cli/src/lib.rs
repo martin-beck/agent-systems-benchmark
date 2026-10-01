@@ -599,6 +599,7 @@ fn dispatch(
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
             configure_openrouter(stdout).map(|()| 0)
@@ -768,6 +769,9 @@ fn guided_local(
     }
     if args[0] == "provider-catalog" && args.len() == 1 {
         return provider_catalog(output).map(|()| 0);
+    }
+    if args[0] == "adapter-catalog" && args.len() == 1 {
+        return adapter_catalog(output).map(|()| 0);
     }
     if args[0] == "plan" && args.len() == 3 && args[2] == "--use-config" {
         return plan_with_config(Path::new(&args[1]), output).map(|()| 0);
@@ -1847,6 +1851,91 @@ fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
                     unavailable_reason: None,
                 },
             ],
+        },
+    )
+}
+
+/// Versioned, additive coding-agent adapter catalog.
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterCatalogOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    catalog_version: u16,
+    catalog_sha256: String,
+    adapters: &'static [AdapterCatalogEntry],
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterCatalogEntry {
+    id: &'static str,
+    providers: &'static [&'static str],
+    model_constraint: &'static str,
+    authentication_reference: &'static str,
+    availability: &'static str,
+    diagnostic: &'static str,
+}
+
+const OPENCODE_PROVIDERS: [&str; 3] = ["openai", "openrouter", "ollama"];
+const OPENDESK_PROVIDERS: [&str; 2] = ["openai", "openrouter"];
+const ADAPTER_CATALOG: [AdapterCatalogEntry; 2] = [
+    AdapterCatalogEntry {
+        id: "agent.opencode",
+        providers: &OPENCODE_PROVIDERS,
+        model_constraint: "provider/model identifier",
+        authentication_reference: "environment variable or redacted sha256 reference",
+        availability: "development-only fixture; executable verification optional",
+        diagnostic: "missing credentials do not block catalog display or offline replay",
+    },
+    AdapterCatalogEntry {
+        id: "agent.opendesk",
+        providers: &OPENDESK_PROVIDERS,
+        model_constraint: "bounded non-empty model identifier",
+        authentication_reference: "environment variable or redacted sha256 reference",
+        availability: "development-only fixture; executable verification optional",
+        diagnostic: "missing credentials do not block catalog display or offline replay",
+    },
+];
+
+fn adapter_catalog_digest() -> String {
+    adapter_catalog_digest_for(&ADAPTER_CATALOG)
+}
+
+fn adapter_catalog_digest_for(adapters: &[AdapterCatalogEntry]) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"asb-cli-adapter-catalog-v1\0");
+    for adapter in adapters {
+        for field in [
+            adapter.id,
+            adapter.model_constraint,
+            adapter.authentication_reference,
+            adapter.availability,
+            adapter.diagnostic,
+        ] {
+            digest.update((field.len() as u64).to_be_bytes());
+            digest.update(field.as_bytes());
+        }
+        digest.update((adapter.providers.len() as u64).to_be_bytes());
+        for provider in adapter.providers {
+            digest.update((provider.len() as u64).to_be_bytes());
+            digest.update(provider.as_bytes());
+        }
+    }
+    format!("{:x}", digest.finalize())
+}
+
+fn adapter_catalog(output: &mut dyn Write) -> Result<(), CliError> {
+    write_json(
+        output,
+        &AdapterCatalogOutput {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "adapter-catalog",
+            catalog_version: 1,
+            catalog_sha256: adapter_catalog_digest(),
+            adapters: &ADAPTER_CATALOG,
         },
     )
 }
@@ -7304,6 +7393,41 @@ mod tests {
         assert!(!encoded.contains("api_key"));
         assert!(!encoded.contains("authorization"));
         assert_eq!(run_json(&args), (exit, plan));
+    }
+
+    #[test]
+    fn adapter_catalog_is_additive_and_development_non_blocking() {
+        let (exit, output) = run_json(&["adapter-catalog".into()]);
+        assert_eq!(exit, 0);
+        assert_eq!(output["command"], "adapter-catalog");
+        let adapters = output["adapters"].as_array().unwrap();
+        assert_eq!(adapters.len(), 2);
+        assert_eq!(adapters[0]["id"], "agent.opencode");
+        assert_eq!(adapters[1]["id"], "agent.opendesk");
+        for adapter in adapters {
+            assert!(
+                adapter["diagnostic"]
+                    .as_str()
+                    .unwrap()
+                    .contains("do not block")
+            );
+            assert!(!adapter.to_string().contains("OPENROUTER_API_KEY="));
+        }
+    }
+
+    #[test]
+    fn adapter_catalog_digest_binds_every_serialized_semantic_field() {
+        let baseline = adapter_catalog_digest();
+        for mutate in [
+            |entry: &mut AdapterCatalogEntry| entry.availability = "changed",
+            |entry: &mut AdapterCatalogEntry| entry.diagnostic = "changed",
+            |entry: &mut AdapterCatalogEntry| entry.model_constraint = "changed",
+            |entry: &mut AdapterCatalogEntry| entry.authentication_reference = "changed",
+        ] {
+            let mut entries = ADAPTER_CATALOG;
+            mutate(&mut entries[0]);
+            assert_ne!(baseline, adapter_catalog_digest_for(&entries));
+        }
     }
 
     #[test]
