@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: MIT
 //! Trusted router for the independently installed optional terminal frontend.
 
+use crate::control::open_development_backend;
+use crate::tui_handoff::PendingHandoff;
 use crate::{CliError, output_error, write_json};
+use asb_control::{
+    AuthenticatedGenerationProducer, BrokerConnection, ControlLimits, ProvisionedControlServer,
+};
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
     memfd_create, mkdirat, openat, renameat, unlinkat,
@@ -40,6 +45,7 @@ const CHUNK_BYTES: usize = 1024 * 1024;
 const TRANSFER_ATTEMPTS: usize = 3;
 const RESPONSE_BYTES: u64 = 16 * 1024;
 const DELEGATE_TIMEOUT: Duration = Duration::from_secs(30);
+const DEV_CONTROL_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
@@ -964,9 +970,7 @@ fn execute_development_existing(
                 .env(DEV_BROKER_TUI_TREE_ENV, &active.source_tree)
                 .args(["run", "--broker", "--development"]);
             add_candidate_environment(&mut command)?;
-            let status = command
-                .status()
-                .map_err(|_| RouterError::operation("development_launch_failed"))?;
+            let status = launch_development_broker(command, &paths.state_root)?;
             if !status.success() {
                 return Err(RouterError::operation("development_launch_failed"));
             }
@@ -978,6 +982,131 @@ fn execute_development_existing(
         }
         _ => Err(RouterError::policy("development_operation_invalid")),
     }
+}
+
+fn launch_development_broker(
+    mut command: Command,
+    state_root: &Path,
+) -> Result<std::process::ExitStatus, RouterError> {
+    let broker_root = state_root.join(format!(
+        ".dev-broker-{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let control_dir = broker_root.join("control");
+    let provisioning_dir = broker_root.join("provisioning");
+    prepare_private_directory(&control_dir)?;
+    prepare_private_directory(&provisioning_dir)?;
+    let control_socket = control_dir.join("control.sock");
+    let provisioning_socket = provisioning_dir.join("provisioning.sock");
+    let server = ProvisionedControlServer::bind(
+        &control_socket,
+        &provisioning_socket,
+        ControlLimits::default(),
+        open_development_backend(state_root.to_path_buf())
+            .map_err(|_| RouterError::operation("development_control_unavailable"))?,
+    )
+    .map_err(|_| RouterError::operation("development_control_unavailable"))?;
+    let (router, frontend) = match BrokerConnection::pair() {
+        Ok(pair) => pair,
+        Err(_) => {
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_channel_unavailable"));
+        }
+    };
+    command.stdin(Stdio::from(frontend));
+    // The broker fd replaces stdin, so the development child can use a
+    // private process group without affecting the stable terminal launcher.
+    command.process_group(0);
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(_) => {
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_launch_failed"));
+        }
+    };
+    let pending = PendingHandoff::receive_initial_from_connection(router)
+        .map_err(|_| RouterError::operation("development_channel_rejected"));
+    let pending = match pending {
+        Ok(pending) => pending,
+        Err(error) => {
+            terminate_development_child(&mut child);
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(error);
+        }
+    };
+    // The deadline only bounds admission of the two handshake endpoints. Once
+    // both endpoints are admitted, `serve_connections_until` joins their
+    // workers and remains alive for the interactive child lifetime.
+    let mut server_worker = Some(thread::spawn(move || {
+        server.serve_connections_until(1, 1, Some(DEV_CONTROL_HANDSHAKE_TIMEOUT))
+    }));
+    let producer = match AuthenticatedGenerationProducer::new(
+        control_socket,
+        provisioning_socket,
+        ControlLimits::default(),
+    ) {
+        Ok(producer) => producer,
+        Err(_) => {
+            terminate_development_child(&mut child);
+            let _ = server_worker.take().expect("server worker").join();
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_control_unavailable"));
+        }
+    };
+    if pending.complete(&producer).is_err() {
+        terminate_development_child(&mut child);
+        let _ = server_worker.take().expect("server worker").join();
+        let _ = fs::remove_dir_all(&broker_root);
+        return Err(RouterError::operation("development_channel_rejected"));
+    }
+    loop {
+        let child_status = match child.try_wait() {
+            Ok(status) => status,
+            Err(_) => {
+                terminate_development_child(&mut child);
+                if let Some(worker) = server_worker.take() {
+                    let _ = worker.join();
+                }
+                let _ = fs::remove_dir_all(&broker_root);
+                return Err(RouterError::operation("development_launch_failed"));
+            }
+        };
+        if let Some(status) = child_status {
+            let server_ok = server_worker
+                .take()
+                .expect("server worker")
+                .join()
+                .is_ok_and(|result| result.is_ok());
+            let _ = fs::remove_dir_all(&broker_root);
+            return server_ok
+                .then_some(status)
+                .ok_or_else(|| RouterError::operation("development_control_failed"));
+        }
+        if server_worker
+            .as_ref()
+            .is_some_and(std::thread::JoinHandle::is_finished)
+        {
+            let server_ok = server_worker
+                .take()
+                .expect("server worker")
+                .join()
+                .is_ok_and(|result| result.is_ok());
+            if !server_ok {
+                terminate_development_child(&mut child);
+                let _ = fs::remove_dir_all(&broker_root);
+                return Err(RouterError::operation("development_control_failed"));
+            }
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn terminate_development_child(child: &mut Child) {
+    let pid = Pid::from_child(child);
+    let _ = kill_process_group(pid, Signal::KILL);
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 fn development_broker_descriptor(active: &DevelopmentInstallation) -> Result<String, RouterError> {
@@ -2724,6 +2853,7 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
     use std::collections::VecDeque;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
@@ -2766,6 +2896,223 @@ mod tests {
                 .unwrap();
             Self(fs::canonicalize(path).unwrap())
         }
+    }
+
+    #[test]
+    fn development_backend_exposes_typed_read_only_capabilities() {
+        let scratch = Scratch::new("development-backend");
+        let backend = open_development_backend(scratch.0.clone()).expect("development backend");
+        let call = ControlCall::Capabilities;
+        let result = backend
+            .execute(&call, RequestDeadline::start(100).unwrap())
+            .expect("development capabilities");
+        assert!(matches!(
+            result.result,
+            ControlResult::Capabilities(asb_control::Capabilities {
+                run_control: false,
+                repeat: false,
+                events: false,
+                ..
+            })
+        ));
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                        runner_instance_id: backend.runner_instance_id().into(),
+                    },),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+                    provider: "development".into(),
+                    endpoint_identity_sha256: "identity".into(),
+                    credential_locator_sha256: "locator".into(),
+                    idempotency_key: "mutation".into(),
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::ProviderProfileUpsert(asb_control::ProviderProfileUpsertParams {
+                    idempotency_key: "mutation".into(),
+                    expected_generation: asb_control::Revision(0),
+                    runner_instance_id: backend.runner_instance_id().into(),
+                    entry: asb_control::ProviderCatalogEntry {
+                        provider_id: "development".into(),
+                        display_name: "development".into(),
+                        availability: asb_control::ProviderAvailability::Unavailable(
+                            "development".into(),
+                        ),
+                        models: Vec::new(),
+                        auth_methods: Vec::new(),
+                    },
+                    credential_reference_sha256: None,
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "mutation".into(),
+                    expected_generation: asb_control::Revision(0),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: Vec::new(),
+                        provider_id: "development".into(),
+                        model_id: "development".into(),
+                        auth_method: asb_control::ProviderAuthMethod::None,
+                        credential_reference_sha256: None,
+                    },
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::RecordingCampaignExecute(
+                    asb_control::RecordingCampaignExecuteParams {
+                        idempotency_key: "mutation".into(),
+                        expected_generation: asb_control::Revision(0),
+                        runner_instance_id: backend.runner_instance_id().into(),
+                        campaign_id: "development".into(),
+                    },
+                ),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::Analyze {
+                    run_ids: Vec::new()
+                },
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        let identity = backend.runner_instance_id().to_owned();
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::AgentCatalog(asb_control::AgentCatalogRequest {
+                        action: asb_control::AgentCatalogAction::Status,
+                        runner_instance_id: identity.clone(),
+                        known_generation: None,
+                    }),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::AgentCatalog(asb_control::AgentCatalogRequest {
+                    action: asb_control::AgentCatalogAction::Refresh,
+                    runner_instance_id: identity.clone(),
+                    known_generation: None,
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Refresh,
+                    runner_instance_id: identity.clone(),
+                    known_generation: None,
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                        action: asb_control::ProviderCatalogAction::Status,
+                        runner_instance_id: identity.clone(),
+                        known_generation: None,
+                    }),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::RecordingCampaignStatus(
+                        asb_control::RecordingCampaignStatusRequest {
+                            runner_instance_id: identity.clone(),
+                        },
+                    ),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::RecordingCampaignProgress(
+                        asb_control::RecordingCampaignProgressRequest {
+                            runner_instance_id: identity,
+                            campaign_id: "development".into(),
+                        },
+                    ),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn development_launch_cleans_channel_when_child_exits_before_request() {
+        let scratch = Scratch::new("broker-child-exit");
+        let error = launch_development_broker(Command::new("/bin/true"), &scratch.0)
+            .expect_err("child without broker request must fail closed");
+        assert_eq!(error.code, "development_channel_rejected");
+        let entries = fs::read_dir(&scratch.0)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(entries.iter().all(|entry| {
+            !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".dev-broker-")
+        }));
+    }
+
+    #[test]
+    fn development_launch_kills_descendants_holding_inherited_channel() {
+        let scratch = Scratch::new("broker-descendant");
+        let pid_file = scratch.0.join("descendant.pid");
+        let script = format!(
+            "sleep 60 & echo $! > {}; exit 0",
+            pid_file.to_string_lossy()
+        );
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", &script]);
+        let error = launch_development_broker(command, &scratch.0)
+            .expect_err("child without broker request must fail closed");
+        assert_eq!(error.code, "development_channel_rejected");
+        let pid: i32 = fs::read_to_string(pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline && Path::new(&format!("/proc/{pid}")).exists() {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&format!("/proc/{pid}")).exists());
     }
 
     impl Drop for Scratch {

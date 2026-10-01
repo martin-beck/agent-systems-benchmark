@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: MIT
 //! ASB-side lifecycle handoff seam for the independently installed frontend.
 //!
-//! This module deliberately owns no frontend transport or terminal code.  The
-//! control crate owns the wire format and authentication checks; the router
-//! only admits an already-created broker descriptor and advances a bounded
-//! broker state machine.  Endpoint discovery and the actual frontend consumer
-//! remain separate integration points.
+//! The control crate owns the wire format and authentication checks; the
+//! router admits an inherited descriptor, advances a bounded broker state
+//! machine, and hands the authenticated stream to the private development
+//! launch supervisor. Stable launches do not use this module.
 
-use asb_control::{BrokerConnection, BrokerState, HandoffError, PendingBrokerSuccess};
+use asb_control::{
+    AuthenticatedGenerationProducer, BrokerConnection, BrokerPacket, BrokerState, HandoffError,
+    PendingBrokerSuccess, ProvisioningError,
+};
 use std::os::fd::OwnedFd;
 use std::time::Duration;
 
@@ -26,9 +28,13 @@ impl PendingHandoff {
     /// ancillary data, malformed packets, peer mismatches, and expired
     /// requests fail closed.  No benchmark operation is started here.
     pub fn receive_initial(socket: OwnedFd) -> Result<Self, HandoffError> {
-        let broker = BrokerConnection::new(socket)?;
+        Self::receive_initial_from_connection(BrokerConnection::new(socket)?)
+    }
+
+    /// Receive the initial request from an already-created broker pair.
+    pub fn receive_initial_from_connection(broker: BrokerConnection) -> Result<Self, HandoffError> {
         let mut state = BrokerState::fresh()?;
-        let request = broker.receive_request()?;
+        let request = broker.receive_request_with_timeout(Duration::from_secs(2))?;
         let pending = state.begin_request(request, Duration::ZERO)?;
         Ok(Self {
             broker,
@@ -55,6 +61,23 @@ impl PendingHandoff {
     /// Access the state only to the coordinator integration layer.
     pub fn state(&mut self) -> &mut BrokerState {
         &mut self.state
+    }
+
+    /// Acquire the authenticated anonymous control stream and commit the
+    /// inherited broker packet exactly once.
+    ///
+    /// The producer performs the private endpoint/protocol/peer checks; this
+    /// seam only advances the already-admitted generation after descriptor
+    /// transfer succeeds. Dropping or returning an error leaves no success
+    /// packet to the child.
+    pub fn complete(
+        mut self,
+        producer: &AuthenticatedGenerationProducer,
+    ) -> Result<BrokerPacket, ProvisioningError> {
+        let authenticated = producer.acquire(&self.pending)?;
+        self.state
+            .commit_success(self.pending, &self.broker, authenticated)
+            .map_err(ProvisioningError::from)
     }
 }
 
