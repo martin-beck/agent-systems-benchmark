@@ -1377,7 +1377,14 @@ fn run_development_command_with_limits_and_roots(
             }
             return Ok(bytes);
         }
-        if bounded_directory_size_for_roots(quota_roots, quota)? > quota {
+        let quota_size = match bounded_directory_size_for_roots(quota_roots, quota) {
+            Ok(size) => size,
+            Err(error) => {
+                terminate_bounded_command(&mut child, output_reader, cleanup_root);
+                return Err(error);
+            }
+        };
+        if quota_size > quota {
             if let Some(pid) = Pid::from_raw(child.id() as i32) {
                 let _ = kill_process_group(pid, Signal::KILL);
             }
@@ -1399,6 +1406,20 @@ fn run_development_command_with_limits_and_roots(
         }
         thread::sleep(Duration::from_millis(50));
     }
+}
+
+fn terminate_bounded_command(
+    child: &mut std::process::Child,
+    output_reader: thread::JoinHandle<Result<(Vec<u8>, bool), ()>>,
+    cleanup_root: &Path,
+) {
+    if let Some(pid) = Pid::from_raw(child.id() as i32) {
+        let _ = kill_process_group(pid, Signal::KILL);
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = output_reader.join();
+    let _ = fs::remove_dir_all(cleanup_root);
 }
 
 fn enforce_workspace_quota(root: &Path) -> Result<(), RouterError> {
@@ -4042,6 +4063,34 @@ mod tests {
             bounded_directory_size(&scratch.0, MAX_DEV_WORKSPACE_BYTES).unwrap(),
             8
         );
+    }
+
+    #[test]
+    fn quota_scan_error_terminates_child_and_cleans_root() {
+        let scratch = Scratch::new("dev-quota-scan-error");
+        let invalid_root = scratch.0.join("invalid-root");
+        let target = Scratch::new("dev-quota-scan-target");
+        symlink(&target.0, &invalid_root).unwrap();
+        let marker = scratch.0.join("escaped");
+        let mut command = Command::new(DEV_SETSID);
+        command.args([
+            "--wait",
+            "/bin/sh",
+            "-c",
+            &format!("sleep 0.3; echo escaped > {}", marker.display()),
+        ]);
+        let error = run_development_command_with_limits_and_roots(
+            command,
+            &scratch.0,
+            &[scratch.0.as_path(), invalid_root.as_path()],
+            Duration::from_secs(2),
+            MAX_DEV_WORKSPACE_BYTES,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "dev_workspace_unsafe");
+        assert!(!scratch.0.exists());
+        thread::sleep(Duration::from_millis(400));
+        assert!(!marker.exists());
     }
 
     #[cfg(unix)]
