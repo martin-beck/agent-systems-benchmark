@@ -38,6 +38,12 @@ if test -n "${ASB_DEV_CARGO_HOME:-}"; then
     ancestor=$(dirname "$CARGO_HOME")
     while :; do
         test -d "$ancestor" && test ! -L "$ancestor" || { printf '%s\n' 'ERROR: configured cargo home ancestor is unsafe' >&2; exit 4; }
+        owner=$(stat -c '%u' "$ancestor")
+        test "$owner" = "$(id -u)" || test "$owner" = 0 || { printf '%s\n' 'ERROR: configured cargo home ancestor owner is unsafe' >&2; exit 4; }
+        if find "$ancestor" -prune -perm /022 -print -quit | grep -q .; then
+            mode=$(stat -c '%a' "$ancestor")
+            test "$owner:$mode" = '0:1777' || { printf '%s\n' 'ERROR: configured cargo home ancestor is writable' >&2; exit 4; }
+        fi
         test "$ancestor" = / && break
         next=$(dirname "$ancestor")
         test "$next" != "$ancestor" || break
