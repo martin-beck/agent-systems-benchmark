@@ -642,7 +642,7 @@ impl Drop for ActiveRunLease {
     }
 }
 
-struct RunnerBackend {
+pub(crate) struct RunnerBackend {
     state_root: PathBuf,
     runner_instance_id: String,
     catalog: Arc<Mutex<Catalog>>,
@@ -1018,6 +1018,16 @@ pub(crate) fn serve_local_mock(path: &Path) -> Result<(), CliError> {
     let capture = LocalMockProviderCapture::provision()
         .map_err(|_| CliError::operation("local mock capture authority unavailable"))?;
     serve_with_capture(path, Arc::new(capture))
+}
+
+/// Open the credential-free backend used by the development broker bridge.
+///
+/// This keeps the development launch on the same typed read-only projections
+/// as the control service without enabling production credentials or auth.
+pub(crate) fn open_development_backend(state_root: PathBuf) -> Result<RunnerBackend, CliError> {
+    let capture = LocalMockProviderCapture::provision()
+        .map_err(|_| CliError::operation("local mock capture authority unavailable"))?;
+    open_backend_with_capture(state_root, Arc::new(capture))
 }
 
 fn serve_with_capture(

@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: MIT
 //! Trusted router for the independently installed optional terminal frontend.
 
+use crate::control::open_development_backend;
 use crate::tui_handoff::PendingHandoff;
 use crate::{CliError, output_error, write_json};
 use asb_control::{
-    AuthenticatedGenerationProducer, BackendFailure, BoundControlResult, BrokerConnection,
-    Capabilities, ControlBackend, ControlCall, ControlLimits, ControlResult,
-    ProvisionedControlServer, RequestDeadline, Revision,
+    AuthenticatedGenerationProducer, BrokerConnection, ControlLimits, ProvisionedControlServer,
 };
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
@@ -46,6 +45,7 @@ const CHUNK_BYTES: usize = 1024 * 1024;
 const TRANSFER_ATTEMPTS: usize = 3;
 const RESPONSE_BYTES: u64 = 16 * 1024;
 const DELEGATE_TIMEOUT: Duration = Duration::from_secs(30);
+const DEV_CONTROL_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
@@ -1003,7 +1003,8 @@ fn launch_development_broker(
         &control_socket,
         &provisioning_socket,
         ControlLimits::default(),
-        DevelopmentBackend,
+        open_development_backend(state_root.to_path_buf())
+            .map_err(|_| RouterError::operation("development_control_unavailable"))?,
     )
     .map_err(|_| RouterError::operation("development_control_unavailable"))?;
     let (router, frontend) = match BrokerConnection::pair() {
@@ -1034,8 +1035,12 @@ fn launch_development_broker(
             return Err(error);
         }
     };
-    let server_worker =
-        thread::spawn(move || server.serve_connections_until(1, 1, Some(DELEGATE_TIMEOUT)));
+    // The deadline only bounds admission of the two handshake endpoints. Once
+    // both endpoints are admitted, `serve_connections_until` joins their
+    // workers and remains alive for the interactive child lifetime.
+    let server_worker = thread::spawn(move || {
+        server.serve_connections_until(1, 1, Some(DEV_CONTROL_HANDSHAKE_TIMEOUT))
+    });
     let producer = match AuthenticatedGenerationProducer::new(
         control_socket,
         provisioning_socket,
@@ -1055,7 +1060,6 @@ fn launch_development_broker(
         let _ = fs::remove_dir_all(&broker_root);
         return Err(RouterError::operation("development_channel_rejected"));
     }
-    let deadline = Instant::now() + DELEGATE_TIMEOUT;
     loop {
         if let Some(status) = child
             .try_wait()
@@ -1067,12 +1071,6 @@ fn launch_development_broker(
                 .then_some(status)
                 .ok_or_else(|| RouterError::operation("development_control_failed"));
         }
-        if Instant::now() >= deadline {
-            terminate_development_child(&mut child);
-            let _ = server_worker.join();
-            let _ = fs::remove_dir_all(&broker_root);
-            return Err(RouterError::operation("development_launch_timeout"));
-        }
         thread::sleep(Duration::from_millis(10));
     }
 }
@@ -1082,43 +1080,6 @@ fn terminate_development_child(child: &mut Child) {
     let _ = kill_process_group(pid, Signal::KILL);
     let _ = child.kill();
     let _ = child.wait();
-}
-
-struct DevelopmentBackend;
-
-impl ControlBackend for DevelopmentBackend {
-    fn runner_instance_id(&self) -> &str {
-        "asb-development-runner"
-    }
-
-    fn oldest_revision(&self) -> Revision {
-        Revision(0)
-    }
-
-    fn latest_revision(&self) -> Revision {
-        Revision(0)
-    }
-
-    fn execute(
-        &self,
-        call: &ControlCall,
-        _deadline: RequestDeadline,
-    ) -> Result<BoundControlResult, BackendFailure> {
-        if matches!(call, ControlCall::Capabilities) {
-            return BoundControlResult::new(
-                call,
-                ControlResult::Capabilities(Capabilities {
-                    validate_settings: false,
-                    run_control: false,
-                    repeat: false,
-                    analysis: false,
-                    events: false,
-                }),
-            )
-            .map_err(|_| BackendFailure::Rejected);
-        }
-        Err(BackendFailure::CapabilityUnavailable)
-    }
 }
 
 fn development_broker_descriptor(active: &DevelopmentInstallation) -> Result<String, RouterError> {
@@ -2865,6 +2826,7 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
     use std::collections::VecDeque;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
@@ -2910,22 +2872,22 @@ mod tests {
     }
 
     #[test]
-    fn development_backend_exposes_only_bounded_capabilities() {
-        let backend = DevelopmentBackend;
+    fn development_backend_exposes_typed_read_only_capabilities() {
+        let scratch = Scratch::new("development-backend");
+        let backend = open_development_backend(scratch.0.clone()).expect("development backend");
         let call = ControlCall::Capabilities;
         let result = backend
             .execute(&call, RequestDeadline::start(100).unwrap())
             .expect("development capabilities");
         assert!(matches!(result.result, ControlResult::Capabilities(_)));
-        assert_eq!(
-            backend.execute(
+        assert!(backend
+            .execute(
                 &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
-                    runner_instance_id: "asb-development-runner".into(),
+                    runner_instance_id: backend.runner_instance_id().into(),
                 },),
                 RequestDeadline::start(100).unwrap(),
-            ),
-            Err(BackendFailure::CapabilityUnavailable)
-        );
+            )
+            .is_ok());
     }
 
     #[test]
