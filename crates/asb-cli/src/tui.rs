@@ -1076,6 +1076,16 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
             return Err(RouterError::operation("development_channel_rejected"));
         }
     };
+    // The child can exit while the parent is admitting the two control
+    // endpoints. Never commit a generation for an already-dead frontend.
+    if child.try_wait().ok().flatten().is_some() {
+        let _ = child.wait();
+        drop(authenticated);
+        drop(router);
+        let _ = server_worker.take().expect("server worker").join();
+        let _ = fs::remove_dir_all(&broker_root);
+        return Err(RouterError::operation("development_launch_failed"));
+    }
     if broker_state
         .commit_success(pending, &router, authenticated)
         .is_err()
@@ -2878,6 +2888,7 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::control::DevelopmentBackend;
     use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
     use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
     use rustix::termios::{Winsize, tcsetwinsize};
@@ -2911,7 +2922,7 @@ mod tests {
     struct Scratch(PathBuf);
 
     struct RecordingBackend {
-        inner: super::DevelopmentBackend,
+        inner: DevelopmentBackend,
         calls: Arc<Mutex<Vec<ControlCall>>>,
     }
 
