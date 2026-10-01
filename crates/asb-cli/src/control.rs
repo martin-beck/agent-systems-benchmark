@@ -694,10 +694,16 @@ impl ControlBackend for DevelopmentBackend {
         }
         let read_only = matches!(
             call,
-            ControlCall::AgentCatalog(_)
-                | ControlCall::AgentStatus(_)
+            ControlCall::AgentCatalog(request)
+                if matches!(request.action, AgentCatalogAction::Status)
+        ) || matches!(
+            call,
+            ControlCall::ProviderCatalog(request)
+                if matches!(request.action, ProviderCatalogAction::Status)
+        ) || matches!(
+            call,
+            ControlCall::AgentStatus(_)
                 | ControlCall::AuthStatus(_)
-                | ControlCall::ProviderCatalog(_)
                 | ControlCall::ConfigurationStatus(_)
                 | ControlCall::RecordingCampaignStatus(_)
                 | ControlCall::RecordingCampaignProgress(_)

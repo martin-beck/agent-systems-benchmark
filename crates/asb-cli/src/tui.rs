@@ -3011,6 +3011,28 @@ mod tests {
                 )
                 .is_ok()
         );
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::AgentCatalog(asb_control::AgentCatalogRequest {
+                    action: asb_control::AgentCatalogAction::Refresh,
+                    runner_instance_id: identity.clone(),
+                    known_generation: None,
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Refresh,
+                    runner_instance_id: identity.clone(),
+                    known_generation: None,
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
         assert!(
             backend
                 .execute(
