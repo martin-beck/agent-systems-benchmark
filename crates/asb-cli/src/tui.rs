@@ -2833,7 +2833,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn development_cargo_discovery_accepts_private_user_toolchain() {
-        let root = PathBuf::from("/home/martin/.cache")
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
             .join(format!("asb-ar1567-cargo-{}", std::process::id()));
         prepare_private_directory(&root).unwrap();
         let cargo = root.join("toolchain/bin/cargo");
@@ -2854,7 +2855,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn development_cargo_discovery_rejects_override_and_path_widening() {
-        let root = PathBuf::from("/home/martin/.cache")
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
             .join(format!("asb-ar1567-cargo-reject-{}", std::process::id()));
         prepare_private_directory(&root).unwrap();
         let cargo = root.join("cargo");
