@@ -1044,7 +1044,7 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
     // this also keeps the ordinary cleanup path bounded for short-lived
     // commands such as `/bin/true`.
     if child.try_wait().ok().flatten().is_some() {
-        let _ = child.wait();
+        terminate_development_child(&mut child);
         let _ = fs::remove_dir_all(&broker_root);
         return Err(RouterError::operation("development_launch_failed"));
     }
@@ -1079,7 +1079,7 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
     // The child can exit while the parent is admitting the two control
     // endpoints. Never commit a generation for an already-dead frontend.
     if child.try_wait().ok().flatten().is_some() {
-        let _ = child.wait();
+        terminate_development_child(&mut child);
         drop(authenticated);
         drop(router);
         let _ = server_worker.take().expect("server worker").join();
