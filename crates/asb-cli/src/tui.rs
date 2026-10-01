@@ -2888,8 +2888,6 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "cross-repo-qualification")]
-    use crate::control::DevelopmentBackend;
     use asb_control::{
         ControlBackend, ControlCall, ControlClient, ControlResult, RequestDeadline,
         SUPPORTED_CONTROL_VERSIONS,
@@ -3256,12 +3254,11 @@ mod tests {
             .unwrap();
         assert!(stale.error().is_some(), "stale generation was accepted");
         drop(client);
-        assert_eq!(
+        assert!(
             worker_result
                 .recv_timeout(Duration::from_secs(2))
                 .expect("bridge worker shutdown timed out")
-                .is_ok(),
-            true
+                .is_ok()
         );
         worker.join().unwrap();
         assert!(!control_path.exists());
