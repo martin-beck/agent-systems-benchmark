@@ -1131,11 +1131,12 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         provider_profile,
         model,
         agents: &AGENT_IDS,
-        providers: &["openai", "openrouter", "ollama"],
+        providers: &["openai", "openrouter", "ollama", "gemini"],
         models: &[
             asb_agents::openai::OPENAI_MODEL,
             asb_agents::openrouter::OPENROUTER_MODEL,
             asb_agents::ollama::OLLAMA_MODEL,
+            GEMINI_MODEL,
         ],
         default_agent: "codex",
         default_provider: "openai",
@@ -1590,7 +1591,7 @@ struct ProviderCatalogOutput {
     catalog_version: u16,
     catalog_sha256: String,
     agents: &'static [&'static str],
-    profiles: [ProviderCatalogEntry; 3],
+    profiles: [ProviderCatalogEntry; 4],
 }
 
 #[derive(Serialize)]
@@ -1615,6 +1616,8 @@ const AGENT_IDS: [&str; 9] = [
     "openhands",
 ];
 
+const GEMINI_MODEL: &str = "gemini-2.5-flash";
+
 fn provider_catalog_digest() -> String {
     let mut digest = Sha256::new();
     digest.update(b"asb-cli-provider-catalog-v1\0");
@@ -1629,6 +1632,9 @@ fn provider_catalog_digest() -> String {
     digest.update(b"\0environment\0selectable\0ollama\0");
     digest.update(asb_agents::ollama::OLLAMA_MODEL.as_bytes());
     digest.update(b"\0none\0requires-verified-daemon\0");
+    digest.update(b"gemini\0");
+    digest.update(GEMINI_MODEL.as_bytes());
+    digest.update(b"\0environment\0selectable\0");
     format!("{:x}", digest.finalize())
 }
 
@@ -1697,6 +1703,13 @@ fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
                     credential_source: "none",
                     selectable: false,
                     unavailable_reason: Some("verified local daemon evidence is unavailable"),
+                },
+                ProviderCatalogEntry {
+                    id: "gemini",
+                    model: GEMINI_MODEL,
+                    credential_source: "environment",
+                    selectable: true,
+                    unavailable_reason: None,
                 },
             ],
         },
