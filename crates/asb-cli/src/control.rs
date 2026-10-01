@@ -3126,6 +3126,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Execute,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignProgress(request) => {
@@ -3146,6 +3147,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Cancel,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignReconcile(params) => self.recording_campaign_lifecycle(
@@ -3155,6 +3157,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Reconcile,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignOfflineDefault(params) => self
@@ -3165,6 +3168,7 @@ impl ControlBackend for RunnerBackend {
                     &params.runner_instance_id,
                     &params.campaign_id,
                     RecordingLifecycleAction::OfflineDefault,
+                    None,
                     deadline,
                 ),
             ControlCall::RecordingCampaignSeal(params) => self.recording_campaign_lifecycle(
@@ -3174,6 +3178,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Seal,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignReopen(params) => self.recording_campaign_lifecycle(
@@ -3183,6 +3188,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Reopen,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignRemove(params) => self.recording_campaign_lifecycle(
@@ -3192,6 +3198,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Remove,
+                params.cassette_sha256.as_deref(),
                 deadline,
             ),
             ControlCall::RecordingCampaignRetry(params) => self.recording_campaign_lifecycle(
@@ -3201,6 +3208,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Retry,
+                None,
                 deadline,
             ),
             ControlCall::AgentCatalog(request) => {
@@ -4227,6 +4235,7 @@ impl RunnerBackend {
         runner_instance_id: &str,
         campaign_id: &str,
         action: RecordingLifecycleAction,
+        cassette_sha256: Option<&str>,
         deadline: RequestDeadline,
     ) -> Result<BoundControlResult, BackendFailure> {
         if runner_instance_id != self.runner_instance_id {
@@ -4305,12 +4314,18 @@ impl RunnerBackend {
                 .recording_campaign
                 .as_ref()
                 .filter(|record| record.campaign_id == campaign_id)
-                .map(|record| {
-                    record
+                .map(|record| match cassette_sha256 {
+                    Some(digest) => record
+                        .coverage
+                        .iter()
+                        .filter(|entry| entry.cassette_sha256.as_deref() == Some(digest))
+                        .filter_map(|entry| entry.cassette_sha256.clone())
+                        .collect::<Vec<_>>(),
+                    None => record
                         .coverage
                         .iter()
                         .filter_map(|entry| entry.cassette_sha256.clone())
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>(),
                 })
                 .ok_or(BackendFailure::NotFound)?
         } else {
@@ -4409,9 +4424,31 @@ impl RunnerBackend {
                     record.unavailable_reason = Some("capture-reopened".to_owned());
                 }
                 RecordingLifecycleAction::Remove => {
-                    record.state = "removed".to_owned();
-                    record.offline_ready = false;
-                    record.unavailable_reason = Some("campaign-removed".to_owned());
+                    if let Some(digest) = cassette_sha256 {
+                        let Some(entry) = record
+                            .coverage
+                            .iter_mut()
+                            .find(|entry| entry.cassette_sha256.as_deref() == Some(digest))
+                        else {
+                            return Err(BackendFailure::NotFound);
+                        };
+                        entry.state = "failed".to_owned();
+                        entry.cassette_sha256 = None;
+                        entry.redaction_verified = false;
+                        entry.replay_verified = false;
+                        record.covered_tuple_count = record
+                            .coverage
+                            .iter()
+                            .filter(|entry| entry.state == "complete")
+                            .count() as u16;
+                        record.state = "needs_reconciliation".to_owned();
+                        record.offline_ready = false;
+                        record.unavailable_reason = Some("cassette-removed".to_owned());
+                    } else {
+                        record.state = "removed".to_owned();
+                        record.offline_ready = false;
+                        record.unavailable_reason = Some("campaign-removed".to_owned());
+                    }
                 }
                 RecordingLifecycleAction::Retry => unreachable!("retry handled above"),
             }
@@ -7860,6 +7897,7 @@ mod tests {
                 expected_generation: Revision(2),
                 runner_instance_id: runner,
                 campaign_id: plan.campaign_id.clone(),
+                cassette_sha256: None,
             });
         let removed = execute(remove_call).unwrap();
         assert!(matches!(

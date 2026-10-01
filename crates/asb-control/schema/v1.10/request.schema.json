@@ -571,7 +571,7 @@
           "const": "recording_campaign_remove"
         },
         "params": {
-          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+          "$ref": "#/$defs/RecordingCampaignRemoveParams"
         }
       },
       "required": [
@@ -2247,6 +2247,45 @@
         "campaign_id": {
           "description": "Exact durable campaign to reconcile.",
           "type": "string"
+        },
+        "expected_generation": {
+          "description": "Setup generation returned by the last configuration status read.",
+          "$ref": "#/$defs/Revision"
+        },
+        "idempotency_key": {
+          "description": "Retry-safe mutation identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity received during negotiation.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "expected_generation",
+        "runner_instance_id",
+        "campaign_id"
+      ]
+    },
+    "RecordingCampaignRemoveParams": {
+      "description": "Idempotent request to remove a campaign or one selected cassette.",
+      "type": "object",
+      "properties": {
+        "campaign_id": {
+          "description": "Exact durable campaign to modify.",
+          "type": "string"
+        },
+        "cassette_sha256": {
+          "description": "Optional exact cassette digest. Omission removes the whole campaign.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "expected_generation": {
           "description": "Setup generation returned by the last configuration status read.",

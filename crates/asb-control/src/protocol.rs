@@ -2173,11 +2173,15 @@ impl ControlResult {
                 Self::RecordingCampaignLifecycle(status),
             )
             | (
-                ControlCall::RecordingCampaignRemove(request),
-                Self::RecordingCampaignLifecycle(status),
-            )
-            | (
                 ControlCall::RecordingCampaignRetry(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignRemove(request),
                 Self::RecordingCampaignLifecycle(status),
             ) => {
                 status.runner_instance_id == request.runner_instance_id

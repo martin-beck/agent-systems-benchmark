@@ -104,8 +104,11 @@ sealed cassette and makes the campaign offline-ready; it never fabricates
 coverage. `recording_campaign_reopen` moves a failed, interrupted, cancelled,
 or sealed campaign back to a planned capture state. `recording_campaign_retry`
 re-admits only failed or reconciled work, preserving the campaign identity and
-skipping already complete tuples. `recording_campaign_remove` marks a campaign
-removed and disables offline use. These operations are development-safe: local
+skipping already complete tuples. `recording_campaign_remove` without a digest
+marks the whole campaign removed and disables offline use. Supplying an exact
+cassette digest removes only that tuple's cassette and leaves a durable
+`needs_reconciliation` tombstone, so a partial matrix cannot silently run
+offline. These operations are development-safe: local
 mock credentials and generated identities are sufficient, and missing
 production authentication or key material is reported as an unavailable
 provider rather than blocking the control protocol itself.

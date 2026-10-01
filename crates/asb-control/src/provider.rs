@@ -451,8 +451,21 @@ pub struct RecordingCampaignOfflineDefaultParams {
 pub type RecordingCampaignSealParams = RecordingCampaignOfflineDefaultParams;
 /// Idempotent request to reopen a campaign for another capture attempt.
 pub type RecordingCampaignReopenParams = RecordingCampaignOfflineDefaultParams;
-/// Idempotent request to remove a campaign and its local artifacts.
-pub type RecordingCampaignRemoveParams = RecordingCampaignOfflineDefaultParams;
+/// Idempotent request to remove a campaign or one selected cassette.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCampaignRemoveParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Setup generation returned by the last configuration status read.
+    pub expected_generation: Revision,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact durable campaign to modify.
+    pub campaign_id: String,
+    /// Optional exact cassette digest. Omission removes the whole campaign.
+    pub cassette_sha256: Option<String>,
+}
 /// Idempotent request to retry a failed or reconciled campaign.
 pub type RecordingCampaignRetryParams = RecordingCampaignOfflineDefaultParams;
 
@@ -597,6 +610,21 @@ impl RecordingCampaignOfflineDefaultParams {
             &self.runner_instance_id,
             &self.campaign_id,
         )
+    }
+}
+impl RecordingCampaignRemoveParams {
+    /// Validate bounded removal identity and optional cassette digest.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_mutation(
+            &self.idempotency_key,
+            self.expected_generation,
+            &self.runner_instance_id,
+            &self.campaign_id,
+        )?;
+        if let Some(digest) = &self.cassette_sha256 {
+            validate_digest(digest)?;
+        }
+        Ok(())
     }
 }
 
