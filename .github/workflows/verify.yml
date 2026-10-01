@@ -29,11 +29,11 @@ jobs:
         with:
           repository: martin-beck/asb-tui
           ref: 0b0548a8d88a25f8e4f2f52d45cd5faa8bf128a8
-          path: .ci/asb-tui
+          path: ${{ runner.temp }}/asb-tui
           persist-credentials: false
           fetch-depth: 1
       - name: Compile pinned asb-tui
-        working-directory: .ci/asb-tui
+        working-directory: ${{ runner.temp }}/asb-tui
         run: cargo build --locked --bin asb-tui
       - name: Install pinned toolchain
         run: rustup toolchain install 1.93.0 --profile minimal --component rustfmt --component clippy
@@ -43,7 +43,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Tests
         env:
-          ASB_TUI_BINARY: ${{ github.workspace }}/.ci/asb-tui/target/debug/asb-tui
+          ASB_TUI_BINARY: ${{ runner.temp }}/asb-tui/target/debug/asb-tui
         run: |
           chmod 755 "$ASB_TUI_BINARY"
           ASB_TUI_EXPECTED_SHA256="$(sha256sum "$ASB_TUI_BINARY" | cut -d' ' -f1)" \
