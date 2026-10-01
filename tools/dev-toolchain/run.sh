@@ -30,9 +30,15 @@ for tool in cargo git setsid; do
 done
 test "$#" -gt 0 || { printf '%s\n' 'ERROR: command is required' >&2; exit 2; }
 export HOME="$root"
-export CARGO_HOME="${ASB_DEV_CARGO_HOME:-$root/cargo-home}"
-case "$CARGO_HOME" in /*) ;; *) printf '%s\n' 'ERROR: cargo home must be absolute' >&2; exit 3 ;; esac
-mkdir -p -m 0700 "$CARGO_HOME"
+case "${ASB_DEV_CARGO_HOME:-$root/cargo-home}" in /*) ;; *) printf '%s\n' 'ERROR: cargo home must be absolute' >&2; exit 3 ;; esac
+if test -n "${ASB_DEV_CARGO_HOME:-}"; then
+    export CARGO_HOME="$ASB_DEV_CARGO_HOME"
+    test -d "$CARGO_HOME" && test ! -L "$CARGO_HOME" || { printf '%s\n' 'ERROR: configured cargo home is unavailable' >&2; exit 4; }
+    test "$(stat -c '%u:%a' "$CARGO_HOME")" = "$(id -u):700" || { printf '%s\n' 'ERROR: configured cargo home is unsafe' >&2; exit 4; }
+else
+    export CARGO_HOME="$root/cargo-home"
+    mkdir -p -m 0700 "$CARGO_HOME"
+fi
 case "$1" in
     cargo|git|setsid)
         tool="$1"
