@@ -1309,10 +1309,17 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
         .collect::<BTreeSet<_>>();
     let mut seen = BTreeSet::new();
     let mut recordings = Vec::with_capacity(manifest.entries.len());
+    let mut pending_writes = Vec::with_capacity(manifest.entries.len());
+    let mut output_paths = BTreeSet::new();
     for entry in manifest.entries {
         if !manifest.workload_ids.contains(&entry.workload_id) {
             return Err(CliError::validation(
                 "recording campaign entry workload is not selected",
+            ));
+        }
+        if !output_paths.insert(entry.cassette_path.clone()) {
+            return Err(CliError::validation(
+                "recording campaign cassette outputs are duplicated",
             ));
         }
         let capture_bytes = read_bounded_json(
@@ -1339,10 +1346,19 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
                 "recording campaign cassette is too large",
             ));
         }
-        write_atomic_private(&entry.cassette_path, &encoded)?;
+        pending_writes.push((entry.cassette_path, encoded));
         recordings.push(artifact.metadata);
     }
     let complete = seen == expected;
+    // Do not publish a prefix of a campaign: offline execution is only valid
+    // for an exact current matrix, so partial cassette material is misleading
+    // and can be mistaken for replay coverage. The typed result below still
+    // reports the unavailable campaign for human and JSON callers.
+    if complete {
+        for (path, encoded) in pending_writes {
+            write_atomic_private(&path, &encoded)?;
+        }
+    }
     let campaign_id = format!(
         "campaign-{}",
         &format!(
@@ -8654,5 +8670,34 @@ mod tests {
         );
         let hostile: Value = serde_json::from_slice(&hostile).unwrap();
         assert_eq!(hostile["error"]["code"], "usage");
+
+        let partial_manifest_path = scratch.0.join("partial-campaign.json");
+        let partial_cassette_path = scratch.0.join("partial-cassette.json");
+        let mut partial_manifest = manifest;
+        partial_manifest["entries"] = json!([partial_manifest["entries"][0].clone()]);
+        partial_manifest["entries"][0]["cassette_path"] = json!(partial_cassette_path.clone());
+        fs::write(
+            &partial_manifest_path,
+            serde_json::to_vec(&partial_manifest).unwrap(),
+        )
+        .unwrap();
+        let mut partial_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "record-campaign".into(),
+                    partial_manifest_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut partial_output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        let partial: Value = serde_json::from_slice(&partial_output).unwrap();
+        assert_eq!(partial["complete_coverage"], false);
+        assert_eq!(partial["offline_ready"], false);
+        assert!(!partial_cassette_path.exists());
     }
 }
