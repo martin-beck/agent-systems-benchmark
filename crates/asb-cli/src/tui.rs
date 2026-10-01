@@ -1038,9 +1038,9 @@ fn launch_development_broker(
     // The deadline only bounds admission of the two handshake endpoints. Once
     // both endpoints are admitted, `serve_connections_until` joins their
     // workers and remains alive for the interactive child lifetime.
-    let server_worker = thread::spawn(move || {
+    let mut server_worker = Some(thread::spawn(move || {
         server.serve_connections_until(1, 1, Some(DEV_CONTROL_HANDSHAKE_TIMEOUT))
-    });
+    }));
     let producer = match AuthenticatedGenerationProducer::new(
         control_socket,
         provisioning_socket,
@@ -1049,27 +1049,54 @@ fn launch_development_broker(
         Ok(producer) => producer,
         Err(_) => {
             terminate_development_child(&mut child);
-            let _ = server_worker.join();
+            let _ = server_worker.take().expect("server worker").join();
             let _ = fs::remove_dir_all(&broker_root);
             return Err(RouterError::operation("development_control_unavailable"));
         }
     };
     if pending.complete(&producer).is_err() {
         terminate_development_child(&mut child);
-        let _ = server_worker.join();
+        let _ = server_worker.take().expect("server worker").join();
         let _ = fs::remove_dir_all(&broker_root);
         return Err(RouterError::operation("development_channel_rejected"));
     }
     loop {
-        if let Some(status) = child
-            .try_wait()
-            .map_err(|_| RouterError::operation("development_launch_failed"))?
-        {
-            let server_ok = server_worker.join().is_ok_and(|result| result.is_ok());
+        let child_status = match child.try_wait() {
+            Ok(status) => status,
+            Err(_) => {
+                terminate_development_child(&mut child);
+                if let Some(worker) = server_worker.take() {
+                    let _ = worker.join();
+                }
+                let _ = fs::remove_dir_all(&broker_root);
+                return Err(RouterError::operation("development_launch_failed"));
+            }
+        };
+        if let Some(status) = child_status {
+            let server_ok = server_worker
+                .take()
+                .expect("server worker")
+                .join()
+                .is_ok_and(|result| result.is_ok());
             let _ = fs::remove_dir_all(&broker_root);
             return server_ok
                 .then_some(status)
                 .ok_or_else(|| RouterError::operation("development_control_failed"));
+        }
+        if server_worker
+            .as_ref()
+            .is_some_and(std::thread::JoinHandle::is_finished)
+        {
+            let server_ok = server_worker
+                .take()
+                .expect("server worker")
+                .join()
+                .is_ok_and(|result| result.is_ok());
+            if !server_ok {
+                terminate_development_child(&mut child);
+                let _ = fs::remove_dir_all(&broker_root);
+                return Err(RouterError::operation("development_control_failed"));
+            }
         }
         thread::sleep(Duration::from_millis(10));
     }
@@ -2879,7 +2906,15 @@ mod tests {
         let result = backend
             .execute(&call, RequestDeadline::start(100).unwrap())
             .expect("development capabilities");
-        assert!(matches!(result.result, ControlResult::Capabilities(_)));
+        assert!(matches!(
+            result.result,
+            ControlResult::Capabilities(asb_control::Capabilities {
+                run_control: false,
+                repeat: false,
+                events: false,
+                ..
+            })
+        ));
         assert!(
             backend
                 .execute(
@@ -2890,6 +2925,70 @@ mod tests {
                 )
                 .is_ok()
         );
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+                    provider: "development".into(),
+                    endpoint_identity_sha256: "identity".into(),
+                    credential_locator_sha256: "locator".into(),
+                    idempotency_key: "mutation".into(),
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::ProviderProfileUpsert(asb_control::ProviderProfileUpsertParams {
+                    idempotency_key: "mutation".into(),
+                    expected_generation: asb_control::Revision(0),
+                    runner_instance_id: backend.runner_instance_id().into(),
+                    entry: asb_control::ProviderCatalogEntry {
+                        provider_id: "development".into(),
+                        display_name: "development".into(),
+                        availability: asb_control::ProviderAvailability::Unavailable(
+                            "development".into(),
+                        ),
+                        models: Vec::new(),
+                        auth_methods: Vec::new(),
+                    },
+                    credential_reference_sha256: None,
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "mutation".into(),
+                    expected_generation: asb_control::Revision(0),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: Vec::new(),
+                        provider_id: "development".into(),
+                        model_id: "development".into(),
+                        auth_method: asb_control::ProviderAuthMethod::None,
+                        credential_reference_sha256: None,
+                    },
+                }),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::RecordingCampaignExecute(
+                    asb_control::RecordingCampaignExecuteParams {
+                        idempotency_key: "mutation".into(),
+                        expected_generation: asb_control::Revision(0),
+                        runner_instance_id: backend.runner_instance_id().into(),
+                        campaign_id: "development".into(),
+                    },
+                ),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
     }
 
     #[test]

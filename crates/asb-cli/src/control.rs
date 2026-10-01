@@ -654,6 +654,68 @@ pub(crate) struct RunnerBackend {
     lifecycle_verifier: Option<VerifierConfig>,
 }
 
+/// Development launch projection.  It deliberately exposes only the
+/// read-only bootstrap surface required by the standalone TUI; the full
+/// runner backend must never become a development mutation authority.
+pub(crate) struct DevelopmentBackend {
+    inner: RunnerBackend,
+}
+
+impl ControlBackend for DevelopmentBackend {
+    fn runner_instance_id(&self) -> &str {
+        self.inner.runner_instance_id()
+    }
+
+    fn oldest_revision(&self) -> Revision {
+        self.inner.oldest_revision()
+    }
+
+    fn latest_revision(&self) -> Revision {
+        self.inner.latest_revision()
+    }
+
+    fn execute(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        if matches!(call, ControlCall::Capabilities) {
+            return BoundControlResult::new(
+                call,
+                ControlResult::Capabilities(Capabilities {
+                    validate_settings: true,
+                    run_control: false,
+                    repeat: false,
+                    analysis: true,
+                    events: false,
+                }),
+            )
+            .map_err(|_| BackendFailure::Rejected);
+        }
+        let read_only = matches!(
+            call,
+            ControlCall::AgentCatalog(_)
+                | ControlCall::AgentStatus(_)
+                | ControlCall::AuthStatus(_)
+                | ControlCall::ProviderCatalog(_)
+                | ControlCall::ConfigurationStatus(_)
+                | ControlCall::RecordingCampaignStatus(_)
+                | ControlCall::RecordingCampaignProgress(_)
+                | ControlCall::MeasurementCatalog
+                | ControlCall::ValidateSettings { .. }
+                | ControlCall::Status { .. }
+                | ControlCall::History(_)
+                | ControlCall::Analyze { .. }
+                | ControlCall::ArtifactMetadata { .. }
+        );
+        if read_only {
+            self.inner.execute(call, deadline)
+        } else {
+            Err(BackendFailure::CapabilityUnavailable)
+        }
+    }
+}
+
 /// Runtime-owned adapter used by the control frontend. The frontend supplies
 /// only a validated plan; process, cancellation, and result effects stay
 /// behind the central orchestrator source.
@@ -1024,10 +1086,13 @@ pub(crate) fn serve_local_mock(path: &Path) -> Result<(), CliError> {
 ///
 /// This keeps the development launch on the same typed read-only projections
 /// as the control service without enabling production credentials or auth.
-pub(crate) fn open_development_backend(state_root: PathBuf) -> Result<RunnerBackend, CliError> {
+pub(crate) fn open_development_backend(
+    state_root: PathBuf,
+) -> Result<DevelopmentBackend, CliError> {
     let capture = LocalMockProviderCapture::provision()
         .map_err(|_| CliError::operation("local mock capture authority unavailable"))?;
     open_backend_with_capture(state_root, Arc::new(capture))
+        .map(|inner| DevelopmentBackend { inner })
 }
 
 fn serve_with_capture(
