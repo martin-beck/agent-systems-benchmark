@@ -54,6 +54,8 @@ const DEV_GIT: &str = "/usr/bin/git";
 const DEV_SETSID: &str = "/usr/bin/setsid";
 // Development-only override; stable release paths never consult this variable.
 const DEV_CARGO_OVERRIDE: &str = "ASB_DEV_CARGO";
+const DEV_GIT_OVERRIDE: &str = "ASB_DEV_GIT";
+const DEV_SETSID_OVERRIDE: &str = "ASB_DEV_SETSID";
 const DEV_CARGO_HOME: &str = "CARGO_HOME";
 const DEV_TOOL_PATH_MAX: usize = 8;
 mod build_identity {
@@ -749,8 +751,8 @@ fn materialize_development(
     now: u64,
 ) -> Result<RouterResponse, RouterError> {
     let (asb_source_commit, asb_source_tree) = development_source_identity()?;
-    validate_tool(DEV_GIT)?;
-    validate_tool(DEV_SETSID)?;
+    let git = resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
+    let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
     let cargo = resolve_development_cargo()?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
@@ -760,14 +762,12 @@ fn materialize_development(
     ));
     prepare_private_directory(&root)?;
     let result = (|| {
-        let mut head = Command::new(DEV_SETSID);
-        head.env_clear().env("LANG", "C.UTF-8").args([
-            "--wait",
-            DEV_GIT,
-            "ls-remote",
-            DEV_REPOSITORY_URL,
-            "refs/heads/main",
-        ]);
+        let mut head = Command::new(&setsid);
+        head.env_clear()
+            .env("LANG", "C.UTF-8")
+            .args(["--wait"])
+            .arg(&git)
+            .args(["ls-remote", DEV_REPOSITORY_URL, "refs/heads/main"]);
         let output = run_development_command(head, &root)?;
         let commit = String::from_utf8(output)
             .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
@@ -777,13 +777,13 @@ fn materialize_development(
             .filter(|value| valid_hex(value, 40))
             .ok_or_else(|| RouterError::policy("dev_source_identity_invalid"))?;
         let source = root.join("source");
-        let mut clone = Command::new(DEV_SETSID);
+        let mut clone = Command::new(&setsid);
         clone
             .env_clear()
             .env("LANG", "C.UTF-8")
+            .args(["--wait"])
+            .arg(&git)
             .args([
-                "--wait",
-                DEV_GIT,
                 "clone",
                 "--depth",
                 "1",
@@ -798,17 +798,20 @@ fn materialize_development(
             .arg(&source);
         run_development_command(clone, &root)?;
         enforce_workspace_quota(&root)?;
-        let mut checkout = Command::new(DEV_SETSID);
+        let mut checkout = Command::new(&setsid);
         checkout
             .env_clear()
             .env("LANG", "C.UTF-8")
             .current_dir(&source);
-        checkout.args(["--wait", DEV_GIT, "checkout", "--detach", &commit]);
+        checkout
+            .args(["--wait"])
+            .arg(&git)
+            .args(["checkout", "--detach", &commit]);
         run_development_command(checkout, &root)?;
         enforce_workspace_quota(&root)?;
         let cargo_home = root.join("cargo-home");
         prepare_private_directory(&cargo_home)?;
-        let mut build = Command::new(DEV_SETSID);
+        let mut build = Command::new(&setsid);
         build
             .env_clear()
             .env("LANG", "C.UTF-8")
@@ -820,12 +823,14 @@ fn materialize_development(
             .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
         run_development_command(build, &root)?;
         enforce_workspace_quota(&root)?;
-        let mut source_tree_command = Command::new(DEV_SETSID);
+        let mut source_tree_command = Command::new(&setsid);
         source_tree_command
             .env_clear()
             .env("LANG", "C.UTF-8")
             .current_dir(&source)
-            .args(["--wait", DEV_GIT, "rev-parse", "HEAD^{tree}"]);
+            .args(["--wait"])
+            .arg(&git)
+            .args(["rev-parse", "HEAD^{tree}"]);
         let source_tree = String::from_utf8(run_development_command(source_tree_command, &root)?)
             .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
             .trim()
@@ -2460,6 +2465,25 @@ fn validate_tool(path: &str) -> Result<(), RouterError> {
     Ok(())
 }
 
+fn resolve_development_tool(override_name: &str, fallback: &str) -> Result<PathBuf, RouterError> {
+    resolve_development_tool_from(std::env::var_os(override_name).as_deref(), fallback)
+}
+
+fn resolve_development_tool_from(
+    override_path: Option<&std::ffi::OsStr>,
+    fallback: &str,
+) -> Result<PathBuf, RouterError> {
+    if let Some(value) = override_path {
+        return validate_development_tool(&PathBuf::from(value))
+            .map_err(|_| RouterError::policy("trusted_tool_invalid"));
+    }
+    match validate_development_tool(Path::new(fallback)) {
+        Ok(path) => Ok(path),
+        Err(error) if error.code == "trusted_tool_invalid" => Err(error),
+        Err(_) => Err(RouterError::operation("trusted_tool_unavailable")),
+    }
+}
+
 fn resolve_development_cargo() -> Result<PathBuf, RouterError> {
     let override_path = std::env::var_os(DEV_CARGO_OVERRIDE);
     let home = std::env::var_os("HOME");
@@ -2932,6 +2956,33 @@ mod tests {
             .unwrap_err()
             .code,
             "trusted_tool_unavailable"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_tool_overrides_accept_private_immutable_paths_only() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1572-tools-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let tool = root.join("bin/tool");
+        prepare_private_directory(tool.parent().unwrap()).unwrap();
+        fs::write(&tool, b"tool").unwrap();
+        fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            resolve_development_tool_from(Some(tool.as_os_str()), "/missing/tool").unwrap(),
+            fs::canonicalize(&tool).unwrap()
+        );
+        assert_eq!(
+            resolve_development_tool_from(
+                Some(std::ffi::OsStr::new("relative/tool")),
+                "/missing/tool"
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
     }
