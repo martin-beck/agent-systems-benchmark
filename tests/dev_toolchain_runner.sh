@@ -14,6 +14,7 @@ test "$(stat -c '%a' "$root/tools")" = 700
 test "$(stat -c '%a' "$root/tools/bin/cargo")" = 700
 test "$(stat -c '%a' "$root/tools/bin/git")" = 700
 test "$(stat -c '%a' "$root/tools/bin/setsid")" = 700
+test -z "$(find "$root" -maxdepth 1 -name '.dev-toolchain-stage-*' -print -quit)"
 ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh git --version >/dev/null
 set +e
 output=$(ASB_DEV_TOOLCHAIN_ROOT="$root/missing" tools/dev-toolchain/run.sh true 2>&1)

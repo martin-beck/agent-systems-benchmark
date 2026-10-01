@@ -59,5 +59,6 @@ else
 fi
 mv "$stage/bin" "$root/bin"
 mv "$stage/manifest" "$root/manifest"
+rmdir "$stage"
 trap - EXIT HUP INT TERM
 printf 'development toolchain ready: %s\n' "$root"
