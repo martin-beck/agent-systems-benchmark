@@ -21,6 +21,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 const FIXTURE: &[u8] = include_bytes!("../fixtures/asb-tui-capabilities-v1.json");
 const SCHEMA: &str = include_str!("../schema/v1/capabilities.schema.json");
+const ADAPTER_SCHEMA: &str = include_str!("../schema/v1/adapter-catalog.schema.json");
+const ADAPTER_FIXTURE: &str = include_str!("../fixtures/v1/adapter-catalog.json");
 const PROVENANCE: &str = include_str!("../fixtures/asb-tui-capabilities-v1.provenance.json");
 const MAX_COVERAGE_SINK_BYTES: usize = 4_096;
 static TEMP_DIRECTORY_SEQUENCE: AtomicUsize = AtomicUsize::new(0);
@@ -576,4 +578,20 @@ fn closed_parser_and_schema_reject_contract_drift() {
         let value: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
         assert!(!validator.is_valid(&value));
     }
+}
+
+#[test]
+fn adapter_catalog_fixture_matches_registered_schema() {
+    let schema: Value = serde_json::from_str(ADAPTER_SCHEMA).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let fixture: Value = serde_json::from_str(ADAPTER_FIXTURE).unwrap();
+    assert!(validator.is_valid(&fixture));
+    let mut output = Vec::new();
+    assert_eq!(
+        asb_cli::run(&["adapter-catalog".into()], &mut output, &mut Vec::new()),
+        0
+    );
+    let value: Value = serde_json::from_slice(&output).unwrap();
+    assert!(validator.is_valid(&value));
+    assert_eq!(value["adapters"].as_array().unwrap().len(), 2);
 }
