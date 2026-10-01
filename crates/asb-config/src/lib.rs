@@ -322,6 +322,25 @@ pub struct RunOverride {
     pub repetitions: Option<u32>,
 }
 
+/// A complete provider/model selection applied to one or more configured
+/// agents.  The value contains only public identities and digest-only
+/// credential metadata; secret material is resolved by the runtime channel.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProviderSelection {
+    /// Named model profile to create or replace.
+    pub profile_name: String,
+    /// Public provider/model profile.
+    pub profile: ModelProfile,
+    /// Named connection to create or replace.
+    pub connection_name: String,
+    /// Public connection settings.
+    pub connection: Connection,
+    /// Agents receiving the selection.
+    pub agents: Vec<String>,
+    /// Also make the selected agents the shared default set.
+    pub default_for_all: bool,
+}
+
 /// Complete authoritative configuration document.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -634,6 +653,24 @@ fn bounded_json<T: for<'de> Deserialize<'de>>(bytes: &[u8], label: &str) -> Resu
     serde_json::from_slice(bytes).map_err(|_| ConfigError::InvalidValue(format!("{label} format")))
 }
 
+fn validate_connection(connection: &Connection) -> Result<(), ConfigError> {
+    validate_text(&connection.endpoint, "connection.endpoint")?;
+    if connection.max_in_flight == 0 {
+        return Err(ConfigError::InvalidValue("connection.max_in_flight".into()));
+    }
+    Ok(())
+}
+
+fn validate_profile(profile: &ModelProfile) -> Result<(), ConfigError> {
+    validate_text(&profile.provider, "profile.provider")?;
+    validate_text(&profile.model, "profile.model")?;
+    validate_endpoint(&profile.endpoint)?;
+    if let Some(reference) = &profile.credential {
+        reference.validate()?;
+    }
+    Ok(())
+}
+
 /// Built-in values used when no persisted value exists.
 pub fn built_in_defaults() -> Defaults {
     Defaults {
@@ -732,6 +769,48 @@ impl Configuration {
         }
     }
 
+    /// Apply a complete provider/model selection as one validated mutation.
+    ///
+    /// The original document is never modified when validation fails.  This
+    /// makes provider addition, editing, and shared-default propagation safe
+    /// to pass directly to [`ConfigStore::save`].
+    pub fn apply_provider_selection(
+        &self,
+        selection: &ProviderSelection,
+    ) -> Result<Self, ConfigError> {
+        validate_name(&selection.profile_name, "profile")?;
+        validate_name(&selection.connection_name, "connection")?;
+        validate_list(&selection.agents, "selection.agents")?;
+        if selection.agents.is_empty() {
+            return Err(ConfigError::InvalidValue("selection.agents".into()));
+        }
+        validate_profile(&selection.profile)?;
+        validate_connection(&selection.connection)?;
+
+        let mut updated = self.clone();
+        updated
+            .profiles
+            .insert(selection.profile_name.clone(), selection.profile.clone());
+        updated.connections.insert(
+            selection.connection_name.clone(),
+            selection.connection.clone(),
+        );
+        for agent in &selection.agents {
+            let entry = updated
+                .agents
+                .get_mut(agent)
+                .ok_or_else(|| ConfigError::UnknownReference(agent.clone()))?;
+            entry.profile = selection.profile_name.clone();
+            entry.connection = selection.connection_name.clone();
+            entry.enabled = true;
+        }
+        if selection.default_for_all {
+            updated.defaults.agents = selection.agents.clone();
+        }
+        updated.validate()?;
+        Ok(updated)
+    }
+
     /// Validate schema, bounds, references and credential-free values.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.schema_version != CONFIG_SCHEMA_VERSION {
@@ -760,18 +839,11 @@ impl Configuration {
             }
         }
         for (name, connection) in &self.connections {
-            validate_text(&connection.endpoint, "connection.endpoint")?;
-            if connection.max_in_flight == 0 {
-                return Err(ConfigError::InvalidValue(name.clone()));
-            }
+            validate_name(name, "connection")?;
+            validate_connection(connection)?;
         }
         for profile in self.profiles.values() {
-            validate_text(&profile.provider, "profile.provider")?;
-            validate_text(&profile.model, "profile.model")?;
-            validate_endpoint(&profile.endpoint)?;
-            if let Some(reference) = &profile.credential {
-                reference.validate()?;
-            }
+            validate_profile(profile)?;
         }
         for (name, override_) in &self.agent_overrides {
             if !self.agents.contains_key(name) {
@@ -988,6 +1060,18 @@ impl ConfigStore {
                 .unwrap_or("config")
         ));
         reject_symlink(&temp)?;
+        // A process can exit after writing the temporary file but before the
+        // rename.  A bounded regular temp is safe to discard; symlinks and
+        // directories remain hard errors through the checks above.
+        if temp.exists() {
+            let metadata = fs::metadata(&temp)?;
+            if !metadata.is_file() || metadata.len() > MAX_CONFIG_BYTES as u64 {
+                return Err(ConfigError::InvalidValue(
+                    "configuration temporary file is invalid".into(),
+                ));
+            }
+            fs::remove_file(&temp)?;
+        }
         let mut options = OpenOptions::new();
         options.write(true).create_new(true).mode(0o600);
         let result: Result<(), io::Error> = (|| {
@@ -1230,6 +1314,54 @@ mod tests {
         let store = ConfigStore::new(&path);
         store.save(&sample()).unwrap();
         assert_eq!(store.load().unwrap(), Some(sample()));
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn provider_selection_updates_agents_and_shared_defaults_atomically() {
+        let before = sample();
+        let selection = ProviderSelection {
+            profile_name: "remote".into(),
+            profile: ModelProfile {
+                provider: "openrouter".into(),
+                model: "public-model".into(),
+                endpoint: "https://api.example.invalid/v1".into(),
+                credential: Some(CredentialReference {
+                    kind: CredentialReferenceKind::Environment,
+                    locator_sha256: "a".repeat(64),
+                }),
+            },
+            connection_name: "remote-connection".into(),
+            connection: Connection {
+                endpoint: "remote".into(),
+                max_in_flight: 2,
+            },
+            agents: vec!["codex".into()],
+            default_for_all: true,
+        };
+        let after = before.apply_provider_selection(&selection).unwrap();
+        assert_eq!(after.agents["codex"].profile, "remote");
+        assert_eq!(after.defaults.agents, vec!["codex"]);
+        assert_eq!(before.agents["codex"].profile, "default");
+        assert!(!serde_json::to_string(&after).unwrap().contains("secret"));
+
+        let mut invalid = selection;
+        invalid.profile.endpoint = "https://example.invalid/?api_key=secret".into();
+        assert!(before.apply_provider_selection(&invalid).is_err());
+        assert_eq!(before, sample());
+    }
+
+    #[test]
+    fn interrupted_temporary_file_is_recovered_on_next_atomic_save() {
+        let path = temp_path().join("config.json");
+        let store = ConfigStore::new(&path);
+        private_dir(path.parent().unwrap()).unwrap();
+        let temp = path.parent().unwrap().join(".config.json.tmp");
+        fs::write(&temp, b"partial").unwrap();
+        fs::set_permissions(&temp, fs::Permissions::from_mode(0o600)).unwrap();
+        store.save(&sample()).unwrap();
+        assert_eq!(store.load().unwrap(), Some(sample()));
+        assert!(!temp.exists());
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 
