@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"name":"setup-missing-auth","kind":"setup","argv":["setup","--json"],"expected_exit":4,"development_warning_only":true},
+    {"name":"record-invalid-input","kind":"record","argv":["record","/missing","/missing"],"expected_exit":4},
+    {"name":"replay-invalid-cassette","kind":"replay","argv":["replay","/missing","bad","agent-a"],"expected_exit":4},
+    {"name":"benchmark-invalid-plan","kind":"benchmark","argv":["run","/missing"],"expected_exit":4},
+    {"name":"recovery-doctor","kind":"recovery","argv":["doctor"],"expected_exit":0}
+  ]
+}
