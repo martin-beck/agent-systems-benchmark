@@ -2880,14 +2880,16 @@ mod tests {
             .execute(&call, RequestDeadline::start(100).unwrap())
             .expect("development capabilities");
         assert!(matches!(result.result, ControlResult::Capabilities(_)));
-        assert!(backend
-            .execute(
-                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
-                    runner_instance_id: backend.runner_instance_id().into(),
-                },),
-                RequestDeadline::start(100).unwrap(),
-            )
-            .is_ok());
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                        runner_instance_id: backend.runner_instance_id().into(),
+                    },),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
     }
 
     #[test]
