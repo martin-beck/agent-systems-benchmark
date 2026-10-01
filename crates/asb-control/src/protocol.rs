@@ -473,8 +473,8 @@ impl ControlCall {
             | Self::RecordingCampaignProgress(_)
             | Self::RecordingCampaignCancel(_)
             | Self::RecordingCampaignReconcile(_)
-            | Self::RecordingCampaignOfflineDefault(_)
-            | Self::RecordingCampaignSeal(_)
+            | Self::RecordingCampaignOfflineDefault(_) => CONTROL_RECORDING_LIFECYCLE_V1,
+            Self::RecordingCampaignSeal(_)
             | Self::RecordingCampaignReopen(_)
             | Self::RecordingCampaignRemove(_)
             | Self::RecordingCampaignRetry(_) => CONTROL_RECORDING_REPAIR_V1,
