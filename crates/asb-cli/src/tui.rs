@@ -3241,6 +3241,20 @@ mod tests {
                 );
             }
         }
+        // A client that presents a stale generation must not receive a
+        // current catalog as if its cursor were authoritative.
+        let runner_instance_id = client.negotiated().runner_instance_id.clone();
+        let stale = client
+            .call(
+                ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Status,
+                    runner_instance_id,
+                    known_generation: Some(asb_control::Revision(u64::MAX)),
+                }),
+                timeout,
+            )
+            .unwrap();
+        assert!(stale.error().is_some(), "stale generation was accepted");
         drop(client);
         worker.join().unwrap().unwrap();
         assert!(!control_path.exists());
