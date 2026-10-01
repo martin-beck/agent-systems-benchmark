@@ -7506,6 +7506,70 @@ mod tests {
             ControlResult::RecordingCampaignLifecycle(ref value)
                 if value.state == "complete" && value.offline_ready && value.unavailable_reason.is_none()
         ));
+
+        let catalog_call =
+            ControlCall::RecordingCassetteCatalog(asb_control::RecordingCassetteCatalogRequest {
+                runner_instance_id: backend.runner_instance_id().into(),
+                campaign_id: plan.campaign_id.clone(),
+                expected_generation: Revision(2),
+            });
+        let catalog_result = backend.execute(&catalog_call, deadline()).unwrap();
+        catalog_result
+            .validate_for_call(&catalog_call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCassetteCatalog(cassette_catalog) = catalog_result.result
+        else {
+            panic!("cassette catalog result");
+        };
+        let entry = cassette_catalog.entries.first().unwrap().clone();
+        let replay_call =
+            ControlCall::RecordingReplayDispatch(asb_control::RecordingReplayDispatchParams {
+                idempotency_key: "lifecycle-replay".into(),
+                runner_instance_id: backend.runner_instance_id().into(),
+                expected_generation: Revision(2),
+                campaign_id: plan.campaign_id.clone(),
+                provider_profile_sha256: entry.provider_profile_sha256.clone(),
+                agent_id: entry.agent_id.clone(),
+                workload_id: entry.workload_id.clone(),
+                cassette_sha256: entry.cassette_sha256.clone(),
+            });
+        let replay_result = backend.execute(&replay_call, deadline()).unwrap();
+        replay_result
+            .validate_for_call(&replay_call, ControlLimits::default())
+            .unwrap();
+        assert!(matches!(
+            replay_result.result,
+            ControlResult::RecordingReplayDispatch(ref value) if value.offline_only
+        ));
+        let mut wrong_profile = replay_call.clone();
+        let ControlCall::RecordingReplayDispatch(ref mut params) = wrong_profile else {
+            unreachable!();
+        };
+        params.provider_profile_sha256 = "f".repeat(64);
+        assert_eq!(
+            backend.execute(&wrong_profile, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let mut wrong_runner = replay_call;
+        let ControlCall::RecordingReplayDispatch(ref mut params) = wrong_runner else {
+            unreachable!();
+        };
+        params.runner_instance_id = "other-runner".into();
+        assert_eq!(
+            backend.execute(&wrong_runner, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        fs::remove_file(
+            backend
+                .state_root
+                .join("cassettes")
+                .join(format!("{}.json", entry.cassette_sha256)),
+        )
+        .unwrap();
+        assert_eq!(
+            backend.execute(&catalog_call, deadline()),
+            Err(BackendFailure::NeedsReconciliation)
+        );
     }
 
     #[test]
