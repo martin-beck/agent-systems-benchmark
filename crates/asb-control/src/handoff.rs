@@ -35,8 +35,8 @@ use thiserror::Error;
 use crate::endpoint::{AdmissionGuard, join_workers, reap_workers};
 use crate::{
     CONTROL_AGENT_LIFECYCLE_V1, ControlBackend, ControlCall, ControlClient, ControlLimits,
-    ControlServer, EndpointError, MAX_CONTROL_ID_BYTES, PeerIdentity, RequestDeadline,
-    validate_identity,
+    ControlServer, ControlVersion, EndpointError, MAX_CONTROL_ID_BYTES, PeerIdentity,
+    RequestDeadline, validate_identity,
 };
 
 /// Exact byte length of one router/frontend broker packet.
@@ -492,6 +492,16 @@ pub struct BrokerGeneration {
 }
 
 impl BrokerGeneration {
+    /// Construct continuity evidence for an already validated producer.
+    ///
+    /// This is crate-visible so adjacent control seams can validate inherited
+    /// descriptors without exposing mutable broker state. Callers must still
+    /// reject the zero epoch or sequence before adopting a stream.
+    #[cfg(test)]
+    pub(crate) const fn from_parts(epoch: [u8; 16], sequence: u64) -> Self {
+        Self { epoch, sequence }
+    }
+
     /// Fresh nonzero broker epoch.
     #[must_use]
     pub const fn epoch(self) -> [u8; 16] {
@@ -721,6 +731,7 @@ impl AuthenticatedGenerationProducer {
             broker_generation,
             kernel_peer,
             expected_runner_identity,
+            CONTROL_AGENT_LIFECYCLE_V1,
         )
         .map_err(ProvisioningError::from)
     }
@@ -1456,15 +1467,34 @@ pub struct AuthenticatedGeneration {
     broker_generation: BrokerGeneration,
     kernel_peer: PeerIdentity,
     expected_runner_identity: [u8; 32],
+    protocol_version: ControlVersion,
 }
 
 impl AuthenticatedGeneration {
+    #[cfg(test)]
+    pub(crate) fn for_test(
+        stream: UnixStream,
+        broker_generation: BrokerGeneration,
+        kernel_peer: PeerIdentity,
+        expected_runner_identity: [u8; 32],
+        protocol_version: ControlVersion,
+    ) -> Self {
+        Self {
+            stream,
+            broker_generation,
+            kernel_peer,
+            expected_runner_identity,
+            protocol_version,
+        }
+    }
+
     /// Create a generation only from kernel-authenticated ASB-side evidence.
     pub(crate) fn new(
         stream: UnixStream,
         broker_generation: BrokerGeneration,
         kernel_peer: PeerIdentity,
         expected_runner_identity: [u8; 32],
+        protocol_version: ControlVersion,
     ) -> Result<Self, HandoffError> {
         if broker_generation.epoch == [0; 16]
             || broker_generation.sequence == 0
@@ -1477,6 +1507,7 @@ impl AuthenticatedGeneration {
             broker_generation,
             kernel_peer,
             expected_runner_identity,
+            protocol_version,
         })
     }
 
@@ -1496,6 +1527,12 @@ impl AuthenticatedGeneration {
     #[must_use]
     pub const fn expected_runner_identity(&self) -> [u8; 32] {
         self.expected_runner_identity
+    }
+
+    /// Exact control protocol minor authenticated during acquisition.
+    #[must_use]
+    pub const fn protocol_version(&self) -> ControlVersion {
+        self.protocol_version
     }
 
     /// Consume the evidence wrapper and return the anonymous control stream.
@@ -1775,7 +1812,14 @@ mod tests {
         let (stream, service) = UnixStream::pair().unwrap();
         let peer = PeerIdentity::from_fd(&stream).unwrap();
         (
-            AuthenticatedGeneration::new(stream, generation, peer, identity).unwrap(),
+            AuthenticatedGeneration::new(
+                stream,
+                generation,
+                peer,
+                identity,
+                CONTROL_AGENT_LIFECYCLE_V1,
+            )
+            .unwrap(),
             service,
         )
     }
