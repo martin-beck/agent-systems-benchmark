@@ -97,6 +97,29 @@ def workspace_bytes(root: Path) -> int:
     return total
 
 
+def process_group_has_members(pgid: int) -> bool:
+    """Detect descendants left behind after a session leader exits."""
+    if os.name != "posix":
+        return False
+    proc = Path("/proc")
+    try:
+        entries = list(proc.iterdir())
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text(encoding="utf-8")
+            fields = stat[stat.rfind(")") + 2 :].split()
+            # After the comm field: state, ppid, pgrp.
+            if len(fields) > 2 and int(fields[2]) == pgid:
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
 def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
     command = [str(binary), *case["argv"]]
     env = {"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "ASB_MATRIX_ROOT": str(root)}
@@ -168,7 +191,15 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
         if selector is not None:
             selector.close()
         cleanup_ok = True
-        if process is not None and process.poll() is None:
+        group_alive = process is not None and process_group_has_members(process.pid)
+        if group_alive and classification in {"passed", "warning", "runner_unavailable"}:
+            classification = "descendants_survived"
+        must_kill_group = (
+            process is not None
+            and (process.poll() is None or group_alive
+                 or classification in {"timeout", "output_exceeded", "workspace_exceeded"})
+        )
+        if must_kill_group and process is not None:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
@@ -182,6 +213,12 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
                 cleanup_ok = False
             if process.stdout is not None:
                 process.stdout.close()
+        if group_alive:
+            deadline = time.monotonic() + 2
+            while process_group_has_members(process.pid) and time.monotonic() < deadline:
+                time.sleep(0.02)
+            if process_group_has_members(process.pid):
+                cleanup_ok = False
         for relative in case["cleanup"]:
             target = (root / relative).resolve()
             if root not in target.parents:

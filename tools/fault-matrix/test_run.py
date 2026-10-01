@@ -80,6 +80,19 @@ class FaultMatrixTests(unittest.TestCase):
             self.assertTrue(result["cleanup_ok"])
             self.assertFalse(root.exists())
 
+    def test_leader_exit_does_not_skip_descendant_group_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "case"
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+                result = run.run_case(Path("/bin/sh"), {
+                    "name": "orphan", "kind": "recovery",
+                    "argv": ["-c", "sleep 30 >/dev/null 2>&1 & exit 0"], "timeout": 2.0,
+                    "expected_exit": 0, "cleanup": [], "development_warning_only": False,
+                }, root)
+            self.assertEqual(result["classification"], "descendants_survived")
+            self.assertTrue(result["cleanup_ok"])
+            self.assertFalse(root.exists())
+
     def test_warning_requires_typed_code(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "case"
