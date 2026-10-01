@@ -4092,6 +4092,33 @@ mod tests {
             64
         );
         enforce_workspace_quota_for_roots(&[source.0.as_path(), target.0.as_path()], 128).unwrap();
+        enforce_workspace_quota(&source.0).unwrap();
+        enforce_workspace_quota_with_limit(&source.0, 128).unwrap();
+    }
+
+    #[test]
+    fn development_aggregate_quota_rejects_overflow_and_reports_limit() {
+        let source = Scratch::new("dev-quota-source-overflow");
+        let target = Scratch::new("dev-quota-target-overflow");
+        fs::write(source.0.join("source"), [0_u8; 80]).unwrap();
+        fs::write(target.0.join("target"), [0_u8; 80]).unwrap();
+        assert!(
+            bounded_directory_size_for_roots(&[source.0.as_path(), target.0.as_path()], 128)
+                .unwrap()
+                > 128
+        );
+        assert_eq!(
+            enforce_workspace_quota_for_roots(&[source.0.as_path(), target.0.as_path()], 128)
+                .unwrap_err()
+                .code,
+            "dev_workspace_quota_exceeded"
+        );
+        assert_eq!(
+            enforce_workspace_quota_with_limit(&source.0, 1)
+                .unwrap_err()
+                .code,
+            "dev_workspace_quota_exceeded"
+        );
     }
 
     #[test]
@@ -4101,16 +4128,26 @@ mod tests {
         fs::create_dir(&release).unwrap();
         let executable = release.join("asb-tui");
         let sidecar = release.join("build-metadata");
+        let nested = release.join("nested");
         fs::write(&executable, b"binary").unwrap();
         fs::write(&sidecar, b"metadata").unwrap();
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("debug"), b"debug").unwrap();
         fs::set_permissions(&release, fs::Permissions::from_mode(0o775)).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o775)).unwrap();
         fs::set_permissions(&sidecar, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(&nested, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(nested.join("debug"), fs::Permissions::from_mode(0o775)).unwrap();
         harden_private_development_tree(&target.0, &executable).unwrap();
         assert_eq!(target.0.metadata().unwrap().mode() & 0o777, 0o700);
         assert_eq!(release.metadata().unwrap().mode() & 0o777, 0o700);
         assert_eq!(executable.metadata().unwrap().mode() & 0o777, 0o700);
         assert_eq!(sidecar.metadata().unwrap().mode() & 0o777, 0o600);
+        assert_eq!(nested.metadata().unwrap().mode() & 0o777, 0o700);
+        assert_eq!(
+            nested.join("debug").metadata().unwrap().mode() & 0o777,
+            0o600
+        );
         assert_eq!(read_bounded(&executable, 64).unwrap(), b"binary");
     }
 
