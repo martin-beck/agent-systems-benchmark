@@ -2922,6 +2922,14 @@ impl ControlBackend for RunnerBackend {
             ControlCall::RecordingCampaignProgress(request) => {
                 self.recording_campaign_progress(call, request)
             }
+            ControlCall::RecordingCassetteCatalog(request) => {
+                let catalog = self.recording_cassette_catalog(request)?;
+                self.bind(call, ControlResult::RecordingCassetteCatalog(catalog))
+            }
+            ControlCall::RecordingReplayDispatch(params) => {
+                let dispatch = self.recording_replay_dispatch(params)?;
+                self.bind(call, ControlResult::RecordingReplayDispatch(dispatch))
+            }
             ControlCall::RecordingCampaignCancel(params) => self.recording_campaign_lifecycle(
                 call,
                 &params.idempotency_key,
@@ -3807,6 +3815,154 @@ impl RunnerBackend {
             call,
             ControlResult::RecordingCampaignLifecycle(self.lifecycle_projection(record)),
         )
+    }
+
+    fn recording_cassette_catalog(
+        &self,
+        request: &asb_control::RecordingCassetteCatalogRequest,
+    ) -> Result<asb_control::RecordingCassetteCatalog, BackendFailure> {
+        if request.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let campaign = catalog
+            .recording_campaign
+            .as_ref()
+            .filter(|record| {
+                record.campaign_id == request.campaign_id
+                    && record.generation == request.expected_generation.0
+                    && record.offline_ready
+            })
+            .ok_or(BackendFailure::CapabilityUnavailable)?;
+        let mut entries = Vec::new();
+        for coverage in &campaign.coverage {
+            if coverage.state != "complete" {
+                continue;
+            }
+            let Some(digest) = coverage.cassette_sha256.as_deref() else {
+                return Err(BackendFailure::NeedsReconciliation);
+            };
+            let bytes = fs::read(
+                self.state_root
+                    .join("cassettes")
+                    .join(format!("{digest}.json")),
+            )
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            let cassette = asb_replay::decode_cassette(&bytes, Default::default())
+                .map_err(|_| BackendFailure::NeedsReconciliation)?;
+            if cassette.integrity.digest != digest {
+                return Err(BackendFailure::NeedsReconciliation);
+            }
+            entries.push(asb_control::RecordingCassetteEntry {
+                cassette_id: cassette.contents.cassette_id,
+                cassette_sha256: digest.to_owned(),
+                provider_profile_sha256: recording_tuple_digest(
+                    &campaign.provider_id,
+                    &campaign.model_id,
+                    &coverage.agent_id,
+                    &coverage.workload_id,
+                    &coverage.scorer_revision,
+                    campaign.generation,
+                ),
+                agent_id: coverage.agent_id.clone(),
+                workload_id: coverage.workload_id.clone(),
+                scorer_revision: coverage.scorer_revision.clone(),
+            });
+        }
+        if entries.is_empty() {
+            return Err(BackendFailure::CapabilityUnavailable);
+        }
+        Ok(asb_control::RecordingCassetteCatalog {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(campaign.generation),
+            campaign_id: campaign.campaign_id.clone(),
+            entries,
+        })
+    }
+
+    fn recording_replay_dispatch(
+        &self,
+        params: &asb_control::RecordingReplayDispatchParams,
+    ) -> Result<asb_control::RecordingReplayDispatch, BackendFailure> {
+        if params.runner_instance_id != self.runner_instance_id {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let campaign = catalog
+            .recording_campaign
+            .as_ref()
+            .filter(|record| {
+                record.campaign_id == params.campaign_id
+                    && record.generation == params.expected_generation.0
+                    && record.offline_ready
+            })
+            .ok_or(BackendFailure::CapabilityUnavailable)?;
+        let entry = campaign
+            .coverage
+            .iter()
+            .find(|entry| {
+                entry.state == "complete"
+                    && entry.agent_id == params.agent_id
+                    && entry.workload_id == params.workload_id
+                    && entry.cassette_sha256.as_deref() == Some(params.cassette_sha256.as_str())
+                    && recording_tuple_digest(
+                        &campaign.provider_id,
+                        &campaign.model_id,
+                        &entry.agent_id,
+                        &entry.workload_id,
+                        &entry.scorer_revision,
+                        campaign.generation,
+                    ) == params.provider_profile_sha256
+            })
+            .ok_or(BackendFailure::StaleIdentity)?;
+        let bytes = fs::read(
+            self.state_root
+                .join("cassettes")
+                .join(format!("{}.json", params.cassette_sha256)),
+        )
+        .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let cassette = asb_replay::decode_cassette(&bytes, Default::default())
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        // Route the selection through the replay authority.  `live_available`
+        // is deliberately false: this control operation never permits provider
+        // egress, even when a compatible live provider is configured.
+        let mut index = asb_replay::RecordingIndex::new();
+        index
+            .insert(
+                asb_replay::RecordingDescriptor {
+                    provider_profile_sha256: params.provider_profile_sha256.clone(),
+                    agent_id: params.agent_id.clone(),
+                    cassette_sha256: params.cassette_sha256.clone(),
+                },
+                &cassette,
+            )
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let (_, offers) = index
+            .offers(&params.provider_profile_sha256, &params.agent_id, false)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        if !offers
+            .iter()
+            .any(|offer| offer.cassette_sha256 == params.cassette_sha256)
+        {
+            return Err(BackendFailure::StaleIdentity);
+        }
+        let _ = entry;
+        Ok(asb_control::RecordingReplayDispatch {
+            runner_instance_id: self.runner_instance_id.clone(),
+            generation: Revision(campaign.generation),
+            campaign_id: campaign.campaign_id.clone(),
+            provider_profile_sha256: params.provider_profile_sha256.clone(),
+            agent_id: params.agent_id.clone(),
+            workload_id: params.workload_id.clone(),
+            cassette_sha256: params.cassette_sha256.clone(),
+            offline_only: true,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -7350,6 +7506,70 @@ mod tests {
             ControlResult::RecordingCampaignLifecycle(ref value)
                 if value.state == "complete" && value.offline_ready && value.unavailable_reason.is_none()
         ));
+
+        let catalog_call =
+            ControlCall::RecordingCassetteCatalog(asb_control::RecordingCassetteCatalogRequest {
+                runner_instance_id: backend.runner_instance_id().into(),
+                campaign_id: plan.campaign_id.clone(),
+                expected_generation: Revision(2),
+            });
+        let catalog_result = backend.execute(&catalog_call, deadline()).unwrap();
+        catalog_result
+            .validate_for_call(&catalog_call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::RecordingCassetteCatalog(cassette_catalog) = catalog_result.result
+        else {
+            panic!("cassette catalog result");
+        };
+        let entry = cassette_catalog.entries.first().unwrap().clone();
+        let replay_call =
+            ControlCall::RecordingReplayDispatch(asb_control::RecordingReplayDispatchParams {
+                idempotency_key: "lifecycle-replay".into(),
+                runner_instance_id: backend.runner_instance_id().into(),
+                expected_generation: Revision(2),
+                campaign_id: plan.campaign_id.clone(),
+                provider_profile_sha256: entry.provider_profile_sha256.clone(),
+                agent_id: entry.agent_id.clone(),
+                workload_id: entry.workload_id.clone(),
+                cassette_sha256: entry.cassette_sha256.clone(),
+            });
+        let replay_result = backend.execute(&replay_call, deadline()).unwrap();
+        replay_result
+            .validate_for_call(&replay_call, ControlLimits::default())
+            .unwrap();
+        assert!(matches!(
+            replay_result.result,
+            ControlResult::RecordingReplayDispatch(ref value) if value.offline_only
+        ));
+        let mut wrong_profile = replay_call.clone();
+        let ControlCall::RecordingReplayDispatch(ref mut params) = wrong_profile else {
+            unreachable!();
+        };
+        params.provider_profile_sha256 = "f".repeat(64);
+        assert_eq!(
+            backend.execute(&wrong_profile, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        let mut wrong_runner = replay_call;
+        let ControlCall::RecordingReplayDispatch(ref mut params) = wrong_runner else {
+            unreachable!();
+        };
+        params.runner_instance_id = "other-runner".into();
+        assert_eq!(
+            backend.execute(&wrong_runner, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+        fs::remove_file(
+            backend
+                .state_root
+                .join("cassettes")
+                .join(format!("{}.json", entry.cassette_sha256)),
+        )
+        .unwrap();
+        assert_eq!(
+            backend.execute(&catalog_call, deadline()),
+            Err(BackendFailure::NeedsReconciliation)
+        );
     }
 
     #[test]

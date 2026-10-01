@@ -55,6 +55,11 @@ pub const CONTROL_RUNTIME_BOOTSTRAP_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 11,
 };
+/// Version of the digest-only cassette catalog and offline replay dispatch.
+pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 12,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -62,7 +67,23 @@ pub const CONTROL_RUNTIME_BOOTSTRAP_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 11] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 12] = [
+    CONTROL_V1,
+    CONTROL_MEASUREMENT_CATALOG_V1,
+    CONTROL_MEASUREMENT_SELECTION_V1,
+    CONTROL_AGENT_CATALOG_V1,
+    CONTROL_AGENT_LIFECYCLE_V1,
+    CONTROL_AUTH_V1,
+    CONTROL_PROVIDER_CATALOG_V1,
+    CONTROL_RECORDING_LIFECYCLE_V1,
+    CONTROL_AUTH_HELPER_V1,
+    CONTROL_RUNTIME_BOOTSTRAP_V1,
+    CONTROL_BENCHMARK_CATALOG_V1,
+    CONTROL_CASSETTE_CONTROL_V1,
+];
+/// Versions understood by frontends that have not adopted cassette control.
+/// They retain v1.11 as the highest common fallback.
+pub const SUPPORTED_CONTROL_VERSIONS_LEGACY: [ControlVersion; 11] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -283,6 +304,10 @@ pub enum ControlCall {
     RecordingCampaignExecute(crate::RecordingCampaignExecuteParams),
     /// Read durable tuple coverage and lifecycle state.
     RecordingCampaignProgress(crate::RecordingCampaignProgressRequest),
+    /// Read digest-only sealed cassette metadata for one campaign.
+    RecordingCassetteCatalog(crate::RecordingCassetteCatalogRequest),
+    /// Dispatch one exact cassette through the provider-free replay boundary.
+    RecordingReplayDispatch(crate::RecordingReplayDispatchParams),
     /// Cancel a recording campaign before offline activation.
     RecordingCampaignCancel(crate::RecordingCampaignCancelParams),
     /// Reconcile a campaign after an interrupted runtime effect.
@@ -435,6 +460,9 @@ impl ControlCall {
             | Self::RecordingCampaignCancel(_)
             | Self::RecordingCampaignReconcile(_)
             | Self::RecordingCampaignOfflineDefault(_) => CONTROL_RECORDING_LIFECYCLE_V1,
+            Self::RecordingCassetteCatalog(_) | Self::RecordingReplayDispatch(_) => {
+                CONTROL_CASSETTE_CONTROL_V1
+            }
             _ => CONTROL_V1,
         }
     }
@@ -1630,6 +1658,10 @@ pub enum ControlResult {
     RecordingCampaignStatus(crate::RecordingCampaignStatus),
     /// Durable recording campaign lifecycle and tuple coverage.
     RecordingCampaignLifecycle(crate::RecordingCampaignLifecycle),
+    /// Digest-only sealed cassette metadata.
+    RecordingCassetteCatalog(crate::RecordingCassetteCatalog),
+    /// Accepted provider-free replay dispatch.
+    RecordingReplayDispatch(crate::RecordingReplayDispatch),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1718,6 +1750,12 @@ impl BoundControlResult {
             {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::RecordingCassetteCatalog(_)
+            | ControlResult::RecordingReplayDispatch(_)
+                if version < CONTROL_CASSETTE_CONTROL_V1 =>
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1752,6 +1790,8 @@ impl ControlResult {
             Self::RecordingCampaign(value) => value.validate(),
             Self::RecordingCampaignStatus(value) => value.validate(),
             Self::RecordingCampaignLifecycle(value) => value.validate(),
+            Self::RecordingCassetteCatalog(value) => value.validate(),
+            Self::RecordingReplayDispatch(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::BenchmarkCatalog(value) => value.validate(),
@@ -1960,6 +2000,14 @@ impl ControlResult {
                     Self::RecordingCampaignLifecycle(_)
                 )
                 | (
+                    ControlCall::RecordingCassetteCatalog(_),
+                    Self::RecordingCassetteCatalog(_)
+                )
+                | (
+                    ControlCall::RecordingReplayDispatch(_),
+                    Self::RecordingReplayDispatch(_)
+                )
+                | (
                     ControlCall::RecordingCampaignCancel(_),
                     Self::RecordingCampaignLifecycle(_)
                 )
@@ -2084,6 +2132,26 @@ impl ControlResult {
             ) => {
                 status.runner_instance_id == request.runner_instance_id
                     && status.campaign_id == request.campaign_id
+            }
+            (
+                ControlCall::RecordingCassetteCatalog(request),
+                Self::RecordingCassetteCatalog(catalog),
+            ) => {
+                catalog.runner_instance_id == request.runner_instance_id
+                    && catalog.campaign_id == request.campaign_id
+                    && catalog.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingReplayDispatch(request),
+                Self::RecordingReplayDispatch(dispatch),
+            ) => {
+                dispatch.runner_instance_id == request.runner_instance_id
+                    && dispatch.campaign_id == request.campaign_id
+                    && dispatch.generation == request.expected_generation
+                    && dispatch.provider_profile_sha256 == request.provider_profile_sha256
+                    && dispatch.agent_id == request.agent_id
+                    && dispatch.workload_id == request.workload_id
+                    && dispatch.cassette_sha256 == request.cassette_sha256
             }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
@@ -2347,6 +2415,8 @@ pub fn validate_request(
         ControlCall::RecordingCampaignStatus(params) => params.validate()?,
         ControlCall::RecordingCampaignExecute(params) => params.validate()?,
         ControlCall::RecordingCampaignProgress(params) => params.validate()?,
+        ControlCall::RecordingCassetteCatalog(params) => params.validate()?,
+        ControlCall::RecordingReplayDispatch(params) => params.validate()?,
         ControlCall::RecordingCampaignCancel(params) => params.validate()?,
         ControlCall::RecordingCampaignReconcile(params) => params.validate()?,
         ControlCall::RecordingCampaignOfflineDefault(params) => params.validate()?,
@@ -2627,6 +2697,96 @@ mod benchmark_catalog_tests {
                     ControlLimits::default(),
                     CONTROL_PROVIDER_CATALOG_V1
                 )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn cassette_control_is_admitted_only_at_v1_12() {
+        let digest = "a".repeat(64);
+        let call = ControlCall::RecordingReplayDispatch(crate::RecordingReplayDispatchParams {
+            idempotency_key: "replay-1".into(),
+            runner_instance_id: "runner-1".into(),
+            expected_generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            provider_profile_sha256: digest.clone(),
+            agent_id: "agent-1".into(),
+            workload_id: "workload-1".into(),
+            cassette_sha256: digest.clone(),
+        });
+        let response = BoundControlResult::new(
+            &call,
+            ControlResult::RecordingReplayDispatch(crate::RecordingReplayDispatch {
+                runner_instance_id: "runner-1".into(),
+                generation: Revision(1),
+                campaign_id: "campaign-1".into(),
+                provider_profile_sha256: digest.clone(),
+                agent_id: "agent-1".into(),
+                workload_id: "workload-1".into(),
+                cassette_sha256: digest,
+                offline_only: true,
+            }),
+        )
+        .unwrap();
+        assert!(
+            response
+                .validate_for_call_and_version(
+                    &call,
+                    ControlLimits::default(),
+                    CONTROL_CASSETTE_CONTROL_V1,
+                )
+                .is_ok()
+        );
+        assert!(
+            response
+                .validate_for_call_and_version(
+                    &call,
+                    ControlLimits::default(),
+                    CONTROL_RUNTIME_BOOTSTRAP_V1,
+                )
+                .is_err()
+        );
+        assert!(SUPPORTED_CONTROL_VERSIONS.contains(&CONTROL_CASSETTE_CONTROL_V1));
+        assert!(SUPPORTED_CONTROL_VERSIONS_LEGACY.contains(&CONTROL_RUNTIME_BOOTSTRAP_V1));
+        assert!(!SUPPORTED_CONTROL_VERSIONS_LEGACY.contains(&CONTROL_CASSETTE_CONTROL_V1));
+
+        let catalog_call =
+            ControlCall::RecordingCassetteCatalog(crate::RecordingCassetteCatalogRequest {
+                runner_instance_id: "runner-1".into(),
+                campaign_id: "campaign-1".into(),
+                expected_generation: Revision(1),
+            });
+        let catalog = BoundControlResult::new(
+            &catalog_call,
+            ControlResult::RecordingCassetteCatalog(crate::RecordingCassetteCatalog {
+                runner_instance_id: "runner-1".into(),
+                generation: Revision(1),
+                campaign_id: "campaign-1".into(),
+                entries: vec![crate::RecordingCassetteEntry {
+                    cassette_id: "cassette-1".into(),
+                    cassette_sha256: "b".repeat(64),
+                    provider_profile_sha256: "c".repeat(64),
+                    agent_id: "agent-1".into(),
+                    workload_id: "workload-1".into(),
+                    scorer_revision: "rev-1".into(),
+                }],
+            }),
+        )
+        .unwrap();
+        assert!(
+            catalog
+                .validate_for_call(&catalog_call, ControlLimits::default())
+                .is_ok()
+        );
+        let mismatch =
+            ControlCall::RecordingCassetteCatalog(crate::RecordingCassetteCatalogRequest {
+                runner_instance_id: "runner-1".into(),
+                campaign_id: "other-campaign".into(),
+                expected_generation: Revision(1),
+            });
+        assert!(
+            catalog
+                .validate_for_call(&mismatch, ControlLimits::default())
                 .is_err()
         );
     }

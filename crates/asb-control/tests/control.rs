@@ -1338,6 +1338,27 @@ fn negotiation_rejects_types_only_v1_1_and_selects_highest_exact_wire_version() 
 }
 
 #[test]
+fn negotiation_admits_opted_in_cassette_v1_12_and_falls_back_for_legacy_frontends() {
+    let mut cassette = ControlSession::new(limits()).unwrap();
+    let (selected, _) = cassette
+        .negotiate(&NegotiateParams {
+            versions: BTreeSet::from([CONTROL_CASSETTE_CONTROL_V1]),
+            limits: limits(),
+        })
+        .unwrap();
+    assert_eq!(selected, CONTROL_CASSETTE_CONTROL_V1);
+
+    let mut legacy = ControlSession::new(limits()).unwrap();
+    let (selected, _) = legacy
+        .negotiate(&NegotiateParams {
+            versions: SUPPORTED_CONTROL_VERSIONS_LEGACY.into_iter().collect(),
+            limits: limits(),
+        })
+        .unwrap();
+    assert_eq!(selected, CONTROL_RUNTIME_BOOTSTRAP_V1);
+}
+
+#[test]
 fn public_response_validation_rejects_sensitive_and_unbounded_values() {
     for value in [
         json!({"api_token": "redacted"}),

@@ -43,9 +43,9 @@ impl ControlSession {
         }
         let selected = SUPPORTED_CONTROL_VERSIONS
             .iter()
-            .rev()
             .copied()
-            .find(|version| offer.versions.contains(version))
+            .filter(|version| offer.versions.contains(version))
+            .max_by_key(|version| (version.major, version.minor))
             .ok_or(SessionError::IncompatibleVersion)?;
         let limits = self.server_limits.intersect(offer.limits)?;
         self.effective_limits = Some(limits);
