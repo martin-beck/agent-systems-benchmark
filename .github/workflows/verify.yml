@@ -29,12 +29,13 @@ jobs:
         with:
           repository: martin-beck/asb-tui
           ref: 0b0548a8d88a25f8e4f2f52d45cd5faa8bf128a8
-          path: ${{ runner.temp }}/asb-tui
+          path: .ci/asb-tui
           persist-credentials: false
           fetch-depth: 1
       - name: Compile pinned asb-tui
-        working-directory: ${{ runner.temp }}/asb-tui
-        run: cargo build --locked --bin asb-tui
+        run: |
+          cp -a .ci/asb-tui "$RUNNER_TEMP/asb-tui"
+          cargo build --locked --manifest-path "$RUNNER_TEMP/asb-tui/Cargo.toml" --bin asb-tui
       - name: Install pinned toolchain
         run: rustup toolchain install 1.93.0 --profile minimal --component rustfmt --component clippy
       - name: Formatting
