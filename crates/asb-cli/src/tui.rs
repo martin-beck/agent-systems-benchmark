@@ -2934,9 +2934,10 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "cross-repo-qualification")]
-    use crate::control::DevelopmentBackend;
-    use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
+    use asb_control::{
+        ControlBackend, ControlCall, ControlClient, ControlResult, RequestDeadline,
+        SUPPORTED_CONTROL_VERSIONS,
+    };
     #[cfg(feature = "cross-repo-qualification")]
     use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
     #[cfg(feature = "cross-repo-qualification")]
@@ -2945,7 +2946,6 @@ mod tests {
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
-    #[cfg(feature = "cross-repo-qualification")]
     use std::sync::{Arc, Mutex};
 
     static NONCE: AtomicU64 = AtomicU64::new(0);
@@ -2971,13 +2971,10 @@ mod tests {
 
     struct Scratch(PathBuf);
 
-    #[cfg(feature = "cross-repo-qualification")]
     struct RecordingBackend {
-        inner: DevelopmentBackend,
+        inner: crate::control::DevelopmentBackend,
         calls: Arc<Mutex<Vec<ControlCall>>>,
     }
-
-    #[cfg(feature = "cross-repo-qualification")]
     impl ControlBackend for RecordingBackend {
         fn runner_instance_id(&self) -> &str {
             self.inner.runner_instance_id()
@@ -3218,7 +3215,223 @@ mod tests {
     }
 
     #[test]
-    fn development_launch_cleans_channel_when_child_exits_before_parent_handoff() {
+    fn development_bridge_serves_real_backend_over_private_control_socket() {
+        let scratch = Scratch::new("development-bridge");
+        let control_dir = scratch.0.join("control");
+        let provisioning_dir = scratch.0.join("provisioning");
+        prepare_private_directory(&control_dir).unwrap();
+        prepare_private_directory(&provisioning_dir).unwrap();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let backend = open_development_backend(scratch.0.clone()).unwrap();
+        let expected_runner = backend.runner_instance_id().to_owned();
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            backend,
+        )
+        .unwrap();
+        let (worker_done, worker_result) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            let result = server.serve_connections(1, 0);
+            let _ = worker_done.send(result);
+        });
+
+        let mut client = ControlClient::connect_with_versions(
+            &control_path,
+            ControlLimits::default(),
+            SUPPORTED_CONTROL_VERSIONS,
+        )
+        .unwrap();
+        assert_eq!(
+            client.negotiated().version,
+            asb_control::CONTROL_BENCHMARK_CATALOG_V1
+        );
+        assert_eq!(client.negotiated().runner_instance_id, expected_runner);
+        let timeout = client.negotiated().limits.max_timeout_ms;
+
+        let calls = [
+            ControlCall::Capabilities,
+            ControlCall::MeasurementCatalog,
+            ControlCall::History(asb_control::PageParams {
+                after: None,
+                limit: client.negotiated().limits.max_page_items,
+            }),
+            ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                runner_instance_id: client.negotiated().runner_instance_id.clone(),
+            }),
+            ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                action: asb_control::ProviderCatalogAction::Status,
+                runner_instance_id: client.negotiated().runner_instance_id.clone(),
+                known_generation: None,
+            }),
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: client.negotiated().runner_instance_id.clone(),
+            }),
+            ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                provider: "development".into(),
+            }),
+        ];
+        let auth_index = calls.len() - 1;
+        for (index, call) in calls.into_iter().enumerate() {
+            let response = client.call(call, timeout).unwrap();
+            if index == auth_index {
+                assert_eq!(response.error().map(|error| error.code), Some(-33_003));
+            } else {
+                assert!(
+                    response.error().is_none(),
+                    "unexpected bridge error: {response:?}"
+                );
+            }
+        }
+        // A client that presents a stale generation must not receive a
+        // current catalog as if its cursor were authoritative.
+        let runner_instance_id = client.negotiated().runner_instance_id.clone();
+        let stale = client
+            .call(
+                ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Status,
+                    runner_instance_id,
+                    known_generation: Some(asb_control::Revision(u64::MAX)),
+                }),
+                timeout,
+            )
+            .unwrap();
+        assert!(stale.error().is_some(), "stale generation was accepted");
+        drop(client);
+        assert!(
+            worker_result
+                .recv_timeout(Duration::from_secs(2))
+                .expect("bridge worker shutdown timed out")
+                .is_ok()
+        );
+        worker.join().unwrap();
+        assert!(!control_path.exists());
+        assert!(!provisioning_path.exists());
+    }
+
+    /// Cross-project qualification is deliberately opt-in: CI supplies the
+    /// exact asb-tui artifact and its digest rather than allowing this crate
+    /// to compile an unpinned sibling checkout. The socket server remains the
+    /// real ASB backend, not a protocol fixture.
+    #[test]
+    fn pinned_asb_tui_binary_fails_closed_without_stable_auth() {
+        let (binary, expected, pinned) = match (
+            std::env::var("ASB_TUI_BINARY"),
+            std::env::var("ASB_TUI_EXPECTED_SHA256"),
+        ) {
+            (Ok(binary), Ok(expected)) => (PathBuf::from(binary), expected, true),
+            (Err(_), Err(_)) => {
+                // The ordinary workspace gate has no sibling checkout. Use a
+                // deterministic failing executable and a malformed socket
+                // client to cover the same stable fail-closed boundary; the
+                // verification workflow replaces it with the pinned binary.
+                let binary = PathBuf::from("/bin/false");
+                let expected = format!("{:x}", Sha256::digest(fs::read(&binary).unwrap()));
+                (binary, expected, false)
+            }
+            _ => panic!("pinned TUI binary and digest must be supplied together"),
+        };
+        assert!(binary.is_absolute());
+        assert!(asb_control::validate_digest(&expected).is_ok());
+        let bytes = fs::read(&binary).unwrap();
+        assert_eq!(format!("{:x}", Sha256::digest(bytes)), expected);
+        let metadata = fs::symlink_metadata(&binary).unwrap();
+        assert!(metadata.file_type().is_file() && metadata.mode() & 0o022 == 0);
+
+        let scratch = Scratch::new("pinned-tui-bridge");
+        let control_dir = scratch.0.join("control");
+        let provisioning_dir = scratch.0.join("provisioning");
+        prepare_private_directory(&control_dir).unwrap();
+        prepare_private_directory(&provisioning_dir).unwrap();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let expected_calls = Arc::clone(&calls);
+        let backend = open_development_backend(scratch.0.clone()).unwrap();
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            RecordingBackend {
+                inner: backend,
+                calls,
+            },
+        )
+        .unwrap();
+        let (worker_done, worker_result) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            let result = server.serve_connections(1, 0);
+            let _ = worker_done.send(result);
+        });
+        if !pinned {
+            let mut malformed = std::os::unix::net::UnixStream::connect(&control_path).unwrap();
+            malformed.write_all(b"not-a-control-envelope").unwrap();
+        }
+        let command = format!(
+            "{} run --socket {}",
+            shell_quote(&binary),
+            shell_quote(&control_path)
+        );
+        let mut child = Command::new("/usr/bin/script")
+            .args(["-qefc", &command, "/dev/null"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        let input = child.stdin.take().unwrap();
+        let feeder = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(500));
+            let mut input = input;
+            input.write_all(b"q")
+        });
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("pinned asb-tui did not exit");
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
+        feeder.join().unwrap().ok();
+        assert!(
+            !status.success(),
+            "stable socket mode bypassed auth: {status}"
+        );
+        assert!(
+            worker_result
+                .recv_timeout(Duration::from_secs(2))
+                .expect("pinned bridge worker shutdown timed out")
+                .is_ok()
+        );
+        worker.join().unwrap();
+        let calls = expected_calls.lock().unwrap();
+        // Stable mode must fail closed at authentication before any
+        // bootstrap/status request is admitted by the backend.
+        assert!(
+            calls.is_empty(),
+            "stable route reached bootstrap: {calls:?}"
+        );
+        assert!(!control_path.exists());
+        assert!(!provisioning_path.exists());
+    }
+
+    fn shell_quote(path: &Path) -> String {
+        let value = path.to_str().expect("UTF-8 test path");
+        assert!(value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-')
+        }));
+        format!("'{value}'")
+    }
+
+    #[test]
+    fn development_launch_cleans_channel_when_child_exits_before_request() {
         let scratch = Scratch::new("broker-child-exit");
         let error = launch_development_broker(Command::new("/bin/true"), &scratch.0)
             .expect_err("an exited frontend must not receive a handoff");
