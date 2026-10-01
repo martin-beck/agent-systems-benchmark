@@ -686,7 +686,7 @@ impl ControlBackend for DevelopmentBackend {
                     validate_settings: true,
                     run_control: false,
                     repeat: false,
-                    analysis: true,
+                    analysis: false,
                     events: false,
                 }),
             )
