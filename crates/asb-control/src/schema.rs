@@ -391,6 +391,10 @@ fn collect_definition_refs(value: &Value, refs: &mut BTreeSet<String>) {
 }
 
 fn prune_unused_definitions(value: &mut Value) {
+    // Existing v1 through v1.11 schema artifacts are immutable. The
+    // negotiated generation extension is reserved for a future schema
+    // version and must not alter an established wire contract.
+    remove_broker_generation(value);
     let mut reachable = BTreeSet::new();
     collect_definition_refs(value, &mut reachable);
     loop {
@@ -647,6 +651,9 @@ pub fn control_request_schema_v1_11() -> Schema {
 pub fn control_response_schema_v1_11() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
+    let mut value = serde_json::to_value(schema).expect("v1.11 response schema serializes");
+    remove_broker_generation(&mut value);
+    schema = serde_json::from_value(value).expect("v1.11 response schema remains valid");
     schema
 }
 

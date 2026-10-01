@@ -1332,17 +1332,6 @@
       "description": "Negotiated connection result.",
       "type": "object",
       "properties": {
-        "broker_generation": {
-          "description": "Authoritative broker handoff continuity when this endpoint is bound to\na live frontend generation. Absent means ordinary control only.",
-          "oneOf": [
-            {
-              "$ref": "#/$defs/NegotiatedBrokerGeneration"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "latest_revision": {
           "description": "Latest retained public event revision.",
           "$ref": "#/$defs/Revision"
@@ -1371,27 +1360,6 @@
         "runner_instance_id",
         "oldest_revision",
         "latest_revision"
-      ]
-    },
-    "NegotiatedBrokerGeneration": {
-      "description": "JSON-safe continuity evidence for a live broker handoff.",
-      "type": "object",
-      "properties": {
-        "epoch": {
-          "description": "Lowercase hexadecimal broker epoch, exactly 32 characters.",
-          "type": "string"
-        },
-        "sequence": {
-          "description": "Monotonic nonzero sequence within the epoch.",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "epoch",
-        "sequence"
       ]
     },
     "Page": {
