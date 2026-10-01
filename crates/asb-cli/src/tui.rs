@@ -904,6 +904,8 @@ fn materialize_development(
             &[root.as_path(), target.as_path()],
             MAX_DEV_WORKSPACE_BYTES,
         )?;
+        let executable = target.join("release/asb-tui");
+        harden_private_development_tree(&target, &executable)?;
         let mut source_tree_command = Command::new(&setsid);
         source_tree_command
             .env_clear()
@@ -919,7 +921,6 @@ fn materialize_development(
         if !valid_hex(&source_tree, 40) {
             return Err(RouterError::policy("dev_source_identity_invalid"));
         }
-        let executable = target.join("release/asb-tui");
         let bytes = read_bounded(&executable, MAX_ARTIFACT_BYTES as usize)?;
         let executable_sha256 = digest(&bytes);
         prepare_private_directory(&paths.install_root)?;
@@ -1436,6 +1437,35 @@ fn enforce_workspace_quota_with_limit(root: &Path, limit: u64) -> Result<(), Rou
 fn enforce_workspace_quota_for_roots(roots: &[&Path], limit: u64) -> Result<(), RouterError> {
     if bounded_directory_size_for_roots(roots, limit)? > limit {
         return Err(RouterError::policy("dev_workspace_quota_exceeded"));
+    }
+    Ok(())
+}
+
+fn harden_private_development_tree(root: &Path, executable: &Path) -> Result<(), RouterError> {
+    let metadata =
+        fs::symlink_metadata(root).map_err(|_| RouterError::policy("dev_artifact_invalid"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(RouterError::policy("dev_artifact_invalid"));
+    }
+    fs::set_permissions(root, fs::Permissions::from_mode(0o700))
+        .map_err(|_| RouterError::policy("dev_artifact_invalid"))?;
+    for entry in fs::read_dir(root).map_err(|_| RouterError::policy("dev_artifact_invalid"))? {
+        let entry = entry.map_err(|_| RouterError::policy("dev_artifact_invalid"))?;
+        let path = entry.path();
+        let metadata =
+            fs::symlink_metadata(&path).map_err(|_| RouterError::policy("dev_artifact_invalid"))?;
+        if metadata.file_type().is_symlink() {
+            return Err(RouterError::policy("dev_artifact_invalid"));
+        }
+        if metadata.is_dir() {
+            harden_private_development_tree(&path, executable)?;
+        } else if metadata.is_file() {
+            let mode = if path == executable { 0o700 } else { 0o600 };
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode))
+                .map_err(|_| RouterError::policy("dev_artifact_invalid"))?;
+        } else {
+            return Err(RouterError::policy("dev_artifact_invalid"));
+        }
     }
     Ok(())
 }
@@ -4048,6 +4078,22 @@ mod tests {
         assert!(!source.0.exists());
         assert!(target.0.exists());
         fs::remove_dir_all(target.0.clone()).unwrap();
+    }
+
+    #[test]
+    fn development_artifact_tree_is_private_under_normal_umask() {
+        let target = Scratch::new("dev-artifact-modes");
+        let release = target.0.join("release");
+        fs::create_dir(&release).unwrap();
+        let executable = release.join("asb-tui");
+        fs::write(&executable, b"binary").unwrap();
+        fs::set_permissions(&release, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o775)).unwrap();
+        harden_private_development_tree(&target.0, &executable).unwrap();
+        assert_eq!(target.0.metadata().unwrap().mode() & 0o777, 0o700);
+        assert_eq!(release.metadata().unwrap().mode() & 0o777, 0o700);
+        assert_eq!(executable.metadata().unwrap().mode() & 0o777, 0o700);
+        assert_eq!(read_bounded(&executable, 64).unwrap(), b"binary");
     }
 
     #[test]
