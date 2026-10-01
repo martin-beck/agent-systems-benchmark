@@ -853,8 +853,8 @@ fn materialize_development(
             options,
             paths,
             now,
-            &asb_source_commit,
-            &asb_source_tree,
+            asb_source_commit,
+            asb_source_tree,
             Path::new(&bundle),
         );
     }
