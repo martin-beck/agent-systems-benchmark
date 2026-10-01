@@ -767,10 +767,38 @@ pub struct Negotiated {
     pub limits: ControlLimits,
     /// Stable runner instance identity.
     pub runner_instance_id: String,
+    /// Authoritative broker handoff continuity when this endpoint is bound to
+    /// a live frontend generation. Absent means ordinary control only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broker_generation: Option<NegotiatedBrokerGeneration>,
     /// Oldest retained public event revision.
     pub oldest_revision: Revision,
     /// Latest retained public event revision.
     pub latest_revision: Revision,
+}
+
+/// JSON-safe continuity evidence for a live broker handoff.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NegotiatedBrokerGeneration {
+    /// Lowercase hexadecimal broker epoch, exactly 32 characters.
+    pub epoch: String,
+    /// Monotonic nonzero sequence within the epoch.
+    pub sequence: u64,
+}
+
+impl NegotiatedBrokerGeneration {
+    /// Validate canonical epoch encoding and nonzero sequence.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        if self.epoch.len() != 32
+            || !self.epoch.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || self.epoch.bytes().any(|byte| byte.is_ascii_uppercase())
+            || self.sequence == 0
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
 }
 
 /// Closed wire-visible success envelope.
@@ -796,6 +824,9 @@ impl ControlSuccess {
             Self::Negotiated(value) => {
                 value.limits.validate()?;
                 validate_identity(&value.runner_instance_id)?;
+                if let Some(generation) = &value.broker_generation {
+                    generation.validate()?;
+                }
                 if value.oldest_revision > value.latest_revision {
                     return Err(ProtocolError::InvalidResponse);
                 }
@@ -2360,4 +2391,38 @@ fn sensitive_public_key(key: &str) -> bool {
     ]
     .iter()
     .any(|needle| normalized.contains(needle))
+}
+
+#[cfg(test)]
+mod generation_tests {
+    use super::{NegotiatedBrokerGeneration, ProtocolError};
+
+    #[test]
+    fn broker_generation_accepts_canonical_nonzero_evidence() {
+        let value = NegotiatedBrokerGeneration {
+            epoch: "0123456789abcdef0123456789abcdef".into(),
+            sequence: 7,
+        };
+        assert_eq!(value.validate(), Ok(()));
+    }
+
+    #[test]
+    fn broker_generation_rejects_zero_uppercase_and_wrong_length() {
+        for value in [
+            NegotiatedBrokerGeneration {
+                epoch: "0123456789abcdef0123456789abcdef".into(),
+                sequence: 0,
+            },
+            NegotiatedBrokerGeneration {
+                epoch: "0123456789ABCDEF0123456789abcdef".into(),
+                sequence: 1,
+            },
+            NegotiatedBrokerGeneration {
+                epoch: "short".into(),
+                sequence: 1,
+            },
+        ] {
+            assert_eq!(value.validate(), Err(ProtocolError::InvalidResponse));
+        }
+    }
 }

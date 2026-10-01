@@ -406,6 +406,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
             version,
             limits: effective,
             runner_instance_id: backend.runner_instance_id().to_owned(),
+            broker_generation: None,
             oldest_revision: backend.oldest_revision(),
             latest_revision: backend.latest_revision(),
         };
@@ -957,6 +958,7 @@ mod tests {
             version: CONTROL_V1,
             limits: ControlLimits::default(),
             runner_instance_id: "runner-test".into(),
+            broker_generation: None,
             oldest_revision: Revision(0),
             latest_revision: Revision(0),
         };
