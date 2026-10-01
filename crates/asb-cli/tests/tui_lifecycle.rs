@@ -54,6 +54,21 @@ impl Scratch {
         }
         command.output().unwrap()
     }
+
+    fn command_with_args(&self, args: &[&str], bundle: Option<&Path>) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_asb"));
+        command
+            .args(args)
+            .env_clear()
+            .env("HOME", self.0.join("home"))
+            .env("XDG_DATA_HOME", self.0.join("data"))
+            .env("XDG_STATE_HOME", self.0.join("state"))
+            .env("XDG_CACHE_HOME", self.0.join("cache"));
+        if let Some(bundle) = bundle {
+            command.env("ASB_TUI_DEV_BUNDLE", bundle);
+        }
+        command.output().unwrap()
+    }
 }
 
 impl Drop for Scratch {
@@ -117,6 +132,86 @@ fn router_version_and_help_are_explicit_and_non_interactive() {
     ));
     assert!(text.contains("asb tui install|upgrade [--offline] [--dry-run] [--launch]"));
     assert!(text.contains("asb tui --help"));
+}
+
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
+    let scratch = Scratch::new();
+    let bundle = scratch.0.join("pr214-development-bundle");
+    fs::create_dir_all(&bundle).unwrap();
+    fs::set_permissions(&bundle, fs::Permissions::from_mode(0o700)).unwrap();
+    let executable = include_bytes!("../fixtures/tui/interactive-candidate.sh");
+    fs::write(bundle.join("asb-tui"), executable).unwrap();
+    fs::set_permissions(bundle.join("asb-tui"), fs::Permissions::from_mode(0o700)).unwrap();
+
+    let commit = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_owned();
+    let tree = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "HEAD^{tree}"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_owned();
+    let mut manifest: Value = serde_json::from_str(include_str!(
+        "../fixtures/tui/pr214-development-manifest.json"
+    ))
+    .unwrap();
+    manifest["asb_source_commit"] = commit.into();
+    manifest["asb_source_tree"] = tree.into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let install =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(install.status.code(), Some(0), "{install:?}");
+    let verified = response(&install);
+    assert_eq!(verified["code"], "development_bundle_verified");
+    assert_eq!(
+        verified["source_commit"],
+        "7bcd4c4ca09531b109e12dc3579c212abc9dcf88"
+    );
+    assert_eq!(verified["channel"], "dev");
+
+    let consumed = scratch.command_with_args(&["--json", "tui", "install"], Some(&bundle));
+    assert_eq!(consumed.status.code(), Some(0), "{consumed:?}");
+    assert_eq!(response(&consumed)["code"], "development_bundle_consumed");
+
+    let status = scratch.command("status");
+    assert_eq!(status.status.code(), Some(0), "{status:?}");
+    let installed = response(&status);
+    assert_eq!(
+        installed["source_commit"],
+        "7bcd4c4ca09531b109e12dc3579c212abc9dcf88"
+    );
+    assert_eq!(installed["channel"], "dev");
+
+    let mut tampered = manifest;
+    tampered["executable_sha256"] = "0".repeat(64).into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&tampered).unwrap(),
+    )
+    .unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
 }
 
 #[cfg(target_arch = "x86_64")]
