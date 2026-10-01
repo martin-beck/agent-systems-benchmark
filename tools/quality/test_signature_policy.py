@@ -409,6 +409,17 @@ class SignaturePolicyTests(unittest.TestCase):
                 allowed=self.allowed,
             )
 
+    def test_squash_publication_fails_closed_before_signature_acceptance(self) -> None:
+        run("git", "checkout", "-q", "main", cwd=self.root)
+        run("git", "reset", "--hard", "-q", self.base, cwd=self.root)
+        (self.root / "squashed").write_text("squashed\n", encoding="utf-8")
+        run("git", "add", "squashed", cwd=self.root)
+        self.ssh_commit("squashed publication fixture")
+        squashed = run("git", "rev-parse", "HEAD", cwd=self.root)
+        self.assertEqual(len(policy.commit_parents(self.root, squashed)), 1)
+        with self.assertRaisesRegex(ValueError, "merge topology"):
+            self.validate(head=squashed)
+
     def test_valid_topic_tip_sync_fixture(self) -> None:
         advanced_base, sync_tip, final_merge = self.sync_fixture()
         self.assertEqual(policy.commit_parents(self.root, sync_tip)[1], advanced_base)
