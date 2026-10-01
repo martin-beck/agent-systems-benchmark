@@ -76,6 +76,11 @@ pub trait ControlBackend {
     fn oldest_revision(&self) -> Revision;
     /// Latest committed public event revision.
     fn latest_revision(&self) -> Revision;
+    /// Authoritative live broker continuity, when this endpoint is serving an
+    /// adopted frontend generation. Ordinary control endpoints return `None`.
+    fn broker_generation(&self) -> Option<crate::NegotiatedBrokerGeneration> {
+        None
+    }
     /// Execute one admitted operation against authoritative runner state.
     fn execute(
         &self,
@@ -406,7 +411,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
             version,
             limits: effective,
             runner_instance_id: backend.runner_instance_id().to_owned(),
-            broker_generation: None,
+            broker_generation: backend.broker_generation(),
             oldest_revision: backend.oldest_revision(),
             latest_revision: backend.latest_revision(),
         };
