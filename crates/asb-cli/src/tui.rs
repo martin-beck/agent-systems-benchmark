@@ -1014,6 +1014,9 @@ fn launch_development_broker(
         }
     };
     command.stdin(Stdio::from(frontend));
+    // The broker fd replaces stdin, so the development child can use a
+    // private process group without affecting the stable terminal launcher.
+    command.process_group(0);
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(_) => {
@@ -1026,8 +1029,7 @@ fn launch_development_broker(
     let pending = match pending {
         Ok(pending) => pending,
         Err(error) => {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_development_child(&mut child);
             let _ = fs::remove_dir_all(&broker_root);
             return Err(error);
         }
@@ -1041,16 +1043,14 @@ fn launch_development_broker(
     ) {
         Ok(producer) => producer,
         Err(_) => {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_development_child(&mut child);
             let _ = server_worker.join();
             let _ = fs::remove_dir_all(&broker_root);
             return Err(RouterError::operation("development_control_unavailable"));
         }
     };
     if pending.complete(&producer).is_err() {
-        let _ = child.kill();
-        let _ = child.wait();
+        terminate_development_child(&mut child);
         let _ = server_worker.join();
         let _ = fs::remove_dir_all(&broker_root);
         return Err(RouterError::operation("development_channel_rejected"));
@@ -1068,14 +1068,20 @@ fn launch_development_broker(
                 .ok_or_else(|| RouterError::operation("development_control_failed"));
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_development_child(&mut child);
             let _ = server_worker.join();
             let _ = fs::remove_dir_all(&broker_root);
             return Err(RouterError::operation("development_launch_timeout"));
         }
         thread::sleep(Duration::from_millis(10));
     }
+}
+
+fn terminate_development_child(child: &mut Child) {
+    let pid = Pid::from_child(child);
+    let _ = kill_process_group(pid, Signal::KILL);
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 struct DevelopmentBackend;
