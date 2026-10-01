@@ -708,6 +708,7 @@ impl ControlBackend for DevelopmentBackend {
                 | ControlCall::RecordingCampaignStatus(_)
                 | ControlCall::RecordingCampaignProgress(_)
                 | ControlCall::MeasurementCatalog
+                | ControlCall::BenchmarkCatalog
                 | ControlCall::ValidateSettings { .. }
                 | ControlCall::Status { .. }
                 | ControlCall::History(_)
@@ -2877,6 +2878,12 @@ impl ControlBackend for RunnerBackend {
                 ControlResult::MeasurementCatalog(MeasurementCatalogPublication::built_in(
                     baseline_measurement_catalog(),
                 )),
+            ),
+            ControlCall::BenchmarkCatalog => self.bind(
+                call,
+                ControlResult::BenchmarkCatalog(
+                    asb_control::BenchmarkCatalogPublication::built_in(),
+                ),
             ),
             ControlCall::ProviderCatalog(request) => {
                 let catalog = self.provider_catalog(request)?;
@@ -5798,6 +5805,27 @@ mod tests {
         assert_eq!(publication.catalog.0, baseline_measurement_catalog());
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn backend_returns_the_typed_benchmark_catalog_with_stable_identity() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let response = backend
+            .execute(&ControlCall::BenchmarkCatalog, deadline())
+            .unwrap();
+        response
+            .validate_for_call(&ControlCall::BenchmarkCatalog, ControlLimits::default())
+            .unwrap();
+        let ControlResult::BenchmarkCatalog(catalog) = response.result else {
+            panic!("benchmark catalog result");
+        };
+        assert_eq!(
+            catalog,
+            asb_control::BenchmarkCatalogPublication::built_in()
+        );
     }
 
     #[test]
