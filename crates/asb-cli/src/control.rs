@@ -1158,6 +1158,136 @@ fn open_backend(state_root: PathBuf) -> Result<RunnerBackend, CliError> {
     open_backend_with_capture(state_root, Arc::new(UnavailableProviderCapture))
 }
 
+/// Build a complete development cassette fixture for the cross-project PTY
+/// qualification.  The fixture uses only the local mock capture authority;
+/// no provider credential or network effect is admitted.  Keeping this seed
+/// beside RunnerBackend makes the qualification exercise the same durable
+/// plan/execute/reopen path as the product backend.
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) fn open_qualified_cassette_backend(
+    state_root: PathBuf,
+) -> Result<(RunnerBackend, String), CliError> {
+    prepare_root(&state_root)?;
+    let capture = LocalMockProviderCapture::provision()
+        .map_err(|_| CliError::operation("qualification capture unavailable"))?;
+    let backend = open_backend_with_capture(state_root.clone(), Arc::new(capture))?;
+    let runner = backend.runner_instance_id().to_owned();
+    // The released TUI asks for every advertised agent status during
+    // bootstrap. Install one bounded fixture-only lifecycle entry so the
+    // real bootstrap proceeds without a package registry.
+    {
+        let mut catalog = backend
+            .catalog
+            .lock()
+            .map_err(|_| CliError::operation("qualification catalog lock"))?;
+        let snapshot = catalog
+            .agent_catalog
+            .as_mut()
+            .ok_or_else(|| CliError::operation("qualification agent catalog"))?;
+        snapshot.agents.retain(|entry| entry.agent_id == "aider");
+        let entry = snapshot
+            .agents
+            .iter_mut()
+            .find(|entry| entry.agent_id == "aider")
+            .ok_or_else(|| CliError::operation("qualification aider entry"))?;
+        entry.package = Some(asb_control::AgentPackage {
+            package_id: "qualification-aider".into(),
+            version: "1.0.0".into(),
+            sha256: "a".repeat(64),
+            signature_sha256: "b".repeat(64),
+            signer: asb_control::AgentSigner {
+                key_id: "qualification-key".into(),
+                principal: "development-only".into(),
+            },
+        });
+        entry.provenance = Some(asb_control::AgentProvenance {
+            source_revision: "c".repeat(40),
+            manifest_sha256: "d".repeat(64),
+            sbom_sha256: "e".repeat(64),
+            license_ref: "MIT".into(),
+        });
+        entry.capabilities = vec!["coding".into()];
+        entry.availability = AgentAvailability::Available;
+        snapshot.catalog_sha256 = snapshot
+            .computed_sha256()
+            .map_err(|_| CliError::operation("qualification agent digest"))?;
+        let binding = asb_control::AgentLifecycleBinding {
+            agent_id: "aider".into(),
+            runner_instance_id: runner.clone(),
+            catalog_sha256: snapshot.catalog_sha256.clone(),
+        };
+        catalog.agent_lifecycles.insert(
+            "qualification-aider-operation".into(),
+            asb_control::AgentLifecycleResponse {
+                binding,
+                operation_id: "qualification-aider-operation".into(),
+                state: asb_control::AgentLifecycleState::Active,
+                generation: Revision(1),
+                progress_percent: 100,
+                failure: None,
+            },
+        );
+        backend
+            .write_active_marker("aider", &"a".repeat(64), "qualification-aider-operation")
+            .map_err(|_| CliError::operation("qualification agent marker"))?;
+        commit_catalog(&backend.state_root, &catalog)
+            .map_err(|_| CliError::operation("qualification catalog commit"))?;
+    }
+    backend
+        .execute(
+            &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                idempotency_key: "qualification-config".into(),
+                expected_generation: Revision(1),
+                selection: asb_control::ConfigurationSelection {
+                    agent_ids: vec!["aider".into()],
+                    provider_id: "openai".into(),
+                    model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                    auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                    credential_reference_sha256: Some("a".repeat(64)),
+                },
+            }),
+            RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
+        )
+        .map_err(|_| CliError::operation("qualification configuration failed"))?;
+    let plan = backend
+        .execute(
+            &ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
+                idempotency_key: "qualification-plan".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: vec!["aider".into()],
+                workload_ids: vec!["original.bug-fix".into()],
+            }),
+            RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
+        )
+        .map_err(|_| CliError::operation("qualification plan failed"))?;
+    let ControlResult::RecordingCampaign(plan) = plan.result else {
+        return Err(CliError::operation("qualification plan result"));
+    };
+    backend
+        .execute(
+            &ControlCall::RecordingCampaignExecute(asb_control::RecordingCampaignExecuteParams {
+                idempotency_key: "qualification-execute".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner,
+                campaign_id: plan.campaign_id.clone(),
+            }),
+            RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
+        )
+        .map_err(|_| CliError::operation("qualification capture failed"))?;
+    drop(backend);
+    // Keep the credential-free local fixture available for read-only bootstrap
+    // projections after restart. Replay itself still hard-disables provider
+    // egress; the qualification test verifies that through its typed result.
+    let reopened_capture = LocalMockProviderCapture::provision()
+        .map_err(|_| CliError::operation("qualification capture unavailable after reopen"))?;
+    let reopened = open_backend_with_capture(state_root, Arc::new(reopened_capture))?;
+    Ok((reopened, plan.campaign_id))
+}
+
 #[cfg(test)]
 fn open_backend_with_verifier(
     state_root: PathBuf,

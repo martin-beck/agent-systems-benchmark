@@ -1196,7 +1196,17 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
         let _ = fs::remove_dir_all(&broker_root);
         return Err(RouterError::operation("development_channel_rejected"));
     }
+    let child_deadline = Instant::now() + Duration::from_secs(15);
     loop {
+        if Instant::now() >= child_deadline {
+            terminate_development_child(&mut child);
+            drop(router);
+            if let Some(worker) = server_worker.take() {
+                let _ = worker.join();
+            }
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_launch_timeout"));
+        }
         let child_status = match child.try_wait() {
             Ok(status) => status,
             Err(_) => {
@@ -3131,11 +3141,12 @@ mod tests {
 
     struct Scratch(PathBuf);
 
-    struct RecordingBackend {
-        inner: crate::control::DevelopmentBackend,
+    struct RecordingBackend<B> {
+        inner: B,
         calls: Arc<Mutex<Vec<ControlCall>>>,
+        results: Arc<Mutex<Vec<asb_control::BoundControlResult>>>,
     }
-    impl ControlBackend for RecordingBackend {
+    impl<B: ControlBackend> ControlBackend for RecordingBackend<B> {
         fn runner_instance_id(&self) -> &str {
             self.inner.runner_instance_id()
         }
@@ -3157,7 +3168,12 @@ mod tests {
                 .lock()
                 .expect("bootstrap recorder lock")
                 .push(call.clone());
-            self.inner.execute(call, deadline)
+            let result = self.inner.execute(call, deadline)?;
+            self.results
+                .lock()
+                .expect("result recorder lock")
+                .push(result.clone());
+            Ok(result)
         }
     }
 
@@ -3517,6 +3533,7 @@ mod tests {
             RecordingBackend {
                 inner: backend,
                 calls,
+                results: Arc::new(Mutex::new(Vec::new())),
             },
         )
         .unwrap();
@@ -3608,6 +3625,44 @@ mod tests {
         }));
     }
 
+    #[test]
+    fn development_launch_rejects_spawn_failure_and_cleans_up() {
+        let scratch = Scratch::new("broker-spawn-failure");
+        let error = launch_development_broker(
+            Command::new("/definitely/missing/asb-development-frontend"),
+            &scratch.0,
+        )
+        .expect_err("a missing frontend must fail before any handoff");
+        assert_eq!(error.code, "development_launch_failed");
+        let entries = fs::read_dir(&scratch.0)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(entries.iter().all(|entry| {
+            !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".dev-broker-")
+        }));
+    }
+
+    #[test]
+    fn qualified_cassette_fixture_reopens_with_catalog_and_offline_campaign() {
+        let scratch = Scratch::new("qualified-cassette-fixture");
+        let (backend, campaign_id) =
+            crate::control::open_qualified_cassette_backend(scratch.0.clone())
+                .expect("qualified cassette fixture");
+        let request =
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+            });
+        let result = backend
+            .execute(&request, RequestDeadline::start(5_000).unwrap())
+            .expect("reopened campaign status");
+        assert!(!campaign_id.is_empty());
+        let _ = result;
+    }
+
     #[cfg(all(unix, feature = "cross-repo-qualification"))]
     #[ignore = "requires the explicitly pinned asb-tui qualification workflow"]
     #[test]
@@ -3641,9 +3696,14 @@ mod tests {
         .unwrap();
         let scratch = Scratch::new("pinned-inherited-fd");
         let calls = Arc::new(Mutex::new(Vec::new()));
+        let results = Arc::new(Mutex::new(Vec::new()));
+        let (qualified_backend, campaign_id) =
+            crate::control::open_qualified_cassette_backend(scratch.0.clone())
+                .expect("qualified cassette backend");
         let backend = RecordingBackend {
-            inner: open_development_backend(scratch.0.clone()).expect("development backend"),
+            inner: qualified_backend,
             calls: Arc::clone(&calls),
+            results: Arc::clone(&results),
         };
         let tui_commit = std::env::var("ASB_TUI_SOURCE_COMMIT").unwrap();
         let tui_tree = std::env::var("ASB_TUI_SOURCE_TREE").unwrap();
@@ -3680,14 +3740,23 @@ mod tests {
             .stdout(Stdio::from(slave.try_clone().unwrap()))
             .stderr(Stdio::inherit());
         let root = scratch.0.clone();
-        let launch =
-            thread::spawn(move || launch_development_broker_with_backend(command, &root, backend));
+        let (launch_done, launch_result) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let result = launch_development_broker_with_backend(command, &root, backend);
+            let _ = launch_done.send(result);
+        });
         let mut master = File::from(master);
         let deadline = Instant::now() + Duration::from_secs(8);
-        while Instant::now() < deadline && calls.lock().expect("bootstrap recorder lock").len() < 4
+        while Instant::now() < deadline
+            && !calls
+                .lock()
+                .expect("bootstrap recorder lock")
+                .iter()
+                .any(|call| matches!(call, ControlCall::RecordingCampaignStatus(_)))
         {
             thread::sleep(Duration::from_millis(20));
         }
+        thread::sleep(Duration::from_millis(250));
         let observed = calls.lock().expect("bootstrap recorder lock").clone();
         assert!(
             observed.len() >= 4,
@@ -3703,9 +3772,74 @@ mod tests {
             .position(|call| matches!(call, ControlCall::History(_)))
             .expect("history bootstrap");
         assert!(measurement < history, "bootstrap order: {observed:?}");
-        master.write_all(b"q").unwrap();
-        let result = launch.join().unwrap().expect("development launch");
+        // Exercise the real TUI action path: enter Run Control, activate the
+        // seeded offline campaign, select its digest-only cassette, dispatch
+        // strict replay, then quit. The ASB recorder sees the typed calls.
+        let feeder = thread::spawn(move || {
+            for key in [b's', b'o', b']', b'J'] {
+                thread::sleep(Duration::from_secs(1));
+                master.write_all(&[key]).unwrap();
+            }
+            // Replay is a bounded control round trip; repeat quit input so a
+            // render/control transition cannot swallow the single byte.
+            for _ in 0..5 {
+                thread::sleep(Duration::from_millis(300));
+                master.write_all(b"q").unwrap();
+            }
+        });
+        let result = match launch_result.recv_timeout(Duration::from_secs(20)) {
+            Ok(Ok(result)) => result,
+            Ok(Err(error)) => {
+                let calls = calls.lock().expect("call recorder lock");
+                panic!("development launch: {error:?}; calls={calls:?}");
+            }
+            Err(error) => {
+                let calls = calls.lock().expect("call recorder lock");
+                panic!("development launch completion timed out: {error}; calls={calls:?}");
+            }
+        };
+        feeder.join().unwrap();
         assert!(result.code().is_some(), "development child did not exit");
+        let observed = calls.lock().expect("cassette recorder lock").clone();
+        assert!(
+            observed.iter().any(|call| {
+                matches!(call, ControlCall::RecordingCassetteCatalog(request)
+                if request.campaign_id == campaign_id)
+            }),
+            "TUI did not fetch the seeded cassette catalog: {observed:?}"
+        );
+        let replay = observed
+            .iter()
+            .find_map(|call| match call {
+                ControlCall::RecordingReplayDispatch(params) => Some(params),
+                _ => None,
+            })
+            .expect("TUI did not dispatch selected replay");
+        assert_eq!(replay.campaign_id, campaign_id);
+        assert!(asb_control::validate_digest(&replay.cassette_sha256).is_ok());
+        assert!(
+            !observed
+                .iter()
+                .any(|call| matches!(call, ControlCall::RecordingCampaignExecute(_))),
+            "offline replay attempted a provider capture"
+        );
+        let replay_result = results
+            .lock()
+            .expect("cassette result recorder lock")
+            .iter()
+            .find_map(|bound| match &bound.result {
+                ControlResult::RecordingReplayDispatch(value)
+                    if value.campaign_id == campaign_id =>
+                {
+                    Some(value.clone())
+                }
+                _ => None,
+            })
+            .expect("TUI replay did not receive a typed result");
+        assert!(
+            replay_result.offline_only,
+            "replay must deny provider egress"
+        );
         assert!(fs::read_dir(&scratch.0).unwrap().all(|entry| {
             !entry
                 .unwrap()
