@@ -63,7 +63,6 @@ const DEV_CARGO_OVERRIDE: &str = "ASB_DEV_CARGO";
 const DEV_GIT_OVERRIDE: &str = "ASB_DEV_GIT";
 const DEV_SETSID_OVERRIDE: &str = "ASB_DEV_SETSID";
 const DEV_CARGO_HOME: &str = "CARGO_HOME";
-const DEV_TOOL_PATH_MAX: usize = 8;
 mod build_identity {
     include!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
 }
@@ -861,6 +860,20 @@ fn materialize_development(
             .args(["checkout", "--detach", &commit]);
         run_development_command(checkout, &root)?;
         enforce_workspace_quota(&root)?;
+        let mut checked_commit_command = Command::new(&setsid);
+        checked_commit_command
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .current_dir(&source)
+            .args(["--wait"])
+            .arg(&git)
+            .args(["rev-parse", "HEAD"]);
+        let checked_commit =
+            String::from_utf8(run_development_command(checked_commit_command, &root)?)
+                .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
+                .trim()
+                .to_owned();
+        validate_development_source_commit(&commit, &checked_commit)?;
         let cargo_home = root.join("cargo-home");
         prepare_private_directory(&cargo_home)?;
         let mut build = Command::new(&setsid);
@@ -894,12 +907,6 @@ fn materialize_development(
         let bytes = read_bounded(&executable, MAX_ARTIFACT_BYTES as usize)?;
         let executable_sha256 = digest(&bytes);
         prepare_private_directory(&paths.install_root)?;
-        let version = paths
-            .install_root
-            .join("dev-versions")
-            .join(&executable_sha256);
-        prepare_private_directory(&version)?;
-        atomic_private(&version.join("asb-tui"), &bytes, 0o700)?;
         let metadata = serde_json::to_vec(&DevelopmentInstallation {
             schema_version: 1,
             channel: "dev".to_owned(),
@@ -913,11 +920,7 @@ fn materialize_development(
             installed_unix: now,
         })
         .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
-        atomic_private(
-            &paths.install_root.join("active-dev.json"),
-            &metadata,
-            0o600,
-        )?;
+        publish_development_version(&paths.install_root, &executable_sha256, &bytes, &metadata)?;
         let mut response = RouterResponse::result(operation, true, "development_built", "used");
         response.channel = "dev";
         response.development_only = true;
@@ -934,6 +937,36 @@ fn materialize_development(
         (Err(error), Ok(())) => Err(error),
         (Ok(_), Err(_)) | (Err(_), Err(_)) => Err(RouterError::operation("dev_cleanup_failed")),
     }
+}
+
+fn validate_development_source_commit(expected: &str, observed: &str) -> Result<(), RouterError> {
+    if valid_hex(expected, 40) && observed == expected {
+        Ok(())
+    } else {
+        Err(RouterError::policy("dev_source_identity_mismatch"))
+    }
+}
+
+fn publish_development_version(
+    install_root: &Path,
+    executable_sha256: &str,
+    bytes: &[u8],
+    metadata: &[u8],
+) -> Result<(), RouterError> {
+    let version = install_root.join("dev-versions").join(executable_sha256);
+    let version_existed = version.exists();
+    prepare_private_directory(&version)?;
+    let publication = (|| {
+        atomic_private(&version.join("asb-tui"), bytes, 0o700)?;
+        atomic_private(&install_root.join("active-dev.json"), metadata, 0o600)
+    })();
+    if let Err(error) = publication {
+        if !version_existed {
+            let _ = fs::remove_dir_all(&version);
+        }
+        return Err(error);
+    }
+    Ok(())
 }
 
 fn development_response(
@@ -2698,12 +2731,10 @@ fn resolve_development_cargo() -> Result<PathBuf, RouterError> {
     let override_path = std::env::var_os(DEV_CARGO_OVERRIDE);
     let home = std::env::var_os("HOME");
     let cargo_home = std::env::var_os(DEV_CARGO_HOME);
-    let path = std::env::var_os("PATH");
     resolve_development_cargo_from(
         override_path.as_deref(),
         home.as_deref(),
         cargo_home.as_deref(),
-        path.as_deref(),
     )
 }
 
@@ -2711,7 +2742,6 @@ fn resolve_development_cargo_from(
     override_path: Option<&std::ffi::OsStr>,
     home: Option<&std::ffi::OsStr>,
     cargo_home: Option<&std::ffi::OsStr>,
-    path: Option<&std::ffi::OsStr>,
 ) -> Result<PathBuf, RouterError> {
     if let Some(value) = override_path {
         let candidate = PathBuf::from(value);
@@ -2730,11 +2760,6 @@ fn resolve_development_cargo_from(
         PathBuf::from("/usr/bin/cargo"),
         PathBuf::from("/usr/local/bin/cargo"),
     ]);
-    if let Some(value) = path {
-        for directory in std::env::split_paths(value).take(DEV_TOOL_PATH_MAX) {
-            candidates.push(directory.join("cargo"));
-        }
-    }
     for candidate in candidates {
         if let Ok(resolved) = validate_development_tool(&candidate) {
             return Ok(resolved);
@@ -3751,8 +3776,7 @@ mod tests {
         let resolved = resolve_development_cargo_from(
             None,
             Some(root.join("home").as_os_str()),
-            None,
-            Some(cargo.parent().unwrap().as_os_str()),
+            Some(cargo.parent().unwrap().parent().unwrap().as_os_str()),
         )
         .unwrap();
         assert_eq!(resolved, fs::canonicalize(cargo).unwrap());
@@ -3774,7 +3798,6 @@ mod tests {
                 Some(std::ffi::OsStr::new("relative/cargo")),
                 None,
                 None,
-                Some(cargo.parent().unwrap().as_os_str()),
             )
             .unwrap_err()
             .code,
@@ -3782,15 +3805,8 @@ mod tests {
         );
         fs::set_permissions(&cargo, fs::Permissions::from_mode(0o777)).unwrap();
         assert_eq!(
-            resolve_development_cargo_from(
-                None,
-                None,
-                None,
-                Some(cargo.parent().unwrap().as_os_str()),
-            )
-            .unwrap_err()
-            .code,
-            "trusted_tool_unavailable"
+            validate_development_tool(&cargo).unwrap_err().code,
+            "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
     }
@@ -3953,6 +3969,43 @@ mod tests {
         assert!(valid_terminal_value(b"screen"));
         assert!(!valid_terminal_value(b"xterm\n256color"));
         assert!(!valid_terminal_value(&[b'a'; 65]));
+    }
+
+    #[test]
+    fn development_source_commit_must_match_checked_out_main() {
+        let commit = "a".repeat(40);
+        assert!(validate_development_source_commit(&commit, &commit).is_ok());
+        assert_eq!(
+            validate_development_source_commit(&commit, &"b".repeat(40))
+                .unwrap_err()
+                .code,
+            "dev_source_identity_mismatch"
+        );
+    }
+
+    #[test]
+    fn development_publication_rolls_back_new_version_on_marker_failure() {
+        let scratch = Scratch::new("dev-publication-rollback");
+        let install_root = scratch.0.join("install");
+        prepare_private_directory(&install_root).unwrap();
+        fs::create_dir(install_root.join("active-dev.json")).unwrap();
+        let bytes = b"new development executable";
+        let executable_sha256 = digest(bytes);
+        let error = publish_development_version(
+            &install_root,
+            &executable_sha256,
+            bytes,
+            br#"{"schema_version":1}"#,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "state_write_failed");
+        assert!(
+            !install_root
+                .join("dev-versions")
+                .join(executable_sha256)
+                .exists()
+        );
+        assert!(install_root.join("active-dev.json").is_dir());
     }
 
     #[test]
