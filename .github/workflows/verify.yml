@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: martin-beck/asb-tui
-          ref: 3ae1620
+          ref: 0b0548a8d88a25f8e4f2f52d45cd5faa8bf128a8
           path: .ci/asb-tui
           persist-credentials: false
           fetch-depth: 1

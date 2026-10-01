@@ -3192,7 +3192,11 @@ mod tests {
             backend,
         )
         .unwrap();
-        let worker = thread::spawn(move || server.serve_connections(1, 0));
+        let (worker_done, worker_result) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            let result = server.serve_connections(1, 0);
+            let _ = worker_done.send(result);
+        });
 
         let mut client = ControlClient::connect_with_versions(
             &control_path,
@@ -3256,7 +3260,14 @@ mod tests {
             .unwrap();
         assert!(stale.error().is_some(), "stale generation was accepted");
         drop(client);
-        worker.join().unwrap().unwrap();
+        assert_eq!(
+            worker_result
+                .recv_timeout(Duration::from_secs(2))
+                .expect("bridge worker shutdown timed out")
+                .is_ok(),
+            true
+        );
+        worker.join().unwrap();
         assert!(!control_path.exists());
         assert!(!provisioning_path.exists());
     }
@@ -3290,7 +3301,11 @@ mod tests {
             open_development_backend(scratch.0.clone()).unwrap(),
         )
         .unwrap();
-        let worker = thread::spawn(move || server.serve_connections(1, 0));
+        let (worker_done, worker_result) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            let result = server.serve_connections(1, 0);
+            let _ = worker_done.send(result);
+        });
         let command = format!(
             "{} run --socket {}",
             shell_quote(&binary),
@@ -3326,7 +3341,13 @@ mod tests {
             !status.success(),
             "stable socket mode bypassed auth: {status}"
         );
-        worker.join().unwrap().unwrap();
+        assert!(
+            worker_result
+                .recv_timeout(Duration::from_secs(2))
+                .expect("pinned bridge worker shutdown timed out")
+                .is_ok()
+        );
+        worker.join().unwrap();
         assert!(!control_path.exists());
         assert!(!provisioning_path.exists());
     }
