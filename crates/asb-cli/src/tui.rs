@@ -171,6 +171,10 @@ struct RouterResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     executable_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    source_commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_tree: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     verified: Option<bool>,
 }
 
@@ -187,6 +191,8 @@ impl RouterResponse {
             development_only: true,
             release: None,
             executable_sha256: None,
+            source_commit: None,
+            source_tree: None,
             verified: None,
         }
     }
@@ -929,8 +935,8 @@ fn materialize_development(
             channel: "dev".to_owned(),
             development_only: true,
             source_repository: DEV_REPOSITORY_URL.to_owned(),
-            source_commit: commit,
-            source_tree,
+            source_commit: commit.clone(),
+            source_tree: source_tree.clone(),
             asb_source_commit: asb_source_commit.to_owned(),
             asb_source_tree: asb_source_tree.to_owned(),
             executable_sha256: executable_sha256.clone(),
@@ -942,6 +948,8 @@ fn materialize_development(
         response.channel = "dev";
         response.development_only = true;
         response.executable_sha256 = Some(executable_sha256);
+        response.source_commit = Some(commit);
+        response.source_tree = Some(source_tree);
         Ok(response)
     })();
     let cleanup = match fs::remove_dir_all(&root) {
@@ -1000,6 +1008,8 @@ fn development_response(
     response.channel = "dev";
     response.development_only = true;
     response.executable_sha256 = Some(active.executable_sha256.clone());
+    response.source_commit = Some(active.source_commit.clone());
+    response.source_tree = Some(active.source_tree.clone());
     response.verified = Some(false);
     response
 }
@@ -1623,6 +1633,8 @@ fn response_from_delegated(
         development_only: false,
         release: delegated.release,
         executable_sha256: delegated.executable_sha256,
+        source_commit: None,
+        source_tree: None,
         verified: delegated.verified,
     })
 }
@@ -4501,6 +4513,8 @@ mod tests {
         assert_eq!(status.code, "development_installed");
         assert!(status.development_only);
         assert_eq!(status.channel, "dev");
+        assert_eq!(status.source_commit, Some("a".repeat(40)));
+        assert_eq!(status.source_tree, Some("b".repeat(40)));
         let active_before_remove = development_active(&paths).unwrap().unwrap().0;
         assert_eq!(
             remove_development_installation(&paths, &active_before_remove, true)
