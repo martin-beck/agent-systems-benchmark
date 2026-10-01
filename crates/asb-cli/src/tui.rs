@@ -2998,6 +2998,56 @@ mod tests {
             ),
             Err(asb_control::BackendFailure::CapabilityUnavailable)
         ));
+        let identity = backend.runner_instance_id().to_owned();
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::AgentCatalog(asb_control::AgentCatalogRequest {
+                        action: asb_control::AgentCatalogAction::Status,
+                        runner_instance_id: identity.clone(),
+                        known_generation: None,
+                    }),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                        action: asb_control::ProviderCatalogAction::Status,
+                        runner_instance_id: identity.clone(),
+                        known_generation: None,
+                    }),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::RecordingCampaignStatus(
+                        asb_control::RecordingCampaignStatusRequest {
+                            runner_instance_id: identity.clone(),
+                        },
+                    ),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_ok()
+        );
+        assert!(
+            backend
+                .execute(
+                    &ControlCall::RecordingCampaignProgress(
+                        asb_control::RecordingCampaignProgressRequest {
+                            runner_instance_id: identity,
+                            campaign_id: "development".into(),
+                        },
+                    ),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .is_err()
+        );
     }
 
     #[test]
