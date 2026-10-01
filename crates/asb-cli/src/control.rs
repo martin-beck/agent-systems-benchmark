@@ -705,7 +705,6 @@ impl ControlBackend for DevelopmentBackend {
                 | ControlCall::ValidateSettings { .. }
                 | ControlCall::Status { .. }
                 | ControlCall::History(_)
-                | ControlCall::Analyze { .. }
                 | ControlCall::ArtifactMetadata { .. }
         );
         if read_only {

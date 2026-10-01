@@ -2989,6 +2989,15 @@ mod tests {
             ),
             Err(asb_control::BackendFailure::CapabilityUnavailable)
         ));
+        assert!(matches!(
+            backend.execute(
+                &ControlCall::Analyze {
+                    run_ids: Vec::new()
+                },
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(asb_control::BackendFailure::CapabilityUnavailable)
+        ));
     }
 
     #[test]
