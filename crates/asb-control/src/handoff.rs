@@ -13,7 +13,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
 use rustix::fs::{OFlags, fcntl_getfl, fcntl_setfl};
@@ -114,14 +114,29 @@ impl<B: ControlBackend + Send + Sync + 'static> ProvisionedControlServer<B> {
         maximum_control: usize,
         maximum_provisioning: usize,
     ) -> Result<(), ProvisioningError> {
+        self.serve_connections_until(maximum_control, maximum_provisioning, None)
+    }
+
+    /// Serve bounded endpoint counts with a supervisor deadline.
+    pub fn serve_connections_until(
+        &self,
+        maximum_control: usize,
+        maximum_provisioning: usize,
+        timeout: Option<Duration>,
+    ) -> Result<(), ProvisioningError> {
         if maximum_control == 0 && maximum_provisioning == 0 {
             return Ok(());
         }
+        let deadline = timeout.map(|value| Instant::now() + value);
         self.control.set_nonblocking(true)?;
         let mut workers = Vec::new();
         let mut controls = 0_usize;
         let mut provisions = 0_usize;
         while controls < maximum_control || provisions < maximum_provisioning {
+            if deadline.is_some_and(|limit| Instant::now() >= limit) {
+                join_workers(workers);
+                return Err(ProvisioningError::Rejected);
+            }
             reap_workers(&mut workers);
             let mut progressed = false;
             if controls < maximum_control && self.control.try_accept_and_spawn(&mut workers)? {

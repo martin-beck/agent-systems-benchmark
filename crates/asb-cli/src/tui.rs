@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: MIT
 //! Trusted router for the independently installed optional terminal frontend.
 
+use crate::tui_handoff::PendingHandoff;
 use crate::{CliError, output_error, write_json};
+use asb_control::{
+    AuthenticatedGenerationProducer, BackendFailure, BoundControlResult, BrokerConnection,
+    Capabilities, ControlBackend, ControlCall, ControlLimits, ControlResult,
+    ProvisionedControlServer, RequestDeadline, Revision,
+};
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
     memfd_create, mkdirat, openat, renameat, unlinkat,
@@ -964,9 +970,7 @@ fn execute_development_existing(
                 .env(DEV_BROKER_TUI_TREE_ENV, &active.source_tree)
                 .args(["run", "--broker", "--development"]);
             add_candidate_environment(&mut command)?;
-            let status = command
-                .status()
-                .map_err(|_| RouterError::operation("development_launch_failed"))?;
+            let status = launch_development_broker(command, &paths.state_root)?;
             if !status.success() {
                 return Err(RouterError::operation("development_launch_failed"));
             }
@@ -977,6 +981,137 @@ fn execute_development_existing(
             ))
         }
         _ => Err(RouterError::policy("development_operation_invalid")),
+    }
+}
+
+fn launch_development_broker(
+    mut command: Command,
+    state_root: &Path,
+) -> Result<std::process::ExitStatus, RouterError> {
+    let broker_root = state_root.join(format!(
+        ".dev-broker-{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let control_dir = broker_root.join("control");
+    let provisioning_dir = broker_root.join("provisioning");
+    prepare_private_directory(&control_dir)?;
+    prepare_private_directory(&provisioning_dir)?;
+    let control_socket = control_dir.join("control.sock");
+    let provisioning_socket = provisioning_dir.join("provisioning.sock");
+    let server = ProvisionedControlServer::bind(
+        &control_socket,
+        &provisioning_socket,
+        ControlLimits::default(),
+        DevelopmentBackend,
+    )
+    .map_err(|_| RouterError::operation("development_control_unavailable"))?;
+    let (router, frontend) = match BrokerConnection::pair() {
+        Ok(pair) => pair,
+        Err(_) => {
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_channel_unavailable"));
+        }
+    };
+    command.stdin(Stdio::from(frontend));
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(_) => {
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_launch_failed"));
+        }
+    };
+    let pending = PendingHandoff::receive_initial_from_connection(router)
+        .map_err(|_| RouterError::operation("development_channel_rejected"));
+    let pending = match pending {
+        Ok(pending) => pending,
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(error);
+        }
+    };
+    let server_worker =
+        thread::spawn(move || server.serve_connections_until(1, 1, Some(DELEGATE_TIMEOUT)));
+    let producer = match AuthenticatedGenerationProducer::new(
+        control_socket,
+        provisioning_socket,
+        ControlLimits::default(),
+    ) {
+        Ok(producer) => producer,
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = server_worker.join();
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_control_unavailable"));
+        }
+    };
+    if pending.complete(&producer).is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = server_worker.join();
+        let _ = fs::remove_dir_all(&broker_root);
+        return Err(RouterError::operation("development_channel_rejected"));
+    }
+    let deadline = Instant::now() + DELEGATE_TIMEOUT;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|_| RouterError::operation("development_launch_failed"))?
+        {
+            let server_ok = server_worker.join().is_ok_and(|result| result.is_ok());
+            let _ = fs::remove_dir_all(&broker_root);
+            return server_ok
+                .then_some(status)
+                .ok_or_else(|| RouterError::operation("development_control_failed"));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = server_worker.join();
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_launch_timeout"));
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+struct DevelopmentBackend;
+
+impl ControlBackend for DevelopmentBackend {
+    fn runner_instance_id(&self) -> &str {
+        "asb-development-runner"
+    }
+
+    fn oldest_revision(&self) -> Revision {
+        Revision(0)
+    }
+
+    fn latest_revision(&self) -> Revision {
+        Revision(0)
+    }
+
+    fn execute(
+        &self,
+        call: &ControlCall,
+        _deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        if matches!(call, ControlCall::Capabilities) {
+            return BoundControlResult::new(
+                call,
+                ControlResult::Capabilities(Capabilities {
+                    validate_settings: false,
+                    run_control: false,
+                    repeat: false,
+                    analysis: false,
+                    events: false,
+                }),
+            )
+            .map_err(|_| BackendFailure::Rejected);
+        }
+        Err(BackendFailure::CapabilityUnavailable)
     }
 }
 
