@@ -71,7 +71,6 @@ const ASB_SOURCE_TREE: &str = build_identity::TREE;
 const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
 const MAX_DEV_WORKSPACE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-const MAX_DEV_TARGET_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -901,8 +900,10 @@ fn materialize_development(
             DEV_COMMAND_TIMEOUT,
             MAX_DEV_WORKSPACE_BYTES,
         )?;
-        enforce_workspace_quota(&root)?;
-        enforce_workspace_quota_with_limit(&target, MAX_DEV_TARGET_BYTES)?;
+        enforce_workspace_quota_for_roots(
+            &[root.as_path(), target.as_path()],
+            MAX_DEV_WORKSPACE_BYTES,
+        )?;
         let mut source_tree_command = Command::new(&setsid);
         source_tree_command
             .env_clear()
@@ -1367,11 +1368,7 @@ fn run_development_command_with_limits_and_roots(
                 .join()
                 .map_err(|_| RouterError::operation("dev_command_failed"))?
                 .map_err(|_| RouterError::operation("dev_command_failed"))?;
-            if quota_roots.iter().any(|root| {
-                bounded_directory_size(root, quota)
-                    .map(|size| size > quota)
-                    .unwrap_or(true)
-            }) {
+            if bounded_directory_size_for_roots(quota_roots, quota)? > quota {
                 let _ = fs::remove_dir_all(cleanup_root);
                 return Err(RouterError::policy("dev_workspace_quota_exceeded"));
             }
@@ -1380,11 +1377,7 @@ fn run_development_command_with_limits_and_roots(
             }
             return Ok(bytes);
         }
-        if quota_roots.iter().any(|root| {
-            bounded_directory_size(root, quota)
-                .map(|size| size > quota)
-                .unwrap_or(true)
-        }) {
+        if bounded_directory_size_for_roots(quota_roots, quota)? > quota {
             if let Some(pid) = Pid::from_raw(child.id() as i32) {
                 let _ = kill_process_group(pid, Signal::KILL);
             }
@@ -1419,27 +1412,75 @@ fn enforce_workspace_quota_with_limit(root: &Path, limit: u64) -> Result<(), Rou
     Ok(())
 }
 
-fn bounded_directory_size(root: &Path, limit: u64) -> Result<u64, RouterError> {
-    let metadata = fs::symlink_metadata(root)
-        .map_err(|_| RouterError::operation("dev_workspace_unavailable"))?;
-    if metadata.file_type().is_symlink() {
-        return Err(RouterError::policy("dev_workspace_unsafe"));
+fn enforce_workspace_quota_for_roots(roots: &[&Path], limit: u64) -> Result<(), RouterError> {
+    if bounded_directory_size_for_roots(roots, limit)? > limit {
+        return Err(RouterError::policy("dev_workspace_quota_exceeded"));
     }
-    if metadata.is_file() {
-        return Ok(metadata.len());
-    }
+    Ok(())
+}
+
+fn bounded_directory_size_for_roots(roots: &[&Path], limit: u64) -> Result<u64, RouterError> {
     let mut total = 0_u64;
-    for entry in
-        fs::read_dir(root).map_err(|_| RouterError::operation("dev_workspace_unavailable"))?
-    {
-        let entry = entry.map_err(|_| RouterError::operation("dev_workspace_unavailable"))?;
-        let size = bounded_directory_size(&entry.path(), limit.saturating_sub(total))?;
+    for root in roots {
+        let size = bounded_directory_size(root, limit.saturating_sub(total))?;
         total = total.saturating_add(size);
         if total > limit {
             return Ok(total);
         }
     }
     Ok(total)
+}
+
+fn bounded_directory_size(root: &Path, limit: u64) -> Result<u64, RouterError> {
+    bounded_directory_size_inner(root, limit, false)?
+        .ok_or_else(|| RouterError::operation("dev_workspace_unavailable"))
+}
+
+fn bounded_directory_size_inner(
+    root: &Path,
+    limit: u64,
+    allow_missing: bool,
+) -> Result<Option<u64>, RouterError> {
+    let metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if allow_missing && error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(_) => return Err(RouterError::operation("dev_workspace_unavailable")),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err(RouterError::policy("dev_workspace_unsafe"));
+    }
+    if metadata.is_file() {
+        return Ok(Some(metadata.len()));
+    }
+    let mut total = 0_u64;
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if allow_missing && error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(_) => return Err(RouterError::operation("dev_workspace_unavailable")),
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) if allow_missing && error.kind() == std::io::ErrorKind::NotFound => {
+                continue;
+            }
+            Err(_) => return Err(RouterError::operation("dev_workspace_unavailable")),
+        };
+        let Some(size) =
+            bounded_directory_size_inner(&entry.path(), limit.saturating_sub(total), true)?
+        else {
+            continue;
+        };
+        total = total.saturating_add(size);
+        if total > limit {
+            return Ok(Some(total));
+        }
+    }
+    Ok(Some(total))
 }
 
 fn doctor(paths: &RouterPaths) -> Result<RouterResponse, RouterError> {
@@ -3937,6 +3978,7 @@ mod tests {
                 .code,
             "dev_workspace_unsafe"
         );
+        let producer_scratch = Scratch::new("dev-quota-producer");
         let mut producer = Command::new(DEV_SETSID);
         producer.args([
             "--wait",
@@ -3944,22 +3986,28 @@ mod tests {
             "-c",
             &format!(
                 "head -c 4096 /dev/zero > {}/descendant",
-                scratch.0.display()
+                producer_scratch.0.display()
             ),
         ]);
         assert_eq!(
-            run_development_command_with_limits(producer, &scratch.0, Duration::from_secs(2), 64,)
-                .unwrap_err()
-                .code,
+            run_development_command_with_limits(
+                producer,
+                &producer_scratch.0,
+                Duration::from_secs(2),
+                64,
+            )
+            .unwrap_err()
+            .code,
             "dev_workspace_quota_exceeded"
         );
-        assert!(!scratch.0.exists());
+        assert!(!producer_scratch.0.exists());
     }
 
     #[test]
     fn development_target_staging_has_independent_bounded_cleanup() {
         let source = Scratch::new("dev-target-source");
         let target = Scratch::new("dev-target-artifacts");
+        fs::write(source.0.join("source-artifact"), [0_u8; 40]).unwrap();
         let mut producer = Command::new(DEV_SETSID);
         producer.args([
             "--wait",
@@ -3979,6 +4027,21 @@ mod tests {
         assert!(!source.0.exists());
         assert!(target.0.exists());
         fs::remove_dir_all(target.0.clone()).unwrap();
+    }
+
+    #[test]
+    fn bounded_directory_size_tolerates_vanished_child_entries() {
+        let scratch = Scratch::new("dev-quota-race");
+        let missing = scratch.0.join("vanished");
+        assert_eq!(
+            bounded_directory_size_inner(&missing, MAX_DEV_WORKSPACE_BYTES, true).unwrap(),
+            None
+        );
+        fs::write(scratch.0.join("stable"), [0_u8; 8]).unwrap();
+        assert_eq!(
+            bounded_directory_size(&scratch.0, MAX_DEV_WORKSPACE_BYTES).unwrap(),
+            8
+        );
     }
 
     #[cfg(unix)]
