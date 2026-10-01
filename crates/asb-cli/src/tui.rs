@@ -3202,7 +3202,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             client.negotiated().version,
-            *SUPPORTED_CONTROL_VERSIONS.iter().max().unwrap()
+            asb_control::CONTROL_BENCHMARK_CATALOG_V1
         );
         assert_eq!(client.negotiated().runner_instance_id, expected_runner);
         let timeout = client.negotiated().limits.max_timeout_ms;
