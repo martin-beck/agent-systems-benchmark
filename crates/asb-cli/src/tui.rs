@@ -2890,7 +2890,10 @@ mod tests {
     use super::*;
     #[cfg(feature = "cross-repo-qualification")]
     use crate::control::DevelopmentBackend;
-    use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
+    use asb_control::{
+        ControlBackend, ControlCall, ControlClient, ControlResult, RequestDeadline,
+        SUPPORTED_CONTROL_VERSIONS,
+    };
     #[cfg(feature = "cross-repo-qualification")]
     use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
     #[cfg(feature = "cross-repo-qualification")]
@@ -3172,7 +3175,80 @@ mod tests {
     }
 
     #[test]
-    fn development_launch_cleans_channel_when_child_exits_before_parent_handoff() {
+    fn development_bridge_serves_real_backend_over_private_control_socket() {
+        let scratch = Scratch::new("development-bridge");
+        let control_dir = scratch.0.join("control");
+        let provisioning_dir = scratch.0.join("provisioning");
+        prepare_private_directory(&control_dir).unwrap();
+        prepare_private_directory(&provisioning_dir).unwrap();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let backend = open_development_backend(scratch.0.clone()).unwrap();
+        let expected_runner = backend.runner_instance_id().to_owned();
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            backend,
+        )
+        .unwrap();
+        let worker = thread::spawn(move || server.serve_connections(1, 0));
+
+        let mut client = ControlClient::connect_with_versions(
+            &control_path,
+            ControlLimits::default(),
+            SUPPORTED_CONTROL_VERSIONS,
+        )
+        .unwrap();
+        assert_eq!(
+            client.negotiated().version,
+            *SUPPORTED_CONTROL_VERSIONS.iter().max().unwrap()
+        );
+        assert_eq!(client.negotiated().runner_instance_id, expected_runner);
+        let timeout = client.negotiated().limits.max_timeout_ms;
+
+        let calls = [
+            ControlCall::Capabilities,
+            ControlCall::MeasurementCatalog,
+            ControlCall::History(asb_control::PageParams {
+                after: None,
+                limit: client.negotiated().limits.max_page_items,
+            }),
+            ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                runner_instance_id: client.negotiated().runner_instance_id.clone(),
+            }),
+            ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                action: asb_control::ProviderCatalogAction::Status,
+                runner_instance_id: client.negotiated().runner_instance_id.clone(),
+                known_generation: None,
+            }),
+            ControlCall::RecordingCampaignStatus(asb_control::RecordingCampaignStatusRequest {
+                runner_instance_id: client.negotiated().runner_instance_id.clone(),
+            }),
+            ControlCall::AuthStatus(asb_control::AuthStatusParams {
+                provider: "development".into(),
+            }),
+        ];
+        let auth_index = calls.len() - 1;
+        for (index, call) in calls.into_iter().enumerate() {
+            let response = client.call(call, timeout).unwrap();
+            if index == auth_index {
+                assert_eq!(response.error().map(|error| error.code), Some(-33_003));
+            } else {
+                assert!(
+                    response.error().is_none(),
+                    "unexpected bridge error: {response:?}"
+                );
+            }
+        }
+        drop(client);
+        worker.join().unwrap().unwrap();
+        assert!(!control_path.exists());
+        assert!(!provisioning_path.exists());
+    }
+
+    #[test]
+    fn development_launch_cleans_channel_when_child_exits_before_request() {
         let scratch = Scratch::new("broker-child-exit");
         let error = launch_development_broker(Command::new("/bin/true"), &scratch.0)
             .expect_err("an exited frontend must not receive a handoff");
