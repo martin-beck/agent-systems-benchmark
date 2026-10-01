@@ -447,6 +447,15 @@ pub struct RecordingCampaignOfflineDefaultParams {
     pub campaign_id: String,
 }
 
+/// Idempotent request to seal a campaign after coverage validation.
+pub type RecordingCampaignSealParams = RecordingCampaignOfflineDefaultParams;
+/// Idempotent request to reopen a campaign for another capture attempt.
+pub type RecordingCampaignReopenParams = RecordingCampaignOfflineDefaultParams;
+/// Idempotent request to remove a campaign and its local artifacts.
+pub type RecordingCampaignRemoveParams = RecordingCampaignOfflineDefaultParams;
+/// Idempotent request to retry a failed or reconciled campaign.
+pub type RecordingCampaignRetryParams = RecordingCampaignOfflineDefaultParams;
+
 /// Durable recording lifecycle and tuple coverage projection.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -635,7 +644,13 @@ impl RecordingCampaignLifecycle {
         }
         if !matches!(
             self.state.as_str(),
-            "planned" | "recording" | "needs_reconciliation" | "complete" | "cancelled" | "failed"
+            "planned"
+                | "recording"
+                | "needs_reconciliation"
+                | "complete"
+                | "cancelled"
+                | "failed"
+                | "removed"
         ) {
             return Err(ProtocolError::InvalidResponse);
         }

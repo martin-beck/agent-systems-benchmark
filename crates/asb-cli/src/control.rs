@@ -1069,6 +1069,10 @@ enum RecordingLifecycleAction {
     Cancel,
     Reconcile,
     OfflineDefault,
+    Seal,
+    Reopen,
+    Remove,
+    Retry,
 }
 
 impl RecordingLifecycleAction {
@@ -1078,6 +1082,10 @@ impl RecordingLifecycleAction {
             Self::Cancel => "cancel",
             Self::Reconcile => "reconcile",
             Self::OfflineDefault => "offline_default",
+            Self::Seal => "seal",
+            Self::Reopen => "reopen",
+            Self::Remove => "remove",
+            Self::Retry => "retry",
         }
     }
 }
@@ -3117,6 +3125,42 @@ impl ControlBackend for RunnerBackend {
                     RecordingLifecycleAction::OfflineDefault,
                     deadline,
                 ),
+            ControlCall::RecordingCampaignSeal(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Seal,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignReopen(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Reopen,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignRemove(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Remove,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignRetry(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Retry,
+                deadline,
+            ),
             ControlCall::AgentCatalog(request) => {
                 let catalog = self.agent_catalog(request)?;
                 self.bind(call, ControlResult::AgentCatalog(catalog))
@@ -4146,6 +4190,51 @@ impl RunnerBackend {
         if runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
         }
+        if matches!(action, RecordingLifecycleAction::Retry) {
+            let reset = self.mutation(
+                call,
+                key,
+                MutationTarget::RecordingCampaignLifecycle {
+                    campaign_id: campaign_id.to_owned(),
+                    action: "retry_reset".to_owned(),
+                },
+                deadline,
+                |catalog| {
+                    let record = catalog
+                        .recording_campaign
+                        .as_mut()
+                        .filter(|record| record.campaign_id == campaign_id)
+                        .ok_or(BackendFailure::NotFound)?;
+                    if record.generation != expected_generation.0
+                        || !matches!(record.state.as_str(), "failed" | "needs_reconciliation")
+                    {
+                        return Err(BackendFailure::Rejected);
+                    }
+                    for entry in &mut record.coverage {
+                        if entry.state != "complete" {
+                            entry.state = "ready".to_owned();
+                            entry.cassette_sha256 = None;
+                            entry.redaction_verified = false;
+                            entry.replay_verified = false;
+                        }
+                    }
+                    record.state = "planned".to_owned();
+                    record.offline_ready = false;
+                    record.unavailable_reason = Some("retry-admitted".to_owned());
+                    Ok(ControlResult::RecordingCampaignLifecycle(
+                        self.lifecycle_projection(record),
+                    ))
+                },
+            );
+            reset?;
+            return self.recording_campaign_execute(
+                call,
+                key,
+                expected_generation,
+                campaign_id,
+                deadline,
+            );
+        }
         if matches!(action, RecordingLifecycleAction::Cancel)
             && let Ok(cancelled) = self.cancelled.lock()
             && let Some(flag) = cancelled.get(campaign_id)
@@ -4226,6 +4315,44 @@ impl RunnerBackend {
                         return Err(BackendFailure::CapabilityUnavailable);
                     }
                 }
+                RecordingLifecycleAction::Seal => {
+                    let valid = record.coverage.iter().all(|entry| {
+                        entry.state == "complete"
+                            && entry.cassette_sha256.as_deref().is_some_and(|digest| {
+                                cassette_artifact_valid(&self.state_root, digest)
+                            })
+                    });
+                    if !valid || record.coverage.len() != usize::from(record.tuple_count) {
+                        return Err(BackendFailure::CapabilityUnavailable);
+                    }
+                    record.state = "complete".to_owned();
+                    record.covered_tuple_count = record.tuple_count;
+                    record.offline_ready = true;
+                    record.unavailable_reason = None;
+                }
+                RecordingLifecycleAction::Reopen => {
+                    if !matches!(
+                        record.state.as_str(),
+                        "complete" | "failed" | "cancelled" | "needs_reconciliation"
+                    ) {
+                        return Err(BackendFailure::Rejected);
+                    }
+                    for entry in &mut record.coverage {
+                        if entry.state != "complete" {
+                            entry.state = "ready".to_owned();
+                            entry.cassette_sha256 = None;
+                        }
+                    }
+                    record.state = "planned".to_owned();
+                    record.offline_ready = false;
+                    record.unavailable_reason = Some("capture-reopened".to_owned());
+                }
+                RecordingLifecycleAction::Remove => {
+                    record.state = "removed".to_owned();
+                    record.offline_ready = false;
+                    record.unavailable_reason = Some("campaign-removed".to_owned());
+                }
+                RecordingLifecycleAction::Retry => unreachable!("retry handled above"),
             }
             if matches!(action, RecordingLifecycleAction::OfflineDefault) {
                 record.unavailable_reason = None;
