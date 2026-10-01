@@ -68,7 +68,7 @@ use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -88,6 +88,10 @@ const MAX_POINT_ATTEMPTS: u32 = 4_096;
 const MAX_OPTIONAL_METRIC_VALUES_PER_ATTEMPT: u64 = 1_000_000;
 const PROVIDER_CATALOG_VERSION: u16 = 1;
 const MAX_SELECTED_AGENTS: usize = 9;
+static RECORDING_TRANSACTION_NONCE: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(test)]
+static FAIL_RECORDING_INSTALL_AT: AtomicU64 = AtomicU64::new(u64::MAX);
 
 /// Run the command-line interface with process standard streams.
 #[must_use]
@@ -1355,9 +1359,7 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     // and can be mistaken for replay coverage. The typed result below still
     // reports the unavailable campaign for human and JSON callers.
     if complete {
-        for (path, encoded) in pending_writes {
-            write_atomic_private(&path, &encoded)?;
-        }
+        publish_recording_campaign(&pending_writes)?;
     }
     let campaign_id = format!(
         "campaign-{}",
@@ -1548,6 +1550,122 @@ fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
         let _ = fs::remove_file(&temporary);
         CliError::operation("workflow output cannot be installed")
     })
+}
+
+fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliError> {
+    let transaction = RECORDING_TRANSACTION_NONCE.fetch_add(1, Ordering::Relaxed);
+    let mut staged = Vec::with_capacity(pending.len());
+    for (index, (path, bytes)) in pending.iter().enumerate() {
+        if let Ok(metadata) = fs::symlink_metadata(path)
+            && metadata.file_type().is_symlink()
+        {
+            for (_, temporary) in &staged {
+                let _ = fs::remove_file(temporary);
+            }
+            return Err(CliError::validation(
+                "workflow output cannot replace a symlink",
+            ));
+        }
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let temporary = parent.join(format!(
+            ".asb-record-{}-{}-{}.tmp",
+            std::process::id(),
+            transaction,
+            index
+        ));
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&temporary)
+        {
+            Ok(file) => file,
+            Err(_) => {
+                for (_, temporary) in staged {
+                    let _ = fs::remove_file(temporary);
+                }
+                return Err(CliError::operation("workflow output cannot be staged"));
+            }
+        };
+        if file.write_all(bytes).is_err() || file.sync_all().is_err() {
+            let _ = fs::remove_file(&temporary);
+            for (_, temporary) in staged {
+                let _ = fs::remove_file(temporary);
+            }
+            return Err(CliError::operation("workflow output cannot be written"));
+        }
+        staged.push((path.clone(), temporary));
+    }
+
+    let mut installed: Vec<(PathBuf, Option<PathBuf>)> = Vec::with_capacity(staged.len());
+    for (index, (path, temporary)) in staged.iter().enumerate() {
+        #[cfg(test)]
+        if FAIL_RECORDING_INSTALL_AT.load(Ordering::Relaxed) == index as u64 {
+            let _ = fs::remove_file(temporary);
+            rollback_recording_campaign(&staged, &installed);
+            return Err(CliError::operation("workflow output cannot be installed"));
+        }
+        let backup = match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    rollback_recording_campaign(&staged, &installed);
+                    return Err(CliError::validation(
+                        "workflow output cannot replace a symlink",
+                    ));
+                }
+                let backup = path.with_file_name(format!(
+                    ".asb-record-{}-{}-{}.bak",
+                    std::process::id(),
+                    transaction,
+                    index
+                ));
+                if fs::rename(path, &backup).is_err() {
+                    rollback_recording_campaign(&staged, &installed);
+                    return Err(CliError::operation("workflow output cannot be backed up"));
+                }
+                Some(backup)
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(_) => {
+                rollback_recording_campaign(&staged, &installed);
+                return Err(CliError::operation("workflow output cannot be inspected"));
+            }
+        };
+        if fs::rename(temporary, path).is_err() {
+            if let Some(backup) = &backup {
+                let _ = fs::rename(backup, path);
+            }
+            rollback_recording_campaign(&staged, &installed);
+            return Err(CliError::operation("workflow output cannot be installed"));
+        }
+        installed.push((path.clone(), backup));
+    }
+    for (_, backup) in installed {
+        if let Some(backup) = backup {
+            let _ = fs::remove_file(backup);
+        }
+    }
+    Ok(())
+}
+
+fn rollback_recording_campaign(
+    staged: &[(PathBuf, PathBuf)],
+    installed: &[(PathBuf, Option<PathBuf>)],
+) {
+    for (path, backup) in installed.iter().rev() {
+        let _ = fs::remove_file(path);
+        if let Some(backup) = backup {
+            let _ = fs::rename(backup, path);
+        }
+    }
+    for (path, temporary) in staged {
+        if !installed
+            .iter()
+            .any(|(installed_path, _)| installed_path == path)
+        {
+            let _ = fs::remove_file(temporary);
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -8638,6 +8756,36 @@ mod tests {
         assert_eq!(result["tuple_count"], 2);
         assert!(cassette_path.is_file());
         assert!(literature_cassette_path.is_file());
+
+        let failed_first_path = scratch.0.join("failed-first-cassette.json");
+        let failed_second_path = scratch.0.join("failed-second-cassette.json");
+        let mut failure_manifest = manifest.clone();
+        failure_manifest["entries"][0]["cassette_path"] = json!(failed_first_path.clone());
+        failure_manifest["entries"][1]["cassette_path"] = json!(failed_second_path.clone());
+        let failure_manifest_path = scratch.0.join("failure-campaign.json");
+        fs::write(
+            &failure_manifest_path,
+            serde_json::to_vec(&failure_manifest).unwrap(),
+        )
+        .unwrap();
+        FAIL_RECORDING_INSTALL_AT.store(1, Ordering::Relaxed);
+        let mut failure_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "record-campaign".into(),
+                    failure_manifest_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut failure_output,
+                &mut diagnostics,
+            ),
+            4
+        );
+        FAIL_RECORDING_INSTALL_AT.store(u64::MAX, Ordering::Relaxed);
+        assert!(!failed_first_path.exists());
+        assert!(!failed_second_path.exists());
 
         let mut direct_without_opt_in = Vec::new();
         assert_eq!(
