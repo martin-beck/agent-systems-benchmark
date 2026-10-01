@@ -869,3 +869,74 @@ fn canonical_json(value: serde_json::Value) -> serde_json::Value {
         other => other,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unavailable() -> ProviderAvailability {
+        ProviderAvailability::Unavailable("authorization-required".into())
+    }
+
+    fn entry(id: &str) -> ProviderCatalogEntry {
+        ProviderCatalogEntry {
+            provider_id: id.into(),
+            display_name: format!("{id}-provider"),
+            auth_methods: vec![ProviderAuthMethod::CredentialReference],
+            models: vec![ProviderModel {
+                model_id: "model-1".into(),
+                revision: "rev-1".into(),
+                availability: unavailable(),
+            }],
+            availability: unavailable(),
+        }
+    }
+
+    #[test]
+    fn provider_registration_and_catalog_digest_are_canonical() {
+        let profile = entry("provider-1");
+        ProviderProfileUpsertParams {
+            idempotency_key: "upsert-1".into(),
+            expected_generation: Revision(1),
+            runner_instance_id: "runner-1".into(),
+            entry: profile.clone(),
+            credential_reference_sha256: Some("a".repeat(64)),
+        }
+        .validate()
+        .unwrap();
+        let mut catalog = ProviderCatalog {
+            runner_instance_id: "runner-1".into(),
+            generation: Revision(1),
+            catalog_sha256: String::new(),
+            providers: vec![profile],
+            refreshed: false,
+        };
+        catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+        catalog.validate().unwrap();
+        catalog.providers[0].provider_id = "provider-2".into();
+        assert!(catalog.validate().is_err());
+    }
+
+    #[test]
+    fn provider_validation_rejects_duplicates_and_invalid_generation() {
+        let profile = entry("provider-1");
+        assert!(
+            ProviderProfileUpsertParams {
+                idempotency_key: "upsert-1".into(),
+                expected_generation: Revision(0),
+                runner_instance_id: "runner-1".into(),
+                entry: profile.clone(),
+                credential_reference_sha256: None,
+            }
+            .validate()
+            .is_err()
+        );
+        let mut duplicate = profile;
+        duplicate
+            .auth_methods
+            .push(ProviderAuthMethod::CredentialReference);
+        assert!(validate_provider_entry(&duplicate, false).is_err());
+        assert!(validate_sorted_ids(&["b".into(), "a".into()], false).is_err());
+        assert!(validate_catalog_string("unsafe value").is_err());
+    }
+}
