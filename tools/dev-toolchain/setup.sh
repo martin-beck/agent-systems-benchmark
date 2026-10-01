@@ -39,7 +39,11 @@ source_cargo=${ASB_DEV_SOURCE_CARGO:-$(command -v cargo 2>/dev/null || true)}
 source_git=${ASB_DEV_SOURCE_GIT:-$(command -v git 2>/dev/null || true)}
 source_setsid=${ASB_DEV_SOURCE_SETSID:-$(command -v setsid 2>/dev/null || true)}
 for tool in cargo git setsid; do
-    eval "source=\${source_$tool:-}"
+    case "$tool" in
+        cargo) source=${source_cargo:-} ;;
+        git) source=${source_git:-} ;;
+        setsid) source=${source_setsid:-} ;;
+    esac
     test -n "$source" && source=$(realpath -e "$source") && test -f "$source" && test ! -L "$source" && test -x "$source" || {
         printf 'ERROR: source %s is unavailable\n' "$tool" >&2
         exit 4

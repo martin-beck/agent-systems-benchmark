@@ -20,9 +20,9 @@ test "$(stat -c '%a' "$root/tools/bin/git")" = 700
 test "$(stat -c '%a' "$root/tools/bin/setsid")" = 700
 test -z "$(find "$root" -maxdepth 1 -name '.dev-toolchain-stage-*' -print -quit)"
 ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh git --version >/dev/null
-test "$(ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh sh -c 'printf %s "$ASB_DEV_GIT"')" = "$root/tools/bin/git"
-test "$(ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh sh -c 'printf %s "$HOME"')" = "$root/tools"
-test "$(ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh sh -c 'printf %s "$CARGO_HOME"')" = "$root/tools/cargo-home"
+test "$(ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh /bin/sh -c 'printf %s "$ASB_DEV_GIT"')" = "$root/tools/bin/git"
+test "$(ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh /bin/sh -c 'printf %s "$HOME"')" = "$root/tools"
+test "$(ASB_DEV_TOOLCHAIN_ROOT="$root/tools" tools/dev-toolchain/run.sh /bin/sh -c 'printf %s "$CARGO_HOME"')" = "$root/tools/cargo-home"
 printf '%s' 'sentinel' > "$root/tools/sentinel"
 set +e
 ASB_DEV_TOOLCHAIN_ROOT="$root/tools" ASB_DEV_SOURCE_CARGO=/missing/cargo \
@@ -31,6 +31,19 @@ status=$?
 set -e
 test "$status" -eq 4
 test -f "$root/tools/sentinel"
+set +e
+ASB_DEV_TOOLCHAIN_ROOT="$root/metachar" ASB_DEV_SOURCE_GIT='/tmp/bad;touch' \
+    tools/dev-toolchain/setup.sh >/dev/null 2>&1
+status=$?
+set -e
+test "$status" -eq 4
+ln -s "$root/tools" "$root/cargo-link"
+set +e
+ASB_DEV_CARGO_HOME="$root/cargo-link" ASB_DEV_TOOLCHAIN_ROOT="$root/tools" \
+    tools/dev-toolchain/run.sh true >/dev/null 2>&1
+status=$?
+set -e
+test "$status" -eq 4
 hostile="$root/hostile"
 mkdir -m 0777 "$hostile"
 set +e

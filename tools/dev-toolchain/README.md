@@ -14,9 +14,10 @@ ASB_DEV_TOOLCHAIN_ROOT="$HOME/.cache/asb/dev-toolchain-v1" \
   tools/dev-toolchain/setup.sh
 ASB_DEV_TOOLCHAIN_ROOT="$HOME/.cache/asb/dev-toolchain-v1" \
   tools/dev-toolchain/run.sh cargo --version
-ASB_DEV_TOOLCHAIN_ROOT="$HOME/.cache/asb/dev-toolchain-v1" \
-  tools/dev-toolchain/run.sh asb tui install --channel dev --offline
 ```
+
+The runner dispatches its staged tools by name. Other commands must be
+absolute executable paths; ambient `PATH` command lookup is rejected.
 
 The ASB resolver accepts only absolute paths whose parent chain is private and
 whose executable is non-writable by group/other. Missing or unsafe roots report

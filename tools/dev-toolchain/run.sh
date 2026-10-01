@@ -35,6 +35,14 @@ if test -n "${ASB_DEV_CARGO_HOME:-}"; then
     export CARGO_HOME="$ASB_DEV_CARGO_HOME"
     test -d "$CARGO_HOME" && test ! -L "$CARGO_HOME" || { printf '%s\n' 'ERROR: configured cargo home is unavailable' >&2; exit 4; }
     test "$(stat -c '%u:%a' "$CARGO_HOME")" = "$(id -u):700" || { printf '%s\n' 'ERROR: configured cargo home is unsafe' >&2; exit 4; }
+    ancestor=$(dirname "$CARGO_HOME")
+    while :; do
+        test -d "$ancestor" && test ! -L "$ancestor" || { printf '%s\n' 'ERROR: configured cargo home ancestor is unsafe' >&2; exit 4; }
+        test "$ancestor" = / && break
+        next=$(dirname "$ancestor")
+        test "$next" != "$ancestor" || break
+        ancestor="$next"
+    done
 else
     export CARGO_HOME="$root/cargo-home"
     mkdir -p -m 0700 "$CARGO_HOME"
@@ -47,5 +55,14 @@ case "$1" in
         test "$tool" = cargo && command_path="$root/bin/cargo-wrapper"
         set -- "$command_path" "$@"
         ;;
+esac
+case "$1" in
+    cargo|git|setsid) : ;;
+    /*)
+        command_path=$(realpath -e "$1" 2>/dev/null || true)
+        test -f "$command_path" && test -x "$command_path" || { printf '%s\n' 'ERROR: command is not a private executable' >&2; exit 4; }
+        test -z "$(find "$command_path" -prune -perm /022 -print -quit)" || { printf '%s\n' 'ERROR: command is writable by group or other' >&2; exit 4; }
+        ;;
+    *) printf '%s\n' 'ERROR: command must be staged or absolute' >&2; exit 3 ;;
 esac
 exec "$@"
