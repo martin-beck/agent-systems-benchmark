@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://asb.example.invalid/schema/cli/setup-output-v1.json",
+  "$id": "https://asb.example.invalid/schema/cli/setup-output-v2.json",
   "title": "ASB setup preflight output",
   "type": "object",
   "additionalProperties": false,
