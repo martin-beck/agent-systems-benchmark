@@ -295,8 +295,20 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         if actual_runner_identity != expected_runner_identity {
             return Err(EndpointError::AdoptedIdentityMismatch);
         }
+        let expected_wire = crate::NegotiatedBrokerGeneration::from_broker(generation);
+        if let Some(backend_generation) = self.backend.broker_generation()
+            && backend_generation != expected_wire
+        {
+            return Err(EndpointError::InvalidAdoptedGeneration);
+        }
         let _permit = self.admission.acquire();
-        Self::serve_stream_with(&self.backend, self.limits, &mut stream)
+        let expected_generation = Some(crate::NegotiatedBrokerGeneration::from_broker(generation));
+        Self::serve_stream_with_generation(
+            &self.backend,
+            self.limits,
+            &mut stream,
+            expected_generation,
+        )
     }
 
     /// Serve frontend connections until the process is stopped.
@@ -399,6 +411,15 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
         limits: ControlLimits,
         stream: &mut UnixStream,
     ) -> Result<(), EndpointError> {
+        Self::serve_stream_with_generation(backend, limits, stream, None)
+    }
+
+    fn serve_stream_with_generation(
+        backend: &B,
+        limits: ControlLimits,
+        stream: &mut UnixStream,
+        adopted_generation: Option<crate::NegotiatedBrokerGeneration>,
+    ) -> Result<(), EndpointError> {
         let peer = PeerIdentity::from_fd(&mut *stream).map_err(EndpointError::Transport)?;
         peer.require_owner(rustix::process::geteuid().as_raw())
             .map_err(EndpointError::Transport)?;
@@ -411,7 +432,7 @@ impl<B: ControlBackend + Send + Sync + 'static> ControlServer<B> {
             version,
             limits: effective,
             runner_instance_id: backend.runner_instance_id().to_owned(),
-            broker_generation: backend.broker_generation(),
+            broker_generation: adopted_generation.or_else(|| backend.broker_generation()),
             oldest_revision: backend.oldest_revision(),
             latest_revision: backend.latest_revision(),
         };
@@ -768,6 +789,36 @@ mod tests {
         }
     }
 
+    struct MismatchBackend;
+
+    impl ControlBackend for MismatchBackend {
+        fn runner_instance_id(&self) -> &str {
+            "runner-adopted-test"
+        }
+
+        fn oldest_revision(&self) -> Revision {
+            Revision(0)
+        }
+
+        fn latest_revision(&self) -> Revision {
+            Revision(0)
+        }
+
+        fn broker_generation(&self) -> Option<crate::NegotiatedBrokerGeneration> {
+            Some(crate::NegotiatedBrokerGeneration::from_broker(
+                crate::BrokerGeneration::from_parts([1; 16], 1),
+            ))
+        }
+
+        fn execute(
+            &self,
+            _call: &ControlCall,
+            _deadline: RequestDeadline,
+        ) -> Result<BoundControlResult, BackendFailure> {
+            Err(BackendFailure::Rejected)
+        }
+    }
+
     fn adopted_generation() -> crate::BrokerGeneration {
         let (router, frontend) = crate::BrokerConnection::pair().expect("broker pair");
         let request = crate::BrokerPacket {
@@ -833,6 +884,10 @@ mod tests {
             client.negotiated().runner_instance_id,
             "runner-adopted-test"
         );
+        assert_eq!(
+            client.negotiated().broker_generation,
+            Some(crate::NegotiatedBrokerGeneration::from_broker(generation))
+        );
         drop(client);
         worker.join().expect("worker join").expect("serve");
         let _ = std::fs::remove_file(path);
@@ -865,6 +920,26 @@ mod tests {
         let error = server
             .serve_adopted_stream(server_stream, zero, [0; 32])
             .expect_err("zero evidence must fail closed");
+        assert!(
+            matches!(error, EndpointError::InvalidAdoptedGeneration),
+            "{error:?}"
+        );
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
+
+    #[test]
+    fn adopted_stream_rejects_backend_generation_mismatch_before_negotiation() {
+        let (root, path) = adopted_socket_path("generation-mismatch");
+        let _ = std::fs::remove_file(&path);
+        let server =
+            ControlServer::bind(&path, ControlLimits::default(), MismatchBackend).expect("server");
+        let (_client_stream, server_stream) = UnixStream::pair().expect("stream pair");
+        let generation = adopted_generation();
+        let expected = crate::runner_identity_digest("runner-adopted-test").expect("identity");
+        let error = server
+            .serve_adopted_stream(server_stream, generation, expected)
+            .expect_err("generation mismatch must fail closed");
         assert!(matches!(error, EndpointError::InvalidAdoptedGeneration));
         let _ = std::fs::remove_file(path);
         std::fs::remove_dir(root).expect("remove root");

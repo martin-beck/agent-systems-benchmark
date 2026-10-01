@@ -788,6 +788,17 @@ pub struct NegotiatedBrokerGeneration {
 }
 
 impl NegotiatedBrokerGeneration {
+    pub(crate) fn from_broker(generation: crate::BrokerGeneration) -> Self {
+        Self {
+            epoch: generation
+                .epoch()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+            sequence: generation.sequence(),
+        }
+    }
+
     /// Validate canonical epoch encoding and nonzero sequence.
     pub fn validate(&self) -> Result<(), ProtocolError> {
         if self.epoch.len() != 32
