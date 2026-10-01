@@ -47,8 +47,11 @@ const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
 const DEV_GIT: &str = "/usr/bin/git";
 const DEV_CARGO: &str = "/usr/bin/cargo";
 const DEV_SETSID: &str = "/usr/bin/setsid";
-const ASB_SOURCE_COMMIT: &str = "357b1ef6600fb12bcea1df80c4fe25018f5af583";
-const ASB_SOURCE_TREE: &str = "0c1f172d67b72564a8a5ca678e518365051ffe8e";
+mod build_identity {
+    include!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
+}
+const ASB_SOURCE_COMMIT: &str = build_identity::COMMIT;
+const ASB_SOURCE_TREE: &str = build_identity::TREE;
 const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
 const MAX_DEV_WORKSPACE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
@@ -133,7 +136,7 @@ impl RouterError {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RouterResponse {
     schema_version: u64,
@@ -264,7 +267,7 @@ struct ActiveInstallation {
     classification: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct DevelopmentInstallation {
     schema_version: u64,
@@ -2834,6 +2837,49 @@ mod tests {
         execute_development_existing(Operation::Remove, &paths).unwrap();
         assert!(!paths.install_root.join("active-dev.json").exists());
         assert!(!version.exists());
+    }
+
+    #[test]
+    fn stale_development_identity_fails_closed_with_typed_diagnostic() {
+        let scratch = Scratch::new("dev-identity");
+        let paths = RouterPaths {
+            install_root: scratch.0.join("install"),
+            state_root: scratch.0.join("state"),
+            cache_root: scratch.0.join("cache"),
+        };
+        prepare_private_directory(&paths.install_root).unwrap();
+        let bytes = b"development executable";
+        let executable_sha256 = digest(bytes);
+        let version = paths
+            .install_root
+            .join("dev-versions")
+            .join(&executable_sha256);
+        prepare_private_directory(&version).unwrap();
+        atomic_private(&version.join("asb-tui"), bytes, 0o700).unwrap();
+        let metadata = DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev".to_owned(),
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL.to_owned(),
+            source_commit: "a".repeat(40),
+            source_tree: "b".repeat(40),
+            asb_source_commit: ASB_SOURCE_COMMIT.to_owned(),
+            asb_source_tree: ASB_SOURCE_TREE.to_owned(),
+            executable_sha256,
+            installed_unix: 1,
+        };
+        let mut tampered = serde_json::to_value(&metadata).unwrap();
+        tampered["asb_source_commit"] = serde_json::Value::String("0".repeat(40));
+        atomic_private(
+            &paths.install_root.join("active-dev.json"),
+            &serde_json::to_vec(&tampered).unwrap(),
+            0o600,
+        )
+        .unwrap();
+        assert_eq!(
+            development_active(&paths).unwrap_err().code,
+            "development_installation_invalid"
+        );
     }
 
     #[test]
