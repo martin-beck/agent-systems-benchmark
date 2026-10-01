@@ -24,6 +24,17 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Build pinned asb-tui bridge binary
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: martin-beck/asb-tui
+          ref: 3ae1620
+          path: .ci/asb-tui
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Compile pinned asb-tui
+        working-directory: .ci/asb-tui
+        run: cargo build --locked --bin asb-tui
       - name: Install pinned toolchain
         run: rustup toolchain install 1.93.0 --profile minimal --component rustfmt --component clippy
       - name: Formatting
@@ -31,7 +42,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Tests
-        run: cargo test --locked --workspace -- --test-threads=1
+        env:
+          ASB_TUI_BINARY: ${{ github.workspace }}/.ci/asb-tui/target/debug/asb-tui
+        run: |
+          chmod 755 "$ASB_TUI_BINARY"
+          ASB_TUI_EXPECTED_SHA256="$(sha256sum "$ASB_TUI_BINARY" | cut -d' ' -f1)" \
+            cargo test --locked --workspace -- --test-threads=1
       - name: Native pinned Goose journey
         run: |
           case "$(uname -m)" in

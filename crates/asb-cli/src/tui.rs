@@ -3266,7 +3266,6 @@ mod tests {
     /// to compile an unpinned sibling checkout. The socket server remains the
     /// real ASB backend, not a protocol fixture.
     #[test]
-    #[ignore = "requires ASB_TUI_BINARY and ASB_TUI_EXPECTED_SHA256"]
     fn pinned_asb_tui_binary_fails_closed_without_stable_auth() {
         let binary = PathBuf::from(std::env::var("ASB_TUI_BINARY").unwrap());
         let expected = std::env::var("ASB_TUI_EXPECTED_SHA256").unwrap();
