@@ -4081,6 +4081,20 @@ mod tests {
     }
 
     #[test]
+    fn development_aggregate_quota_accepts_bounded_private_roots() {
+        let source = Scratch::new("dev-quota-source-ok");
+        let target = Scratch::new("dev-quota-target-ok");
+        fs::write(source.0.join("source"), [0_u8; 32]).unwrap();
+        fs::write(target.0.join("target"), [0_u8; 32]).unwrap();
+        assert_eq!(
+            bounded_directory_size_for_roots(&[source.0.as_path(), target.0.as_path()], 128)
+                .unwrap(),
+            64
+        );
+        enforce_workspace_quota_for_roots(&[source.0.as_path(), target.0.as_path()], 128).unwrap();
+    }
+
+    #[test]
     fn development_artifact_tree_is_private_under_normal_umask() {
         let target = Scratch::new("dev-artifact-modes");
         let release = target.0.join("release");
