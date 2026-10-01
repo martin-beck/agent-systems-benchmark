@@ -759,6 +759,10 @@ pub enum EndpointError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        CONTROL_PROVIDER_CATALOG_V1, ControlResult, RecordingCampaignPlan,
+        RecordingCampaignPlanParams,
+    };
     use std::io::Read;
     use std::os::unix::net::UnixListener;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -816,6 +820,60 @@ mod tests {
             _deadline: RequestDeadline,
         ) -> Result<BoundControlResult, BackendFailure> {
             Err(BackendFailure::Rejected)
+        }
+    }
+
+    struct AllWorkloadsBackend;
+
+    impl ControlBackend for AllWorkloadsBackend {
+        fn runner_instance_id(&self) -> &str {
+            "runner-all-workloads-test"
+        }
+
+        fn oldest_revision(&self) -> Revision {
+            Revision(0)
+        }
+
+        fn latest_revision(&self) -> Revision {
+            Revision(0)
+        }
+
+        fn execute(
+            &self,
+            call: &ControlCall,
+            _deadline: RequestDeadline,
+        ) -> Result<BoundControlResult, BackendFailure> {
+            let ControlCall::RecordingCampaignPlan(request) = call else {
+                return Err(BackendFailure::Rejected);
+            };
+            let mut workload_ids = vec![
+                "original.bug-fix".to_owned(),
+                "original.feature-addition".to_owned(),
+                "original.refactoring".to_owned(),
+                "original.test-generation".to_owned(),
+                "original.dependency-migration".to_owned(),
+                "original.build-repair".to_owned(),
+                "original.repository-navigation".to_owned(),
+            ];
+            workload_ids.sort();
+            BoundControlResult::new(
+                call,
+                ControlResult::RecordingCampaign(RecordingCampaignPlan {
+                    runner_instance_id: request.runner_instance_id.clone(),
+                    generation: request.expected_generation,
+                    campaign_id: "campaign-all-workloads".into(),
+                    provider_id: request.provider_id.clone(),
+                    model_id: request.model_id.clone(),
+                    agent_ids: request.agent_ids.clone(),
+                    tuple_count: u16::try_from(request.agent_ids.len() * workload_ids.len())
+                        .map_err(|_| BackendFailure::Rejected)?,
+                    workload_ids,
+                    state: "planned".into(),
+                    offline_ready: false,
+                    unavailable_reason: Some("recording-required".into()),
+                }),
+            )
+            .map_err(|_| BackendFailure::Rejected)
         }
     }
 
@@ -887,6 +945,59 @@ mod tests {
         assert_eq!(
             client.negotiated().broker_generation,
             Some(crate::NegotiatedBrokerGeneration::from_broker(generation))
+        );
+        drop(client);
+        worker.join().expect("worker join").expect("serve");
+        let _ = std::fs::remove_file(path);
+        std::fs::remove_dir(root).expect("remove root");
+    }
+
+    #[test]
+    fn endpoint_admits_all_workloads_and_validates_expanded_response() {
+        let (root, path) = adopted_socket_path("all-workloads");
+        let _ = std::fs::remove_file(&path);
+        let mut server = ControlServer::bind(&path, ControlLimits::default(), AllWorkloadsBackend)
+            .expect("server");
+        let worker = std::thread::spawn(move || server.serve_one());
+        let mut client = ControlClient::connect_with_versions(
+            &path,
+            ControlLimits::default(),
+            [CONTROL_PROVIDER_CATALOG_V1],
+        )
+        .expect("client");
+        let response = client
+            .call(
+                ControlCall::RecordingCampaignPlan(RecordingCampaignPlanParams {
+                    idempotency_key: "endpoint-all-workloads".into(),
+                    expected_generation: Revision(2),
+                    runner_instance_id: "runner-all-workloads-test".into(),
+                    provider_id: "openai".into(),
+                    model_id: "model".into(),
+                    agent_ids: vec!["aider".into()],
+                    workload_ids: Vec::new(),
+                }),
+                1_000,
+            )
+            .expect("all-workloads response");
+        let Some(ControlSuccess::Operation(result)) = response.into_result() else {
+            panic!("expanded recording plan response");
+        };
+        result
+            .validate_for_call(
+                &ControlCall::RecordingCampaignPlan(RecordingCampaignPlanParams {
+                    idempotency_key: "endpoint-all-workloads".into(),
+                    expected_generation: Revision(2),
+                    runner_instance_id: "runner-all-workloads-test".into(),
+                    provider_id: "openai".into(),
+                    model_id: "model".into(),
+                    agent_ids: vec!["aider".into()],
+                    workload_ids: Vec::new(),
+                }),
+                ControlLimits::default(),
+            )
+            .expect("expanded response binding");
+        assert!(
+            matches!(result.result, ControlResult::RecordingCampaign(plan) if plan.tuple_count == 7 && plan.workload_ids.len() == 7)
         );
         drop(client);
         worker.join().expect("worker join").expect("serve");

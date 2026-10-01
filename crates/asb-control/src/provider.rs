@@ -668,7 +668,7 @@ impl RecordingCampaignEstimateRequest {
         validate_catalog_string(&self.provider_id)?;
         validate_catalog_string(&self.model_id)?;
         validate_sorted_ids(&self.agent_ids, false)?;
-        validate_sorted_ids(&self.workload_ids, false)?;
+        validate_sorted_ids(&self.workload_ids, true)?;
         Ok(())
     }
 }
@@ -684,7 +684,16 @@ impl RecordingCampaignPlanParams {
         validate_catalog_string(&self.provider_id)?;
         validate_catalog_string(&self.model_id)?;
         validate_sorted_ids(&self.agent_ids, false)?;
-        validate_sorted_ids(&self.workload_ids, false)?;
+        validate_sorted_ids(&self.workload_ids, true)?;
+        // An empty workload list is the explicit all-workloads sentinel. It
+        // is resolved against the authoritative catalog by the runner before
+        // admission; agents must still be selected at the wire boundary.
+        if self.agent_ids.is_empty() {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if self.workload_ids.is_empty() {
+            return Ok(());
+        }
         let tuples = self
             .agent_ids
             .len()

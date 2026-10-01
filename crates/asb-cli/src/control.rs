@@ -2260,6 +2260,29 @@ fn observed_state(plan: &PlanFile, run_id: &str, prior: PublicRunState) -> Publi
     }
 }
 
+/// Resolve the frontend's explicit all-workloads sentinel against the
+/// authoritative executable workload catalog.  A caller that supplies IDs is
+/// kept in canonical order by the protocol validator; the sentinel is expanded
+/// here so every downstream count, plan, and digest is non-empty and bounded.
+fn resolve_recording_workloads(requested: &[String]) -> Result<Vec<String>, BackendFailure> {
+    let resolved = if requested.is_empty() {
+        let mut all = OriginalWorkloads::fixture_ids()
+            .iter()
+            .map(|id| (*id).to_owned())
+            .collect::<Vec<_>>();
+        all.sort();
+        all
+    } else {
+        requested.to_vec()
+    };
+    let mut resolved = resolved;
+    resolved.sort();
+    if resolved.is_empty() || resolved.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(BackendFailure::Rejected);
+    }
+    Ok(resolved)
+}
+
 impl RunnerBackend {
     /// Materialize one receipt from the control-owned authority source.
     ///
@@ -3723,12 +3746,20 @@ impl RunnerBackend {
         let configuration = self.configuration_status(&ConfigurationStatusRequest {
             runner_instance_id: self.runner_instance_id.clone(),
         })?;
+        // The frontend represents the explicit "all workloads" choice as an
+        // empty list. Resolve that sentinel against the authoritative built-in
+        // catalog before counting or validating the matrix; an empty resolved
+        // catalog must never turn into a successful no-op estimate.
+        let workload_ids = resolve_recording_workloads(&request.workload_ids)?;
         let tuple_count = request
             .agent_ids
             .len()
-            .checked_mul(request.workload_ids.len())
+            .checked_mul(workload_ids.len())
             .and_then(|count| u16::try_from(count).ok())
             .ok_or(BackendFailure::Rejected)?;
+        if tuple_count == 0 || tuple_count > 256 {
+            return Err(BackendFailure::Rejected);
+        }
         let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
             action: ProviderCatalogAction::Status,
             runner_instance_id: self.runner_instance_id.clone(),
@@ -3742,8 +3773,7 @@ impl RunnerBackend {
                         && matches!(&model.availability, ProviderAvailability::Available)
                 })
         });
-        let workloads_ok = request
-            .workload_ids
+        let workloads_ok = workload_ids
             .iter()
             .all(|workload| OriginalWorkloads::describe(workload).is_ok());
         let configured_selection_matches = configuration.configured
@@ -3793,6 +3823,14 @@ impl RunnerBackend {
         {
             return Err(BackendFailure::StaleIdentity);
         }
+        let workload_ids = resolve_recording_workloads(&params.workload_ids)?;
+        let tuple_count = params
+            .agent_ids
+            .len()
+            .checked_mul(workload_ids.len())
+            .and_then(|value| u16::try_from(value).ok())
+            .filter(|value| *value > 0 && *value <= 256)
+            .ok_or(BackendFailure::Rejected)?;
         let provider_catalog = self.provider_catalog(&ProviderCatalogRequest {
             action: ProviderCatalogAction::Status,
             runner_instance_id: self.runner_instance_id.clone(),
@@ -3808,19 +3846,12 @@ impl RunnerBackend {
                 model.model_id == params.model_id
                     && matches!(&model.availability, ProviderAvailability::Available)
             })
-            || params
-                .workload_ids
+            || workload_ids
                 .iter()
                 .any(|workload| OriginalWorkloads::describe(workload).is_err())
         {
             return Err(BackendFailure::Rejected);
         }
-        let tuple_count = params
-            .agent_ids
-            .len()
-            .checked_mul(params.workload_ids.len())
-            .and_then(|value| u16::try_from(value).ok())
-            .ok_or(BackendFailure::Rejected)?;
         let request_digest = BoundControlResult::new(
             call,
             ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
@@ -3835,7 +3866,7 @@ impl RunnerBackend {
             .iter()
             .flat_map(|agent_id| {
                 let campaign_id = campaign_id_for_coverage.clone();
-                params.workload_ids.iter().map(move |workload_id| {
+                workload_ids.iter().map(move |workload_id| {
                     let scorer_revision = "scorer-v1".to_owned();
                     RecordingTupleRecord {
                         agent_id: agent_id.clone(),
@@ -3862,7 +3893,7 @@ impl RunnerBackend {
                     provider_id: params.provider_id.clone(),
                     model_id: params.model_id.clone(),
                     agent_ids: params.agent_ids.clone(),
-                    workload_ids: params.workload_ids.clone(),
+                    workload_ids: workload_ids.clone(),
                     tuple_count,
                     generation: configuration.generation.0,
                     state: "planned".to_owned(),
@@ -3879,7 +3910,7 @@ impl RunnerBackend {
                         provider_id: params.provider_id.clone(),
                         model_id: params.model_id.clone(),
                         agent_ids: params.agent_ids.clone(),
-                        workload_ids: params.workload_ids.clone(),
+                        workload_ids: workload_ids.clone(),
                         tuple_count,
                         state: "planned".to_owned(),
                         offline_ready: false,
@@ -7220,6 +7251,30 @@ mod tests {
             mismatch.unavailable_reason.as_deref(),
             Some("configuration-mismatch")
         );
+
+        let all =
+            ControlCall::RecordingCampaignEstimate(asb_control::RecordingCampaignEstimateRequest {
+                runner_instance_id: backend.runner_instance_id().to_owned(),
+                provider_id: "openai".into(),
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                agent_ids: vec!["aider".into()],
+                // The TUI's explicit all-workloads selection is represented by
+                // an empty vector and must expand to the authoritative catalog.
+                workload_ids: Vec::new(),
+            });
+        let ControlResult::RecordingCampaignEstimate(all_estimate) =
+            backend.execute(&all, deadline()).unwrap().result
+        else {
+            panic!("all-workloads recording estimate result");
+        };
+        assert_eq!(
+            all_estimate.tuple_count,
+            OriginalWorkloads::fixture_ids().len() as u16
+        );
+        assert_eq!(
+            all_estimate.unavailable_reason.as_deref(),
+            Some("recording-required")
+        );
     }
 
     #[test]
@@ -7321,10 +7376,8 @@ mod tests {
             provider_id: "openai".into(),
             model_id: asb_agents::openai::OPENAI_MODEL.into(),
             agent_ids: vec!["aider".into()],
-            workload_ids: vec![
-                "original.bug-fix".into(),
-                "original.feature-addition".into(),
-            ],
+            // Empty is the typed all-workloads selection sentinel.
+            workload_ids: Vec::new(),
         });
         let first = backend.execute(&call, deadline()).unwrap();
         first
@@ -7335,7 +7388,10 @@ mod tests {
         let ControlResult::RecordingCampaign(plan) = first.result else {
             panic!("campaign plan result");
         };
-        assert_eq!(plan.tuple_count, 2);
+        assert_eq!(
+            plan.tuple_count,
+            OriginalWorkloads::fixture_ids().len() as u16
+        );
         assert_eq!(plan.state, "planned");
         assert!(!plan.offline_ready);
         assert_eq!(

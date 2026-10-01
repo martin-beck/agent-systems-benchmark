@@ -2088,7 +2088,11 @@ impl ControlResult {
                     && plan.provider_id == request.provider_id
                     && plan.model_id == request.model_id
                     && plan.agent_ids == request.agent_ids
-                    && plan.workload_ids == request.workload_ids
+                    // An empty request workload list is the explicit
+                    // all-workloads sentinel. The runner expands it from its
+                    // authoritative catalog before returning the durable plan.
+                    && (request.workload_ids.is_empty()
+                        || plan.workload_ids == request.workload_ids)
             }
             (
                 ControlCall::RecordingCampaignStatus(request),

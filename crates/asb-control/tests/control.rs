@@ -998,6 +998,31 @@ fn requests_enforce_envelope_deadline_page_and_mutation_keys() {
 }
 
 #[test]
+fn recording_plan_wire_validation_accepts_all_workloads_sentinel() {
+    let call = ControlCall::RecordingCampaignPlan(RecordingCampaignPlanParams {
+        idempotency_key: "all-workloads".into(),
+        expected_generation: Revision(2),
+        runner_instance_id: "runner-1".into(),
+        provider_id: "openai".into(),
+        model_id: "model".into(),
+        agent_ids: vec!["aider".into()],
+        workload_ids: Vec::new(),
+    });
+    validate_request(&request(7, call), limits()).unwrap();
+
+    let invalid = ControlCall::RecordingCampaignPlan(RecordingCampaignPlanParams {
+        idempotency_key: "all-workloads-no-agent".into(),
+        expected_generation: Revision(2),
+        runner_instance_id: "runner-1".into(),
+        provider_id: "openai".into(),
+        model_id: "model".into(),
+        agent_ids: Vec::new(),
+        workload_ids: Vec::new(),
+    });
+    assert!(validate_request(&request(8, invalid), limits()).is_err());
+}
+
+#[test]
 fn responses_have_exactly_one_outcome() {
     ControlResponse::success(
         RequestId(1),
