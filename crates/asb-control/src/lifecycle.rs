@@ -263,4 +263,87 @@ mod tests {
         active.state = AgentLifecycleState::Failed;
         assert!(active.validate().is_err());
     }
+
+    #[test]
+    fn every_lifecycle_request_validates_its_identity_and_retry_key() {
+        let valid = binding();
+        AgentStatusRequest {
+            binding: valid.clone(),
+            operation_id: Some("operation-1".into()),
+        }
+        .validate()
+        .unwrap();
+        AgentCancelRequest {
+            binding: valid.clone(),
+            operation_id: "operation-1".into(),
+            idempotency_key: "cancel-1".into(),
+        }
+        .validate()
+        .unwrap();
+        AgentRetryRequest {
+            binding: valid.clone(),
+            operation_id: "operation-1".into(),
+            idempotency_key: "retry-1".into(),
+        }
+        .validate()
+        .unwrap();
+        AgentRemoveRequest {
+            binding: valid.clone(),
+            idempotency_key: "remove-1".into(),
+        }
+        .validate()
+        .unwrap();
+
+        let mut malformed = valid;
+        malformed.agent_id.clear();
+        assert!(
+            AgentStatusRequest {
+                binding: malformed,
+                operation_id: None,
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            AgentCancelRequest {
+                binding: binding(),
+                operation_id: String::new(),
+                idempotency_key: "cancel-1".into(),
+            }
+            .validate()
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn lifecycle_terminal_states_require_exact_progress_and_failure_pairing() {
+        for state in [
+            AgentLifecycleState::Cancelled,
+            AgentLifecycleState::Removed,
+            AgentLifecycleState::Active,
+        ] {
+            let response = AgentLifecycleResponse {
+                binding: binding(),
+                operation_id: "operation-1".into(),
+                state,
+                generation: Revision(1),
+                progress_percent: 99,
+                failure: None,
+            };
+            assert!(response.validate().is_err());
+        }
+        let mut failed = AgentLifecycleResponse {
+            binding: binding(),
+            operation_id: "operation-1".into(),
+            state: AgentLifecycleState::Failed,
+            generation: Revision(1),
+            progress_percent: 100,
+            failure: Some(AgentLifecycleFailure::VerificationFailed),
+        };
+        failed.progress_percent = 101;
+        assert!(failed.validate().is_err());
+        failed.progress_percent = 100;
+        failed.failure = None;
+        assert!(failed.validate().is_err());
+    }
 }
