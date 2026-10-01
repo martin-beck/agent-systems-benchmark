@@ -4086,14 +4086,57 @@ mod tests {
         let release = target.0.join("release");
         fs::create_dir(&release).unwrap();
         let executable = release.join("asb-tui");
+        let sidecar = release.join("build-metadata");
         fs::write(&executable, b"binary").unwrap();
+        fs::write(&sidecar, b"metadata").unwrap();
         fs::set_permissions(&release, fs::Permissions::from_mode(0o775)).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(&sidecar, fs::Permissions::from_mode(0o775)).unwrap();
         harden_private_development_tree(&target.0, &executable).unwrap();
         assert_eq!(target.0.metadata().unwrap().mode() & 0o777, 0o700);
         assert_eq!(release.metadata().unwrap().mode() & 0o777, 0o700);
         assert_eq!(executable.metadata().unwrap().mode() & 0o777, 0o700);
+        assert_eq!(sidecar.metadata().unwrap().mode() & 0o777, 0o600);
         assert_eq!(read_bounded(&executable, 64).unwrap(), b"binary");
+    }
+
+    #[test]
+    fn development_artifact_tree_rejects_missing_and_symlinked_nodes() {
+        let scratch = Scratch::new("dev-artifact-invalid");
+        let missing = scratch.0.join("missing");
+        assert_eq!(
+            harden_private_development_tree(&missing, &missing)
+                .unwrap_err()
+                .code,
+            "dev_artifact_invalid"
+        );
+        let outside = Scratch::new("dev-artifact-link");
+        let root_link = scratch.0.join("root-link");
+        symlink(&outside.0, &root_link).unwrap();
+        assert_eq!(
+            harden_private_development_tree(&root_link, &root_link)
+                .unwrap_err()
+                .code,
+            "dev_artifact_invalid"
+        );
+        let file_root = scratch.0.join("file-root");
+        fs::write(&file_root, b"not-a-directory").unwrap();
+        assert_eq!(
+            harden_private_development_tree(&file_root, &file_root)
+                .unwrap_err()
+                .code,
+            "dev_artifact_invalid"
+        );
+        let child_root = scratch.0.join("child-root");
+        fs::create_dir(&child_root).unwrap();
+        let target = Scratch::new("dev-artifact-outside");
+        symlink(&target.0, child_root.join("link")).unwrap();
+        assert_eq!(
+            harden_private_development_tree(&child_root, &child_root)
+                .unwrap_err()
+                .code,
+            "dev_artifact_invalid"
+        );
     }
 
     #[test]
