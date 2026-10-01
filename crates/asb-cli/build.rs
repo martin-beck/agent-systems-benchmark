@@ -1,3 +1,5 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
 //! Generate the exact ASB source identity embedded in the CLI binary.
 
 use std::env;
