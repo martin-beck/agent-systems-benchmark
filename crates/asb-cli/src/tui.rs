@@ -1063,7 +1063,12 @@ fn consume_development_bundle(
         || manifest.asb_source_commit != asb_source_commit
         || manifest.asb_source_tree != asb_source_tree
         || manifest.target != format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
-        || manifest.warnings.is_empty()
+        || manifest.warnings.as_slice()
+            != [
+                "development_missing_authentication_allowed",
+                "development_missing_signatures_allowed",
+                "development_missing_key_management_allowed",
+            ]
         || !valid_hex(&manifest.source_commit, 40)
         || !valid_hex(&manifest.source_tree, 40)
         || !valid_hex(&manifest.asb_source_commit, 40)

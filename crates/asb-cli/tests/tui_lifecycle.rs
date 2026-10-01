@@ -55,6 +55,7 @@ impl Scratch {
         command.output().unwrap()
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn command_with_args(&self, args: &[&str], bundle: Option<&Path>) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_asb"));
         command
@@ -145,32 +146,24 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
     fs::write(bundle.join("asb-tui"), executable).unwrap();
     fs::set_permissions(bundle.join("asb-tui"), fs::Permissions::from_mode(0o700)).unwrap();
 
-    let commit = String::from_utf8(
-        Command::new("git")
-            .args(["rev-parse", "HEAD"])
-            .output()
+    let identity = include_str!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
+    let identity_value = |name: &str| {
+        identity
+            .lines()
+            .find_map(|line| line.strip_prefix(&format!("pub const {name}: &str = \"")))
+            .and_then(|value| value.strip_suffix("\";"))
             .unwrap()
-            .stdout,
-    )
-    .unwrap()
-    .trim()
-    .to_owned();
-    let tree = String::from_utf8(
-        Command::new("git")
-            .args(["rev-parse", "HEAD^{tree}"])
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .unwrap()
-    .trim()
-    .to_owned();
+            .to_owned()
+    };
+    let commit = identity_value("COMMIT");
+    let tree = identity_value("TREE");
     let mut manifest: Value = serde_json::from_str(include_str!(
         "../fixtures/tui/pr214-development-manifest.json"
     ))
     .unwrap();
     manifest["asb_source_commit"] = commit.into();
     manifest["asb_source_tree"] = tree.into();
+    let original_manifest = manifest.clone();
     fs::write(
         bundle.join("manifest.json"),
         serde_json::to_vec_pretty(&manifest).unwrap(),
@@ -201,7 +194,19 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
     );
     assert_eq!(installed["channel"], "dev");
 
-    let mut tampered = manifest;
+    let mut invalid_warning = original_manifest.clone();
+    invalid_warning["warnings"] = serde_json::json!(["development_missing_authentication_allowed"]);
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&invalid_warning).unwrap(),
+    )
+    .unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+
+    let mut tampered = original_manifest;
     tampered["executable_sha256"] = "0".repeat(64).into();
     fs::write(
         bundle.join("manifest.json"),
@@ -212,6 +217,13 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
         scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
     assert_eq!(rejected.status.code(), Some(3));
     assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+
+    fs::remove_file(bundle.join("asb-tui")).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", bundle.join("asb-tui")).unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "cached_input_unavailable");
 }
 
 #[cfg(target_arch = "x86_64")]
