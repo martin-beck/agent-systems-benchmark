@@ -2,7 +2,9 @@
 # Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # SPDX-License-Identifier: MIT
 import json
+import shlex
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -83,15 +85,19 @@ class FaultMatrixTests(unittest.TestCase):
     def test_leader_exit_does_not_skip_descendant_group_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "case"
+            marker = Path(directory) / "escaped-marker"
+            command = f"sleep 0.5; echo escaped > {shlex.quote(str(marker))}"
             with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
                 result = run.run_case(Path("/bin/sh"), {
                     "name": "orphan", "kind": "recovery",
-                    "argv": ["-c", "sleep 30 >/dev/null 2>&1 & exit 0"], "timeout": 2.0,
+                    "argv": ["-c", f"({command}) >/dev/null 2>&1 & exit 0"], "timeout": 2.0,
                     "expected_exit": 0, "cleanup": [], "development_warning_only": False,
                 }, root)
             self.assertEqual(result["classification"], "descendants_survived")
             self.assertTrue(result["cleanup_ok"])
             self.assertFalse(root.exists())
+            time.sleep(0.7)
+            self.assertFalse(marker.exists())
 
     def test_warning_requires_typed_code(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

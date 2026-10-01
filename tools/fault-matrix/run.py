@@ -125,6 +125,7 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
     env = {"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "ASB_MATRIX_ROOT": str(root)}
     root.joinpath("home").mkdir(parents=True)
     process: subprocess.Popen[str] | None = None
+    process_group: int | None = None
     output = ""
     classification = "runner_unavailable"
     exit_code: int | None = None
@@ -142,6 +143,10 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
         process = subprocess.Popen(command, cwd=root, env=env, text=False,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    start_new_session=True)
+        # start_new_session makes the leader PID the stable session/process-group ID;
+        # retain it before the leader can exit so descendant cleanup is independent
+        # of a later poll() result.
+        process_group = process.pid
         selector = selectors.DefaultSelector()
         assert process.stdout is not None
         selector.register(process.stdout, selectors.EVENT_READ)
@@ -191,7 +196,7 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
         if selector is not None:
             selector.close()
         cleanup_ok = True
-        group_alive = process is not None and process_group_has_members(process.pid)
+        group_alive = process_group is not None and process_group_has_members(process_group)
         if group_alive and classification in {"passed", "warning", "runner_unavailable"}:
             classification = "descendants_survived"
         must_kill_group = (
@@ -201,7 +206,7 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
         )
         if must_kill_group and process is not None:
             try:
-                os.killpg(process.pid, signal.SIGKILL)
+                os.killpg(process_group or process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
             except OSError:
@@ -215,9 +220,9 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
                 process.stdout.close()
         if group_alive:
             deadline = time.monotonic() + 2
-            while process_group_has_members(process.pid) and time.monotonic() < deadline:
+            while process_group_has_members(process_group or process.pid) and time.monotonic() < deadline:
                 time.sleep(0.02)
-            if process_group_has_members(process.pid):
+            if process_group_has_members(process_group or process.pid):
                 cleanup_ok = False
         for relative in case["cleanup"]:
             target = (root / relative).resolve()
