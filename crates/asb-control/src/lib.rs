@@ -31,11 +31,11 @@ pub use schema::{
     control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
     control_request_schema_v1_7, control_request_schema_v1_8, control_request_schema_v1_9,
     control_request_schema_v1_10, control_request_schema_v1_11, control_request_schema_v1_12,
-    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
-    control_response_schema_v1_4, control_response_schema_v1_5, control_response_schema_v1_6,
-    control_response_schema_v1_7, control_response_schema_v1_8, control_response_schema_v1_9,
-    control_response_schema_v1_10, control_response_schema_v1_11, control_response_schema_v1_12,
-    history_evidence_schema,
+    control_request_schema_v1_13, control_response_schema, control_response_schema_v1_2,
+    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
+    control_response_schema_v1_6, control_response_schema_v1_7, control_response_schema_v1_8,
+    control_response_schema_v1_9, control_response_schema_v1_10, control_response_schema_v1_11,
+    control_response_schema_v1_12, control_response_schema_v1_13, history_evidence_schema,
 };
 pub use state::*;
 pub use transport::*;

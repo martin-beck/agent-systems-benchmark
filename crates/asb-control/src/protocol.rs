@@ -60,6 +60,11 @@ pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 12,
 };
+/// Version of additive operator repair operations for recording campaigns.
+pub const CONTROL_RECORDING_REPAIR_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 13,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -67,7 +72,7 @@ pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 12] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 13] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -80,6 +85,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 12] = [
     CONTROL_RUNTIME_BOOTSTRAP_V1,
     CONTROL_BENCHMARK_CATALOG_V1,
     CONTROL_CASSETTE_CONTROL_V1,
+    CONTROL_RECORDING_REPAIR_V1,
 ];
 /// Versions understood by frontends that have not adopted cassette control.
 /// They retain v1.11 as the highest common fallback.
@@ -471,7 +477,7 @@ impl ControlCall {
             | Self::RecordingCampaignSeal(_)
             | Self::RecordingCampaignReopen(_)
             | Self::RecordingCampaignRemove(_)
-            | Self::RecordingCampaignRetry(_) => CONTROL_RECORDING_LIFECYCLE_V1,
+            | Self::RecordingCampaignRetry(_) => CONTROL_RECORDING_REPAIR_V1,
             Self::RecordingCassetteCatalog(_) | Self::RecordingReplayDispatch(_) => {
                 CONTROL_CASSETTE_CONTROL_V1
             }
@@ -2856,7 +2862,8 @@ mod benchmark_catalog_tests {
             campaign_id: "campaign-1".into(),
         };
         let call = ControlCall::RecordingCampaignReopen(params.clone());
-        assert_eq!(call.minimum_version(), CONTROL_RECORDING_LIFECYCLE_V1);
+        assert_eq!(call.minimum_version(), CONTROL_RECORDING_REPAIR_V1);
+        assert!(SUPPORTED_CONTROL_VERSIONS.contains(&CONTROL_RECORDING_REPAIR_V1));
         let result = ControlResult::RecordingCampaignLifecycle(crate::RecordingCampaignLifecycle {
             runner_instance_id: "runner-1".into(),
             generation: Revision(1),
