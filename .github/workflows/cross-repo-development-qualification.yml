@@ -29,7 +29,7 @@ jobs:
         run: rustup toolchain install 1.93.0 --profile minimal
       - name: Checkout exact released asb-tui source
         env:
-          TUI_COMMIT: cca57863a6da73b38668878fe79ba17a8a1d154d
+          TUI_COMMIT: 8b69a7d9c21a7e3b0a409c7ab525bd998487db63
         run: |
           tui_root="$RUNNER_TEMP/asb-tui"
           tui_target="$RUNNER_TEMP/asb-tui-target"
