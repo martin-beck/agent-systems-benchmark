@@ -3115,6 +3115,23 @@ mod tests {
         assert!(!Path::new(&format!("/proc/{pid}")).exists());
     }
 
+    #[test]
+    fn development_long_session_process_group_cleanup_is_bounded() {
+        let mut command = Command::new("/bin/sh");
+        command
+            .args(["-c", "sleep 60"])
+            .process_group(0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut child = command.spawn().expect("long-session child");
+        thread::sleep(Duration::from_millis(25));
+        let started = Instant::now();
+        terminate_development_child(&mut child);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(child.try_wait().expect("reaped child").is_some());
+    }
+
     impl Drop for Scratch {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
