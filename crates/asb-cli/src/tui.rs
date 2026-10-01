@@ -952,14 +952,17 @@ fn execute_development_existing(
         }
         Operation::Launch => {
             let descriptor = development_broker_descriptor(&active)?;
-            let status = Command::new(&executable)
+            let mut command = Command::new(&executable);
+            command
                 .env_clear()
                 .env(DEV_BROKER_DESCRIPTOR_ENV, descriptor)
                 .env(DEV_BROKER_ASB_COMMIT_ENV, ASB_SOURCE_COMMIT)
                 .env(DEV_BROKER_ASB_TREE_ENV, ASB_SOURCE_TREE)
                 .env(DEV_BROKER_TUI_COMMIT_ENV, &active.source_commit)
                 .env(DEV_BROKER_TUI_TREE_ENV, &active.source_tree)
-                .args(["run", "--broker", "--development"])
+                .args(["run", "--broker", "--development"]);
+            add_candidate_environment(&mut command)?;
+            let status = command
                 .status()
                 .map_err(|_| RouterError::operation("development_launch_failed"))?;
             if !status.success() {
@@ -1922,17 +1925,21 @@ fn add_candidate_environment(command: &mut Command) -> Result<(), RouterError> {
             if bytes.is_empty() {
                 continue;
             }
-            if bytes.len() > 64
-                || !bytes
-                    .iter()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, 43 | 45 | 46 | 95))
-            {
+            if !valid_terminal_value(bytes) {
                 return Err(RouterError::policy("environment_terminal_invalid"));
             }
             command.env(name, value);
         }
     }
     Ok(())
+}
+
+fn valid_terminal_value(bytes: &[u8]) -> bool {
+    bytes.len() <= 64
+        && !bytes.is_empty()
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, 43 | 45 | 46 | 95))
 }
 
 fn environment_path_safe(path: &Path) -> bool {
@@ -2884,6 +2891,14 @@ mod tests {
             development_broker_descriptor(&stale).unwrap_err().code,
             "dev_source_identity_unknown"
         );
+    }
+
+    #[test]
+    fn development_broker_preserves_valid_terminal_capability_values() {
+        assert!(valid_terminal_value(b"xterm-256color"));
+        assert!(valid_terminal_value(b"screen"));
+        assert!(!valid_terminal_value(b"xterm\n256color"));
+        assert!(!valid_terminal_value(&[b'a'; 65]));
     }
 
     #[test]
