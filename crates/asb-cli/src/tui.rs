@@ -3,10 +3,10 @@
 //! Trusted router for the independently installed optional terminal frontend.
 
 use crate::control::open_development_backend;
-use crate::tui_handoff::PendingHandoff;
 use crate::{CliError, output_error, write_json};
 use asb_control::{
-    AuthenticatedGenerationProducer, BrokerConnection, ControlLimits, ProvisionedControlServer,
+    AuthenticatedGenerationProducer, BrokerConnection, BrokerState, ControlBackend, ControlLimits,
+    ProvisionedControlServer,
 };
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
@@ -985,8 +985,18 @@ fn execute_development_existing(
 }
 
 fn launch_development_broker(
+    command: Command,
+    state_root: &Path,
+) -> Result<std::process::ExitStatus, RouterError> {
+    let backend = open_development_backend(state_root.to_path_buf())
+        .map_err(|_| RouterError::operation("development_control_unavailable"))?;
+    launch_development_broker_with_backend(command, state_root, backend)
+}
+
+fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'static>(
     mut command: Command,
     state_root: &Path,
+    backend: B,
 ) -> Result<std::process::ExitStatus, RouterError> {
     let broker_root = state_root.join(format!(
         ".dev-broker-{}-{}",
@@ -1003,10 +1013,14 @@ fn launch_development_broker(
         &control_socket,
         &provisioning_socket,
         ControlLimits::default(),
-        open_development_backend(state_root.to_path_buf())
-            .map_err(|_| RouterError::operation("development_control_unavailable"))?,
+        backend,
     )
     .map_err(|_| RouterError::operation("development_control_unavailable"))?;
+    let mut broker_state = BrokerState::fresh()
+        .map_err(|_| RouterError::operation("development_channel_unavailable"))?;
+    let pending = broker_state
+        .begin_initial(DEV_CONTROL_HANDSHAKE_TIMEOUT)
+        .map_err(|_| RouterError::operation("development_channel_unavailable"))?;
     let (router, frontend) = match BrokerConnection::pair() {
         Ok(pair) => pair,
         Err(_) => {
@@ -1025,16 +1039,15 @@ fn launch_development_broker(
             return Err(RouterError::operation("development_launch_failed"));
         }
     };
-    let pending = PendingHandoff::receive_initial_from_connection(router)
-        .map_err(|_| RouterError::operation("development_channel_rejected"));
-    let pending = match pending {
-        Ok(pending) => pending,
-        Err(error) => {
-            terminate_development_child(&mut child);
-            let _ = fs::remove_dir_all(&broker_root);
-            return Err(error);
-        }
-    };
+    // A parent-first handoff is only valid while the frontend is alive.  Do
+    // not reserve or publish a generation to a child which already exited:
+    // this also keeps the ordinary cleanup path bounded for short-lived
+    // commands such as `/bin/true`.
+    if child.try_wait().ok().flatten().is_some() {
+        terminate_development_child(&mut child);
+        let _ = fs::remove_dir_all(&broker_root);
+        return Err(RouterError::operation("development_launch_failed"));
+    }
     // The deadline only bounds admission of the two handshake endpoints. Once
     // both endpoints are admitted, `serve_connections_until` joins their
     // workers and remains alive for the interactive child lifetime.
@@ -1054,7 +1067,29 @@ fn launch_development_broker(
             return Err(RouterError::operation("development_control_unavailable"));
         }
     };
-    if pending.complete(&producer).is_err() {
+    let authenticated = match producer.acquire(&pending) {
+        Ok(authenticated) => authenticated,
+        Err(_) => {
+            terminate_development_child(&mut child);
+            let _ = server_worker.take().expect("server worker").join();
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_channel_rejected"));
+        }
+    };
+    // The child can exit while the parent is admitting the two control
+    // endpoints. Never commit a generation for an already-dead frontend.
+    if child.try_wait().ok().flatten().is_some() {
+        terminate_development_child(&mut child);
+        drop(authenticated);
+        drop(router);
+        let _ = server_worker.take().expect("server worker").join();
+        let _ = fs::remove_dir_all(&broker_root);
+        return Err(RouterError::operation("development_launch_failed"));
+    }
+    if broker_state
+        .commit_success(pending, &router, authenticated)
+        .is_err()
+    {
         terminate_development_child(&mut child);
         let _ = server_worker.take().expect("server worker").join();
         let _ = fs::remove_dir_all(&broker_root);
@@ -2853,11 +2888,19 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "cross-repo-qualification")]
+    use crate::control::DevelopmentBackend;
     use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
+    #[cfg(feature = "cross-repo-qualification")]
+    use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
+    #[cfg(feature = "cross-repo-qualification")]
+    use rustix::termios::{Winsize, tcsetwinsize};
     use std::collections::VecDeque;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
+    #[cfg(feature = "cross-repo-qualification")]
+    use std::sync::{Arc, Mutex};
 
     static NONCE: AtomicU64 = AtomicU64::new(0);
 
@@ -2881,6 +2924,39 @@ mod tests {
     }
 
     struct Scratch(PathBuf);
+
+    #[cfg(feature = "cross-repo-qualification")]
+    struct RecordingBackend {
+        inner: DevelopmentBackend,
+        calls: Arc<Mutex<Vec<ControlCall>>>,
+    }
+
+    #[cfg(feature = "cross-repo-qualification")]
+    impl ControlBackend for RecordingBackend {
+        fn runner_instance_id(&self) -> &str {
+            self.inner.runner_instance_id()
+        }
+
+        fn oldest_revision(&self) -> asb_control::Revision {
+            self.inner.oldest_revision()
+        }
+
+        fn latest_revision(&self) -> asb_control::Revision {
+            self.inner.latest_revision()
+        }
+
+        fn execute(
+            &self,
+            call: &ControlCall,
+            deadline: RequestDeadline,
+        ) -> Result<asb_control::BoundControlResult, asb_control::BackendFailure> {
+            self.calls
+                .lock()
+                .expect("bootstrap recorder lock")
+                .push(call.clone());
+            self.inner.execute(call, deadline)
+        }
+    }
 
     impl Scratch {
         fn new(name: &str) -> Self {
@@ -3096,17 +3172,124 @@ mod tests {
     }
 
     #[test]
-    fn development_launch_cleans_channel_when_child_exits_before_request() {
+    fn development_launch_cleans_channel_when_child_exits_before_parent_handoff() {
         let scratch = Scratch::new("broker-child-exit");
         let error = launch_development_broker(Command::new("/bin/true"), &scratch.0)
-            .expect_err("child without broker request must fail closed");
-        assert_eq!(error.code, "development_channel_rejected");
+            .expect_err("an exited frontend must not receive a handoff");
+        assert_eq!(error.code, "development_launch_failed");
         let entries = fs::read_dir(&scratch.0)
             .unwrap()
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         assert!(entries.iter().all(|entry| {
             !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".dev-broker-")
+        }));
+    }
+
+    #[cfg(all(unix, feature = "cross-repo-qualification"))]
+    #[ignore = "requires the explicitly pinned asb-tui qualification workflow"]
+    #[test]
+    fn pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up() {
+        assert_eq!(std::env::var("ASB_TUI_QUALIFICATION").as_deref(), Ok("1"));
+        let binary = PathBuf::from(std::env::var("ASB_TUI_BINARY").unwrap());
+        let expected = std::env::var("ASB_TUI_EXPECTED_SHA256").unwrap();
+        assert_eq!(
+            format!("{:x}", Sha256::digest(fs::read(&binary).unwrap())),
+            expected
+        );
+        let master =
+            openpt(OpenptFlags::RDWR | OpenptFlags::NOCTTY | OpenptFlags::CLOEXEC).unwrap();
+        grantpt(&master).unwrap();
+        unlockpt(&master).unwrap();
+        let terminal_path = PathBuf::from(ptsname(&master, Vec::new()).unwrap().to_str().unwrap());
+        let slave = ioctl_tiocgptpeer(
+            &master,
+            OpenptFlags::RDWR | OpenptFlags::NOCTTY | OpenptFlags::CLOEXEC,
+        )
+        .unwrap();
+        tcsetwinsize(
+            &master,
+            Winsize {
+                ws_row: 24,
+                ws_col: 80,
+                ws_xpixel: 0,
+                ws_ypixel: 0,
+            },
+        )
+        .unwrap();
+        let scratch = Scratch::new("pinned-inherited-fd");
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let backend = RecordingBackend {
+            inner: open_development_backend(scratch.0.clone()).expect("development backend"),
+            calls: Arc::clone(&calls),
+        };
+        let tui_commit = std::env::var("ASB_TUI_SOURCE_COMMIT").unwrap();
+        let tui_tree = std::env::var("ASB_TUI_SOURCE_TREE").unwrap();
+        let descriptor = serde_json::json!({
+            "schema_version": 1,
+            "profile": "development",
+            "development_only": true,
+            "operation": "launch",
+            "protocol_minor": DEV_BROKER_PROTOCOL_MINOR,
+            "asb_source_commit": ASB_SOURCE_COMMIT,
+            "asb_source_tree": ASB_SOURCE_TREE,
+            "tui_source_commit": tui_commit,
+            "tui_source_tree": tui_tree,
+        });
+        let mut command = Command::new(binary);
+        command
+            .args(["run", "--broker", "--development"])
+            .env(
+                DEV_BROKER_DESCRIPTOR_ENV,
+                serde_json::to_string(&descriptor).unwrap(),
+            )
+            .env(DEV_BROKER_ASB_COMMIT_ENV, ASB_SOURCE_COMMIT)
+            .env(DEV_BROKER_ASB_TREE_ENV, ASB_SOURCE_TREE)
+            .env(
+                DEV_BROKER_TUI_COMMIT_ENV,
+                descriptor["tui_source_commit"].as_str().unwrap(),
+            )
+            .env(
+                DEV_BROKER_TUI_TREE_ENV,
+                descriptor["tui_source_tree"].as_str().unwrap(),
+            )
+            .env("TERM", "xterm-256color")
+            .env("ASB_TUI_DEVELOPMENT_TERMINAL_PATH", &terminal_path)
+            .stdout(Stdio::from(slave.try_clone().unwrap()))
+            .stderr(Stdio::inherit());
+        let root = scratch.0.clone();
+        let launch =
+            thread::spawn(move || launch_development_broker_with_backend(command, &root, backend));
+        let mut master = File::from(master);
+        let deadline = Instant::now() + Duration::from_secs(8);
+        while Instant::now() < deadline && calls.lock().expect("bootstrap recorder lock").len() < 4
+        {
+            thread::sleep(Duration::from_millis(20));
+        }
+        let observed = calls.lock().expect("bootstrap recorder lock").clone();
+        assert!(
+            observed.len() >= 4,
+            "typed bootstrap did not complete before deadline: {observed:?}"
+        );
+        assert!(matches!(observed.first(), Some(ControlCall::Capabilities)));
+        let measurement = observed
+            .iter()
+            .position(|call| matches!(call, ControlCall::MeasurementCatalog))
+            .expect("measurement catalog bootstrap");
+        let history = observed
+            .iter()
+            .position(|call| matches!(call, ControlCall::History(_)))
+            .expect("history bootstrap");
+        assert!(measurement < history, "bootstrap order: {observed:?}");
+        master.write_all(b"q").unwrap();
+        let result = launch.join().unwrap().expect("development launch");
+        assert!(result.code().is_some(), "development child did not exit");
+        assert!(fs::read_dir(&scratch.0).unwrap().all(|entry| {
+            !entry
+                .unwrap()
                 .file_name()
                 .to_string_lossy()
                 .starts_with(".dev-broker-")
@@ -3124,8 +3307,8 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", &script]);
         let error = launch_development_broker(command, &scratch.0)
-            .expect_err("child without broker request must fail closed");
-        assert_eq!(error.code, "development_channel_rejected");
+            .expect_err("an exited frontend must not receive a handoff");
+        assert_eq!(error.code, "development_launch_failed");
         let pid: i32 = fs::read_to_string(pid_file)
             .unwrap()
             .trim()

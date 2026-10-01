@@ -1313,6 +1313,31 @@ impl BrokerState {
         Self::new(epoch)
     }
 
+    /// Reserve the first handoff before the frontend can send a request.
+    ///
+    /// The parent launcher owns this initial transition: the child receives a
+    /// validated success packet and SCM_RIGHTS descriptor immediately after
+    /// spawn, matching the frontend's fd-0 adoption contract.
+    pub fn begin_initial(
+        &mut self,
+        budget: Duration,
+    ) -> Result<PendingBrokerSuccess, HandoffError> {
+        let millis = u64::try_from(budget.as_millis()).map_err(|_| HandoffError::TransferFailed)?;
+        let deadline =
+            RequestDeadline::start(millis.max(1)).map_err(|_| HandoffError::TransferFailed)?;
+        self.begin_packet(
+            BrokerPacket {
+                operation: BrokerOperation::Initial,
+                status: HandoffStatus::Request,
+                epoch: [0; 16],
+                sequence: 0,
+                expected_runner_identity: [0; 32],
+            },
+            deadline,
+            Duration::ZERO,
+        )
+    }
+
     fn new(epoch: [u8; 16]) -> Result<Self, HandoffError> {
         if epoch == [0; 16] {
             return Err(HandoffError::InvalidEpoch);
@@ -2208,6 +2233,15 @@ mod tests {
             .generation();
         assert_ne!(generation.epoch(), [0; 16]);
         assert_eq!(generation.sequence(), 1);
+        assert_eq!(broker.committed_generation(), None);
+    }
+
+    #[test]
+    fn parent_first_initial_handoff_reserves_generation_without_frontend_request() {
+        let mut broker = BrokerState::fresh().unwrap();
+        let pending = broker.begin_initial(Duration::from_secs(2)).unwrap();
+        assert_eq!(pending.generation().sequence(), 1);
+        assert!(pending.generation().epoch() != [0; 16]);
         assert_eq!(broker.committed_generation(), None);
     }
 
