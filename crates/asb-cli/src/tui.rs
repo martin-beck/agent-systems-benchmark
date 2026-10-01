@@ -3205,8 +3205,25 @@ mod tests {
             .stderr(Stdio::inherit())
             .spawn()
             .unwrap();
-        child.stdin.take().unwrap().write_all(b"q").unwrap();
-        let status = child.wait().unwrap();
+        let input = child.stdin.take().unwrap();
+        let feeder = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(500));
+            let mut input = input;
+            input.write_all(b"q")
+        });
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("pinned asb-tui did not exit");
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
+        feeder.join().unwrap().ok();
         assert!(
             !status.success(),
             "stable socket mode bypassed auth: {status}"
