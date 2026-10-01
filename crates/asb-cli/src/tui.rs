@@ -3,10 +3,10 @@
 //! Trusted router for the independently installed optional terminal frontend.
 
 use crate::control::open_development_backend;
-use crate::tui_handoff::PendingHandoff;
 use crate::{CliError, output_error, write_json};
 use asb_control::{
-    AuthenticatedGenerationProducer, BrokerConnection, ControlLimits, ProvisionedControlServer,
+    AuthenticatedGenerationProducer, BrokerConnection, BrokerState, ControlBackend, ControlLimits,
+    ProvisionedControlServer,
 };
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
@@ -985,8 +985,18 @@ fn execute_development_existing(
 }
 
 fn launch_development_broker(
+    command: Command,
+    state_root: &Path,
+) -> Result<std::process::ExitStatus, RouterError> {
+    let backend = open_development_backend(state_root.to_path_buf())
+        .map_err(|_| RouterError::operation("development_control_unavailable"))?;
+    launch_development_broker_with_backend(command, state_root, backend)
+}
+
+fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'static>(
     mut command: Command,
     state_root: &Path,
+    backend: B,
 ) -> Result<std::process::ExitStatus, RouterError> {
     let broker_root = state_root.join(format!(
         ".dev-broker-{}-{}",
@@ -1003,10 +1013,14 @@ fn launch_development_broker(
         &control_socket,
         &provisioning_socket,
         ControlLimits::default(),
-        open_development_backend(state_root.to_path_buf())
-            .map_err(|_| RouterError::operation("development_control_unavailable"))?,
+        backend,
     )
     .map_err(|_| RouterError::operation("development_control_unavailable"))?;
+    let mut broker_state = BrokerState::fresh()
+        .map_err(|_| RouterError::operation("development_channel_unavailable"))?;
+    let pending = broker_state
+        .begin_initial(DEV_CONTROL_HANDSHAKE_TIMEOUT)
+        .map_err(|_| RouterError::operation("development_channel_unavailable"))?;
     let (router, frontend) = match BrokerConnection::pair() {
         Ok(pair) => pair,
         Err(_) => {
@@ -1023,16 +1037,6 @@ fn launch_development_broker(
         Err(_) => {
             let _ = fs::remove_dir_all(&broker_root);
             return Err(RouterError::operation("development_launch_failed"));
-        }
-    };
-    let pending = PendingHandoff::receive_initial_from_connection(router)
-        .map_err(|_| RouterError::operation("development_channel_rejected"));
-    let pending = match pending {
-        Ok(pending) => pending,
-        Err(error) => {
-            terminate_development_child(&mut child);
-            let _ = fs::remove_dir_all(&broker_root);
-            return Err(error);
         }
     };
     // The deadline only bounds admission of the two handshake endpoints. Once
@@ -1054,7 +1058,19 @@ fn launch_development_broker(
             return Err(RouterError::operation("development_control_unavailable"));
         }
     };
-    if pending.complete(&producer).is_err() {
+    let authenticated = match producer.acquire(&pending) {
+        Ok(authenticated) => authenticated,
+        Err(_) => {
+            terminate_development_child(&mut child);
+            let _ = server_worker.take().expect("server worker").join();
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_channel_rejected"));
+        }
+    };
+    if broker_state
+        .commit_success(pending, &router, authenticated)
+        .is_err()
+    {
         terminate_development_child(&mut child);
         let _ = server_worker.take().expect("server worker").join();
         let _ = fs::remove_dir_all(&broker_root);
@@ -2854,6 +2870,8 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 mod tests {
     use super::*;
     use asb_control::{ControlBackend, ControlCall, ControlResult, RequestDeadline};
+    use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
+    use rustix::termios::{Winsize, tcsetwinsize};
     use std::collections::VecDeque;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
@@ -3107,6 +3125,89 @@ mod tests {
             .unwrap();
         assert!(entries.iter().all(|entry| {
             !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".dev-broker-")
+        }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up() {
+        if std::env::var("ASB_TUI_QUALIFICATION").as_deref() != Ok("1") {
+            return;
+        }
+        let binary = PathBuf::from(std::env::var("ASB_TUI_BINARY").unwrap());
+        let expected = std::env::var("ASB_TUI_EXPECTED_SHA256").unwrap();
+        assert_eq!(
+            format!("{:x}", Sha256::digest(fs::read(&binary).unwrap())),
+            expected
+        );
+        let master =
+            openpt(OpenptFlags::RDWR | OpenptFlags::NOCTTY | OpenptFlags::CLOEXEC).unwrap();
+        grantpt(&master).unwrap();
+        unlockpt(&master).unwrap();
+        let terminal_path = PathBuf::from(ptsname(&master, Vec::new()).unwrap().to_str().unwrap());
+        let slave = ioctl_tiocgptpeer(
+            &master,
+            OpenptFlags::RDWR | OpenptFlags::NOCTTY | OpenptFlags::CLOEXEC,
+        )
+        .unwrap();
+        tcsetwinsize(
+            &master,
+            Winsize {
+                ws_row: 24,
+                ws_col: 80,
+                ws_xpixel: 0,
+                ws_ypixel: 0,
+            },
+        )
+        .unwrap();
+        let scratch = Scratch::new("pinned-inherited-fd");
+        let tui_commit = std::env::var("ASB_TUI_SOURCE_COMMIT").unwrap();
+        let tui_tree = std::env::var("ASB_TUI_SOURCE_TREE").unwrap();
+        let descriptor = serde_json::json!({
+            "schema_version": 1,
+            "profile": "development",
+            "development_only": true,
+            "operation": "launch",
+            "protocol_minor": DEV_BROKER_PROTOCOL_MINOR,
+            "asb_source_commit": ASB_SOURCE_COMMIT,
+            "asb_source_tree": ASB_SOURCE_TREE,
+            "tui_source_commit": tui_commit,
+            "tui_source_tree": tui_tree,
+        });
+        let mut command = Command::new(binary);
+        command
+            .args(["run", "--broker", "--development"])
+            .env(
+                DEV_BROKER_DESCRIPTOR_ENV,
+                serde_json::to_string(&descriptor).unwrap(),
+            )
+            .env(DEV_BROKER_ASB_COMMIT_ENV, ASB_SOURCE_COMMIT)
+            .env(DEV_BROKER_ASB_TREE_ENV, ASB_SOURCE_TREE)
+            .env(
+                DEV_BROKER_TUI_COMMIT_ENV,
+                descriptor["tui_source_commit"].as_str().unwrap(),
+            )
+            .env(
+                DEV_BROKER_TUI_TREE_ENV,
+                descriptor["tui_source_tree"].as_str().unwrap(),
+            )
+            .env("TERM", "xterm-256color")
+            .env("ASB_TUI_DEVELOPMENT_TERMINAL_PATH", &terminal_path)
+            .stdout(Stdio::from(slave.try_clone().unwrap()))
+            .stderr(Stdio::inherit());
+        let root = scratch.0.clone();
+        let launch = thread::spawn(move || launch_development_broker(command, &root));
+        let mut master = File::from(master);
+        thread::sleep(Duration::from_secs(2));
+        master.write_all(b"q").unwrap();
+        let result = launch.join().unwrap().expect("development launch");
+        assert!(result.code().is_some(), "development child did not exit");
+        assert!(fs::read_dir(&scratch.0).unwrap().all(|entry| {
+            !entry
+                .unwrap()
                 .file_name()
                 .to_string_lossy()
                 .starts_with(".dev-broker-")
