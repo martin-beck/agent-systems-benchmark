@@ -34,7 +34,7 @@ impl PendingHandoff {
     /// Receive the initial request from an already-created broker pair.
     pub fn receive_initial_from_connection(broker: BrokerConnection) -> Result<Self, HandoffError> {
         let mut state = BrokerState::fresh()?;
-        let request = broker.receive_request()?;
+        let request = broker.receive_request_with_timeout(Duration::from_secs(2))?;
         let pending = state.begin_request(request, Duration::ZERO)?;
         Ok(Self {
             broker,

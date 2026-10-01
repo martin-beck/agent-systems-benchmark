@@ -1115,6 +1115,20 @@ impl BrokerConnection {
         self.receive_request_with_budget(BROKER_ACQUISITION_TIMEOUT)
     }
 
+    /// Receive a request with a bounded wait for a child that may exit before
+    /// writing its inherited-channel request.
+    pub fn receive_request_with_timeout(
+        &self,
+        budget: Duration,
+    ) -> Result<BrokerRequest, HandoffError> {
+        let timeout_ms =
+            u64::try_from(budget.as_millis()).map_err(|_| HandoffError::TransferFailed)?;
+        let deadline =
+            RequestDeadline::start(timeout_ms).map_err(|_| HandoffError::TransferFailed)?;
+        self.wait_for_request_until(deadline)?;
+        self.receive_request_until(deadline)
+    }
+
     fn receive_request_with_budget(&self, budget: Duration) -> Result<BrokerRequest, HandoffError> {
         self.wait_for_request()?;
         let timeout_ms =
@@ -1137,6 +1151,32 @@ impl BrokerConnection {
                     }
                     return Ok(());
                 }
+                Ok(_) => continue,
+                Err(error) if error == rustix::io::Errno::INTR => continue,
+                Err(_) => return Err(HandoffError::TransferFailed),
+            }
+        }
+    }
+
+    fn wait_for_request_until(&self, deadline: RequestDeadline) -> Result<(), HandoffError> {
+        loop {
+            let mut descriptors = [PollFd::new(&self.socket, PollFlags::IN)];
+            let remaining = deadline
+                .remaining()
+                .map_err(|_| HandoffError::TransferFailed)?;
+            let timeout =
+                Timespec::try_from(remaining).map_err(|_| HandoffError::TransferFailed)?;
+            match poll(&mut descriptors, Some(&timeout)) {
+                Ok(1) => {
+                    let events = descriptors[0].revents();
+                    if events.intersects(PollFlags::ERR | PollFlags::HUP | PollFlags::NVAL)
+                        || !events.contains(PollFlags::IN)
+                    {
+                        return Err(HandoffError::TransferFailed);
+                    }
+                    return Ok(());
+                }
+                Ok(0) => return Err(HandoffError::TransferFailed),
                 Ok(_) => continue,
                 Err(error) if error == rustix::io::Errno::INTR => continue,
                 Err(_) => return Err(HandoffError::TransferFailed),

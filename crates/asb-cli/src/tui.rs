@@ -2903,6 +2903,43 @@ mod tests {
         }
     }
 
+    #[test]
+    fn development_backend_exposes_only_bounded_capabilities() {
+        let backend = DevelopmentBackend;
+        let call = ControlCall::Capabilities;
+        let result = backend
+            .execute(&call, RequestDeadline::start(100).unwrap())
+            .expect("development capabilities");
+        assert!(matches!(result.result, ControlResult::Capabilities(_)));
+        assert_eq!(
+            backend.execute(
+                &ControlCall::ConfigurationStatus(asb_control::ConfigurationStatusRequest {
+                    runner_instance_id: "asb-development-runner".into(),
+                },),
+                RequestDeadline::start(100).unwrap(),
+            ),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+    }
+
+    #[test]
+    fn development_launch_cleans_channel_when_child_exits_before_request() {
+        let scratch = Scratch::new("broker-child-exit");
+        let error = launch_development_broker(Command::new("/bin/true"), &scratch.0)
+            .expect_err("child without broker request must fail closed");
+        assert_eq!(error.code, "development_channel_rejected");
+        let entries = fs::read_dir(&scratch.0)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(entries.iter().all(|entry| {
+            !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".dev-broker-")
+        }));
+    }
+
     impl Drop for Scratch {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
