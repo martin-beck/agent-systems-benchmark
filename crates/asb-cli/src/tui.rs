@@ -45,8 +45,11 @@ const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
 const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
 const DEV_GIT: &str = "/usr/bin/git";
-const DEV_CARGO: &str = "/usr/bin/cargo";
 const DEV_SETSID: &str = "/usr/bin/setsid";
+// Development-only override; stable release paths never consult this variable.
+const DEV_CARGO_OVERRIDE: &str = "ASB_DEV_CARGO";
+const DEV_CARGO_HOME: &str = "CARGO_HOME";
+const DEV_TOOL_PATH_MAX: usize = 8;
 mod build_identity {
     include!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
 }
@@ -741,8 +744,8 @@ fn materialize_development(
 ) -> Result<RouterResponse, RouterError> {
     let (asb_source_commit, asb_source_tree) = development_source_identity()?;
     validate_tool(DEV_GIT)?;
-    validate_tool(DEV_CARGO)?;
     validate_tool(DEV_SETSID)?;
+    let cargo = resolve_development_cargo()?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
         "dev-build-{}-{}",
@@ -806,15 +809,9 @@ fn materialize_development(
             .env("HOME", &root)
             .env("CARGO_HOME", &cargo_home)
             .current_dir(&source)
-            .args([
-                "--wait",
-                DEV_CARGO,
-                "build",
-                "--locked",
-                "--release",
-                "--bin",
-                "asb-tui",
-            ]);
+            .args(["--wait"])
+            .arg(&cargo)
+            .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
         run_development_command(build, &root)?;
         enforce_workspace_quota(&root)?;
         let mut source_tree_command = Command::new(DEV_SETSID);
@@ -2415,6 +2412,119 @@ fn validate_tool(path: &str) -> Result<(), RouterError> {
     Ok(())
 }
 
+fn resolve_development_cargo() -> Result<PathBuf, RouterError> {
+    let override_path = std::env::var_os(DEV_CARGO_OVERRIDE);
+    let home = std::env::var_os("HOME");
+    let cargo_home = std::env::var_os(DEV_CARGO_HOME);
+    let path = std::env::var_os("PATH");
+    resolve_development_cargo_from(
+        override_path.as_deref(),
+        home.as_deref(),
+        cargo_home.as_deref(),
+        path.as_deref(),
+    )
+}
+
+fn resolve_development_cargo_from(
+    override_path: Option<&std::ffi::OsStr>,
+    home: Option<&std::ffi::OsStr>,
+    cargo_home: Option<&std::ffi::OsStr>,
+    path: Option<&std::ffi::OsStr>,
+) -> Result<PathBuf, RouterError> {
+    if let Some(value) = override_path {
+        let candidate = PathBuf::from(value);
+        return validate_development_tool(&candidate)
+            .map_err(|_| RouterError::policy("trusted_tool_invalid"));
+    }
+
+    let mut candidates = Vec::new();
+    if let Some(value) = cargo_home.map(PathBuf::from) {
+        candidates.push(value.join("bin/cargo"));
+    }
+    if let Some(value) = home.map(PathBuf::from) {
+        candidates.push(value.join(".cargo/bin/cargo"));
+    }
+    candidates.extend([
+        PathBuf::from("/usr/bin/cargo"),
+        PathBuf::from("/usr/local/bin/cargo"),
+    ]);
+    if let Some(value) = path {
+        for directory in std::env::split_paths(value).take(DEV_TOOL_PATH_MAX) {
+            candidates.push(directory.join("cargo"));
+        }
+    }
+    for candidate in candidates {
+        if let Ok(resolved) = validate_development_tool(&candidate) {
+            return Ok(resolved);
+        }
+    }
+    Err(RouterError::operation("trusted_tool_unavailable"))
+}
+
+fn validate_development_tool(path: &Path) -> Result<PathBuf, RouterError> {
+    if !safe_absolute(path) {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let uid = rustix::process::geteuid().as_raw();
+    validate_development_parent_chain(path, uid)?;
+    let link_metadata = fs::symlink_metadata(path)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if link_metadata.file_type().is_symlink()
+        && link_metadata.uid() != 0
+        && link_metadata.uid() != uid
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let resolved =
+        fs::canonicalize(path).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let metadata = fs::symlink_metadata(&resolved)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !metadata.is_file()
+        || (metadata.uid() != 0 && metadata.uid() != uid)
+        || metadata.mode() & 0o022 != 0
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let mut parent = resolved.parent();
+    while let Some(directory) = parent {
+        let metadata = fs::symlink_metadata(directory)
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !metadata.is_dir()
+            || (metadata.uid() != 0 && metadata.uid() != uid)
+            || metadata.mode() & 0o022 != 0
+        {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        if directory == Path::new("/") {
+            break;
+        }
+        parent = directory.parent();
+    }
+    Ok(resolved)
+}
+
+fn validate_development_parent_chain(path: &Path, uid: u32) -> Result<(), RouterError> {
+    let mut current = PathBuf::from("/");
+    let parent = path
+        .parent()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    for component in parent.components() {
+        if let Component::Normal(name) = component {
+            current.push(name);
+            let metadata = fs::symlink_metadata(&current)
+                .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+            if !metadata.is_dir()
+                || metadata.file_type().is_symlink()
+                || (metadata.uid() != 0 && metadata.uid() != uid)
+                || metadata.mode() & 0o022 != 0
+            {
+                return Err(RouterError::policy("trusted_tool_invalid"));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn resolve_redirects(initial: &str) -> Result<String, RouterError> {
     let mut current = initial.to_owned();
     for _ in 0..=MAX_REDIRECTS {
@@ -2718,6 +2828,62 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_cargo_discovery_accepts_private_user_toolchain() {
+        let root = PathBuf::from("/home/martin/.cache")
+            .join(format!("asb-ar1567-cargo-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let cargo = root.join("toolchain/bin/cargo");
+        prepare_private_directory(cargo.parent().unwrap()).unwrap();
+        fs::write(&cargo, b"fixture cargo").unwrap();
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        let resolved = resolve_development_cargo_from(
+            None,
+            Some(root.join("home").as_os_str()),
+            None,
+            Some(cargo.parent().unwrap().as_os_str()),
+        )
+        .unwrap();
+        assert_eq!(resolved, fs::canonicalize(cargo).unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_cargo_discovery_rejects_override_and_path_widening() {
+        let root = PathBuf::from("/home/martin/.cache")
+            .join(format!("asb-ar1567-cargo-reject-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let cargo = root.join("cargo");
+        fs::write(&cargo, b"fixture cargo").unwrap();
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            resolve_development_cargo_from(
+                Some(std::ffi::OsStr::new("relative/cargo")),
+                None,
+                None,
+                Some(cargo.parent().unwrap().as_os_str()),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            resolve_development_cargo_from(
+                None,
+                None,
+                None,
+                Some(cargo.parent().unwrap().as_os_str()),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_unavailable"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
