@@ -1,0 +1,56 @@
+name: Cross-repository development broker qualification
+
+"on":
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+
+jobs:
+  inherited-fd:
+    name: Exact TUI inherited-fd and PTY journey
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ASB_TUI_QUALIFICATION: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Checkout exact released asb-tui source
+        env:
+          TUI_COMMIT: cca57863a6da73b38668878fe79ba17a8a1d154d
+        run: |
+          tui_root="$RUNNER_TEMP/asb-tui"
+          tui_target="$RUNNER_TEMP/asb-tui-target"
+          git clone --no-checkout --filter=blob:none https://github.com/martin-beck/asb-tui.git "$tui_root"
+          git -C "$tui_root" checkout --detach "$TUI_COMMIT"
+          tui_tree="$(git -C "$tui_root" rev-parse 'HEAD^{tree}')"
+          ASB_TUI_SOURCE_COMMIT="$TUI_COMMIT" \
+            ASB_TUI_SOURCE_TREE="$tui_tree" \
+            CARGO_TARGET_DIR="$tui_target" \
+            cargo build --locked --release --manifest-path "$tui_root/Cargo.toml" --bin asb-tui
+          tui_binary="$tui_target/release/asb-tui"
+          test -x "$tui_binary"
+          tui_sha="$(sha256sum "$tui_binary" | awk '{print $1}')"
+          {
+            echo "ASB_TUI_BINARY=$tui_binary"
+            echo "ASB_TUI_EXPECTED_SHA256=$tui_sha"
+            echo "ASB_TUI_SOURCE_COMMIT=$TUI_COMMIT"
+            echo "ASB_TUI_SOURCE_TREE=$tui_tree"
+          } >> "$GITHUB_ENV"
+      - name: Run exact inherited-fd qualification
+        run: |
+          cargo test --locked -p asb-cli --lib -- \
+            --exact tui::tests::pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up \
+            --nocapture --test-threads=1

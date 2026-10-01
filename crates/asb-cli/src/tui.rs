@@ -1039,6 +1039,15 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
             return Err(RouterError::operation("development_launch_failed"));
         }
     };
+    // A parent-first handoff is only valid while the frontend is alive.  Do
+    // not reserve or publish a generation to a child which already exited:
+    // this also keeps the ordinary cleanup path bounded for short-lived
+    // commands such as `/bin/true`.
+    if child.try_wait().ok().flatten().is_some() {
+        let _ = child.wait();
+        let _ = fs::remove_dir_all(&broker_root);
+        return Err(RouterError::operation("development_launch_failed"));
+    }
     // The deadline only bounds admission of the two handshake endpoints. Once
     // both endpoints are admitted, `serve_connections_until` joins their
     // workers and remains alive for the interactive child lifetime.
@@ -2876,6 +2885,7 @@ mod tests {
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
 
     static NONCE: AtomicU64 = AtomicU64::new(0);
 
@@ -2899,6 +2909,37 @@ mod tests {
     }
 
     struct Scratch(PathBuf);
+
+    struct RecordingBackend {
+        inner: super::DevelopmentBackend,
+        calls: Arc<Mutex<Vec<ControlCall>>>,
+    }
+
+    impl ControlBackend for RecordingBackend {
+        fn runner_instance_id(&self) -> &str {
+            self.inner.runner_instance_id()
+        }
+
+        fn oldest_revision(&self) -> asb_control::Revision {
+            self.inner.oldest_revision()
+        }
+
+        fn latest_revision(&self) -> asb_control::Revision {
+            self.inner.latest_revision()
+        }
+
+        fn execute(
+            &self,
+            call: &ControlCall,
+            deadline: RequestDeadline,
+        ) -> Result<asb_control::BoundControlResult, asb_control::BackendFailure> {
+            self.calls
+                .lock()
+                .expect("bootstrap recorder lock")
+                .push(call.clone());
+            self.inner.execute(call, deadline)
+        }
+    }
 
     impl Scratch {
         fn new(name: &str) -> Self {
@@ -3114,11 +3155,11 @@ mod tests {
     }
 
     #[test]
-    fn development_launch_cleans_channel_when_child_exits_before_request() {
+    fn development_launch_cleans_channel_when_child_exits_before_parent_handoff() {
         let scratch = Scratch::new("broker-child-exit");
         let error = launch_development_broker(Command::new("/bin/true"), &scratch.0)
-            .expect_err("child without broker request must fail closed");
-        assert_eq!(error.code, "development_channel_rejected");
+            .expect_err("an exited frontend must not receive a handoff");
+        assert_eq!(error.code, "development_launch_failed");
         let entries = fs::read_dir(&scratch.0)
             .unwrap()
             .collect::<Result<Vec<_>, _>>()
@@ -3132,11 +3173,10 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[ignore = "requires the explicitly pinned asb-tui qualification workflow"]
     #[test]
     fn pinned_tui_inherited_fd_development_launch_uses_pty_and_cleans_up() {
-        if std::env::var("ASB_TUI_QUALIFICATION").as_deref() != Ok("1") {
-            return;
-        }
+        assert_eq!(std::env::var("ASB_TUI_QUALIFICATION").as_deref(), Ok("1"));
         let binary = PathBuf::from(std::env::var("ASB_TUI_BINARY").unwrap());
         let expected = std::env::var("ASB_TUI_EXPECTED_SHA256").unwrap();
         assert_eq!(
@@ -3164,6 +3204,11 @@ mod tests {
         )
         .unwrap();
         let scratch = Scratch::new("pinned-inherited-fd");
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let backend = RecordingBackend {
+            inner: open_development_backend(scratch.0.clone()).expect("development backend"),
+            calls: Arc::clone(&calls),
+        };
         let tui_commit = std::env::var("ASB_TUI_SOURCE_COMMIT").unwrap();
         let tui_tree = std::env::var("ASB_TUI_SOURCE_TREE").unwrap();
         let descriptor = serde_json::json!({
@@ -3199,9 +3244,29 @@ mod tests {
             .stdout(Stdio::from(slave.try_clone().unwrap()))
             .stderr(Stdio::inherit());
         let root = scratch.0.clone();
-        let launch = thread::spawn(move || launch_development_broker(command, &root));
+        let launch =
+            thread::spawn(move || launch_development_broker_with_backend(command, &root, backend));
         let mut master = File::from(master);
-        thread::sleep(Duration::from_secs(2));
+        let deadline = Instant::now() + Duration::from_secs(8);
+        while Instant::now() < deadline && calls.lock().expect("bootstrap recorder lock").len() < 4
+        {
+            thread::sleep(Duration::from_millis(20));
+        }
+        let observed = calls.lock().expect("bootstrap recorder lock").clone();
+        assert!(
+            observed.len() >= 4,
+            "typed bootstrap did not complete before deadline: {observed:?}"
+        );
+        assert!(matches!(observed.first(), Some(ControlCall::Capabilities)));
+        let measurement = observed
+            .iter()
+            .position(|call| matches!(call, ControlCall::MeasurementCatalog))
+            .expect("measurement catalog bootstrap");
+        let history = observed
+            .iter()
+            .position(|call| matches!(call, ControlCall::History(_)))
+            .expect("history bootstrap");
+        assert!(measurement < history, "bootstrap order: {observed:?}");
         master.write_all(b"q").unwrap();
         let result = launch.join().unwrap().expect("development launch");
         assert!(result.code().is_some(), "development child did not exit");
@@ -3225,8 +3290,8 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", &script]);
         let error = launch_development_broker(command, &scratch.0)
-            .expect_err("child without broker request must fail closed");
-        assert_eq!(error.code, "development_channel_rejected");
+            .expect_err("an exited frontend must not receive a handoff");
+        assert_eq!(error.code, "development_launch_failed");
         let pid: i32 = fs::read_to_string(pid_file)
             .unwrap()
             .trim()
