@@ -2861,6 +2861,7 @@ mod tests {
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
 
     static NONCE: AtomicU64 = AtomicU64::new(0);
 
@@ -2884,6 +2885,34 @@ mod tests {
     }
 
     struct Scratch(PathBuf);
+
+    struct RecordingBackend {
+        inner: crate::control::DevelopmentBackend,
+        calls: Arc<Mutex<Vec<ControlCall>>>,
+    }
+
+    impl ControlBackend for RecordingBackend {
+        fn runner_instance_id(&self) -> &str {
+            self.inner.runner_instance_id()
+        }
+
+        fn oldest_revision(&self) -> asb_control::Revision {
+            self.inner.oldest_revision()
+        }
+
+        fn latest_revision(&self) -> asb_control::Revision {
+            self.inner.latest_revision()
+        }
+
+        fn execute(
+            &self,
+            call: &ControlCall,
+            deadline: RequestDeadline,
+        ) -> Result<asb_control::BoundControlResult, asb_control::BackendFailure> {
+            self.calls.lock().unwrap().push(call.clone());
+            self.inner.execute(call, deadline)
+        }
+    }
 
     impl Scratch {
         fn new(name: &str) -> Self {
@@ -3195,11 +3224,17 @@ mod tests {
         prepare_private_directory(&provisioning_dir).unwrap();
         let control_path = control_dir.join("control.sock");
         let provisioning_path = provisioning_dir.join("provision.sock");
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let expected_calls = Arc::clone(&calls);
+        let backend = open_development_backend(scratch.0.clone()).unwrap();
         let server = ProvisionedControlServer::bind(
             &control_path,
             &provisioning_path,
             ControlLimits::default(),
-            open_development_backend(scratch.0.clone()).unwrap(),
+            RecordingBackend {
+                inner: backend,
+                calls,
+            },
         )
         .unwrap();
         let (worker_done, worker_result) = std::sync::mpsc::channel();
@@ -3249,6 +3284,10 @@ mod tests {
                 .is_ok()
         );
         worker.join().unwrap();
+        let calls = expected_calls.lock().unwrap();
+        // Stable mode must fail closed at authentication before any
+        // bootstrap/status request is admitted by the backend.
+        assert!(calls.is_empty(), "stable route reached bootstrap: {calls:?}");
         assert!(!control_path.exists());
         assert!(!provisioning_path.exists());
     }
