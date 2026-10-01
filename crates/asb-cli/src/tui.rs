@@ -3261,6 +3261,68 @@ mod tests {
         assert!(!provisioning_path.exists());
     }
 
+    /// Cross-project qualification is deliberately opt-in: CI supplies the
+    /// exact asb-tui artifact and its digest rather than allowing this crate
+    /// to compile an unpinned sibling checkout. The socket server remains the
+    /// real ASB backend, not a protocol fixture.
+    #[test]
+    #[ignore = "requires ASB_TUI_BINARY and ASB_TUI_EXPECTED_SHA256"]
+    fn pinned_asb_tui_binary_fails_closed_without_stable_auth() {
+        let binary = PathBuf::from(std::env::var("ASB_TUI_BINARY").unwrap());
+        let expected = std::env::var("ASB_TUI_EXPECTED_SHA256").unwrap();
+        assert!(binary.is_absolute());
+        assert!(asb_control::validate_digest(&expected).is_ok());
+        let bytes = fs::read(&binary).unwrap();
+        assert_eq!(format!("{:x}", Sha256::digest(bytes)), expected);
+        let metadata = fs::symlink_metadata(&binary).unwrap();
+        assert!(metadata.file_type().is_file() && metadata.mode() & 0o022 == 0);
+
+        let scratch = Scratch::new("pinned-tui-bridge");
+        let control_dir = scratch.0.join("control");
+        let provisioning_dir = scratch.0.join("provisioning");
+        prepare_private_directory(&control_dir).unwrap();
+        prepare_private_directory(&provisioning_dir).unwrap();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            open_development_backend(scratch.0.clone()).unwrap(),
+        )
+        .unwrap();
+        let worker = thread::spawn(move || server.serve_connections(1, 0));
+        let command = format!(
+            "{} run --socket {}",
+            shell_quote(&binary),
+            shell_quote(&control_path)
+        );
+        let mut child = Command::new("/usr/bin/script")
+            .args(["-qefc", &command, "/dev/null"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(b"q").unwrap();
+        let status = child.wait().unwrap();
+        assert!(
+            !status.success(),
+            "stable socket mode bypassed auth: {status}"
+        );
+        worker.join().unwrap().unwrap();
+        assert!(!control_path.exists());
+        assert!(!provisioning_path.exists());
+    }
+
+    fn shell_quote(path: &Path) -> String {
+        let value = path.to_str().expect("UTF-8 test path");
+        assert!(value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-')
+        }));
+        format!("'{value}'")
+    }
+
     #[test]
     fn development_launch_cleans_channel_when_child_exits_before_request() {
         let scratch = Scratch::new("broker-child-exit");
