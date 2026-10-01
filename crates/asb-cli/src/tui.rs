@@ -44,6 +44,12 @@ const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
 const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
+const DEV_BROKER_DESCRIPTOR_ENV: &str = "ASB_TUI_DEVELOPMENT_DESCRIPTOR";
+const DEV_BROKER_ASB_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_COMMIT";
+const DEV_BROKER_ASB_TREE_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_TREE";
+const DEV_BROKER_TUI_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_TUI_SOURCE_COMMIT";
+const DEV_BROKER_TUI_TREE_ENV: &str = "ASB_TUI_EXPECTED_TUI_SOURCE_TREE";
+const DEV_BROKER_PROTOCOL_MINOR: u64 = 10;
 const DEV_GIT: &str = "/usr/bin/git";
 const DEV_SETSID: &str = "/usr/bin/setsid";
 // Development-only override; stable release paths never consult this variable.
@@ -942,7 +948,18 @@ fn execute_development_existing(
             ))
         }
         Operation::Launch => {
-            let status = Command::new(&executable)
+            let descriptor = development_broker_descriptor(&active)?;
+            let mut command = Command::new(&executable);
+            command
+                .env_clear()
+                .env(DEV_BROKER_DESCRIPTOR_ENV, descriptor)
+                .env(DEV_BROKER_ASB_COMMIT_ENV, ASB_SOURCE_COMMIT)
+                .env(DEV_BROKER_ASB_TREE_ENV, ASB_SOURCE_TREE)
+                .env(DEV_BROKER_TUI_COMMIT_ENV, &active.source_commit)
+                .env(DEV_BROKER_TUI_TREE_ENV, &active.source_tree)
+                .args(["run", "--broker", "--development"]);
+            add_candidate_environment(&mut command)?;
+            let status = command
                 .status()
                 .map_err(|_| RouterError::operation("development_launch_failed"))?;
             if !status.success() {
@@ -956,6 +973,33 @@ fn execute_development_existing(
         }
         _ => Err(RouterError::policy("development_operation_invalid")),
     }
+}
+
+fn development_broker_descriptor(active: &DevelopmentInstallation) -> Result<String, RouterError> {
+    if !valid_hex(ASB_SOURCE_COMMIT, 40)
+        || !valid_hex(ASB_SOURCE_TREE, 40)
+        || !valid_hex(&active.source_commit, 40)
+        || !valid_hex(&active.source_tree, 40)
+    {
+        return Err(RouterError::policy("dev_source_identity_unknown"));
+    }
+    let descriptor = serde_json::json!({
+        "schema_version": 1,
+        "profile": "development",
+        "development_only": true,
+        "operation": "launch",
+        "protocol_minor": DEV_BROKER_PROTOCOL_MINOR,
+        "asb_source_commit": ASB_SOURCE_COMMIT,
+        "asb_source_tree": ASB_SOURCE_TREE,
+        "tui_source_commit": active.source_commit,
+        "tui_source_tree": active.source_tree,
+    });
+    let encoded = serde_json::to_string(&descriptor)
+        .map_err(|_| RouterError::operation("development_descriptor_failed"))?;
+    if encoded.len() > 16 * 1024 {
+        return Err(RouterError::policy("development_descriptor_oversized"));
+    }
+    Ok(encoded)
 }
 
 fn remove_development_installation(
@@ -1878,17 +1922,21 @@ fn add_candidate_environment(command: &mut Command) -> Result<(), RouterError> {
             if bytes.is_empty() {
                 continue;
             }
-            if bytes.len() > 64
-                || !bytes
-                    .iter()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, 43 | 45 | 46 | 95))
-            {
+            if !valid_terminal_value(bytes) {
                 return Err(RouterError::policy("environment_terminal_invalid"));
             }
             command.env(name, value);
         }
     }
     Ok(())
+}
+
+fn valid_terminal_value(bytes: &[u8]) -> bool {
+    bytes.len() <= 64
+        && !bytes.is_empty()
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, 43 | 45 | 46 | 95))
 }
 
 fn environment_path_safe(path: &Path) -> bool {
@@ -2982,6 +3030,43 @@ mod tests {
         assert_eq!(encoded["channel"], "dev");
         assert_eq!(encoded["development_only"], true);
         assert_eq!(encoded["source_commit"].as_str().unwrap().len(), 40);
+    }
+
+    #[test]
+    fn development_broker_descriptor_binds_current_identities() {
+        let active = DevelopmentInstallation {
+            schema_version: 1,
+            channel: "dev".to_owned(),
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL.to_owned(),
+            source_commit: "a".repeat(40),
+            source_tree: "b".repeat(40),
+            asb_source_commit: ASB_SOURCE_COMMIT.to_owned(),
+            asb_source_tree: ASB_SOURCE_TREE.to_owned(),
+            executable_sha256: "c".repeat(64),
+            installed_unix: 1,
+        };
+        let descriptor: serde_json::Value =
+            serde_json::from_str(&development_broker_descriptor(&active).unwrap()).unwrap();
+        assert_eq!(descriptor["operation"], "launch");
+        assert_eq!(descriptor["protocol_minor"], DEV_BROKER_PROTOCOL_MINOR);
+        assert_eq!(descriptor["asb_source_commit"], ASB_SOURCE_COMMIT);
+        assert_eq!(descriptor["tui_source_commit"], "a".repeat(40));
+
+        let mut stale = active;
+        stale.source_commit = "not-an-identity".to_owned();
+        assert_eq!(
+            development_broker_descriptor(&stale).unwrap_err().code,
+            "dev_source_identity_unknown"
+        );
+    }
+
+    #[test]
+    fn development_broker_preserves_valid_terminal_capability_values() {
+        assert!(valid_terminal_value(b"xterm-256color"));
+        assert!(valid_terminal_value(b"screen"));
+        assert!(!valid_terminal_value(b"xterm\n256color"));
+        assert!(!valid_terminal_value(&[b'a'; 65]));
     }
 
     #[test]
