@@ -430,6 +430,7 @@ pub fn control_request_schema() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 request schema remains valid")
 }
@@ -443,6 +444,7 @@ pub fn control_request_schema_v1_2() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.2 request schema remains valid")
 }
@@ -470,6 +472,7 @@ pub fn control_response_schema() -> Schema {
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
     remove_broker_generation(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1 response schema remains valid")
 }
@@ -484,6 +487,21 @@ fn remove_broker_generation(value: &mut Value) {
     if let Some(definitions) = value.get_mut("$defs").and_then(Value::as_object_mut) {
         definitions.remove("NegotiatedBrokerGeneration");
     }
+}
+
+fn remove_cassette_control_variants(value: &mut Value) {
+    remove_tagged_variant(value, "/oneOf", "recording_cassette_catalog");
+    remove_tagged_variant(value, "/oneOf", "recording_replay_dispatch");
+    remove_tagged_variant(
+        value,
+        "/$defs/ControlResult/oneOf",
+        "recording_cassette_catalog",
+    );
+    remove_tagged_variant(
+        value,
+        "/$defs/ControlResult/oneOf",
+        "recording_replay_dispatch",
+    );
 }
 
 /// Canonical response schema for control v1.2.
@@ -502,6 +520,7 @@ pub fn control_response_schema_v1_2() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.2 response schema remains valid")
 }
@@ -515,6 +534,7 @@ pub fn control_request_schema_v1_3() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.3 request schema remains valid")
 }
@@ -534,6 +554,7 @@ pub fn control_response_schema_v1_3() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.3 response schema remains valid")
 }
@@ -546,6 +567,7 @@ pub fn control_request_schema_v1_4() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.4 request schema remains valid")
 }
@@ -564,6 +586,7 @@ pub fn control_response_schema_v1_4() -> Schema {
     remove_provider_catalog_variants(&mut value);
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.4 response schema remains valid")
 }
@@ -577,6 +600,7 @@ pub fn control_request_schema_v1_5() -> Schema {
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
     remove_runtime_bootstrap_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.5 request schema remains valid")
 }
@@ -596,6 +620,7 @@ pub fn control_response_schema_v1_5() -> Schema {
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
     remove_runtime_bootstrap_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.5 response schema remains valid")
 }
@@ -609,6 +634,7 @@ pub fn control_request_schema_v1_6() -> Schema {
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
     remove_runtime_bootstrap_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.6 request schema remains valid")
 }
@@ -628,6 +654,7 @@ pub fn control_response_schema_v1_6() -> Schema {
     remove_setup_variants(&mut value);
     remove_recording_lifecycle_variants(&mut value);
     remove_runtime_bootstrap_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.6 response schema remains valid")
 }
@@ -639,6 +666,7 @@ pub fn control_request_schema_v1_7() -> Schema {
     remove_recording_lifecycle_variants(&mut value);
     remove_runtime_bootstrap_variants(&mut value);
     remove_provider_registration_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.7 request schema remains valid")
 }
@@ -656,6 +684,7 @@ pub fn control_response_schema_v1_7() -> Schema {
     remove_recording_lifecycle_variants(&mut value);
     remove_runtime_bootstrap_variants(&mut value);
     remove_provider_registration_variants(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.7 response schema remains valid")
 }
@@ -664,6 +693,7 @@ pub fn control_response_schema_v1_7() -> Schema {
 pub fn control_request_schema_v1_8() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "benchmark_catalog");
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.8 request schema remains valid")
 }
@@ -678,6 +708,7 @@ pub fn control_response_schema_v1_8() -> Schema {
         "/$defs/ControlResult/oneOf",
         "benchmark_catalog",
     );
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.8 response schema remains valid")
 }
@@ -686,6 +717,7 @@ pub fn control_response_schema_v1_8() -> Schema {
 pub fn control_request_schema_v1_9() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "benchmark_catalog");
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.9 request schema remains valid")
 }
@@ -700,6 +732,7 @@ pub fn control_response_schema_v1_9() -> Schema {
         "/$defs/ControlResult/oneOf",
         "benchmark_catalog",
     );
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.9 response schema remains valid")
 }
@@ -708,6 +741,7 @@ pub fn control_response_schema_v1_9() -> Schema {
 pub fn control_request_schema_v1_11() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_tagged_variant(&mut value, "/oneOf", "benchmark_catalog");
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.11 request schema remains valid")
 }
@@ -723,6 +757,7 @@ pub fn control_response_schema_v1_11() -> Schema {
         "benchmark_catalog",
     );
     remove_broker_generation(&mut value);
+    remove_cassette_control_variants(&mut value);
     prune_unused_definitions(&mut value);
     schema = serde_json::from_value(value).expect("v1.11 response schema remains valid");
     schema
@@ -735,6 +770,18 @@ pub fn control_request_schema_v1_10() -> Schema {
 
 /// Canonical response schema for the benchmark-catalog extension.
 pub fn control_response_schema_v1_10() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    schema
+}
+
+/// Canonical request schema for the cassette-control extension.
+pub fn control_request_schema_v1_12() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for the cassette-control extension.
+pub fn control_response_schema_v1_12() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema

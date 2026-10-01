@@ -316,6 +316,95 @@ pub struct RecordingCampaignProgressRequest {
     pub campaign_id: String,
 }
 
+/// Read-only request for sealed cassette metadata belonging to one campaign.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCassetteCatalogRequest {
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Exact campaign to inspect.
+    pub campaign_id: String,
+    /// Setup generation used by the campaign.
+    pub expected_generation: Revision,
+}
+
+/// Digest-only identity of one sealed cassette; contents and paths never cross
+/// the control boundary.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCassetteEntry {
+    /// Stable cassette identity from the sealed contents.
+    pub cassette_id: String,
+    /// Authenticated cassette root digest.
+    pub cassette_sha256: String,
+    /// Credential-free provider profile identity.
+    pub provider_profile_sha256: String,
+    /// Selected agent identity.
+    pub agent_id: String,
+    /// Selected workload identity.
+    pub workload_id: String,
+    /// Scorer revision used for the tuple.
+    pub scorer_revision: String,
+}
+
+/// Authenticated sealed-cassette catalog for a campaign.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCassetteCatalog {
+    /// Runner identity.
+    pub runner_instance_id: String,
+    /// Setup generation used by the campaign.
+    pub generation: Revision,
+    /// Stable campaign identity.
+    pub campaign_id: String,
+    /// Bounded sealed-cassette entries.
+    pub entries: Vec<RecordingCassetteEntry>,
+}
+
+/// Request an exact provider-free replay dispatch.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingReplayDispatchParams {
+    /// Retry-safe mutation identity.
+    pub idempotency_key: String,
+    /// Runner identity received during negotiation.
+    pub runner_instance_id: String,
+    /// Setup generation used by the campaign.
+    pub expected_generation: Revision,
+    /// Stable campaign identity.
+    pub campaign_id: String,
+    /// Credential-free provider profile identity.
+    pub provider_profile_sha256: String,
+    /// Selected agent identity.
+    pub agent_id: String,
+    /// Selected workload identity.
+    pub workload_id: String,
+    /// Exact authenticated cassette root digest.
+    pub cassette_sha256: String,
+}
+
+/// Result of an accepted strict offline replay dispatch.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingReplayDispatch {
+    /// Runner identity.
+    pub runner_instance_id: String,
+    /// Setup generation used by the campaign.
+    pub generation: Revision,
+    /// Stable campaign identity.
+    pub campaign_id: String,
+    /// Credential-free provider profile identity.
+    pub provider_profile_sha256: String,
+    /// Selected agent identity.
+    pub agent_id: String,
+    /// Selected workload identity.
+    pub workload_id: String,
+    /// Exact authenticated cassette root digest.
+    pub cassette_sha256: String,
+    /// Always true: this dispatch never contacts a provider.
+    pub offline_only: bool,
+}
+
 /// Idempotent cancellation of a recording campaign.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -403,6 +492,69 @@ impl RecordingCampaignProgressRequest {
     /// Validate bounded progress identity.
     pub fn validate(&self) -> Result<(), ProtocolError> {
         validate_campaign_read(&self.runner_instance_id, &self.campaign_id)
+    }
+}
+impl RecordingCassetteCatalogRequest {
+    /// Validate bounded catalog identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_campaign_read(&self.runner_instance_id, &self.campaign_id)?;
+        if self.expected_generation.0 == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+impl RecordingReplayDispatchParams {
+    /// Validate exact replay identity and digest bounds.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_idempotency_key(&self.idempotency_key)?;
+        validate_campaign_read(&self.runner_instance_id, &self.campaign_id)?;
+        if self.expected_generation.0 == 0 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        validate_digest(&self.provider_profile_sha256)?;
+        validate_digest(&self.cassette_sha256)?;
+        validate_catalog_string(&self.agent_id)?;
+        validate_catalog_string(&self.workload_id)
+    }
+}
+impl RecordingCassetteEntry {
+    /// Validate digest-only public metadata.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.cassette_id)?;
+        validate_digest(&self.cassette_sha256)?;
+        validate_digest(&self.provider_profile_sha256)?;
+        validate_catalog_string(&self.agent_id)?;
+        validate_catalog_string(&self.workload_id)?;
+        validate_catalog_string(&self.scorer_revision)
+    }
+}
+impl RecordingCassetteCatalog {
+    /// Validate bounded sealed-cassette metadata.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        validate_identity(&self.campaign_id)?;
+        if self.generation.0 == 0 || self.entries.is_empty() || self.entries.len() > 256 {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        for entry in &self.entries {
+            entry.validate()?;
+        }
+        Ok(())
+    }
+}
+impl RecordingReplayDispatch {
+    /// Validate provider-free dispatch semantics.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        validate_identity(&self.runner_instance_id)?;
+        validate_identity(&self.campaign_id)?;
+        if self.generation.0 == 0 || !self.offline_only {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        validate_digest(&self.provider_profile_sha256)?;
+        validate_digest(&self.cassette_sha256)?;
+        validate_catalog_string(&self.agent_id)?;
+        validate_catalog_string(&self.workload_id)
     }
 }
 impl RecordingCampaignCancelParams {
@@ -938,5 +1090,59 @@ mod tests {
         assert!(validate_provider_entry(&duplicate, false).is_err());
         assert!(validate_sorted_ids(&["b".into(), "a".into()], false).is_err());
         assert!(validate_catalog_string("unsafe value").is_err());
+    }
+
+    #[test]
+    fn cassette_contract_is_digest_only_and_offline_bound() {
+        let digest = "a".repeat(64);
+        let request = RecordingReplayDispatchParams {
+            idempotency_key: "replay-1".into(),
+            runner_instance_id: "runner-1".into(),
+            expected_generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            provider_profile_sha256: digest.clone(),
+            agent_id: "agent-1".into(),
+            workload_id: "workload-1".into(),
+            cassette_sha256: digest.clone(),
+        };
+        request.validate().unwrap();
+        let result = RecordingReplayDispatch {
+            runner_instance_id: request.runner_instance_id.clone(),
+            generation: request.expected_generation,
+            campaign_id: request.campaign_id.clone(),
+            provider_profile_sha256: request.provider_profile_sha256.clone(),
+            agent_id: request.agent_id.clone(),
+            workload_id: request.workload_id.clone(),
+            cassette_sha256: request.cassette_sha256.clone(),
+            offline_only: true,
+        };
+        result.validate().unwrap();
+        assert!(!serde_json::to_string(&result).unwrap().contains("body"));
+        let mut online = result;
+        online.offline_only = false;
+        assert!(online.validate().is_err());
+    }
+
+    #[test]
+    fn cassette_catalog_rejects_partial_or_malformed_entries() {
+        let digest = "b".repeat(64);
+        let mut catalog = RecordingCassetteCatalog {
+            runner_instance_id: "runner-1".into(),
+            generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            entries: vec![RecordingCassetteEntry {
+                cassette_id: "cassette-1".into(),
+                cassette_sha256: digest.clone(),
+                provider_profile_sha256: digest,
+                agent_id: "agent-1".into(),
+                workload_id: "workload-1".into(),
+                scorer_revision: "rev-1".into(),
+            }],
+        };
+        catalog.validate().unwrap();
+        catalog.entries[0].cassette_sha256 = "not-a-digest".into();
+        assert!(catalog.validate().is_err());
+        catalog.entries.clear();
+        assert!(catalog.validate().is_err());
     }
 }

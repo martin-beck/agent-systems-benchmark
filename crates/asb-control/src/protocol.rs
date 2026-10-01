@@ -55,6 +55,11 @@ pub const CONTROL_RUNTIME_BOOTSTRAP_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 11,
 };
+/// Version of the digest-only cassette catalog and offline replay dispatch.
+pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 12,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -74,6 +79,22 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 11] = [
     CONTROL_AUTH_HELPER_V1,
     CONTROL_RUNTIME_BOOTSTRAP_V1,
     CONTROL_BENCHMARK_CATALOG_V1,
+];
+/// Exact versions including the additive cassette-control extension. Clients
+/// must opt in explicitly until the paired frontend advertises v1.12.
+pub const SUPPORTED_CONTROL_VERSIONS_WITH_CASSETTE: [ControlVersion; 12] = [
+    CONTROL_V1,
+    CONTROL_MEASUREMENT_CATALOG_V1,
+    CONTROL_MEASUREMENT_SELECTION_V1,
+    CONTROL_AGENT_CATALOG_V1,
+    CONTROL_AGENT_LIFECYCLE_V1,
+    CONTROL_AUTH_V1,
+    CONTROL_PROVIDER_CATALOG_V1,
+    CONTROL_RECORDING_LIFECYCLE_V1,
+    CONTROL_AUTH_HELPER_V1,
+    CONTROL_RUNTIME_BOOTSTRAP_V1,
+    CONTROL_BENCHMARK_CATALOG_V1,
+    CONTROL_CASSETTE_CONTROL_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -283,6 +304,10 @@ pub enum ControlCall {
     RecordingCampaignExecute(crate::RecordingCampaignExecuteParams),
     /// Read durable tuple coverage and lifecycle state.
     RecordingCampaignProgress(crate::RecordingCampaignProgressRequest),
+    /// Read digest-only sealed cassette metadata for one campaign.
+    RecordingCassetteCatalog(crate::RecordingCassetteCatalogRequest),
+    /// Dispatch one exact cassette through the provider-free replay boundary.
+    RecordingReplayDispatch(crate::RecordingReplayDispatchParams),
     /// Cancel a recording campaign before offline activation.
     RecordingCampaignCancel(crate::RecordingCampaignCancelParams),
     /// Reconcile a campaign after an interrupted runtime effect.
@@ -435,6 +460,9 @@ impl ControlCall {
             | Self::RecordingCampaignCancel(_)
             | Self::RecordingCampaignReconcile(_)
             | Self::RecordingCampaignOfflineDefault(_) => CONTROL_RECORDING_LIFECYCLE_V1,
+            Self::RecordingCassetteCatalog(_) | Self::RecordingReplayDispatch(_) => {
+                CONTROL_CASSETTE_CONTROL_V1
+            }
             _ => CONTROL_V1,
         }
     }
@@ -1630,6 +1658,10 @@ pub enum ControlResult {
     RecordingCampaignStatus(crate::RecordingCampaignStatus),
     /// Durable recording campaign lifecycle and tuple coverage.
     RecordingCampaignLifecycle(crate::RecordingCampaignLifecycle),
+    /// Digest-only sealed cassette metadata.
+    RecordingCassetteCatalog(crate::RecordingCassetteCatalog),
+    /// Accepted provider-free replay dispatch.
+    RecordingReplayDispatch(crate::RecordingReplayDispatch),
     /// Recent run page.
     History(Page<RunSummary>),
     /// Public event page.
@@ -1718,6 +1750,12 @@ impl BoundControlResult {
             {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::RecordingCassetteCatalog(_)
+            | ControlResult::RecordingReplayDispatch(_)
+                if version < CONTROL_CASSETTE_CONTROL_V1 =>
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::SettingsValidation(value)
                 if version < CONTROL_MEASUREMENT_SELECTION_V1
                     && (value
@@ -1752,6 +1790,8 @@ impl ControlResult {
             Self::RecordingCampaign(value) => value.validate(),
             Self::RecordingCampaignStatus(value) => value.validate(),
             Self::RecordingCampaignLifecycle(value) => value.validate(),
+            Self::RecordingCassetteCatalog(value) => value.validate(),
+            Self::RecordingReplayDispatch(value) => value.validate(),
             Self::AgentLifecycle(value) => value.validate(),
             Self::MeasurementCatalog(value) => value.validate(),
             Self::BenchmarkCatalog(value) => value.validate(),
@@ -1960,6 +2000,14 @@ impl ControlResult {
                     Self::RecordingCampaignLifecycle(_)
                 )
                 | (
+                    ControlCall::RecordingCassetteCatalog(_),
+                    Self::RecordingCassetteCatalog(_)
+                )
+                | (
+                    ControlCall::RecordingReplayDispatch(_),
+                    Self::RecordingReplayDispatch(_)
+                )
+                | (
                     ControlCall::RecordingCampaignCancel(_),
                     Self::RecordingCampaignLifecycle(_)
                 )
@@ -2084,6 +2132,26 @@ impl ControlResult {
             ) => {
                 status.runner_instance_id == request.runner_instance_id
                     && status.campaign_id == request.campaign_id
+            }
+            (
+                ControlCall::RecordingCassetteCatalog(request),
+                Self::RecordingCassetteCatalog(catalog),
+            ) => {
+                catalog.runner_instance_id == request.runner_instance_id
+                    && catalog.campaign_id == request.campaign_id
+                    && catalog.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingReplayDispatch(request),
+                Self::RecordingReplayDispatch(dispatch),
+            ) => {
+                dispatch.runner_instance_id == request.runner_instance_id
+                    && dispatch.campaign_id == request.campaign_id
+                    && dispatch.generation == request.expected_generation
+                    && dispatch.provider_profile_sha256 == request.provider_profile_sha256
+                    && dispatch.agent_id == request.agent_id
+                    && dispatch.workload_id == request.workload_id
+                    && dispatch.cassette_sha256 == request.cassette_sha256
             }
             (ControlCall::AgentInstall(request), Self::AgentLifecycle(response)) => {
                 response.binding == request.binding
@@ -2347,6 +2415,8 @@ pub fn validate_request(
         ControlCall::RecordingCampaignStatus(params) => params.validate()?,
         ControlCall::RecordingCampaignExecute(params) => params.validate()?,
         ControlCall::RecordingCampaignProgress(params) => params.validate()?,
+        ControlCall::RecordingCassetteCatalog(params) => params.validate()?,
+        ControlCall::RecordingReplayDispatch(params) => params.validate()?,
         ControlCall::RecordingCampaignCancel(params) => params.validate()?,
         ControlCall::RecordingCampaignReconcile(params) => params.validate()?,
         ControlCall::RecordingCampaignOfflineDefault(params) => params.validate()?,
