@@ -3271,15 +3271,22 @@ mod tests {
     /// real ASB backend, not a protocol fixture.
     #[test]
     fn pinned_asb_tui_binary_fails_closed_without_stable_auth() {
-        let (Ok(binary), Ok(expected)) = (
+        let (binary, expected, pinned) = match (
             std::env::var("ASB_TUI_BINARY"),
             std::env::var("ASB_TUI_EXPECTED_SHA256"),
-        ) else {
-            // The cross-project executable is supplied only by the pinned
-            // verification workflow; ordinary workspace tests stay provider-free.
-            return;
+        ) {
+            (Ok(binary), Ok(expected)) => (PathBuf::from(binary), expected, true),
+            (Err(_), Err(_)) => {
+                // The ordinary workspace gate has no sibling checkout. Use a
+                // deterministic failing executable and a malformed socket
+                // client to cover the same stable fail-closed boundary; the
+                // verification workflow replaces it with the pinned binary.
+                let binary = PathBuf::from("/bin/false");
+                let expected = format!("{:x}", Sha256::digest(fs::read(&binary).unwrap()));
+                (binary, expected, false)
+            }
+            _ => panic!("pinned TUI binary and digest must be supplied together"),
         };
-        let binary = PathBuf::from(binary);
         assert!(binary.is_absolute());
         assert!(asb_control::validate_digest(&expected).is_ok());
         let bytes = fs::read(&binary).unwrap();
@@ -3312,6 +3319,10 @@ mod tests {
             let result = server.serve_connections(1, 0);
             let _ = worker_done.send(result);
         });
+        if !pinned {
+            let mut malformed = std::os::unix::net::UnixStream::connect(&control_path).unwrap();
+            malformed.write_all(b"not-a-control-envelope").unwrap();
+        }
         let command = format!(
             "{} run --socket {}",
             shell_quote(&binary),
