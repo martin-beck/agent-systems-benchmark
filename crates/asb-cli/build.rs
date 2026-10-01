@@ -7,24 +7,24 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-fn identity(name: &str, revision: &str) -> String {
+fn valid_identity(value: &str) -> bool {
+    value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn identity(name: &str, revision: &str) -> Option<String> {
     if let Ok(value) = env::var(name) {
-        return value;
+        if !valid_identity(&value) {
+            panic!("{name} must contain a 40-character hexadecimal identity");
+        }
+        return Some(value);
     }
-    let output = Command::new("git")
-        .args(["rev-parse", revision])
-        .output()
-        .unwrap_or_else(|error| panic!("{name} is unavailable: {error}"));
+    let output = Command::new("git").args(["rev-parse", revision]).output();
+    let output = output.ok()?;
     if !output.status.success() {
-        panic!(
-            "{name} is unavailable: git rev-parse {revision} failed with {}",
-            output.status
-        );
+        return None;
     }
-    String::from_utf8(output.stdout)
-        .unwrap_or_else(|error| panic!("{name} is not UTF-8: {error}"))
-        .trim()
-        .to_owned()
+    let value = String::from_utf8(output.stdout).ok()?.trim().to_owned();
+    valid_identity(&value).then_some(value)
 }
 
 fn main() {
@@ -32,17 +32,14 @@ fn main() {
     println!("cargo:rerun-if-env-changed=ASB_SOURCE_TREE");
     let commit = identity("ASB_SOURCE_COMMIT", "HEAD");
     let tree = identity("ASB_SOURCE_TREE", "HEAD^{tree}");
-    if commit.len() != 40
-        || !commit.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || tree.len() != 40
-        || !tree.bytes().all(|byte| byte.is_ascii_hexdigit())
-    {
-        panic!("ASB source identity must contain 40 hexadecimal commit and tree values");
-    }
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set by Cargo"));
     fs::write(
         out_dir.join("asb_source_identity.rs"),
-        format!("pub const COMMIT: &str = \"{commit}\";\npub const TREE: &str = \"{tree}\";\n"),
+        format!(
+            "pub const COMMIT: &str = \"{}\";\npub const TREE: &str = \"{}\";\n",
+            commit.as_deref().unwrap_or_default(),
+            tree.as_deref().unwrap_or_default()
+        ),
     )
     .expect("write ASB source identity");
 }
