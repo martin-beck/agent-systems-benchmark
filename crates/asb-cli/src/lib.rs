@@ -1061,6 +1061,14 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
     )
     .map_err(output_error)?;
+    writeln!(output, "  asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]")
+        .map_err(output_error)?;
+    writeln!(
+        output,
+        "  asb tui install|upgrade [--offline] [--dry-run] [--launch]"
+    )
+    .map_err(output_error)?;
+    writeln!(output, "  asb tui --help").map_err(output_error)?;
     writeln!(output, "  asb plan create --workload WORKLOAD --agent-executable /absolute/agent --output PLAN.toml")
         .map_err(output_error)?;
     writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
