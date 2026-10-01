@@ -82,6 +82,7 @@ enum Operation {
     Doctor,
     Remove,
     Launch,
+    Help,
     Version,
 }
 
@@ -94,6 +95,7 @@ impl Operation {
             Self::Doctor => "doctor",
             Self::Remove => "remove",
             Self::Launch => "launch",
+            Self::Help => "help",
             Self::Version => "version",
         }
     }
@@ -102,6 +104,7 @@ impl Operation {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct Options {
     channel: Channel,
+    channel_explicit: bool,
     offline: bool,
     dry_run: bool,
     launch: bool,
@@ -414,6 +417,14 @@ impl Source for CurlSource {
 
 pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, CliError> {
     let (operation, options) = parse(args)?;
+    if operation == Operation::Help {
+        writeln!(
+            output,
+            "Usage: asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\nFresh installs default to the development channel; existing installations preserve their active channel."
+        )
+        .map_err(output_error)?;
+        return Ok(0);
+    }
     if operation == Operation::Version {
         writeln!(output, "asb tui-router {}", env!("CARGO_PKG_VERSION")).map_err(output_error)?;
         return Ok(0);
@@ -432,20 +443,35 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
                 "denied"
             };
             let mut response = RouterResponse::result(operation, false, error.code, network);
-            annotate_channel(&mut response, operation, options.channel);
+            annotate_channel(
+                &mut response,
+                operation,
+                options.channel,
+                options.channel_explicit,
+            );
             write_json(output, &response)?;
             return Ok(error.exit_code);
         }
     };
     let mut response = response;
-    annotate_channel(&mut response, operation, options.channel);
+    annotate_channel(
+        &mut response,
+        operation,
+        options.channel,
+        options.channel_explicit,
+    );
     let exit = if response.ok { 0 } else { 3 };
     write_json(output, &response)?;
     Ok(exit)
 }
 
-fn annotate_channel(response: &mut RouterResponse, operation: Operation, requested: Channel) {
-    if matches!(operation, Operation::Install | Operation::Upgrade) {
+fn annotate_channel(
+    response: &mut RouterResponse,
+    operation: Operation,
+    requested: Channel,
+    explicit: bool,
+) {
+    if matches!(operation, Operation::Install | Operation::Upgrade) || explicit {
         response.channel = requested.name();
         response.development_only = requested == Channel::Dev;
     } else {
@@ -460,62 +486,61 @@ fn annotate_channel(response: &mut RouterResponse, operation: Operation, request
 }
 
 fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
-    match args {
-        [] => Ok((Operation::Launch, Options::default())),
-        [single] if single == "launch" => Ok((Operation::Launch, Options::default())),
-        [single] if single == "status" => Ok((Operation::Status, Options::default())),
-        [single] if single == "doctor" => Ok((Operation::Doctor, Options::default())),
-        [single] if single == "remove" => Ok((Operation::Remove, Options::default())),
-        [single] if single == "--version" || single == "-V" => {
-            Ok((Operation::Version, Options::default()))
-        }
-        [operation, flags @ ..] if operation == "install" || operation == "upgrade" => {
-            let mut options = Options::default();
-            let mut channel_seen = false;
-            let mut index = 0;
-            while index < flags.len() {
-                let flag = &flags[index];
-                if flag == "--channel" {
-                    if channel_seen {
-                        return Err(CliError::usage("duplicate asb tui option"));
-                    }
-                    channel_seen = true;
-                    index += 1;
-                    let value = flags
-                        .get(index)
-                        .ok_or_else(|| CliError::usage("--channel requires a value"))?;
-                    options.channel = Channel::parse(value)?;
-                    index += 1;
-                    continue;
-                }
-                let slot = match flag.as_str() {
-                    "--offline" => &mut options.offline,
-                    "--dry-run" => &mut options.dry_run,
-                    "--launch" => &mut options.launch,
-                    _ => return Err(CliError::usage("unsupported asb tui arguments")),
-                };
-                if *slot {
-                    return Err(CliError::usage("duplicate asb tui option"));
-                }
-                *slot = true;
-                index += 1;
+    let (operation, flags) = match args.first().map(String::as_str) {
+        None => (Operation::Launch, &args[0..]),
+        Some("launch") => (Operation::Launch, &args[1..]),
+        Some("status") => (Operation::Status, &args[1..]),
+        Some("doctor") => (Operation::Doctor, &args[1..]),
+        Some("remove") => (Operation::Remove, &args[1..]),
+        Some("install") => (Operation::Install, &args[1..]),
+        Some("upgrade") => (Operation::Upgrade, &args[1..]),
+        Some("--help") | Some("-h") | Some("help") => (Operation::Help, &args[1..]),
+        Some("--version") | Some("-V") => (Operation::Version, &args[1..]),
+        _ => return Err(CliError::usage("unsupported asb tui arguments")),
+    };
+    let mut options = Options::default();
+    let mut channel_seen = false;
+    let mut index = 0;
+    while index < flags.len() {
+        let flag = &flags[index];
+        if flag == "--channel" {
+            if channel_seen {
+                return Err(CliError::usage("duplicate asb tui option"));
             }
-            if options.dry_run && options.launch {
-                return Err(CliError::usage(
-                    "--dry-run and --launch cannot be used together",
-                ));
-            }
-            Ok((
-                if operation == "install" {
-                    Operation::Install
-                } else {
-                    Operation::Upgrade
-                },
-                options,
-            ))
+            channel_seen = true;
+            options.channel_explicit = true;
+            index += 1;
+            let value = flags
+                .get(index)
+                .ok_or_else(|| CliError::usage("--channel requires a value"))?;
+            options.channel = Channel::parse(value)?;
+            index += 1;
+            continue;
         }
-        _ => Err(CliError::usage("unsupported asb tui arguments")),
+        let slot = match flag.as_str() {
+            "--offline" if matches!(operation, Operation::Install | Operation::Upgrade) => {
+                &mut options.offline
+            }
+            "--dry-run" if matches!(operation, Operation::Install | Operation::Upgrade) => {
+                &mut options.dry_run
+            }
+            "--launch" if matches!(operation, Operation::Install | Operation::Upgrade) => {
+                &mut options.launch
+            }
+            _ => return Err(CliError::usage("unsupported asb tui arguments")),
+        };
+        if *slot {
+            return Err(CliError::usage("duplicate asb tui option"));
+        }
+        *slot = true;
+        index += 1;
     }
+    if options.dry_run && options.launch {
+        return Err(CliError::usage(
+            "--dry-run and --launch cannot be used together",
+        ));
+    }
+    Ok((operation, options))
 }
 
 impl RouterPaths {
@@ -565,14 +590,16 @@ fn execute(
             install_or_upgrade(operation, options, paths, source, now)
         }
         Operation::Status | Operation::Remove | Operation::Launch => {
-            if development_active(paths)?.is_some() {
+            if existing_channel(options, paths)? == Channel::Dev {
                 execute_development_existing(operation, paths)
             } else {
                 delegate_existing(operation, paths)
             }
         }
         Operation::Doctor => {
-            if let Some((active, _)) = development_active(paths)? {
+            if existing_channel(options, paths)? == Channel::Dev {
+                let (active, _) = development_active(paths)?
+                    .ok_or_else(|| RouterError::policy("extension_not_installed"))?;
                 Ok(development_response(
                     Operation::Doctor,
                     "development_verified",
@@ -582,8 +609,27 @@ fn execute(
                 doctor(paths)
             }
         }
-        Operation::Version => unreachable!(),
+        Operation::Help | Operation::Version => unreachable!(),
     }
+}
+
+/// Resolve an existing installation's channel. An omitted channel preserves
+/// the active installation; an explicit unavailable channel never falls back
+/// to another installation or silently changes provenance.
+fn existing_channel(options: Options, paths: &RouterPaths) -> Result<Channel, RouterError> {
+    let has_development = development_active(paths)?.is_some();
+    if options.channel_explicit {
+        return match options.channel {
+            Channel::Dev if has_development => Ok(Channel::Dev),
+            Channel::Stable if !has_development => Ok(Channel::Stable),
+            _ => Err(RouterError::policy("channel_unavailable")),
+        };
+    }
+    Ok(if has_development {
+        Channel::Dev
+    } else {
+        Channel::Stable
+    })
 }
 
 fn development_source_identity() -> Result<(&'static str, &'static str), RouterError> {
@@ -2213,7 +2259,7 @@ fn validate_delegated(
             Operation::Remove => "extension_removed",
             Operation::Launch => "frontend_exited",
             Operation::Status => "verified_installation",
-            Operation::Doctor | Operation::Version => {
+            Operation::Doctor | Operation::Help | Operation::Version => {
                 return Err(RouterError::policy("candidate_response_invalid"));
             }
         };
@@ -3435,6 +3481,12 @@ mod tests {
             let parsed = parse(&["install".into(), "--channel".into(), name.into()]);
             assert_eq!(parsed.unwrap().1.channel.name(), name);
         }
+        for operation in ["launch", "status", "doctor", "remove", "help"] {
+            let parsed = parse(&[operation.into(), "--channel".into(), "stable".into()]).unwrap();
+            assert_eq!(parsed.1.channel, Channel::Stable);
+            assert!(parsed.1.channel_explicit);
+        }
+        assert_eq!(parse(&["--help".into()]).unwrap().0, Operation::Help);
         assert!(parse(&["install".into(), "--channel".into()]).is_err());
         assert!(
             parse(&[
@@ -3789,12 +3841,57 @@ mod tests {
     #[test]
     fn non_install_operations_are_channel_neutral() {
         let mut response = RouterResponse::result(Operation::Status, true, "ok", "denied");
-        annotate_channel(&mut response, Operation::Status, Channel::Dev);
+        annotate_channel(&mut response, Operation::Status, Channel::Dev, false);
         assert_eq!(response.channel, "stable");
         assert!(!response.development_only);
-        annotate_channel(&mut response, Operation::Launch, Channel::Experimental);
-        assert_eq!(response.channel, "stable");
+        annotate_channel(
+            &mut response,
+            Operation::Launch,
+            Channel::Experimental,
+            true,
+        );
+        assert_eq!(response.channel, "experimental");
         assert!(!response.development_only);
+    }
+
+    struct NoopSource;
+
+    impl Source for NoopSource {
+        fn document(&mut self, _: &str, _: usize) -> Result<Vec<u8>, RouterError> {
+            Err(RouterError::operation("unexpected_document"))
+        }
+
+        fn range(&mut self, _: &str, _: u64, _: usize) -> Result<Vec<u8>, RouterError> {
+            Err(RouterError::operation("unexpected_range"))
+        }
+    }
+
+    #[test]
+    fn explicit_channels_are_typed_and_never_fallback() {
+        let scratch = Scratch::new("channel-routing");
+        let paths = RouterPaths::from_roots(
+            &scratch.0.join("data"),
+            &scratch.0.join("state"),
+            &scratch.0.join("cache"),
+        )
+        .unwrap();
+        let mut source = NoopSource;
+        for channel in [Channel::Nightly, Channel::Experimental] {
+            let options = Options {
+                channel,
+                channel_explicit: true,
+                ..Options::default()
+            };
+            let error = execute(Operation::Install, options, &paths, &mut source, 1).unwrap_err();
+            assert_eq!(error.code, "channel_unavailable");
+        }
+        let options = Options {
+            channel: Channel::Dev,
+            channel_explicit: true,
+            ..Options::default()
+        };
+        let error = execute(Operation::Status, options, &paths, &mut source, 1).unwrap_err();
+        assert_eq!(error.code, "channel_unavailable");
     }
 
     #[test]

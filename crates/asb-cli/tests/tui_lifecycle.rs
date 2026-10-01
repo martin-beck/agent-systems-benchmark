@@ -112,8 +112,11 @@ fn router_version_and_help_are_explicit_and_non_interactive() {
         .unwrap();
     assert!(help.status.success());
     let text = String::from_utf8(help.stdout).unwrap();
-    assert!(text.contains("asb tui install [--offline] [--dry-run] [--launch]"));
-    assert!(text.contains("asb tui status|doctor|remove"));
+    assert!(text.contains(
+        "asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]"
+    ));
+    assert!(text.contains("asb tui install|upgrade [--offline] [--dry-run] [--launch]"));
+    assert!(text.contains("asb tui --help"));
 }
 
 #[cfg(target_arch = "x86_64")]
