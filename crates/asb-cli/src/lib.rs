@@ -577,7 +577,16 @@ fn dispatch(
     mut replay_authority: Option<ReplayLaunchAuthority>,
     live_factory: Option<LiveProviderAttemptFactory>,
 ) -> Result<u8, CliError> {
-    let words = unicode_args(args)?;
+    // All ASB command results are already versioned JSON.  Accept the global
+    // selector explicitly so scripts can use one spelling across commands;
+    // retaining the selector here (rather than teaching every command parser
+    // about it) also keeps it valid in any conventional option position.
+    let raw_words = unicode_args(args)?;
+    let explicit_json = raw_words.iter().any(|word| word == "--json");
+    let words = raw_words
+        .into_iter()
+        .filter(|word| word != "--json")
+        .collect::<Vec<_>>();
     match words.as_slice() {
         [] => write_help(stdout).map(|()| 0),
         [word] if matches!(word.as_str(), "--help" | "-h") => write_help(stdout).map(|()| 0),
@@ -598,8 +607,16 @@ fn dispatch(
         {
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
+        [command] if command == "capabilities" && explicit_json => {
+            write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
+        }
         [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
-        [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
+         [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
+         [command, format, value]
+             if command == "provider-catalog" && format == "--format" && value == "json" =>
+         {
+             provider_catalog(stdout).map(|()| 0)
+         }
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
             configure_openrouter(stdout).map(|()| 0)
@@ -767,7 +784,9 @@ fn guided_local(
     if args[0] == "setup" {
         return guided_setup(&args[1..], output).map(|()| 0);
     }
-    if args[0] == "provider-catalog" && args.len() == 1 {
+    if args[0] == "provider-catalog"
+        && (args.len() == 1 || (args.len() == 3 && args[1] == "--format" && args[2] == "json"))
+    {
         return provider_catalog(output).map(|()| 0);
     }
     if args[0] == "adapter-catalog" && args.len() == 1 {
@@ -860,6 +879,9 @@ fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
     while index < args.len() {
         match args[index].as_str() {
             "--format=json" => index += 1,
+            "--format" if args.get(index + 1).is_some_and(|value| value == "json") => {
+                index += 2;
+            }
             "--provider-profile" | "--model" | "--output" => {
                 let value = args
                     .get(index + 1)
@@ -1025,7 +1047,9 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\n  asb tui install|upgrade [--offline] [--dry-run] [--launch]\n  asb tui --help\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor\n  asb setup [--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\n  asb tui install|upgrade [--offline] [--dry-run] [--launch]\n  asb tui --help\n  asb tui --version\n  asb provider-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nStructured command results are JSON on stdout; progress is on stderr.\nThe optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch]\n  asb tui install [--offline] [--dry-run] [--launch]\n  asb tui upgrade [--offline] [--dry-run] [--launch]\n  asb tui status|doctor|remove\n  asb tui --version\n  asb provider-catalog [--json]\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.tomL\n\nCommand results are versioned JSON on stdout; progress is on stderr. The global --json selector is accepted by every ASB command and is retained for explicit machine-readable invocations. The optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
+          "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\n  asb tui install|upgrade [--offline] [--dry-run] [--launch]\n  asb tui --help\n  asb tui --version\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --agent AGENT --credential-reference-sha256 SHA256 > selection.json\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --provider-selection selection.json\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nCommand results are versioned JSON on stdout; progress is on stderr. The global --json selector is accepted by every ASB command and is retained for explicit machine-readable invocations. The optional frontend is independently verified and installed under rootless XDG state; ASB contains no frontend rendering code. The capability probe is deterministic and side-effect-free. Provider planning is a side-effect-free dry run and never launches an agent or contacts a provider. The saved selection is content-pinned and must match the experiment agent, provider, model, and additional-settings identity."
     )
     .map_err(output_error)?;
     writeln!(output, "  asb plan create --workload WORKLOAD --agent-executable /absolute/agent --output PLAN.toml")
@@ -1081,9 +1105,13 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
                 index += 1;
                 continue;
             }
+            "--format" if args.get(index + 1).is_some_and(|value| value == "json") => {
+                index += 2;
+                continue;
+            }
             _ => {
                 return Err(CliError::usage(
-                    "setup accepts --provider-profile, --model, --output, and --format=json",
+                    "setup accepts --provider-profile, --model, --output, and --json (or --format=json)",
                 ));
             }
         };
@@ -6420,6 +6448,33 @@ mod tests {
         );
         assert_eq!(value["authentication"]["development_only"], true);
         assert_eq!(value["authentication"]["status"], "unavailable");
+    }
+
+    #[test]
+    fn global_json_selector_and_format_aliases_are_accepted() {
+        for args in [
+            vec!["provider-catalog", "--json"],
+            vec!["--json", "provider-catalog"],
+            vec!["provider-catalog", "--format", "json"],
+            vec!["easy", "provider-catalog", "--json"],
+        ] {
+            let (exit, value) = run_json(&args.into_iter().map(OsString::from).collect::<Vec<_>>());
+            assert_eq!(exit, 0);
+            assert_eq!(value["command"], "provider-catalog");
+            assert_eq!(value["ok"], true);
+        }
+
+        for args in [
+            vec!["setup", "--json"],
+            vec!["setup", "--format", "json"],
+            vec!["setup", "--format=json"],
+            vec!["easy", "setup", "--json"],
+        ] {
+            let (exit, value) = run_json(&args.into_iter().map(OsString::from).collect::<Vec<_>>());
+            assert_eq!(exit, 0);
+            assert_eq!(value["command"], "setup");
+            assert_eq!(value["provider_contact"], false);
+        }
     }
 
     #[test]
