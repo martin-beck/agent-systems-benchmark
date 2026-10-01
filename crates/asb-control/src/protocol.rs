@@ -67,22 +67,7 @@ pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 11] = [
-    CONTROL_V1,
-    CONTROL_MEASUREMENT_CATALOG_V1,
-    CONTROL_MEASUREMENT_SELECTION_V1,
-    CONTROL_AGENT_CATALOG_V1,
-    CONTROL_AGENT_LIFECYCLE_V1,
-    CONTROL_AUTH_V1,
-    CONTROL_PROVIDER_CATALOG_V1,
-    CONTROL_RECORDING_LIFECYCLE_V1,
-    CONTROL_AUTH_HELPER_V1,
-    CONTROL_RUNTIME_BOOTSTRAP_V1,
-    CONTROL_BENCHMARK_CATALOG_V1,
-];
-/// Exact versions including the additive cassette-control extension. Clients
-/// must opt in explicitly until the paired frontend advertises v1.12.
-pub const SUPPORTED_CONTROL_VERSIONS_WITH_CASSETTE: [ControlVersion; 12] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 12] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -95,6 +80,21 @@ pub const SUPPORTED_CONTROL_VERSIONS_WITH_CASSETTE: [ControlVersion; 12] = [
     CONTROL_RUNTIME_BOOTSTRAP_V1,
     CONTROL_BENCHMARK_CATALOG_V1,
     CONTROL_CASSETTE_CONTROL_V1,
+];
+/// Versions understood by frontends that have not adopted cassette control.
+/// They retain v1.11 as the highest common fallback.
+pub const SUPPORTED_CONTROL_VERSIONS_LEGACY: [ControlVersion; 11] = [
+    CONTROL_V1,
+    CONTROL_MEASUREMENT_CATALOG_V1,
+    CONTROL_MEASUREMENT_SELECTION_V1,
+    CONTROL_AGENT_CATALOG_V1,
+    CONTROL_AGENT_LIFECYCLE_V1,
+    CONTROL_AUTH_V1,
+    CONTROL_PROVIDER_CATALOG_V1,
+    CONTROL_RECORDING_LIFECYCLE_V1,
+    CONTROL_AUTH_HELPER_V1,
+    CONTROL_RUNTIME_BOOTSTRAP_V1,
+    CONTROL_BENCHMARK_CATALOG_V1,
 ];
 /// Absolute maximum frame accepted by the local control boundary.
 pub const MAX_CONTROL_FRAME_BYTES: u32 = 1024 * 1024;
@@ -2699,5 +2699,55 @@ mod benchmark_catalog_tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn cassette_control_is_admitted_only_at_v1_12() {
+        let digest = "a".repeat(64);
+        let call = ControlCall::RecordingReplayDispatch(crate::RecordingReplayDispatchParams {
+            idempotency_key: "replay-1".into(),
+            runner_instance_id: "runner-1".into(),
+            expected_generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            provider_profile_sha256: digest.clone(),
+            agent_id: "agent-1".into(),
+            workload_id: "workload-1".into(),
+            cassette_sha256: digest.clone(),
+        });
+        let response = BoundControlResult::new(
+            &call,
+            ControlResult::RecordingReplayDispatch(crate::RecordingReplayDispatch {
+                runner_instance_id: "runner-1".into(),
+                generation: Revision(1),
+                campaign_id: "campaign-1".into(),
+                provider_profile_sha256: digest.clone(),
+                agent_id: "agent-1".into(),
+                workload_id: "workload-1".into(),
+                cassette_sha256: digest,
+                offline_only: true,
+            }),
+        )
+        .unwrap();
+        assert!(
+            response
+                .validate_for_call_and_version(
+                    &call,
+                    ControlLimits::default(),
+                    CONTROL_CASSETTE_CONTROL_V1,
+                )
+                .is_ok()
+        );
+        assert!(
+            response
+                .validate_for_call_and_version(
+                    &call,
+                    ControlLimits::default(),
+                    CONTROL_RUNTIME_BOOTSTRAP_V1,
+                )
+                .is_err()
+        );
+        assert!(SUPPORTED_CONTROL_VERSIONS.contains(&CONTROL_CASSETTE_CONTROL_V1));
+        assert!(SUPPORTED_CONTROL_VERSIONS_LEGACY.contains(&CONTROL_RUNTIME_BOOTSTRAP_V1));
+        assert!(!SUPPORTED_CONTROL_VERSIONS_LEGACY.contains(&CONTROL_CASSETTE_CONTROL_V1));
     }
 }

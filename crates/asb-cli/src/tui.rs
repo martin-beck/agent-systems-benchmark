@@ -2961,7 +2961,7 @@ mod tests {
     use super::*;
     use asb_control::{
         ControlBackend, ControlCall, ControlClient, ControlResult, RequestDeadline,
-        SUPPORTED_CONTROL_VERSIONS,
+        SUPPORTED_CONTROL_VERSIONS_LEGACY,
     };
     #[cfg(feature = "cross-repo-qualification")]
     use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
@@ -3266,12 +3266,12 @@ mod tests {
         let mut client = ControlClient::connect_with_versions(
             &control_path,
             ControlLimits::default(),
-            SUPPORTED_CONTROL_VERSIONS,
+            SUPPORTED_CONTROL_VERSIONS_LEGACY,
         )
         .unwrap();
         assert_eq!(
             client.negotiated().version,
-            asb_control::CONTROL_BENCHMARK_CATALOG_V1
+            asb_control::CONTROL_RUNTIME_BOOTSTRAP_V1
         );
         assert_eq!(client.negotiated().runner_instance_id, expected_runner);
         let timeout = client.negotiated().limits.max_timeout_ms;
