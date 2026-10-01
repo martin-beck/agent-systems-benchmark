@@ -175,6 +175,8 @@ struct RouterResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     source_tree: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    warnings: Option<Vec<&'static str>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     verified: Option<bool>,
 }
 
@@ -193,6 +195,7 @@ impl RouterResponse {
             executable_sha256: None,
             source_commit: None,
             source_tree: None,
+            warnings: None,
             verified: None,
         }
     }
@@ -587,7 +590,11 @@ fn execute(
     match operation {
         Operation::Install | Operation::Upgrade => {
             if options.channel == Channel::Dev {
-                return materialize_development(operation, paths, now);
+                prepare_private_directory(&paths.state_root)?;
+                let lock = open_lock(&paths.state_root.join("router.lock"))?;
+                lock.try_lock()
+                    .map_err(|_| RouterError::operation("lifecycle_busy"))?;
+                return materialize_development(operation, options, paths, now);
             }
             if options.channel != Channel::Stable {
                 return Err(RouterError::policy("channel_unavailable"));
@@ -596,6 +603,12 @@ fn execute(
         }
         Operation::Status | Operation::Remove | Operation::Launch => {
             if existing_channel(options, paths)? == Channel::Dev {
+                if operation == Operation::Remove {
+                    prepare_private_directory(&paths.state_root)?;
+                    let lock = open_lock(&paths.state_root.join("router.lock"))?;
+                    lock.try_lock()
+                        .map_err(|_| RouterError::operation("lifecycle_busy"))?;
+                }
                 execute_development_existing(operation, paths)
             } else {
                 delegate_existing(operation, paths)
@@ -804,9 +817,15 @@ fn install_or_upgrade(
 
 fn materialize_development(
     operation: Operation,
+    options: Options,
     paths: &RouterPaths,
     now: u64,
 ) -> Result<RouterResponse, RouterError> {
+    if options.offline {
+        return Err(RouterError::policy(
+            "development_source_unavailable_offline",
+        ));
+    }
     let (asb_source_commit, asb_source_tree) = development_source_identity()?;
     let git = resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
     let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
@@ -943,6 +962,17 @@ fn materialize_development(
             installed_unix: now,
         })
         .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
+        if options.dry_run {
+            let mut response =
+                RouterResponse::result(operation, true, "development_dry_run", "used");
+            response.channel = "dev";
+            response.development_only = true;
+            response.executable_sha256 = Some(executable_sha256);
+            response.source_commit = Some(commit);
+            response.source_tree = Some(source_tree);
+            response.warnings = Some(development_warnings());
+            return Ok(response);
+        }
         publish_development_version(&paths.install_root, &executable_sha256, &bytes, &metadata)?;
         let mut response = RouterResponse::result(operation, true, "development_built", "used");
         response.channel = "dev";
@@ -950,6 +980,14 @@ fn materialize_development(
         response.executable_sha256 = Some(executable_sha256);
         response.source_commit = Some(commit);
         response.source_tree = Some(source_tree);
+        response.warnings = Some(development_warnings());
+        if options.launch {
+            let launched = execute_development_existing(Operation::Launch, paths)?;
+            if !launched.ok {
+                return Err(RouterError::operation("development_launch_failed"));
+            }
+            response.code = "development_built_and_launched";
+        }
         Ok(response)
     })();
     let cleanup = match fs::remove_dir_all(&root) {
@@ -1010,8 +1048,17 @@ fn development_response(
     response.executable_sha256 = Some(active.executable_sha256.clone());
     response.source_commit = Some(active.source_commit.clone());
     response.source_tree = Some(active.source_tree.clone());
+    response.warnings = Some(development_warnings());
     response.verified = Some(false);
     response
+}
+
+fn development_warnings() -> Vec<&'static str> {
+    vec![
+        "development_missing_authentication_allowed",
+        "development_missing_signatures_allowed",
+        "development_missing_key_management_allowed",
+    ]
 }
 
 fn development_active(
@@ -1635,6 +1682,7 @@ fn response_from_delegated(
         executable_sha256: delegated.executable_sha256,
         source_commit: None,
         source_tree: None,
+        warnings: None,
         verified: delegated.verified,
     })
 }
@@ -4027,6 +4075,17 @@ mod tests {
             .is_err()
         );
         assert!(parse(&["install".into(), "--offline".into(), "--offline".into()]).is_err());
+        for flag in ["--offline", "--dry-run", "--launch"] {
+            let (_, options) = parse(&["install".into(), flag.into()]).unwrap();
+            assert_eq!(
+                (options.offline, options.dry_run, options.launch),
+                match flag {
+                    "--offline" => (true, false, false),
+                    "--dry-run" => (false, true, false),
+                    _ => (false, false, true),
+                }
+            );
+        }
         assert!(parse(&["render".into()]).is_err());
     }
 
@@ -4515,6 +4574,14 @@ mod tests {
         assert_eq!(status.channel, "dev");
         assert_eq!(status.source_commit, Some("a".repeat(40)));
         assert_eq!(status.source_tree, Some("b".repeat(40)));
+        assert_eq!(
+            status.warnings,
+            Some(vec![
+                "development_missing_authentication_allowed",
+                "development_missing_signatures_allowed",
+                "development_missing_key_management_allowed",
+            ])
+        );
         let active_before_remove = development_active(&paths).unwrap().unwrap().0;
         assert_eq!(
             remove_development_installation(&paths, &active_before_remove, true)
