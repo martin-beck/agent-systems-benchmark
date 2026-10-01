@@ -2926,6 +2926,29 @@ mod tests {
                 .is_ok()
         );
         assert!(matches!(
+            backend
+                .execute(
+                    &ControlCall::MeasurementCatalog,
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .expect("development measurement catalog")
+                .result,
+            ControlResult::MeasurementCatalog(_)
+        ));
+        assert!(matches!(
+            backend
+                .execute(
+                    &ControlCall::History(asb_control::PageParams {
+                        after: None,
+                        limit: 10,
+                    }),
+                    RequestDeadline::start(100).unwrap(),
+                )
+                .expect("development history")
+                .result,
+            ControlResult::History(_)
+        ));
+        assert!(matches!(
             backend.execute(
                 &ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
                     provider: "development".into(),
