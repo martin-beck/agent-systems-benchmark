@@ -1415,6 +1415,42 @@
           ]
         },
         {
+          "description": "Digest-only sealed cassette metadata.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "recording_cassette_catalog"
+            },
+            "value": {
+              "$ref": "#/$defs/RecordingCassetteCatalog"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "Accepted provider-free replay dispatch.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "recording_replay_dispatch"
+            },
+            "value": {
+              "$ref": "#/$defs/RecordingReplayDispatch"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
           "description": "Recent run page.",
           "type": "object",
           "properties": {
@@ -3003,6 +3039,126 @@
       "required": [
         "runner_instance_id",
         "generation"
+      ]
+    },
+    "RecordingCassetteCatalog": {
+      "description": "Authenticated sealed-cassette catalog for a campaign.",
+      "type": "object",
+      "properties": {
+        "campaign_id": {
+          "description": "Stable campaign identity.",
+          "type": "string"
+        },
+        "entries": {
+          "description": "Bounded sealed-cassette entries.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordingCassetteEntry"
+          }
+        },
+        "generation": {
+          "description": "Setup generation used by the campaign.",
+          "$ref": "#/$defs/Revision"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id",
+        "generation",
+        "campaign_id",
+        "entries"
+      ]
+    },
+    "RecordingCassetteEntry": {
+      "description": "Digest-only identity of one sealed cassette; contents and paths never cross\nthe control boundary.",
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "description": "Selected agent identity.",
+          "type": "string"
+        },
+        "cassette_id": {
+          "description": "Stable cassette identity from the sealed contents.",
+          "type": "string"
+        },
+        "cassette_sha256": {
+          "description": "Authenticated cassette root digest.",
+          "type": "string"
+        },
+        "provider_profile_sha256": {
+          "description": "Credential-free provider profile identity.",
+          "type": "string"
+        },
+        "scorer_revision": {
+          "description": "Scorer revision used for the tuple.",
+          "type": "string"
+        },
+        "workload_id": {
+          "description": "Selected workload identity.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cassette_id",
+        "cassette_sha256",
+        "provider_profile_sha256",
+        "agent_id",
+        "workload_id",
+        "scorer_revision"
+      ]
+    },
+    "RecordingReplayDispatch": {
+      "description": "Result of an accepted strict offline replay dispatch.",
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "description": "Selected agent identity.",
+          "type": "string"
+        },
+        "campaign_id": {
+          "description": "Stable campaign identity.",
+          "type": "string"
+        },
+        "cassette_sha256": {
+          "description": "Exact authenticated cassette root digest.",
+          "type": "string"
+        },
+        "generation": {
+          "description": "Setup generation used by the campaign.",
+          "$ref": "#/$defs/Revision"
+        },
+        "offline_only": {
+          "description": "Always true: this dispatch never contacts a provider.",
+          "type": "boolean"
+        },
+        "provider_profile_sha256": {
+          "description": "Credential-free provider profile identity.",
+          "type": "string"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity.",
+          "type": "string"
+        },
+        "workload_id": {
+          "description": "Selected workload identity.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id",
+        "generation",
+        "campaign_id",
+        "provider_profile_sha256",
+        "agent_id",
+        "workload_id",
+        "cassette_sha256",
+        "offline_only"
       ]
     },
     "RequestId": {

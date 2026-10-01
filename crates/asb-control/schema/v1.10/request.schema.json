@@ -444,6 +444,40 @@
       ]
     },
     {
+      "description": "Read digest-only sealed cassette metadata for one campaign.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_cassette_catalog"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCassetteCatalogRequest"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Dispatch one exact cassette through the provider-free replay boundary.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_replay_dispatch"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingReplayDispatchParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Cancel a recording campaign before offline activation.",
       "type": "object",
       "properties": {
@@ -484,6 +518,74 @@
         "method": {
           "type": "string",
           "const": "recording_campaign_offline_default"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Seal a campaign after validating complete cassette coverage.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_seal"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Reopen a sealed/failed campaign for a new bounded capture attempt.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_reopen"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Remove a campaign and its development-only cassette artifacts.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_remove"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Retry a failed or reconciled campaign without changing its identity.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_retry"
         },
         "params": {
           "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
@@ -2182,6 +2284,82 @@
       "additionalProperties": false,
       "required": [
         "runner_instance_id"
+      ]
+    },
+    "RecordingCassetteCatalogRequest": {
+      "description": "Read-only request for sealed cassette metadata belonging to one campaign.",
+      "type": "object",
+      "properties": {
+        "campaign_id": {
+          "description": "Exact campaign to inspect.",
+          "type": "string"
+        },
+        "expected_generation": {
+          "description": "Setup generation used by the campaign.",
+          "$ref": "#/$defs/Revision"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity received during negotiation.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "runner_instance_id",
+        "campaign_id",
+        "expected_generation"
+      ]
+    },
+    "RecordingReplayDispatchParams": {
+      "description": "Request an exact provider-free replay dispatch.",
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "description": "Selected agent identity.",
+          "type": "string"
+        },
+        "campaign_id": {
+          "description": "Stable campaign identity.",
+          "type": "string"
+        },
+        "cassette_sha256": {
+          "description": "Exact authenticated cassette root digest.",
+          "type": "string"
+        },
+        "expected_generation": {
+          "description": "Setup generation used by the campaign.",
+          "$ref": "#/$defs/Revision"
+        },
+        "idempotency_key": {
+          "description": "Retry-safe mutation identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "provider_profile_sha256": {
+          "description": "Credential-free provider profile identity.",
+          "type": "string"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity received during negotiation.",
+          "type": "string"
+        },
+        "workload_id": {
+          "description": "Selected workload identity.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "runner_instance_id",
+        "expected_generation",
+        "campaign_id",
+        "provider_profile_sha256",
+        "agent_id",
+        "workload_id",
+        "cassette_sha256"
       ]
     },
     "RepeatParams": {

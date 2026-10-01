@@ -506,6 +506,18 @@ fn cassette_artifact_valid(root: &Path, digest: &str) -> bool {
     cassette.integrity.digest == digest
 }
 
+fn remove_cassette_artifact(root: &Path, digest: &str) -> Result<(), BackendFailure> {
+    if asb_control::validate_digest(digest).is_err() {
+        return Err(BackendFailure::Rejected);
+    }
+    let path = root.join("cassettes").join(format!("{digest}.json"));
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(BackendFailure::NeedsReconciliation),
+    }
+}
+
 fn persist_cassette_artifact(
     root: &Path,
     result: &ProviderCaptureResult,
@@ -1280,7 +1292,7 @@ pub(crate) fn open_qualified_cassette_backend(
             &ControlCall::RecordingCampaignExecute(asb_control::RecordingCampaignExecuteParams {
                 idempotency_key: "qualification-execute".into(),
                 expected_generation: Revision(2),
-                runner_instance_id: runner,
+                runner_instance_id: runner.clone(),
                 campaign_id: plan.campaign_id.clone(),
             }),
             RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
@@ -1613,6 +1625,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     | "complete"
                     | "cancelled"
                     | "failed"
+                    | "removed"
             )
             || campaign.tuple_count
                 != u16::try_from(
@@ -1948,6 +1961,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                                 | "complete"
                                 | "cancelled"
                                 | "failed"
+                                | "removed"
                         )
                 }),
                 _ => false,
@@ -4191,9 +4205,10 @@ impl RunnerBackend {
             return Err(BackendFailure::StaleIdentity);
         }
         if matches!(action, RecordingLifecycleAction::Retry) {
+            let reset_key = format!("{key}:retry-reset");
             let reset = self.mutation(
                 call,
-                key,
+                &reset_key,
                 MutationTarget::RecordingCampaignLifecycle {
                     campaign_id: campaign_id.to_owned(),
                     action: "retry_reset".to_owned(),
@@ -4229,7 +4244,7 @@ impl RunnerBackend {
             reset?;
             return self.recording_campaign_execute(
                 call,
-                key,
+                &format!("{key}:retry-execute"),
                 expected_generation,
                 campaign_id,
                 deadline,
@@ -4255,7 +4270,25 @@ impl RunnerBackend {
             action: action.name().to_owned(),
         };
         let runner_instance_id = self.runner_instance_id.clone();
-        self.mutation(call, key, target, deadline, |catalog| {
+        let remove_digests = if matches!(action, RecordingLifecycleAction::Remove) {
+            self.catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?
+                .recording_campaign
+                .as_ref()
+                .filter(|record| record.campaign_id == campaign_id)
+                .map(|record| {
+                    record
+                        .coverage
+                        .iter()
+                        .filter_map(|entry| entry.cassette_sha256.clone())
+                        .collect::<Vec<_>>()
+                })
+                .ok_or(BackendFailure::NotFound)?
+        } else {
+            Vec::new()
+        };
+        let result = self.mutation(call, key, target, deadline, |catalog| {
             let record = catalog
                 .recording_campaign
                 .as_mut()
@@ -4372,7 +4405,15 @@ impl RunnerBackend {
                 unavailable_reason: record.unavailable_reason.clone(),
             };
             Ok(ControlResult::RecordingCampaignLifecycle(projection))
-        })
+        })?;
+        if matches!(action, RecordingLifecycleAction::Remove) {
+            for digest in remove_digests {
+                if let Err(error) = remove_cassette_artifact(&self.state_root, &digest) {
+                    return Err(error);
+                }
+            }
+        }
+        Ok(result)
     }
 
     fn recording_campaign_execute(
@@ -7746,11 +7787,39 @@ mod tests {
         // durably recorded; it never retries the provider effect.
         assert_eq!(execute(reconcile_call.clone()).unwrap(), reconciled);
 
+        // Retry derives independent durable mutation keys for reset and
+        // execution. Reusing the operator key must therefore not produce an
+        // idempotency conflict when the provider is unavailable.
+        let retry_call =
+            ControlCall::RecordingCampaignRetry(asb_control::RecordingCampaignRetryParams {
+                idempotency_key: "lifecycle-retry".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        assert_eq!(
+            execute(retry_call),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+
+        let reopen_call =
+            ControlCall::RecordingCampaignReopen(asb_control::RecordingCampaignReopenParams {
+                idempotency_key: "lifecycle-reopen".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        let reopened = execute(reopen_call).unwrap();
+        assert!(matches!(
+            reopened.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "planned"
+        ));
+
         let cancel_call =
             ControlCall::RecordingCampaignCancel(asb_control::RecordingCampaignCancelParams {
                 idempotency_key: "lifecycle-cancel".into(),
                 expected_generation: Revision(2),
-                runner_instance_id: runner,
+                runner_instance_id: runner.clone(),
                 campaign_id: plan.campaign_id.clone(),
             });
         let cancelled = execute(cancel_call.clone()).unwrap();
@@ -7759,6 +7828,18 @@ mod tests {
             ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "cancelled"
         ));
         assert_eq!(execute(cancel_call.clone()).unwrap(), cancelled);
+        let remove_call =
+            ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
+                idempotency_key: "lifecycle-remove".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner,
+                campaign_id: plan.campaign_id.clone(),
+            });
+        let removed = execute(remove_call).unwrap();
+        assert!(matches!(
+            removed.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "removed"
+        ));
         backend
             .execute(&status_after_failure, deadline())
             .unwrap()

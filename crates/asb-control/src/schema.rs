@@ -360,6 +360,10 @@ fn remove_recording_lifecycle_variants(value: &mut Value) {
         "recording_campaign_cancel",
         "recording_campaign_reconcile",
         "recording_campaign_offline_default",
+        "recording_campaign_seal",
+        "recording_campaign_reopen",
+        "recording_campaign_remove",
+        "recording_campaign_retry",
         "recording_campaign_lifecycle",
     ] {
         remove_tagged_variant(value, "/oneOf", tag);
