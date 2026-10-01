@@ -1867,7 +1867,7 @@ struct AdapterCatalogOutput {
     adapters: &'static [AdapterCatalogEntry],
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 #[serde(deny_unknown_fields)]
 struct AdapterCatalogEntry {
     id: &'static str,
@@ -1900,18 +1900,28 @@ const ADAPTER_CATALOG: [AdapterCatalogEntry; 2] = [
 ];
 
 fn adapter_catalog_digest() -> String {
+    adapter_catalog_digest_for(&ADAPTER_CATALOG)
+}
+
+fn adapter_catalog_digest_for(adapters: &[AdapterCatalogEntry]) -> String {
     let mut digest = Sha256::new();
     digest.update(b"asb-cli-adapter-catalog-v1\0");
-    for adapter in ADAPTER_CATALOG {
-        digest.update(adapter.id.as_bytes());
-        for provider in adapter.providers {
-            digest.update(provider.as_bytes());
-            digest.update([0]);
+    for adapter in adapters {
+        for field in [
+            adapter.id,
+            adapter.model_constraint,
+            adapter.authentication_reference,
+            adapter.availability,
+            adapter.diagnostic,
+        ] {
+            digest.update((field.len() as u64).to_be_bytes());
+            digest.update(field.as_bytes());
         }
-        digest.update(adapter.model_constraint.as_bytes());
-        digest.update([0]);
-        digest.update(adapter.authentication_reference.as_bytes());
-        digest.update([0]);
+        digest.update((adapter.providers.len() as u64).to_be_bytes());
+        for provider in adapter.providers {
+            digest.update((provider.len() as u64).to_be_bytes());
+            digest.update(provider.as_bytes());
+        }
     }
     format!("{:x}", digest.finalize())
 }
@@ -7402,6 +7412,21 @@ mod tests {
                     .contains("do not block")
             );
             assert!(!adapter.to_string().contains("OPENROUTER_API_KEY="));
+        }
+    }
+
+    #[test]
+    fn adapter_catalog_digest_binds_every_serialized_semantic_field() {
+        let baseline = adapter_catalog_digest();
+        for mutate in [
+            |entry: &mut AdapterCatalogEntry| entry.availability = "changed",
+            |entry: &mut AdapterCatalogEntry| entry.diagnostic = "changed",
+            |entry: &mut AdapterCatalogEntry| entry.model_constraint = "changed",
+            |entry: &mut AdapterCatalogEntry| entry.authentication_reference = "changed",
+        ] {
+            let mut entries = ADAPTER_CATALOG;
+            mutate(&mut entries[0]);
+            assert_ne!(baseline, adapter_catalog_digest_for(&entries));
         }
     }
 
