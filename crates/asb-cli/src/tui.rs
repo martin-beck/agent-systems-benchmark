@@ -569,6 +569,21 @@ fn execute(
     }
 }
 
+fn development_source_identity() -> Result<(&'static str, &'static str), RouterError> {
+    development_source_identity_from(ASB_SOURCE_COMMIT, ASB_SOURCE_TREE)
+}
+
+fn development_source_identity_from(
+    commit: &'static str,
+    tree: &'static str,
+) -> Result<(&'static str, &'static str), RouterError> {
+    if valid_hex(commit, 40) && valid_hex(tree, 40) {
+        Ok((commit, tree))
+    } else {
+        Err(RouterError::policy("dev_source_identity_unknown"))
+    }
+}
+
 fn install_or_upgrade(
     operation: Operation,
     options: Options,
@@ -724,6 +739,7 @@ fn materialize_development(
     paths: &RouterPaths,
     now: u64,
 ) -> Result<RouterResponse, RouterError> {
+    let (asb_source_commit, asb_source_tree) = development_source_identity()?;
     validate_tool(DEV_GIT)?;
     validate_tool(DEV_CARGO)?;
     validate_tool(DEV_SETSID)?;
@@ -831,8 +847,8 @@ fn materialize_development(
             source_repository: DEV_REPOSITORY_URL.to_owned(),
             source_commit: commit,
             source_tree,
-            asb_source_commit: ASB_SOURCE_COMMIT.to_owned(),
-            asb_source_tree: ASB_SOURCE_TREE.to_owned(),
+            asb_source_commit: asb_source_commit.to_owned(),
+            asb_source_tree: asb_source_tree.to_owned(),
             executable_sha256: executable_sha256.clone(),
             installed_unix: now,
         })
@@ -880,6 +896,7 @@ fn development_active(
     if !marker.exists() {
         return Ok(None);
     }
+    let (asb_source_commit, asb_source_tree) = development_source_identity()?;
     validate_private_directory(&paths.install_root)?;
     let bytes = read_bounded(&marker, 64 * 1024)
         .map_err(|_| RouterError::policy("development_installation_invalid"))?;
@@ -891,8 +908,8 @@ fn development_active(
         || active.source_repository != DEV_REPOSITORY_URL
         || !valid_hex(&active.source_commit, 40)
         || !valid_hex(&active.source_tree, 40)
-        || active.asb_source_commit != ASB_SOURCE_COMMIT
-        || active.asb_source_tree != ASB_SOURCE_TREE
+        || active.asb_source_commit != asb_source_commit
+        || active.asb_source_tree != asb_source_tree
         || !valid_hex(&active.executable_sha256, 64)
     {
         return Err(RouterError::policy("development_installation_invalid"));
@@ -2688,6 +2705,19 @@ mod tests {
         );
         assert!(parse(&["install".into(), "--offline".into(), "--offline".into()]).is_err());
         assert!(parse(&["render".into()]).is_err());
+    }
+
+    #[test]
+    fn development_identity_unknown_is_typed_and_fail_closed() {
+        let error = development_source_identity_from("", "").unwrap_err();
+        assert_eq!(error.code, "dev_source_identity_unknown");
+        assert!(
+            development_source_identity_from(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            )
+            .is_ok()
+        );
     }
 
     #[cfg(unix)]
