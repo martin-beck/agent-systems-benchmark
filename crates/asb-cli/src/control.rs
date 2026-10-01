@@ -1368,6 +1368,7 @@ fn open_backend_with_options(
     ) {
         catalog.agent_catalog = Some(index);
     }
+    cleanup_removed_campaign_artifacts(&state_root, &catalog)?;
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
     let cancelled = Arc::clone(&orchestration.cancelled);
@@ -1382,6 +1383,33 @@ fn open_backend_with_options(
         cancelled,
         lifecycle_verifier,
     })
+}
+
+/// Complete tombstoned campaign cleanup after a crash between catalog commit
+/// and artifact unlink. Cleanup is exact-digest and idempotent: missing files
+/// are already clean, while any other filesystem failure keeps startup
+/// fail-closed so the tombstone remains durable for a later retry.
+fn cleanup_removed_campaign_artifacts(root: &Path, catalog: &Catalog) -> Result<(), CliError> {
+    let Some(campaign) = catalog
+        .recording_campaign
+        .as_ref()
+        .filter(|campaign| campaign.state == "removed")
+    else {
+        return Ok(());
+    };
+    for digest in campaign
+        .coverage
+        .iter()
+        .filter_map(|entry| entry.cassette_sha256.as_deref())
+    {
+        let path = root.join("cassettes").join(format!("{digest}.json"));
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => return Err(CliError::operation("removed cassette cleanup failed")),
+        }
+    }
+    Ok(())
 }
 
 fn load_config(path: &Path) -> Result<ServiceConfig, CliError> {
@@ -4408,9 +4436,7 @@ impl RunnerBackend {
         })?;
         if matches!(action, RecordingLifecycleAction::Remove) {
             for digest in remove_digests {
-                if let Err(error) = remove_cassette_artifact(&self.state_root, &digest) {
-                    return Err(error);
-                }
+                remove_cassette_artifact(&self.state_root, &digest)?;
             }
         }
         Ok(result)
