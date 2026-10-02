@@ -12,6 +12,22 @@ the enrollment record is safe to persist with `to_json` and restore with
 `from_json`. Backends must keep values private and return only
 `connected`, `rejected`, `expired` or `unavailable` probe outcomes.
 
+## Development CLI setup
+
+The development CLI exposes a deliberately ephemeral OpenRouter setup path:
+
+```text
+printf '%s\\n' "$OPENROUTER_API_KEY" | asb auth setup --provider openrouter --api-key-stdin --json
+```
+
+The command validates the key at the resolver boundary, immediately drops it,
+and returns only a typed `configured` flag and development-only warning. It does
+not persist the key, include it in JSON, logs, argv, evidence, or the provider
+selection digest. Without `--api-key-stdin`, it checks the existing
+`OPENROUTER_API_KEY` environment channel and returns a warning-only unavailable
+state when no key is present. This command does not contact OpenRouter; live
+provider reachability remains an explicit runtime operation.
+
 Every probe carries the enrollment generation. A replacement increments the
 generation and resets status to `untested`, so a delayed probe cannot restore a
 stale credential. Revocation is terminal for the record. No environment,
