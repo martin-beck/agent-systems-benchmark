@@ -7,6 +7,10 @@ follow, terminal state, report, compare, record, and replay.
 
 ## Choose a route
 
+For the complete install-to-compare path, start with the [operator
+quickstart](../OPERATOR_QUICKSTART.md). It is the concise entry point; the
+workflow pages below provide the contracts and recovery details.
+
 | Goal | CLI | TUI/control surface |
 | --- | --- | --- |
 | Check benchmark readiness offline | [Benchmark readiness](benchmark-readiness.md) | Same configuration boundary |
