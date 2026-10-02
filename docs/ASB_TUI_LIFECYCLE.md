@@ -43,6 +43,17 @@ Each promotion records the exact source commit and tree before artifact publicat
 
 Hosted qualification is a prerequisite for changing the public channel classification.
 
+For development integration tests and paired ASB/TUI worktrees, set
+`ASB_TUI_DEV_BUNDLE` to a private bundle directory containing `asb-tui` and
+the `manifest.json` emitted by the TUI repository's `tools/build-dev-bundle.py`.
+ASB consumes that exact executable and verifies its bounded manifest, digest,
+target, TUI source commit/tree, and matching ASB source commit/tree before it
+is installed. This is an explicit `development_only` override: it is never
+consulted by the stable channel, does not add authentication or signature
+requirements to development, and cannot silently turn an independently built
+checkout into the tested TUI artifact. The consumed manifest and executable
+remain content-addressed in the normal development installation state.
+
 The channel remains fail-closed until every required artifact and evidence identity is immutable.
 
 The default `dev` channel is a credential-free development qualification path. On a

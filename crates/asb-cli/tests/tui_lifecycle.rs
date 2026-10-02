@@ -54,6 +54,22 @@ impl Scratch {
         }
         command.output().unwrap()
     }
+
+    #[cfg(target_arch = "x86_64")]
+    fn command_with_args(&self, args: &[&str], bundle: Option<&Path>) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_asb"));
+        command
+            .args(args)
+            .env_clear()
+            .env("HOME", self.0.join("home"))
+            .env("XDG_DATA_HOME", self.0.join("data"))
+            .env("XDG_STATE_HOME", self.0.join("state"))
+            .env("XDG_CACHE_HOME", self.0.join("cache"));
+        if let Some(bundle) = bundle {
+            command.env("ASB_TUI_DEV_BUNDLE", bundle);
+        }
+        command.output().unwrap()
+    }
 }
 
 impl Drop for Scratch {
@@ -117,6 +133,192 @@ fn router_version_and_help_are_explicit_and_non_interactive() {
     ));
     assert!(text.contains("asb tui install|upgrade [--offline] [--dry-run] [--launch]"));
     assert!(text.contains("asb tui --help"));
+}
+
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
+    let scratch = Scratch::new();
+    let bundle = scratch.0.join("pr214-development-bundle");
+    fs::create_dir_all(&bundle).unwrap();
+    fs::set_permissions(&bundle, fs::Permissions::from_mode(0o700)).unwrap();
+    let executable = include_bytes!("../fixtures/tui/interactive-candidate.sh");
+    fs::write(bundle.join("asb-tui"), executable).unwrap();
+    fs::set_permissions(bundle.join("asb-tui"), fs::Permissions::from_mode(0o700)).unwrap();
+
+    let identity = include_str!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
+    let identity_value = |name: &str| {
+        identity
+            .lines()
+            .find_map(|line| line.strip_prefix(&format!("pub const {name}: &str = \"")))
+            .and_then(|value| value.strip_suffix("\";"))
+            .unwrap()
+            .to_owned()
+    };
+    let commit = identity_value("COMMIT");
+    let tree = identity_value("TREE");
+    let mut manifest: Value = serde_json::from_str(include_str!(
+        "../fixtures/tui/pr214-development-manifest.json"
+    ))
+    .unwrap();
+    manifest["asb_source_commit"] = commit.into();
+    manifest["asb_source_tree"] = tree.into();
+    let original_manifest = manifest.clone();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let install =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(install.status.code(), Some(0), "{install:?}");
+    let verified = response(&install);
+    assert_eq!(verified["code"], "development_bundle_verified");
+    assert_eq!(
+        verified["source_commit"],
+        "7bcd4c4ca09531b109e12dc3579c212abc9dcf88"
+    );
+    assert_eq!(verified["channel"], "dev");
+
+    let consumed = scratch.command_with_args(&["--json", "tui", "install"], Some(&bundle));
+    assert_eq!(consumed.status.code(), Some(0), "{consumed:?}");
+    assert_eq!(response(&consumed)["code"], "development_bundle_consumed");
+
+    // Development bundles are rebuilt as the TUI main branch advances.  The
+    // consumer pins the repository/ref and validates the provenance shape,
+    // but must not reject a newer valid commit/tree pair.
+    let mut rotated_provenance = original_manifest.clone();
+    rotated_provenance["source_commit"] = "3".repeat(40).into();
+    rotated_provenance["source_tree"] = "4".repeat(40).into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&rotated_provenance).unwrap(),
+    )
+    .unwrap();
+    let rotated =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rotated.status.code(), Some(0), "{rotated:?}");
+    assert_eq!(response(&rotated)["code"], "development_bundle_verified");
+
+    let status = scratch.command("status");
+    assert_eq!(status.status.code(), Some(0), "{status:?}");
+    let installed = response(&status);
+    assert_eq!(
+        installed["source_commit"],
+        "7bcd4c4ca09531b109e12dc3579c212abc9dcf88"
+    );
+    assert_eq!(installed["channel"], "dev");
+
+    let mut invalid_warning = original_manifest.clone();
+    invalid_warning["warnings"] = serde_json::json!(["development_missing_authentication_allowed"]);
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&invalid_warning).unwrap(),
+    )
+    .unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+
+    let mut invalid_provenance = original_manifest.clone();
+    invalid_provenance["source_tree"] = "z".repeat(40).into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&invalid_provenance).unwrap(),
+    )
+    .unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&original_manifest).unwrap(),
+    )
+    .unwrap();
+    let offline =
+        scratch.command_with_args(&["--json", "tui", "install", "--offline"], Some(&bundle));
+    assert_eq!(offline.status.code(), Some(3));
+    assert_eq!(
+        response(&offline)["code"],
+        "development_source_unavailable_offline"
+    );
+
+    for (field, value) in [
+        ("schema_version", serde_json::json!(2)),
+        ("channel", serde_json::json!("nightly")),
+        ("development_only", serde_json::json!(false)),
+        (
+            "source_repository",
+            serde_json::json!("https://invalid.example/tui.git"),
+        ),
+        ("source_ref", serde_json::json!("refs/tags/v0")),
+        ("target", serde_json::json!("aarch64-unknown-linux-gnu")),
+        ("built_unix", serde_json::json!(0)),
+    ] {
+        let mut invalid = original_manifest.clone();
+        invalid[field] = value;
+        fs::write(
+            bundle.join("manifest.json"),
+            serde_json::to_vec_pretty(&invalid).unwrap(),
+        )
+        .unwrap();
+        let rejected =
+            scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+        assert_eq!(rejected.status.code(), Some(3));
+        assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+    }
+
+    // Exercise each authenticated provenance gate independently.  Keeping
+    // the other fields from the known-good manifest proves that a rotated
+    // source pair is accepted while an identity mismatch or malformed digest
+    // is rejected before the executable is considered for installation.
+    for (field, value) in [
+        ("asb_source_commit", serde_json::json!("5".repeat(40))),
+        ("asb_source_tree", serde_json::json!("6".repeat(40))),
+        ("source_commit", serde_json::json!("not-a-commit")),
+        ("source_tree", serde_json::json!("not-a-tree")),
+        ("executable_sha256", serde_json::json!("not-a-digest")),
+        ("executable_size", serde_json::json!(0)),
+    ] {
+        let mut invalid = original_manifest.clone();
+        invalid[field] = value;
+        fs::write(
+            bundle.join("manifest.json"),
+            serde_json::to_vec_pretty(&invalid).unwrap(),
+        )
+        .unwrap();
+        let rejected =
+            scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+        assert_eq!(
+            rejected.status.code(),
+            Some(3),
+            "field={field}: {rejected:?}"
+        );
+        assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+    }
+
+    let mut tampered = original_manifest;
+    tampered["executable_sha256"] = "0".repeat(64).into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&tampered).unwrap(),
+    )
+    .unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+
+    fs::remove_file(bundle.join("asb-tui")).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", bundle.join("asb-tui")).unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "cached_input_unavailable");
 }
 
 #[cfg(target_arch = "x86_64")]

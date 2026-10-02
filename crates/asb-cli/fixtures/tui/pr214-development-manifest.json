@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "channel": "dev",
+  "development_only": true,
+  "source_repository": "https://github.com/martin-beck/asb-tui.git",
+  "source_ref": "refs/heads/main",
+  "source_commit": "7bcd4c4ca09531b109e12dc3579c212abc9dcf88",
+  "source_tree": "db9a4ca79bc09b60452ff20210a70afc1209e52a",
+  "asb_source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "asb_source_tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "target": "x86_64-unknown-linux-gnu",
+  "executable_sha256": "ec278a6ae7c67eaf28b7dd7f7ad5640225ca05d1fa8046dba541e9bc059598e9",
+  "executable_size": 329,
+  "built_unix": 1789000000,
+  "warnings": [
+    "development_missing_authentication_allowed",
+    "development_missing_signatures_allowed",
+    "development_missing_key_management_allowed"
+  ]
+}
