@@ -64,6 +64,7 @@ const DEV_CARGO_OVERRIDE: &str = "ASB_DEV_CARGO";
 const DEV_GIT_OVERRIDE: &str = "ASB_DEV_GIT";
 const DEV_SETSID_OVERRIDE: &str = "ASB_DEV_SETSID";
 const DEV_CARGO_HOME: &str = "CARGO_HOME";
+const DEV_RUSTUP_HOME: &str = "ASB_DEV_RUSTUP_HOME";
 const DEV_BUNDLE_OVERRIDE: &str = "ASB_TUI_DEV_BUNDLE";
 mod build_identity {
     include!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
@@ -862,6 +863,7 @@ fn materialize_development(
     let git = resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
     let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
     let cargo = resolve_development_cargo()?;
+    let rustup_home = resolve_development_rustup_home()?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
         "dev-build-{}-{}",
@@ -950,6 +952,9 @@ fn materialize_development(
             .args(["--wait"])
             .arg(&cargo)
             .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
+        if let Some(rustup_home) = &rustup_home {
+            build.env("RUSTUP_HOME", rustup_home);
+        }
         run_development_command_with_limits_and_roots(
             build,
             &root,
@@ -3141,6 +3146,33 @@ fn resolve_development_cargo() -> Result<PathBuf, RouterError> {
     )
 }
 
+fn resolve_development_rustup_home() -> Result<Option<PathBuf>, RouterError> {
+    resolve_development_rustup_home_from(std::env::var_os(DEV_RUSTUP_HOME).as_deref())
+}
+
+fn resolve_development_rustup_home_from(
+    value: Option<&std::ffi::OsStr>,
+) -> Result<Option<PathBuf>, RouterError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let path = PathBuf::from(value);
+    if !safe_absolute(&path) {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let uid = rustix::process::geteuid().as_raw();
+    validate_development_parent_chain(&path, uid)?;
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !metadata.is_dir()
+        || (metadata.uid() != 0 && metadata.uid() != uid)
+        || metadata.mode() & 0o022 != 0
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    Ok(Some(path))
+}
+
 fn resolve_development_cargo_from(
     override_path: Option<&std::ffi::OsStr>,
     home: Option<&std::ffi::OsStr>,
@@ -4365,6 +4397,26 @@ mod tests {
         fs::set_permissions(&cargo, fs::Permissions::from_mode(0o777)).unwrap();
         assert_eq!(
             validate_development_tool(&cargo).unwrap_err().code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_home_requires_private_absolute_root() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1634-rustup-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        assert_eq!(
+            resolve_development_rustup_home_from(Some(root.as_os_str())).unwrap(),
+            Some(root.clone())
+        );
+        assert_eq!(
+            resolve_development_rustup_home_from(Some(std::ffi::OsStr::new("relative")))
+                .unwrap_err()
+                .code,
             "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
