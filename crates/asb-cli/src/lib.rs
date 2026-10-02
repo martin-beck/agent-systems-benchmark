@@ -69,6 +69,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
+use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
@@ -100,21 +101,29 @@ static FAIL_RECORDING_INSTALL_AT: AtomicU64 = AtomicU64::new(u64::MAX);
 /// Run the command-line interface with process standard streams.
 #[must_use]
 pub fn entry(args: Vec<OsString>) -> ExitCode {
+    let mut stdin = io::stdin().lock();
     let mut stdout = io::stdout().lock();
     let mut stderr = io::stderr().lock();
-    ExitCode::from(run_with_default_mode(&args, &mut stdout, &mut stderr, true))
+    ExitCode::from(run_with_default_mode_and_stdin(
+        &args,
+        &mut stdout,
+        &mut stderr,
+        true,
+        Some(&mut stdin),
+    ))
 }
 
 /// Execute one CLI request with injected output streams.
 pub fn run(args: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
-    run_with_default_mode(args, stdout, stderr, false)
+    run_with_default_mode_and_stdin(args, stdout, stderr, false, None)
 }
 
-fn run_with_default_mode(
+fn run_with_default_mode_and_stdin(
     args: &[OsString],
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     human_default: bool,
+    stdin: Option<&mut dyn Read>,
 ) -> u8 {
     let (json, normalized) = match parse_output_mode(args) {
         Ok(value) => value,
@@ -131,7 +140,7 @@ fn run_with_default_mode(
     };
     let human = human_default && !json;
     let mut captured = Vec::new();
-    match dispatch(&normalized, &mut captured, stderr, None, None) {
+    match dispatch(&normalized, &mut captured, stderr, None, None, stdin) {
         Ok(exit_code) => {
             let result = if human {
                 render_human(&captured, stdout)
@@ -163,6 +172,16 @@ fn run_with_default_mode(
             envelope.error.exit_code
         }
     }
+}
+
+#[cfg(test)]
+fn run_with_default_mode(
+    args: &[OsString],
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    human_default: bool,
+) -> u8 {
+    run_with_default_mode_and_stdin(args, stdout, stderr, human_default, None)
 }
 
 fn parse_output_mode(args: &[OsString]) -> Result<(bool, Vec<OsString>), CliError> {
@@ -254,7 +273,7 @@ pub fn run_with_replay_authority(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    match dispatch(args, stdout, stderr, Some(authority), None) {
+    match dispatch(args, stdout, stderr, Some(authority), None, None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -287,7 +306,7 @@ pub fn run_with_live_provider_attempt(
             .take()
             .ok_or(LaunchAuthorityError::InvalidLaunchInput)
     });
-    match dispatch(args, stdout, stderr, None, Some(factory)) {
+    match dispatch(args, stdout, stderr, None, Some(factory), None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -310,7 +329,7 @@ pub fn run_with_live_provider_factory(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    match dispatch(args, stdout, stderr, None, Some(factory)) {
+    match dispatch(args, stdout, stderr, None, Some(factory), None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -591,6 +610,7 @@ fn dispatch(
     stderr: &mut dyn Write,
     mut replay_authority: Option<ReplayLaunchAuthority>,
     live_factory: Option<LiveProviderAttemptFactory>,
+    stdin: Option<&mut dyn Read>,
 ) -> Result<u8, CliError> {
     // All ASB command results are already versioned JSON.  Accept the global
     // selector explicitly so scripts can use one spelling across commands;
@@ -636,7 +656,7 @@ fn dispatch(
         [command, operation] if command == "config" && operation == "openrouter" => {
             configure_openrouter(stdout).map(|()| 0)
         }
-        [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout),
+        [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout, stdin),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
         }
@@ -973,8 +993,150 @@ fn guided_local_at(
     )
 }
 
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct AuthSetupOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    provider: &'static str,
+    authentication_method: &'static str,
+    credential_environment: &'static str,
+    configured: bool,
+    persisted: bool,
+    development_only: bool,
+    warning: &'static str,
+}
+
+/// Read one API key from the private stdin channel without ever returning it.
+/// The caller owns the input buffer and clears it after the resolver consumes it.
+fn read_api_key_stdin(input: &mut dyn Read) -> Result<Vec<u8>, CliError> {
+    let mut value = Vec::with_capacity(asb_agents::credential::MAX_CREDENTIAL_BYTES + 1);
+    if input
+        .take((asb_agents::credential::MAX_CREDENTIAL_BYTES + 1) as u64)
+        .read_to_end(&mut value)
+        .is_err()
+    {
+        value.fill(0);
+        return Err(CliError::operation("API key input cannot be read"));
+    }
+    while value
+        .last()
+        .is_some_and(|byte| *byte == b'\n' || *byte == b'\r')
+    {
+        value.pop();
+    }
+    if value.is_empty() || value.len() > asb_agents::credential::MAX_CREDENTIAL_BYTES {
+        value.fill(0);
+        return Err(CliError::validation("API key input is empty or too large"));
+    }
+    Ok(value)
+}
+
+/// Configure a development provider credential without persisting its value.
+fn auth_setup(
+    args: &[String],
+    stdout: &mut dyn Write,
+    stdin: Option<&mut dyn Read>,
+) -> Result<u8, CliError> {
+    let mut provider = None;
+    let mut stdin_requested = false;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--provider" => {
+                if provider.is_some() {
+                    return Err(CliError::usage(
+                        "auth setup provider was supplied more than once",
+                    ));
+                }
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::usage("auth setup provider is missing a value"))?;
+                provider = Some(value.as_str());
+                index += 2;
+            }
+            "--api-key-stdin" => {
+                if stdin_requested {
+                    return Err(CliError::usage(
+                        "auth setup --api-key-stdin was supplied more than once",
+                    ));
+                }
+                stdin_requested = true;
+                index += 1;
+            }
+            _ => return Err(CliError::usage("auth setup received an unsupported option")),
+        }
+    }
+    let provider =
+        provider.ok_or_else(|| CliError::usage("auth setup requires --provider openrouter"))?;
+    if provider != "openrouter" {
+        return Err(CliError::validation(
+            "development API-key setup supports only openrouter",
+        ));
+    }
+    let configured = if stdin_requested {
+        let input = stdin.ok_or_else(|| {
+            CliError::usage("--api-key-stdin is available only from the executable CLI")
+        })?;
+        let reference =
+            asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
+                CliError::operation("OpenRouter credential reference cannot be prepared")
+            })?;
+        let profile = OpenRouterProfile::new(reference)
+            .map_err(|_| CliError::operation("OpenRouter profile cannot be prepared"))?;
+        let mut key = read_api_key_stdin(input)?;
+        let mut secret = Some(OsString::from_vec(std::mem::take(&mut key)));
+        let result =
+            asb_agents::openrouter::resolve_openrouter_credential(&profile, |_| secret.take());
+        drop(secret);
+        key.fill(0);
+        result
+            .map(|credential| {
+                drop(credential);
+                true
+            })
+            .map_err(|_| CliError::validation("OpenRouter API key is invalid"))?
+    } else {
+        let reference =
+            asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
+                CliError::operation("OpenRouter credential reference cannot be prepared")
+            })?;
+        let profile = OpenRouterProfile::new(reference)
+            .map_err(|_| CliError::operation("OpenRouter profile cannot be prepared"))?;
+        asb_agents::openrouter::resolve_openrouter_environment(&profile).is_ok()
+    };
+    write_json(
+        stdout,
+        &AuthSetupOutput {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "auth-setup",
+            provider: "openrouter",
+            authentication_method: "api_key",
+            credential_environment: asb_agents::openrouter::OPENROUTER_API_KEY_ENV,
+            configured,
+            persisted: false,
+            development_only: true,
+            warning: if configured {
+                "development-only credential accepted; provider reachability is not tested and the key is not persisted"
+            } else {
+                "development-only credential unavailable; missing authentication does not block offline setup"
+            },
+        },
+    )?;
+    Ok(0)
+}
+
 /// Emit a bounded, credential-free authenticated control request.
-fn auth(args: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
+fn auth(
+    args: &[String],
+    stdout: &mut dyn Write,
+    stdin: Option<&mut dyn Read>,
+) -> Result<u8, CliError> {
+    if args.first().is_some_and(|operation| operation == "setup") {
+        return auth_setup(&args[1..], stdout, stdin);
+    }
     let usage =
         || CliError::usage("auth requires enroll|status|rotate|revoke and named digest options");
     let operation = args.first().ok_or_else(usage)?;
@@ -1065,6 +1227,12 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
     )
     .map_err(output_error)?;
+    writeln!(
+        output,
+        "  asb auth setup --provider openrouter [--api-key-stdin]"
+    )
+    .map_err(output_error)?;
+    writeln!(output, "  asb auth enroll|status|rotate|revoke ...").map_err(output_error)?;
     writeln!(output, "  asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]")
         .map_err(output_error)?;
     writeln!(
@@ -7528,6 +7696,149 @@ mod tests {
         let error: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(error["ok"], false);
         assert!(error.to_string().len() < 1024);
+    }
+
+    #[test]
+    fn development_openrouter_key_setup_consumes_stdin_without_output_leakage() {
+        let args: Vec<OsString> = [
+            "--json",
+            "auth",
+            "setup",
+            "--provider",
+            "openrouter",
+            "--api-key-stdin",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let secret = b"sk-or-v1-development-secret\n";
+        let mut input = &secret[..];
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_eq!(
+            run_with_default_mode_and_stdin(
+                &args,
+                &mut output,
+                &mut stderr,
+                false,
+                Some(&mut input),
+            ),
+            0
+        );
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["command"], "auth-setup");
+        assert_eq!(value["configured"], true);
+        assert_eq!(value["persisted"], false);
+        assert_eq!(value["development_only"], true);
+        assert!(
+            !output
+                .windows(secret.len() - 1)
+                .any(|window| { window == &secret[..secret.len() - 1] })
+        );
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn development_openrouter_key_setup_without_key_is_warning_only() {
+        let args: Vec<OsString> = ["auth", "setup", "--provider", "openrouter"]
+            .into_iter()
+            .map(OsString::from)
+            .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["configured"], false);
+        assert_eq!(value["development_only"], true);
+        assert!(
+            value["warning"]
+                .as_str()
+                .unwrap()
+                .contains("does not block")
+        );
+    }
+
+    #[test]
+    fn development_openrouter_key_setup_rejects_invalid_secret_without_echoing_it() {
+        let args: Vec<OsString> = [
+            "--json",
+            "auth",
+            "setup",
+            "--provider",
+            "openrouter",
+            "--api-key-stdin",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let secret = b"invalid key with whitespace\n";
+        let mut input = &secret[..];
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_ne!(
+            run_with_default_mode_and_stdin(
+                &args,
+                &mut output,
+                &mut stderr,
+                false,
+                Some(&mut input),
+            ),
+            0
+        );
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["ok"], false);
+        assert!(
+            !output
+                .windows(secret.len() - 1)
+                .any(|window| { window == &secret[..secret.len() - 1] })
+        );
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn development_openrouter_key_setup_zeroizes_partial_read_failures() {
+        struct FailingReader {
+            emitted: bool,
+        }
+
+        impl Read for FailingReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                if self.emitted {
+                    return Err(io::Error::other("synthetic read failure"));
+                }
+                let secret = b"sk-or-v1-partial-secret";
+                buffer[..secret.len()].copy_from_slice(secret);
+                self.emitted = true;
+                Ok(secret.len())
+            }
+        }
+
+        let args: Vec<OsString> = [
+            "--json",
+            "auth",
+            "setup",
+            "--provider",
+            "openrouter",
+            "--api-key-stdin",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let secret = b"sk-or-v1-partial-secret";
+        let mut input = FailingReader { emitted: false };
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_ne!(
+            run_with_default_mode_and_stdin(
+                &args,
+                &mut output,
+                &mut stderr,
+                false,
+                Some(&mut input),
+            ),
+            0
+        );
+        assert!(!output.windows(secret.len()).any(|window| window == secret));
+        assert!(!stderr.windows(secret.len()).any(|window| window == secret));
     }
 
     fn provider_args(catalog: &str, provider: &str, agents: &[&str]) -> Vec<OsString> {
