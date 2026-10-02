@@ -385,6 +385,82 @@ fn default_agent_lifecycle_generation() -> u64 {
     1
 }
 
+/// Build the bounded, credential-free provider projection used by setup.
+///
+/// The development projection is intentionally local and deterministic.  It
+/// advertises the model choices known to ASB, while preserving unavailable
+/// entries (for example, an unprovisioned Ollama daemon) so frontends can
+/// explain the choice instead of silently substituting another model.
+fn build_provider_catalog(
+    runner_instance_id: &str,
+    generation: u64,
+    refreshed: bool,
+    custom: impl IntoIterator<Item = ProviderCatalogEntry>,
+) -> Result<ProviderCatalog, BackendFailure> {
+    let unavailable_ollama =
+        ProviderAvailability::Unavailable("verified-daemon-unavailable".into());
+    let mut providers = vec![
+        ProviderCatalogEntry {
+            provider_id: "ollama".into(),
+            display_name: "Ollama".into(),
+            auth_methods: vec![ProviderAuthMethod::LocalDaemon, ProviderAuthMethod::None],
+            models: vec![ProviderModel {
+                model_id: asb_agents::ollama::OLLAMA_MODEL.into(),
+                revision: "local-daemon".into(),
+                availability: unavailable_ollama.clone(),
+            }],
+            availability: unavailable_ollama,
+        },
+        ProviderCatalogEntry {
+            provider_id: "openai".into(),
+            display_name: "OpenAI".into(),
+            auth_methods: vec![ProviderAuthMethod::CredentialReference],
+            models: vec![ProviderModel {
+                model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                revision: "provider-catalog-v1".into(),
+                availability: ProviderAvailability::Available,
+            }],
+            availability: ProviderAvailability::Available,
+        },
+        ProviderCatalogEntry {
+            provider_id: "openrouter".into(),
+            display_name: "OpenRouter".into(),
+            auth_methods: vec![ProviderAuthMethod::CredentialReference],
+            models: vec![ProviderModel {
+                model_id: asb_agents::openrouter::OPENROUTER_MODEL.into(),
+                revision: asb_agents::openrouter::OPENROUTER_MODEL_SNAPSHOT_DATE.into(),
+                availability: ProviderAvailability::Available,
+            }],
+            availability: ProviderAvailability::Available,
+        },
+        ProviderCatalogEntry {
+            provider_id: "gemini".into(),
+            display_name: "Gemini".into(),
+            auth_methods: vec![ProviderAuthMethod::CredentialReference],
+            models: vec![ProviderModel {
+                model_id: "gemini-2.5-flash".into(),
+                revision: "provider-catalog-v1".into(),
+                availability: ProviderAvailability::Available,
+            }],
+            availability: ProviderAvailability::Available,
+        },
+    ];
+    providers.extend(custom);
+    providers.sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
+    let mut catalog = ProviderCatalog {
+        runner_instance_id: runner_instance_id.into(),
+        generation: Revision(generation),
+        catalog_sha256: String::new(),
+        providers,
+        refreshed,
+    };
+    catalog.catalog_sha256 = catalog
+        .computed_sha256()
+        .map_err(|_| BackendFailure::Rejected)?;
+    catalog.validate().map_err(|_| BackendFailure::Rejected)?;
+    Ok(catalog)
+}
+
 fn runtime_control_session_digest(
     runner_instance_id: &str,
     peer: asb_control::PeerIdentity,
@@ -720,7 +796,8 @@ impl ControlBackend for DevelopmentBackend {
                 if matches!(request.action, ProviderCatalogAction::Status)
         ) || matches!(
             call,
-            ControlCall::AgentStatus(_)
+            ControlCall::ProviderCatalog(_)
+                | ControlCall::AgentStatus(_)
                 | ControlCall::AuthStatus(_)
                 | ControlCall::ConfigurationStatus(_)
                 | ControlCall::RecordingCampaignStatus(_)
@@ -5655,76 +5732,46 @@ impl RunnerBackend {
         &self,
         request: &ProviderCatalogRequest,
     ) -> Result<ProviderCatalog, BackendFailure> {
-        if matches!(request.action, ProviderCatalogAction::Refresh) {
-            // Discovery and connectivity probing must be supplied by a
-            // verified provider registry; never label a static projection as
-            // refreshed or connected.
-            return Err(BackendFailure::CapabilityUnavailable);
-        }
         if request.runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
         }
-        let generation = self
+        let mut state = self
             .catalog
             .lock()
-            .map_err(|_| BackendFailure::NeedsReconciliation)?
-            .provider_generation;
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        let generation = state.provider_generation;
         if request
             .known_generation
             .is_some_and(|known| known.0 > generation)
         {
             return Err(BackendFailure::StaleIdentity);
         }
-        let mut catalog = ProviderCatalog {
-            runner_instance_id: self.runner_instance_id.clone(),
-            generation: Revision(generation),
-            catalog_sha256: String::new(),
-            providers: vec![
-                ProviderCatalogEntry {
-                    provider_id: "ollama".into(),
-                    display_name: "Ollama".into(),
-                    auth_methods: vec![ProviderAuthMethod::LocalDaemon, ProviderAuthMethod::None],
-                    models: vec![ProviderModel {
-                        model_id: asb_agents::ollama::OLLAMA_MODEL.into(),
-                        revision: "local-daemon".into(),
-                        availability: ProviderAvailability::Unavailable(
-                            "verified-daemon-unavailable".into(),
-                        ),
-                    }],
-                    availability: ProviderAvailability::Unavailable(
-                        "verified-daemon-unavailable".into(),
-                    ),
-                },
-                ProviderCatalogEntry {
-                    provider_id: "openai".into(),
-                    display_name: "OpenAI".into(),
-                    auth_methods: vec![ProviderAuthMethod::CredentialReference],
-                    models: vec![ProviderModel {
-                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
-                        revision: "provider-catalog-v1".into(),
-                        availability: ProviderAvailability::Available,
-                    }],
-                    availability: ProviderAvailability::Available,
-                },
-            ],
-            refreshed: false,
-        };
-        let custom = self
-            .catalog
-            .lock()
-            .map_err(|_| BackendFailure::NeedsReconciliation)?
-            .provider_profiles
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        catalog.providers.extend(custom);
-        catalog
-            .providers
-            .sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
-        catalog.catalog_sha256 = catalog
-            .computed_sha256()
-            .map_err(|_| BackendFailure::Rejected)?;
-        Ok(catalog)
+        if matches!(request.action, ProviderCatalogAction::Status) {
+            return build_provider_catalog(
+                &self.runner_instance_id,
+                generation,
+                false,
+                state.provider_profiles.values().cloned(),
+            );
+        }
+
+        // The development registry is deliberately deterministic and
+        // credential-free.  Refreshing it never contacts a provider; a
+        // provider that cannot be qualified remains visible with a typed
+        // unavailable reason.  Production probe integration is a separate
+        // authenticated boundary and must not make the setup wizard hang.
+        let next_generation = generation.checked_add(1).ok_or(BackendFailure::Rejected)?;
+        let refreshed = build_provider_catalog(
+            &self.runner_instance_id,
+            next_generation,
+            true,
+            state.provider_profiles.values().cloned(),
+        )?;
+        let mut staged = state.clone();
+        staged.provider_generation = next_generation;
+        commit_staged_catalog(&self.state_root, &mut state, staged)
+            .map_err(|_| BackendFailure::NeedsReconciliation)?;
+        Ok(refreshed)
     }
 
     fn provider_profile_upsert(
@@ -5737,6 +5784,15 @@ impl RunnerBackend {
             return Err(BackendFailure::StaleIdentity);
         }
         params.validate().map_err(|_| BackendFailure::Rejected)?;
+        if matches!(
+            params.entry.provider_id.as_str(),
+            "gemini" | "ollama" | "openai" | "openrouter"
+        ) {
+            // Built-in profiles are owned by the ASB catalog.  Custom
+            // registration may add or replace a user profile, but must not
+            // shadow a built-in identity and make model filtering ambiguous.
+            return Err(BackendFailure::Rejected);
+        }
         let runner_instance_id = self.runner_instance_id.clone();
         let mut base_snapshot = self.provider_catalog(&ProviderCatalogRequest {
             action: ProviderCatalogAction::Status,
@@ -7211,17 +7267,25 @@ mod tests {
         let ControlResult::ProviderCatalog(catalog) = result.result else {
             panic!("provider catalog result");
         };
-        assert_eq!(catalog.providers.len(), 2);
-        assert_eq!(catalog.providers[0].provider_id, "ollama");
-        assert_eq!(catalog.providers[1].provider_id, "openai");
+        assert_eq!(catalog.providers.len(), 4);
+        assert_eq!(catalog.providers[0].provider_id, "gemini");
+        assert_eq!(catalog.providers[1].provider_id, "ollama");
         assert_eq!(
-            catalog.providers[1].models[0].model_id,
+            catalog.providers[2].models[0].model_id,
             asb_agents::openai::OPENAI_MODEL
         );
         assert!(matches!(
-            catalog.providers[0].availability,
+            catalog.providers[1].availability,
             asb_control::ProviderAvailability::Unavailable(_)
         ));
+        assert_eq!(
+            catalog
+                .selectable_models("openrouter")
+                .first()
+                .expect("development OpenRouter model")
+                .model_id,
+            asb_agents::openrouter::OPENROUTER_MODEL
+        );
         let encoded = serde_json::to_string(&catalog).unwrap();
         assert!(!encoded.contains("api_key"));
         assert!(!encoded.contains("sk-"));
@@ -7230,10 +7294,16 @@ mod tests {
             runner_instance_id: backend.runner_instance_id().to_owned(),
             known_generation: None,
         });
-        assert_eq!(
-            backend.execute(&refresh, deadline()),
-            Err(BackendFailure::CapabilityUnavailable)
-        );
+        let refreshed = backend.execute(&refresh, deadline()).unwrap();
+        refreshed
+            .validate_for_call(&refresh, ControlLimits::default())
+            .unwrap();
+        let ControlResult::ProviderCatalog(refreshed_catalog) = refreshed.result else {
+            panic!("provider refresh result");
+        };
+        assert!(refreshed_catalog.refreshed);
+        assert_eq!(refreshed_catalog.generation, Revision(2));
+        assert_eq!(refreshed_catalog.providers.len(), 4);
 
         let socket = scratch.0.join("provider-catalog.sock");
         let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
@@ -7362,18 +7432,27 @@ mod tests {
         assert_eq!(status.credential_locator_sha256, "b".repeat(64));
         assert_eq!(status.status, "active");
 
-        // A static catalog and enrolled metadata cannot be upgraded into a
-        // connectivity/authorization claim while the verified probe producer
-        // is absent.
+        // Refreshing the development catalog is deliberately independent of
+        // enrollment and never upgrades a missing probe into production
+        // authorization evidence.  Unqualified entries stay unavailable.
         let refresh = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
             action: asb_control::ProviderCatalogAction::Refresh,
             runner_instance_id,
             known_generation: None,
         });
-        assert_eq!(
-            backend.execute(&refresh, deadline()),
-            Err(BackendFailure::CapabilityUnavailable)
-        );
+        let result = backend.execute(&refresh, deadline()).unwrap();
+        let ControlResult::ProviderCatalog(catalog) = result.result else {
+            panic!("provider refresh result");
+        };
+        let ollama = catalog
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == "ollama")
+            .expect("ollama fixture");
+        assert!(matches!(
+            ollama.availability,
+            ProviderAvailability::Unavailable(_)
+        ));
     }
 
     #[test]
