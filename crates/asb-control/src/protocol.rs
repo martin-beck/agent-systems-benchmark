@@ -65,6 +65,11 @@ pub const CONTROL_RECORDING_REPAIR_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 13,
 };
+/// Version of the additive runtime fan-out admission and cancellation route.
+pub const CONTROL_FANOUT_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 14,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -72,7 +77,7 @@ pub const CONTROL_RECORDING_REPAIR_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 13] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 14] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -86,6 +91,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 13] = [
     CONTROL_BENCHMARK_CATALOG_V1,
     CONTROL_CASSETTE_CONTROL_V1,
     CONTROL_RECORDING_REPAIR_V1,
+    CONTROL_FANOUT_V1,
 ];
 /// Versions understood by frontends that have not adopted cassette control.
 /// They retain v1.11 as the highest common fallback.
@@ -366,6 +372,10 @@ pub enum ControlCall {
         /// Exact content digest from the runner journal.
         digest: String,
     },
+    /// Admit a bounded set of runtime requests atomically.
+    Fanout(FanoutParams),
+    /// Cancel members of a previously admitted fan-out.
+    FanoutCancel(FanoutCancelParams),
 }
 
 /// Credential-free authenticated enrollment metadata.
@@ -481,9 +491,51 @@ impl ControlCall {
             Self::RecordingCassetteCatalog(_) | Self::RecordingReplayDispatch(_) => {
                 CONTROL_CASSETTE_CONTROL_V1
             }
+            Self::Fanout(_) | Self::FanoutCancel(_) => CONTROL_FANOUT_V1,
             _ => CONTROL_V1,
         }
     }
+}
+
+/// Wire-safe fan-out admission request. Member definitions are the canonical
+/// `asb-orchestrator::RunRequest` JSON shape and are revalidated by the runner.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FanoutParams {
+    /// Stable retry key for the complete selected set.
+    pub idempotency_key: String,
+    /// Canonical runtime request objects, revalidated by the runner.
+    pub requests: Vec<Value>,
+}
+
+/// Cancellation request for admitted fan-out members.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FanoutCancelParams {
+    /// Stable retry key for the cancellation operation.
+    pub idempotency_key: String,
+    /// Exact causal member identities.
+    pub members: Vec<CancelParams>,
+}
+
+/// Public identity pair for one fan-out member.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FanoutMember {
+    /// Admitted run identity.
+    pub run_id: RunId,
+    /// Exact attempt identity.
+    pub attempt_id: AttemptId,
+}
+
+/// Public result of fan-out admission.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FanoutAdmission {
+    /// Original fan-out idempotency key.
+    pub idempotency_key: String,
+    /// Members in deterministic request order.
+    pub members: Vec<FanoutMember>,
 }
 
 /// Initial negotiation offer.
@@ -1688,6 +1740,8 @@ pub enum ControlResult {
     Analysis(AnalysisSummary),
     /// Artifact metadata without content or host paths.
     ArtifactMetadata(ArtifactMetadata),
+    /// Handles returned for each atomically admitted fan-out member.
+    Fanout(FanoutAdmission),
 }
 
 /// Successful result bound to the complete canonical request.
@@ -1772,6 +1826,9 @@ impl BoundControlResult {
             | ControlResult::RecordingReplayDispatch(_)
                 if version < CONTROL_CASSETTE_CONTROL_V1 =>
             {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            ControlResult::Fanout(_) if version < CONTROL_FANOUT_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
             ControlResult::SettingsValidation(value)
@@ -1954,6 +2011,19 @@ impl ControlResult {
                 validate_digest(&value.analysis_sha256)
             }
             Self::ArtifactMetadata(value) => validate_digest(&value.sha256),
+            Self::Fanout(value) => {
+                validate_identity(&value.idempotency_key)?;
+                if value.members.is_empty()
+                    || value.members.len() > usize::from(limits.max_in_flight)
+                {
+                    return Err(ProtocolError::UnsafePublicValue);
+                }
+                for member in &value.members {
+                    validate_identity(&member.run_id.0)?;
+                    validate_identity(&member.attempt_id.0)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -1979,6 +2049,8 @@ impl ControlResult {
                 | (ControlCall::Launch(_), Self::Launch(_))
                 | (ControlCall::Status { .. }, Self::Status(_))
                 | (ControlCall::Cancel(_), Self::Acknowledged(_))
+                | (ControlCall::Fanout(_), Self::Fanout(_))
+                | (ControlCall::FanoutCancel(_), Self::Acknowledged(_))
                 | (ControlCall::AuthEnroll(_), Self::Acknowledged(_))
                 | (ControlCall::AuthRotate(_), Self::Acknowledged(_))
                 | (ControlCall::AuthRevoke(_), Self::Acknowledged(_))
@@ -2522,6 +2594,26 @@ pub fn validate_request(
         ControlCall::ArtifactMetadata { run_id, digest } => {
             validate_identity(&run_id.0)?;
             validate_digest(digest)?;
+        }
+        ControlCall::Fanout(params) => {
+            validate_idempotency_key(&params.idempotency_key)?;
+            if params.requests.is_empty()
+                || params.requests.len() > usize::from(limits.max_in_flight)
+            {
+                return Err(ProtocolError::InvalidLimit("fanout_requests"));
+            }
+        }
+        ControlCall::FanoutCancel(params) => {
+            validate_idempotency_key(&params.idempotency_key)?;
+            if params.members.is_empty() || params.members.len() > usize::from(limits.max_in_flight)
+            {
+                return Err(ProtocolError::InvalidLimit("fanout_members"));
+            }
+            for member in &params.members {
+                validate_idempotency_key(&member.idempotency_key)?;
+                validate_identity(&member.run_id.0)?;
+                validate_identity(&member.attempt_id.0)?;
+            }
         }
         _ => {}
     }

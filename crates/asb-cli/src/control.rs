@@ -12,12 +12,12 @@ use asb_control::{
     AuthStatusResponse, AuthenticatedChainEnrollmentV1, BackendFailure, BoundControlResult,
     CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, CertificateAuthorityV1, ConfigurationSnapshot,
     ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
-    ControlLimits, ControlResult, ControlVersion, MeasurementCatalogPublication,
-    MeasurementSettingsIssue, MutationAcknowledgement, Page, PeerIdentity, PlanReference,
-    ProviderAuthMethod, ProviderAvailability, ProviderCatalog, ProviderCatalogAction,
-    ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel, ProvisionedControlServer,
-    PublicRunState, RequestDeadline, Revision, RunId, RunSummary, RuntimeAuthorityEnrollmentV1,
-    RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
+    ControlLimits, ControlResult, ControlVersion, FanoutAdmission, FanoutMember,
+    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
+    PeerIdentity, PlanReference, ProviderAuthMethod, ProviderAvailability, ProviderCatalog,
+    ProviderCatalogAction, ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel,
+    ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
+    RuntimeAuthorityEnrollmentV1, RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
 };
 use asb_orchestrator::{
     AttemptCapability, AttemptHandle, AuthorityError, AuthoritySource, ExecutionMode,
@@ -1088,6 +1088,62 @@ impl FrontendOrchestration {
         self.service
             .status_for_idempotency_key(plan_run_id)
             .map_err(orchestration_failure)
+    }
+
+    fn admit_fanout(
+        &mut self,
+        params: &asb_control::FanoutParams,
+    ) -> Result<FanoutAdmission, BackendFailure> {
+        let requests: Vec<RunRequest> = params
+            .requests
+            .iter()
+            .cloned()
+            .map(serde_json::from_value)
+            .collect::<Result<_, _>>()
+            .map_err(|_| BackendFailure::Rejected)?;
+        let handle = self
+            .service
+            .admit_fanout(asb_orchestrator::FanoutRequest {
+                idempotency_key: params.idempotency_key.clone(),
+                requests,
+            })
+            .map_err(orchestration_failure)?;
+        let members = handle
+            .members
+            .iter()
+            .map(|(run, attempt)| {
+                self.bindings
+                    .insert(run.id().0.clone(), (run.clone(), attempt.clone()));
+                FanoutMember {
+                    run_id: RunId(run.id().0.clone()),
+                    attempt_id: asb_control::AttemptId(attempt.id().0.clone()),
+                }
+            })
+            .collect();
+        Ok(FanoutAdmission {
+            idempotency_key: handle.idempotency_key,
+            members,
+        })
+    }
+
+    fn cancel_fanout(
+        &mut self,
+        params: &asb_control::FanoutCancelParams,
+    ) -> Result<(), BackendFailure> {
+        for member in &params.members {
+            let (run, attempt) = self
+                .bindings
+                .get(&member.run_id.0)
+                .cloned()
+                .ok_or(BackendFailure::StaleIdentity)?;
+            if attempt.id().0 != member.attempt_id.0 {
+                return Err(BackendFailure::StaleIdentity);
+            }
+            self.service
+                .cancel(&run, &attempt)
+                .map_err(orchestration_failure)?;
+        }
+        Ok(())
     }
 }
 
@@ -3194,6 +3250,24 @@ impl ControlBackend for RunnerBackend {
             .check()
             .map_err(|_| BackendFailure::NeedsReconciliation)?;
         match call {
+            ControlCall::Fanout(params) => {
+                let admission = self
+                    .orchestration
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?
+                    .admit_fanout(params)?;
+                self.bind(call, ControlResult::Fanout(admission))
+            }
+            ControlCall::FanoutCancel(params) => {
+                self.orchestration
+                    .lock()
+                    .map_err(|_| BackendFailure::NeedsReconciliation)?
+                    .cancel_fanout(params)?;
+                self.bind(
+                    call,
+                    ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
+                )
+            }
             ControlCall::Capabilities => self.bind(
                 call,
                 ControlResult::Capabilities(Capabilities {
@@ -6479,6 +6553,80 @@ mod tests {
         assert_eq!(publication.catalog.0, baseline_measurement_catalog());
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn runner_fanout_admits_binds_and_checks_member_identity() {
+        let mut scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.run_id = "fanout-control-1:0".into();
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        backend
+            .orchestration
+            .lock()
+            .unwrap()
+            .plans
+            .lock()
+            .unwrap()
+            .insert(plan.run_id.clone(), plan.clone());
+        let mut request = plan_request(&plan).unwrap();
+        request.mode = ExecutionMode::LocalMock;
+        request.model_id =
+            asb_protocol::Id(asb_runtime::live_service::LOCAL_PROVIDER_MOCK_MODEL.to_string());
+        request.cassette_digest = None;
+        let request_value = serde_json::to_value(request).unwrap();
+        let fanout = ControlCall::Fanout(asb_control::FanoutParams {
+            idempotency_key: "fanout-control-1".into(),
+            requests: vec![request_value],
+        });
+        let admitted = backend.execute(&fanout, deadline()).unwrap();
+        admitted
+            .validate_for_call(&fanout, ControlLimits::default())
+            .unwrap();
+        let ControlResult::Fanout(admission) = admitted.result else {
+            panic!("fanout admission result");
+        };
+        assert_eq!(admission.members.len(), 1);
+        assert_eq!(admission.idempotency_key, "fanout-control-1");
+
+        let member = &admission.members[0];
+        let cancel = ControlCall::FanoutCancel(asb_control::FanoutCancelParams {
+            idempotency_key: "fanout-cancel-1".into(),
+            members: vec![asb_control::CancelParams {
+                run_id: member.run_id.clone(),
+                attempt_id: member.attempt_id.clone(),
+                idempotency_key: "fanout-member-cancel-1".into(),
+            }],
+        });
+        let mut stale_cancel = cancel.clone();
+        if let ControlCall::FanoutCancel(params) = &mut stale_cancel {
+            params.members[0].attempt_id = asb_control::AttemptId("stale-attempt".into());
+        }
+        assert_eq!(
+            backend.execute(&stale_cancel, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+
+        // The admission key is idempotent and returns the same causal member
+        // instead of creating a second run/attempt pair.
+        let retried = backend.execute(&fanout, deadline()).unwrap();
+        let ControlResult::Fanout(retried) = retried.result else {
+            panic!("fanout retry result");
+        };
+        assert_eq!(retried.members, admission.members);
+
+        let malformed = ControlCall::Fanout(asb_control::FanoutParams {
+            idempotency_key: "fanout-malformed".into(),
+            requests: vec![serde_json::json!({"not": "a-run-request"})],
+        });
+        assert_eq!(
+            backend.execute(&malformed, deadline()),
+            Err(BackendFailure::Rejected)
+        );
+        scratch.cleanup_with_hook(|| {});
     }
 
     #[test]

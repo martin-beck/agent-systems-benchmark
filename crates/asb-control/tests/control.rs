@@ -32,6 +32,194 @@ fn limits() -> ControlLimits {
 }
 
 #[test]
+fn fanout_routes_are_versioned_causally_bound_and_bounded() {
+    let call = ControlCall::Fanout(FanoutParams {
+        idempotency_key: "fanout-1".into(),
+        requests: vec![json!({"provider": "fixture", "model": "small"})],
+    });
+    assert_eq!(call.minimum_version(), CONTROL_FANOUT_V1);
+    let admission = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: vec![FanoutMember {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    admission.validate(limits()).unwrap();
+    let bound = BoundControlResult::new(&call, admission).unwrap();
+    assert!(bound.result.matches_call(&call));
+    assert!(
+        !bound
+            .result
+            .matches_call(&ControlCall::FanoutCancel(FanoutCancelParams {
+                idempotency_key: "cancel-1".into(),
+                members: vec![],
+            },))
+    );
+    assert_eq!(bound.request_sha256.len(), 64);
+    assert!(
+        bound
+            .validate_for_call_and_version(&call, limits(), CONTROL_RECORDING_REPAIR_V1)
+            .is_err()
+    );
+    bound
+        .validate_for_call_and_version(&call, limits(), CONTROL_FANOUT_V1)
+        .unwrap();
+    assert_eq!(
+        bound.validate_for_call_and_version(
+            &call,
+            limits(),
+            ControlVersion {
+                major: 1,
+                minor: 99
+            },
+        ),
+        Err(ProtocolError::InvalidResponse)
+    );
+    assert_eq!(
+        BoundControlResult::new(
+            &call,
+            ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
+        )
+        .unwrap()
+        .validate_for_call(&call, limits()),
+        Err(ProtocolError::InvalidResponse)
+    );
+
+    let cancel = ControlCall::FanoutCancel(FanoutCancelParams {
+        idempotency_key: "cancel-1".into(),
+        members: vec![CancelParams {
+            idempotency_key: "cancel-member-1".into(),
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    let acknowledged = BoundControlResult::new(
+        &cancel,
+        ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
+    )
+    .unwrap();
+    acknowledged
+        .validate_for_call_and_version(&cancel, limits(), CONTROL_FANOUT_V1)
+        .unwrap();
+
+    let empty = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: Vec::new(),
+    });
+    assert_eq!(
+        empty.validate(limits()),
+        Err(ProtocolError::UnsafePublicValue)
+    );
+    let too_many = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: (0..3)
+            .map(|index| FanoutMember {
+                run_id: RunId(format!("run-{index}")),
+                attempt_id: AttemptId(format!("attempt-{index}")),
+            })
+            .collect(),
+    });
+    assert_eq!(
+        too_many.validate(limits()),
+        Err(ProtocolError::UnsafePublicValue)
+    );
+}
+
+#[test]
+fn fanout_rejects_invalid_public_identities() {
+    let invalid_key = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: String::new(),
+        members: vec![FanoutMember {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    assert_eq!(
+        invalid_key.validate(limits()),
+        Err(ProtocolError::InvalidIdentity)
+    );
+
+    let invalid_run = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: vec![FanoutMember {
+            run_id: RunId("run/member".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    assert_eq!(
+        invalid_run.validate(limits()),
+        Err(ProtocolError::InvalidIdentity)
+    );
+
+    let invalid_attempt = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: vec![FanoutMember {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt/member".into()),
+        }],
+    });
+    assert_eq!(
+        invalid_attempt.validate(limits()),
+        Err(ProtocolError::InvalidIdentity)
+    );
+}
+
+#[test]
+fn fanout_requests_validate_outer_bounds_and_cancel_members() {
+    let request = |call| ControlRequest {
+        jsonrpc: "2.0".into(),
+        id: RequestId(7),
+        timeout_ms: 100,
+        call,
+    };
+    let valid_member = CancelParams {
+        idempotency_key: "cancel-member-1".into(),
+        run_id: RunId("run-1".into()),
+        attempt_id: AttemptId("attempt-1".into()),
+    };
+    validate_request(
+        &request(ControlCall::Fanout(FanoutParams {
+            idempotency_key: "fanout-1".into(),
+            requests: vec![json!({"request": "deferred-to-runner"})],
+        })),
+        limits(),
+    )
+    .unwrap();
+    validate_request(
+        &request(ControlCall::FanoutCancel(FanoutCancelParams {
+            idempotency_key: "cancel-1".into(),
+            members: vec![valid_member.clone()],
+        })),
+        limits(),
+    )
+    .unwrap();
+    for call in [
+        ControlCall::Fanout(FanoutParams {
+            idempotency_key: String::new(),
+            requests: vec![json!({})],
+        }),
+        ControlCall::Fanout(FanoutParams {
+            idempotency_key: "fanout-1".into(),
+            requests: vec![],
+        }),
+        ControlCall::FanoutCancel(FanoutCancelParams {
+            idempotency_key: "cancel-1".into(),
+            members: vec![],
+        }),
+        ControlCall::FanoutCancel(FanoutCancelParams {
+            idempotency_key: "cancel-1".into(),
+            members: vec![CancelParams {
+                idempotency_key: String::new(),
+                ..valid_member.clone()
+            }],
+        }),
+    ] {
+        assert!(validate_request(&request(call), limits()).is_err());
+    }
+}
+
+#[test]
 fn recording_lifecycle_is_versioned_and_fail_closed() {
     assert_eq!(
         CONTROL_RECORDING_LIFECYCLE_V1,

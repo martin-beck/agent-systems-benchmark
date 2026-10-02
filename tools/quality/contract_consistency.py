@@ -25,6 +25,7 @@ SCHEMA_ROOTS = (
     "crates/asb-control/schema/v1.3",
     "crates/asb-control/schema/v1.12",
     "crates/asb-control/schema/v1.13",
+    "crates/asb-control/schema/v1.14",
     "crates/asb-replay/schema/v1",
     "crates/asb-bundle/schema/v1",
     "crates/asb-bundle/schema/v2",
