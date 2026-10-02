@@ -206,6 +206,31 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
     assert_eq!(rejected.status.code(), Some(3));
     assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
 
+    let mut invalid_provenance = original_manifest.clone();
+    invalid_provenance["source_tree"] = "0".repeat(40).into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&invalid_provenance).unwrap(),
+    )
+    .unwrap();
+    let rejected =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rejected.status.code(), Some(3));
+    assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&original_manifest).unwrap(),
+    )
+    .unwrap();
+    let offline =
+        scratch.command_with_args(&["--json", "tui", "install", "--offline"], Some(&bundle));
+    assert_eq!(offline.status.code(), Some(3));
+    assert_eq!(
+        response(&offline)["code"],
+        "development_source_unavailable_offline"
+    );
+
     let mut tampered = original_manifest;
     tampered["executable_sha256"] = "0".repeat(64).into();
     fs::write(
