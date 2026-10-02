@@ -9807,7 +9807,19 @@ printf '%s' 'not-json'
             commit_catalog(&state, &catalog).unwrap();
         }
         drop(backend);
-        let recovered = open_backend(state).unwrap();
+        let cutoff = Instant::now() + Duration::from_secs(5);
+        let recovered = loop {
+            match open_backend(state.clone()) {
+                Ok(backend) => break backend,
+                Err(error)
+                    if error.message == "control state root is already owned"
+                        && Instant::now() < cutoff =>
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("unexpected restart failure: {error:?}"),
+            }
+        };
         let catalog = recovered.catalog.lock().unwrap();
         assert_eq!(
             catalog.runs["control-real-run"].state,
