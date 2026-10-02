@@ -99,6 +99,45 @@ fn fanout_routes_are_versioned_causally_bound_and_bounded() {
 }
 
 #[test]
+fn fanout_rejects_invalid_public_identities() {
+    let invalid_key = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: String::new(),
+        members: vec![FanoutMember {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    assert_eq!(
+        invalid_key.validate(limits()),
+        Err(ProtocolError::InvalidIdentity)
+    );
+
+    let invalid_run = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: vec![FanoutMember {
+            run_id: RunId("run/member".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    assert_eq!(
+        invalid_run.validate(limits()),
+        Err(ProtocolError::InvalidIdentity)
+    );
+
+    let invalid_attempt = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: vec![FanoutMember {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt/member".into()),
+        }],
+    });
+    assert_eq!(
+        invalid_attempt.validate(limits()),
+        Err(ProtocolError::InvalidIdentity)
+    );
+}
+
+#[test]
 fn recording_lifecycle_is_versioned_and_fail_closed() {
     assert_eq!(
         CONTROL_RECORDING_LIFECYCLE_V1,
