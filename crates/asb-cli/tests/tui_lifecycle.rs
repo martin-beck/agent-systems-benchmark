@@ -231,6 +231,31 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
         "development_source_unavailable_offline"
     );
 
+    for (field, value) in [
+        ("schema_version", serde_json::json!(2)),
+        ("channel", serde_json::json!("nightly")),
+        ("development_only", serde_json::json!(false)),
+        (
+            "source_repository",
+            serde_json::json!("https://invalid.example/tui.git"),
+        ),
+        ("source_ref", serde_json::json!("refs/tags/v0")),
+        ("target", serde_json::json!("aarch64-unknown-linux-gnu")),
+        ("built_unix", serde_json::json!(0)),
+    ] {
+        let mut invalid = original_manifest.clone();
+        invalid[field] = value;
+        fs::write(
+            bundle.join("manifest.json"),
+            serde_json::to_vec_pretty(&invalid).unwrap(),
+        )
+        .unwrap();
+        let rejected =
+            scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+        assert_eq!(rejected.status.code(), Some(3));
+        assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+    }
+
     let mut tampered = original_manifest;
     tampered["executable_sha256"] = "0".repeat(64).into();
     fs::write(
