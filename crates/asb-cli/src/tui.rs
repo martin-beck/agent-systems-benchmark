@@ -3148,7 +3148,33 @@ fn resolve_development_cargo_with_rustup(
 }
 
 fn resolve_development_rustup_home() -> Result<Option<PathBuf>, RouterError> {
-    resolve_development_rustup_home_from(std::env::var_os(DEV_RUSTUP_HOME).as_deref())
+    resolve_development_rustup_home_from_sources(
+        std::env::var_os(DEV_RUSTUP_HOME).as_deref(),
+        std::env::var_os("RUSTUP_HOME").as_deref(),
+        std::env::var_os("HOME").as_deref(),
+    )
+}
+
+fn resolve_development_rustup_home_from_sources(
+    explicit: Option<&std::ffi::OsStr>,
+    ambient: Option<&std::ffi::OsStr>,
+    home: Option<&std::ffi::OsStr>,
+) -> Result<Option<PathBuf>, RouterError> {
+    if let Some(value) = explicit {
+        return resolve_development_rustup_home_from(Some(value));
+    }
+    if let Some(value) = ambient {
+        return resolve_development_rustup_home_from(Some(value));
+    }
+    let Some(home) = home else {
+        return Ok(None);
+    };
+    let candidate = PathBuf::from(home).join(".rustup");
+    match fs::symlink_metadata(&candidate) {
+        Ok(_) => resolve_development_rustup_home_from(Some(candidate.as_os_str())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(_) => Err(RouterError::operation("trusted_tool_unavailable")),
+    }
 }
 
 fn resolve_development_rustup_home_from(
@@ -4467,6 +4493,83 @@ mod tests {
             resolve_development_rustup_home_from(Some(std::ffi::OsStr::new("relative")))
                 .unwrap_err()
                 .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_home_uses_ordered_validated_sources() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1634-rustup-sources-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let fallback_home = root.join("home");
+        prepare_private_directory(&fallback_home).unwrap();
+        let fallback = fallback_home.join(".rustup");
+        prepare_private_directory(&fallback).unwrap();
+        let ambient = root.join("ambient-rustup");
+        prepare_private_directory(&ambient).unwrap();
+        let explicit = root.join("explicit-rustup");
+        prepare_private_directory(&explicit).unwrap();
+
+        assert_eq!(
+            resolve_development_rustup_home_from_sources(
+                None,
+                None,
+                Some(fallback_home.as_os_str()),
+            )
+            .unwrap(),
+            Some(fallback.clone())
+        );
+        assert_eq!(
+            resolve_development_rustup_home_from_sources(
+                None,
+                Some(ambient.as_os_str()),
+                Some(fallback_home.as_os_str()),
+            )
+            .unwrap(),
+            Some(ambient.clone())
+        );
+        assert_eq!(
+            resolve_development_rustup_home_from_sources(
+                Some(explicit.as_os_str()),
+                Some(ambient.as_os_str()),
+                Some(fallback_home.as_os_str()),
+            )
+            .unwrap(),
+            Some(explicit.clone())
+        );
+        assert_eq!(
+            resolve_development_rustup_home_from_sources(
+                None,
+                None,
+                Some(root.join("missing-home").as_os_str()),
+            )
+            .unwrap(),
+            None
+        );
+        assert_eq!(
+            resolve_development_rustup_home_from_sources(
+                None,
+                Some(root.join("missing-ambient").as_os_str()),
+                Some(fallback_home.as_os_str()),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_unavailable"
+        );
+
+        fs::set_permissions(&fallback, fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            resolve_development_rustup_home_from_sources(
+                None,
+                None,
+                Some(fallback_home.as_os_str()),
+            )
+            .unwrap_err()
+            .code,
             "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
