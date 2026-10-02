@@ -8353,6 +8353,7 @@ mod tests {
         }
         // A directory at the destination makes the atomic catalog rename
         // fail.  The pre-commit unlink must not run in this case.
+        fs::remove_file(state.join("control-catalog.json")).unwrap();
         fs::create_dir(state.join("control-catalog.json")).unwrap();
         let remove =
             ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
