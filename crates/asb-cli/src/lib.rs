@@ -3075,8 +3075,95 @@ fn selection_for_plan_at(
     plan: &PlanFile,
     store: &ConfigStore,
 ) -> Result<ProviderPlanOutput, CliError> {
-    let config = load_openrouter_config_at(store)?;
-    provider_plan_from_selection(&config, &plan.experiment.agent.implementation)
+    let config = store
+        .load()
+        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
+        .ok_or_else(|| CliError::validation("ASB configuration is absent"))?;
+    // A setup-selected agent takes precedence over the legacy standalone
+    // OpenRouter enrollment.  This prevents switching a configured agent to
+    // OpenAI while an older `config openrouter` enrollment remains present.
+    if !config
+        .agents
+        .contains_key(&plan.experiment.agent.implementation)
+        && let Some(selection) = config.openrouter_free_model.as_ref()
+    {
+        return provider_plan_from_selection(selection, &plan.experiment.agent.implementation);
+    }
+    provider_plan_from_configuration(&config, &plan.experiment.agent.implementation)
+}
+
+/// Resolve the generic profile/defaults written by the setup wizard.  The
+/// legacy pinned OpenRouter enrollment remains supported above, while new
+/// setup documents can drive planning and local/mock execution directly.
+fn provider_plan_from_configuration(
+    config: &Configuration,
+    agent: &str,
+) -> Result<ProviderPlanOutput, CliError> {
+    config
+        .validate()
+        .map_err(|_| CliError::validation("ASB configuration is invalid"))?;
+    let configured_agent = config
+        .agents
+        .get(agent)
+        .ok_or_else(|| CliError::validation("selected agent is not configured"))?;
+    if !configured_agent.enabled {
+        return Err(CliError::validation(
+            "selected agent is disabled in setup configuration",
+        ));
+    }
+    let profile = config
+        .profiles
+        .get(&configured_agent.profile)
+        .ok_or_else(|| CliError::validation("configured provider profile is absent"))?;
+    let credential = profile.credential.as_ref().ok_or_else(|| {
+        CliError::validation("configured provider credential reference is absent")
+    })?;
+    let selected = vec![parse_agent(agent)?];
+    let (provider_kind, plan, expected_model) = provider_plan_for(
+        &profile.provider,
+        selected,
+        Some(&credential.locator_sha256),
+    )?;
+    if profile.model != expected_model {
+        return Err(CliError::validation(
+            "configured provider model is not supported",
+        ));
+    }
+    let effective = plan
+        .effective()
+        .iter()
+        .map(|item| EffectiveCliAgent {
+            agent: agent_id(item.agent).to_owned(),
+            profile_sha256: item.profile_sha256.clone(),
+            api_mode: item.api_mode,
+        })
+        .collect::<Vec<_>>();
+    let canonical_selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: provider_kind,
+        agents: effective
+            .iter()
+            .map(|item| parse_agent(&item.agent))
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+    let catalog = provider_catalog_digest();
+    let selection_sha256 = provider_selection_digest(&catalog, &canonical_selection, &effective)?;
+    let output = ProviderPlanOutput {
+        schema_version: OUTPUT_SCHEMA_VERSION,
+        ok: true,
+        command: "provider-plan".into(),
+        dry_run: true,
+        catalog_sha256: catalog,
+        selection_sha256,
+        provider_profile: profile.provider.clone(),
+        provider_profile_sha256: plan.profile_sha256().into(),
+        model: profile.model.clone(),
+        credential_source: "environment".into(),
+        credential_reference_sha256: credential.locator_sha256.clone(),
+        effective,
+    };
+    validate_provider_selection(&output)?;
+    Ok(output)
 }
 
 fn load_plan_and_selection(
@@ -7169,6 +7256,63 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn setup_selection_directly_drives_plan_and_local_run() {
+        let scratch = Scratch::new("setup-runtime-bridge");
+        let config_path = scratch.0.join("config.json");
+        let setup_args = vec![
+            "--agent".into(),
+            "opencode".into(),
+            "--agent".into(),
+            "opendesk".into(),
+            "--provider-profile".into(),
+            "openrouter".into(),
+            "--model".into(),
+            asb_agents::openrouter::OPENROUTER_MODEL.into(),
+            "--config".into(),
+            config_path.to_string_lossy().into_owned(),
+        ];
+        let mut setup_output = Vec::new();
+        setup(&setup_args, &mut setup_output).unwrap();
+        let config = ConfigStore::new(&config_path).load().unwrap().unwrap();
+        let configured = provider_plan_from_configuration(&config, "opencode").unwrap();
+
+        let (plan_path, mut fixture) = plan_fixture(&scratch.0, "setup-runtime");
+        fixture.experiment.agent.implementation = "opencode".into();
+        fixture.experiment.model.provider = "openrouter".into();
+        fixture.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        fixture.experiment.model.settings.additional_settings_sha256 =
+            Some(configured.provider_profile_sha256.clone());
+        fixture.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&fixture).unwrap()).unwrap();
+
+        let mut planned = Vec::new();
+        plan_with_config_at(&plan_path, &mut planned, &ConfigStore::new(&config_path)).unwrap();
+        let planned: Value = serde_json::from_slice(&planned).unwrap();
+        assert_eq!(planned["provider_profile"], "openrouter");
+        assert_eq!(
+            planned["provider_model"],
+            asb_agents::openrouter::OPENROUTER_MODEL
+        );
+
+        let mut run_output = Vec::new();
+        let exit = execute_inner_from_source(
+            &plan_path,
+            SelectionSource::Config(&ConfigStore::new(&config_path)),
+            false,
+            false,
+            None,
+            true,
+            &mut run_output,
+            &mut Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(exit, 0);
+        let result: Value = serde_json::from_slice(&run_output).unwrap();
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["points"][0]["decision"], "pass");
     }
 
     #[test]

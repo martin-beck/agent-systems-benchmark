@@ -28,6 +28,23 @@ before result/work roots or processes are created.
 
 ## Per-user OpenRouter configuration
 
+A selection written by the setup wizard is consumed directly by `plan` and
+`run`; it does not require a second provider-enrollment command:
+
+```text
+asb setup --agent opencode --agent opendesk \
+  --provider-profile openrouter \
+  --model cohere/north-mini-code:free \
+  --persist
+asb plan /absolute/path/EXPERIMENT.toml --use-config
+asb easy run /absolute/path/EXPERIMENT.toml --use-config --local-mock
+```
+
+The older `asb config openrouter` route remains compatible for existing
+configurations that have no setup-selected agent declarations. Once an agent
+is selected by the wizard, its persisted profile is authoritative, including
+when it replaces a prior legacy OpenRouter enrollment.
+
 Persist the pinned dated free-model selection and credential-free
 `OPENROUTER_API_KEY` environment reference, then use it without repeating the
 digest on every command:
