@@ -1074,6 +1074,7 @@ fn consume_development_bundle(
         || !valid_hex(&manifest.asb_source_commit, 40)
         || !valid_hex(&manifest.asb_source_tree, 40)
         || !valid_hex(&manifest.executable_sha256, 64)
+        || manifest.executable_size == 0
         || manifest.built_unix == 0
     {
         return Err(RouterError::policy("development_bundle_invalid"));
