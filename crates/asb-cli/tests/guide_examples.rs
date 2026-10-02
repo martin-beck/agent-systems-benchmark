@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Executes the public offline documentation workflow and support inventory.
 
-use asb_protocol::ExperimentManifestV1;
 use asb_replay::{CassetteLimits, canonical_contents_bytes, decode_cassette};
-use asb_workloads::OriginalWorkloads;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -47,10 +45,6 @@ fn asb(arguments: &[&str]) -> Output {
         .unwrap()
 }
 
-fn sha256(path: &Path) -> String {
-    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
-}
-
 fn write_plan(parent: &Path, run_id: &str, sweep: bool) -> (PathBuf, PathBuf, PathBuf) {
     fs::DirBuilder::new().mode(0o700).create(parent).unwrap();
     let executable = parent.join("offline-agent");
@@ -61,57 +55,35 @@ fn write_plan(parent: &Path, run_id: &str, sweep: bool) -> (PathBuf, PathBuf, Pa
     .unwrap();
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
     let executable = fs::canonicalize(executable).unwrap();
-    let digest = sha256(&executable);
-    let workload = OriginalWorkloads::describe("original.bug-fix").unwrap();
-    let mut experiment: ExperimentManifestV1 = serde_json::from_str(include_str!(
-        "../../asb-protocol/fixtures/v1/experiment-manifest.json"
-    ))
-    .unwrap();
-    experiment.agent.binary_sha256.clone_from(&digest);
-    experiment.workload.workload = workload.workload_id.0;
-    experiment.workload.workload_revision = workload.version;
-    experiment.workload.workload_sha256 = workload.content_sha256;
-    experiment.workload.scorer_revision = workload.scoring_version;
-    experiment.platform.architecture = std::env::consts::ARCH.to_owned();
-    experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
-    experiment.controls.replay.cassette_sha256 = None;
-    experiment.refresh_content_address().unwrap();
     let result_root = parent.join("results");
     let work_root = parent.join("work");
-    let mut plan = toml::toml! {
-        schema_version = 1
-        run_id = (run_id)
-        result_root = (result_root.to_str().unwrap())
-        work_root = (work_root.to_str().unwrap())
-        workload = "original.bug-fix"
-
-        [agent]
-        executable = (executable.to_str().unwrap())
-        executable_sha256 = (digest)
-        arguments = []
-
-        [point]
-        measured = 1
-        warmups = 0
-        concurrency = 1
-        queue = 0
-        max_failures = 0
-        timeout_ms = 5_000
-        poll_ms = 2
-        seed = 7
-
-        [experiment]
-    };
+    let plan_path = parent.join("experiment.toml");
+    let generated = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .arg("--json")
+        .args(["plan", "create", "--workload", "original.bug-fix"])
+        .args(["--agent-executable", executable.to_str().unwrap()])
+        .args(["--run-id", run_id])
+        .args(["--result-root", result_root.to_str().unwrap()])
+        .args(["--work-root", work_root.to_str().unwrap()])
+        .args(["--output", plan_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        generated.status.success(),
+        "plan create failed: {}{}",
+        String::from_utf8_lossy(&generated.stdout),
+        String::from_utf8_lossy(&generated.stderr)
+    );
     if sweep {
+        let mut plan: toml::Value =
+            toml::from_str(&fs::read_to_string(&plan_path).unwrap()).unwrap();
         plan["point"]
             .as_table_mut()
             .unwrap()
             .insert("sweep_max_concurrency".into(), toml::Value::Integer(2));
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
     }
-    plan["experiment"] = toml::Value::try_from(experiment).unwrap();
-    let path = parent.join("experiment.toml");
-    fs::write(&path, toml::to_string(&plan).unwrap()).unwrap();
-    (path, result_root, work_root)
+    (plan_path, result_root, work_root)
 }
 
 fn successful_json(arguments: &[&str]) -> Value {
@@ -202,14 +174,19 @@ fn guide_inventory_matches_doctor_and_stale_claims_fail_closed() {
 
     let scratch = Scratch::new();
     let (plan, results, _) = write_plan(&scratch.0.join("stale"), "guide-stale", false);
-    let text =
-        fs::read_to_string(&plan)
-            .unwrap()
-            .replacen("schema_version = 1", "schema_version = 2", 1);
-    fs::write(&plan, text).unwrap();
+    let mut document: toml::Value = toml::from_str(&fs::read_to_string(&plan).unwrap()).unwrap();
+    document["experiment"]["experiment_sha256"] = toml::Value::String("0".repeat(64));
+    fs::write(&plan, toml::to_string(&document).unwrap()).unwrap();
     let output = asb(&["plan", plan.to_str().unwrap()]);
     assert_eq!(output.status.code(), Some(3));
     assert!(!results.exists());
+
+    let (plan, _, _) = write_plan(&scratch.0.join("mismatched-agent"), "guide-mismatch", false);
+    let mut document: toml::Value = toml::from_str(&fs::read_to_string(&plan).unwrap()).unwrap();
+    document["agent"]["executable_sha256"] = toml::Value::String("f".repeat(64));
+    fs::write(&plan, toml::to_string(&document).unwrap()).unwrap();
+    let output = asb(&["plan", plan.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(3));
 }
 
 #[test]
