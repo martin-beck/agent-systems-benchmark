@@ -4386,15 +4386,14 @@ impl RunnerBackend {
             if record.generation != expected_generation.0 {
                 return Err(BackendFailure::StaleIdentity);
             }
-            if matches!(action, RecordingLifecycleAction::Remove) {
-                if let Some(requested) = cassette_sha256
-                    && !record
-                        .coverage
-                        .iter()
-                        .any(|entry| entry.cassette_sha256.as_deref() == Some(requested))
-                {
-                    return Err(BackendFailure::NotFound);
-                }
+            if matches!(action, RecordingLifecycleAction::Remove)
+                && let Some(requested) = cassette_sha256
+                && !record
+                    .coverage
+                    .iter()
+                    .any(|entry| entry.cassette_sha256.as_deref() == Some(requested))
+            {
+                return Err(BackendFailure::NotFound);
             }
             match action {
                 RecordingLifecycleAction::Execute => unreachable!("execute handled above"),
@@ -8254,6 +8253,7 @@ mod tests {
         prepare_root(&state).unwrap();
         let backend = open_backend(state.clone()).unwrap();
         let digest = "b".repeat(64);
+        fs::create_dir_all(state.join("cassettes")).unwrap();
         let artifact = state.join("cassettes").join(format!("{digest}.json"));
         fs::write(&artifact, b"live").unwrap();
         let mut catalog = backend.catalog.lock().unwrap().clone();
@@ -8338,6 +8338,7 @@ mod tests {
             panic!("campaign plan result");
         };
         let digest = "a".repeat(64);
+        fs::create_dir_all(state.join("cassettes")).unwrap();
         let artifact = state.join("cassettes").join(format!("{digest}.json"));
         fs::write(&artifact, b"durable-artifact").unwrap();
         {
