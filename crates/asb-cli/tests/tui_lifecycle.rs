@@ -272,6 +272,35 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
         assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
     }
 
+    // Exercise each authenticated provenance gate independently.  Keeping
+    // the other fields from the known-good manifest proves that a rotated
+    // source pair is accepted while an identity mismatch or malformed digest
+    // is rejected before the executable is considered for installation.
+    for (field, value) in [
+        ("asb_source_commit", serde_json::json!("5".repeat(40))),
+        ("asb_source_tree", serde_json::json!("6".repeat(40))),
+        ("source_commit", serde_json::json!("not-a-commit")),
+        ("source_tree", serde_json::json!("not-a-tree")),
+        ("executable_sha256", serde_json::json!("not-a-digest")),
+        ("executable_size", serde_json::json!(0)),
+    ] {
+        let mut invalid = original_manifest.clone();
+        invalid[field] = value;
+        fs::write(
+            bundle.join("manifest.json"),
+            serde_json::to_vec_pretty(&invalid).unwrap(),
+        )
+        .unwrap();
+        let rejected =
+            scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+        assert_eq!(
+            rejected.status.code(),
+            Some(3),
+            "field={field}: {rejected:?}"
+        );
+        assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
+    }
+
     let mut tampered = original_manifest;
     tampered["executable_sha256"] = "0".repeat(64).into();
     fs::write(
