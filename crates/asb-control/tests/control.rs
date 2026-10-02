@@ -32,6 +32,68 @@ fn limits() -> ControlLimits {
 }
 
 #[test]
+fn fanout_routes_are_versioned_causally_bound_and_bounded() {
+    let call = ControlCall::Fanout(FanoutParams {
+        idempotency_key: "fanout-1".into(),
+        requests: vec![json!({"provider": "fixture", "model": "small"})],
+    });
+    assert_eq!(call.minimum_version(), CONTROL_FANOUT_V1);
+    let admission = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: vec![FanoutMember {
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    admission.validate(limits()).unwrap();
+    let bound = BoundControlResult::new(&call, admission).unwrap();
+    assert!(bound.result.matches_call(&call));
+    assert_eq!(bound.request_sha256.len(), 64);
+    assert!(bound
+        .validate_for_call_and_version(&call, limits(), CONTROL_RECORDING_REPAIR_V1)
+        .is_err());
+    bound
+        .validate_for_call_and_version(&call, limits(), CONTROL_FANOUT_V1)
+        .unwrap();
+
+    let cancel = ControlCall::FanoutCancel(FanoutCancelParams {
+        idempotency_key: "cancel-1".into(),
+        members: vec![CancelParams {
+            idempotency_key: "cancel-member-1".into(),
+            run_id: RunId("run-1".into()),
+            attempt_id: AttemptId("attempt-1".into()),
+        }],
+    });
+    let acknowledged = BoundControlResult::new(
+        &cancel,
+        ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
+    )
+    .unwrap();
+    acknowledged
+        .validate_for_call_and_version(&cancel, limits(), CONTROL_FANOUT_V1)
+        .unwrap();
+
+    let empty = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: Vec::new(),
+    });
+    assert_eq!(empty.validate(limits()), Err(ProtocolError::UnsafePublicValue));
+    let too_many = ControlResult::Fanout(FanoutAdmission {
+        idempotency_key: "fanout-1".into(),
+        members: (0..3)
+            .map(|index| FanoutMember {
+                run_id: RunId(format!("run-{index}")),
+                attempt_id: AttemptId(format!("attempt-{index}")),
+            })
+            .collect(),
+    });
+    assert_eq!(
+        too_many.validate(limits()),
+        Err(ProtocolError::UnsafePublicValue)
+    );
+}
+
+#[test]
 fn recording_lifecycle_is_versioned_and_fail_closed() {
     assert_eq!(
         CONTROL_RECORDING_LIFECYCLE_V1,
