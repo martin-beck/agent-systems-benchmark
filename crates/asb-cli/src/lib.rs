@@ -1079,13 +1079,13 @@ fn auth_setup(
         let input = stdin.ok_or_else(|| {
             CliError::usage("--api-key-stdin is available only from the executable CLI")
         })?;
-        let mut key = read_api_key_stdin(input)?;
         let reference =
             asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
                 CliError::operation("OpenRouter credential reference cannot be prepared")
             })?;
         let profile = OpenRouterProfile::new(reference)
             .map_err(|_| CliError::operation("OpenRouter profile cannot be prepared"))?;
+        let mut key = read_api_key_stdin(input)?;
         let mut secret = Some(OsString::from_vec(std::mem::take(&mut key)));
         let result =
             asb_agents::openrouter::resolve_openrouter_credential(&profile, |_| secret.take());
