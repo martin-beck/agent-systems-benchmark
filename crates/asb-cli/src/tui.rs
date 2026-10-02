@@ -63,6 +63,8 @@ const DEV_SETSID: &str = "/usr/bin/setsid";
 const DEV_CARGO_OVERRIDE: &str = "ASB_DEV_CARGO";
 const DEV_GIT_OVERRIDE: &str = "ASB_DEV_GIT";
 const DEV_SETSID_OVERRIDE: &str = "ASB_DEV_SETSID";
+const DEV_CC_OVERRIDE: &str = "ASB_DEV_CC";
+const DEV_AR_OVERRIDE: &str = "ASB_DEV_AR";
 const DEV_CARGO_HOME: &str = "CARGO_HOME";
 const DEV_RUSTUP_HOME: &str = "ASB_DEV_RUSTUP_HOME";
 const DEV_BUNDLE_OVERRIDE: &str = "ASB_TUI_DEV_BUNDLE";
@@ -862,6 +864,14 @@ fn materialize_development(
     }
     let git = resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
     let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
+    let cc = resolve_development_tool_candidates(
+        DEV_CC_OVERRIDE,
+        &["/usr/bin/cc", "/usr/local/bin/cc"],
+    )?;
+    let ar = resolve_development_tool_candidates(
+        DEV_AR_OVERRIDE,
+        &["/usr/bin/ar", "/usr/local/bin/ar"],
+    )?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
     let rustc = resolve_development_rustc(
@@ -961,6 +971,8 @@ fn materialize_development(
             &mut build,
             rustup_home.as_deref(),
             rustc.as_deref(),
+            Some(&cc),
+            Some(&ar),
         );
         run_development_command_with_limits_and_roots(
             build,
@@ -3127,6 +3139,31 @@ fn resolve_development_tool(override_name: &str, fallback: &str) -> Result<PathB
     resolve_development_tool_from(std::env::var_os(override_name).as_deref(), fallback)
 }
 
+fn resolve_development_tool_candidates(
+    override_name: &str,
+    fallbacks: &[&str],
+) -> Result<PathBuf, RouterError> {
+    resolve_development_tool_candidates_from(std::env::var_os(override_name).as_deref(), fallbacks)
+}
+
+fn resolve_development_tool_candidates_from(
+    override_path: Option<&std::ffi::OsStr>,
+    fallbacks: &[&str],
+) -> Result<PathBuf, RouterError> {
+    if let Some(value) = override_path {
+        return validate_development_tool(&PathBuf::from(value))
+            .map_err(|_| RouterError::policy("trusted_tool_invalid"));
+    }
+    for fallback in fallbacks {
+        match validate_development_tool(Path::new(fallback)) {
+            Ok(path) => return Ok(path),
+            Err(error) if error.code == "trusted_tool_invalid" => return Err(error),
+            Err(_) => {}
+        }
+    }
+    Err(RouterError::operation("trusted_tool_unavailable"))
+}
+
 fn resolve_development_tool_from(
     override_path: Option<&std::ffi::OsStr>,
     fallback: &str,
@@ -3319,10 +3356,26 @@ fn apply_development_toolchain_environment(
     command: &mut Command,
     rustup_home: Option<&Path>,
     rustc: Option<&Path>,
+    cc: Option<&Path>,
+    ar: Option<&Path>,
 ) {
     apply_development_rustup_home(command, rustup_home);
     if let Some(rustc) = rustc {
         command.env("RUSTC", rustc);
+    }
+    if let Some(cc) = cc {
+        command.env("CC", cc);
+        command.env("RUSTC_LINKER", cc);
+        command.env(
+            format!(
+                "CARGO_TARGET_{}_LINKER",
+                target().to_ascii_uppercase().replace('-', "_")
+            ),
+            cc,
+        );
+    }
+    if let Some(ar) = ar {
+        command.env("AR", ar);
     }
 }
 
@@ -4722,7 +4775,7 @@ mod tests {
         prepare_private_directory(&root).unwrap();
         let mut command = Command::new("/usr/bin/env");
         command.env_clear();
-        apply_development_toolchain_environment(&mut command, Some(&root), None);
+        apply_development_toolchain_environment(&mut command, Some(&root), None, None, None);
         let output = command.output().unwrap();
         assert!(
             String::from_utf8_lossy(&output.stdout)
@@ -4743,9 +4796,13 @@ mod tests {
         prepare_private_directory(&bin).unwrap();
         let cargo = bin.join("cargo");
         let rustc = bin.join("rustc");
+        let cc = bin.join("cc");
+        let ar = bin.join("ar");
         fs::write(&cargo, b"cargo").unwrap();
         fs::write(&rustc, b"rustc").unwrap();
-        for tool in [&cargo, &rustc] {
+        fs::write(&cc, b"cc").unwrap();
+        fs::write(&ar, b"ar").unwrap();
+        for tool in [&cargo, &rustc, &cc, &ar] {
             fs::set_permissions(tool, fs::Permissions::from_mode(0o700)).unwrap();
         }
         let mut command = Command::new("/usr/bin/env");
@@ -4753,7 +4810,15 @@ mod tests {
         let rustc = resolve_development_rustc(&cargo, Some(&root), false)
             .unwrap()
             .unwrap();
-        apply_development_toolchain_environment(&mut command, Some(&root), Some(&rustc));
+        let cc = validate_development_tool(&cc).unwrap();
+        let ar = validate_development_tool(&ar).unwrap();
+        apply_development_toolchain_environment(
+            &mut command,
+            Some(&root),
+            Some(&rustc),
+            Some(&cc),
+            Some(&ar),
+        );
         let output = command.output().unwrap();
         let variables = String::from_utf8_lossy(&output.stdout);
         assert!(
@@ -4765,6 +4830,28 @@ mod tests {
             variables
                 .lines()
                 .any(|line| line == format!("RUSTC={}", rustc.display()))
+        );
+        assert!(
+            variables
+                .lines()
+                .any(|line| line == format!("CC={}", cc.display()))
+        );
+        assert!(
+            variables
+                .lines()
+                .any(|line| line == format!("RUSTC_LINKER={}", cc.display()))
+        );
+        assert!(variables.lines().any(|line| {
+            line == format!(
+                "CARGO_TARGET_{}_LINKER={}",
+                target().to_ascii_uppercase().replace('-', "_"),
+                cc.display()
+            )
+        }));
+        assert!(
+            variables
+                .lines()
+                .any(|line| line == format!("AR={}", ar.display()))
         );
         assert!(!variables.lines().any(|line| line.starts_with("PATH=")));
         fs::remove_dir_all(root).unwrap();
@@ -4844,6 +4931,58 @@ mod tests {
             )
             .unwrap_err()
             .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_linker_candidates_reject_unsafe_overrides() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1638-linker-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let tool = root.join("bin/cc");
+        prepare_private_directory(tool.parent().unwrap()).unwrap();
+        fs::write(&tool, b"cc").unwrap();
+        fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            resolve_development_tool_candidates_from(
+                Some(std::ffi::OsStr::new("relative/cc")),
+                &[],
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        assert_eq!(
+            resolve_development_tool_candidates_from(Some(root.join("missing").as_os_str()), &[],)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        assert_eq!(
+            resolve_development_tool_candidates_from(Some(tool.as_os_str()), &[]).unwrap(),
+            fs::canonicalize(&tool).unwrap()
+        );
+        fs::set_permissions(&tool, fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            resolve_development_tool_candidates_from(Some(tool.as_os_str()), &[])
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
+        let target = root.join("unsafe");
+        fs::write(&target, b"cc").unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o777)).unwrap();
+        fs::remove_file(&tool).unwrap();
+        std::os::unix::fs::symlink(&target, &tool).unwrap();
+        assert_eq!(
+            resolve_development_tool_candidates_from(Some(tool.as_os_str()), &[])
+                .unwrap_err()
+                .code,
             "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
