@@ -4717,7 +4717,10 @@ mod tests {
         .unwrap();
         let verified = consume_development_bundle(
             Operation::Install,
-            Options { dry_run: true, ..Options::default() },
+            Options {
+                dry_run: true,
+                ..Options::default()
+            },
             &paths,
             2,
             ASB_SOURCE_COMMIT,
@@ -4747,7 +4750,10 @@ mod tests {
         .unwrap();
         let rejected = consume_development_bundle(
             Operation::Install,
-            Options { dry_run: true, ..Options::default() },
+            Options {
+                dry_run: true,
+                ..Options::default()
+            },
             &paths,
             2,
             ASB_SOURCE_COMMIT,
