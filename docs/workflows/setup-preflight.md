@@ -1,4 +1,35 @@
-# Setup preflight
+# Setup preflight and first-run selection
+
+`asb setup` is a credential-free setup wizard contract. Human-readable output
+is the default; add `--json` when a frontend needs the versioned response.
+Running it without selection arguments is a side-effect-free catalog and
+authentication checklist:
+
+```text
+asb setup
+asb setup --json
+```
+
+To persist one shared provider/model selection for several coding agents, pass
+each agent explicitly. The configuration is written atomically to the normal
+ASB XDG configuration store; `--config /absolute/path/config.json` is available
+for disposable tests and runners:
+
+```text
+asb setup --agent opencode --agent opendesk \
+  --provider-profile openrouter \
+  --model cohere/north-mini-code:free \
+  --credential-env OPENROUTER_API_KEY \
+  --persist
+```
+
+The persisted document contains only provider/model identities and a digest of
+the credential environment name. It never stores an API-key value. Missing
+authentication, signatures, and key management are visible development-only
+warnings and do not block this prototype. Re-running the command edits the
+same shared defaults; use `--no-default` when the selected agents should be
+configured without replacing the global default set. Use `--json` for stable
+automation output.
 
 `asb setup` is a bounded, side-effect-free first step for both interactive and
 automated configuration. It emits versioned JSON and never contacts a provider.

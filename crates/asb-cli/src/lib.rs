@@ -20,7 +20,11 @@ use asb_agents::provider_launch::{
     RuntimeBundleIdentity, credential_target_for_provider_agent,
 };
 use asb_analysis::{ComparisonField, compare_experiments};
-use asb_config::{ConfigStore, Configuration, OpenRouterFreeModelConfig};
+use asb_config::{
+    Agent as ConfigAgent, ConfigStore, Configuration, Connection as ConfigConnection,
+    CredentialReference, CredentialReferenceKind, ModelProfile, OpenRouterFreeModelConfig,
+    ProviderSelection,
+};
 use asb_metrics::LinuxCollector;
 use asb_protocol::{
     ExperimentManifestV1, Id, MeasurementArchitecture, MeasurementExecutionCapabilities,
@@ -1087,6 +1091,9 @@ struct SetupOutput {
     provider_contact: bool,
     provider_profile: Option<String>,
     model: Option<String>,
+    selected_agents: Vec<String>,
+    default_for_all: bool,
+    persisted: bool,
     /// Development setup advertises the complete non-secret selection surface.
     agents: &'static [&'static str],
     providers: &'static [&'static str],
@@ -1103,6 +1110,7 @@ struct SetupAuthentication {
     development_only: bool,
     status: &'static str,
     warning: &'static str,
+    credential_environment: String,
 }
 
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
@@ -1111,6 +1119,10 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let mut provider_profile = None;
     let mut model = None;
     let mut output_path = None;
+    let mut config_path = None;
+    let mut agents = Vec::new();
+    let mut credential_environment = None;
+    let mut default_for_all = true;
     let mut index = 0;
     while index < args.len() {
         let value = args[index].as_str();
@@ -1118,6 +1130,8 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             "--provider-profile" => &mut provider_profile,
             "--model" => &mut model,
             "--output" => &mut output_path,
+            "--config" => &mut config_path,
+            "--credential-env" | "--api-key-env" => &mut credential_environment,
             "--format=json" => {
                 index += 1;
                 continue;
@@ -1126,9 +1140,36 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
                 index += 2;
                 continue;
             }
+            "--agent" => {
+                let argument = args
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::usage("setup option is missing a value"))?;
+                if agents.len() >= MAX_SELECTED_AGENTS {
+                    return Err(CliError::validation("selected agent set exceeds its bound"));
+                }
+                let parsed = parse_agent(argument)?;
+                let name = agent_id(parsed).to_owned();
+                if !agents.contains(&name) {
+                    agents.push(name);
+                }
+                index += 2;
+                continue;
+            }
+            "--no-default" => {
+                default_for_all = false;
+                index += 1;
+                continue;
+            }
+            "--persist" => {
+                // Selection arguments already imply persistence.  Keep this
+                // explicit spelling for first-time scripts and future UI
+                // callers without making persistence an accidental prompt.
+                index += 1;
+                continue;
+            }
             _ => {
                 return Err(CliError::usage(
-                    "setup accepts --provider-profile, --model, --output, and --json (or --format=json)",
+                    "setup accepts --agent, --provider-profile, --model, --credential-env, --config, --output, --persist, and --json",
                 ));
             }
         };
@@ -1165,11 +1206,102 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             ));
         }
     }
+    if !agents.is_empty() && provider_profile.is_none() {
+        return Err(CliError::validation(
+            "agent selection requires a provider profile and model",
+        ));
+    }
+    if credential_environment.is_none() {
+        credential_environment = provider_profile.as_deref().map(|profile| match profile {
+            "openrouter" => asb_agents::openrouter::OPENROUTER_API_KEY_ENV.to_owned(),
+            "openai" => "OPENAI_API_KEY".to_owned(),
+            _ => "ASB_DEVELOPMENT_API_KEY".to_owned(),
+        });
+    }
+    let mut persisted = false;
+    if !agents.is_empty() {
+        let store = match config_path {
+            Some(path) => ConfigStore::new(path),
+            None => ConfigStore::from_environment()
+                .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?,
+        };
+        let config = store
+            .load()
+            .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
+            .unwrap_or_else(Configuration::empty);
+        let provider = provider_profile.as_deref().expect("validated above");
+        let selected_model = model.as_deref().expect("validated above");
+        let credential_env = credential_environment
+            .as_deref()
+            .expect("credential environment is derived above");
+        let credential = CredentialReference {
+            kind: CredentialReferenceKind::Environment,
+            locator_sha256: format!("{:x}", Sha256::digest(credential_env.as_bytes())),
+        };
+        let expected_model = match provider {
+            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
+            "openai" => asb_agents::openai::OPENAI_MODEL,
+            _ => return Err(CliError::validation("unsupported setup provider")),
+        };
+        if selected_model != expected_model {
+            return Err(CliError::validation(
+                "setup model is not currently supported by the selected provider",
+            ));
+        }
+        provider_plan_for(
+            provider,
+            agents
+                .iter()
+                .map(|agent| parse_agent(agent))
+                .collect::<Result<Vec<_>, _>>()?,
+            Some(&credential.locator_sha256),
+        )?;
+        let endpoint = match provider {
+            "openrouter" => asb_agents::openrouter::OPENROUTER_API_BASE,
+            "openai" => asb_agents::openai::OPENAI_API_BASE,
+            _ => return Err(CliError::validation("unsupported setup provider")),
+        };
+        let profile_name = format!("{provider}-{selected_model}");
+        let connection_name = format!("{provider}-default");
+        let mut next = config.clone();
+        for agent in &agents {
+            next.agents
+                .entry(agent.clone())
+                .or_insert_with(|| ConfigAgent {
+                    profile: profile_name.clone(),
+                    connection: connection_name.clone(),
+                    enabled: true,
+                });
+        }
+        let selection = ProviderSelection {
+            profile_name,
+            profile: ModelProfile {
+                provider: provider.to_owned(),
+                model: selected_model.to_owned(),
+                endpoint: endpoint.to_owned(),
+                credential: Some(credential),
+            },
+            connection_name,
+            connection: ConfigConnection {
+                endpoint: endpoint.to_owned(),
+                max_in_flight: 1,
+            },
+            agents: agents.clone(),
+            default_for_all,
+        };
+        next = next.apply_provider_selection(&selection).map_err(|_| {
+            CliError::validation("setup selection is incompatible with configuration")
+        })?;
+        store
+            .save(&next)
+            .map_err(|_| CliError::operation("setup configuration cannot be persisted"))?;
+        persisted = true;
+    }
     let contract = SetupOutput {
         schema_version: SETUP_OUTPUT_SCHEMA_VERSION,
         ok: true,
         command: "setup",
-        mode: if output_path.is_some() {
+        mode: if output_path.is_some() || persisted {
             "commit"
         } else {
             "preflight"
@@ -1180,10 +1312,13 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             "configure-authentication",
             "confirm-persistence",
         ],
-        persistent_change: output_path.is_some(),
+        persistent_change: output_path.is_some() || persisted,
         provider_contact: false,
         provider_profile,
         model,
+        selected_agents: agents,
+        default_for_all,
+        persisted,
         agents: &AGENT_IDS,
         providers: &["openai", "openrouter", "ollama", "gemini"],
         models: &[
@@ -1199,6 +1334,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             development_only: true,
             status: "unavailable",
             warning: "development-only fixture; missing credentials do not block setup",
+            credential_environment: credential_environment.unwrap_or_default(),
         },
     };
     if let Some(path) = output_path {
@@ -6552,6 +6688,70 @@ mod tests {
         assert_eq!(persisted["mode"], "commit");
         assert_eq!(persisted["provider_profile"], "openai");
         assert_eq!(persisted["model"], "gpt-4o-mini");
+    }
+
+    #[test]
+    fn setup_selects_multiple_agents_and_reloads_shared_defaults() {
+        let scratch = Scratch::new("setup-agents");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--agent",
+            "opencode",
+            "--agent",
+            "opendesk",
+            "--provider-profile",
+            "openrouter",
+            "--model",
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "--config",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["persisted"], true);
+        assert_eq!(value["selected_agents"], json!(["opencode", "opendesk"]));
+        assert_eq!(value["default_for_all"], true);
+        assert_eq!(value["authentication"]["development_only"], true);
+
+        let config = ConfigStore::new(destination).load().unwrap().unwrap();
+        assert_eq!(config.defaults.agents, ["opencode", "opendesk"]);
+        assert_eq!(config.agents.len(), 2);
+        assert!(config.agents["opencode"].enabled);
+        assert_eq!(
+            config.agents["opendesk"].profile,
+            config.agents["opencode"].profile
+        );
+    }
+
+    #[test]
+    fn setup_without_api_key_remains_development_nonblocking() {
+        let scratch = Scratch::new("setup-no-key");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--agent",
+            "opencode",
+            "--provider-profile",
+            "openrouter",
+            "--model",
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "--config",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_eq!(run(&args, &mut output, &mut Vec::new()), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["provider_contact"], false);
+        assert_eq!(value["authentication"]["status"], "unavailable");
+        assert!(destination.exists());
     }
 
     #[test]
