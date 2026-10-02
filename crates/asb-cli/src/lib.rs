@@ -5479,13 +5479,8 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let manifests = runs
         .iter()
         .map(|path| {
-            load_run_definition(Path::new(path)).map(|definition| {
-                (
-                    path,
-                    path.rsplit('/').next().unwrap_or_default().to_owned(),
-                    definition,
-                )
-            })
+            load_run_definition(Path::new(path))
+                .map(|definition| (path, opaque_run_id(path), definition))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let baseline = &manifests[0].2;
@@ -5582,6 +5577,13 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             unavailable_reasons,
         },
     )
+}
+
+fn opaque_run_id(path: &str) -> String {
+    path.rsplit(['/', '\\'])
+        .find(|component| !component.is_empty())
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn load_run_definition(path: &Path) -> Result<StoredRunDefinition, CliError> {
@@ -6453,6 +6455,19 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn opaque_run_id_normalizes_posix_and_windows_separators() {
+        assert_eq!(
+            super::opaque_run_id("/tmp/results/runs/provider-run"),
+            "provider-run"
+        );
+        assert_eq!(
+            super::opaque_run_id(r"C:\\results\\runs\\provider-run"),
+            "provider-run"
+        );
+        assert_eq!(super::opaque_run_id("/tmp/results/runs/"), "runs");
+    }
+
     use super::*;
     use asb_runtime::process_owner_material::OwnerToolProvenance;
     use std::os::unix::fs::PermissionsExt;
