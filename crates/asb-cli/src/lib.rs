@@ -1627,8 +1627,6 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     let manifest: RecordingCampaignManifest = serde_json::from_slice(&bytes)
         .map_err(|_| CliError::validation("recording campaign manifest is invalid"))?;
     if manifest.schema_version != asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION
-        || manifest.agent_ids.is_empty()
-        || manifest.workload_ids.is_empty()
         || manifest.agent_ids.len() > MAX_SELECTED_AGENTS
         || manifest.workload_ids.len() > MAX_SELECTED_AGENTS
         || manifest.entries.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
@@ -1637,23 +1635,37 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
             "recording campaign bounds are invalid",
         ));
     }
-    if !valid_sha256(&manifest.provider_profile_sha256)
-        || manifest.agent_ids.windows(2).any(|pair| pair[0] >= pair[1])
-        || manifest
-            .workload_ids
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        || manifest
-            .agent_ids
+    let mut agent_ids = if manifest.agent_ids.is_empty() {
+        AGENT_IDS
             .iter()
-            .any(|agent| parse_agent(agent).is_err())
+            .map(|id| (*id).to_owned())
+            .collect::<Vec<_>>()
+    } else {
+        manifest.agent_ids.clone()
+    };
+    agent_ids.sort();
+    let mut workload_ids = if manifest.workload_ids.is_empty() {
+        workload_catalog()
+            .into_iter()
+            .filter_map(|entry| select_workload(&entry.id, "linux-x86_64").ok())
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>()
+    } else {
+        manifest.workload_ids.clone()
+    };
+    workload_ids.sort();
+    if agent_ids.len() > MAX_SELECTED_AGENTS
+        || workload_ids.len() > MAX_SELECTED_AGENTS
+        || !valid_sha256(&manifest.provider_profile_sha256)
+        || agent_ids.windows(2).any(|pair| pair[0] == pair[1])
+        || workload_ids.windows(2).any(|pair| pair[0] == pair[1])
+        || agent_ids.iter().any(|agent| parse_agent(agent).is_err())
     {
         return Err(CliError::validation(
             "recording campaign identities are invalid",
         ));
     }
-    let workloads = manifest
-        .workload_ids
+    let workloads = workload_ids
         .iter()
         .map(|id| {
             let selected = select_workload(id, "linux-x86_64")
@@ -1666,7 +1678,7 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     let campaign = asb_replay::RecordingCampaign {
         schema_version: manifest.schema_version,
         provider_profile_sha256: manifest.provider_profile_sha256.clone(),
-        agent_ids: manifest.agent_ids.clone(),
+        agent_ids: agent_ids.clone(),
         workloads,
         max_tuples: u16::try_from(asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES).unwrap_or(u16::MAX),
         cost_per_tuple_minor: 0,
@@ -1683,7 +1695,7 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     let mut pending_writes = Vec::with_capacity(manifest.entries.len());
     let mut output_paths = BTreeSet::new();
     for entry in manifest.entries {
-        if !manifest.workload_ids.contains(&entry.workload_id) {
+        if !workload_ids.contains(&entry.workload_id) {
             return Err(CliError::validation(
                 "recording campaign entry workload is not selected",
             ));
@@ -1701,7 +1713,7 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
         let capture: RecordingCapture = serde_json::from_slice(&capture_bytes)
             .map_err(|_| CliError::validation("recording campaign capture is invalid"))?;
         if capture.provider_profile_sha256 != manifest.provider_profile_sha256
-            || !manifest.agent_ids.contains(&capture.agent_id)
+            || !agent_ids.contains(&capture.agent_id)
             || !seen.insert((capture.agent_id.clone(), entry.workload_id.clone()))
         {
             return Err(CliError::validation(
