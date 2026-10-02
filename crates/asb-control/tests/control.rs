@@ -166,6 +166,60 @@ fn fanout_rejects_invalid_public_identities() {
 }
 
 #[test]
+fn fanout_requests_validate_outer_bounds_and_cancel_members() {
+    let request = |call| ControlRequest {
+        jsonrpc: "2.0".into(),
+        id: RequestId(7),
+        timeout_ms: 100,
+        call,
+    };
+    let valid_member = CancelParams {
+        idempotency_key: "cancel-member-1".into(),
+        run_id: RunId("run-1".into()),
+        attempt_id: AttemptId("attempt-1".into()),
+    };
+    validate_request(
+        &request(ControlCall::Fanout(FanoutParams {
+            idempotency_key: "fanout-1".into(),
+            requests: vec![json!({"request": "deferred-to-runner"})],
+        })),
+        limits(),
+    )
+    .unwrap();
+    validate_request(
+        &request(ControlCall::FanoutCancel(FanoutCancelParams {
+            idempotency_key: "cancel-1".into(),
+            members: vec![valid_member.clone()],
+        })),
+        limits(),
+    )
+    .unwrap();
+    for call in [
+        ControlCall::Fanout(FanoutParams {
+            idempotency_key: String::new(),
+            requests: vec![json!({})],
+        }),
+        ControlCall::Fanout(FanoutParams {
+            idempotency_key: "fanout-1".into(),
+            requests: vec![],
+        }),
+        ControlCall::FanoutCancel(FanoutCancelParams {
+            idempotency_key: "cancel-1".into(),
+            members: vec![],
+        }),
+        ControlCall::FanoutCancel(FanoutCancelParams {
+            idempotency_key: "cancel-1".into(),
+            members: vec![CancelParams {
+                idempotency_key: String::new(),
+                ..valid_member.clone()
+            }],
+        }),
+    ] {
+        assert!(validate_request(&request(call), limits()).is_err());
+    }
+}
+
+#[test]
 fn recording_lifecycle_is_versioned_and_fail_closed() {
     assert_eq!(
         CONTROL_RECORDING_LIFECYCLE_V1,

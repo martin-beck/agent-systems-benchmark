@@ -2595,6 +2595,26 @@ pub fn validate_request(
             validate_identity(&run_id.0)?;
             validate_digest(digest)?;
         }
+        ControlCall::Fanout(params) => {
+            validate_idempotency_key(&params.idempotency_key)?;
+            if params.requests.is_empty()
+                || params.requests.len() > usize::from(limits.max_in_flight)
+            {
+                return Err(ProtocolError::InvalidLimit("fanout_requests"));
+            }
+        }
+        ControlCall::FanoutCancel(params) => {
+            validate_idempotency_key(&params.idempotency_key)?;
+            if params.members.is_empty() || params.members.len() > usize::from(limits.max_in_flight)
+            {
+                return Err(ProtocolError::InvalidLimit("fanout_members"));
+            }
+            for member in &params.members {
+                validate_idempotency_key(&member.idempotency_key)?;
+                validate_identity(&member.run_id.0)?;
+                validate_identity(&member.attempt_id.0)?;
+            }
+        }
         _ => {}
     }
     Ok(())
