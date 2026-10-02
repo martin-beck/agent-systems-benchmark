@@ -4,7 +4,7 @@
   "title": "ASB setup preflight output",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "ok", "command", "mode", "steps", "persistent_change", "provider_contact", "provider_profile", "model", "agents", "providers", "models", "default_agent", "default_provider", "default_model", "authentication"],
+  "required": ["schema_version", "ok", "command", "mode", "steps", "persistent_change", "provider_contact", "provider_profile", "model", "selected_agents", "default_for_all", "persisted", "agents", "providers", "models", "default_agent", "default_provider", "default_model", "authentication"],
   "properties": {
     "schema_version": {"const": 2},
     "ok": {"const": true},
@@ -15,6 +15,9 @@
     "provider_contact": {"const": false},
     "provider_profile": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
     "model": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "selected_agents": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "maxItems": 9},
+    "default_for_all": {"type": "boolean"},
+    "persisted": {"type": "boolean"},
     "agents": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "minItems": 1},
     "providers": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "minItems": 1},
     "models": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "minItems": 1},
@@ -23,11 +26,12 @@
     "default_model": {"type": "string", "minLength": 1, "maxLength": 128},
     "authentication": {
       "type": "object", "additionalProperties": false,
-      "required": ["development_only", "status", "warning"],
+      "required": ["development_only", "status", "warning", "credential_environment"],
       "properties": {
         "development_only": {"const": true},
         "status": {"const": "unavailable"},
-        "warning": {"type": "string", "minLength": 1, "maxLength": 256}
+        "warning": {"type": "string", "minLength": 1, "maxLength": 256},
+        "credential_environment": {"type": "string", "maxLength": 128}
       }
     }
   }
