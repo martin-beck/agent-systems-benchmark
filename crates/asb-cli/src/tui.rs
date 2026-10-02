@@ -3240,7 +3240,7 @@ fn resolve_rustup_proxy_cargo(
         return Ok(resolved.to_path_buf());
     }
     let Some(rustup_home) = rustup_home else {
-        return Ok(resolved.to_path_buf());
+        return Err(RouterError::operation("trusted_tool_unavailable"));
     };
     let settings = read_bounded(&rustup_home.join("settings.toml"), 64 * 1024)
         .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
@@ -4595,6 +4595,12 @@ mod tests {
         prepare_private_directory(cargo.parent().unwrap()).unwrap();
         fs::write(&cargo, b"toolchain cargo").unwrap();
         fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(Some(proxy.as_os_str()), None, None, None,)
+                .unwrap_err()
+                .code,
+            "trusted_tool_unavailable"
+        );
         let resolved = resolve_development_cargo_from_with_rustup(
             Some(proxy.as_os_str()),
             None,
