@@ -5454,18 +5454,86 @@ struct ComparisonOutput {
     command: &'static str,
     comparable: bool,
     differences: Vec<String>,
+    pairs: Vec<ComparisonPairOutput>,
+    confounders: Vec<ComparisonConfounderOutput>,
+    unavailable_reasons: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ComparisonPairOutput {
+    left_run_id: String,
+    right_run_id: String,
+    left_agent: String,
+    right_agent: String,
+    comparable: bool,
+    differences: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ComparisonConfounderOutput {
+    kind: &'static str,
+    description: String,
 }
 
 fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let manifests = runs
         .iter()
-        .map(|path| load_run_definition(Path::new(path)))
+        .map(|path| {
+            load_run_definition(Path::new(path)).map(|definition| {
+                (
+                    path,
+                    path.rsplit('/').next().unwrap_or_default().to_owned(),
+                    definition,
+                )
+            })
+        })
         .collect::<Result<Vec<_>, _>>()?;
-    let baseline = &manifests[0];
+    let baseline = &manifests[0].2;
     let mut differences = Vec::new();
+    let mut pairs = Vec::with_capacity(manifests.len().saturating_sub(1));
+    let mut confounders = Vec::new();
+    let mut unavailable_reasons = Vec::new();
     for candidate in &manifests[1..] {
-        let report = compare_experiments(&baseline.experiment, &candidate.experiment)
+        if baseline.provider_selection.is_none() {
+            unavailable_reasons.push(format!("baseline:provider_selection_unavailable"));
+        }
+        if candidate.2.provider_selection.is_none() {
+            unavailable_reasons.push(format!("{}:provider_selection_unavailable", candidate.1));
+        }
+        let report = compare_experiments(&baseline.experiment, &candidate.2.experiment)
             .map_err(|_| CliError::validation("stored experiments cannot be compared"))?;
+        let mut pair_differences = report
+            .differences()
+            .iter()
+            .map(|field| comparison_field_name(*field).to_owned())
+            .collect::<Vec<_>>();
+        if baseline.execution != candidate.2.execution
+            && !pair_differences.iter().any(|name| name == "execution")
+        {
+            pair_differences.push("execution".to_owned());
+        }
+        for field in &pair_differences {
+            let confounder = ComparisonConfounderOutput {
+                kind: "provenance",
+                description: format!("paired runs differ in {field}"),
+            };
+            if !confounders
+                .iter()
+                .any(|value: &ComparisonConfounderOutput| {
+                    value.description == confounder.description
+                })
+            {
+                confounders.push(confounder);
+            }
+        }
+        pairs.push(ComparisonPairOutput {
+            left_run_id: manifests[0].1.clone(),
+            right_run_id: candidate.1.clone(),
+            left_agent: baseline.experiment.agent.implementation.clone(),
+            right_agent: candidate.2.experiment.agent.implementation.clone(),
+            comparable: pair_differences.is_empty() && report.permits_unqualified_claim(),
+            differences: pair_differences,
+        });
         for field in report.differences() {
             let name = comparison_field_name(*field).to_owned();
             if !differences.contains(&name) {
@@ -5473,17 +5541,21 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             }
         }
         if baseline.execution.measurement_selection_sha256
-            != candidate.execution.measurement_selection_sha256
+            != candidate.2.execution.measurement_selection_sha256
             && !differences
                 .iter()
                 .any(|name| name == "measurement_selection")
         {
             differences.push("measurement_selection".to_owned());
         }
-        if baseline.execution != candidate.execution
+        if baseline.execution != candidate.2.execution
             && !differences.iter().any(|name| name == "execution")
         {
             differences.push("execution".to_owned());
+            confounders.push(ComparisonConfounderOutput {
+                kind: "execution",
+                description: "paired runs have different execution bindings".to_owned(),
+            });
         }
     }
     write_json(
@@ -5494,6 +5566,9 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             command: "compare",
             comparable: differences.is_empty(),
             differences,
+            pairs,
+            confounders,
+            unavailable_reasons,
         },
     )
 }
@@ -8558,6 +8633,16 @@ mod tests {
         assert_eq!(exit, 0);
         assert_eq!(comparison["comparable"], false);
         assert_eq!(comparison["differences"], json!(["execution"]));
+        assert_eq!(comparison["pairs"][0]["left_run_id"], "provider-run");
+        assert_eq!(comparison["pairs"][0]["right_run_id"], "provider-alternate");
+        assert_eq!(comparison["pairs"][0]["comparable"], false);
+        assert_eq!(comparison["confounders"][0]["kind"], "provenance");
+        assert!(
+            comparison["unavailable_reasons"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
 
         plan.run_id = "provider-sweep".to_owned();
         plan.result_root = scratch.0.join("sweep-results");

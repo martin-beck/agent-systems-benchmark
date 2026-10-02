@@ -154,6 +154,13 @@ fn documented_offline_workflow_produces_validated_artifacts() {
     ]);
     assert_eq!(comparison["comparable"], true);
     assert_eq!(comparison["differences"], json!([]));
+    assert_eq!(
+        comparison["unavailable_reasons"],
+        json!([
+            "baseline:provider_selection_unavailable",
+            "guide-second:provider_selection_unavailable"
+        ])
+    );
 
     let (sweep_plan, _, sweep_work) = write_plan(&scratch.0.join("sweep"), "guide-sweep", true);
     let sweep = successful_json(&["sweep", sweep_plan.to_str().unwrap()]);
