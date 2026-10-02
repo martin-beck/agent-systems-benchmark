@@ -81,6 +81,7 @@ static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Operation {
+    Preflight,
     Install,
     Upgrade,
     Status,
@@ -94,6 +95,7 @@ enum Operation {
 impl Operation {
     const fn name(self) -> &'static str {
         match self {
+            Self::Preflight => "preflight",
             Self::Install => "install",
             Self::Upgrade => "upgrade",
             Self::Status => "status",
@@ -173,6 +175,10 @@ struct RouterResponse {
     channel: &'static str,
     development_only: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    classification: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remediation: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     release: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     executable_sha256: Option<String>,
@@ -197,6 +203,8 @@ impl RouterResponse {
             network,
             channel: "dev",
             development_only: true,
+            classification: None,
+            remediation: None,
             release: None,
             executable_sha256: None,
             source_commit: None,
@@ -453,7 +461,7 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
     if operation == Operation::Help {
         writeln!(
             output,
-            "Usage: asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\nFresh installs default to the development channel; existing installations preserve their active channel."
+            "Usage: asb tui [preflight|launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\nFresh installs default to the development channel; existing installations preserve their active channel."
         )
         .map_err(output_error)?;
         return Ok(0);
@@ -487,6 +495,8 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
                 "denied"
             };
             let mut response = RouterResponse::result(operation, false, error.code, network);
+            response.classification = Some(error.classification());
+            response.remediation = error.remediation();
             annotate_channel(&mut response, resolved_channel);
             write_json(output, &response)?;
             return Ok(error.exit_code);
@@ -499,6 +509,27 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
     Ok(exit)
 }
 
+impl RouterError {
+    fn classification(&self) -> &'static str {
+        match self.code {
+            "trusted_tool_invalid" | "trusted_tool_unavailable" => "host_limitation",
+            _ => "product_failure",
+        }
+    }
+
+    fn remediation(&self) -> Option<&'static str> {
+        match self.code {
+            "trusted_tool_invalid" => {
+                Some("repair_toolchain_permissions_or_set_private_ASB_DEV_RUSTUP_HOME")
+            }
+            "trusted_tool_unavailable" => {
+                Some("install_a_supported_rust_toolchain_or_set_ASB_DEV_CARGO")
+            }
+            _ => None,
+        }
+    }
+}
+
 fn annotate_channel(response: &mut RouterResponse, resolved: Channel) {
     response.channel = resolved.name();
     response.development_only = resolved == Channel::Dev;
@@ -507,6 +538,7 @@ fn annotate_channel(response: &mut RouterResponse, resolved: Channel) {
 fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
     let (operation, flags) = match args.first().map(String::as_str) {
         None => (Operation::Launch, &args[0..]),
+        Some("preflight") => (Operation::Preflight, &args[1..]),
         Some("launch") => (Operation::Launch, &args[1..]),
         Some("status") => (Operation::Status, &args[1..]),
         Some("doctor") => (Operation::Doctor, &args[1..]),
@@ -612,6 +644,7 @@ fn execute(
             }
             install_or_upgrade(operation, options, paths, source, now)
         }
+        Operation::Preflight => preflight_development(),
         Operation::Status | Operation::Remove | Operation::Launch => {
             if existing_channel(options, paths)? == Channel::Dev {
                 if operation == Operation::Remove {
@@ -688,6 +721,41 @@ fn development_source_identity_from(
     } else {
         Err(RouterError::policy("dev_source_identity_unknown"))
     }
+}
+
+/// Check the bounded development host before starting a clone or build.  This
+/// is deliberately read-only: it reports host limitations with remediation
+/// while retaining the trust policy used by the materializer.
+fn preflight_development() -> Result<RouterResponse, RouterError> {
+    let paths = RouterPaths::environment()?;
+    if !safe_absolute(&paths.cache_root)
+        || !safe_absolute(&paths.install_root)
+        || !safe_absolute(&paths.state_root)
+    {
+        return Err(RouterError::policy("development_filesystem_invalid"));
+    }
+    development_source_identity()?;
+    resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
+    resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
+    resolve_development_tool_candidates(DEV_CC_OVERRIDE, &["/usr/bin/cc", "/usr/local/bin/cc"])?;
+    resolve_development_tool_candidates(DEV_AR_OVERRIDE, &["/usr/bin/ar", "/usr/local/bin/ar"])?;
+    resolve_development_tool_candidates(DEV_LD_OVERRIDE, &["/usr/bin/ld", "/usr/local/bin/ld"])?;
+    let rustup_home = resolve_development_rustup_home()?;
+    let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
+    let _ = resolve_development_rustc(
+        &cargo,
+        rustup_home.as_deref(),
+        std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
+    )?;
+    let mut response = RouterResponse::result(
+        Operation::Preflight,
+        true,
+        "development_host_ready",
+        "denied",
+    );
+    response.classification = Some("host_ready");
+    response.warnings = Some(development_warnings());
+    Ok(response)
 }
 
 fn install_or_upgrade(
@@ -1906,6 +1974,8 @@ fn response_from_delegated(
         network,
         channel: "stable",
         development_only: false,
+        classification: None,
+        remediation: None,
         release: delegated.release,
         executable_sha256: delegated.executable_sha256,
         source_commit: None,
@@ -2725,7 +2795,7 @@ fn validate_delegated(
             Operation::Remove => "extension_removed",
             Operation::Launch => "frontend_exited",
             Operation::Status => "verified_installation",
-            Operation::Doctor | Operation::Help | Operation::Version => {
+            Operation::Preflight | Operation::Doctor | Operation::Help | Operation::Version => {
                 return Err(RouterError::policy("candidate_response_invalid"));
             }
         };
@@ -3588,6 +3658,19 @@ fn version_parts(value: &str) -> Result<(u64, u64, u64), RouterError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preflight_classifies_toolchain_rejection_with_recovery() {
+        let error = RouterError::policy("trusted_tool_invalid");
+        assert_eq!(error.classification(), "host_limitation");
+        assert_eq!(
+            error.remediation(),
+            Some("repair_toolchain_permissions_or_set_private_ASB_DEV_RUSTUP_HOME")
+        );
+        let failure = RouterError::operation("candidate_execution_failed");
+        assert_eq!(failure.classification(), "product_failure");
+        assert_eq!(failure.remediation(), None);
+    }
     use asb_control::{
         ControlBackend, ControlCall, ControlClient, ControlResult, RequestDeadline,
         SUPPORTED_CONTROL_VERSIONS_LEGACY,
