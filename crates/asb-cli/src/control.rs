@@ -9544,7 +9544,16 @@ printf '%s' 'not-json'
             .unwrap();
         drop(backend);
 
-        let recovered = open_backend(state).unwrap();
+        let recovered = (0..100)
+            .find_map(|_| match open_backend(state.clone()) {
+                Ok(backend) => Some(backend),
+                Err(error) if error.message == "control state root is already owned" => {
+                    thread::sleep(Duration::from_millis(5));
+                    None
+                }
+                Err(error) => panic!("unexpected restart failure: {error:?}"),
+            })
+            .expect("completed worker should release state ownership");
         assert_eq!(
             recovered.execute(&launch_call, deadline()).unwrap(),
             launched
