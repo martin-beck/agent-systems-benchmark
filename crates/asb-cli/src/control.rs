@@ -6556,6 +6556,80 @@ mod tests {
     }
 
     #[test]
+    fn runner_fanout_admits_binds_and_checks_member_identity() {
+        let mut scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.run_id = "fanout-control-1:0".into();
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Replay;
+        backend
+            .orchestration
+            .lock()
+            .unwrap()
+            .plans
+            .lock()
+            .unwrap()
+            .insert(plan.run_id.clone(), plan.clone());
+        let mut request = plan_request(&plan).unwrap();
+        request.mode = ExecutionMode::LocalMock;
+        request.model_id =
+            asb_protocol::Id(asb_runtime::live_service::LOCAL_PROVIDER_MOCK_MODEL.to_string());
+        request.cassette_digest = None;
+        let request_value = serde_json::to_value(request).unwrap();
+        let fanout = ControlCall::Fanout(asb_control::FanoutParams {
+            idempotency_key: "fanout-control-1".into(),
+            requests: vec![request_value],
+        });
+        let admitted = backend.execute(&fanout, deadline()).unwrap();
+        admitted
+            .validate_for_call(&fanout, ControlLimits::default())
+            .unwrap();
+        let ControlResult::Fanout(admission) = admitted.result else {
+            panic!("fanout admission result");
+        };
+        assert_eq!(admission.members.len(), 1);
+        assert_eq!(admission.idempotency_key, "fanout-control-1");
+
+        let member = &admission.members[0];
+        let cancel = ControlCall::FanoutCancel(asb_control::FanoutCancelParams {
+            idempotency_key: "fanout-cancel-1".into(),
+            members: vec![asb_control::CancelParams {
+                run_id: member.run_id.clone(),
+                attempt_id: member.attempt_id.clone(),
+                idempotency_key: "fanout-member-cancel-1".into(),
+            }],
+        });
+        let mut stale_cancel = cancel.clone();
+        if let ControlCall::FanoutCancel(params) = &mut stale_cancel {
+            params.members[0].attempt_id = asb_control::AttemptId("stale-attempt".into());
+        }
+        assert_eq!(
+            backend.execute(&stale_cancel, deadline()),
+            Err(BackendFailure::StaleIdentity)
+        );
+
+        // The admission key is idempotent and returns the same causal member
+        // instead of creating a second run/attempt pair.
+        let retried = backend.execute(&fanout, deadline()).unwrap();
+        let ControlResult::Fanout(retried) = retried.result else {
+            panic!("fanout retry result");
+        };
+        assert_eq!(retried.members, admission.members);
+
+        let malformed = ControlCall::Fanout(asb_control::FanoutParams {
+            idempotency_key: "fanout-malformed".into(),
+            requests: vec![serde_json::json!({"not": "a-run-request"})],
+        });
+        assert_eq!(
+            backend.execute(&malformed, deadline()),
+            Err(BackendFailure::Rejected)
+        );
+        scratch.cleanup_with_hook(|| {});
+    }
+
+    #[test]
     fn backend_returns_the_typed_benchmark_catalog_with_stable_identity() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
