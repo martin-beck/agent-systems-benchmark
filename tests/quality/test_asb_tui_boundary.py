@@ -34,3 +34,14 @@ def test_asb_sources_do_not_import_terminal_renderer_crates() -> None:
     for source in (ROOT / "crates").glob("**/*.rs"):
         contents = source.read_text(encoding="utf-8").lower()
         assert not any(name in contents for name in forbidden), source
+
+
+def test_cross_repo_qualification_tracks_current_tui_main() -> None:
+    """Development qualification must not silently reuse a stale TUI pin."""
+    workflow = (ROOT / ".github/workflows/cross-repo-development-qualification.yml").read_text()
+    assert 'refs/heads/main' in workflow
+    assert 'git -C "$tui_root" fetch --depth=1 origin "$tui_ref"' in workflow
+    assert 'rev-parse FETCH_HEAD' in workflow
+    assert "8b69a7d9c21a7e3b0a409c7ab525bd998487db63" not in workflow
+    assert 'ASB_TUI_SOURCE_COMMIT="$TUI_COMMIT"' in workflow
+    assert 'ASB_TUI_SOURCE_TREE="$tui_tree"' in workflow
