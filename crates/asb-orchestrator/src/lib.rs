@@ -15,7 +15,7 @@ use asb_store::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 use thiserror::Error;
 
@@ -118,6 +118,32 @@ pub struct RunRequest {
     pub credential_ref_digest: Option<String>,
     /// Bounded execution and evidence limits.
     pub limits: RunLimits,
+}
+
+/// Bounded group of selected agent/workload requests admitted as one fan-out.
+///
+/// Each member is still an ordinary runtime-authorized request. The fan-out
+/// key is only used to derive stable per-member idempotency keys, so retrying
+/// an interrupted fan-out cannot create duplicate runs. Strict-replay members
+/// must carry their cassette digest in `RunRequest`; no provider fallback is
+/// introduced by this helper.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FanoutRequest {
+    /// Stable operator idempotency key for the complete selected set.
+    pub idempotency_key: String,
+    /// Selected agent/workload requests in deterministic order.
+    pub requests: Vec<RunRequest>,
+}
+
+/// Server-issued references for every admitted fan-out member.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FanoutHandle {
+    /// The fan-out idempotency key.
+    pub idempotency_key: String,
+    /// Durable run and attempt handles, in request order.
+    pub members: Vec<(RunHandle, AttemptHandle)>,
 }
 
 /// Server-issued opaque run handle with a causal fence.
@@ -734,6 +760,76 @@ impl<S: AuthoritySource> Orchestrator<S> {
         self.runs.insert(run_id.clone(), record);
         self.persist_for(&run_id, RunStatus::Prepared)?;
         Ok(run)
+    }
+
+    /// Admit a selected agent/workload fan-out with deterministic retry and
+    /// cancellation semantics. All requests are validated before any runtime
+    /// authority is touched; a partial admission is cancelled if a later
+    /// member cannot be admitted.
+    pub fn admit_fanout(
+        &mut self,
+        fanout: FanoutRequest,
+    ) -> Result<FanoutHandle, OrchestratorError> {
+        if fanout.idempotency_key.is_empty()
+            || fanout.idempotency_key.len() > MAX_IDEMPOTENCY_KEY
+            || fanout.requests.is_empty()
+            || fanout.requests.len() > MAX_ACTIVE_RUNS
+        {
+            return Err(OrchestratorError::InvalidLimit("fanout"));
+        }
+        for request in &fanout.requests {
+            validate_request(request)?;
+        }
+        let mut tuples = BTreeSet::new();
+        if fanout
+            .requests
+            .iter()
+            .any(|request| !tuples.insert((&request.agent_id, &request.workload_id)))
+        {
+            return Err(OrchestratorError::InvalidRequest("duplicate fanout tuple"));
+        }
+        let mut members = Vec::with_capacity(fanout.requests.len());
+        for (index, mut request) in fanout.requests.into_iter().enumerate() {
+            request.idempotency_key = format!("{}:{index}", fanout.idempotency_key);
+            if request.idempotency_key.len() > MAX_IDEMPOTENCY_KEY {
+                for (run, attempt) in &members {
+                    let _ = self.cancel(run, attempt);
+                }
+                return Err(OrchestratorError::InvalidLimit("fanout_idempotency_key"));
+            }
+            match self.admit(request) {
+                Ok(run) => {
+                    let attempt = self
+                        .runs
+                        .get(run.id())
+                        .map(|record| record.attempt.clone())
+                        .ok_or(OrchestratorError::NotFound)?;
+                    members.push((run, attempt));
+                }
+                Err(error) => {
+                    for (run, attempt) in &members {
+                        let _ = self.cancel(run, attempt);
+                    }
+                    return Err(error);
+                }
+            }
+        }
+        Ok(FanoutHandle {
+            idempotency_key: fanout.idempotency_key,
+            members,
+        })
+    }
+
+    /// Cancel every non-terminal member of a previously admitted fan-out.
+    pub fn cancel_fanout(
+        &mut self,
+        fanout: &FanoutHandle,
+    ) -> Result<Vec<RunStatus>, OrchestratorError> {
+        fanout
+            .members
+            .iter()
+            .map(|(run, attempt)| self.cancel(run, attempt))
+            .collect()
     }
 
     /// Start an admitted attempt using its exact server-issued fence.
@@ -1452,6 +1548,71 @@ mod tests {
         assert_eq!(outcome.output_bytes, 0);
         assert_eq!(outcome.artifact_count, 0);
         assert_eq!(outcome.result_digest.len(), 64);
+    }
+
+    #[test]
+    fn fanout_admission_is_ordered_idempotent_and_binds_offline_cassettes() {
+        let mut service = Orchestrator::new(DeterministicAuthoritySource);
+        let mut online = request(ExecutionMode::LocalMock);
+        online.agent_id = Id("aider".into());
+        let mut offline = request(ExecutionMode::StrictReplay);
+        offline.agent_id = Id("opencode".into());
+        offline.workload_id = Id("original.bug-fix".into());
+        let fanout = FanoutRequest {
+            idempotency_key: "selected-set".into(),
+            requests: vec![online.clone(), offline.clone()],
+        };
+        let first = service.admit_fanout(fanout.clone()).expect("fanout");
+        assert_eq!(first.members.len(), 2);
+        assert_ne!(first.members[0].0.id(), first.members[1].0.id());
+        assert_eq!(first.members[0].0.id().0, "run-1");
+        assert_eq!(first.members[1].0.id().0, "run-3");
+        assert_eq!(service.status(&first.members[1].0), Ok(RunStatus::Prepared));
+        let retry = service.admit_fanout(fanout).expect("idempotent retry");
+        assert_eq!(retry, first);
+        assert_eq!(
+            service.cancel_fanout(&first).unwrap(),
+            vec![RunStatus::Cancelled, RunStatus::Cancelled,]
+        );
+    }
+
+    #[test]
+    fn fanout_rejects_partial_admission_without_leaving_active_members() {
+        let mut service = Orchestrator::new(DeterministicAuthoritySource);
+        let mut valid = request(ExecutionMode::StrictReplay);
+        valid.agent_id = Id("aider".into());
+        let mut invalid = request(ExecutionMode::StrictReplay);
+        invalid.agent_id = Id("opendesk".into());
+        invalid.cassette_digest = Some("not-a-digest".into());
+        assert!(matches!(
+            service.admit_fanout(FanoutRequest {
+                idempotency_key: "partial-set".into(),
+                requests: vec![valid, invalid],
+            }),
+            Err(OrchestratorError::InvalidRequest("replay authority fields"))
+        ));
+        assert_eq!(
+            service.status_for_idempotency_key("partial-set:0"),
+            Err(OrchestratorError::NotFound)
+        );
+    }
+
+    #[test]
+    fn fanout_rejects_duplicate_agent_workload_tuples_before_authority_use() {
+        let mut service = Orchestrator::new(DeterministicAuthoritySource);
+        let first = request(ExecutionMode::LocalMock);
+        let second = request(ExecutionMode::LocalMock);
+        assert_eq!(
+            service.admit_fanout(FanoutRequest {
+                idempotency_key: "duplicate-set".into(),
+                requests: vec![first, second],
+            }),
+            Err(OrchestratorError::InvalidRequest("duplicate fanout tuple"))
+        );
+        assert_eq!(
+            service.status_for_idempotency_key("duplicate-set:0"),
+            Err(OrchestratorError::NotFound)
+        );
     }
 
     #[test]
