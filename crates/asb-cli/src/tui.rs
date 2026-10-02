@@ -17,9 +17,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -56,6 +56,7 @@ const DEV_BROKER_ASB_TREE_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_TREE";
 const DEV_BROKER_TUI_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_TUI_SOURCE_COMMIT";
 const DEV_BROKER_TUI_TREE_ENV: &str = "ASB_TUI_EXPECTED_TUI_SOURCE_TREE";
 const DEV_BROKER_PROTOCOL_MINOR: u64 = 10;
+const UNIX_SOCKET_PATH_LIMIT: usize = 108;
 const DEV_GIT: &str = "/usr/bin/git";
 const DEV_SETSID: &str = "/usr/bin/setsid";
 // Development-only override; stable release paths never consult this variable.
@@ -1272,6 +1273,7 @@ fn execute_development_existing(
                 .env(DEV_BROKER_TUI_TREE_ENV, &active.source_tree)
                 .args(["run", "--broker", "--development"]);
             add_candidate_environment(&mut command)?;
+            add_development_terminal_environment(&mut command)?;
             let status = launch_development_broker(command, &paths.state_root)?;
             if !status.success() {
                 return Err(RouterError::operation("development_launch_failed"));
@@ -1300,11 +1302,7 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
     state_root: &Path,
     backend: B,
 ) -> Result<std::process::ExitStatus, RouterError> {
-    let broker_root = state_root.join(format!(
-        ".dev-broker-{}-{}",
-        std::process::id(),
-        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-    ));
+    let broker_root = development_broker_root(state_root);
     let control_dir = broker_root.join("control");
     let provisioning_dir = broker_root.join("provisioning");
     prepare_private_directory(&control_dir)?;
@@ -1446,6 +1444,62 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
             }
         }
         thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// The broker consumes fd 0, so the development TUI must receive a separately
+/// validated path to the parent's terminal before the handoff.  This is
+/// development-only metadata; the child revalidates ownership and character
+/// device shape before redirecting stdin.
+fn add_development_terminal_environment(command: &mut Command) -> Result<(), RouterError> {
+    if !io::stdin().is_terminal() {
+        return Ok(());
+    }
+    let path = fs::read_link("/proc/self/fd/0")
+        .map_err(|_| RouterError::operation("development_terminal_unavailable"))?;
+    let text = path
+        .to_str()
+        .ok_or_else(|| RouterError::operation("development_terminal_unavailable"))?;
+    let Some(number) = text.strip_prefix("/dev/pts/") else {
+        return Err(RouterError::operation("development_terminal_unavailable"));
+    };
+    if number.is_empty()
+        || number.len() > 16
+        || !number.bytes().all(|byte| byte.is_ascii_digit())
+        || text.len() > 64
+    {
+        return Err(RouterError::operation("development_terminal_unavailable"));
+    }
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|_| RouterError::operation("development_terminal_unavailable"))?;
+    if !metadata.file_type().is_char_device()
+        || metadata.uid() != rustix::process::getuid().as_raw()
+    {
+        return Err(RouterError::operation("development_terminal_unavailable"));
+    }
+    command.env("ASB_TUI_DEVELOPMENT_TERMINAL_PATH", path);
+    Ok(())
+}
+
+/// Keep both development Unix endpoints below Linux's sockaddr_un path bound
+/// even when XDG state roots are deeply nested.  The fallback remains a
+/// private, process-unique temporary directory and is removed on every normal
+/// launch exit path.
+fn development_broker_root(state_root: &Path) -> PathBuf {
+    let suffix = format!(
+        "{}-{}",
+        std::process::id(),
+        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    );
+    let state_root_candidate = state_root.join(format!(".dev-broker-{suffix}"));
+    let control_socket = state_root_candidate.join("control/control.sock");
+    let provisioning_socket = state_root_candidate.join("provisioning/provisioning.sock");
+    if control_socket.as_os_str().len() < UNIX_SOCKET_PATH_LIMIT
+        && provisioning_socket.as_os_str().len() < UNIX_SOCKET_PATH_LIMIT
+    {
+        state_root_candidate
+    } else {
+        std::env::temp_dir().join(format!("asb-broker-{suffix}"))
     }
 }
 
@@ -3848,6 +3902,27 @@ mod tests {
                 .to_string_lossy()
                 .starts_with(".dev-broker-")
         }));
+    }
+
+    #[test]
+    fn development_broker_root_falls_back_for_deep_state_roots() {
+        let deep = PathBuf::from(format!("/{}", "nested/".repeat(20)));
+        let root = development_broker_root(&deep);
+        assert!(root.starts_with(std::env::temp_dir()));
+        assert!(root.join("control/control.sock").as_os_str().len() < UNIX_SOCKET_PATH_LIMIT);
+        assert!(
+            root.join("provisioning/provisioning.sock")
+                .as_os_str()
+                .len()
+                < UNIX_SOCKET_PATH_LIMIT
+        );
+    }
+
+    #[test]
+    fn development_broker_root_stays_under_state_root_when_paths_fit() {
+        let state = PathBuf::from("/tmp/asb-state");
+        let root = development_broker_root(&state);
+        assert!(root.starts_with(state));
     }
 
     #[test]
