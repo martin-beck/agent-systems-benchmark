@@ -4331,14 +4331,6 @@ impl RunnerBackend {
         } else {
             Vec::new()
         };
-        // Remove artifacts before clearing their durable digests.  If cleanup
-        // fails, the mutation is not committed and a retry retains the exact
-        // identity needed to attempt cleanup again.
-        if matches!(action, RecordingLifecycleAction::Remove) {
-            for digest in &remove_digests {
-                remove_cassette_artifact(&self.state_root, digest)?;
-            }
-        }
         let result = self.mutation(call, key, target, deadline, |catalog| {
             let record = catalog
                 .recording_campaign
@@ -4347,6 +4339,23 @@ impl RunnerBackend {
                 .ok_or(BackendFailure::NotFound)?;
             if record.generation != expected_generation.0 {
                 return Err(BackendFailure::StaleIdentity);
+            }
+            if matches!(action, RecordingLifecycleAction::Remove) {
+                if let Some(requested) = cassette_sha256
+                    && !record
+                        .coverage
+                        .iter()
+                        .any(|entry| entry.cassette_sha256.as_deref() == Some(requested))
+                {
+                    return Err(BackendFailure::NotFound);
+                }
+                // Cleanup runs inside the staged mutation. Idempotency,
+                // campaign identity, generation, and selected-cassette
+                // validation all happen first; a cleanup failure therefore
+                // leaves both the catalog and its digest available for retry.
+                for digest in &remove_digests {
+                    remove_cassette_artifact(&self.state_root, digest)?;
+                }
             }
             match action {
                 RecordingLifecycleAction::Execute => unreachable!("execute handled above"),
