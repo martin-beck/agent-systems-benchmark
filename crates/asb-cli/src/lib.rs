@@ -1012,10 +1012,14 @@ struct AuthSetupOutput {
 /// The caller owns the input buffer and clears it after the resolver consumes it.
 fn read_api_key_stdin(input: &mut dyn Read) -> Result<Vec<u8>, CliError> {
     let mut value = Vec::with_capacity(asb_agents::credential::MAX_CREDENTIAL_BYTES + 1);
-    input
+    if input
         .take((asb_agents::credential::MAX_CREDENTIAL_BYTES + 1) as u64)
         .read_to_end(&mut value)
-        .map_err(|_| CliError::operation("API key input cannot be read"))?;
+        .is_err()
+    {
+        value.fill(0);
+        return Err(CliError::operation("API key input cannot be read"));
+    }
     while value
         .last()
         .is_some_and(|byte| *byte == b'\n' || *byte == b'\r')
@@ -7788,6 +7792,53 @@ mod tests {
                 .any(|window| { window == &secret[..secret.len() - 1] })
         );
         assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn development_openrouter_key_setup_zeroizes_partial_read_failures() {
+        struct FailingReader {
+            emitted: bool,
+        }
+
+        impl Read for FailingReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                if self.emitted {
+                    return Err(io::Error::other("synthetic read failure"));
+                }
+                let secret = b"sk-or-v1-partial-secret";
+                buffer[..secret.len()].copy_from_slice(secret);
+                self.emitted = true;
+                Ok(secret.len())
+            }
+        }
+
+        let args: Vec<OsString> = [
+            "--json",
+            "auth",
+            "setup",
+            "--provider",
+            "openrouter",
+            "--api-key-stdin",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let secret = b"sk-or-v1-partial-secret";
+        let mut input = FailingReader { emitted: false };
+        let mut output = Vec::new();
+        let mut stderr = Vec::new();
+        assert_ne!(
+            run_with_default_mode_and_stdin(
+                &args,
+                &mut output,
+                &mut stderr,
+                false,
+                Some(&mut input),
+            ),
+            0
+        );
+        assert!(!output.windows(secret.len()).any(|window| window == secret));
+        assert!(!stderr.windows(secret.len()).any(|window| window == secret));
     }
 
     fn provider_args(catalog: &str, provider: &str, agents: &[&str]) -> Vec<OsString> {
