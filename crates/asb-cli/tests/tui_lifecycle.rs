@@ -105,7 +105,25 @@ fn absent_local_lifecycle_is_stable_network_free_and_non_creating() {
         assert_eq!(value["ok"], ok);
         assert_eq!(value["code"], "extension_not_installed");
         assert_eq!(value["network"], "denied");
+        if operation == "launch" {
+            assert_eq!(value["channel"], "dev");
+            assert_eq!(value["development_only"], true);
+        }
     }
+    let unavailable = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .args(["--json", "tui", "status", "--channel", "nightly"])
+        .env_clear()
+        .env("HOME", scratch.0.join("home"))
+        .env("XDG_DATA_HOME", scratch.0.join("data"))
+        .env("XDG_STATE_HOME", scratch.0.join("state"))
+        .env("XDG_CACHE_HOME", scratch.0.join("cache"))
+        .output()
+        .unwrap();
+    assert_eq!(unavailable.status.code(), Some(3));
+    let unavailable_value = response(&unavailable);
+    assert_eq!(unavailable_value["code"], "channel_unavailable");
+    assert_eq!(unavailable_value["channel"], "nightly");
+    assert_eq!(unavailable_value["development_only"], false);
     for root in ["data", "state", "cache", "home"] {
         assert!(!Path::new(&scratch.0).join(root).exists());
     }
@@ -184,6 +202,19 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
     let consumed = scratch.command_with_args(&["--json", "tui", "install"], Some(&bundle));
     assert_eq!(consumed.status.code(), Some(0), "{consumed:?}");
     assert_eq!(response(&consumed)["code"], "development_bundle_consumed");
+
+    // Exercise the real dispatch error path after a dev install.  The cache
+    // root is deliberately unsafe, so launch must fail before spawning while
+    // retaining the resolved development channel in its JSON projection.
+    let cache = scratch.0.join("cache");
+    fs::create_dir_all(&cache).unwrap();
+    fs::set_permissions(&cache, fs::Permissions::from_mode(0o775)).unwrap();
+    let launch = scratch.command("launch");
+    assert_eq!(launch.status.code(), Some(3), "{launch:?}");
+    let launch_value = response(&launch);
+    assert_eq!(launch_value["code"], "environment_path_invalid");
+    assert_eq!(launch_value["channel"], "dev");
+    assert_eq!(launch_value["development_only"], true);
 
     // Development bundles are rebuilt as the TUI main branch advances.  The
     // consumer pins the repository/ref and validates the provenance shape,
