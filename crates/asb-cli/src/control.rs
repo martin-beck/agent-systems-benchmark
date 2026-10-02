@@ -1705,6 +1705,19 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 "control recording campaign coverage is incomplete",
             ));
         }
+        if campaign.pending_cassette_removals.len() > 256 {
+            return Err(CliError::operation(
+                "pending cassette cleanup exceeds its bound",
+            ));
+        }
+        let mut pending_digests = BTreeSet::new();
+        for digest in &campaign.pending_cassette_removals {
+            if asb_control::validate_digest(digest).is_err() || !pending_digests.insert(digest) {
+                return Err(CliError::operation(
+                    "pending cassette cleanup identity is invalid",
+                ));
+            }
+        }
         let mut identities = BTreeSet::new();
         let mut previous: Option<(String, String)> = None;
         for entry in &campaign.coverage {
@@ -8182,6 +8195,48 @@ mod tests {
     }
 
     #[test]
+    fn catalog_rejects_unbounded_or_duplicate_pending_cassette_cleanup() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let mut catalog = backend.catalog.lock().unwrap().clone();
+        let tuple = RecordingTupleRecord {
+            agent_id: "aider".into(),
+            workload_id: "workload".into(),
+            scorer_revision: "scorer-v1".into(),
+            attempt_id: "attempt".into(),
+            generation: 1,
+            state: "ready".into(),
+            cassette_sha256: None,
+            redaction_verified: false,
+            replay_verified: false,
+        };
+        catalog.recording_campaign = Some(RecordingCampaignRecord {
+            campaign_id: "campaign".into(),
+            provider_id: "openai".into(),
+            model_id: "model".into(),
+            agent_ids: vec!["aider".into()],
+            workload_ids: vec!["workload".into()],
+            tuple_count: 1,
+            generation: 1,
+            state: "planned".into(),
+            covered_tuple_count: 0,
+            offline_ready: false,
+            unavailable_reason: Some("recording-required".into()),
+            coverage: vec![tuple],
+            pending_cassette_removals: vec!["../escape".into()],
+        });
+        assert!(validate_catalog(&catalog).is_err());
+        catalog
+            .recording_campaign
+            .as_mut()
+            .unwrap()
+            .pending_cassette_removals = vec!["a".repeat(64), "a".repeat(64)];
+        assert!(validate_catalog(&catalog).is_err());
+    }
+
+    #[test]
     fn selected_cassette_removal_commit_failure_keeps_artifact_and_catalog_binding() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
@@ -8237,16 +8292,18 @@ mod tests {
         // A directory at the destination makes the atomic catalog rename
         // fail.  The pre-commit unlink must not run in this case.
         fs::create_dir(state.join("control-catalog.json")).unwrap();
-        let remove = ControlCall::RecordingCampaignRemove(
-            asb_control::RecordingCampaignRemoveParams {
+        let remove =
+            ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
                 idempotency_key: "remove-failure".into(),
                 expected_generation: Revision(2),
                 runner_instance_id: runner,
                 campaign_id: plan.campaign_id,
                 cassette_sha256: Some(digest.clone()),
-            },
+            });
+        assert_eq!(
+            backend.execute(&remove, deadline()),
+            Err(BackendFailure::NeedsReconciliation)
         );
-        assert_eq!(backend.execute(&remove, deadline()), Err(BackendFailure::NeedsReconciliation));
         assert!(artifact.exists());
         assert_eq!(
             backend
