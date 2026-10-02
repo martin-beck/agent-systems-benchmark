@@ -6468,6 +6468,36 @@ mod tests {
         assert_eq!(super::opaque_run_id("/tmp/results/runs/"), "runs");
     }
 
+    #[test]
+    fn comparison_projection_contains_opaque_ids_not_input_paths() {
+        let left = "/tmp/private-results/runs/provider-left";
+        let right = r"C:\Users\operator\results\runs\provider-right";
+        let projection = super::ComparisonOutput {
+            schema_version: super::OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "compare",
+            comparable: true,
+            differences: Vec::new(),
+            pairs: vec![super::ComparisonPairOutput {
+                left_run_id: super::opaque_run_id(left),
+                right_run_id: super::opaque_run_id(right),
+                left_agent: "asb-example".to_owned(),
+                right_agent: "asb-example".to_owned(),
+                comparable: true,
+                differences: Vec::new(),
+            }],
+            confounders: Vec::new(),
+            unavailable_reasons: Vec::new(),
+        };
+        let encoded = serde_json::to_string(&projection).unwrap();
+        assert!(encoded.contains("provider-left"));
+        assert!(encoded.contains("provider-right"));
+        assert!(!encoded.contains(left));
+        assert!(!encoded.contains(right));
+        assert!(!encoded.contains("/tmp/"));
+        assert!(!encoded.contains("C:\\\\Users\\"));
+    }
+
     use super::*;
     use asb_runtime::process_owner_material::OwnerToolProvenance;
     use std::os::unix::fs::PermissionsExt;
