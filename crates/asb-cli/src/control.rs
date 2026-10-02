@@ -8113,6 +8113,18 @@ mod tests {
     }
 
     #[test]
+    fn cassette_cleanup_is_idempotent_but_rejects_unbound_identity() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        assert_eq!(
+            remove_cassette_artifact(&state, "not-a-digest"),
+            Err(BackendFailure::Rejected)
+        );
+        assert_eq!(remove_cassette_artifact(&state, &"a".repeat(64)), Ok(()));
+    }
+
+    #[test]
     fn runtime_capture_callback_completes_exact_tuple_matrix() {
         let scratch = Scratch::new();
         let state = scratch.0.join("state");
