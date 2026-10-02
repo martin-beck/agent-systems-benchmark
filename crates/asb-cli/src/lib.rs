@@ -5454,18 +5454,95 @@ struct ComparisonOutput {
     command: &'static str,
     comparable: bool,
     differences: Vec<String>,
+    pairs: Vec<ComparisonPairOutput>,
+    confounders: Vec<ComparisonConfounderOutput>,
+    unavailable_reasons: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ComparisonPairOutput {
+    left_run_id: String,
+    right_run_id: String,
+    left_agent: String,
+    right_agent: String,
+    comparable: bool,
+    differences: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ComparisonConfounderOutput {
+    kind: &'static str,
+    description: String,
 }
 
 fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let manifests = runs
         .iter()
-        .map(|path| load_run_definition(Path::new(path)))
+        .map(|path| {
+            load_run_definition(Path::new(path))
+                .map(|definition| (path, opaque_run_id(path), definition))
+        })
         .collect::<Result<Vec<_>, _>>()?;
-    let baseline = &manifests[0];
+    let baseline = &manifests[0].2;
     let mut differences = Vec::new();
+    let mut pairs = Vec::with_capacity(manifests.len().saturating_sub(1));
+    let mut confounders = Vec::new();
+    let mut unavailable_reasons = Vec::new();
+    if baseline.provider_selection.is_none() {
+        unavailable_reasons.push("baseline:provider_selection_unavailable".to_owned());
+    }
     for candidate in &manifests[1..] {
-        let report = compare_experiments(&baseline.experiment, &candidate.experiment)
+        if candidate.2.provider_selection.is_none() {
+            let reason = format!("{}:provider_selection_unavailable", candidate.1);
+            if !unavailable_reasons.contains(&reason) {
+                unavailable_reasons.push(reason);
+            }
+        }
+        let report = compare_experiments(&baseline.experiment, &candidate.2.experiment)
             .map_err(|_| CliError::validation("stored experiments cannot be compared"))?;
+        let mut pair_differences = report
+            .differences()
+            .iter()
+            .map(|field| comparison_field_name(*field).to_owned())
+            .collect::<Vec<_>>();
+        if baseline.execution.measurement_selection_sha256
+            != candidate.2.execution.measurement_selection_sha256
+            && !pair_differences
+                .iter()
+                .any(|name| name == "measurement_selection")
+        {
+            pair_differences.push("measurement_selection".to_owned());
+        }
+        if baseline.execution != candidate.2.execution
+            && !pair_differences.iter().any(|name| name == "execution")
+        {
+            pair_differences.push("execution".to_owned());
+        }
+        for field in &pair_differences {
+            let confounder = ComparisonConfounderOutput {
+                kind: "provenance",
+                description: format!("paired runs differ in {field}"),
+            };
+            if !confounders
+                .iter()
+                .any(|value: &ComparisonConfounderOutput| {
+                    value.description == confounder.description
+                })
+            {
+                confounders.push(confounder);
+            }
+        }
+        pairs.push(ComparisonPairOutput {
+            left_run_id: manifests[0].1.clone(),
+            right_run_id: candidate.1.clone(),
+            left_agent: baseline.experiment.agent.implementation.clone(),
+            right_agent: candidate.2.experiment.agent.implementation.clone(),
+            comparable: baseline.provider_selection.is_some()
+                && candidate.2.provider_selection.is_some()
+                && pair_differences.is_empty()
+                && report.permits_unqualified_claim(),
+            differences: pair_differences,
+        });
         for field in report.differences() {
             let name = comparison_field_name(*field).to_owned();
             if !differences.contains(&name) {
@@ -5473,17 +5550,26 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             }
         }
         if baseline.execution.measurement_selection_sha256
-            != candidate.execution.measurement_selection_sha256
+            != candidate.2.execution.measurement_selection_sha256
             && !differences
                 .iter()
                 .any(|name| name == "measurement_selection")
         {
             differences.push("measurement_selection".to_owned());
         }
-        if baseline.execution != candidate.execution
+        if baseline.execution != candidate.2.execution
             && !differences.iter().any(|name| name == "execution")
         {
             differences.push("execution".to_owned());
+            let confounder = ComparisonConfounderOutput {
+                kind: "execution",
+                description: "paired runs have different execution bindings".to_owned(),
+            };
+            if !confounders.iter().any(|value| {
+                value.kind == confounder.kind && value.description == confounder.description
+            }) {
+                confounders.push(confounder);
+            }
         }
     }
     write_json(
@@ -5492,10 +5578,20 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             schema_version: OUTPUT_SCHEMA_VERSION,
             ok: true,
             command: "compare",
-            comparable: differences.is_empty(),
+            comparable: differences.is_empty() && unavailable_reasons.is_empty(),
             differences,
+            pairs,
+            confounders,
+            unavailable_reasons,
         },
     )
+}
+
+fn opaque_run_id(path: &str) -> String {
+    path.rsplit(['/', '\\'])
+        .find(|component| !component.is_empty())
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn load_run_definition(path: &Path) -> Result<StoredRunDefinition, CliError> {
@@ -6367,6 +6463,49 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn opaque_run_id_normalizes_posix_and_windows_separators() {
+        assert_eq!(
+            super::opaque_run_id("/tmp/results/runs/provider-run"),
+            "provider-run"
+        );
+        assert_eq!(
+            super::opaque_run_id(r"C:\\results\\runs\\provider-run"),
+            "provider-run"
+        );
+        assert_eq!(super::opaque_run_id("/tmp/results/runs/"), "runs");
+    }
+
+    #[test]
+    fn comparison_projection_contains_opaque_ids_not_input_paths() {
+        let left = "/tmp/private-results/runs/provider-left";
+        let right = r"C:\Users\operator\results\runs\provider-right";
+        let projection = super::ComparisonOutput {
+            schema_version: super::OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "compare",
+            comparable: true,
+            differences: Vec::new(),
+            pairs: vec![super::ComparisonPairOutput {
+                left_run_id: super::opaque_run_id(left),
+                right_run_id: super::opaque_run_id(right),
+                left_agent: "asb-example".to_owned(),
+                right_agent: "asb-example".to_owned(),
+                comparable: true,
+                differences: Vec::new(),
+            }],
+            confounders: Vec::new(),
+            unavailable_reasons: Vec::new(),
+        };
+        let encoded = serde_json::to_string(&projection).unwrap();
+        assert!(encoded.contains("provider-left"));
+        assert!(encoded.contains("provider-right"));
+        assert!(!encoded.contains(left));
+        assert!(!encoded.contains(right));
+        assert!(!encoded.contains("/tmp/"));
+        assert!(!encoded.contains("C:\\\\Users\\"));
+    }
+
     use super::*;
     use asb_runtime::process_owner_material::OwnerToolProvenance;
     use std::os::unix::fs::PermissionsExt;
@@ -8558,6 +8697,16 @@ mod tests {
         assert_eq!(exit, 0);
         assert_eq!(comparison["comparable"], false);
         assert_eq!(comparison["differences"], json!(["execution"]));
+        assert_eq!(comparison["pairs"][0]["left_run_id"], "provider-run");
+        assert_eq!(comparison["pairs"][0]["right_run_id"], "provider-alternate");
+        assert_eq!(comparison["pairs"][0]["comparable"], false);
+        assert_eq!(comparison["confounders"][0]["kind"], "provenance");
+        assert!(
+            comparison["unavailable_reasons"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
 
         plan.run_id = "provider-sweep".to_owned();
         plan.result_root = scratch.0.join("sweep-results");
@@ -8893,6 +9042,21 @@ mod tests {
         assert_eq!(
             serde_json::from_slice::<Value>(&output).unwrap()["differences"],
             json!(["measurement_selection", "execution"])
+        );
+        let comparison = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(
+            comparison["pairs"][0]["differences"],
+            json!(["measurement_selection", "execution"])
+        );
+        assert!(
+            comparison["confounders"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| {
+                    value["kind"] == "provenance"
+                        && value["description"] == "paired runs differ in measurement_selection"
+                })
         );
     }
 
