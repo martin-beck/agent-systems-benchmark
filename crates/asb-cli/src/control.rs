@@ -8109,15 +8109,34 @@ mod tests {
         // missing tuple must be surfaced as reconciliation, not silently
         // regenerated or dispatched through a provider.
         let restarted = open_backend(cassette_root).unwrap();
+        let campaign_id = plan.campaign_id.clone();
         let restarted_catalog =
             ControlCall::RecordingCassetteCatalog(asb_control::RecordingCassetteCatalogRequest {
                 runner_instance_id: restarted.runner_instance_id().into(),
-                campaign_id: plan.campaign_id,
+                campaign_id: campaign_id.clone(),
                 expected_generation: Revision(2),
             });
         assert_eq!(
             restarted.execute(&restarted_catalog, deadline()),
             Err(BackendFailure::NeedsReconciliation)
+        );
+        let selected_remove =
+            ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
+                idempotency_key: "lifecycle-selected-remove".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: restarted.runner_instance_id().into(),
+                campaign_id,
+                cassette_sha256: Some(entry.cassette_sha256),
+            });
+        let selected_result = restarted.execute(&selected_remove, deadline()).unwrap();
+        assert!(matches!(
+            selected_result.result,
+            ControlResult::RecordingCampaignLifecycle(ref value)
+                if value.state == "needs_reconciliation"
+        ));
+        assert_eq!(
+            restarted.execute(&selected_remove, deadline()).unwrap(),
+            selected_result
         );
     }
 
