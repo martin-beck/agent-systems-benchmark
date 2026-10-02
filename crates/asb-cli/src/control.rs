@@ -1417,8 +1417,19 @@ fn cleanup_removed_campaign_artifacts(root: &Path, catalog: &mut Catalog) -> Res
     let Some(campaign) = catalog.recording_campaign.as_mut() else {
         return Ok(());
     };
+    let live_digests = campaign
+        .coverage
+        .iter()
+        .filter_map(|entry| entry.cassette_sha256.as_deref())
+        .collect::<BTreeSet<_>>();
     let mut pending = Vec::new();
     for digest in campaign.pending_cassette_removals.drain(..) {
+        // A retry/reopen may have rebound this artifact before startup
+        // cleanup ran.  The live catalog binding wins: clear the stale
+        // cleanup intent without unlinking a currently referenced cassette.
+        if live_digests.contains(digest.as_str()) {
+            continue;
+        }
         let path = root.join("cassettes").join(format!("{digest}.json"));
         match fs::remove_file(path) {
             Ok(()) => {}
@@ -8234,6 +8245,56 @@ mod tests {
             .unwrap()
             .pending_cassette_removals = vec!["a".repeat(64), "a".repeat(64)];
         assert!(validate_catalog(&catalog).is_err());
+    }
+
+    #[test]
+    fn startup_cleanup_does_not_unlink_digest_rebound_by_live_coverage() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let digest = "b".repeat(64);
+        let artifact = state.join("cassettes").join(format!("{digest}.json"));
+        fs::write(&artifact, b"live").unwrap();
+        let mut catalog = backend.catalog.lock().unwrap().clone();
+        let campaign = catalog
+            .recording_campaign
+            .get_or_insert_with(|| RecordingCampaignRecord {
+                campaign_id: "campaign".into(),
+                provider_id: "openai".into(),
+                model_id: "model".into(),
+                agent_ids: vec!["aider".into()],
+                workload_ids: vec!["workload".into()],
+                tuple_count: 1,
+                generation: 1,
+                state: "needs_reconciliation".into(),
+                covered_tuple_count: 0,
+                offline_ready: false,
+                unavailable_reason: Some("cassette-removed".into()),
+                coverage: vec![RecordingTupleRecord {
+                    agent_id: "aider".into(),
+                    workload_id: "workload".into(),
+                    scorer_revision: "scorer-v1".into(),
+                    attempt_id: "attempt".into(),
+                    generation: 1,
+                    state: "failed".into(),
+                    cassette_sha256: Some(digest.clone()),
+                    redaction_verified: false,
+                    replay_verified: false,
+                }],
+                pending_cassette_removals: Vec::new(),
+            });
+        campaign.pending_cassette_removals = vec![digest];
+        cleanup_removed_campaign_artifacts(&state, &mut catalog).unwrap();
+        assert!(artifact.exists());
+        assert!(
+            catalog
+                .recording_campaign
+                .as_ref()
+                .unwrap()
+                .pending_cassette_removals
+                .is_empty()
+        );
     }
 
     #[test]
