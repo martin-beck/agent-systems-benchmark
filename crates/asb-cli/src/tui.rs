@@ -463,9 +463,20 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
         return Ok(0);
     }
     let mut source = CurlSource;
-    let response = match RouterPaths::environment()
-        .and_then(|paths| execute(operation, options, &paths, &mut source, system_now_unix()?))
-    {
+    // Resolve the active channel before executing the operation so that an
+    // error response carries the same channel as the attempted operation.
+    // In particular, omitted operations must preserve an active development
+    // installation instead of being re-annotated as stable after launch
+    // fails during terminal handoff.
+    let mut resolved_channel = options.channel;
+    let response = match RouterPaths::environment().and_then(|paths| {
+        resolved_channel = if matches!(operation, Operation::Install | Operation::Upgrade) {
+            options.channel
+        } else {
+            existing_channel(options, &paths).unwrap_or(options.channel)
+        };
+        execute(operation, options, &paths, &mut source, system_now_unix()?)
+    }) {
         Ok(response) => response,
         Err(error) => {
             let network = if matches!(operation, Operation::Install | Operation::Upgrade)
@@ -476,52 +487,21 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
                 "denied"
             };
             let mut response = RouterResponse::result(operation, false, error.code, network);
-            annotate_channel(
-                &mut response,
-                operation,
-                options.channel,
-                options.channel_explicit,
-            );
+            annotate_channel(&mut response, resolved_channel);
             write_json(output, &response)?;
             return Ok(error.exit_code);
         }
     };
     let mut response = response;
-    annotate_channel(
-        &mut response,
-        operation,
-        options.channel,
-        options.channel_explicit,
-    );
+    annotate_channel(&mut response, resolved_channel);
     let exit = if response.ok { 0 } else { 3 };
     write_json(output, &response)?;
     Ok(exit)
 }
 
-fn annotate_channel(
-    response: &mut RouterResponse,
-    operation: Operation,
-    requested: Channel,
-    explicit: bool,
-) {
-    if matches!(operation, Operation::Install | Operation::Upgrade) || explicit {
-        response.channel = requested.name();
-        response.development_only = requested == Channel::Dev;
-    } else if response.code == "extension_not_installed" {
-        // An omitted channel resolves to the development channel until an
-        // installation establishes a stable channel. Keep that resolution
-        // visible even for the expected "not installed" result.
-        response.channel = Channel::Dev.name();
-        response.development_only = true;
-    } else {
-        // Status, doctor, remove, and launch describe an already-installed
-        // extension. Preserve an explicitly development-only response while
-        // keeping stable installations channel-neutral.
-        if !(response.development_only && response.executable_sha256.is_some()) {
-            response.development_only = false;
-            response.channel = "stable";
-        }
-    }
+fn annotate_channel(response: &mut RouterResponse, resolved: Channel) {
+    response.channel = resolved.name();
+    response.development_only = resolved == Channel::Dev;
 }
 
 fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
@@ -5603,26 +5583,34 @@ mod tests {
     #[test]
     fn non_install_operations_preserve_resolved_channel() {
         let mut response = RouterResponse::result(Operation::Status, true, "ok", "denied");
-        annotate_channel(&mut response, Operation::Status, Channel::Dev, false);
-        assert_eq!(response.channel, "stable");
-        assert!(!response.development_only);
+        annotate_channel(&mut response, Channel::Dev);
+        assert_eq!(response.channel, "dev");
+        assert!(response.development_only);
         let mut absent = RouterResponse::result(
             Operation::Status,
             false,
             "extension_not_installed",
             "denied",
         );
-        annotate_channel(&mut absent, Operation::Status, Channel::Dev, false);
+        annotate_channel(&mut absent, Channel::Dev);
         assert_eq!(absent.channel, "dev");
         assert!(absent.development_only);
-        annotate_channel(
-            &mut response,
-            Operation::Launch,
-            Channel::Experimental,
-            true,
-        );
+        annotate_channel(&mut response, Channel::Experimental);
         assert_eq!(response.channel, "experimental");
         assert!(!response.development_only);
+    }
+
+    #[test]
+    fn launch_error_preserves_resolved_development_channel() {
+        let mut response = RouterResponse::result(
+            Operation::Launch,
+            false,
+            "development_launch_failed",
+            "denied",
+        );
+        annotate_channel(&mut response, Channel::Dev);
+        assert_eq!(response.channel, "dev");
+        assert!(response.development_only);
     }
 
     struct NoopSource;
@@ -5937,6 +5925,19 @@ mod tests {
         assert!(!environment_path_safe(Path::new("relative")));
         fs::set_permissions(&outside, fs::Permissions::from_mode(0o777)).unwrap();
         assert!(!environment_path_safe(&outside));
+    }
+
+    #[test]
+    fn environment_paths_require_private_existing_roots() {
+        let scratch = Scratch::new("environment-path");
+        let root = scratch.0.join("xdg");
+        prepare_private_directory(&root).unwrap();
+        assert!(environment_path_safe(&root));
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o775)).unwrap();
+        assert!(!environment_path_safe(&root));
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+        let missing = scratch.0.join("missing");
+        assert!(environment_path_safe(&missing));
     }
 
     #[test]
