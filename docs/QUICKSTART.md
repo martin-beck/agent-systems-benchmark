@@ -108,6 +108,16 @@ operations; all terminal UI code lives in the asb-tui repository. See the
 [optional TUI lifecycle](ASB_TUI_LIFECYCLE.md) for trust, offline, XDG, status,
 and removal semantics.
 
+Fresh development installs resolve the current `main` head of both the ASB and
+asb-tui repositories and default to the `dev` channel. The install/status JSON
+projection includes both source identities and a SHA-256 digest of the
+content-addressed `active-channel.json` diagnostic manifest under the private
+TUI installation root. Missing development authentication, signatures, and key
+management are recorded as warnings only; stable lifecycle verification keeps
+its separate fail-closed signed-release policy. A stale ASB binary is rejected
+with `dev_source_identity_stale` rather than silently installing a different
+source pair.
+
 ## Recording once and replaying later
 
 Recording is opt-in and requires a bounded `RecordingCapture` JSON envelope

@@ -50,6 +50,8 @@ const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
 const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
+const ASB_REPOSITORY_URL: &str = "https://github.com/martin-beck/agent-systems-benchmark.git";
+const DEVELOPMENT_SOURCE_REF: &str = "refs/heads/main";
 const DEV_BROKER_DESCRIPTOR_ENV: &str = "ASB_TUI_DEVELOPMENT_DESCRIPTOR";
 const DEV_BROKER_ASB_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_COMMIT";
 const DEV_BROKER_ASB_TREE_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_TREE";
@@ -187,6 +189,12 @@ struct RouterResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     source_tree: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    asb_source_commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    asb_source_tree: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    channel_manifest_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     warnings: Option<Vec<&'static str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     verified: Option<bool>,
@@ -209,6 +217,9 @@ impl RouterResponse {
             executable_sha256: None,
             source_commit: None,
             source_tree: None,
+            asb_source_commit: None,
+            asb_source_tree: None,
+            channel_manifest_sha256: None,
             warnings: None,
             verified: None,
         }
@@ -337,6 +348,29 @@ struct DevelopmentBundleManifest {
     asb_source_commit: String,
     asb_source_tree: String,
     target: String,
+    executable_sha256: String,
+    executable_size: u64,
+    built_unix: u64,
+    warnings: Vec<String>,
+}
+
+/// The development-channel handoff manifest is diagnostic provenance, not a
+/// production trust assertion.  Its content-addressed digest lets the TUI
+/// distinguish the exact materialized pair from a stale or edited pointer.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+struct DevelopmentChannelManifest {
+    schema_version: u64,
+    channel: String,
+    development_only: bool,
+    asb_repository: String,
+    asb_ref: String,
+    asb_source_commit: String,
+    asb_source_tree: String,
+    tui_repository: String,
+    tui_ref: String,
+    tui_source_commit: String,
+    tui_source_tree: String,
     executable_sha256: String,
     executable_size: u64,
     built_unix: u64,
@@ -723,6 +757,88 @@ fn development_source_identity_from(
     }
 }
 
+/// Resolve an immutable repository main head through the bounded development
+/// toolchain.  This is deliberately used only by the development channel;
+/// stable lifecycle verification retains its signed release-index policy.
+fn resolve_development_main_head(
+    git: &Path,
+    setsid: &Path,
+    repository: &str,
+    root: &Path,
+) -> Result<String, RouterError> {
+    let mut command = Command::new(setsid);
+    command
+        .env_clear()
+        .env("LANG", "C.UTF-8")
+        .current_dir(root)
+        .args(["--wait"])
+        .arg(git)
+        .args(["ls-remote", repository, DEVELOPMENT_SOURCE_REF]);
+    let output = run_development_command(command, root)?;
+    let text = String::from_utf8(output)
+        .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?;
+    let mut fields = text.split_whitespace();
+    let commit = fields
+        .next()
+        .filter(|value| valid_hex(value, 40))
+        .ok_or_else(|| RouterError::policy("dev_source_identity_invalid"))?;
+    if fields.next() != Some(DEVELOPMENT_SOURCE_REF) || fields.next().is_some() {
+        return Err(RouterError::policy("dev_source_identity_invalid"));
+    }
+    Ok(commit.to_owned())
+}
+
+fn development_channel_manifest(
+    asb_source_commit: &str,
+    asb_source_tree: &str,
+    tui_source_commit: &str,
+    tui_source_tree: &str,
+    executable_sha256: &str,
+    executable_size: u64,
+    built_unix: u64,
+) -> DevelopmentChannelManifest {
+    DevelopmentChannelManifest {
+        schema_version: 1,
+        channel: "dev".to_owned(),
+        development_only: true,
+        asb_repository: ASB_REPOSITORY_URL.to_owned(),
+        asb_ref: DEVELOPMENT_SOURCE_REF.to_owned(),
+        asb_source_commit: asb_source_commit.to_owned(),
+        asb_source_tree: asb_source_tree.to_owned(),
+        tui_repository: DEV_REPOSITORY_URL.to_owned(),
+        tui_ref: DEVELOPMENT_SOURCE_REF.to_owned(),
+        tui_source_commit: tui_source_commit.to_owned(),
+        tui_source_tree: tui_source_tree.to_owned(),
+        executable_sha256: executable_sha256.to_owned(),
+        executable_size,
+        built_unix,
+        warnings: development_warnings()
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+    }
+}
+
+fn encode_channel_manifest(
+    manifest: &DevelopmentChannelManifest,
+) -> Result<(Vec<u8>, String), RouterError> {
+    let bytes =
+        serde_json::to_vec(manifest).map_err(|_| RouterError::operation("dev_metadata_failed"))?;
+    Ok((bytes.clone(), digest(&bytes)))
+}
+
+fn publish_development_channel_manifest(
+    install_root: &Path,
+    executable_sha256: &str,
+    manifest: &DevelopmentChannelManifest,
+) -> Result<String, RouterError> {
+    let (bytes, manifest_sha256) = encode_channel_manifest(manifest)?;
+    let version = install_root.join("dev-versions").join(executable_sha256);
+    atomic_private(&version.join("channel-manifest.json"), &bytes, 0o600)?;
+    atomic_private(&install_root.join("active-channel.json"), &bytes, 0o600)?;
+    Ok(manifest_sha256)
+}
+
 /// Check the bounded development host before starting a clone or build.  This
 /// is deliberately read-only: it reports host limitations with remediation
 /// while retaining the trust policy used by the materializer.
@@ -966,12 +1082,21 @@ fn materialize_development(
     prepare_private_directory(&root)?;
     let result = (|| {
         prepare_private_directory(&target)?;
+        let current_asb_head = resolve_development_main_head(
+            Path::new(&git),
+            Path::new(&setsid),
+            ASB_REPOSITORY_URL,
+            &root,
+        )?;
+        if current_asb_head != asb_source_commit {
+            return Err(RouterError::policy("dev_source_identity_stale"));
+        }
         let mut head = Command::new(&setsid);
         head.env_clear()
             .env("LANG", "C.UTF-8")
             .args(["--wait"])
             .arg(&git)
-            .args(["ls-remote", DEV_REPOSITORY_URL, "refs/heads/main"]);
+            .args(["ls-remote", DEV_REPOSITORY_URL, DEVELOPMENT_SOURCE_REF]);
         let output = run_development_command(head, &root)?;
         let commit = String::from_utf8(output)
             .map_err(|_| RouterError::policy("dev_source_identity_invalid"))?
@@ -1092,6 +1217,16 @@ fn materialize_development(
             installed_unix: now,
         })
         .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
+        let channel_manifest = development_channel_manifest(
+            &asb_source_commit,
+            &asb_source_tree,
+            &commit,
+            &source_tree,
+            &executable_sha256,
+            bytes.len() as u64,
+            now,
+        );
+        let (_, channel_manifest_sha256) = encode_channel_manifest(&channel_manifest)?;
         if options.dry_run {
             let mut response =
                 RouterResponse::result(operation, true, "development_dry_run", "used");
@@ -1100,16 +1235,27 @@ fn materialize_development(
             response.executable_sha256 = Some(executable_sha256);
             response.source_commit = Some(commit);
             response.source_tree = Some(source_tree);
+            response.asb_source_commit = Some(asb_source_commit.to_owned());
+            response.asb_source_tree = Some(asb_source_tree.to_owned());
+            response.channel_manifest_sha256 = Some(channel_manifest_sha256);
             response.warnings = Some(development_warnings());
             return Ok(response);
         }
         publish_development_version(&paths.install_root, &executable_sha256, &bytes, &metadata)?;
+        let channel_manifest_sha256 = publish_development_channel_manifest(
+            &paths.install_root,
+            &executable_sha256,
+            &channel_manifest,
+        )?;
         let mut response = RouterResponse::result(operation, true, "development_built", "used");
         response.channel = "dev";
         response.development_only = true;
         response.executable_sha256 = Some(executable_sha256);
         response.source_commit = Some(commit);
         response.source_tree = Some(source_tree);
+        response.asb_source_commit = Some(asb_source_commit.to_owned());
+        response.asb_source_tree = Some(asb_source_tree.to_owned());
+        response.channel_manifest_sha256 = Some(channel_manifest_sha256);
         response.warnings = Some(development_warnings());
         if options.launch {
             let launched = execute_development_existing(Operation::Launch, paths)?;
@@ -1199,6 +1345,16 @@ fn consume_development_bundle(
         installed_unix: now,
     })
     .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
+    let channel_manifest = development_channel_manifest(
+        asb_source_commit,
+        asb_source_tree,
+        &manifest.source_commit,
+        &manifest.source_tree,
+        &manifest.executable_sha256,
+        manifest.executable_size,
+        manifest.built_unix,
+    );
+    let (_, channel_manifest_sha256) = encode_channel_manifest(&channel_manifest)?;
     if options.dry_run {
         let mut response =
             RouterResponse::result(operation, true, "development_bundle_verified", "used");
@@ -1207,6 +1363,9 @@ fn consume_development_bundle(
         response.executable_sha256 = Some(manifest.executable_sha256);
         response.source_commit = Some(manifest.source_commit);
         response.source_tree = Some(manifest.source_tree);
+        response.asb_source_commit = Some(asb_source_commit.to_owned());
+        response.asb_source_tree = Some(asb_source_tree.to_owned());
+        response.channel_manifest_sha256 = Some(channel_manifest_sha256);
         response.warnings = Some(development_warnings());
         return Ok(response);
     }
@@ -1216,6 +1375,11 @@ fn consume_development_bundle(
         &bytes,
         &metadata,
     )?;
+    let channel_manifest_sha256 = publish_development_channel_manifest(
+        &paths.install_root,
+        &manifest.executable_sha256,
+        &channel_manifest,
+    )?;
     let mut response =
         RouterResponse::result(operation, true, "development_bundle_consumed", "used");
     response.channel = "dev";
@@ -1223,6 +1387,9 @@ fn consume_development_bundle(
     response.executable_sha256 = Some(manifest.executable_sha256);
     response.source_commit = Some(manifest.source_commit);
     response.source_tree = Some(manifest.source_tree);
+    response.asb_source_commit = Some(asb_source_commit.to_owned());
+    response.asb_source_tree = Some(asb_source_tree.to_owned());
+    response.channel_manifest_sha256 = Some(channel_manifest_sha256);
     response.warnings = Some(development_warnings());
     if options.launch {
         let launched = execute_development_existing(Operation::Launch, paths)?;
@@ -1279,6 +1446,8 @@ fn development_response(
     response.executable_sha256 = Some(active.executable_sha256.clone());
     response.source_commit = Some(active.source_commit.clone());
     response.source_tree = Some(active.source_tree.clone());
+    response.asb_source_commit = Some(active.asb_source_commit.clone());
+    response.asb_source_tree = Some(active.asb_source_tree.clone());
     response.warnings = Some(development_warnings());
     response.verified = Some(false);
     response
@@ -1290,6 +1459,56 @@ fn development_warnings() -> Vec<&'static str> {
         "development_missing_signatures_allowed",
         "development_missing_key_management_allowed",
     ]
+}
+
+fn read_development_channel_manifest(
+    paths: &RouterPaths,
+    active: &DevelopmentInstallation,
+) -> Result<Option<(DevelopmentChannelManifest, String)>, RouterError> {
+    let root_manifest = paths.install_root.join("active-channel.json");
+    if !root_manifest.exists() {
+        // Older development installations predate AR-1690.  They remain
+        // readable for status/removal, while every new materialization emits
+        // the manifest below.
+        return Ok(None);
+    }
+    let bytes = read_bounded(&root_manifest, MAX_MANIFEST_BYTES)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    let manifest: DevelopmentChannelManifest = serde_json::from_slice(&bytes)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    if manifest.schema_version != 1
+        || manifest.channel != "dev"
+        || !manifest.development_only
+        || manifest.asb_repository != ASB_REPOSITORY_URL
+        || manifest.asb_ref != DEVELOPMENT_SOURCE_REF
+        || manifest.asb_source_commit != active.asb_source_commit
+        || manifest.asb_source_tree != active.asb_source_tree
+        || manifest.tui_repository != active.source_repository
+        || manifest.tui_ref != DEVELOPMENT_SOURCE_REF
+        || manifest.tui_source_commit != active.source_commit
+        || manifest.tui_source_tree != active.source_tree
+        || manifest.executable_sha256 != active.executable_sha256
+        || manifest.executable_size == 0
+        || manifest.built_unix == 0
+        || manifest.warnings
+            != development_warnings()
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+    {
+        return Err(RouterError::policy("development_installation_invalid"));
+    }
+    let version_manifest = paths
+        .install_root
+        .join("dev-versions")
+        .join(&active.executable_sha256)
+        .join("channel-manifest.json");
+    let version_bytes = read_bounded(&version_manifest, MAX_MANIFEST_BYTES)
+        .map_err(|_| RouterError::policy("development_installation_invalid"))?;
+    if version_bytes != bytes {
+        return Err(RouterError::policy("development_installation_invalid"));
+    }
+    Ok(Some((manifest, digest(&bytes))))
 }
 
 fn development_active(
@@ -1335,6 +1554,15 @@ fn development_active(
     if recorded != active {
         return Err(RouterError::policy("development_installation_invalid"));
     }
+    if let Some((manifest, _)) = read_development_channel_manifest(paths, &active)? {
+        if manifest.executable_size
+            != fs::metadata(&executable)
+                .map_err(|_| RouterError::policy("development_installation_invalid"))?
+                .len()
+        {
+            return Err(RouterError::policy("development_installation_invalid"));
+        }
+    }
     Ok(Some((active, executable)))
 }
 
@@ -1345,7 +1573,7 @@ fn execute_development_existing(
     let Some((active, executable)) = development_active(paths)? else {
         return Err(RouterError::policy("extension_not_installed"));
     };
-    match operation {
+    let mut response = match operation {
         Operation::Status => Ok(development_response(
             operation,
             "development_installed",
@@ -1383,7 +1611,11 @@ fn execute_development_existing(
             ))
         }
         _ => Err(RouterError::policy("development_operation_invalid")),
+    }?;
+    if let Some((_, manifest_sha256)) = read_development_channel_manifest(paths, &active)? {
+        response.channel_manifest_sha256 = Some(manifest_sha256);
     }
+    Ok(response)
 }
 
 fn launch_development_broker(
@@ -1652,6 +1884,8 @@ fn remove_development_installation(
     ));
     prepare_private_directory(&trash)?;
     let trash_marker = trash.join("active-dev.json");
+    let channel_manifest = paths.install_root.join("active-channel.json");
+    let trash_channel_manifest = trash.join("active-channel.json");
     let trash_version = trash.join("version");
     if fs::rename(&marker, &trash_marker).is_err() {
         let _ = fs::remove_dir_all(&trash);
@@ -1662,6 +1896,17 @@ fn remove_development_installation(
         let _ = fs::remove_dir_all(&trash);
         return Err(RouterError::operation("development_remove_failed"));
     }
+    let moved_channel_manifest = if channel_manifest.exists() {
+        if fs::rename(&channel_manifest, &trash_channel_manifest).is_err() {
+            let _ = fs::rename(&trash_version, &version);
+            let _ = fs::rename(&trash_marker, &marker);
+            let _ = fs::remove_dir_all(&trash);
+            return Err(RouterError::operation("development_remove_failed"));
+        }
+        true
+    } else {
+        false
+    };
     let final_delete = if fail_final_delete {
         Err(())
     } else {
@@ -1672,6 +1917,9 @@ fn remove_development_installation(
     }
     let _ = fs::rename(&trash_version, &version);
     let _ = fs::rename(&trash_marker, &marker);
+    if moved_channel_manifest {
+        let _ = fs::rename(&trash_channel_manifest, &channel_manifest);
+    }
     let _ = fs::remove_dir_all(&trash);
     Err(RouterError::operation("development_remove_failed"))
 }
@@ -1980,6 +2228,9 @@ fn response_from_delegated(
         executable_sha256: delegated.executable_sha256,
         source_commit: None,
         source_tree: None,
+        asb_source_commit: None,
+        asb_source_tree: None,
+        channel_manifest_sha256: None,
         warnings: None,
         verified: delegated.verified,
     })
@@ -5586,12 +5837,28 @@ mod tests {
             0o600,
         )
         .unwrap();
+        let channel_manifest = development_channel_manifest(
+            &metadata.asb_source_commit,
+            &metadata.asb_source_tree,
+            &metadata.source_commit,
+            &metadata.source_tree,
+            &metadata.executable_sha256,
+            bytes.len() as u64,
+            metadata.installed_unix,
+        );
+        let channel_digest = publish_development_channel_manifest(
+            &paths.install_root,
+            &metadata.executable_sha256,
+            &channel_manifest,
+        )
+        .unwrap();
         let status = execute_development_existing(Operation::Status, &paths).unwrap();
         assert_eq!(status.code, "development_installed");
         assert!(status.development_only);
         assert_eq!(status.channel, "dev");
         assert_eq!(status.source_commit, Some("a".repeat(40)));
         assert_eq!(status.source_tree, Some("b".repeat(40)));
+        assert_eq!(status.channel_manifest_sha256, Some(channel_digest));
         assert_eq!(
             status.warnings,
             Some(vec![
