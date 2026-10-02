@@ -311,7 +311,7 @@ struct DevelopmentInstallation {
     installed_unix: u64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct DevelopmentBundleManifest {
     schema_version: u64,
@@ -4675,6 +4675,87 @@ mod tests {
                 .exists()
         );
         assert!(install_root.join("active-dev.json").is_dir());
+    }
+
+    #[test]
+    fn development_bundle_consumer_validates_size_before_publish() {
+        let scratch = Scratch::new("development-bundle-consumer");
+        let paths = RouterPaths {
+            install_root: scratch.0.join("install"),
+            state_root: scratch.0.join("state"),
+            cache_root: scratch.0.join("cache"),
+        };
+        let bundle = scratch.0.join("bundle");
+        fs::create_dir_all(&bundle).unwrap();
+        let bytes = b"development executable";
+        fs::write(bundle.join("asb-tui"), bytes).unwrap();
+        fs::set_permissions(&bundle, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(bundle.join("asb-tui"), fs::Permissions::from_mode(0o700)).unwrap();
+        let manifest = DevelopmentBundleManifest {
+            schema_version: 1,
+            channel: "dev".into(),
+            development_only: true,
+            source_repository: DEV_REPOSITORY_URL.into(),
+            source_ref: "refs/heads/main".into(),
+            source_commit: "a".repeat(40),
+            source_tree: "b".repeat(40),
+            asb_source_commit: ASB_SOURCE_COMMIT.into(),
+            asb_source_tree: ASB_SOURCE_TREE.into(),
+            target: format!("{}-unknown-linux-gnu", std::env::consts::ARCH),
+            executable_sha256: digest(bytes),
+            executable_size: bytes.len() as u64,
+            built_unix: 1,
+            warnings: development_warnings()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        };
+        fs::write(
+            bundle.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        let verified = consume_development_bundle(
+            Operation::Install,
+            Options { dry_run: true, ..Options::default() },
+            &paths,
+            2,
+            ASB_SOURCE_COMMIT,
+            ASB_SOURCE_TREE,
+            &bundle,
+        )
+        .unwrap();
+        assert_eq!(verified.code, "development_bundle_verified");
+        let consumed = consume_development_bundle(
+            Operation::Install,
+            Options::default(),
+            &paths,
+            2,
+            ASB_SOURCE_COMMIT,
+            ASB_SOURCE_TREE,
+            &bundle,
+        )
+        .unwrap();
+        assert_eq!(consumed.code, "development_bundle_consumed");
+
+        let mut zero_size = manifest;
+        zero_size.executable_size = 0;
+        fs::write(
+            bundle.join("manifest.json"),
+            serde_json::to_vec(&zero_size).unwrap(),
+        )
+        .unwrap();
+        let rejected = consume_development_bundle(
+            Operation::Install,
+            Options { dry_run: true, ..Options::default() },
+            &paths,
+            2,
+            ASB_SOURCE_COMMIT,
+            ASB_SOURCE_TREE,
+            &bundle,
+        )
+        .unwrap_err();
+        assert_eq!(rejected.code, "development_bundle_invalid");
     }
 
     #[test]
