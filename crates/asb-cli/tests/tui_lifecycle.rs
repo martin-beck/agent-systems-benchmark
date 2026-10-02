@@ -108,6 +108,12 @@ fn absent_local_lifecycle_is_stable_network_free_and_non_creating() {
         if operation == "launch" {
             assert_eq!(value["channel"], "dev");
             assert_eq!(value["development_only"], true);
+            assert_eq!(value["asb_source_commit"].as_str().unwrap().len(), 40);
+            assert_eq!(value["asb_source_tree"].as_str().unwrap().len(), 40);
+            assert_eq!(
+                value["warnings"][0],
+                "development_missing_authentication_allowed"
+            );
         }
     }
     let unavailable = Command::new(env!("CARGO_BIN_EXE_asb"))

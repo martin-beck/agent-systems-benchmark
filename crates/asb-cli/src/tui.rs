@@ -186,6 +186,12 @@ struct RouterResponse {
     source_commit: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     source_tree: Option<String>,
+    /// The exact ASB checkout paired with a development-channel TUI head.
+    /// Stable channels intentionally omit these development-only identities.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    asb_source_commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    asb_source_tree: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     warnings: Option<Vec<&'static str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,6 +215,8 @@ impl RouterResponse {
             executable_sha256: None,
             source_commit: None,
             source_tree: None,
+            asb_source_commit: None,
+            asb_source_tree: None,
             warnings: None,
             verified: None,
         }
@@ -533,6 +541,15 @@ impl RouterError {
 fn annotate_channel(response: &mut RouterResponse, resolved: Channel) {
     response.channel = resolved.name();
     response.development_only = resolved == Channel::Dev;
+    if resolved == Channel::Dev {
+        response.asb_source_commit = Some(ASB_SOURCE_COMMIT.to_owned());
+        response.asb_source_tree = Some(ASB_SOURCE_TREE.to_owned());
+        // Development authentication/signature/key-management gaps are
+        // explicitly nonblocking, but remain visible in every projection.
+        if response.warnings.is_none() {
+            response.warnings = Some(development_warnings());
+        }
+    }
 }
 
 fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
@@ -1980,6 +1997,8 @@ fn response_from_delegated(
         executable_sha256: delegated.executable_sha256,
         source_commit: None,
         source_tree: None,
+        asb_source_commit: None,
+        asb_source_tree: None,
         warnings: None,
         verified: delegated.verified,
     })
