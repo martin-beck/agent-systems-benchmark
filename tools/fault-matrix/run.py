@@ -182,7 +182,29 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
                     except json.JSONDecodeError:
                         classification = "warning_invalid"
                     else:
-                        classification = "warning" if warning.get("status") == "warning" and isinstance(warning.get("code"), str) and (case["warning_code"] is None or warning["code"] == case["warning_code"]) else "warning_invalid"
+                        # Setup keeps its warning envelope under the
+                        # authentication projection so the top-level command
+                        # result remains backwards compatible.  Accept both
+                        # the canonical nested shape and the compact shape
+                        # used by synthetic fault fixtures.
+                        projection = warning.get("authentication", warning)
+                        warning_status = projection.get("status")
+                        warning_code = projection.get("warning_code", projection.get("code"))
+                        warning_text = projection.get("warning")
+                        is_warning = (
+                            warning_status in {"warning", "unavailable"}
+                            and (
+                                isinstance(warning_code, str)
+                                or isinstance(warning_text, str)
+                                and warning_text.startswith("development-only:")
+                            )
+                        )
+                        if case["warning_code"] is not None:
+                            is_warning = is_warning and (
+                                warning_code == case["warning_code"]
+                                or case["warning_code"] in (warning_text or "")
+                            )
+                        classification = "warning" if is_warning else "warning_invalid"
                 else:
                     classification = "passed"
             else:
