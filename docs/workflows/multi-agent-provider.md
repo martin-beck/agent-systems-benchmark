@@ -79,9 +79,11 @@ asb easy record /absolute/path/CAPTURE.json /absolute/path/CASSETTE.json --local
 asb easy replay /absolute/path/CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock
 ```
 
-`easy replay` still requires the runtime-injected replay authority; a plain
-CLI invocation fails closed rather than fabricating one. All local-mock routes
-remain offline and delegate validation to the canonical ASB commands. Guided
+`easy replay` and `easy replay-offline` with `--local-mock` use the
+runtime-owned bounded fixture replay seam; they remain offline and do not
+fabricate provider authority. Plain CLI replay invocation still requires the
+runtime-injected replay authority and fails closed when it is absent. All
+local-mock routes delegate validation to the canonical ASB commands. Guided
 setup accepts only the exact provider/model pairs advertised by
 `provider-catalog`; workflow input and output paths must be absolute and may
 not contain parent traversal components.

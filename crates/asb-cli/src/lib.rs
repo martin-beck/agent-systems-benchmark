@@ -809,7 +809,7 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
 /// complete authority surface.
 fn guided_local(
     args: &[String],
-    replay_authority: Option<ReplayLaunchAuthority>,
+    _replay_authority: Option<ReplayLaunchAuthority>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
 ) -> Result<u8, CliError> {
@@ -853,11 +853,11 @@ fn guided_local(
     }
     if args[0] == "replay" && args.len() == 5 && args[4] == "--local-mock" {
         let cassette = guided_path(&args[1], "recording cassette")?;
-        return replay(&cassette, &args[2], &args[3], replay_authority, output).map(|()| 0);
+        return replay_local_mock(&cassette, &args[2], &args[3], output).map(|()| 0);
     }
     if args[0] == "replay-offline" && args.len() == 5 && args[4] == "--local-mock" {
         let cassette = guided_path(&args[1], "recording cassette")?;
-        return replay(&cassette, &args[2], &args[3], replay_authority, output).map(|()| 0);
+        return replay_local_mock(&cassette, &args[2], &args[3], output).map(|()| 0);
     }
     if args.len() == 3 && args[0] == "record-campaign" {
         if args[2] != "--local-mock" {
@@ -1872,6 +1872,54 @@ fn replay(
             response_status: response.status,
             response_sha256: format!("{response_sha256:x}"),
         },
+    )
+}
+
+fn replay_local_mock(
+    cassette_path: &Path,
+    provider_profile_sha256: &str,
+    agent_id: &str,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    if !valid_sha256(provider_profile_sha256) {
+        return Err(CliError::validation("provider profile digest is invalid"));
+    }
+    parse_agent(agent_id)?;
+    let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
+    let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
+        .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+    let cassette_sha256 = cassette.integrity.digest.clone();
+    let result =
+        asb_runtime::guided_replay::execute_local_strict_replay(cassette_path, &cassette_sha256)
+            .map_err(|error| {
+                let message = match error {
+                    asb_runtime::guided_replay::LocalReplayError::CassetteUnavailable => {
+                        "recording cassette is unavailable"
+                    }
+                    asb_runtime::guided_replay::LocalReplayError::InvalidCassette => {
+                        "recording cassette is invalid for strict replay"
+                    }
+                    asb_runtime::guided_replay::LocalReplayError::DigestMismatch => {
+                        "recording cassette digest does not match runtime identity"
+                    }
+                };
+                CliError::validation(message)
+            })?;
+    write_json(
+        stdout,
+        &serde_json::json!({
+            "schema_version": asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            "ok": true,
+            "command": "replay-offline",
+            "source": "strict_replay",
+            "network": "denied",
+            "fresh_model_quality": false,
+            "provider_profile_sha256": provider_profile_sha256,
+            "agent_id": agent_id,
+            "cassette_sha256": cassette_sha256,
+            "result_digest": result.result_digest,
+            "output_bytes": result.output_bytes,
+        }),
     )
 }
 
@@ -9782,7 +9830,60 @@ mod tests {
             offline["error"]["message"],
             "runtime replay authority is required"
         );
+        let mut local_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "replay-offline".into(),
+                    live_cassette.as_os_str().to_owned(),
+                    "a".repeat(64).into(),
+                    "codex".into(),
+                    "--local-mock".into(),
+                ],
+                &mut local_output,
+                &mut diagnostics,
+            ),
+            3
+        );
+        let local: Value = serde_json::from_slice(&local_output).unwrap();
+        assert_eq!(
+            local["error"]["message"],
+            "recording cassette is invalid for strict replay"
+        );
         let _ = digest;
+    }
+
+    #[test]
+    fn guided_local_replay_uses_runtime_owned_fixture_seam() {
+        let scratch = Scratch::new("guided-local-replay");
+        let cassette_path = scratch.0.join("gemini-cassette.json");
+        let fixture = include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json");
+        fs::write(&cassette_path, fixture).unwrap();
+        let cassette: Value = serde_json::from_slice(fixture).unwrap();
+        let digest = cassette["integrity"]["digest"].as_str().unwrap();
+        let mut output = Vec::new();
+        let mut diagnostics = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "easy".into(),
+                    "replay-offline".into(),
+                    cassette_path.as_os_str().to_owned(),
+                    "a".repeat(64).into(),
+                    "codex".into(),
+                    "--local-mock".into(),
+                ],
+                &mut output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["source"], "strict_replay");
+        assert_eq!(result["network"], "denied");
+        assert_eq!(result["cassette_sha256"], digest);
     }
 
     #[test]
