@@ -5505,6 +5505,14 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             .iter()
             .map(|field| comparison_field_name(*field).to_owned())
             .collect::<Vec<_>>();
+        if baseline.execution.measurement_selection_sha256
+            != candidate.2.execution.measurement_selection_sha256
+            && !pair_differences
+                .iter()
+                .any(|name| name == "measurement_selection")
+        {
+            pair_differences.push("measurement_selection".to_owned());
+        }
         if baseline.execution != candidate.2.execution
             && !pair_differences.iter().any(|name| name == "execution")
         {
@@ -9034,6 +9042,21 @@ mod tests {
         assert_eq!(
             serde_json::from_slice::<Value>(&output).unwrap()["differences"],
             json!(["measurement_selection", "execution"])
+        );
+        let comparison = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(
+            comparison["pairs"][0]["differences"],
+            json!(["measurement_selection", "execution"])
+        );
+        assert!(
+            comparison["confounders"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| {
+                    value["kind"] == "provenance"
+                        && value["description"] == "paired runs differ in measurement_selection"
+                })
         );
     }
 
