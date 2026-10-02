@@ -1655,7 +1655,6 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     };
     workload_ids.sort();
     if agent_ids.len() > MAX_SELECTED_AGENTS
-        || workload_ids.len() > MAX_SELECTED_AGENTS
         || !valid_sha256(&manifest.provider_profile_sha256)
         || agent_ids.windows(2).any(|pair| pair[0] == pair[1])
         || workload_ids.windows(2).any(|pair| pair[0] == pair[1])
@@ -9983,5 +9982,74 @@ mod tests {
         assert_eq!(partial["complete_coverage"], false);
         assert_eq!(partial["offline_ready"], false);
         assert!(!partial_cassette_path.exists());
+    }
+
+    #[test]
+    fn record_campaign_empty_workload_selection_expands_the_full_catalog() {
+        let scratch = Scratch::new("record-campaign-all");
+        let capture_path = scratch.0.join("capture.json");
+        let manifest_path = scratch.0.join("all-campaign.json");
+        let cassette = asb_replay::decode_cassette(
+            include_bytes!("../../asb-replay/fixtures/v1/buffered.json"),
+            asb_replay::CassetteLimits::default(),
+        )
+        .unwrap();
+        let capture = asb_replay::RecordingCapture {
+            schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            provider_profile_sha256: "a".repeat(64),
+            agent_id: "codex".into(),
+            network: asb_replay::NetworkConsequence::LoopbackOnly,
+            estimated_cost_minor: 0,
+            confirmation: asb_replay::RecordingConfirmation {
+                record: true,
+                network: true,
+                cost: false,
+            },
+            contents: cassette.contents,
+        };
+        fs::write(&capture_path, serde_json::to_vec(&capture).unwrap()).unwrap();
+        let workload_ids = workload_catalog()
+            .into_iter()
+            .filter_map(|entry| select_workload(&entry.id, "linux-x86_64").ok())
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>();
+        let entries = workload_ids
+            .iter()
+            .map(|workload_id| {
+                json!({
+                    "workload_id": workload_id,
+                    "capture_path": capture_path,
+                    "cassette_path": scratch.0.join(format!("{workload_id}.json")),
+                })
+            })
+            .collect::<Vec<_>>();
+        let manifest = json!({
+            "schema_version": asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            "provider_profile_sha256": "a".repeat(64),
+            "agent_ids": ["codex"],
+            "workload_ids": [],
+            "entries": entries,
+        });
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let mut output = Vec::new();
+        let mut diagnostics = Vec::new();
+        let status = run(
+            &[
+                "easy".into(),
+                "record-campaign".into(),
+                manifest_path.as_os_str().to_owned(),
+                "--local-mock".into(),
+            ],
+            &mut output,
+            &mut diagnostics,
+        );
+        assert_eq!(status, 0, "output={output:?} diagnostics={diagnostics:?}");
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(result["complete_coverage"], true);
+        assert_eq!(result["offline_ready"], true);
+        assert_eq!(result["tuple_count"], workload_ids.len());
+        for workload_id in workload_ids {
+            assert!(scratch.0.join(format!("{workload_id}.json")).is_file());
+        }
     }
 }
