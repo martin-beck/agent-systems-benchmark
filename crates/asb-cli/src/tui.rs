@@ -864,7 +864,11 @@ fn materialize_development(
     let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
-    let rustc = resolve_development_rustc(&cargo, rustup_home.as_deref())?;
+    let rustc = resolve_development_rustc(
+        &cargo,
+        rustup_home.as_deref(),
+        std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
+    )?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
         "dev-build-{}-{}",
@@ -3285,19 +3289,22 @@ fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Pat
 fn resolve_development_rustc(
     cargo: &Path,
     rustup_home: Option<&Path>,
+    direct_override: bool,
 ) -> Result<Option<PathBuf>, RouterError> {
-    let Some(rustup_home) = rustup_home else {
+    if rustup_home.is_none() && !direct_override {
         return Ok(None);
-    };
+    }
     let resolved =
         fs::canonicalize(cargo).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
     if resolved.file_name() != Some(std::ffi::OsStr::new("cargo")) {
         return Ok(None);
     }
-    let rustup_root = fs::canonicalize(rustup_home)
-        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !resolved.starts_with(rustup_root.join("toolchains")) {
-        return Err(RouterError::policy("trusted_tool_invalid"));
+    if let Some(rustup_home) = rustup_home {
+        let rustup_root = fs::canonicalize(rustup_home)
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !resolved.starts_with(rustup_root.join("toolchains")) {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
     }
     let bin = resolved
         .parent()
@@ -4655,10 +4662,17 @@ mod tests {
         .unwrap();
         assert_eq!(resolved, cargo);
         assert_eq!(
-            resolve_development_rustc(&resolved, Some(&root)).unwrap(),
+            resolve_development_rustc(&resolved, Some(&root), false).unwrap(),
             Some(cargo.parent().unwrap().join("rustc"))
         );
-        assert_eq!(resolve_development_rustc(&resolved, None).unwrap(), None);
+        assert_eq!(
+            resolve_development_rustc(&resolved, None, false).unwrap(),
+            None
+        );
+        assert_eq!(
+            resolve_development_rustc(&resolved, None, true).unwrap(),
+            Some(cargo.parent().unwrap().join("rustc"))
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -4736,7 +4750,7 @@ mod tests {
         }
         let mut command = Command::new("/usr/bin/env");
         command.env_clear();
-        let rustc = resolve_development_rustc(&cargo, Some(&root))
+        let rustc = resolve_development_rustc(&cargo, Some(&root), false)
             .unwrap()
             .unwrap();
         apply_development_toolchain_environment(&mut command, Some(&root), Some(&rustc));
@@ -4774,14 +4788,14 @@ mod tests {
         fs::write(&rustc, b"rustc").unwrap();
         fs::set_permissions(&rustc, fs::Permissions::from_mode(0o700)).unwrap();
         assert_eq!(
-            resolve_development_rustc(&cargo, Some(&foreign_root))
+            resolve_development_rustc(&cargo, Some(&foreign_root), false)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
         );
         fs::remove_file(&rustc).unwrap();
         assert_eq!(
-            resolve_development_rustc(&cargo, Some(&root))
+            resolve_development_rustc(&cargo, Some(&root), false)
                 .unwrap_err()
                 .code,
             "trusted_tool_unavailable"
@@ -4789,7 +4803,7 @@ mod tests {
         fs::write(&rustc, b"rustc").unwrap();
         fs::set_permissions(&rustc, fs::Permissions::from_mode(0o777)).unwrap();
         assert_eq!(
-            resolve_development_rustc(&cargo, Some(&root))
+            resolve_development_rustc(&cargo, Some(&root), false)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
@@ -4800,7 +4814,7 @@ mod tests {
         fs::set_permissions(&unsafe_target, fs::Permissions::from_mode(0o777)).unwrap();
         std::os::unix::fs::symlink(&unsafe_target, &rustc).unwrap();
         assert_eq!(
-            resolve_development_rustc(&cargo, Some(&root))
+            resolve_development_rustc(&cargo, Some(&root), false)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
