@@ -152,7 +152,7 @@ fn documented_offline_workflow_produces_validated_artifacts() {
         first_run.to_str().unwrap(),
         second_run.to_str().unwrap(),
     ]);
-    assert_eq!(comparison["comparable"], true);
+    assert_eq!(comparison["comparable"], false);
     assert_eq!(comparison["differences"], json!([]));
     assert_eq!(
         comparison["unavailable_reasons"],
@@ -161,6 +161,22 @@ fn documented_offline_workflow_produces_validated_artifacts() {
             "guide-second:provider_selection_unavailable"
         ])
     );
+    let repeated_candidate = successful_json(&[
+        "compare",
+        first_run.to_str().unwrap(),
+        second_run.to_str().unwrap(),
+        second_run.to_str().unwrap(),
+    ]);
+    assert_eq!(repeated_candidate["comparable"], false);
+    assert_eq!(
+        repeated_candidate["unavailable_reasons"],
+        json!([
+            "baseline:provider_selection_unavailable",
+            "guide-second:provider_selection_unavailable"
+        ])
+    );
+    assert_eq!(repeated_candidate["pairs"][0]["comparable"], false);
+    assert_eq!(repeated_candidate["pairs"][1]["comparable"], false);
 
     let (sweep_plan, _, sweep_work) = write_plan(&scratch.0.join("sweep"), "guide-sweep", true);
     let sweep = successful_json(&["sweep", sweep_plan.to_str().unwrap()]);
