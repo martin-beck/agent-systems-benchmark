@@ -4331,6 +4331,14 @@ impl RunnerBackend {
         } else {
             Vec::new()
         };
+        // Remove artifacts before clearing their durable digests.  If cleanup
+        // fails, the mutation is not committed and a retry retains the exact
+        // identity needed to attempt cleanup again.
+        if matches!(action, RecordingLifecycleAction::Remove) {
+            for digest in &remove_digests {
+                remove_cassette_artifact(&self.state_root, digest)?;
+            }
+        }
         let result = self.mutation(call, key, target, deadline, |catalog| {
             let record = catalog
                 .recording_campaign
@@ -4471,11 +4479,6 @@ impl RunnerBackend {
             };
             Ok(ControlResult::RecordingCampaignLifecycle(projection))
         })?;
-        if matches!(action, RecordingLifecycleAction::Remove) {
-            for digest in remove_digests {
-                remove_cassette_artifact(&self.state_root, &digest)?;
-            }
-        }
         Ok(result)
     }
 
