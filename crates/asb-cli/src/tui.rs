@@ -862,8 +862,8 @@ fn materialize_development(
     }
     let git = resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
     let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
-    let cargo = resolve_development_cargo()?;
     let rustup_home = resolve_development_rustup_home()?;
+    let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
         "dev-build-{}-{}",
@@ -952,9 +952,7 @@ fn materialize_development(
             .args(["--wait"])
             .arg(&cargo)
             .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
-        if let Some(rustup_home) = &rustup_home {
-            build.env("RUSTUP_HOME", rustup_home);
-        }
+        apply_development_rustup_home(&mut build, rustup_home.as_deref());
         run_development_command_with_limits_and_roots(
             build,
             &root,
@@ -3135,14 +3133,17 @@ fn resolve_development_tool_from(
     }
 }
 
-fn resolve_development_cargo() -> Result<PathBuf, RouterError> {
+fn resolve_development_cargo_with_rustup(
+    rustup_home: Option<&Path>,
+) -> Result<PathBuf, RouterError> {
     let override_path = std::env::var_os(DEV_CARGO_OVERRIDE);
     let home = std::env::var_os("HOME");
     let cargo_home = std::env::var_os(DEV_CARGO_HOME);
-    resolve_development_cargo_from(
+    resolve_development_cargo_from_with_rustup(
         override_path.as_deref(),
         home.as_deref(),
         cargo_home.as_deref(),
+        rustup_home,
     )
 }
 
@@ -3173,15 +3174,17 @@ fn resolve_development_rustup_home_from(
     Ok(Some(path))
 }
 
-fn resolve_development_cargo_from(
+fn resolve_development_cargo_from_with_rustup(
     override_path: Option<&std::ffi::OsStr>,
     home: Option<&std::ffi::OsStr>,
     cargo_home: Option<&std::ffi::OsStr>,
+    rustup_home: Option<&Path>,
 ) -> Result<PathBuf, RouterError> {
     if let Some(value) = override_path {
         let candidate = PathBuf::from(value);
-        return validate_development_tool(&candidate)
-            .map_err(|_| RouterError::policy("trusted_tool_invalid"));
+        let resolved = validate_development_tool(&candidate)
+            .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+        return resolve_rustup_proxy_cargo(&resolved, rustup_home);
     }
 
     let mut candidates = Vec::new();
@@ -3197,10 +3200,55 @@ fn resolve_development_cargo_from(
     ]);
     for candidate in candidates {
         if let Ok(resolved) = validate_development_tool(&candidate) {
-            return Ok(resolved);
+            return resolve_rustup_proxy_cargo(&resolved, rustup_home);
         }
     }
     Err(RouterError::operation("trusted_tool_unavailable"))
+}
+
+fn resolve_rustup_proxy_cargo(
+    resolved: &Path,
+    rustup_home: Option<&Path>,
+) -> Result<PathBuf, RouterError> {
+    if resolved.file_name() != Some(std::ffi::OsStr::new("rustup")) {
+        return Ok(resolved.to_path_buf());
+    }
+    let Some(rustup_home) = rustup_home else {
+        return Ok(resolved.to_path_buf());
+    };
+    let settings = read_bounded(&rustup_home.join("settings.toml"), 64 * 1024)
+        .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+    let settings =
+        std::str::from_utf8(&settings).map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+    let toolchain = settings
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("default_toolchain = "))
+        .map(str::trim)
+        .and_then(|value| {
+            value
+                .strip_prefix('"')
+                .and_then(|value| value.strip_suffix('"'))
+        })
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 256
+                && Path::new(value)
+                    .components()
+                    .all(|component| matches!(component, Component::Normal(_)))
+        })
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    let cargo = rustup_home
+        .join("toolchains")
+        .join(toolchain)
+        .join("bin/cargo");
+    validate_development_tool(&cargo)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))
+}
+
+fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Path>) {
+    if let Some(rustup_home) = rustup_home {
+        command.env("RUSTUP_HOME", rustup_home);
+    }
 }
 
 fn validate_development_tool(path: &Path) -> Result<PathBuf, RouterError> {
@@ -4364,10 +4412,11 @@ mod tests {
         prepare_private_directory(cargo.parent().unwrap()).unwrap();
         fs::write(&cargo, b"fixture cargo").unwrap();
         fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
-        let resolved = resolve_development_cargo_from(
+        let resolved = resolve_development_cargo_from_with_rustup(
             None,
             Some(root.join("home").as_os_str()),
             Some(cargo.parent().unwrap().parent().unwrap().as_os_str()),
+            None,
         )
         .unwrap();
         assert_eq!(resolved, fs::canonicalize(cargo).unwrap());
@@ -4385,8 +4434,9 @@ mod tests {
         fs::write(&cargo, b"fixture cargo").unwrap();
         fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
         assert_eq!(
-            resolve_development_cargo_from(
+            resolve_development_cargo_from_with_rustup(
                 Some(std::ffi::OsStr::new("relative/cargo")),
+                None,
                 None,
                 None,
             )
@@ -4418,6 +4468,93 @@ mod tests {
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_proxy_resolves_selected_toolchain_cargo() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1634-rustup-proxy-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        fs::write(
+            root.join("settings.toml"),
+            b"version = \"12\"\ndefault_toolchain = \"fixture-toolchain\"\n",
+        )
+        .unwrap();
+        let proxy = root.join("bin/rustup");
+        prepare_private_directory(proxy.parent().unwrap()).unwrap();
+        fs::write(&proxy, b"rustup proxy").unwrap();
+        fs::set_permissions(&proxy, fs::Permissions::from_mode(0o700)).unwrap();
+        let cargo = root.join("toolchains/fixture-toolchain/bin/cargo");
+        prepare_private_directory(cargo.parent().unwrap()).unwrap();
+        fs::write(&cargo, b"toolchain cargo").unwrap();
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        let resolved = resolve_development_cargo_from_with_rustup(
+            Some(proxy.as_os_str()),
+            None,
+            None,
+            Some(&root),
+        )
+        .unwrap();
+        assert_eq!(resolved, cargo);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_proxy_rejects_missing_or_oversized_settings() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1634-rustup-settings-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let proxy = root.join("bin/rustup");
+        prepare_private_directory(proxy.parent().unwrap()).unwrap();
+        fs::write(&proxy, b"rustup proxy").unwrap();
+        fs::set_permissions(&proxy, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(
+                Some(proxy.as_os_str()),
+                None,
+                None,
+                Some(&root),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        fs::write(root.join("settings.toml"), vec![b'x'; 64 * 1024 + 1]).unwrap();
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(
+                Some(proxy.as_os_str()),
+                None,
+                None,
+                Some(&root),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_build_propagates_only_validated_rustup_home() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1634-rustup-env-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let mut command = Command::new("/usr/bin/env");
+        command.env_clear();
+        apply_development_rustup_home(&mut command, Some(&root));
+        let output = command.output().unwrap();
+        assert!(
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .any(|line| line == format!("RUSTUP_HOME={}", root.display()))
         );
         fs::remove_dir_all(root).unwrap();
     }
