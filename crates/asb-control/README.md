@@ -24,6 +24,16 @@ clients continue to negotiate immutable `1.0`; independent frontends offer
 diagnostics. The additive `1.1` evidence types do not
 define a separately selectable wire version.
 
+Provider setup uses `ProviderCatalog` status/refresh and
+`ProviderProfileUpsert` for add/edit. Development refresh is deterministic and
+credential-free: known model choices are exposed for selection, while an
+unqualified provider or model remains visible with an explicit unavailable
+reason. It never contacts a live provider or blocks on missing authentication,
+signatures, or key management. Frontends should filter through
+`ProviderCatalog::selectable_models` and retain the last valid snapshot when an
+edit is cancelled or refresh fails. Catalogs contain only public identities and
+digests; API keys, URLs, raw responses, and private paths are never serialized.
+
 Runner journals remain authoritative. Mutating calls carry idempotency keys;
 the runner must journal the canonical request and terminal public result before
 indexing it as committed. Reusing a key with another request fails closed.

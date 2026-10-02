@@ -953,6 +953,26 @@ impl ProviderProfileUpsertParams {
 }
 
 impl ProviderCatalog {
+    /// Return only models that may be selected for a provider.
+    ///
+    /// Catalogs intentionally retain unavailable models so a frontend can
+    /// explain why a choice is not usable.  Selection code must use this
+    /// projection instead of treating every advertised model as connected.
+    pub fn selectable_models(&self, provider_id: &str) -> Vec<&ProviderModel> {
+        self.providers
+            .iter()
+            .find(|provider| provider.provider_id == provider_id)
+            .filter(|provider| matches!(&provider.availability, ProviderAvailability::Available))
+            .map(|provider| {
+                provider
+                    .models
+                    .iter()
+                    .filter(|model| matches!(&model.availability, ProviderAvailability::Available))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Validate bounds, canonical ordering, and the authenticated digest.
     pub fn validate(&self) -> Result<(), ProtocolError> {
         validate_identity(&self.runner_instance_id)?;
@@ -1142,6 +1162,35 @@ mod tests {
         assert!(validate_provider_entry(&duplicate, false).is_err());
         assert!(validate_sorted_ids(&["b".into(), "a".into()], false).is_err());
         assert!(validate_catalog_string("unsafe value").is_err());
+    }
+
+    #[test]
+    fn selectable_models_filter_unavailable_provider_and_model_entries() {
+        let mut openrouter = entry("openrouter");
+        openrouter.availability = ProviderAvailability::Available;
+        openrouter.models[0].availability = ProviderAvailability::Available;
+        let mut unavailable_model = openrouter.models[0].clone();
+        unavailable_model.model_id = "model-2".into();
+        unavailable_model.availability = unavailable();
+        openrouter.models.push(unavailable_model);
+        let mut catalog = ProviderCatalog {
+            runner_instance_id: "runner-1".into(),
+            generation: Revision(1),
+            catalog_sha256: String::new(),
+            providers: vec![entry("local"), openrouter],
+            refreshed: false,
+        };
+        catalog
+            .providers
+            .sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
+        catalog.catalog_sha256 = catalog.computed_sha256().unwrap();
+        catalog.validate().unwrap();
+        assert_eq!(catalog.selectable_models("openrouter").len(), 1);
+        assert_eq!(
+            catalog.selectable_models("openrouter")[0].model_id,
+            "model-1"
+        );
+        assert!(catalog.selectable_models("local").is_empty());
     }
 
     #[test]
