@@ -24,12 +24,20 @@ asb setup --agent opencode --agent opendesk \
 ```
 
 The persisted document contains only provider/model identities and a digest of
-the credential environment name. It never stores an API-key value. Missing
+the credential environment name. The environment name must be the provider's
+runtime channel (`OPENROUTER_API_KEY` for OpenRouter or `OPENAI_API_KEY` for
+OpenAI), so a saved selection cannot point at a name the adapter will ignore.
+It never stores an API-key value. Missing
 authentication, signatures, and key management are visible development-only
 warnings and do not block this prototype. Re-running the command edits the
 same shared defaults; use `--no-default` when the selected agents should be
 configured without replacing the global default set. Use `--json` for stable
 automation output.
+
+Only providers with a currently qualified ASB runtime route can be persisted by
+the multi-agent setup path. Gemini and Ollama remain visible in the read-only
+catalog until their agent/runtime contracts are qualified; selecting them does
+not create a partial configuration.
 
 `asb setup` is a bounded, side-effect-free first step for both interactive and
 automated configuration. It emits versioned JSON and never contacts a provider.

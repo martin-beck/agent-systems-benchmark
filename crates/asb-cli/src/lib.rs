@@ -1220,6 +1220,21 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     }
     let mut persisted = false;
     if !agents.is_empty() {
+        let provider = provider_profile.as_deref().expect("validated above");
+        let expected_credential_environment = match provider {
+            "openrouter" => asb_agents::openrouter::OPENROUTER_API_KEY_ENV,
+            "openai" => "OPENAI_API_KEY",
+            _ => {
+                return Err(CliError::validation(
+                    "selected provider has no supported setup runtime",
+                ));
+            }
+        };
+        if credential_environment.as_deref() != Some(expected_credential_environment) {
+            return Err(CliError::validation(
+                "credential environment is not supported by the selected provider runtime",
+            ));
+        }
         let store = match config_path {
             Some(path) => ConfigStore::new(path),
             None => ConfigStore::from_environment()
@@ -1229,7 +1244,6 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             .load()
             .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
             .unwrap_or_else(Configuration::empty);
-        let provider = provider_profile.as_deref().expect("validated above");
         let selected_model = model.as_deref().expect("validated above");
         let credential_env = credential_environment
             .as_deref()
@@ -6752,6 +6766,58 @@ mod tests {
         assert_eq!(value["provider_contact"], false);
         assert_eq!(value["authentication"]["status"], "unavailable");
         assert!(destination.exists());
+    }
+
+    #[test]
+    fn setup_rejects_unresolvable_credential_environment_before_persisting() {
+        let scratch = Scratch::new("setup-credential-env");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--agent",
+            "opencode",
+            "--provider-profile",
+            "openrouter",
+            "--model",
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "--credential-env",
+            "UNSUPPORTED_API_KEY",
+            "--config",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        assert!(!destination.exists());
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "validation");
+    }
+
+    #[test]
+    fn setup_rejects_unimplemented_provider_before_persisting() {
+        let scratch = Scratch::new("setup-provider-runtime");
+        let destination = scratch.0.join("config.json");
+        let args: Vec<OsString> = [
+            "setup",
+            "--agent",
+            "opencode",
+            "--provider-profile",
+            "gemini",
+            "--model",
+            "gemini-2.5-flash",
+            "--config",
+            destination.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let mut output = Vec::new();
+        assert_ne!(run(&args, &mut output, &mut Vec::new()), 0);
+        assert!(!destination.exists());
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["error"]["code"], "validation");
     }
 
     #[test]
