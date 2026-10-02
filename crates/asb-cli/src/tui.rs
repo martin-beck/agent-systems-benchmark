@@ -864,6 +864,11 @@ fn materialize_development(
     let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
+    let rustc = resolve_development_rustc(
+        &cargo,
+        rustup_home.as_deref(),
+        std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
+    )?;
     prepare_private_directory(&paths.cache_root)?;
     let root = paths.cache_root.join(format!(
         "dev-build-{}-{}",
@@ -952,7 +957,11 @@ fn materialize_development(
             .args(["--wait"])
             .arg(&cargo)
             .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
-        apply_development_rustup_home(&mut build, rustup_home.as_deref());
+        apply_development_toolchain_environment(
+            &mut build,
+            rustup_home.as_deref(),
+            rustc.as_deref(),
+        );
         run_development_command_with_limits_and_roots(
             build,
             &root,
@@ -3277,6 +3286,46 @@ fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Pat
     }
 }
 
+fn resolve_development_rustc(
+    cargo: &Path,
+    rustup_home: Option<&Path>,
+    direct_override: bool,
+) -> Result<Option<PathBuf>, RouterError> {
+    if rustup_home.is_none() && !direct_override {
+        return Ok(None);
+    }
+    let resolved =
+        fs::canonicalize(cargo).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if resolved.file_name() != Some(std::ffi::OsStr::new("cargo")) {
+        return Ok(None);
+    }
+    if let Some(rustup_home) = rustup_home {
+        let rustup_root = fs::canonicalize(rustup_home)
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !resolved.starts_with(rustup_root.join("toolchains")) {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+    }
+    let bin = resolved
+        .parent()
+        .filter(|path| path.file_name() == Some(std::ffi::OsStr::new("bin")))
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    let rustc = bin.join("rustc");
+    validate_development_tool(&rustc)?;
+    Ok(Some(rustc))
+}
+
+fn apply_development_toolchain_environment(
+    command: &mut Command,
+    rustup_home: Option<&Path>,
+    rustc: Option<&Path>,
+) {
+    apply_development_rustup_home(command, rustup_home);
+    if let Some(rustc) = rustc {
+        command.env("RUSTC", rustc);
+    }
+}
+
 fn validate_development_tool(path: &Path) -> Result<PathBuf, RouterError> {
     if !safe_absolute(path) {
         return Err(RouterError::policy("trusted_tool_invalid"));
@@ -4595,6 +4644,9 @@ mod tests {
         prepare_private_directory(cargo.parent().unwrap()).unwrap();
         fs::write(&cargo, b"toolchain cargo").unwrap();
         fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        let rustc = cargo.parent().unwrap().join("rustc");
+        fs::write(&rustc, b"toolchain rustc").unwrap();
+        fs::set_permissions(&rustc, fs::Permissions::from_mode(0o700)).unwrap();
         assert_eq!(
             resolve_development_cargo_from_with_rustup(Some(proxy.as_os_str()), None, None, None,)
                 .unwrap_err()
@@ -4609,6 +4661,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(resolved, cargo);
+        assert_eq!(
+            resolve_development_rustc(&resolved, Some(&root), false).unwrap(),
+            Some(cargo.parent().unwrap().join("rustc"))
+        );
+        assert_eq!(
+            resolve_development_rustc(&resolved, None, false).unwrap(),
+            None
+        );
+        assert_eq!(
+            resolve_development_rustc(&resolved, None, true).unwrap(),
+            Some(cargo.parent().unwrap().join("rustc"))
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -4658,12 +4722,102 @@ mod tests {
         prepare_private_directory(&root).unwrap();
         let mut command = Command::new("/usr/bin/env");
         command.env_clear();
-        apply_development_rustup_home(&mut command, Some(&root));
+        apply_development_toolchain_environment(&mut command, Some(&root), None);
         let output = command.output().unwrap();
         assert!(
             String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .any(|line| line == format!("RUSTUP_HOME={}", root.display()))
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_build_propagates_validated_toolchain_path() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1636-toolchain-env-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let bin = root.join("toolchains/fixture-toolchain/bin");
+        prepare_private_directory(&bin).unwrap();
+        let cargo = bin.join("cargo");
+        let rustc = bin.join("rustc");
+        fs::write(&cargo, b"cargo").unwrap();
+        fs::write(&rustc, b"rustc").unwrap();
+        for tool in [&cargo, &rustc] {
+            fs::set_permissions(tool, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let mut command = Command::new("/usr/bin/env");
+        command.env_clear();
+        let rustc = resolve_development_rustc(&cargo, Some(&root), false)
+            .unwrap()
+            .unwrap();
+        apply_development_toolchain_environment(&mut command, Some(&root), Some(&rustc));
+        let output = command.output().unwrap();
+        let variables = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            variables
+                .lines()
+                .any(|line| line == format!("RUSTUP_HOME={}", root.display()))
+        );
+        assert!(
+            variables
+                .lines()
+                .any(|line| line == format!("RUSTC={}", rustc.display()))
+        );
+        assert!(!variables.lines().any(|line| line.starts_with("PATH=")));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustc_sibling_rejects_missing_unsafe_and_symlink_targets() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1636-rustc-reject-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let bin = root.join("toolchains/fixture-toolchain/bin");
+        prepare_private_directory(&bin).unwrap();
+        let cargo = bin.join("cargo");
+        let rustc = bin.join("rustc");
+        fs::write(&cargo, b"cargo").unwrap();
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        let foreign_root = root.join("foreign-rustup");
+        prepare_private_directory(&foreign_root).unwrap();
+        fs::write(&rustc, b"rustc").unwrap();
+        fs::set_permissions(&rustc, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            resolve_development_rustc(&cargo, Some(&foreign_root), false)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_file(&rustc).unwrap();
+        assert_eq!(
+            resolve_development_rustc(&cargo, Some(&root), false)
+                .unwrap_err()
+                .code,
+            "trusted_tool_unavailable"
+        );
+        fs::write(&rustc, b"rustc").unwrap();
+        fs::set_permissions(&rustc, fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            resolve_development_rustc(&cargo, Some(&root), false)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_file(&rustc).unwrap();
+        let unsafe_target = root.join("unsafe-rustc");
+        fs::write(&unsafe_target, b"rustc").unwrap();
+        fs::set_permissions(&unsafe_target, fs::Permissions::from_mode(0o777)).unwrap();
+        std::os::unix::fs::symlink(&unsafe_target, &rustc).unwrap();
+        assert_eq!(
+            resolve_development_rustc(&cargo, Some(&root), false)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
     }
