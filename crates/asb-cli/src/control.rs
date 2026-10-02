@@ -430,6 +430,12 @@ struct RecordingCampaignRecord {
     unavailable_reason: Option<String>,
     #[serde(default)]
     coverage: Vec<RecordingTupleRecord>,
+    /// Digests whose catalog transition is durable but whose filesystem
+    /// unlink still needs completion.  This is intentionally separate from
+    /// coverage: selected removal clears the tuple identity immediately,
+    /// while restart cleanup must retain the exact artifact identity.
+    #[serde(default)]
+    pending_cassette_removals: Vec<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -504,6 +510,18 @@ fn cassette_artifact_valid(root: &Path, digest: &str) -> bool {
         return false;
     };
     cassette.integrity.digest == digest
+}
+
+fn remove_cassette_artifact(root: &Path, digest: &str) -> Result<(), BackendFailure> {
+    if asb_control::validate_digest(digest).is_err() {
+        return Err(BackendFailure::Rejected);
+    }
+    let path = root.join("cassettes").join(format!("{digest}.json"));
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(BackendFailure::NeedsReconciliation),
+    }
 }
 
 fn persist_cassette_artifact(
@@ -1069,6 +1087,10 @@ enum RecordingLifecycleAction {
     Cancel,
     Reconcile,
     OfflineDefault,
+    Seal,
+    Reopen,
+    Remove,
+    Retry,
 }
 
 impl RecordingLifecycleAction {
@@ -1078,6 +1100,10 @@ impl RecordingLifecycleAction {
             Self::Cancel => "cancel",
             Self::Reconcile => "reconcile",
             Self::OfflineDefault => "offline_default",
+            Self::Seal => "seal",
+            Self::Reopen => "reopen",
+            Self::Remove => "remove",
+            Self::Retry => "retry",
         }
     }
 }
@@ -1272,7 +1298,7 @@ pub(crate) fn open_qualified_cassette_backend(
             &ControlCall::RecordingCampaignExecute(asb_control::RecordingCampaignExecuteParams {
                 idempotency_key: "qualification-execute".into(),
                 expected_generation: Revision(2),
-                runner_instance_id: runner,
+                runner_instance_id: runner.clone(),
                 campaign_id: plan.campaign_id.clone(),
             }),
             RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
@@ -1348,6 +1374,7 @@ fn open_backend_with_options(
     ) {
         catalog.agent_catalog = Some(index);
     }
+    cleanup_removed_campaign_artifacts(&state_root, &mut catalog)?;
     commit_catalog(&state_root, &catalog)?;
     let runner_instance_id = catalog.runner_instance_id.clone();
     let cancelled = Arc::clone(&orchestration.cancelled);
@@ -1362,6 +1389,59 @@ fn open_backend_with_options(
         cancelled,
         lifecycle_verifier,
     })
+}
+
+/// Complete tombstoned campaign cleanup after a crash between catalog commit
+/// and artifact unlink. Cleanup is exact-digest and idempotent: missing files
+/// are already clean, while any other filesystem failure keeps startup
+/// fail-closed so the tombstone remains durable for a later retry.
+fn cleanup_removed_campaign_artifacts(root: &Path, catalog: &mut Catalog) -> Result<(), CliError> {
+    if let Some(campaign) = catalog
+        .recording_campaign
+        .as_ref()
+        .filter(|campaign| campaign.state == "removed")
+    {
+        for digest in campaign
+            .coverage
+            .iter()
+            .filter_map(|entry| entry.cassette_sha256.as_deref())
+        {
+            let path = root.join("cassettes").join(format!("{digest}.json"));
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(_) => return Err(CliError::operation("removed cassette cleanup failed")),
+            }
+        }
+    }
+    let Some(campaign) = catalog.recording_campaign.as_mut() else {
+        return Ok(());
+    };
+    let live_digests = campaign
+        .coverage
+        .iter()
+        .filter_map(|entry| entry.cassette_sha256.as_deref())
+        .collect::<BTreeSet<_>>();
+    let mut pending = Vec::new();
+    for digest in campaign.pending_cassette_removals.drain(..) {
+        // A retry/reopen may have rebound this artifact before startup
+        // cleanup ran.  The live catalog binding wins: clear the stale
+        // cleanup intent without unlinking a currently referenced cassette.
+        if live_digests.contains(digest.as_str()) {
+            continue;
+        }
+        let path = root.join("cassettes").join(format!("{digest}.json"));
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => pending.push(digest),
+        }
+    }
+    campaign.pending_cassette_removals = pending;
+    if !campaign.pending_cassette_removals.is_empty() {
+        return Err(CliError::operation("pending cassette cleanup failed"));
+    }
+    Ok(())
 }
 
 fn load_config(path: &Path) -> Result<ServiceConfig, CliError> {
@@ -1605,6 +1685,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     | "complete"
                     | "cancelled"
                     | "failed"
+                    | "removed"
             )
             || campaign.tuple_count
                 != u16::try_from(
@@ -1634,6 +1715,19 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             return Err(CliError::operation(
                 "control recording campaign coverage is incomplete",
             ));
+        }
+        if campaign.pending_cassette_removals.len() > 256 {
+            return Err(CliError::operation(
+                "pending cassette cleanup exceeds its bound",
+            ));
+        }
+        let mut pending_digests = BTreeSet::new();
+        for digest in &campaign.pending_cassette_removals {
+            if asb_control::validate_digest(digest).is_err() || !pending_digests.insert(digest) {
+                return Err(CliError::operation(
+                    "pending cassette cleanup identity is invalid",
+                ));
+            }
         }
         let mut identities = BTreeSet::new();
         let mut previous: Option<(String, String)> = None;
@@ -1940,6 +2034,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                                 | "complete"
                                 | "cancelled"
                                 | "failed"
+                                | "removed"
                         )
                 }),
                 _ => false,
@@ -3076,6 +3171,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Execute,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignProgress(request) => {
@@ -3096,6 +3192,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Cancel,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignReconcile(params) => self.recording_campaign_lifecycle(
@@ -3105,6 +3202,7 @@ impl ControlBackend for RunnerBackend {
                 &params.runner_instance_id,
                 &params.campaign_id,
                 RecordingLifecycleAction::Reconcile,
+                None,
                 deadline,
             ),
             ControlCall::RecordingCampaignOfflineDefault(params) => self
@@ -3115,8 +3213,49 @@ impl ControlBackend for RunnerBackend {
                     &params.runner_instance_id,
                     &params.campaign_id,
                     RecordingLifecycleAction::OfflineDefault,
+                    None,
                     deadline,
                 ),
+            ControlCall::RecordingCampaignSeal(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Seal,
+                None,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignReopen(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Reopen,
+                None,
+                deadline,
+            ),
+            ControlCall::RecordingCampaignRemove(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Remove,
+                params.cassette_sha256.as_deref(),
+                deadline,
+            ),
+            ControlCall::RecordingCampaignRetry(params) => self.recording_campaign_lifecycle(
+                call,
+                &params.idempotency_key,
+                params.expected_generation,
+                &params.runner_instance_id,
+                &params.campaign_id,
+                RecordingLifecycleAction::Retry,
+                None,
+                deadline,
+            ),
             ControlCall::AgentCatalog(request) => {
                 let catalog = self.agent_catalog(request)?;
                 self.bind(call, ControlResult::AgentCatalog(catalog))
@@ -3901,6 +4040,7 @@ impl RunnerBackend {
                     offline_ready: false,
                     unavailable_reason: Some("recording-required".to_owned()),
                     coverage: coverage.clone(),
+                    pending_cassette_removals: Vec::new(),
                 });
                 Ok(ControlResult::RecordingCampaign(
                     asb_control::RecordingCampaignPlan {
@@ -4141,10 +4281,57 @@ impl RunnerBackend {
         runner_instance_id: &str,
         campaign_id: &str,
         action: RecordingLifecycleAction,
+        cassette_sha256: Option<&str>,
         deadline: RequestDeadline,
     ) -> Result<BoundControlResult, BackendFailure> {
         if runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
+        }
+        if matches!(action, RecordingLifecycleAction::Retry) {
+            let reset_key = format!("{key}:retry-reset");
+            let reset = self.mutation(
+                call,
+                &reset_key,
+                MutationTarget::RecordingCampaignLifecycle {
+                    campaign_id: campaign_id.to_owned(),
+                    action: "retry_reset".to_owned(),
+                },
+                deadline,
+                |catalog| {
+                    let record = catalog
+                        .recording_campaign
+                        .as_mut()
+                        .filter(|record| record.campaign_id == campaign_id)
+                        .ok_or(BackendFailure::NotFound)?;
+                    if record.generation != expected_generation.0
+                        || !matches!(record.state.as_str(), "failed" | "needs_reconciliation")
+                    {
+                        return Err(BackendFailure::Rejected);
+                    }
+                    for entry in &mut record.coverage {
+                        if entry.state != "complete" {
+                            entry.state = "ready".to_owned();
+                            entry.cassette_sha256 = None;
+                            entry.redaction_verified = false;
+                            entry.replay_verified = false;
+                        }
+                    }
+                    record.state = "planned".to_owned();
+                    record.offline_ready = false;
+                    record.unavailable_reason = Some("retry-admitted".to_owned());
+                    Ok(ControlResult::RecordingCampaignLifecycle(
+                        self.lifecycle_projection(record),
+                    ))
+                },
+            );
+            reset?;
+            return self.recording_campaign_execute(
+                call,
+                &format!("{key}:retry-execute"),
+                expected_generation,
+                campaign_id,
+                deadline,
+            );
         }
         if matches!(action, RecordingLifecycleAction::Cancel)
             && let Ok(cancelled) = self.cancelled.lock()
@@ -4166,7 +4353,31 @@ impl RunnerBackend {
             action: action.name().to_owned(),
         };
         let runner_instance_id = self.runner_instance_id.clone();
-        self.mutation(call, key, target, deadline, |catalog| {
+        let remove_digests = if matches!(action, RecordingLifecycleAction::Remove) {
+            self.catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?
+                .recording_campaign
+                .as_ref()
+                .filter(|record| record.campaign_id == campaign_id)
+                .map(|record| match cassette_sha256 {
+                    Some(digest) => record
+                        .coverage
+                        .iter()
+                        .filter(|entry| entry.cassette_sha256.as_deref() == Some(digest))
+                        .filter_map(|entry| entry.cassette_sha256.clone())
+                        .collect::<Vec<_>>(),
+                    None => record
+                        .coverage
+                        .iter()
+                        .filter_map(|entry| entry.cassette_sha256.clone())
+                        .collect::<Vec<_>>(),
+                })
+                .ok_or(BackendFailure::NotFound)?
+        } else {
+            Vec::new()
+        };
+        let result = self.mutation(call, key, target, deadline, |catalog| {
             let record = catalog
                 .recording_campaign
                 .as_mut()
@@ -4174,6 +4385,15 @@ impl RunnerBackend {
                 .ok_or(BackendFailure::NotFound)?;
             if record.generation != expected_generation.0 {
                 return Err(BackendFailure::StaleIdentity);
+            }
+            if matches!(action, RecordingLifecycleAction::Remove)
+                && let Some(requested) = cassette_sha256
+                && !record
+                    .coverage
+                    .iter()
+                    .any(|entry| entry.cassette_sha256.as_deref() == Some(requested))
+            {
+                return Err(BackendFailure::NotFound);
             }
             match action {
                 RecordingLifecycleAction::Execute => unreachable!("execute handled above"),
@@ -4226,6 +4446,71 @@ impl RunnerBackend {
                         return Err(BackendFailure::CapabilityUnavailable);
                     }
                 }
+                RecordingLifecycleAction::Seal => {
+                    let valid = record.coverage.iter().all(|entry| {
+                        entry.state == "complete"
+                            && entry.cassette_sha256.as_deref().is_some_and(|digest| {
+                                cassette_artifact_valid(&self.state_root, digest)
+                            })
+                    });
+                    if !valid || record.coverage.len() != usize::from(record.tuple_count) {
+                        return Err(BackendFailure::CapabilityUnavailable);
+                    }
+                    record.state = "complete".to_owned();
+                    record.covered_tuple_count = record.tuple_count;
+                    record.offline_ready = true;
+                    record.unavailable_reason = None;
+                }
+                RecordingLifecycleAction::Reopen => {
+                    if !matches!(
+                        record.state.as_str(),
+                        "complete" | "failed" | "cancelled" | "needs_reconciliation"
+                    ) {
+                        return Err(BackendFailure::Rejected);
+                    }
+                    for entry in &mut record.coverage {
+                        if entry.state != "complete" {
+                            entry.state = "ready".to_owned();
+                            entry.cassette_sha256 = None;
+                        }
+                    }
+                    record.state = "planned".to_owned();
+                    record.offline_ready = false;
+                    record.unavailable_reason = Some("capture-reopened".to_owned());
+                }
+                RecordingLifecycleAction::Remove => {
+                    for digest in &remove_digests {
+                        if !record.pending_cassette_removals.contains(digest) {
+                            record.pending_cassette_removals.push(digest.clone());
+                        }
+                    }
+                    if let Some(digest) = cassette_sha256 {
+                        let Some(entry) = record
+                            .coverage
+                            .iter_mut()
+                            .find(|entry| entry.cassette_sha256.as_deref() == Some(digest))
+                        else {
+                            return Err(BackendFailure::NotFound);
+                        };
+                        entry.state = "failed".to_owned();
+                        entry.cassette_sha256 = None;
+                        entry.redaction_verified = false;
+                        entry.replay_verified = false;
+                        record.covered_tuple_count = record
+                            .coverage
+                            .iter()
+                            .filter(|entry| entry.state == "complete")
+                            .count() as u16;
+                        record.state = "needs_reconciliation".to_owned();
+                        record.offline_ready = false;
+                        record.unavailable_reason = Some("cassette-removed".to_owned());
+                    } else {
+                        record.state = "removed".to_owned();
+                        record.offline_ready = false;
+                        record.unavailable_reason = Some("campaign-removed".to_owned());
+                    }
+                }
+                RecordingLifecycleAction::Retry => unreachable!("retry handled above"),
             }
             if matches!(action, RecordingLifecycleAction::OfflineDefault) {
                 record.unavailable_reason = None;
@@ -4245,7 +4530,17 @@ impl RunnerBackend {
                 unavailable_reason: record.unavailable_reason.clone(),
             };
             Ok(ControlResult::RecordingCampaignLifecycle(projection))
-        })
+        })?;
+        // The catalog transition is now durable.  Unlinking afterwards can
+        // never make a previously committed catalog unrecoverable; any
+        // failed unlink remains represented by pending_cassette_removals and
+        // is retried during startup reconciliation.
+        if matches!(action, RecordingLifecycleAction::Remove) {
+            for digest in remove_digests {
+                let _ = remove_cassette_artifact(&self.state_root, &digest);
+            }
+        }
+        Ok(result)
     }
 
     fn recording_campaign_execute(
@@ -7619,11 +7914,39 @@ mod tests {
         // durably recorded; it never retries the provider effect.
         assert_eq!(execute(reconcile_call.clone()).unwrap(), reconciled);
 
+        // Retry derives independent durable mutation keys for reset and
+        // execution. Reusing the operator key must therefore not produce an
+        // idempotency conflict when the provider is unavailable.
+        let retry_call =
+            ControlCall::RecordingCampaignRetry(asb_control::RecordingCampaignRetryParams {
+                idempotency_key: "lifecycle-retry".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        assert_eq!(
+            execute(retry_call),
+            Err(BackendFailure::CapabilityUnavailable)
+        );
+
+        let reopen_call =
+            ControlCall::RecordingCampaignReopen(asb_control::RecordingCampaignReopenParams {
+                idempotency_key: "lifecycle-reopen".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner.clone(),
+                campaign_id: plan.campaign_id.clone(),
+            });
+        let reopened = execute(reopen_call).unwrap();
+        assert!(matches!(
+            reopened.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "planned"
+        ));
+
         let cancel_call =
             ControlCall::RecordingCampaignCancel(asb_control::RecordingCampaignCancelParams {
                 idempotency_key: "lifecycle-cancel".into(),
                 expected_generation: Revision(2),
-                runner_instance_id: runner,
+                runner_instance_id: runner.clone(),
                 campaign_id: plan.campaign_id.clone(),
             });
         let cancelled = execute(cancel_call.clone()).unwrap();
@@ -7632,6 +7955,19 @@ mod tests {
             ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "cancelled"
         ));
         assert_eq!(execute(cancel_call.clone()).unwrap(), cancelled);
+        let remove_call =
+            ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
+                idempotency_key: "lifecycle-remove".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner,
+                campaign_id: plan.campaign_id.clone(),
+                cassette_sha256: None,
+            });
+        let removed = execute(remove_call).unwrap();
+        assert!(matches!(
+            removed.result,
+            ControlResult::RecordingCampaignLifecycle(ref value) if value.state == "removed"
+        ));
         backend
             .execute(&status_after_failure, deadline())
             .unwrap()
@@ -7825,15 +8161,225 @@ mod tests {
         // missing tuple must be surfaced as reconciliation, not silently
         // regenerated or dispatched through a provider.
         let restarted = open_backend(cassette_root).unwrap();
+        let campaign_id = plan.campaign_id.clone();
         let restarted_catalog =
             ControlCall::RecordingCassetteCatalog(asb_control::RecordingCassetteCatalogRequest {
                 runner_instance_id: restarted.runner_instance_id().into(),
-                campaign_id: plan.campaign_id,
+                campaign_id: campaign_id.clone(),
                 expected_generation: Revision(2),
             });
         assert_eq!(
             restarted.execute(&restarted_catalog, deadline()),
             Err(BackendFailure::NeedsReconciliation)
+        );
+        let selected_remove =
+            ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
+                idempotency_key: "lifecycle-selected-remove".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: restarted.runner_instance_id().into(),
+                campaign_id,
+                cassette_sha256: Some(entry.cassette_sha256),
+            });
+        let selected_result = restarted.execute(&selected_remove, deadline()).unwrap();
+        assert!(matches!(
+            selected_result.result,
+            ControlResult::RecordingCampaignLifecycle(ref value)
+                if value.state == "needs_reconciliation"
+        ));
+        assert_eq!(
+            restarted.execute(&selected_remove, deadline()).unwrap(),
+            selected_result
+        );
+    }
+
+    #[test]
+    fn cassette_cleanup_is_idempotent_but_rejects_unbound_identity() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        assert_eq!(
+            remove_cassette_artifact(&state, "not-a-digest"),
+            Err(BackendFailure::Rejected)
+        );
+        assert_eq!(remove_cassette_artifact(&state, &"a".repeat(64)), Ok(()));
+    }
+
+    #[test]
+    fn catalog_rejects_unbounded_or_duplicate_pending_cassette_cleanup() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let mut catalog = backend.catalog.lock().unwrap().clone();
+        let tuple = RecordingTupleRecord {
+            agent_id: "aider".into(),
+            workload_id: "workload".into(),
+            scorer_revision: "scorer-v1".into(),
+            attempt_id: "attempt".into(),
+            generation: 1,
+            state: "ready".into(),
+            cassette_sha256: None,
+            redaction_verified: false,
+            replay_verified: false,
+        };
+        catalog.recording_campaign = Some(RecordingCampaignRecord {
+            campaign_id: "campaign".into(),
+            provider_id: "openai".into(),
+            model_id: "model".into(),
+            agent_ids: vec!["aider".into()],
+            workload_ids: vec!["workload".into()],
+            tuple_count: 1,
+            generation: 1,
+            state: "planned".into(),
+            covered_tuple_count: 0,
+            offline_ready: false,
+            unavailable_reason: Some("recording-required".into()),
+            coverage: vec![tuple],
+            pending_cassette_removals: vec!["../escape".into()],
+        });
+        assert!(validate_catalog(&catalog).is_err());
+        catalog
+            .recording_campaign
+            .as_mut()
+            .unwrap()
+            .pending_cassette_removals = vec!["a".repeat(64), "a".repeat(64)];
+        assert!(validate_catalog(&catalog).is_err());
+    }
+
+    #[test]
+    fn startup_cleanup_does_not_unlink_digest_rebound_by_live_coverage() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let digest = "b".repeat(64);
+        fs::create_dir_all(state.join("cassettes")).unwrap();
+        let artifact = state.join("cassettes").join(format!("{digest}.json"));
+        fs::write(&artifact, b"live").unwrap();
+        let mut catalog = backend.catalog.lock().unwrap().clone();
+        let campaign = catalog
+            .recording_campaign
+            .get_or_insert_with(|| RecordingCampaignRecord {
+                campaign_id: "campaign".into(),
+                provider_id: "openai".into(),
+                model_id: "model".into(),
+                agent_ids: vec!["aider".into()],
+                workload_ids: vec!["workload".into()],
+                tuple_count: 1,
+                generation: 1,
+                state: "needs_reconciliation".into(),
+                covered_tuple_count: 0,
+                offline_ready: false,
+                unavailable_reason: Some("cassette-removed".into()),
+                coverage: vec![RecordingTupleRecord {
+                    agent_id: "aider".into(),
+                    workload_id: "workload".into(),
+                    scorer_revision: "scorer-v1".into(),
+                    attempt_id: "attempt".into(),
+                    generation: 1,
+                    state: "failed".into(),
+                    cassette_sha256: Some(digest.clone()),
+                    redaction_verified: false,
+                    replay_verified: false,
+                }],
+                pending_cassette_removals: Vec::new(),
+            });
+        campaign.pending_cassette_removals = vec![digest];
+        cleanup_removed_campaign_artifacts(&state, &mut catalog).unwrap();
+        assert!(artifact.exists());
+        assert!(
+            catalog
+                .recording_campaign
+                .as_ref()
+                .unwrap()
+                .pending_cassette_removals
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn selected_cassette_removal_commit_failure_keeps_artifact_and_catalog_binding() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let runner = backend.runner_instance_id().to_owned();
+        backend
+            .execute(
+                &ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                    idempotency_key: "remove-failure-config".into(),
+                    expected_generation: Revision(1),
+                    selection: asb_control::ConfigurationSelection {
+                        agent_ids: vec!["aider".into()],
+                        provider_id: "openai".into(),
+                        model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                        auth_method: asb_control::ProviderAuthMethod::CredentialReference,
+                        credential_reference_sha256: Some("d".repeat(64)),
+                    },
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let planned = backend
+            .execute(
+                &ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
+                    idempotency_key: "remove-failure-plan".into(),
+                    expected_generation: Revision(2),
+                    runner_instance_id: runner.clone(),
+                    provider_id: "openai".into(),
+                    model_id: asb_agents::openai::OPENAI_MODEL.into(),
+                    agent_ids: vec!["aider".into()],
+                    workload_ids: vec!["original.bug-fix".into()],
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::RecordingCampaign(plan) = planned.result else {
+            panic!("campaign plan result");
+        };
+        let digest = "a".repeat(64);
+        fs::create_dir_all(state.join("cassettes")).unwrap();
+        let artifact = state.join("cassettes").join(format!("{digest}.json"));
+        fs::write(&artifact, b"durable-artifact").unwrap();
+        {
+            let mut catalog = backend.catalog.lock().unwrap();
+            let campaign = catalog.recording_campaign.as_mut().unwrap();
+            campaign.state = "complete".into();
+            campaign.covered_tuple_count = 1;
+            campaign.offline_ready = true;
+            campaign.coverage[0].state = "complete".into();
+            campaign.coverage[0].cassette_sha256 = Some(digest.clone());
+            commit_catalog(&state, &catalog).unwrap();
+        }
+        // A directory at the destination makes the atomic catalog rename
+        // fail.  The pre-commit unlink must not run in this case.
+        fs::remove_file(state.join("control-catalog.json")).unwrap();
+        fs::create_dir(state.join("control-catalog.json")).unwrap();
+        let remove =
+            ControlCall::RecordingCampaignRemove(asb_control::RecordingCampaignRemoveParams {
+                idempotency_key: "remove-failure".into(),
+                expected_generation: Revision(2),
+                runner_instance_id: runner,
+                campaign_id: plan.campaign_id,
+                cassette_sha256: Some(digest.clone()),
+            });
+        assert_eq!(
+            backend.execute(&remove, deadline()),
+            Err(BackendFailure::NeedsReconciliation)
+        );
+        assert!(artifact.exists());
+        assert_eq!(
+            backend
+                .catalog
+                .lock()
+                .unwrap()
+                .recording_campaign
+                .as_ref()
+                .unwrap()
+                .coverage[0]
+                .cassette_sha256
+                .as_deref(),
+            Some(digest.as_str())
         );
     }
 
@@ -8087,6 +8633,7 @@ mod tests {
                 covered_tuple_count: 0,
                 offline_ready: false,
                 unavailable_reason: Some("provider-capture-in-progress".into()),
+                pending_cassette_removals: Vec::new(),
                 coverage: vec![RecordingTupleRecord {
                     agent_id: "aider".into(),
                     workload_id: "workload".into(),

@@ -60,6 +60,11 @@ pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 12,
 };
+/// Version of additive operator repair operations for recording campaigns.
+pub const CONTROL_RECORDING_REPAIR_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 13,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -67,7 +72,7 @@ pub const CONTROL_CASSETTE_CONTROL_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 12] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 13] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -80,6 +85,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 12] = [
     CONTROL_RUNTIME_BOOTSTRAP_V1,
     CONTROL_BENCHMARK_CATALOG_V1,
     CONTROL_CASSETTE_CONTROL_V1,
+    CONTROL_RECORDING_REPAIR_V1,
 ];
 /// Versions understood by frontends that have not adopted cassette control.
 /// They retain v1.11 as the highest common fallback.
@@ -314,6 +320,14 @@ pub enum ControlCall {
     RecordingCampaignReconcile(crate::RecordingCampaignReconcileParams),
     /// Make a completely covered campaign the offline default.
     RecordingCampaignOfflineDefault(crate::RecordingCampaignOfflineDefaultParams),
+    /// Seal a campaign after validating complete cassette coverage.
+    RecordingCampaignSeal(crate::RecordingCampaignSealParams),
+    /// Reopen a sealed/failed campaign for a new bounded capture attempt.
+    RecordingCampaignReopen(crate::RecordingCampaignReopenParams),
+    /// Remove a campaign and its development-only cassette artifacts.
+    RecordingCampaignRemove(crate::RecordingCampaignRemoveParams),
+    /// Retry a failed or reconciled campaign without changing its identity.
+    RecordingCampaignRetry(crate::RecordingCampaignRetryParams),
     /// Obtain the immutable catalog of selectable measurements.
     MeasurementCatalog,
     /// Obtain the immutable catalog of selectable benchmark workloads.
@@ -460,6 +474,10 @@ impl ControlCall {
             | Self::RecordingCampaignCancel(_)
             | Self::RecordingCampaignReconcile(_)
             | Self::RecordingCampaignOfflineDefault(_) => CONTROL_RECORDING_LIFECYCLE_V1,
+            Self::RecordingCampaignSeal(_)
+            | Self::RecordingCampaignReopen(_)
+            | Self::RecordingCampaignRemove(_)
+            | Self::RecordingCampaignRetry(_) => CONTROL_RECORDING_REPAIR_V1,
             Self::RecordingCassetteCatalog(_) | Self::RecordingReplayDispatch(_) => {
                 CONTROL_CASSETTE_CONTROL_V1
             }
@@ -2019,6 +2037,22 @@ impl ControlResult {
                     ControlCall::RecordingCampaignOfflineDefault(_),
                     Self::RecordingCampaignLifecycle(_)
                 )
+                | (
+                    ControlCall::RecordingCampaignSeal(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignReopen(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignRemove(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
+                | (
+                    ControlCall::RecordingCampaignRetry(_),
+                    Self::RecordingCampaignLifecycle(_)
+                )
                 | (ControlCall::History(_), Self::History(_))
                 | (ControlCall::Repeat(_), Self::Plan(_))
                 | (ControlCall::Analyze { .. }, Self::Analysis(_))
@@ -2124,6 +2158,30 @@ impl ControlResult {
             }
             (
                 ControlCall::RecordingCampaignOfflineDefault(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignSeal(request),
+                Self::RecordingCampaignLifecycle(status),
+            )
+            | (
+                ControlCall::RecordingCampaignReopen(request),
+                Self::RecordingCampaignLifecycle(status),
+            )
+            | (
+                ControlCall::RecordingCampaignRetry(request),
+                Self::RecordingCampaignLifecycle(status),
+            ) => {
+                status.runner_instance_id == request.runner_instance_id
+                    && status.campaign_id == request.campaign_id
+                    && status.generation == request.expected_generation
+            }
+            (
+                ControlCall::RecordingCampaignRemove(request),
                 Self::RecordingCampaignLifecycle(status),
             ) => {
                 status.runner_instance_id == request.runner_instance_id
@@ -2424,6 +2482,10 @@ pub fn validate_request(
         ControlCall::RecordingCampaignCancel(params) => params.validate()?,
         ControlCall::RecordingCampaignReconcile(params) => params.validate()?,
         ControlCall::RecordingCampaignOfflineDefault(params) => params.validate()?,
+        ControlCall::RecordingCampaignSeal(params) => params.validate()?,
+        ControlCall::RecordingCampaignReopen(params) => params.validate()?,
+        ControlCall::RecordingCampaignRemove(params) => params.validate()?,
+        ControlCall::RecordingCampaignRetry(params) => params.validate()?,
         ControlCall::AgentCatalog(params) => params.validate()?,
         ControlCall::AgentInstall(params) => params.validate()?,
         ControlCall::AgentStatus(params) => params.validate()?,
@@ -2793,5 +2855,39 @@ mod benchmark_catalog_tests {
                 .validate_for_call(&mismatch, ControlLimits::default())
                 .is_err()
         );
+    }
+
+    #[test]
+    fn recording_lifecycle_repairs_are_typed_and_causally_bound() {
+        let params = crate::RecordingCampaignReopenParams {
+            idempotency_key: "reopen-1".into(),
+            expected_generation: Revision(1),
+            runner_instance_id: "runner-1".into(),
+            campaign_id: "campaign-1".into(),
+        };
+        let call = ControlCall::RecordingCampaignReopen(params.clone());
+        assert_eq!(call.minimum_version(), CONTROL_RECORDING_REPAIR_V1);
+        assert!(SUPPORTED_CONTROL_VERSIONS.contains(&CONTROL_RECORDING_REPAIR_V1));
+        let result = ControlResult::RecordingCampaignLifecycle(crate::RecordingCampaignLifecycle {
+            runner_instance_id: "runner-1".into(),
+            generation: Revision(1),
+            campaign_id: "campaign-1".into(),
+            provider_id: "provider".into(),
+            model_id: "model".into(),
+            agent_ids: vec!["agent-1".into()],
+            workload_ids: vec!["workload-1".into()],
+            tuple_count: 1,
+            covered_tuple_count: 0,
+            state: "planned".into(),
+            offline_ready: false,
+            unavailable_reason: Some("capture-reopened".into()),
+        });
+        let bound = BoundControlResult::new(&call, result).unwrap();
+        assert!(
+            bound
+                .validate_for_call(&call, ControlLimits::default())
+                .is_ok()
+        );
+        assert!(params.validate().is_ok());
     }
 }

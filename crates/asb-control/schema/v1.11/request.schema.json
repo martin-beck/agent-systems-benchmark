@@ -495,6 +495,74 @@
       ]
     },
     {
+      "description": "Seal a campaign after validating complete cassette coverage.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_seal"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Reopen a sealed/failed campaign for a new bounded capture attempt.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_reopen"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Remove a campaign and its development-only cassette artifacts.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_remove"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignRemoveParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
+      "description": "Retry a failed or reconciled campaign without changing its identity.",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "recording_campaign_retry"
+        },
+        "params": {
+          "$ref": "#/$defs/RecordingCampaignOfflineDefaultParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    {
       "description": "Obtain the immutable catalog of selectable measurements.",
       "type": "object",
       "properties": {
@@ -2132,6 +2200,45 @@
         "campaign_id": {
           "description": "Exact durable campaign to reconcile.",
           "type": "string"
+        },
+        "expected_generation": {
+          "description": "Setup generation returned by the last configuration status read.",
+          "$ref": "#/$defs/Revision"
+        },
+        "idempotency_key": {
+          "description": "Retry-safe mutation identity.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "runner_instance_id": {
+          "description": "Runner identity received during negotiation.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "expected_generation",
+        "runner_instance_id",
+        "campaign_id"
+      ]
+    },
+    "RecordingCampaignRemoveParams": {
+      "description": "Idempotent request to remove a campaign or one selected cassette.",
+      "type": "object",
+      "properties": {
+        "campaign_id": {
+          "description": "Exact durable campaign to modify.",
+          "type": "string"
+        },
+        "cassette_sha256": {
+          "description": "Optional exact cassette digest. Omission removes the whole campaign.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "expected_generation": {
           "description": "Setup generation returned by the last configuration status read.",

@@ -8,10 +8,11 @@ use asb_control::{
     control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
     control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
     control_request_schema_v1_7, control_request_schema_v1_11, control_request_schema_v1_12,
-    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
-    control_response_schema_v1_4, control_response_schema_v1_5, control_response_schema_v1_6,
-    control_response_schema_v1_7, control_response_schema_v1_11, control_response_schema_v1_12,
-    history_evidence_schema, validate_request,
+    control_request_schema_v1_13, control_response_schema, control_response_schema_v1_2,
+    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
+    control_response_schema_v1_6, control_response_schema_v1_7, control_response_schema_v1_11,
+    control_response_schema_v1_12, control_response_schema_v1_13, history_evidence_schema,
+    validate_request,
 };
 use serde_json::{Value, json};
 
@@ -33,6 +34,8 @@ const REQUEST_SCHEMA_V1_11: &str = include_str!("../schema/v1.11/request.schema.
 const RESPONSE_SCHEMA_V1_11: &str = include_str!("../schema/v1.11/response.schema.json");
 const REQUEST_SCHEMA_V1_12: &str = include_str!("../schema/v1.12/request.schema.json");
 const RESPONSE_SCHEMA_V1_12: &str = include_str!("../schema/v1.12/response.schema.json");
+const REQUEST_SCHEMA_V1_13: &str = include_str!("../schema/v1.13/request.schema.json");
+const RESPONSE_SCHEMA_V1_13: &str = include_str!("../schema/v1.13/response.schema.json");
 const EVENT_SCHEMA: &str = include_str!("../schema/v1/event.schema.json");
 const NEGOTIATE: &str = include_str!("../fixtures/v1/negotiate-request.json");
 const LAUNCH: &str = include_str!("../fixtures/v1/launch-request.json");
@@ -388,6 +391,14 @@ fn checked_in_schemas_equal_fresh_generation() {
     assert_eq!(
         serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_12).unwrap(),
         serde_json::to_value(control_response_schema_v1_12()).unwrap()
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(REQUEST_SCHEMA_V1_13).unwrap(),
+        serde_json::to_value(control_request_schema_v1_13()).unwrap()
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_13).unwrap(),
+        serde_json::to_value(control_response_schema_v1_13()).unwrap()
     );
     assert_eq!(
         serde_json::from_str::<Value>(EVENT_SCHEMA).unwrap(),

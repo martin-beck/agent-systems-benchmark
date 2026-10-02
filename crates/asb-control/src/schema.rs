@@ -360,6 +360,10 @@ fn remove_recording_lifecycle_variants(value: &mut Value) {
         "recording_campaign_cancel",
         "recording_campaign_reconcile",
         "recording_campaign_offline_default",
+        "recording_campaign_seal",
+        "recording_campaign_reopen",
+        "recording_campaign_remove",
+        "recording_campaign_retry",
         "recording_campaign_lifecycle",
     ] {
         remove_tagged_variant(value, "/oneOf", tag);
@@ -502,6 +506,18 @@ fn remove_cassette_control_variants(value: &mut Value) {
         "/$defs/ControlResult/oneOf",
         "recording_replay_dispatch",
     );
+}
+
+fn remove_recording_repair_variants(value: &mut Value) {
+    for tag in [
+        "recording_campaign_seal",
+        "recording_campaign_reopen",
+        "recording_campaign_remove",
+        "recording_campaign_retry",
+    ] {
+        remove_tagged_variant(value, "/oneOf", tag);
+        remove_tagged_variant(value, "/$defs/ControlResult/oneOf", tag);
+    }
 }
 
 /// Canonical response schema for control v1.2.
@@ -777,11 +793,26 @@ pub fn control_response_schema_v1_10() -> Schema {
 
 /// Canonical request schema for the cassette-control extension.
 pub fn control_request_schema_v1_12() -> Schema {
-    canonical::<ControlRequest>()
+    let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
+    remove_recording_repair_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.12 request schema remains valid")
 }
 
 /// Canonical response schema for the cassette-control extension.
 pub fn control_response_schema_v1_12() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    schema
+}
+
+/// Canonical request schema for recording lifecycle repair operations.
+pub fn control_request_schema_v1_13() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for recording lifecycle repair operations.
+pub fn control_response_schema_v1_13() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema
