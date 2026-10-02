@@ -48,6 +48,14 @@ fn fanout_routes_are_versioned_causally_bound_and_bounded() {
     admission.validate(limits()).unwrap();
     let bound = BoundControlResult::new(&call, admission).unwrap();
     assert!(bound.result.matches_call(&call));
+    assert!(
+        !bound
+            .result
+            .matches_call(&ControlCall::FanoutCancel(FanoutCancelParams {
+                idempotency_key: "cancel-1".into(),
+                members: vec![],
+            },))
+    );
     assert_eq!(bound.request_sha256.len(), 64);
     assert!(
         bound
@@ -57,6 +65,26 @@ fn fanout_routes_are_versioned_causally_bound_and_bounded() {
     bound
         .validate_for_call_and_version(&call, limits(), CONTROL_FANOUT_V1)
         .unwrap();
+    assert_eq!(
+        bound.validate_for_call_and_version(
+            &call,
+            limits(),
+            ControlVersion {
+                major: 1,
+                minor: 99
+            },
+        ),
+        Err(ProtocolError::InvalidResponse)
+    );
+    assert_eq!(
+        BoundControlResult::new(
+            &call,
+            ControlResult::Acknowledged(MutationAcknowledgement { accepted: true }),
+        )
+        .unwrap()
+        .validate_for_call(&call, limits()),
+        Err(ProtocolError::InvalidResponse)
+    );
 
     let cancel = ControlCall::FanoutCancel(FanoutCancelParams {
         idempotency_key: "cancel-1".into(),
