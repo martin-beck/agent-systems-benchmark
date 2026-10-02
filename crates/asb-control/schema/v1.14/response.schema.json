@@ -1521,6 +1521,24 @@
             "kind",
             "value"
           ]
+        },
+        {
+          "description": "Handles returned for each atomically admitted fan-out member.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "fanout"
+            },
+            "value": {
+              "$ref": "#/$defs/FanoutAdmission"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
         }
       ]
     },
@@ -1633,6 +1651,56 @@
       "required": [
         "major",
         "minor"
+      ]
+    },
+    "FanoutAdmission": {
+      "description": "Public result of fan-out admission.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "Original fan-out idempotency key.",
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "members": {
+          "description": "Members in deterministic request order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FanoutMember"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "members"
+      ]
+    },
+    "FanoutMember": {
+      "description": "Public identity pair for one fan-out member.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "description": "Exact attempt identity.",
+          "$ref": "#/$defs/AttemptId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "run_id": {
+          "description": "Admitted run identity.",
+          "$ref": "#/$defs/RunId",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "attempt_id"
       ]
     },
     "MeasurementArchitecture": {
@@ -2451,6 +2519,17 @@
       "description": "Negotiated connection result.",
       "type": "object",
       "properties": {
+        "broker_generation": {
+          "description": "Authoritative broker handoff continuity when this endpoint is bound to\na live frontend generation. Absent means ordinary control only.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NegotiatedBrokerGeneration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "latest_revision": {
           "description": "Latest retained public event revision.",
           "$ref": "#/$defs/Revision"
@@ -2479,6 +2558,27 @@
         "runner_instance_id",
         "oldest_revision",
         "latest_revision"
+      ]
+    },
+    "NegotiatedBrokerGeneration": {
+      "description": "JSON-safe continuity evidence for a live broker handoff.",
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "description": "Lowercase hexadecimal broker epoch, exactly 32 characters.",
+          "type": "string"
+        },
+        "sequence": {
+          "description": "Monotonic nonzero sequence within the epoch.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "epoch",
+        "sequence"
       ]
     },
     "Page": {

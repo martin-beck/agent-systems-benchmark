@@ -399,6 +399,9 @@ fn prune_unused_definitions(value: &mut Value) {
     // negotiated generation extension is reserved for a future schema
     // version and must not alter an established wire contract.
     remove_broker_generation(value);
+    // Fan-out was introduced in v1.14.  Every older checked-in schema must
+    // remain closed to these newly introduced request/result variants.
+    remove_fanout_variants(value);
     let mut reachable = BTreeSet::new();
     collect_definition_refs(value, &mut reachable);
     loop {
@@ -421,6 +424,12 @@ fn prune_unused_definitions(value: &mut Value) {
         .and_then(Value::as_object_mut)
         .expect("schema definitions")
         .retain(|name, _| reachable.contains(name));
+}
+
+fn remove_fanout_variants(value: &mut Value) {
+    remove_tagged_variant(value, "/oneOf", "fanout");
+    remove_tagged_variant(value, "/oneOf", "fanout_cancel");
+    remove_tagged_variant(value, "/$defs/ControlResult/oneOf", "fanout");
 }
 
 /// Canonical request schema.
@@ -781,20 +790,27 @@ pub fn control_response_schema_v1_11() -> Schema {
 
 /// Canonical request schema for the benchmark-catalog extension.
 pub fn control_request_schema_v1_10() -> Schema {
-    canonical::<ControlRequest>()
+    let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
+    remove_fanout_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.10 request schema remains valid")
 }
 
 /// Canonical response schema for the benchmark-catalog extension.
 pub fn control_response_schema_v1_10() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
-    schema
+    let mut value = serde_json::to_value(schema).expect("v1.10 response schema serializes");
+    remove_fanout_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.10 response schema remains valid")
 }
 
 /// Canonical request schema for the cassette-control extension.
 pub fn control_request_schema_v1_12() -> Schema {
     let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
     remove_recording_repair_variants(&mut value);
+    remove_fanout_variants(&mut value);
     prune_unused_definitions(&mut value);
     serde_json::from_value(value).expect("v1.12 request schema remains valid")
 }
@@ -803,16 +819,37 @@ pub fn control_request_schema_v1_12() -> Schema {
 pub fn control_response_schema_v1_12() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
-    schema
+    let mut value = serde_json::to_value(schema).expect("v1.12 response schema serializes");
+    remove_fanout_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.12 response schema remains valid")
 }
 
 /// Canonical request schema for recording lifecycle repair operations.
 pub fn control_request_schema_v1_13() -> Schema {
-    canonical::<ControlRequest>()
+    let mut value = serde_json::to_value(canonical::<ControlRequest>()).expect("schema serializes");
+    remove_fanout_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.13 request schema remains valid")
 }
 
 /// Canonical response schema for recording lifecycle repair operations.
 pub fn control_response_schema_v1_13() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    let mut value = serde_json::to_value(schema).expect("v1.13 response schema serializes");
+    remove_fanout_variants(&mut value);
+    prune_unused_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.13 response schema remains valid")
+}
+
+/// Canonical schema for runtime fan-out admission and cancellation.
+pub fn control_request_schema_v1_14() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for runtime fan-out admission and cancellation.
+pub fn control_response_schema_v1_14() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema

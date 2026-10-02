@@ -8,11 +8,11 @@ use asb_control::{
     control_request_schema, control_request_schema_v1_2, control_request_schema_v1_3,
     control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
     control_request_schema_v1_7, control_request_schema_v1_11, control_request_schema_v1_12,
-    control_request_schema_v1_13, control_response_schema, control_response_schema_v1_2,
-    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
-    control_response_schema_v1_6, control_response_schema_v1_7, control_response_schema_v1_11,
-    control_response_schema_v1_12, control_response_schema_v1_13, history_evidence_schema,
-    validate_request,
+    control_request_schema_v1_13, control_request_schema_v1_14, control_response_schema,
+    control_response_schema_v1_2, control_response_schema_v1_3, control_response_schema_v1_4,
+    control_response_schema_v1_5, control_response_schema_v1_6, control_response_schema_v1_7,
+    control_response_schema_v1_11, control_response_schema_v1_12, control_response_schema_v1_13,
+    control_response_schema_v1_14, history_evidence_schema, validate_request,
 };
 use serde_json::{Value, json};
 
@@ -36,6 +36,8 @@ const REQUEST_SCHEMA_V1_12: &str = include_str!("../schema/v1.12/request.schema.
 const RESPONSE_SCHEMA_V1_12: &str = include_str!("../schema/v1.12/response.schema.json");
 const REQUEST_SCHEMA_V1_13: &str = include_str!("../schema/v1.13/request.schema.json");
 const RESPONSE_SCHEMA_V1_13: &str = include_str!("../schema/v1.13/response.schema.json");
+const REQUEST_SCHEMA_V1_14: &str = include_str!("../schema/v1.14/request.schema.json");
+const RESPONSE_SCHEMA_V1_14: &str = include_str!("../schema/v1.14/response.schema.json");
 const EVENT_SCHEMA: &str = include_str!("../schema/v1/event.schema.json");
 const NEGOTIATE: &str = include_str!("../fixtures/v1/negotiate-request.json");
 const LAUNCH: &str = include_str!("../fixtures/v1/launch-request.json");
@@ -55,6 +57,8 @@ const AGENT_CATALOG_REQUEST: &str = include_str!("../fixtures/v1.4/agent-catalog
 const AGENT_CATALOG_RESPONSE: &str = include_str!("../fixtures/v1.4/agent-catalog-response.json");
 const AGENT_INSTALL_REQUEST: &str = include_str!("../fixtures/v1.5/agent-install-request.json");
 const AGENT_INSTALL_RESPONSE: &str = include_str!("../fixtures/v1.5/agent-install-response.json");
+const FANOUT_REQUEST: &str = include_str!("../fixtures/v1.14/fanout-request.json");
+const FANOUT_RESPONSE: &str = include_str!("../fixtures/v1.14/fanout-response.json");
 
 fn validate(schema: &str, document: &str) {
     let schema: Value = serde_json::from_str(schema).unwrap();
@@ -78,6 +82,8 @@ fn public_fixtures_match_schemas_and_rust_types() {
     validate(RESPONSE_SCHEMA_V1_4, AGENT_CATALOG_RESPONSE);
     validate(REQUEST_SCHEMA_V1_5, AGENT_INSTALL_REQUEST);
     validate(RESPONSE_SCHEMA_V1_5, AGENT_INSTALL_RESPONSE);
+    validate(REQUEST_SCHEMA_V1_14, FANOUT_REQUEST);
+    validate(RESPONSE_SCHEMA_V1_14, FANOUT_RESPONSE);
     assert!(
         !jsonschema::validator_for(&serde_json::from_str::<Value>(REQUEST_SCHEMA).unwrap())
             .unwrap()
@@ -144,6 +150,14 @@ fn public_fixtures_match_schemas_and_rust_types() {
             asb_control::CONTROL_AGENT_LIFECYCLE_V1,
         )
         .unwrap();
+    let fanout_request: ControlRequest = serde_json::from_str(FANOUT_REQUEST).unwrap();
+    assert!(matches!(
+        fanout_request.call,
+        asb_control::ControlCall::Fanout(_)
+    ));
+    validate_request(&fanout_request, ControlLimits::default()).unwrap();
+    let fanout_response: ControlResponse = serde_json::from_str(FANOUT_RESPONSE).unwrap();
+    fanout_response.validate().unwrap();
     serde_json::from_str::<ControlEvent>(EVENT).unwrap();
     validate(HISTORY_SCHEMA, HISTORY_EVIDENCE);
     validate(ANALYSIS_SCHEMA, ANALYSIS_EVIDENCE);
@@ -155,6 +169,26 @@ fn public_fixtures_match_schemas_and_rust_types() {
         .unwrap()
         .validate()
         .unwrap();
+}
+
+#[test]
+fn pre_fanout_schemas_reject_new_variants() {
+    let request = serde_json::from_str::<Value>(FANOUT_REQUEST).unwrap();
+    let response = serde_json::from_str::<Value>(FANOUT_RESPONSE).unwrap();
+    for schema in [REQUEST_SCHEMA, REQUEST_SCHEMA_V1_13] {
+        assert!(
+            !jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap())
+                .unwrap()
+                .is_valid(&request)
+        );
+    }
+    for schema in [RESPONSE_SCHEMA, RESPONSE_SCHEMA_V1_13] {
+        assert!(
+            !jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap())
+                .unwrap()
+                .is_valid(&response)
+        );
+    }
 }
 
 #[test]
@@ -317,6 +351,8 @@ fn checked_in_schemas_equal_fresh_generation() {
     let generated_response_v1_7 = serde_json::to_value(control_response_schema_v1_7()).unwrap();
     let generated_request_v1_11 = serde_json::to_value(control_request_schema_v1_11()).unwrap();
     let generated_response_v1_11 = serde_json::to_value(control_response_schema_v1_11()).unwrap();
+    let generated_request_v1_14 = serde_json::to_value(control_request_schema_v1_14()).unwrap();
+    let generated_response_v1_14 = serde_json::to_value(control_response_schema_v1_14()).unwrap();
     let generated_event = serde_json::to_value(control_event_schema()).unwrap();
     let generated_history = serde_json::to_value(history_evidence_schema()).unwrap();
     let generated_analysis = serde_json::to_value(analysis_evidence_schema()).unwrap();
@@ -399,6 +435,14 @@ fn checked_in_schemas_equal_fresh_generation() {
     assert_eq!(
         serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_13).unwrap(),
         serde_json::to_value(control_response_schema_v1_13()).unwrap()
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(REQUEST_SCHEMA_V1_14).unwrap(),
+        generated_request_v1_14
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(RESPONSE_SCHEMA_V1_14).unwrap(),
+        generated_response_v1_14
     );
     assert_eq!(
         serde_json::from_str::<Value>(EVENT_SCHEMA).unwrap(),

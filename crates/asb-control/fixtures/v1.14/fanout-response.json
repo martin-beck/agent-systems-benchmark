@@ -1,0 +1,22 @@
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "result": {
+    "kind": "operation",
+    "value": {
+      "request_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "kind": "fanout",
+        "value": {
+          "idempotency_key": "selected-set",
+          "members": [
+            {
+              "run_id": "run-1",
+              "attempt_id": "attempt-1"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

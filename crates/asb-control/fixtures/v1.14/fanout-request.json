@@ -1,0 +1,34 @@
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "timeout_ms": 1000,
+  "method": "fanout",
+  "params": {
+    "idempotency_key": "selected-set",
+    "requests": [
+      {
+        "kind": "run_request",
+        "schema_version": 1,
+        "idempotency_key": "one",
+        "agent_id": "aider",
+        "provider_id": "openrouter",
+        "model_id": "cohere/north-mini-code:free",
+        "workload_id": "repo",
+        "catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workload_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "scorer_revision": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "mode": "local-mock",
+        "cassette_digest": null,
+        "credential_ref_digest": null,
+        "limits": {
+          "timeout_ms": 1000,
+          "max_output_bytes": 1024,
+          "max_events": 16,
+          "max_artifacts": 4,
+          "max_artifact_bytes": 1024,
+          "max_artifact_total_bytes": 4096
+        }
+      }
+    ]
+  }
+}
