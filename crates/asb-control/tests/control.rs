@@ -49,9 +49,11 @@ fn fanout_routes_are_versioned_causally_bound_and_bounded() {
     let bound = BoundControlResult::new(&call, admission).unwrap();
     assert!(bound.result.matches_call(&call));
     assert_eq!(bound.request_sha256.len(), 64);
-    assert!(bound
-        .validate_for_call_and_version(&call, limits(), CONTROL_RECORDING_REPAIR_V1)
-        .is_err());
+    assert!(
+        bound
+            .validate_for_call_and_version(&call, limits(), CONTROL_RECORDING_REPAIR_V1)
+            .is_err()
+    );
     bound
         .validate_for_call_and_version(&call, limits(), CONTROL_FANOUT_V1)
         .unwrap();
@@ -77,7 +79,10 @@ fn fanout_routes_are_versioned_causally_bound_and_bounded() {
         idempotency_key: "fanout-1".into(),
         members: Vec::new(),
     });
-    assert_eq!(empty.validate(limits()), Err(ProtocolError::UnsafePublicValue));
+    assert_eq!(
+        empty.validate(limits()),
+        Err(ProtocolError::UnsafePublicValue)
+    );
     let too_many = ControlResult::Fanout(FanoutAdmission {
         idempotency_key: "fanout-1".into(),
         members: (0..3)
