@@ -50,8 +50,6 @@ const CURL: &str = "/usr/bin/curl";
 const SSH_KEYGEN: &str = "/usr/bin/ssh-keygen";
 const MAX_REDIRECTS: usize = 3;
 const DEV_REPOSITORY_URL: &str = "https://github.com/martin-beck/asb-tui.git";
-const DEV_BUNDLE_SOURCE_COMMIT: &str = "7bcd4c4ca09531b109e12dc3579c212abc9dcf88";
-const DEV_BUNDLE_SOURCE_TREE: &str = "db9a4ca79bc09b60452ff20210a70afc1209e52a";
 const DEV_BROKER_DESCRIPTOR_ENV: &str = "ASB_TUI_DEVELOPMENT_DESCRIPTOR";
 const DEV_BROKER_ASB_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_COMMIT";
 const DEV_BROKER_ASB_TREE_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_TREE";
@@ -1062,8 +1060,6 @@ fn consume_development_bundle(
         || !manifest.development_only
         || manifest.source_repository != DEV_REPOSITORY_URL
         || manifest.source_ref != "refs/heads/main"
-        || manifest.source_commit != DEV_BUNDLE_SOURCE_COMMIT
-        || manifest.source_tree != DEV_BUNDLE_SOURCE_TREE
         || manifest.asb_source_commit != asb_source_commit
         || manifest.asb_source_tree != asb_source_tree
         || manifest.target != format!("{}-unknown-linux-gnu", std::env::consts::ARCH)

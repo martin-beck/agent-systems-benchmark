@@ -185,6 +185,22 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
     assert_eq!(consumed.status.code(), Some(0), "{consumed:?}");
     assert_eq!(response(&consumed)["code"], "development_bundle_consumed");
 
+    // Development bundles are rebuilt as the TUI main branch advances.  The
+    // consumer pins the repository/ref and validates the provenance shape,
+    // but must not reject a newer valid commit/tree pair.
+    let mut rotated_provenance = original_manifest.clone();
+    rotated_provenance["source_commit"] = "3".repeat(40).into();
+    rotated_provenance["source_tree"] = "4".repeat(40).into();
+    fs::write(
+        bundle.join("manifest.json"),
+        serde_json::to_vec_pretty(&rotated_provenance).unwrap(),
+    )
+    .unwrap();
+    let rotated =
+        scratch.command_with_args(&["--json", "tui", "install", "--dry-run"], Some(&bundle));
+    assert_eq!(rotated.status.code(), Some(0), "{rotated:?}");
+    assert_eq!(response(&rotated)["code"], "development_bundle_verified");
+
     let status = scratch.command("status");
     assert_eq!(status.status.code(), Some(0), "{status:?}");
     let installed = response(&status);
@@ -207,7 +223,7 @@ fn pr214_development_bundle_is_consumed_as_an_exact_manifest_contract() {
     assert_eq!(response(&rejected)["code"], "development_bundle_invalid");
 
     let mut invalid_provenance = original_manifest.clone();
-    invalid_provenance["source_tree"] = "0".repeat(40).into();
+    invalid_provenance["source_tree"] = "z".repeat(40).into();
     fs::write(
         bundle.join("manifest.json"),
         serde_json::to_vec_pretty(&invalid_provenance).unwrap(),
