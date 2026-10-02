@@ -507,6 +507,12 @@ fn annotate_channel(
     if matches!(operation, Operation::Install | Operation::Upgrade) || explicit {
         response.channel = requested.name();
         response.development_only = requested == Channel::Dev;
+    } else if response.code == "extension_not_installed" {
+        // An omitted channel resolves to the development channel until an
+        // installation establishes a stable channel. Keep that resolution
+        // visible even for the expected "not installed" result.
+        response.channel = Channel::Dev.name();
+        response.development_only = true;
     } else {
         // Status, doctor, remove, and launch describe an already-installed
         // extension. Preserve an explicitly development-only response while
@@ -629,10 +635,14 @@ fn execute(
         Operation::Status | Operation::Remove | Operation::Launch => {
             if existing_channel(options, paths)? == Channel::Dev {
                 if operation == Operation::Remove {
-                    prepare_private_directory(&paths.state_root)?;
-                    let lock = open_lock(&paths.state_root.join("router.lock"))?;
-                    lock.try_lock()
-                        .map_err(|_| RouterError::operation("lifecycle_busy"))?;
+                    // Keep an absent default-dev installation read-only; a
+                    // no-op remove must not create XDG state directories.
+                    if development_active(paths)?.is_some() {
+                        prepare_private_directory(&paths.state_root)?;
+                        let lock = open_lock(&paths.state_root.join("router.lock"))?;
+                        lock.try_lock()
+                            .map_err(|_| RouterError::operation("lifecycle_busy"))?;
+                    }
                 }
                 execute_development_existing(operation, paths)
             } else {
@@ -641,13 +651,19 @@ fn execute(
         }
         Operation::Doctor => {
             if existing_channel(options, paths)? == Channel::Dev {
-                let (active, _) = development_active(paths)?
-                    .ok_or_else(|| RouterError::policy("extension_not_installed"))?;
-                Ok(development_response(
-                    Operation::Doctor,
-                    "development_verified",
-                    &active,
-                ))
+                match development_active(paths)? {
+                    Some((active, _)) => Ok(development_response(
+                        Operation::Doctor,
+                        "development_verified",
+                        &active,
+                    )),
+                    None => Ok(RouterResponse::result(
+                        Operation::Doctor,
+                        true,
+                        "extension_not_installed",
+                        "denied",
+                    )),
+                }
             } else {
                 doctor(paths)
             }
@@ -668,11 +684,15 @@ fn existing_channel(options: Options, paths: &RouterPaths) -> Result<Channel, Ro
             _ => Err(RouterError::policy("channel_unavailable")),
         };
     }
-    Ok(if has_development {
-        Channel::Dev
+    // Omission means dev for a fresh checkout. Once a verified stable marker
+    // exists, preserve that active channel for status/launch/remove.
+    if has_development {
+        Ok(Channel::Dev)
+    } else if paths.install_root.join("active.json").is_file() {
+        Ok(Channel::Stable)
     } else {
-        Channel::Stable
-    })
+        Ok(Channel::Dev)
+    }
 }
 
 fn development_source_identity() -> Result<(&'static str, &'static str), RouterError> {
@@ -5581,11 +5601,20 @@ mod tests {
     }
 
     #[test]
-    fn non_install_operations_are_channel_neutral() {
+    fn non_install_operations_preserve_resolved_channel() {
         let mut response = RouterResponse::result(Operation::Status, true, "ok", "denied");
         annotate_channel(&mut response, Operation::Status, Channel::Dev, false);
         assert_eq!(response.channel, "stable");
         assert!(!response.development_only);
+        let mut absent = RouterResponse::result(
+            Operation::Status,
+            false,
+            "extension_not_installed",
+            "denied",
+        );
+        annotate_channel(&mut absent, Operation::Status, Channel::Dev, false);
+        assert_eq!(absent.channel, "dev");
+        assert!(absent.development_only);
         annotate_channel(
             &mut response,
             Operation::Launch,
@@ -5634,6 +5663,40 @@ mod tests {
         };
         let error = execute(Operation::Status, options, &paths, &mut source, 1).unwrap_err();
         assert_eq!(error.code, "channel_unavailable");
+    }
+
+    #[test]
+    fn omitted_channel_resolves_dev_until_stable_is_installed() {
+        let scratch = Scratch::new("channel-default");
+        let paths = RouterPaths::from_roots(
+            &scratch.0.join("data"),
+            &scratch.0.join("state"),
+            &scratch.0.join("cache"),
+        )
+        .unwrap();
+        assert_eq!(
+            existing_channel(Options::default(), &paths).unwrap(),
+            Channel::Dev
+        );
+        fs::create_dir_all(&paths.install_root).unwrap();
+        fs::write(
+            paths.install_root.join("active.json"),
+            b"not validated here",
+        )
+        .unwrap();
+        assert_eq!(
+            existing_channel(Options::default(), &paths).unwrap(),
+            Channel::Stable
+        );
+        let explicit_dev = Options {
+            channel: Channel::Dev,
+            channel_explicit: true,
+            ..Options::default()
+        };
+        assert_eq!(
+            existing_channel(explicit_dev, &paths).unwrap_err().code,
+            "channel_unavailable"
+        );
     }
 
     #[test]
