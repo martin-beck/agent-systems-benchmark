@@ -65,6 +65,7 @@ const DEV_GIT_OVERRIDE: &str = "ASB_DEV_GIT";
 const DEV_SETSID_OVERRIDE: &str = "ASB_DEV_SETSID";
 const DEV_CC_OVERRIDE: &str = "ASB_DEV_CC";
 const DEV_AR_OVERRIDE: &str = "ASB_DEV_AR";
+const DEV_LD_OVERRIDE: &str = "ASB_DEV_LD";
 const DEV_CARGO_HOME: &str = "CARGO_HOME";
 const DEV_RUSTUP_HOME: &str = "ASB_DEV_RUSTUP_HOME";
 const DEV_BUNDLE_OVERRIDE: &str = "ASB_TUI_DEV_BUNDLE";
@@ -872,6 +873,10 @@ fn materialize_development(
         DEV_AR_OVERRIDE,
         &["/usr/bin/ar", "/usr/local/bin/ar"],
     )?;
+    let ld = resolve_development_tool_candidates(
+        DEV_LD_OVERRIDE,
+        &["/usr/bin/ld", "/usr/local/bin/ld"],
+    )?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
     let rustc = resolve_development_rustc(
@@ -973,6 +978,7 @@ fn materialize_development(
             rustc.as_deref(),
             Some(&cc),
             Some(&ar),
+            Some(&ld),
         );
         run_development_command_with_limits_and_roots(
             build,
@@ -3358,6 +3364,7 @@ fn apply_development_toolchain_environment(
     rustc: Option<&Path>,
     cc: Option<&Path>,
     ar: Option<&Path>,
+    ld: Option<&Path>,
 ) {
     apply_development_rustup_home(command, rustup_home);
     if let Some(rustc) = rustc {
@@ -3376,6 +3383,17 @@ fn apply_development_toolchain_environment(
     }
     if let Some(ar) = ar {
         command.env("AR", ar);
+    }
+    if let Some(ld) = ld
+        && let Some(search_root) = ld.parent()
+    {
+        command.env(
+            format!(
+                "CARGO_TARGET_{}_RUSTFLAGS",
+                target().to_ascii_uppercase().replace('-', "_")
+            ),
+            format!("-C link-arg=-B{}", search_root.display()),
+        );
     }
 }
 
@@ -4775,7 +4793,7 @@ mod tests {
         prepare_private_directory(&root).unwrap();
         let mut command = Command::new("/usr/bin/env");
         command.env_clear();
-        apply_development_toolchain_environment(&mut command, Some(&root), None, None, None);
+        apply_development_toolchain_environment(&mut command, Some(&root), None, None, None, None);
         let output = command.output().unwrap();
         assert!(
             String::from_utf8_lossy(&output.stdout)
@@ -4798,11 +4816,13 @@ mod tests {
         let rustc = bin.join("rustc");
         let cc = bin.join("cc");
         let ar = bin.join("ar");
+        let ld = bin.join("ld");
         fs::write(&cargo, b"cargo").unwrap();
         fs::write(&rustc, b"rustc").unwrap();
         fs::write(&cc, b"cc").unwrap();
         fs::write(&ar, b"ar").unwrap();
-        for tool in [&cargo, &rustc, &cc, &ar] {
+        fs::write(&ld, b"ld").unwrap();
+        for tool in [&cargo, &rustc, &cc, &ar, &ld] {
             fs::set_permissions(tool, fs::Permissions::from_mode(0o700)).unwrap();
         }
         let mut command = Command::new("/usr/bin/env");
@@ -4812,12 +4832,14 @@ mod tests {
             .unwrap();
         let cc = validate_development_tool(&cc).unwrap();
         let ar = validate_development_tool(&ar).unwrap();
+        let ld = validate_development_tool(&ld).unwrap();
         apply_development_toolchain_environment(
             &mut command,
             Some(&root),
             Some(&rustc),
             Some(&cc),
             Some(&ar),
+            Some(&ld),
         );
         let output = command.output().unwrap();
         let variables = String::from_utf8_lossy(&output.stdout);
@@ -4853,6 +4875,13 @@ mod tests {
                 .lines()
                 .any(|line| line == format!("AR={}", ar.display()))
         );
+        assert!(variables.lines().any(|line| {
+            line == format!(
+                "CARGO_TARGET_{}_RUSTFLAGS=-C link-arg=-B{}",
+                target().to_ascii_uppercase().replace('-', "_"),
+                ld.parent().unwrap().display()
+            )
+        }));
         assert!(!variables.lines().any(|line| line.starts_with("PATH=")));
         fs::remove_dir_all(root).unwrap();
     }
