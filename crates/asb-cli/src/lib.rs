@@ -8803,6 +8803,78 @@ mod tests {
     }
 
     #[test]
+    fn comparison_reports_same_selection_multi_candidate_and_asymmetric_availability() {
+        let scratch = Scratch::new("comparison-availability");
+        let (selection_path, selection) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openai", &["codex"]);
+
+        let (first_path, mut first) = plan_fixture(&scratch.0, "comparison-first");
+        bind_openai_selection(&mut first, &selection, "codex");
+        fs::write(&first_path, toml::to_string(&first).unwrap()).unwrap();
+        assert_eq!(
+            run_json_with_progress(&[
+                "run".into(),
+                first_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+            ])
+            .0,
+            0
+        );
+
+        let (second_path, mut second) = plan_fixture(&scratch.0, "comparison-second");
+        bind_openai_selection(&mut second, &selection, "codex");
+        fs::write(&second_path, toml::to_string(&second).unwrap()).unwrap();
+        assert_eq!(
+            run_json_with_progress(&[
+                "run".into(),
+                second_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+            ])
+            .0,
+            0
+        );
+
+        let first_run = first.result_root.join("runs/comparison-first");
+        let second_run = second.result_root.join("runs/comparison-second");
+        let (exit, symmetric) = run_json(&[
+            "compare".into(),
+            first_run.as_os_str().to_owned(),
+            second_run.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(symmetric["comparable"], false);
+        assert_eq!(symmetric["pairs"].as_array().unwrap().len(), 1);
+        assert_eq!(symmetric["pairs"][0]["comparable"], false);
+        assert_eq!(symmetric["pairs"][0]["differences"], json!(["execution"]));
+        assert_eq!(symmetric["differences"], json!(["execution"]));
+        assert_eq!(symmetric["unavailable_reasons"], json!([]));
+
+        let (third_path, third) = plan_fixture(&scratch.0, "comparison-unavailable");
+        assert_eq!(
+            run_json_with_progress(&["run".into(), third_path.as_os_str().to_owned()]).0,
+            0
+        );
+        let third_run = third.result_root.join("runs/comparison-unavailable");
+        let (exit, multi) = run_json(&[
+            "compare".into(),
+            first_run.as_os_str().to_owned(),
+            second_run.as_os_str().to_owned(),
+            third_run.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(multi["comparable"], false);
+        assert_eq!(multi["pairs"].as_array().unwrap().len(), 2);
+        assert_eq!(multi["pairs"][0]["comparable"], false);
+        assert_eq!(multi["pairs"][1]["comparable"], false);
+        assert_eq!(
+            multi["unavailable_reasons"],
+            json!(["comparison-unavailable:provider_selection_unavailable"])
+        );
+    }
+
+    #[test]
     fn provider_selection_import_fails_closed_before_run_effects() {
         let scratch = Scratch::new("provider-import-negative");
         let (selection_path, mut selection) = provider_selection_fixture(
