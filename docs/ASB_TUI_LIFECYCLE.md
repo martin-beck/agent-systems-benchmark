@@ -57,15 +57,16 @@ remain content-addressed in the normal development installation state.
 The channel remains fail-closed until every required artifact and evidence identity is immutable.
 
 The default `dev` channel is a credential-free development qualification path. On a
-clean machine it resolves the standalone TUI repository's current `main` head,
-clones and checks out that exact commit in a private staging root, and records the
-ASB/TUI source commits, source tree, and executable SHA-256 in an immutable
-per-version `manifest.json`. The active pointer is accepted only when that
-manifest and executable still agree; a missing or substituted manifest returns a
-typed `development_installation_invalid` diagnostic. The development response is
-explicitly `development_only` and warns that authentication, signatures, and key
-management are unavailable; those warnings do not weaken the stable channel's
-fail-closed publication rules.
+clean machine it resolves the ASB and standalone TUI repositories' current `main`
+heads, rejects a stale ASB executable, clones and checks out the exact TUI head in
+a private staging root, and records both source identities, trees, and the
+executable SHA-256 in an immutable per-version `channel-manifest.json`.
+`active-channel.json` is the persisted content-addressed selector; status and
+launch verify it against the per-version copy and expose its digest. A missing or
+substituted channel manifest returns a typed `development_installation_invalid`
+diagnostic. The development response is explicitly `development_only` and warns
+that authentication, signatures, and key management are unavailable; those
+warnings do not weaken the stable channel's fail-closed publication rules.
 
 CI evidence is retained by exact commit identity, never by a mutable branch name.
 
