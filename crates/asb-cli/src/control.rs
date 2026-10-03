@@ -5923,7 +5923,8 @@ impl RunnerBackend {
 mod tests {
     use super::*;
     use asb_control::{
-        CertificateIdentityV1, ControlServer, ControlSuccess, ProviderProfileUpsertParams,
+        CertificateIdentityV1, ControlRequest, ControlServer, ControlSuccess,
+        ProviderProfileUpsertParams, validate_request,
     };
     use asb_protocol::{
         CredentialProvenance, CredentialSource, EndpointClass, EndpointProvenance,
@@ -6626,6 +6627,69 @@ mod tests {
             backend.execute(&malformed, deadline()),
             Err(BackendFailure::Rejected)
         );
+        scratch.cleanup_with_hook(|| {});
+    }
+
+    #[test]
+    fn runner_accepts_the_published_fanout_wire_fixture() {
+        let mut scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let (backend, _) = open_qualified_cassette_backend(state).unwrap();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.run_id = "selected-set:0".into();
+        let mut expected = plan_request(&plan).unwrap();
+        expected.mode = ExecutionMode::LocalMock;
+        expected.model_id =
+            asb_protocol::Id(asb_runtime::live_service::LOCAL_PROVIDER_MOCK_MODEL.to_string());
+        expected.cassette_digest = None;
+        backend
+            .orchestration
+            .lock()
+            .unwrap()
+            .plans
+            .lock()
+            .unwrap()
+            .insert(plan.run_id.clone(), plan);
+        let mut fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../asb-control/fixtures/v1.14/fanout-request.json"
+        ))
+        .unwrap();
+        // The checked-in wire fixture intentionally uses a provider/model
+        // representative of the TUI. Bind those catalog identities to this
+        // development backend before admission; the complete RunRequest
+        // shape and every bounded field remain unchanged.
+        let member = &mut fixture["params"]["requests"][0];
+        member["provider_id"] = serde_json::json!("openai");
+        member["model_id"] = serde_json::json!(asb_agents::openai::OPENAI_MODEL);
+        let expected = serde_json::to_value(expected).unwrap();
+        for field in [
+            "idempotency_key",
+            "agent_id",
+            "provider_id",
+            "model_id",
+            "workload_id",
+            "catalog_digest",
+            "workload_revision",
+            "scorer_revision",
+        ] {
+            member[field] = expected[field].clone();
+        }
+        let request: ControlRequest = serde_json::from_value(fixture).unwrap();
+        validate_request(&request, ControlLimits::default()).unwrap();
+        let ControlCall::Fanout(params) = request.call else {
+            panic!("fixture is not a fanout request");
+        };
+        let call = ControlCall::Fanout(params);
+        let response = backend.execute(&call, deadline()).unwrap();
+        response
+            .validate_for_call(&call, ControlLimits::default())
+            .unwrap();
+        let ControlResult::Fanout(admission) = response.result else {
+            panic!("fixture did not produce a fanout admission");
+        };
+        assert_eq!(admission.idempotency_key, "selected-set");
+        assert_eq!(admission.members.len(), 1);
         scratch.cleanup_with_hook(|| {});
     }
 
