@@ -14,7 +14,7 @@ sha2 = "=0.10.9"
 thiserror = "=2.0.20"
 
 [dev-dependencies]
-jsonschema = { version = "=0.33.0", default-features = false }
+jsonschema = { version = "=0.57.0", default-features = false }
 
 [lints]
 workspace = true
