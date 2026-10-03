@@ -7599,13 +7599,37 @@ mod tests {
         let stale = ControlCall::ProviderProfileUpsert(ProviderProfileUpsertParams {
             idempotency_key: "profile-2".into(),
             expected_generation: Revision(1),
-            runner_instance_id,
+            runner_instance_id: runner_instance_id.clone(),
             entry: custom.clone(),
             credential_reference_sha256: Some("c".repeat(64)),
         });
         assert_eq!(
             backend.execute(&stale, deadline()),
             Err(BackendFailure::StaleIdentity)
+        );
+        let retained = backend
+            .execute(
+                &ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Status,
+                    runner_instance_id: runner_instance_id.clone(),
+                    known_generation: None,
+                }),
+                deadline(),
+            )
+            .unwrap();
+        let ControlResult::ProviderCatalog(retained) = retained.result else {
+            panic!("retained provider catalog result");
+        };
+        assert_eq!(retained.generation, Revision(2));
+        assert_eq!(
+            retained
+                .providers
+                .iter()
+                .find(|provider| provider.provider_id == "custom")
+                .expect("rejected edit must retain the last valid profile")
+                .models[0]
+                .model_id,
+            "custom-model"
         );
         let bytes = fs::read(state.join("control-catalog.json")).unwrap();
         assert!(!String::from_utf8_lossy(&bytes).contains("api_key"));
