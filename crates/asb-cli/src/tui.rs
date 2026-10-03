@@ -1218,8 +1218,8 @@ fn materialize_development(
         })
         .map_err(|_| RouterError::operation("dev_metadata_failed"))?;
         let channel_manifest = development_channel_manifest(
-            &asb_source_commit,
-            &asb_source_tree,
+            asb_source_commit,
+            asb_source_tree,
             &commit,
             &source_tree,
             &executable_sha256,
@@ -1554,14 +1554,13 @@ fn development_active(
     if recorded != active {
         return Err(RouterError::policy("development_installation_invalid"));
     }
-    if let Some((manifest, _)) = read_development_channel_manifest(paths, &active)? {
-        if manifest.executable_size
+    if let Some((manifest, _)) = read_development_channel_manifest(paths, &active)?
+        && manifest.executable_size
             != fs::metadata(&executable)
                 .map_err(|_| RouterError::policy("development_installation_invalid"))?
                 .len()
-        {
-            return Err(RouterError::policy("development_installation_invalid"));
-        }
+    {
+        return Err(RouterError::policy("development_installation_invalid"));
     }
     Ok(Some((active, executable)))
 }
@@ -5685,6 +5684,82 @@ mod tests {
     }
 
     #[test]
+    fn development_main_head_resolver_reads_exact_local_main_ref() {
+        let scratch = Scratch::new("dev-main-head");
+        let repository = scratch.0.join("repository");
+        prepare_private_directory(&repository).unwrap();
+        assert!(
+            Command::new(DEV_GIT)
+                .args(["init", "--quiet"])
+                .current_dir(&repository)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::write(repository.join("README"), b"fixture").unwrap();
+        assert!(
+            Command::new(DEV_GIT)
+                .args(["add", "README"])
+                .current_dir(&repository)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new(DEV_GIT)
+                .args([
+                    "-c",
+                    "user.name=ASB test",
+                    "-c",
+                    "user.email=asb-test@example.invalid",
+                    "commit",
+                    "--quiet",
+                    "-m",
+                    "fixture",
+                ])
+                .current_dir(&repository)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new(DEV_GIT)
+                .args(["branch", "-M", "main"])
+                .current_dir(&repository)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let expected = String::from_utf8(
+            Command::new(DEV_GIT)
+                .args(["rev-parse", "HEAD"])
+                .current_dir(&repository)
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_owned();
+        let resolved = resolve_development_main_head(
+            Path::new(DEV_GIT),
+            Path::new(DEV_SETSID),
+            repository.to_str().unwrap(),
+            &scratch.0,
+        )
+        .unwrap();
+        assert_eq!(resolved, expected);
+        let invalid = resolve_development_main_head(
+            Path::new(DEV_GIT),
+            Path::new(DEV_SETSID),
+            &scratch.0.join("missing").to_string_lossy(),
+            &scratch.0,
+        )
+        .unwrap_err();
+        assert_eq!(invalid.code, "dev_command_failed");
+    }
+
+    #[test]
     fn development_publication_rolls_back_new_version_on_marker_failure() {
         let scratch = Scratch::new("dev-publication-rollback");
         let install_root = scratch.0.join("install");
@@ -5852,6 +5927,9 @@ mod tests {
             &channel_manifest,
         )
         .unwrap();
+        let root_channel_manifest = paths.install_root.join("active-channel.json");
+        let version_channel_manifest = version.join("channel-manifest.json");
+        let channel_bytes = fs::read(&root_channel_manifest).unwrap();
         let status = execute_development_existing(Operation::Status, &paths).unwrap();
         assert_eq!(status.code, "development_installed");
         assert!(status.development_only);
@@ -5859,6 +5937,18 @@ mod tests {
         assert_eq!(status.source_commit, Some("a".repeat(40)));
         assert_eq!(status.source_tree, Some("b".repeat(40)));
         assert_eq!(status.channel_manifest_sha256, Some(channel_digest));
+        fs::write(&root_channel_manifest, b"{}").unwrap();
+        assert_eq!(
+            development_active(&paths).unwrap_err().code,
+            "development_installation_invalid"
+        );
+        fs::write(&root_channel_manifest, &channel_bytes).unwrap();
+        fs::write(&version_channel_manifest, b"{}").unwrap();
+        assert_eq!(
+            development_active(&paths).unwrap_err().code,
+            "development_installation_invalid"
+        );
+        fs::write(&version_channel_manifest, &channel_bytes).unwrap();
         assert_eq!(
             status.warnings,
             Some(vec![
