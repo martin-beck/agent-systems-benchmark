@@ -839,6 +839,18 @@ fn publish_development_channel_manifest(
     Ok(manifest_sha256)
 }
 
+/// Keep compiler paths independent from the per-install random staging roots.
+/// Cargo/Rust otherwise embeds those absolute paths in release debug metadata,
+/// which changes the executable digest on every otherwise identical build.
+fn development_reproducibility_flags(root: &Path, target: &Path, cargo_home: &Path) -> String {
+    format!(
+        "--remap-path-prefix={}=/asb-dev/workspace --remap-path-prefix={}=/asb-dev/target --remap-path-prefix={}=/asb-dev/cargo-home",
+        root.display(),
+        target.display(),
+        cargo_home.display()
+    )
+}
+
 /// Check the bounded development host before starting a clone or build.  This
 /// is deliberately read-only: it reports host limitations with remediation
 /// while retaining the trust policy used by the materializer.
@@ -1161,6 +1173,12 @@ fn materialize_development(
             .env("HOME", &root)
             .env("CARGO_HOME", &cargo_home)
             .env("CARGO_TARGET_DIR", &target)
+            .env("CARGO_INCREMENTAL", "0")
+            .env("SOURCE_DATE_EPOCH", "0")
+            .env(
+                "RUSTFLAGS",
+                development_reproducibility_flags(&root, &target, &cargo_home),
+            )
             .current_dir(&source)
             .args(["--wait"])
             .arg(&cargo)
@@ -5757,6 +5775,48 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(invalid.code, "dev_command_failed");
+    }
+
+    #[test]
+    fn development_repeated_builds_have_identical_path_independent_bytes() {
+        let scratch = Scratch::new("dev-reproducible-build");
+        let mut digests = Vec::new();
+        for name in ["first-random-root", "second-random-root"] {
+            let root = scratch.0.join(name);
+            let source = root.join("source");
+            let target = root.join("target");
+            let cargo_home = root.join("cargo-home");
+            prepare_private_directory(&source).unwrap();
+            prepare_private_directory(&target).unwrap();
+            prepare_private_directory(&cargo_home).unwrap();
+            fs::write(
+                source.join("main.rs"),
+                b"fn main() { println!(\"development fixture\"); }\n",
+            )
+            .unwrap();
+            let executable = target.join("fixture");
+            let flags = development_reproducibility_flags(&root, &target, &cargo_home);
+            let mut command = Command::new("rustc");
+            command
+                .env_clear()
+                .env("LANG", "C.UTF-8")
+                .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+                .env("SOURCE_DATE_EPOCH", "0")
+                .current_dir(&source)
+                .args([
+                    "--edition=2021",
+                    "-C",
+                    "debuginfo=2",
+                    "-C",
+                    "incremental=no",
+                ])
+                .args(flags.split_whitespace())
+                .args(["main.rs", "-o"])
+                .arg(&executable);
+            assert!(command.status().unwrap().success());
+            digests.push(fs::read(executable).map(|bytes| digest(&bytes)).unwrap());
+        }
+        assert_eq!(digests[0], digests[1]);
     }
 
     #[test]
