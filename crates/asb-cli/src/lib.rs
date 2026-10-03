@@ -6980,6 +6980,39 @@ mod tests {
     }
 
     #[test]
+    fn provider_catalog_defaults_to_human_and_json_is_opt_in() {
+        let mut human = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &["provider-catalog".into()],
+                &mut human,
+                &mut Vec::new(),
+                true,
+            ),
+            0
+        );
+        let human = String::from_utf8(human).unwrap();
+        assert!(human.contains("command: provider-catalog"));
+        assert!(human.contains("openrouter"));
+        assert!(!human.starts_with('{'));
+
+        let mut json = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &["provider-catalog".into(), "--json".into()],
+                &mut json,
+                &mut Vec::new(),
+                true,
+            ),
+            0
+        );
+        let value: Value = serde_json::from_slice(&json).unwrap();
+        assert_eq!(value["command"], "provider-catalog");
+        assert_eq!(value["ok"], true);
+        assert!(String::from_utf8(json).unwrap().contains("catalog_sha256"));
+    }
+
+    #[test]
     fn guided_setup_accepts_only_catalog_openrouter_model() {
         let mut output = Vec::new();
         let model = asb_agents::openrouter::OPENROUTER_MODEL;
