@@ -67,6 +67,9 @@ substituted channel manifest returns a typed `development_installation_invalid`
 diagnostic. The development response is explicitly `development_only` and warns
 that authentication, signatures, and key management are unavailable; those
 warnings do not weaken the stable channel's fail-closed publication rules.
+The nested release build disables incremental state, fixes its source epoch, and
+remaps staging, target, and Cargo-home paths to stable virtual prefixes so an
+identical source pair produces the same executable digest across fresh installs.
 
 CI evidence is retained by exact commit identity, never by a mutable branch name.
 
