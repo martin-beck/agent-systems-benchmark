@@ -6638,11 +6638,6 @@ mod tests {
         let (backend, _) = open_qualified_cassette_backend(state).unwrap();
         let mut plan = fixture_plan(&scratch.0);
         plan.run_id = "selected-set:0".into();
-        let mut expected = plan_request(&plan).unwrap();
-        expected.mode = ExecutionMode::LocalMock;
-        expected.model_id =
-            asb_protocol::Id(asb_runtime::live_service::LOCAL_PROVIDER_MOCK_MODEL.to_string());
-        expected.cassette_digest = None;
         backend
             .orchestration
             .lock()
@@ -6655,33 +6650,37 @@ mod tests {
             "../../asb-control/fixtures/v1.14/fanout-request.json"
         ))
         .unwrap();
-        // The checked-in wire fixture intentionally uses a provider/model
-        // representative of the TUI. Bind those catalog identities to this
-        // development backend before admission; the complete RunRequest
-        // shape and every bounded field remain unchanged.
+        // Preserve every published TUI identity and digest exactly. The
+        // deterministic plan key is the only local authority binding needed
+        // by the development backend; it is not part of provider provenance.
         let member = &mut fixture["params"]["requests"][0];
-        member["provider_id"] = serde_json::json!("openai");
-        member["model_id"] = serde_json::json!(asb_agents::openai::OPENAI_MODEL);
-        let expected = serde_json::to_value(expected).unwrap();
-        for field in [
-            "idempotency_key",
-            "agent_id",
-            "provider_id",
-            "model_id",
-            "workload_id",
-            "catalog_digest",
-            "workload_revision",
-            "scorer_revision",
-        ] {
-            member[field] = expected[field].clone();
-        }
+        member["idempotency_key"] = serde_json::json!("selected-set:0");
         let request: ControlRequest = serde_json::from_value(fixture).unwrap();
         validate_request(&request, ControlLimits::default()).unwrap();
         let ControlCall::Fanout(params) = request.call else {
             panic!("fixture is not a fanout request");
         };
         let call = ControlCall::Fanout(params);
-        let response = backend.execute(&call, deadline()).unwrap();
+        // Send the deserialized published request through the same Unix
+        // control transport used by the TUI, including version negotiation,
+        // framing, backend dispatch, and typed response validation.
+        let socket = scratch.0.join("fanout-control.sock");
+        let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
+        let service = thread::spawn(move || server.serve_one());
+        let mut client = asb_control::ControlClient::connect_with_versions(
+            &socket,
+            ControlLimits::default(),
+            [asb_control::CONTROL_FANOUT_V1],
+        )
+        .expect("connect fanout client");
+        let response = client
+            .call(call.clone(), 5_000)
+            .expect("fanout response")
+            .into_result()
+            .expect("successful fanout result");
+        let ControlSuccess::Operation(response) = response else {
+            panic!("fanout operation result");
+        };
         response
             .validate_for_call(&call, ControlLimits::default())
             .unwrap();
@@ -6690,6 +6689,8 @@ mod tests {
         };
         assert_eq!(admission.idempotency_key, "selected-set");
         assert_eq!(admission.members.len(), 1);
+        drop(client);
+        service.join().unwrap().unwrap();
         scratch.cleanup_with_hook(|| {});
     }
 
