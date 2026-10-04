@@ -288,6 +288,19 @@ pub struct ProviderCaptureExchange {
     pub response: ReplayHttpResponse,
 }
 
+/// Remove transport credentials before a provider exchange enters recording.
+///
+/// This is intentionally idempotent so runtime composition may sanitize at
+/// both the socket boundary and the callback boundary without changing the
+/// recorded request semantics.
+pub fn sanitize_provider_capture_exchange(
+    mut exchange: ProviderCaptureExchange,
+) -> ProviderCaptureExchange {
+    exchange.request = sanitize_capture_request(exchange.request);
+    exchange.response = sanitize_capture_response(exchange.response);
+    exchange
+}
+
 impl ProviderCaptureExchange {
     /// Convert one runtime-owned exchange into the canonical cassette shape.
     ///
@@ -418,6 +431,66 @@ impl ProviderCaptureExchange {
             interactions: vec![interaction],
         })
     }
+}
+
+/// Seal one exchange that has already crossed the runtime-owned capture
+/// boundary.
+///
+/// Live provider implementations use this helper after forwarding one
+/// authenticated request through [`StrictReplayService`].  Keeping the
+/// redaction and sealing policy here prevents a live runner from accidentally
+/// persisting credentials, authorization headers, or unbounded provider
+/// payloads.  The exchange must therefore be the sanitized value returned by
+/// [`StrictReplayService::capture_authenticated_connection`].
+pub fn seal_provider_capture_exchange(
+    exchange: ProviderCaptureExchange,
+    route: &ReplayRoute,
+    cassette_id: String,
+) -> Result<(Cassette, crate::RedactionReport), ReplayError> {
+    let contents =
+        sanitize_provider_capture_exchange(exchange).into_cassette_contents(route, cassette_id)?;
+    let mut policy = crate::RedactionPolicy::default();
+    if let Some(interaction) = contents.interactions.first() {
+        // Keep only routing identity in request/response bodies.  This gives
+        // strict replay enough shape to match the selected model while
+        // ensuring prompts, completions, tool payloads, and unknown fields do
+        // not leave the runtime-owned capture boundary.
+        if let Some(object) = interaction.request.body.as_object() {
+            for key in object.keys().filter(|key| key.as_str() != "model") {
+                policy
+                    .request_body_pointers
+                    .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
+            }
+        }
+        if let crate::ResponseBody::Buffered { payload, .. } = &interaction.response.body {
+            if let Some(object) = payload.as_object() {
+                for key in object.keys().filter(|key| key.as_str() != "id") {
+                    policy
+                        .response_body_pointers
+                        .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
+                }
+            }
+        } else if let crate::ResponseBody::Events { events, .. } = &interaction.response.body {
+            for event in events {
+                if let Some(object) = event.payload.as_object() {
+                    for key in object.keys().filter(|key| key.as_str() != "id") {
+                        policy
+                            .response_body_pointers
+                            .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
+                    }
+                }
+            }
+        }
+    }
+    let (redacted, report) = crate::Redactor::new(policy)
+        .map_err(|_| ReplayError::InvalidCassette)?
+        .redact_contents(contents)
+        .map_err(|_| ReplayError::InvalidCassette)?;
+    let encoded = crate::seal_cassette(redacted, CassetteLimits::default())
+        .map_err(|_| ReplayError::InvalidCassette)?;
+    let cassette = crate::decode_cassette(&encoded, CassetteLimits::default())
+        .map_err(|_| ReplayError::InvalidCassette)?;
+    Ok((cassette, report))
 }
 
 /// Encode one strict request for the runtime-owned operation transport.
@@ -755,52 +828,7 @@ impl StrictReplayService {
         F: FnOnce(&ReplayRoute, &ReplayHttpRequest) -> Result<ReplayHttpResponse, ReplayError>,
     {
         let exchange = self.capture_authenticated_connection(stream, route, forward)?;
-        let contents = exchange.into_cassette_contents(route, cassette_id)?;
-        // Provider recordings are durable artifacts.  Their body payloads are
-        // never persisted: retain only the protocol shape and replace the
-        // content-bearing fields with bounded redaction markers.
-        let mut policy = crate::RedactionPolicy::default();
-        if let Some(interaction) = contents.interactions.first() {
-            // The capture seam must not persist an arbitrary provider body.
-            // Keep only the model routing identity needed by cassette
-            // normalization; every other top-level field is replaced before
-            // sealing, including unknown provider-specific fields.
-            if let Some(object) = interaction.request.body.as_object() {
-                for key in object.keys().filter(|key| key.as_str() != "model") {
-                    policy
-                        .request_body_pointers
-                        .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
-                }
-            }
-            if let crate::ResponseBody::Buffered { payload, .. } = &interaction.response.body {
-                if let Some(object) = payload.as_object() {
-                    for key in object.keys().filter(|key| key.as_str() != "id") {
-                        policy
-                            .response_body_pointers
-                            .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
-                    }
-                }
-            } else if let crate::ResponseBody::Events { events, .. } = &interaction.response.body {
-                for event in events {
-                    if let Some(object) = event.payload.as_object() {
-                        for key in object.keys().filter(|key| key.as_str() != "id") {
-                            policy
-                                .response_body_pointers
-                                .insert(format!("/{}", key.replace('~', "~0").replace('/', "~1")));
-                        }
-                    }
-                }
-            }
-        }
-        let (redacted, report) = crate::Redactor::new(policy)
-            .map_err(|_| ReplayError::InvalidCassette)?
-            .redact_contents(contents)
-            .map_err(|_| ReplayError::InvalidCassette)?;
-        let encoded = crate::seal_cassette(redacted, CassetteLimits::default())
-            .map_err(|_| ReplayError::InvalidCassette)?;
-        let cassette = crate::decode_cassette(&encoded, CassetteLimits::default())
-            .map_err(|_| ReplayError::InvalidCassette)?;
-        Ok((cassette, report))
+        seal_provider_capture_exchange(exchange, route, cassette_id)
     }
 
     #[cfg(test)]

@@ -43,7 +43,7 @@ pub use service::{
     ReplayDispatchRequest, ReplayDispatchResponse, ReplayError, ReplayHttpRequest,
     ReplayHttpResponse, ReplayLimits, ReplayRoute, StrictReplayService, decode_dispatch_request,
     decode_dispatch_response, dialect_capabilities, encode_dispatch_request,
-    encode_dispatch_response,
+    encode_dispatch_response, sanitize_provider_capture_exchange, seal_provider_capture_exchange,
 };
 pub use workflow::{
     MAX_RECORDING_CAMPAIGN_TUPLES, MAX_WORKFLOW_AGENT_BYTES, NetworkConsequence,

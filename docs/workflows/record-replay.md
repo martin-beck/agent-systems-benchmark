@@ -60,6 +60,24 @@ even when replay is unavailable.
 Production provider capture remains a separately supervised runtime integration;
 this local/mock route intentionally does not claim external reachability.
 
+## Development live runner integration
+
+The runtime exposes `asb_runtime::provider_capture::LiveProviderCapture` for
+the development OpenRouter runner. The runner supplies one callback per
+selected agent/workload tuple. That callback may contact the real provider
+only after the live launch has been admitted, and returns the sanitized
+`ProviderCaptureExchange` observed at the provider boundary. The runtime then
+redacts and seals it through the same content-addressed cassette path used by
+the local qualification fixture. Tests can inject a deterministic callback;
+no API key or network is needed to qualify the capture/replay contract.
+
+The callback cannot choose an output path or persist its own payload.
+`LiveProviderCapture` removes transport credentials again at the sealing
+boundary, verifies the cassette with strict replay, and returns only the
+cassette digest and safe metadata. Missing development signatures or
+generated key material remain warnings; an explicit live run still reports a
+typed credential/transport error rather than silently switching to mock mode.
+
 To compare live and replay results, first produce two terminal run directories,
 then use:
 

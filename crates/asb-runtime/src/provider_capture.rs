@@ -8,8 +8,8 @@
 use crate::live_service::{LOCAL_PROVIDER_MOCK_MODEL, LocalProviderMockBackend};
 use asb_control::RequestDeadline;
 use asb_replay::{
-    ReplayError, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits, ReplayRoute,
-    StrictReplayService,
+    ProviderCaptureExchange, ReplayError, ReplayHttpRequest, ReplayHttpResponse, ReplayLimits,
+    ReplayRoute, StrictReplayService, seal_provider_capture_exchange,
 };
 use sha2::{Digest, Sha256};
 use std::io::{Cursor, Read, Write};
@@ -76,6 +76,79 @@ pub trait ProviderCapture: Send + Sync {
         request: &ProviderCaptureRequest,
         context: &ProviderCaptureContext<'_>,
     ) -> Result<ProviderCaptureResult, ProviderCaptureError>;
+}
+
+/// Runtime-owned live capture adapter.
+///
+/// The callback is the narrow provider boundary: it is responsible for
+/// executing one already-admitted request and returning the sanitized exchange
+/// observed at that boundary.  It cannot choose a cassette path or bypass the
+/// redaction/sealing step.  Production composition can connect this callback
+/// to the live OpenRouter runner, while tests can provide a deterministic fake
+/// provider without credentials or network access.
+pub struct LiveProviderCapture<F> {
+    exchange: F,
+}
+
+impl<F> std::fmt::Debug for LiveProviderCapture<F> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LiveProviderCapture(..)")
+    }
+}
+
+impl<F> LiveProviderCapture<F> {
+    /// Bind one runtime-owned provider exchange callback.
+    pub fn new(exchange: F) -> Self {
+        Self { exchange }
+    }
+}
+
+impl<F> ProviderCapture for LiveProviderCapture<F>
+where
+    F: Fn(
+            &ProviderCaptureRequest,
+            &ReplayRoute,
+        ) -> Result<ProviderCaptureExchange, ProviderCaptureError>
+        + Send
+        + Sync,
+{
+    fn capture(
+        &self,
+        request: &ProviderCaptureRequest,
+        context: &ProviderCaptureContext<'_>,
+    ) -> Result<ProviderCaptureResult, ProviderCaptureError> {
+        context.check()?;
+        if request.provider_profile_sha256.len() != 64
+            || request.agent_id.is_empty()
+            || request.workload_id.is_empty()
+            || request.scorer_revision.is_empty()
+            || request.attempt_id.is_empty()
+        {
+            return Err(ProviderCaptureError::IdentityMismatch);
+        }
+        let route = ReplayRoute {
+            session_id: request.provider_profile_sha256.clone(),
+            attempt_id: request.attempt_id.clone(),
+            dialect: asb_replay::ProviderDialect::OpenaiChatCompletions,
+        };
+        let exchange = (self.exchange)(request, &route)?;
+        context.check()?;
+        let (cassette, _report) = seal_provider_capture_exchange(
+            exchange,
+            &route,
+            format!("{}-capture", request.attempt_id),
+        )
+        .map_err(|_| ProviderCaptureError::Verification)?;
+        StrictReplayService::new(cassette.clone(), ReplayLimits::default())
+            .map_err(|_| ProviderCaptureError::Verification)?;
+        Ok(ProviderCaptureResult {
+            cassette_sha256: cassette.integrity.digest.clone(),
+            redaction_verified: true,
+            replay_verified: true,
+            cassette_json: serde_json::to_vec(&cassette)
+                .map_err(|_| ProviderCaptureError::Verification)?,
+        })
+    }
 }
 
 /// Run one runtime-authenticated exchange through the strict replay capture
@@ -260,6 +333,8 @@ impl ProviderCapture for UnavailableProviderCapture {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_replay::{Header, ProviderCaptureExchange};
+    use serde_json::json;
 
     #[test]
     fn local_mock_capture_seals_replayable_secret_free_cassette() {
@@ -331,5 +406,105 @@ mod tests {
         };
         std::thread::sleep(std::time::Duration::from_millis(3));
         assert_eq!(context.check(), Err(ProviderCaptureError::Deadline));
+    }
+
+    #[test]
+    fn live_capture_callback_seals_fake_provider_exchange_without_credentials() {
+        let capture =
+            LiveProviderCapture::new(|request: &ProviderCaptureRequest, route: &ReplayRoute| {
+                assert_eq!(route.attempt_id, request.attempt_id);
+                Ok(ProviderCaptureExchange {
+                    request: ReplayHttpRequest {
+                        method: "POST".into(),
+                        path: "/v1/chat/completions".into(),
+                        headers: vec![
+                            Header {
+                                name: "authorization".into(),
+                                value: "Bearer test-secret".into(),
+                            },
+                            Header {
+                                name: "content-type".into(),
+                                value: "application/json".into(),
+                            },
+                        ],
+                        body: serde_json::to_vec(&json!({
+                            "model": "cohere/north-mini-code:free",
+                            "messages": [{"role": "user", "content": "private prompt"}],
+                        }))
+                        .unwrap(),
+                    },
+                    response: ReplayHttpResponse {
+                        status: 200,
+                        headers: vec![Header {
+                            name: "content-type".into(),
+                            value: "application/json".into(),
+                        }],
+                        segments: vec![
+                            serde_json::to_vec(&json!({
+                                "id": "response-1",
+                                "choices": [{"message": {"content": "private completion"}}],
+                            }))
+                            .unwrap(),
+                        ],
+                        recorded_offsets: vec![std::time::Duration::ZERO],
+                    },
+                })
+            });
+        let cancelled = AtomicBool::new(false);
+        let context = ProviderCaptureContext {
+            deadline: RequestDeadline::start(10_000).expect("deadline"),
+            cancelled: &cancelled,
+        };
+        let result = capture
+            .capture(
+                &ProviderCaptureRequest {
+                    provider_profile_sha256: "a".repeat(64),
+                    agent_id: "opencode".into(),
+                    workload_id: "original.bug-fix".into(),
+                    scorer_revision: "scorer-v1".into(),
+                    attempt_id: "live-attempt-1".into(),
+                    generation: 1,
+                },
+                &context,
+            )
+            .expect("capture");
+        assert!(result.redaction_verified);
+        assert!(result.replay_verified);
+        let encoded = String::from_utf8(result.cassette_json).expect("cassette json");
+        assert!(!encoded.contains("Bearer"));
+        assert!(!encoded.contains("private prompt"));
+        assert!(!encoded.contains("private completion"));
+        assert!(encoded.contains("cohere/north-mini-code:free"));
+    }
+
+    #[test]
+    fn live_capture_callback_fences_invalid_identity_before_provider_call() {
+        let called = AtomicBool::new(false);
+        let capture = LiveProviderCapture::new(
+            |_: &ProviderCaptureRequest,
+             _: &ReplayRoute|
+             -> Result<ProviderCaptureExchange, ProviderCaptureError> {
+                called.store(true, Ordering::Release);
+                Err(ProviderCaptureError::Unavailable)
+            },
+        );
+        let cancelled = AtomicBool::new(false);
+        let context = ProviderCaptureContext {
+            deadline: RequestDeadline::start(10_000).expect("deadline"),
+            cancelled: &cancelled,
+        };
+        let error = capture.capture(
+            &ProviderCaptureRequest {
+                provider_profile_sha256: "not-a-digest".into(),
+                agent_id: "opencode".into(),
+                workload_id: "workload".into(),
+                scorer_revision: "scorer".into(),
+                attempt_id: "attempt".into(),
+                generation: 1,
+            },
+            &context,
+        );
+        assert_eq!(error, Err(ProviderCaptureError::IdentityMismatch));
+        assert!(!called.load(Ordering::Acquire));
     }
 }
