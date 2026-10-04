@@ -15,6 +15,7 @@ use asb_agents::all_agents_provider::{
 };
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::openrouter::OpenRouterProfile;
+use asb_agents::openrouter::{OpenRouterAgent, capture_openrouter_live};
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
     RuntimeBundleIdentity, credential_target_for_provider_agent,
@@ -32,8 +33,9 @@ use asb_protocol::{
     MeasurementSelectionReason, MeasurementSelectionV1, baseline_measurement_catalog,
 };
 use asb_replay::{
-    CassetteLimits, ExecutionSource, RecordingCapture, RecordingDescriptor, RecordingIndex,
-    SourceChoice, seal_recording,
+    CassetteLimits, CassetteContents, ExecutionSource, Interaction, PolicyVersion,
+    ProviderDialect, RecordedRequest, RecordedResponse, RecordingCapture, RecordingDescriptor,
+    RecordingIndex, ResponseBody, SourceChoice, TerminalEvent, seal_recording,
 };
 use asb_runtime::control_owner_contract::LocalMockRuntimeControlOwner;
 use asb_runtime::launch_factory::{
@@ -770,6 +772,13 @@ fn dispatch(
         {
             record_live(Path::new(input), Path::new(output), true, stdout).map(|()| 0)
         }
+        [command, input, output, online, confirm]
+            if command == "record-live"
+                && online == "--openrouter"
+                && confirm == "--confirm-record" =>
+        {
+            record_openrouter_live(Path::new(input), Path::new(output), stdout).map(|()| 0)
+        }
         [command, manifest, flag] if command == "record-campaign" && flag == "--local-mock" => {
             record_campaign(Path::new(manifest), stdout).map(|()| 0)
         }
@@ -791,6 +800,54 @@ fn dispatch(
         .map(|()| 0),
         _ => Err(CliError::usage("unsupported arguments; use asb --help")),
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OpenRouterLiveCaptureInput {
+    schema_version: u16,
+    provider_profile_sha256: String,
+    agent_id: String,
+    request_body: Value,
+    #[serde(default)]
+    estimated_cost_minor: u64,
+}
+
+fn record_openrouter_live(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "OpenRouter live capture request")?;
+    let request: OpenRouterLiveCaptureInput = serde_json::from_slice(&bytes)
+        .map_err(|_| CliError::validation("OpenRouter live capture request is invalid"))?;
+    if request.schema_version != asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION {
+        return Err(CliError::validation("OpenRouter live capture schema version is unsupported"));
+    }
+    let agent = match request.agent_id.as_str() {
+        "opencode" => OpenRouterAgent::OpenCode, "opendesk" => OpenRouterAgent::OpenDesk,
+        "aider" => OpenRouterAgent::Aider, "codex" => OpenRouterAgent::Codex,
+        "qwen-code" => OpenRouterAgent::QwenCode, "goose" => OpenRouterAgent::Goose,
+        "mini-swe" => OpenRouterAgent::MiniSwe, "openhands" => OpenRouterAgent::OpenHands,
+        _ => return Err(CliError::validation("OpenRouter live capture agent is unsupported")),
+    };
+    let profile = OpenRouterProfile::new(request.provider_profile_sha256.clone())
+        .map_err(|_| CliError::validation("OpenRouter provider profile is invalid"))?;
+    let request_bytes = serde_json::to_vec(&request.request_body)
+        .map_err(|_| CliError::validation("OpenRouter request body cannot be encoded"))?;
+    let response = capture_openrouter_live(&profile, agent, &request_bytes)
+        .map_err(|_| CliError::operation("OpenRouter live capture failed"))?;
+    let response_body: Value = serde_json::from_slice(&response.body)
+        .map_err(|_| CliError::operation("OpenRouter response was not JSON"))?;
+    let path = if matches!(agent, OpenRouterAgent::Codex) { "/api/v1/responses" } else { "/api/v1/chat/completions" };
+    let model = request.request_body.get("model").and_then(Value::as_str).unwrap_or(asb_agents::openrouter::OPENROUTER_MODEL).to_owned();
+    let interaction = Interaction {
+        session_id: "openrouter-live".into(), attempt_id: "openrouter-live".into(), interaction_id: "openrouter-live-0".into(), ordinal: 0,
+        dialect: if matches!(agent, OpenRouterAgent::Codex) { ProviderDialect::OpenaiResponses } else { ProviderDialect::OpenaiChatCompletions },
+        request: RecordedRequest { method: "POST".into(), path: path.into(), headers: vec![], body: request.request_body, body_sha256: String::new(), model, options: BTreeMap::new(), tools: vec![], previous_response_id: None },
+        response: RecordedResponse { status: response.status, headers: vec![], body: ResponseBody::Buffered { payload: response_body, payload_sha256: String::new(), response_id: None, terminal: if response.status < 400 { TerminalEvent::Completed } else { TerminalEvent::Failed } } },
+    };
+    let capture = RecordingCapture { schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION, provider_profile_sha256: request.provider_profile_sha256, agent_id: request.agent_id, network: asb_replay::NetworkConsequence::Provider, estimated_cost_minor: request.estimated_cost_minor, confirmation: asb_replay::RecordingConfirmation { record: true, network: true, cost: request.estimated_cost_minor == 0 }, contents: CassetteContents { schema_version: asb_replay::CASSETTE_SCHEMA_VERSION, cassette_id: "openrouter-live".into(), normalization: PolicyVersion { version: 1 }, redaction: asb_replay::RedactionPolicy::default().descriptor().map_err(|_| CliError::operation("redaction policy unavailable"))?, interactions: vec![interaction] } };
+    let artifact = seal_recording(capture, Default::default(), CassetteLimits::default()).map_err(|_| CliError::operation("OpenRouter live capture could not be sealed"))?;
+    let encoded = serde_json::to_vec(&artifact.cassette).map_err(|_| CliError::operation("OpenRouter live cassette cannot be encoded"))?;
+    write_atomic_private(output, &encoded)?;
+    write_json(stdout, &artifact.metadata)
 }
 
 fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
@@ -1243,7 +1300,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(output, "  asb tui --help").map_err(output_error)?;
     writeln!(output, "  asb plan create --workload WORKLOAD --agent-executable /absolute/agent --output PLAN.toml")
         .map_err(output_error)?;
-    writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
+    writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-live REQUEST.json CASSETTE.json --openrouter --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
 }
 

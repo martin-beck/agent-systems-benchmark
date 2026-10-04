@@ -20,6 +20,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::io::Write;
+use std::process::{Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
 const MAX_OBSERVED_REQUEST_BYTES: usize = 4 * 1024 * 1024;
@@ -35,6 +38,8 @@ pub const OPENROUTER_MODEL_SNAPSHOT_DATE: &str = "2026-09-25";
 pub const OPENROUTER_MODEL_SNAPSHOT: &str = "cohere/north-mini-code:free@2026-09-25";
 /// Process-environment credential reference for the OpenRouter API key.
 pub const OPENROUTER_API_KEY_ENV: &str = "OPENROUTER_API_KEY";
+/// Maximum response body retained by the live capture boundary.
+pub const MAX_LIVE_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 
 /// Credential-free provider-specific pinning evidence.
 const OPENROUTER_ADDITIONAL_SETTINGS: &str = concat!(
@@ -167,6 +172,111 @@ pub enum OpenRouterProfileError {
     EffectiveRequestMismatch,
     /// Common provider-profile validation failed.
     Profile(ProviderProfileError),
+}
+
+/// Bounded response returned by the explicit online capture transport.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OpenRouterLiveResponse {
+    /// HTTP status returned by OpenRouter.
+    pub status: u16,
+    /// Complete bounded response bytes, before cassette redaction.
+    pub body: Vec<u8>,
+}
+
+/// Typed failure from the online OpenRouter capture boundary.
+#[derive(Debug)]
+pub enum OpenRouterLiveError {
+    /// Runtime credential lookup failed.
+    Credential(CredentialResolutionError),
+    /// The request exceeded the pinned profile bounds.
+    RequestTooLarge,
+    /// The local curl transport could not be started or completed.
+    Transport,
+    /// OpenRouter returned a body larger than the replay bound.
+    ResponseTooLarge,
+    /// The transport did not provide a valid HTTP status.
+    InvalidStatus,
+}
+
+impl fmt::Display for OpenRouterLiveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Credential(_) => f.write_str("OpenRouter credential unavailable"),
+            Self::RequestTooLarge => f.write_str("OpenRouter request exceeds its bound"),
+            Self::Transport => f.write_str("OpenRouter transport failed"),
+            Self::ResponseTooLarge => f.write_str("OpenRouter response exceeds its bound"),
+            Self::InvalidStatus => f.write_str("OpenRouter returned an invalid HTTP status"),
+        }
+    }
+}
+
+impl std::error::Error for OpenRouterLiveError {}
+
+/// Send one explicitly opted-in request to OpenRouter and retain its bounded response.
+///
+/// The environment credential is resolved only here. It is passed to curl through a
+/// private config file and erased with the temporary file before returning; it never
+/// enters request metadata, cassette content, or diagnostics.
+pub fn capture_openrouter_live(
+    profile: &OpenRouterProfile,
+    agent: OpenRouterAgent,
+    request_body: &[u8],
+) -> Result<OpenRouterLiveResponse, OpenRouterLiveError> {
+    let translation = profile
+        .translate(agent, profile.provider_profile())
+        .map_err(|_| OpenRouterLiveError::Transport)?;
+    if request_body.is_empty()
+        || request_body.len() > profile.provider_profile().transport.max_request_bytes as usize
+    {
+        return Err(OpenRouterLiveError::RequestTooLarge);
+    }
+    let mut credential = resolve_openrouter_environment(profile)
+        .map_err(OpenRouterLiveError::Credential)?
+        .into_transport_bytes();
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| OpenRouterLiveError::Transport)?
+        .as_nanos();
+    let config_path = std::env::temp_dir().join(format!("asb-openrouter-{nonce}.conf"));
+    let config = format!(
+        "url = {}{}\nrequest = POST\nheader = Authorization: Bearer {}\nheader = Content-Type: application/json\nmax-time = 1800\nconnect-timeout = 5\nmax-filesize = {}\n",
+        translation.endpoint(),
+        match translation.api_mode { OpenRouterApiMode::Responses => "/responses", OpenRouterApiMode::ChatCompletions => "/chat/completions" },
+        String::from_utf8_lossy(&credential),
+        MAX_LIVE_RESPONSE_BYTES
+    );
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .open(&config_path)
+        .map_err(|_| OpenRouterLiveError::Transport)?;
+    file.write_all(config.as_bytes()).map_err(|_| OpenRouterLiveError::Transport)?;
+    drop(file);
+    let result = Command::new("/usr/bin/curl")
+        .args(["--silent", "--show-error", "--config"])
+        .arg(&config_path)
+        .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
+        .stdin(Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(request_body)?;
+            }
+            child.wait_with_output()
+        });
+    let _ = std::fs::remove_file(&config_path);
+    credential.fill(0);
+    let output = result.map_err(|_| OpenRouterLiveError::Transport)?;
+    if !output.status.success() || output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
+        return Err(if output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 { OpenRouterLiveError::ResponseTooLarge } else { OpenRouterLiveError::Transport });
+    }
+    let marker = output.stdout.iter().rposition(|byte| *byte == b'\n').ok_or(OpenRouterLiveError::InvalidStatus)?;
+    let status = std::str::from_utf8(&output.stdout[marker + 1..]).ok().and_then(|s| s.trim().parse().ok()).ok_or(OpenRouterLiveError::InvalidStatus)?;
+    let body = output.stdout[..marker].to_vec();
+    if body.len() > MAX_LIVE_RESPONSE_BYTES { return Err(OpenRouterLiveError::ResponseTooLarge); }
+    Ok(OpenRouterLiveResponse { status, body })
 }
 
 impl fmt::Display for OpenRouterProfileError {

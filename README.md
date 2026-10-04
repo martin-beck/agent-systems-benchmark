@@ -75,6 +75,7 @@ asb provider-catalog
 asb provider-plan --catalog-sha256 CATALOG_SHA256 --provider-profile openai --agent codex \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256
 asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record
+asb record-live REQUEST.json CASSETTE.json --openrouter --confirm-record
 asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 codex
 ```
 
@@ -87,6 +88,14 @@ workflow is documented in [the live benchmark workflow](docs/workflows/live-benc
 No paid API call or workload download is required by repository tests. The support
 matrix in [Provider-aware launches](docs/PROVIDER_LAUNCH.md) is digest-anchored and
 labels catalog availability separately from runtime or native qualification.
+
+The `--openrouter` form is the explicit online capture action. Its bounded
+request envelope contains `schema_version`, `provider_profile_sha256`,
+`agent_id`, and `request_body`. Only this action resolves `OPENROUTER_API_KEY`;
+credential or transport failure is returned as an error and never falls back to
+the local fixture. The actual response body is retained up to the 16 MiB bound,
+then passed through cassette redaction and integrity sealing; authorization is
+never recorded. `replay-offline` remains network-free.
 
 `asb capabilities --format json` is a bounded, deterministic, side-effect-free
 description of the closed protocol implemented for independent frontends. Its
