@@ -838,6 +838,81 @@ struct PlanAuthoritySource {
     plans: Arc<Mutex<BTreeMap<String, PlanFile>>>,
     cancelled: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
     execution_started: Option<Arc<AtomicBool>>,
+    /// Development-only live provider boundary.  Production callers leave
+    /// this unset and therefore remain fail-closed on live requests.
+    live_provider: Option<Arc<DevelopmentLiveProvider>>,
+}
+
+type DevelopmentLiveProvider =
+    dyn Fn(&PlanFile, &RunRequest) -> Result<ExecutionOutcome, AuthorityError> + Send + Sync;
+
+/// Make one real development OpenRouter request without persisting its key or
+/// response.  The callback is replaceable so control tests can prove the live
+/// route without contacting the public service.
+fn development_openrouter_request(
+    plan: &PlanFile,
+    request: &RunRequest,
+) -> Result<ExecutionOutcome, AuthorityError> {
+    if request.provider_id.0 != "openrouter"
+        || !matches!(request.agent_id.0.as_str(), "opencode" | "opendesk")
+    {
+        return Err(AuthorityError::LiveUnavailable);
+    }
+    let reference = asb_agents::openrouter::openrouter_credential_reference()
+        .map_err(|_| AuthorityError::LiveUnavailable)?;
+    let profile = asb_agents::openrouter::OpenRouterProfile::new(reference)
+        .map_err(|_| AuthorityError::LiveUnavailable)?;
+    let credential = asb_agents::openrouter::resolve_openrouter_environment(&profile)
+        .map_err(|_| AuthorityError::LiveUnavailable)?;
+    drop(credential);
+    let key = env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV)
+        .ok_or(AuthorityError::LiveUnavailable)?;
+    let body = serde_json::to_vec(&serde_json::json!({
+        "model": request.model_id.0,
+        "messages": [{
+            "role": "user",
+            "content": format!("ASB development benchmark workload: {}", plan.workload),
+        }],
+    }))
+    .map_err(|_| AuthorityError::InvalidBinding)?;
+    let timeout = (request.limits.timeout_ms / 1_000).max(1).to_string();
+    let mut child = Command::new("sh")
+        .args([
+            "-c",
+            "exec curl --silent --show-error --fail --max-time \"$1\" --header 'Content-Type: application/json' --header \"Authorization: Bearer ${OPENROUTER_API_KEY}\" --data-binary @- \"$2\"",
+            "asb-development-openrouter",
+            timeout.as_str(),
+            asb_agents::openrouter::OPENROUTER_API_BASE,
+        ])
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env(asb_agents::openrouter::OPENROUTER_API_KEY_ENV, key)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| AuthorityError::LiveUnavailable)?;
+    let Some(mut stdin) = child.stdin.take() else {
+        let _ = child.kill();
+        return Err(AuthorityError::LiveUnavailable);
+    };
+    stdin
+        .write_all(&body)
+        .map_err(|_| AuthorityError::LiveUnavailable)?;
+    drop(stdin);
+    let output = child
+        .wait_with_output()
+        .map_err(|_| AuthorityError::LiveUnavailable)?;
+    if !output.status.success() || output.stdout.is_empty() {
+        return Err(AuthorityError::LiveUnavailable);
+    }
+    Ok(ExecutionOutcome {
+        result_digest: format!("{:x}", Sha256::digest(&output.stdout)),
+        output_bytes: output.stdout.len() as u64,
+        artifact_bytes: 0,
+        artifact_count: 0,
+        largest_artifact_bytes: 0,
+    })
 }
 
 fn execute_strict_replay(
@@ -861,9 +936,12 @@ fn execute_strict_replay(
 
 impl AuthoritySource for PlanAuthoritySource {
     fn prepare(&mut self, request: &RunRequest) -> Result<AttemptCapability, AuthorityError> {
+        if request.mode == ExecutionMode::Live && self.live_provider.is_none() {
+            return Err(AuthorityError::LiveUnavailable);
+        }
         if !matches!(
             request.mode,
-            ExecutionMode::LocalMock | ExecutionMode::StrictReplay
+            ExecutionMode::LocalMock | ExecutionMode::StrictReplay | ExecutionMode::Live
         ) {
             return Err(AuthorityError::LocalUnavailable);
         }
@@ -912,6 +990,17 @@ impl AuthoritySource for PlanAuthoritySource {
                     .as_deref()
                     .ok_or(AuthorityError::MissingCassette)?,
             );
+        }
+        if request.mode == ExecutionMode::Live {
+            let provider = self
+                .live_provider
+                .as_ref()
+                .ok_or(AuthorityError::LiveUnavailable)?;
+            let result = provider(&plan, request);
+            if let Ok(mut cancelled) = self.cancelled.lock() {
+                cancelled.remove(capability.binding());
+            }
+            return result;
         }
         let cancelled = self
             .cancelled
@@ -1031,6 +1120,7 @@ impl FrontendOrchestration {
             plans: Arc::clone(&plans),
             cancelled: Arc::clone(&cancelled),
             execution_started: None,
+            live_provider: Some(Arc::new(development_openrouter_request)),
         };
         Orchestrator::open(source, root.join("orchestrator"))
             .map(|service| Self {
@@ -1163,7 +1253,7 @@ fn public_state_for_orchestration(status: asb_orchestrator::RunStatus) -> Public
 fn plan_request(plan: &PlanFile) -> Result<RunRequest, BackendFailure> {
     let replay = &plan.experiment.controls.replay;
     let mode = match replay.mode {
-        asb_protocol::ReplayMode::Live => return Err(BackendFailure::CapabilityUnavailable),
+        asb_protocol::ReplayMode::Live => ExecutionMode::Live,
         asb_protocol::ReplayMode::Replay => ExecutionMode::StrictReplay,
     };
     let cassette_digest = (mode == ExecutionMode::StrictReplay)
@@ -1185,7 +1275,10 @@ fn plan_request(plan: &PlanFile) -> Result<RunRequest, BackendFailure> {
         scorer_revision: plan.experiment.workload.scorer_sha256.clone(),
         mode,
         cassette_digest,
-        credential_ref_digest: None,
+        credential_ref_digest: (mode == ExecutionMode::Live)
+            .then(asb_agents::openrouter::openrouter_credential_reference)
+            .transpose()
+            .map_err(|_| BackendFailure::Rejected)?,
         limits: RunLimits {
             timeout_ms: plan.point.timeout_ms,
             max_output_bytes: 64 * 1024 * 1024,
@@ -9891,11 +9984,58 @@ printf '%s' 'not-json'
         plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
         plan.experiment.controls.replay.cassette_sha256 = None;
         plan.experiment.refresh_content_address().unwrap();
-        assert_eq!(
-            plan_request(&plan),
-            Err(BackendFailure::CapabilityUnavailable)
-        );
+        let request = plan_request(&plan).unwrap();
+        assert_eq!(request.mode, ExecutionMode::Live);
+        assert!(request.credential_ref_digest.is_some());
         assert!(!plan.result_root.exists());
+    }
+
+    #[test]
+    fn development_live_authority_reaches_replaceable_boundary_without_secret_or_mock() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.model.provider = "openrouter".into();
+        plan.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        plan.experiment.refresh_content_address().unwrap();
+        let request = plan_request(&plan).unwrap();
+        let seen = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let seen_for_boundary = Arc::clone(&seen);
+        let mut source = PlanAuthoritySource {
+            plans: Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)]))),
+            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+            execution_started: None,
+            live_provider: Some(Arc::new(move |plan, request| {
+                let request_bytes =
+                    serde_json::to_vec(request).map_err(|_| AuthorityError::InvalidBinding)?;
+                assert!(
+                    !request_bytes
+                        .windows(12)
+                        .any(|window| window == b"test-secret")
+                );
+                assert_eq!(request.provider_id.0, "openrouter");
+                assert_eq!(request.model_id.0, asb_agents::openrouter::OPENROUTER_MODEL);
+                seen_for_boundary.lock().unwrap().extend_from_slice(
+                    format!("{}:{}", plan.workload, request.mode as u8).as_bytes(),
+                );
+                Ok(ExecutionOutcome {
+                    result_digest: format!("{:x}", Sha256::digest(b"real-openrouter-response")),
+                    output_bytes: 23,
+                    artifact_bytes: 0,
+                    artifact_count: 0,
+                    largest_artifact_bytes: 0,
+                })
+            })),
+        };
+        let capability = source.prepare(&request).unwrap();
+        let outcome = source.execute(&request, &capability).unwrap();
+        assert_eq!(outcome.output_bytes, 23);
+        assert_eq!(
+            outcome.result_digest,
+            format!("{:x}", Sha256::digest(b"real-openrouter-response"))
+        );
+        assert!(!seen.lock().unwrap().is_empty());
     }
 
     #[test]
@@ -9964,6 +10104,7 @@ printf '%s' 'not-json'
             plans,
             cancelled: Arc::new(Mutex::new(BTreeMap::new())),
             execution_started: None,
+            live_provider: None,
         };
         let capability = source.prepare(&request).unwrap();
         let started = Instant::now();
@@ -10007,6 +10148,7 @@ printf '%s' 'not-json'
             plans: Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)]))),
             cancelled: Arc::clone(&cancelled),
             execution_started: Some(Arc::clone(&execution_started)),
+            live_provider: None,
         };
         let capability = source.prepare(&request).unwrap();
         let binding = capability.binding().to_owned();
