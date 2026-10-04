@@ -303,15 +303,6 @@ impl OpenCodeConfig {
 
     fn runtime_config(&self) -> Value {
         let (provider, model_name) = self.model.split_once('/').expect("validated model");
-        // The deterministic fixture path keeps its sentinel credential so
-        // replay tests cannot accidentally contact a provider.  The
-        // development-live CLI path opts in explicitly and supplies the real
-        // value through the child environment at launch time.
-        let api_key = if std::env::var_os("ASB_PROVIDER_LIVE").is_some() {
-            "{env:OPENROUTER_API_KEY}"
-        } else {
-            "asb-credential-free"
-        };
         let mut models = serde_json::Map::new();
         models.insert(model_name.to_owned(), json!({"name": "ASB pinned model"}));
         let mut providers = serde_json::Map::new();
@@ -322,7 +313,7 @@ impl OpenCodeConfig {
                 "name": "ASB explicit endpoint",
                 "options": {
                     "baseURL": self.endpoint.as_str(),
-                    "apiKey": api_key
+                    "apiKey": "asb-credential-free"
                 },
                 "models": models
             }),

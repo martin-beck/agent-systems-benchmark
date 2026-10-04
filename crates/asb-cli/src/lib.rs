@@ -4417,31 +4417,10 @@ fn execute_inner_from_source_with_owner(
             "--live-provider requires an explicit provider selection",
         ));
     }
-    // A runtime-issued factory remains the production path.  When the CLI is
-    // used directly in the development build, the same explicit
-    // `--live-provider` switch is a warning-only setup boundary and resolves
-    // the selected provider credential only at the final child launch.  It is
-    // never persisted or included in run evidence.
     if live_provider && live_factory.is_none() {
-        let selection = selection
-            .as_ref()
-            .ok_or_else(|| CliError::validation("live provider requires an explicit selection"))?;
-        if selection.provider_profile != "openrouter" {
-            return Err(CliError::validation(
-                "development live execution currently supports only openrouter",
-            ));
-        }
-        let reference = asb_agents::openrouter::openrouter_credential_reference()
-            .map_err(|_| CliError::operation("OpenRouter credential reference is unavailable"))?;
-        let profile = asb_agents::openrouter::OpenRouterProfile::new(reference)
-            .map_err(|_| CliError::operation("OpenRouter profile is unavailable"))?;
-        asb_agents::openrouter::resolve_openrouter_environment(&profile)
-            .map(drop)
-            .map_err(|_| {
-                CliError::validation(
-                    "OPENROUTER_API_KEY is required for an explicit live development run",
-                )
-            })?;
+        return Err(CliError::validation(
+            "live provider requires a runtime-issued attempt factory",
+        ));
     }
     if plan.experiment.controls.replay.mode == asb_protocol::ReplayMode::Replay {
         return Err(CliError::validation(
@@ -4693,16 +4672,12 @@ fn run_point_with_selection_with_owner(
                 return AttemptOutcome::Cancelled;
             }
             let attempt = if live_provider {
-                match live_factory.as_ref() {
-                    Some(factory) => match factory.acquire(context.input_id(), context.is_warmup())
-                    {
-                        Ok(attempt) => Some(attempt),
-                        Err(_) => return AttemptOutcome::InfrastructureFailure,
-                    },
-                    // Direct CLI development-live mode uses the selected
-                    // adapter process with its one-shot environment key.
-                    // Production callers always provide the opaque factory.
-                    None => None,
+                let Some(factory) = live_factory.as_ref() else {
+                    return AttemptOutcome::InfrastructureFailure;
+                };
+                match factory.acquire(context.input_id(), context.is_warmup()) {
+                    Ok(attempt) => Some(attempt),
+                    Err(_) => return AttemptOutcome::InfrastructureFailure,
                 }
             } else {
                 None
@@ -5198,38 +5173,27 @@ fn spawn_verified_agent(
     live_attempt: Option<LiveProviderAttempt>,
 ) -> Result<(AgentProcess, u8), CliError> {
     if live_provider {
-        if let Some(mut attempt) = live_attempt {
-            let process = attempt
-                .spawn()
-                .map_err(|_| CliError::operation("runtime live-provider spawn failed"))?;
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|_| CliError::operation("runtime clock is unavailable"))?
-                .as_millis() as u64;
-            let relay_worker = attempt
-                .start_relay(now)
-                .map_err(|_| CliError::operation("runtime live relay cannot start"))?;
-            return Ok((
-                AgentProcess::Live {
-                    process,
-                    _attempt: attempt,
-                    relay_worker: Some(relay_worker),
-                },
-                0,
-            ));
-        }
-        // Development-live direct execution is intentionally opt-in via the
-        // live-provider command switch and is only available for OpenRouter.
-        // The key is resolved immediately below, after all launch metadata has
-        // been validated and immediately before the child is spawned.
-        if launch.is_none_or(|value| {
-            value.input.provider != "openrouter"
-                || !matches!(value.input.adapter.as_str(), "opencode" | "opendesk")
-        }) {
-            return Err(CliError::validation(
-                "development live execution requires an OpenRouter OpenCode or OpenDesk launch",
-            ));
-        }
+        let mut attempt = live_attempt.ok_or_else(|| {
+            CliError::validation("live provider requires a runtime-issued attempt")
+        })?;
+        let process = attempt
+            .spawn()
+            .map_err(|_| CliError::operation("runtime live-provider spawn failed"))?;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| CliError::operation("runtime clock is unavailable"))?
+            .as_millis() as u64;
+        let relay_worker = attempt
+            .start_relay(now)
+            .map_err(|_| CliError::operation("runtime live relay cannot start"))?;
+        return Ok((
+            AgentProcess::Live {
+                process,
+                _attempt: attempt,
+                relay_worker: Some(relay_worker),
+            },
+            0,
+        ));
     }
     if let Some(launch) = launch {
         launch
@@ -5288,17 +5252,6 @@ fn spawn_verified_agent(
                     &launch.input.credential.reference_sha256,
                 )
                 .env(provider_launch::CREDENTIAL_TARGET_ENV, credential_target);
-            if live_provider && launch.input.provider == "openrouter" {
-                let key = std::env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV)
-                    .ok_or_else(|| {
-                        CliError::validation(
-                            "OPENROUTER_API_KEY is required for an explicit live development run",
-                        )
-                    })?;
-                command
-                    .env("ASB_PROVIDER_LIVE", "1")
-                    .env(asb_agents::openrouter::OPENROUTER_API_KEY_ENV, key);
-            }
         }
         match RunningProcess::spawn(command, limits) {
             Ok(process) => return Ok((AgentProcess::Direct(process), retry)),
@@ -7983,7 +7936,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             error.message,
-            "OPENROUTER_API_KEY is required for an explicit live development run"
+            "live provider requires a runtime-issued attempt factory"
         );
         assert!(!scratch.0.join("results").exists());
     }

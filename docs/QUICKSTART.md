@@ -59,13 +59,9 @@ The production-shaped workflow is deliberately explicit:
 3. Validate the experiment with `asb plan`, then run one point with `asb run`
    or a bounded matrix with `asb sweep`.
 4. For development and CI, select the credential-free local/mock path. For a
-   provider, the development build can make a real OpenRouter call with
-   `OPENROUTER_API_KEY` and `--live-provider` after explicit selection. Missing
-   credentials remain warning-only during setup, but an explicitly requested
-   live run fails clearly rather than silently using a mock. Production live
-   execution still requires explicit operator admission and a runtime-issued
-   credential capability; provider reachability is optional supplementary
-   evidence, never an offline qualification requirement.
+   provider, live execution requires explicit operator admission and a
+   runtime-issued credential capability; provider reachability is optional
+   supplementary evidence, never an offline qualification requirement.
 5. To preserve a runtime-authorized exchange, use `record-live` with explicit
    capture acknowledgements, then use `replay-offline` against the exact
    content-addressed cassette. Replay denies provider egress and cannot fall

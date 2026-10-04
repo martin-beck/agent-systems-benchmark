@@ -341,18 +341,7 @@ impl OpenDeskConfig {
             .env("OPENDESK_MODEL_NAME", &self.model)
             .env("OPENDESK_PROVIDER_TYPE", "openai")
             .env("OPENDESK_PROVIDER_BASE_URL", self.endpoint.as_str())
-            .env(
-                "OPENDESK_PROVIDER_API_KEY",
-                if std::env::var_os("ASB_PROVIDER_LIVE").is_some() {
-                    // The development-live CLI injects this value into the
-                    // adapter process as OPENROUTER_API_KEY.  Keep the
-                    // adapter's existing provider-specific boundary while
-                    // retaining the credential-free fixture by default.
-                    std::env::var_os("OPENROUTER_API_KEY").unwrap_or_default()
-                } else {
-                    std::ffi::OsString::from("asb-credential-free")
-                },
-            );
+            .env("OPENDESK_PROVIDER_API_KEY", "asb-credential-free");
         RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
     }
 

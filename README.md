@@ -10,10 +10,8 @@ and resource consumption remain within declared bounds.
 `sweep` execute the original in-tree workloads through a digest-pinned
 `batch-stdio-v1` executable, then persist bounded run evidence for reporting and
 comparison. Provider selection and record/replay are explicit CLI workflows:
-offline/local-mock qualification is the default development path. Live
-OpenRouter use is opt-in: development builds resolve `OPENROUTER_API_KEY` only
-for an explicit `--live-provider` run, while production use requires
-runtime-owned credential authority.
+offline/local-mock qualification is the default development path, while live
+provider use is opt-in and requires runtime-owned credential authority.
 
 The `asb-agents` library exposes a versioned `AllAgentsProviderSelection`
 configuration boundary for applying one pinned OpenAI or verified Ollama profile
@@ -66,7 +64,6 @@ asb doctor
 asb capabilities --format json
 asb plan EXPERIMENT.toml
 asb run EXPERIMENT.toml
-asb run EXPERIMENT.toml --provider-selection SELECTION.json --live-provider
 asb sweep EXPERIMENT.toml
 asb compare RUN...
 asb report RUN...
