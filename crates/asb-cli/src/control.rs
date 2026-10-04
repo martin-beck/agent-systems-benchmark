@@ -996,6 +996,9 @@ impl AuthoritySource for PlanAuthoritySource {
                 .live_provider
                 .as_ref()
                 .ok_or(AuthorityError::LiveUnavailable)?;
+            if let Some(started) = &self.execution_started {
+                started.store(true, Ordering::SeqCst);
+            }
             let result = provider(&plan, request);
             if let Ok(mut cancelled) = self.cancelled.lock() {
                 cancelled.remove(capability.binding());
@@ -10036,6 +10039,70 @@ printf '%s' 'not-json'
             format!("{:x}", Sha256::digest(b"real-openrouter-response"))
         );
         assert!(!seen.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn development_openrouter_boundary_rejects_unsupported_profiles_and_missing_keys() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.model.provider = "openrouter".into();
+        plan.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        plan.experiment.refresh_content_address().unwrap();
+        let mut request = plan_request(&plan).unwrap();
+
+        request.agent_id = asb_protocol::Id("unsupported-agent".into());
+        assert!(matches!(
+            development_openrouter_request(&plan, &request),
+            Err(AuthorityError::LiveUnavailable)
+        ));
+
+        request.agent_id = asb_protocol::Id("opencode".into());
+        if env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV).is_none() {
+            assert!(matches!(
+                development_openrouter_request(&plan, &request),
+                Err(AuthorityError::LiveUnavailable)
+            ));
+        }
+    }
+
+    #[test]
+    fn live_authority_requires_provider_and_cleans_failed_callback() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.model.provider = "openrouter".into();
+        plan.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        plan.experiment.refresh_content_address().unwrap();
+        let request = plan_request(&plan).unwrap();
+        let plans = Arc::new(Mutex::new(BTreeMap::from([(plan.run_id.clone(), plan)])));
+        let mut unavailable = PlanAuthoritySource {
+            plans: Arc::clone(&plans),
+            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+            execution_started: None,
+            live_provider: None,
+        };
+        assert!(matches!(
+            unavailable.prepare(&request),
+            Err(AuthorityError::LiveUnavailable)
+        ));
+
+        let started = Arc::new(AtomicBool::new(false));
+        let mut failing = PlanAuthoritySource {
+            plans,
+            cancelled: Arc::new(Mutex::new(BTreeMap::new())),
+            execution_started: Some(Arc::clone(&started)),
+            live_provider: Some(Arc::new(|_, _| Err(AuthorityError::LiveUnavailable))),
+        };
+        let capability = failing.prepare(&request).unwrap();
+        assert!(matches!(
+            failing.execute(&request, &capability),
+            Err(AuthorityError::LiveUnavailable)
+        ));
+        assert!(started.load(Ordering::SeqCst));
+        assert!(failing.cancelled.lock().unwrap().is_empty());
     }
 
     #[test]
