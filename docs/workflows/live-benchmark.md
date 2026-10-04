@@ -20,7 +20,27 @@ dataset download, or network access. Their results must be labeled `local_mock`
 or `strict_replay`; neither is official model-quality or native performance
 evidence.
 
-## Explicit live workflow
+## Development live workflow
+
+The development build also supports a direct, warning-only OpenRouter lane for
+the first-run wizard and local TUI development. It resolves the key only when
+the live command is launched; setup never contacts OpenRouter and never stores
+the key. After creating a provider selection and plan, run:
+
+```sh
+export OPENROUTER_API_KEY='your-key'
+asb run /absolute/path/EXPERIMENT.toml \
+  --provider-selection /absolute/path/selection.json --live-provider
+```
+
+The selected launch must be an OpenRouter OpenCode or OpenDesk adapter. The
+command performs real HTTPS provider calls and fails with an actionable error
+if the key is absent; it never silently switches to local/mock. The key is
+passed only to the short-lived selected child and is not written to plans,
+run manifests, logs, reports, or cassettes. This development lane is not a
+production authentication or signature claim.
+
+## Explicit production live workflow
 
 1. Enroll only a logical credential reference through the runtime-owned control
    service. Never put secret bytes in argv, environment exports, plans, logs,
@@ -40,12 +60,13 @@ evidence.
 7. Compare live and replay run directories only after preserving their evidence
    labels and manifests; replay does not establish fresh model quality.
 
-The ordinary process entry point does not construct live authority: `run` and
-`sweep` fail closed unless the runtime/control owner injects the opaque
-dispatch source through the authenticated composition boundary. That boundary
-returns only a runtime-minted source; policy, credential capabilities, lease
-and relay roots, namespace identity, tools, cancellation and teardown remain
-private to runtime/control.
+The production process entry point does not construct live authority: callers
+that provide a runtime/control owner inject the opaque dispatch source through
+the authenticated composition boundary. That boundary returns only a
+runtime-minted source; policy, credential capabilities, lease and relay roots,
+namespace identity, tools, cancellation and teardown remain private to
+runtime/control. The direct development lane above is intentionally separate
+and warning-only.
 
 See [Provider-aware launches](../PROVIDER_LAUNCH.md) for the exact catalog
 snapshot and support matrix, and [Record once, replay offline](record-replay.md)
