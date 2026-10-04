@@ -867,6 +867,20 @@ fn development_openrouter_request(
     drop(credential);
     let key = env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV)
         .ok_or(AuthorityError::LiveUnavailable)?;
+    development_openrouter_request_with_curl(plan, request, key, "curl")
+}
+
+fn development_openrouter_request_with_curl(
+    plan: &PlanFile,
+    request: &RunRequest,
+    key: std::ffi::OsString,
+    curl_program: &str,
+) -> Result<ExecutionOutcome, AuthorityError> {
+    if request.provider_id.0 != "openrouter"
+        || !matches!(request.agent_id.0.as_str(), "opencode" | "opendesk")
+    {
+        return Err(AuthorityError::LiveUnavailable);
+    }
     let body = serde_json::to_vec(&serde_json::json!({
         "model": request.model_id.0,
         "messages": [{
@@ -879,10 +893,11 @@ fn development_openrouter_request(
     let mut child = Command::new("sh")
         .args([
             "-c",
-            "exec curl --silent --show-error --fail --max-time \"$1\" --header 'Content-Type: application/json' --header \"Authorization: Bearer ${OPENROUTER_API_KEY}\" --data-binary @- \"$2\"",
+            "exec \"$3\" --silent --show-error --fail --max-time \"$1\" --header 'Content-Type: application/json' --header \"Authorization: Bearer ${OPENROUTER_API_KEY}\" --data-binary @- \"$2\"",
             "asb-development-openrouter",
             timeout.as_str(),
             asb_agents::openrouter::OPENROUTER_API_BASE,
+            curl_program,
         ])
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
@@ -9999,6 +10014,7 @@ printf '%s' 'not-json'
         let mut plan = fixture_plan(&scratch.0);
         plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
         plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.agent.implementation = "opencode".into();
         plan.experiment.model.provider = "openrouter".into();
         plan.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
         plan.experiment.refresh_content_address().unwrap();
@@ -10065,6 +10081,58 @@ printf '%s' 'not-json'
                 Err(AuthorityError::LiveUnavailable)
             ));
         }
+    }
+
+    #[test]
+    fn development_openrouter_request_covers_success_and_provider_failures() {
+        let scratch = Scratch::new();
+        let mut plan = fixture_plan(&scratch.0);
+        plan.experiment.controls.replay.mode = asb_protocol::ReplayMode::Live;
+        plan.experiment.controls.replay.cassette_sha256 = None;
+        plan.experiment.agent.implementation = "opencode".into();
+        plan.experiment.model.provider = "openrouter".into();
+        plan.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+        plan.experiment.refresh_content_address().unwrap();
+        let request = plan_request(&plan).unwrap();
+        let curl = scratch.0.join("fake-curl");
+
+        fs::write(
+            &curl,
+            "#!/bin/sh\ncat >/dev/null\nprintf 'openrouter-development-response'\n",
+        )
+        .unwrap();
+        fs::set_permissions(&curl, fs::Permissions::from_mode(0o700)).unwrap();
+        let outcome = development_openrouter_request_with_curl(
+            &plan,
+            &request,
+            std::ffi::OsString::from("test-secret"),
+            curl.to_str().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(outcome.output_bytes, 31);
+        assert_eq!(outcome.artifact_bytes, 0);
+
+        fs::write(&curl, "#!/bin/sh\ncat >/dev/null\nexit 22\n").unwrap();
+        assert!(matches!(
+            development_openrouter_request_with_curl(
+                &plan,
+                &request,
+                std::ffi::OsString::from("test-secret"),
+                curl.to_str().unwrap(),
+            ),
+            Err(AuthorityError::LiveUnavailable)
+        ));
+
+        fs::write(&curl, "#!/bin/sh\ncat >/dev/null\n").unwrap();
+        assert!(matches!(
+            development_openrouter_request_with_curl(
+                &plan,
+                &request,
+                std::ffi::OsString::from("test-secret"),
+                curl.to_str().unwrap(),
+            ),
+            Err(AuthorityError::LiveUnavailable)
+        ));
     }
 
     #[test]
