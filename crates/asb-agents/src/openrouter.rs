@@ -241,7 +241,10 @@ pub fn capture_openrouter_live(
     let config = format!(
         "url = {}{}\nrequest = POST\nheader = Authorization: Bearer {}\nheader = Content-Type: application/json\nmax-time = 1800\nconnect-timeout = 5\nmax-filesize = {}\n",
         translation.endpoint(),
-        match translation.api_mode { OpenRouterApiMode::Responses => "/responses", OpenRouterApiMode::ChatCompletions => "/chat/completions" },
+        match translation.api_mode {
+            OpenRouterApiMode::Responses => "/responses",
+            OpenRouterApiMode::ChatCompletions => "/chat/completions",
+        },
         String::from_utf8_lossy(&credential),
         MAX_LIVE_RESPONSE_BYTES
     );
@@ -252,7 +255,8 @@ pub fn capture_openrouter_live(
         .mode(0o600)
         .open(&config_path)
         .map_err(|_| OpenRouterLiveError::Transport)?;
-    file.write_all(config.as_bytes()).map_err(|_| OpenRouterLiveError::Transport)?;
+    file.write_all(config.as_bytes())
+        .map_err(|_| OpenRouterLiveError::Transport)?;
     drop(file);
     let result = Command::new("/usr/bin/curl")
         .args(["--silent", "--show-error", "--config"])
@@ -270,12 +274,25 @@ pub fn capture_openrouter_live(
     credential.fill(0);
     let output = result.map_err(|_| OpenRouterLiveError::Transport)?;
     if !output.status.success() || output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
-        return Err(if output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 { OpenRouterLiveError::ResponseTooLarge } else { OpenRouterLiveError::Transport });
+        return Err(if output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
+            OpenRouterLiveError::ResponseTooLarge
+        } else {
+            OpenRouterLiveError::Transport
+        });
     }
-    let marker = output.stdout.iter().rposition(|byte| *byte == b'\n').ok_or(OpenRouterLiveError::InvalidStatus)?;
-    let status = std::str::from_utf8(&output.stdout[marker + 1..]).ok().and_then(|s| s.trim().parse().ok()).ok_or(OpenRouterLiveError::InvalidStatus)?;
+    let marker = output
+        .stdout
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .ok_or(OpenRouterLiveError::InvalidStatus)?;
+    let status = std::str::from_utf8(&output.stdout[marker + 1..])
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .ok_or(OpenRouterLiveError::InvalidStatus)?;
     let body = output.stdout[..marker].to_vec();
-    if body.len() > MAX_LIVE_RESPONSE_BYTES { return Err(OpenRouterLiveError::ResponseTooLarge); }
+    if body.len() > MAX_LIVE_RESPONSE_BYTES {
+        return Err(OpenRouterLiveError::ResponseTooLarge);
+    }
     Ok(OpenRouterLiveResponse { status, body })
 }
 
