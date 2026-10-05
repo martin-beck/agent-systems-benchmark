@@ -83,6 +83,35 @@ pub struct OpenRouterFreeModelConfig {
     pub enrollment: AuthEnrollment,
 }
 
+/// Dynamic OpenRouter zero-price selection persisted by the setup wizard.
+/// Unlike the legacy dated pin, this binds the selected model to the exact
+/// normalized public catalog digest used during setup.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenRouterDynamicModelConfig {
+    /// Selection schema version.
+    pub schema_version: u16,
+    /// Exact provider-owned model identifier.
+    pub model: String,
+    /// Digest of the normalized zero-price catalog.
+    pub catalog_sha256: String,
+    /// Digest-only credential locator.
+    pub credential: CredentialReference,
+}
+
+impl OpenRouterDynamicModelConfig {
+    /// Validate the credential-free dynamic selection record.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != 1 {
+            return Err(ConfigError::UnsupportedVersion(self.schema_version));
+        }
+        validate_text(&self.model, "openrouter dynamic model")?;
+        validate_sha256(&self.catalog_sha256, "openrouter catalog digest")?;
+        self.credential.validate()?;
+        Ok(())
+    }
+}
+
 impl OpenRouterFreeModelConfig {
     /// Validate the complete selection and all enrollment bindings.
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -360,6 +389,9 @@ pub struct Configuration {
     /// Optional pinned OpenRouter free-model selection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub openrouter_free_model: Option<OpenRouterFreeModelConfig>,
+    /// Optional dynamic OpenRouter model selected from a refreshed catalog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openrouter_dynamic_model: Option<OpenRouterDynamicModelConfig>,
 }
 
 /// Bounded, credential-free provider/model discovery record.
@@ -766,6 +798,7 @@ impl Configuration {
             defaults: built_in_defaults(),
             agent_overrides: BTreeMap::new(),
             openrouter_free_model: None,
+            openrouter_dynamic_model: None,
         }
     }
 
@@ -869,6 +902,9 @@ impl Configuration {
             }
         }
         if let Some(selection) = &self.openrouter_free_model {
+            selection.validate()?;
+        }
+        if let Some(selection) = &self.openrouter_dynamic_model {
             selection.validate()?;
         }
         Ok(())
@@ -1305,6 +1341,7 @@ mod tests {
             },
             agent_overrides: BTreeMap::new(),
             openrouter_free_model: None,
+            openrouter_dynamic_model: None,
         }
     }
 

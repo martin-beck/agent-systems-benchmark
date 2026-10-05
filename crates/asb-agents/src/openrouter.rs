@@ -20,7 +20,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
@@ -40,14 +40,10 @@ pub const OPENROUTER_MODEL_SNAPSHOT: &str = "cohere/north-mini-code:free@2026-09
 pub const OPENROUTER_API_KEY_ENV: &str = "OPENROUTER_API_KEY";
 /// Maximum response body retained by the live capture boundary.
 pub const MAX_LIVE_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
-
-/// Credential-free provider-specific pinning evidence.
-const OPENROUTER_ADDITIONAL_SETTINGS: &str = concat!(
-    "openrouter-profile-v1\n",
-    "model_snapshot=cohere/north-mini-code:free@2026-09-25\n",
-    "api=openai-compatible\n",
-    "sampling=profile-defaults\n",
-);
+/// Maximum number of model records accepted from the public catalog.
+pub const MAX_DISCOVERED_MODELS: usize = 4096;
+/// Maximum serialized public model identifier accepted from the catalog.
+pub const MAX_MODEL_ID_BYTES: usize = 256;
 
 /// Built-in adapter whose OpenRouter route is being negotiated.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -172,6 +168,69 @@ pub enum OpenRouterProfileError {
     EffectiveRequestMismatch,
     /// Common provider-profile validation failed.
     Profile(ProviderProfileError),
+    /// The requested model was not explicitly advertised as zero-price.
+    ModelUnavailable,
+}
+
+/// A normalized, public OpenRouter model record. Pricing is retained as
+/// decimal text so discovery never introduces floating-point eligibility
+/// decisions or provider-specific rounding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OpenRouterDiscoveredModel {
+    /// Provider-owned model identifier.
+    pub model_id: String,
+    /// Normalized prompt price per token, as returned by OpenRouter.
+    pub prompt_price: String,
+    /// Normalized completion price per token, as returned by OpenRouter.
+    pub completion_price: String,
+}
+
+impl OpenRouterDiscoveredModel {
+    /// Whether this model is explicitly zero-price for both token classes.
+    pub fn is_zero_price(&self) -> bool {
+        self.prompt_price == "0" && self.completion_price == "0"
+    }
+}
+
+/// Deterministic normalized public model catalog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OpenRouterModelCatalog {
+    /// Explicitly zero-price models, sorted by provider model ID.
+    pub free_models: Vec<OpenRouterDiscoveredModel>,
+}
+
+impl OpenRouterModelCatalog {
+    /// Deterministic digest of the normalized zero-price roster.
+    pub fn digest_sha256(&self) -> String {
+        let mut digest = Sha256::new();
+        digest.update(b"asb-openrouter-free-catalog-v1\0");
+        for model in &self.free_models {
+            digest.update(model.model_id.as_bytes());
+            digest.update([0]);
+            digest.update(model.prompt_price.as_bytes());
+            digest.update([0]);
+            digest.update(model.completion_price.as_bytes());
+            digest.update([0]);
+        }
+        format!("{:x}", digest.finalize())
+    }
+}
+
+/// Failure while discovering or normalizing the public OpenRouter catalog.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum OpenRouterCatalogError {
+    /// The provider response was not a bounded JSON object with a data array.
+    #[error("OpenRouter model catalog is malformed")]
+    Malformed,
+    /// The public catalog exceeded the bounded record limit.
+    #[error("OpenRouter model catalog exceeds its bounded model limit")]
+    TooLarge,
+    /// Public catalog transport is unavailable or returned no usable bytes.
+    #[error("OpenRouter model catalog is unavailable")]
+    Unavailable,
+    /// The public endpoint returned a non-success status.
+    #[error("OpenRouter model catalog returned HTTP status {0}")]
+    HttpStatus(u16),
 }
 
 /// Bounded response returned by the explicit online capture transport.
@@ -446,6 +505,187 @@ fn openrouter_curl_transport(
         })
 }
 
+/// Normalize a bounded response from OpenRouter's public `/models` endpoint.
+///
+/// The endpoint is intentionally consumed without credentials. Only explicit
+/// zero prompt and completion prices are eligible for the development free
+/// roster; a `:free` suffix alone is not sufficient evidence. Unknown fields
+/// are ignored so provider additions do not break older ASB binaries.
+pub fn normalize_openrouter_model_catalog(
+    body: &[u8],
+) -> Result<OpenRouterModelCatalog, OpenRouterCatalogError> {
+    if body.len() > MAX_LIVE_RESPONSE_BYTES {
+        return Err(OpenRouterCatalogError::TooLarge);
+    }
+    let value: Value =
+        serde_json::from_slice(body).map_err(|_| OpenRouterCatalogError::Malformed)?;
+    let records = value
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or(OpenRouterCatalogError::Malformed)?;
+    if records.len() > MAX_DISCOVERED_MODELS {
+        return Err(OpenRouterCatalogError::TooLarge);
+    }
+    let mut free_models = Vec::new();
+    for record in records {
+        let Some(model_id) = record.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if model_id.is_empty() || model_id.len() > MAX_MODEL_ID_BYTES {
+            continue;
+        }
+        let Some(pricing) = record.get("pricing").and_then(Value::as_object) else {
+            continue;
+        };
+        let Some(prompt_price) = normalize_catalog_price(pricing.get("prompt")) else {
+            continue;
+        };
+        let Some(completion_price) = normalize_catalog_price(pricing.get("completion")) else {
+            continue;
+        };
+        let model = OpenRouterDiscoveredModel {
+            model_id: model_id.to_owned(),
+            prompt_price,
+            completion_price,
+        };
+        if model.is_zero_price() {
+            free_models.push(model);
+        }
+    }
+    free_models.sort_by(|left, right| left.model_id.cmp(&right.model_id));
+    free_models.dedup_by(|left, right| left.model_id == right.model_id);
+    Ok(OpenRouterModelCatalog { free_models })
+}
+
+fn normalize_catalog_price(value: Option<&Value>) -> Option<String> {
+    let raw = value?.as_str()?.trim();
+    if raw.is_empty() || raw.len() > 64 {
+        return None;
+    }
+    let unsigned = raw.strip_prefix('+').unwrap_or(raw);
+    if unsigned.starts_with('-') {
+        return None;
+    }
+    let unsigned = unsigned.strip_prefix('-').unwrap_or(unsigned);
+    let (mantissa, exponent) = unsigned
+        .split_once(['e', 'E'])
+        .map_or((unsigned, None), |(mantissa, exponent)| {
+            (mantissa, Some(exponent))
+        });
+    if let Some(exponent) = exponent {
+        let exponent_digits = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+        if exponent_digits.is_empty() || !exponent_digits.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return None;
+        }
+    }
+    let mut digits = 0usize;
+    let mut nonzero = false;
+    let mut decimal_points = 0usize;
+    for byte in mantissa.bytes() {
+        if byte == b'.' {
+            decimal_points += 1;
+        } else if byte.is_ascii_digit() {
+            digits += 1;
+            nonzero |= byte != b'0';
+        } else {
+            return None;
+        }
+    }
+    if digits == 0 || decimal_points > 1 {
+        return None;
+    }
+    if !nonzero {
+        return Some("0".to_owned());
+    }
+    Some(raw.to_owned())
+}
+
+/// Discover and normalize the public OpenRouter model roster without a key.
+///
+/// The transport is injected in tests and kept separate from normalization so
+/// fixtures can prove eligibility and typed unavailable behavior without
+/// network access.
+pub fn discover_openrouter_model_catalog() -> Result<OpenRouterModelCatalog, OpenRouterCatalogError>
+{
+    let mut child = Command::new("curl")
+        .args([
+            "--silent",
+            "--show-error",
+            "--max-time",
+            "10",
+            "--max-filesize",
+            &MAX_LIVE_RESPONSE_BYTES.to_string(),
+            "--write-out",
+            "\n%{http_code}",
+            "--header",
+            "Accept: application/json",
+            &format!("{OPENROUTER_API_BASE}/models"),
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|_| OpenRouterCatalogError::Unavailable)?;
+    let mut stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(OpenRouterCatalogError::Unavailable);
+        }
+    };
+    let mut bounded = Vec::new();
+    if stdout
+        .by_ref()
+        .take((MAX_LIVE_RESPONSE_BYTES + 17) as u64)
+        .read_to_end(&mut bounded)
+        .is_err()
+    {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(OpenRouterCatalogError::Unavailable);
+    }
+    if bounded.len() > MAX_LIVE_RESPONSE_BYTES + 16 {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(OpenRouterCatalogError::TooLarge);
+    }
+    let status = child
+        .wait()
+        .map_err(|_| OpenRouterCatalogError::Unavailable)?;
+    if !status.success() {
+        return Err(OpenRouterCatalogError::Unavailable);
+    }
+    let marker = bounded
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .ok_or(OpenRouterCatalogError::Unavailable)?;
+    let status = std::str::from_utf8(&bounded[marker + 1..])
+        .ok()
+        .and_then(|value| value.trim().parse::<u16>().ok())
+        .ok_or(OpenRouterCatalogError::Unavailable)?;
+    discover_openrouter_model_catalog_with(|| Ok((status, bounded[..marker].to_vec())))
+}
+
+/// Discover a catalog through an injected bounded HTTP transport.
+///
+/// This seam lets offline tests prove unavailable, non-success, oversized,
+/// and malformed provider responses without contacting OpenRouter.
+pub fn discover_openrouter_model_catalog_with<F>(
+    transport: F,
+) -> Result<OpenRouterModelCatalog, OpenRouterCatalogError>
+where
+    F: FnOnce() -> Result<(u16, Vec<u8>), OpenRouterCatalogError>,
+{
+    let (status, body) = transport()?;
+    if !(200..=299).contains(&status) {
+        return Err(OpenRouterCatalogError::HttpStatus(status));
+    }
+    if body.len() > MAX_LIVE_RESPONSE_BYTES {
+        return Err(OpenRouterCatalogError::TooLarge);
+    }
+    normalize_openrouter_model_catalog(&body)
+}
+
 /// Quote one curl-config value using curl's double-quoted string grammar.
 ///
 /// Credentials are validated as printable bytes at resolution time, but the
@@ -574,6 +814,8 @@ impl fmt::Display for OpenRouterProfileError {
             Self::Profile(error) => {
                 write!(formatter, "invalid OpenRouter provider profile: {error}")
             }
+            Self::ModelUnavailable => formatter
+                .write_str("OpenRouter model is unavailable in the discovered free catalog"),
         }
     }
 }
@@ -591,6 +833,35 @@ impl OpenRouterProfile {
     pub fn new(
         credential_reference_sha256: impl Into<String>,
     ) -> Result<Self, OpenRouterProfileError> {
+        Self::new_with_model(credential_reference_sha256, OPENROUTER_MODEL)
+    }
+
+    /// Construct a profile for a model explicitly admitted by a normalized
+    /// zero-price catalog. The catalog is checked before any provider request.
+    pub fn new_from_free_catalog(
+        credential_reference_sha256: impl Into<String>,
+        catalog: &OpenRouterModelCatalog,
+        model: &str,
+    ) -> Result<Self, OpenRouterProfileError> {
+        if !catalog
+            .free_models
+            .iter()
+            .any(|entry| entry.model_id == model)
+        {
+            return Err(OpenRouterProfileError::ModelUnavailable);
+        }
+        Self::new_with_model(credential_reference_sha256, model)
+    }
+
+    /// Construct a profile for an exact provider-owned model identifier.
+    /// Callers selecting online models should prefer `new_from_free_catalog`.
+    pub fn new_with_model(
+        credential_reference_sha256: impl Into<String>,
+        model: &str,
+    ) -> Result<Self, OpenRouterProfileError> {
+        if model.is_empty() || model.len() > MAX_MODEL_ID_BYTES {
+            return Err(OpenRouterProfileError::ModelUnavailable);
+        }
         let credential_reference_sha256 = credential_reference_sha256.into();
         if !is_sha256(&credential_reference_sha256) {
             return Err(OpenRouterProfileError::InvalidCredentialReference);
@@ -599,7 +870,20 @@ impl OpenRouterProfile {
         let mut endpoint_digest = Sha256::new();
         endpoint_digest.update(endpoint.as_str().as_bytes());
         let mut additional = Sha256::new();
-        additional.update(OPENROUTER_ADDITIONAL_SETTINGS.as_bytes());
+        let additional_settings = if model == OPENROUTER_MODEL {
+            concat!(
+                "openrouter-profile-v1\n",
+                "model_snapshot=cohere/north-mini-code:free@2026-09-25\n",
+                "api=openai-compatible\n",
+                "sampling=profile-defaults\n",
+            )
+            .to_owned()
+        } else {
+            format!(
+                "openrouter-profile-v1\nmodel={model}\napi=openai-compatible\nsampling=profile-defaults\n"
+            )
+        };
+        additional.update(additional_settings.as_bytes());
         let mut profile = ProviderProfileV1 {
             version: PROVIDER_PROFILE_V1,
             settings_sha256: String::new(),
@@ -608,7 +892,7 @@ impl OpenRouterProfile {
                 class: EndpointClass::PublicService,
                 identity_sha256: format!("{:x}", endpoint_digest.finalize()),
             },
-            model: OPENROUTER_MODEL.into(),
+            model: model.into(),
             settings: ProviderSettings {
                 temperature_milli: None,
                 top_p_millionth: None,
@@ -649,16 +933,17 @@ impl OpenRouterProfile {
             return Err(OpenRouterProfileError::ProfileMismatch);
         }
         let (api_mode, model) = match agent {
-            OpenRouterAgent::Codex => (OpenRouterApiMode::Responses, OPENROUTER_MODEL.into()),
+            OpenRouterAgent::Codex => (OpenRouterApiMode::Responses, self.profile.model.clone()),
             OpenRouterAgent::OpenCode
             | OpenRouterAgent::OpenDesk
             | OpenRouterAgent::Aider
             | OpenRouterAgent::QwenCode
             | OpenRouterAgent::Goose
             | OpenRouterAgent::MiniSwe
-            | OpenRouterAgent::OpenHands => {
-                (OpenRouterApiMode::ChatCompletions, OPENROUTER_MODEL.into())
-            }
+            | OpenRouterAgent::OpenHands => (
+                OpenRouterApiMode::ChatCompletions,
+                self.profile.model.clone(),
+            ),
             OpenRouterAgent::Gemini => return Err(OpenRouterProfileError::UnsupportedAgent(agent)),
         };
         Ok(OpenRouterTranslation {
@@ -698,7 +983,7 @@ impl OpenRouterProfile {
             .as_object()
             .ok_or(OpenRouterProfileError::EffectiveRequestMismatch)?;
         if path != expected_path
-            || object.get("model").and_then(Value::as_str) != Some(OPENROUTER_MODEL)
+            || object.get("model").and_then(Value::as_str) != Some(translation.model.as_str())
             || object.get("stream").and_then(Value::as_bool) != Some(true)
             || object
                 .get("tools")
@@ -1409,5 +1694,120 @@ mod tests {
         })
         .unwrap();
         assert_eq!(resolved.into_transport_bytes(), b"synthetic-value");
+    }
+
+    #[test]
+    fn model_catalog_normalizes_zero_price_models_deterministically() {
+        let body = br#"{
+          "data": [
+            {"id":"vendor/zeta:free","pricing":{"prompt":"0.000","completion":"0"}},
+            {"id":"vendor/paid","pricing":{"prompt":"0","completion":"0.0001"}},
+            {"id":"vendor/alpha","pricing":{"prompt":"0","completion":"0"}},
+            {"id":"vendor/zeta:free","pricing":{"prompt":"0","completion":"0"}},
+            {"id":"vendor/missing-pricing"}
+          ]
+        }"#;
+        let catalog = normalize_openrouter_model_catalog(body).unwrap();
+        assert_eq!(
+            catalog
+                .free_models
+                .iter()
+                .map(|model| model.model_id.as_str())
+                .collect::<Vec<_>>(),
+            ["vendor/alpha", "vendor/zeta:free"]
+        );
+        assert!(
+            catalog
+                .free_models
+                .iter()
+                .all(OpenRouterDiscoveredModel::is_zero_price)
+        );
+    }
+
+    #[test]
+    fn model_catalog_rejects_malformed_shape_and_bounds_invalid_records() {
+        assert!(matches!(
+            normalize_openrouter_model_catalog(br#"[]"#),
+            Err(OpenRouterCatalogError::Malformed)
+        ));
+        let body =
+            br#"{"data":[{"id":"vendor/model","pricing":{"prompt":"NaN","completion":"0"}}]}"#;
+        let catalog = normalize_openrouter_model_catalog(body).unwrap();
+        assert!(catalog.free_models.is_empty());
+    }
+
+    #[test]
+    fn model_catalog_rejects_tiny_positive_decimal_as_paid() {
+        let body =
+            br#"{"data":[{"id":"vendor/tiny","pricing":{"prompt":"1e-400","completion":"0"}}]}"#;
+        let catalog = normalize_openrouter_model_catalog(body).unwrap();
+        assert!(catalog.free_models.is_empty());
+    }
+
+    #[test]
+    fn model_catalog_transport_failures_are_typed_and_bounded() {
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| Err(OpenRouterCatalogError::Unavailable)),
+            Err(OpenRouterCatalogError::Unavailable)
+        ));
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| Ok((429, Vec::new()))),
+            Err(OpenRouterCatalogError::HttpStatus(429))
+        ));
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| {
+                Ok((200, vec![b'x'; MAX_LIVE_RESPONSE_BYTES + 1]))
+            }),
+            Err(OpenRouterCatalogError::TooLarge)
+        ));
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| Ok((200, b"not-json".to_vec()))),
+            Err(OpenRouterCatalogError::Malformed)
+        ));
+    }
+
+    #[test]
+    fn model_catalog_digest_is_order_independent_and_roster_bound() {
+        let first = OpenRouterModelCatalog {
+            free_models: vec![OpenRouterDiscoveredModel {
+                model_id: "vendor/alpha".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let second = OpenRouterModelCatalog {
+            free_models: vec![OpenRouterDiscoveredModel {
+                model_id: "vendor/beta".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        assert_ne!(first.digest_sha256(), second.digest_sha256());
+    }
+
+    #[test]
+    fn dynamic_profile_requires_catalog_eligibility_and_preserves_model_identity() {
+        let catalog = OpenRouterModelCatalog {
+            free_models: vec![OpenRouterDiscoveredModel {
+                model_id: "vendor/free-model".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let profile = OpenRouterProfile::new_from_free_catalog(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            &catalog,
+            "vendor/free-model",
+        )
+        .unwrap();
+        assert_eq!(profile.provider_profile().model, "vendor/free-model");
+        assert!(matches!(
+            OpenRouterProfile::new_from_free_catalog(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                &catalog,
+                "vendor/paid-model"
+            ),
+            Err(OpenRouterProfileError::ModelUnavailable)
+        ));
     }
 }

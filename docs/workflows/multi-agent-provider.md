@@ -9,8 +9,15 @@ the immutable selection identity.
 
 ```sh
 asb provider-catalog > catalog.json
+# Optional online refresh: discovers the public zero-price OpenRouter roster.
+asb provider-catalog --refresh > catalog.json
 asb provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai|openrouter \
+  --agent codex --agent opendesk \
+  --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
+# For a refreshed OpenRouter roster, select the admitted model explicitly:
+asb provider-plan --catalog-sha256 CATALOG_SHA256 \
+  --provider-profile openrouter --model MODEL \
   --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
 asb plan /absolute/path/EXPERIMENT.toml --provider-selection selection.json
@@ -25,6 +32,18 @@ through the OpenRouter public API with `OPENROUTER_API_KEY` as the environment
 credential reference); `openai` selects the pinned OpenAI profile. A stale
 catalog, duplicate agent, unsupported adapter, or mismatched experiment fails
 before result/work roots or processes are created.
+
+The refresh is credential-free and normalizes only models whose public catalog
+pricing explicitly reports zero prompt and completion prices. To request one of
+those models in a plan, pass `--model MODEL`; a missing, paid, stale, or
+unavailable model returns a typed validation error before any provider request.
+The refreshed `catalog_sha256` is the digest of that normalized roster and must
+be passed unchanged to `provider-plan`; a plan never silently reuses a newer
+roster. Records missing a valid bounded ID or both parseable price fields are
+skipped as malformed and cannot become eligible.
+If the public catalog cannot be reached, retain the pinned offline roster and
+use the ordinary credential-free path; setup and local development do not block
+on authentication or discovery.
 
 ## Per-user OpenRouter configuration
 
@@ -44,6 +63,11 @@ The older `asb config openrouter` route remains compatible for existing
 configurations that have no setup-selected agent declarations. Once an agent
 is selected by the wizard, its persisted profile is authoritative, including
 when it replaces a prior legacy OpenRouter enrollment.
+
+When both records exist, the wizard's dynamic model record is authoritative over the
+legacy pinned record: `provider-plan --use-config` revalidates its saved model against
+the saved normalized-catalog digest. Re-run setup after refreshing the catalog to choose
+a different model; selecting the pinned model again replaces and clears the dynamic record.
 
 Persist the pinned dated free-model selection and credential-free
 `OPENROUTER_API_KEY` environment reference, then use it without repeating the

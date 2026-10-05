@@ -15,8 +15,10 @@ use asb_agents::all_agents_provider::{
 };
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::opencode::{OpenCodeArtifact, OpenCodeConfig};
+use asb_agents::openrouter::OpenRouterCatalogError;
 use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::openrouter::{OpenRouterAgent, OpenRouterLiveError, capture_openrouter_live};
+use asb_agents::openrouter::{OpenRouterProfileError, discover_openrouter_model_catalog};
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
     RuntimeBundleIdentity, credential_target_for_provider_agent,
@@ -728,12 +730,15 @@ fn dispatch(
         [command] if command == "capabilities" && explicit_json => {
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
-        [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command] if command == "provider-catalog" => provider_catalog(stdout, false).map(|()| 0),
+        [command, refresh] if command == "provider-catalog" && refresh == "--refresh" => {
+            provider_catalog(stdout, true).map(|()| 0)
+        }
         [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
         [command, format, value]
             if command == "provider-catalog" && format == "--format" && value == "json" =>
         {
-            provider_catalog(stdout).map(|()| 0)
+            provider_catalog(stdout, false).map(|()| 0)
         }
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
@@ -1130,7 +1135,7 @@ fn guided_local(
     if args[0] == "provider-catalog"
         && (args.len() == 1 || (args.len() == 3 && args[1] == "--format" && args[2] == "json"))
     {
-        return provider_catalog(output).map(|()| 0);
+        return provider_catalog(output, false).map(|()| 0);
     }
     if args[0] == "adapter-catalog" && args.len() == 1 {
         return adapter_catalog(output).map(|()| 0);
@@ -1249,7 +1254,22 @@ fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
     if let (Some(profile), Some(model)) = (profile, model) {
         let expected = match profile {
             "openai" => asb_agents::openai::OPENAI_MODEL,
-            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
+            "openrouter" if model == asb_agents::openrouter::OPENROUTER_MODEL => model,
+            "openrouter" => {
+                let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
+                if catalog
+                    .free_models
+                    .iter()
+                    .any(|entry| entry.model_id == model)
+                {
+                    model
+                } else {
+                    return Err(CliError::validation_code(
+                        "provider_model_unavailable",
+                        "guided setup model is unavailable or not explicitly zero-price",
+                    ));
+                }
+            }
             "ollama" => {
                 return Err(CliError::validation(
                     "guided setup provider is unavailable without verified local daemon evidence",
@@ -1593,6 +1613,17 @@ struct SetupAuthentication {
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
 /// phase; this contract gives scripts a stable, explicit preflight surface.
 fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    setup_with_catalog(args, output, discover_openrouter_model_catalog)
+}
+
+fn setup_with_catalog<F>(
+    args: &[String],
+    output: &mut dyn Write,
+    discover_catalog: F,
+) -> Result<(), CliError>
+where
+    F: Fn() -> Result<asb_agents::openrouter::OpenRouterModelCatalog, OpenRouterCatalogError>,
+{
     let mut provider_profile = None;
     let mut model = None;
     let mut output_path = None;
@@ -1600,6 +1631,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let mut agents = Vec::new();
     let mut credential_environment = None;
     let mut default_for_all = true;
+    let mut dynamic_catalog_sha256 = None;
     let mut index = 0;
     while index < args.len() {
         let value = args[index].as_str();
@@ -1670,7 +1702,9 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     if let (Some(profile), Some(model_name)) = (&provider_profile, &model) {
         let compatible = match profile.as_str() {
             "openai" => model_name.starts_with("gpt-") || model_name.starts_with("o1"),
-            "openrouter" => model_name == asb_agents::openrouter::OPENROUTER_MODEL,
+            "openrouter" => {
+                model_name == asb_agents::openrouter::OPENROUTER_MODEL || !model_name.is_empty()
+            }
             "gemini" => model_name.starts_with("gemini-"),
             "ollama" => ["llama", "mistral", "qwen", "phi"]
                 .iter()
@@ -1729,24 +1763,23 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             kind: CredentialReferenceKind::Environment,
             locator_sha256: format!("{:x}", Sha256::digest(credential_env.as_bytes())),
         };
-        let expected_model = match provider {
-            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
-            "openai" => asb_agents::openai::OPENAI_MODEL,
-            _ => return Err(CliError::validation("unsupported setup provider")),
-        };
-        if selected_model != expected_model {
-            return Err(CliError::validation(
-                "setup model is not currently supported by the selected provider",
-            ));
+        let selected_agents = agents
+            .iter()
+            .map(|agent| parse_agent(agent))
+            .collect::<Result<Vec<_>, _>>()?;
+        if provider == "openrouter" && selected_model != asb_agents::openrouter::OPENROUTER_MODEL {
+            let catalog = discover_catalog().map_err(catalog_cli_error)?;
+            dynamic_catalog_sha256 = Some(catalog.digest_sha256());
+            provider_plan_for_selected_model_in_catalog(
+                provider,
+                selected_agents,
+                Some(&credential.locator_sha256),
+                selected_model,
+                &catalog,
+            )?;
+        } else {
+            provider_plan_for(provider, selected_agents, Some(&credential.locator_sha256))?;
         }
-        provider_plan_for(
-            provider,
-            agents
-                .iter()
-                .map(|agent| parse_agent(agent))
-                .collect::<Result<Vec<_>, _>>()?,
-            Some(&credential.locator_sha256),
-        )?;
         let endpoint = match provider {
             "openrouter" => asb_agents::openrouter::OPENROUTER_API_BASE,
             "openai" => asb_agents::openai::OPENAI_API_BASE,
@@ -1770,7 +1803,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
                 provider: provider.to_owned(),
                 model: selected_model.to_owned(),
                 endpoint: endpoint.to_owned(),
-                credential: Some(credential),
+                credential: Some(credential.clone()),
             },
             connection_name,
             connection: ConfigConnection {
@@ -1783,6 +1816,20 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         next = next.apply_provider_selection(&selection).map_err(|_| {
             CliError::validation("setup selection is incompatible with configuration")
         })?;
+        if provider == "openrouter" && selected_model != asb_agents::openrouter::OPENROUTER_MODEL {
+            next.openrouter_dynamic_model = Some(asb_config::OpenRouterDynamicModelConfig {
+                schema_version: 1,
+                model: selected_model.to_owned(),
+                catalog_sha256: dynamic_catalog_sha256
+                    .expect("dynamic catalog admission recorded its digest"),
+                credential: CredentialReference {
+                    kind: CredentialReferenceKind::Environment,
+                    locator_sha256: credential.locator_sha256.clone(),
+                },
+            });
+        } else {
+            next.openrouter_dynamic_model = None;
+        }
         store
             .save(&next)
             .map_err(|_| CliError::operation("setup configuration cannot be persisted"))?;
@@ -2463,6 +2510,10 @@ struct ProviderCatalogOutput {
     catalog_sha256: String,
     agents: &'static [&'static str],
     profiles: [ProviderCatalogEntry; 4],
+    /// Public zero-price OpenRouter roster; never contains credentials.
+    openrouter_free_models: Vec<String>,
+    /// `pinned` for the offline roster or `refreshed` after public discovery.
+    openrouter_catalog_status: &'static str,
 }
 
 #[derive(Serialize)]
@@ -2543,7 +2594,63 @@ fn workload_catalog_output(output: &mut dyn Write) -> Result<(), CliError> {
     )
 }
 
-fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
+fn provider_catalog(output: &mut dyn Write, refresh: bool) -> Result<(), CliError> {
+    if refresh {
+        let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
+        return provider_catalog_with_catalog(output, &catalog, "refreshed");
+    }
+    provider_catalog_with_models(
+        output,
+        vec![asb_agents::openrouter::OPENROUTER_MODEL.to_owned()],
+        provider_catalog_digest(),
+        "pinned",
+    )
+}
+
+fn catalog_cli_error(error: OpenRouterCatalogError) -> CliError {
+    match error {
+        OpenRouterCatalogError::Unavailable => CliError::operation_code(
+            "provider_catalog_unavailable",
+            "OpenRouter model catalog is unavailable",
+        ),
+        OpenRouterCatalogError::HttpStatus(_) => CliError::operation_code(
+            "provider_catalog_http_error",
+            "OpenRouter model catalog returned a non-success status",
+        ),
+        OpenRouterCatalogError::TooLarge => CliError::validation_code(
+            "provider_catalog_too_large",
+            "OpenRouter model catalog exceeds its bounded response size",
+        ),
+        OpenRouterCatalogError::Malformed => CliError::validation_code(
+            "provider_catalog_malformed",
+            "OpenRouter model catalog is malformed",
+        ),
+    }
+}
+
+fn provider_catalog_with_catalog(
+    output: &mut dyn Write,
+    catalog: &asb_agents::openrouter::OpenRouterModelCatalog,
+    status: &'static str,
+) -> Result<(), CliError> {
+    provider_catalog_with_models(
+        output,
+        catalog
+            .free_models
+            .iter()
+            .map(|model| model.model_id.clone())
+            .collect(),
+        catalog.digest_sha256(),
+        status,
+    )
+}
+
+fn provider_catalog_with_models(
+    output: &mut dyn Write,
+    openrouter_free_models: Vec<String>,
+    catalog_sha256: String,
+    openrouter_catalog_status: &'static str,
+) -> Result<(), CliError> {
     write_json(
         output,
         &ProviderCatalogOutput {
@@ -2551,8 +2658,10 @@ fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
             ok: true,
             command: "provider-catalog",
             catalog_version: PROVIDER_CATALOG_VERSION,
-            catalog_sha256: provider_catalog_digest(),
+            catalog_sha256,
             agents: &AGENT_IDS,
+            openrouter_free_models,
+            openrouter_catalog_status,
             profiles: [
                 ProviderCatalogEntry {
                     id: "openai",
@@ -2769,9 +2878,19 @@ fn provider_plan_at(
     output: &mut dyn Write,
     store: &ConfigStore,
 ) -> Result<(), CliError> {
+    provider_plan_at_with_catalog(args, output, store, None)
+}
+
+fn provider_plan_at_with_catalog(
+    args: &[String],
+    output: &mut dyn Write,
+    store: &ConfigStore,
+    catalog_override: Option<&asb_agents::openrouter::OpenRouterModelCatalog>,
+) -> Result<(), CliError> {
     let mut catalog_sha256 = None;
     let mut provider = None;
     let mut credential_reference_sha256 = None;
+    let mut requested_model = None;
     let mut use_config = false;
     let mut agents = Vec::new();
     let mut index = 0;
@@ -2793,12 +2912,16 @@ fn provider_plan_at(
         match flag {
             "--catalog-sha256" if catalog_sha256.replace(value.as_str()).is_none() => {}
             "--provider-profile" if provider.replace(value.as_str()).is_none() => {}
+            "--model" if requested_model.replace(value.as_str()).is_none() => {}
             "--credential-reference-sha256"
                 if credential_reference_sha256
                     .replace(value.as_str())
                     .is_none() => {}
             "--agent" if agents.len() < MAX_SELECTED_AGENTS => agents.push(parse_agent(value)?),
-            "--catalog-sha256" | "--provider-profile" | "--credential-reference-sha256" => {
+            "--catalog-sha256"
+            | "--provider-profile"
+            | "--credential-reference-sha256"
+            | "--model" => {
                 return Err(CliError::usage(
                     "provider-plan option was supplied more than once",
                 ));
@@ -2810,14 +2933,8 @@ fn provider_plan_at(
         }
         index += 2;
     }
-    let expected_catalog = provider_catalog_digest();
-    if catalog_sha256 != Some(expected_catalog.as_str()) {
-        return Err(CliError::validation(
-            "provider catalog identity is stale or absent",
-        ));
-    }
     let config = use_config
-        .then(|| load_openrouter_config_at(store))
+        .then(|| load_openrouter_plan_config_at(store))
         .transpose()?;
     let provider = provider
         .or_else(|| config.as_ref().map(|_| "openrouter"))
@@ -2829,21 +2946,74 @@ fn provider_plan_at(
     }
     if let Some(config) = &config {
         if let Some(requested) = credential_reference_sha256
-            && requested != config.credential.locator_sha256
+            && requested != config.credential_reference_sha256
         {
             return Err(CliError::validation(
                 "configured credential reference does not match",
             ));
         }
-        credential_reference_sha256 = Some(config.credential.locator_sha256.as_str());
+        credential_reference_sha256 = Some(config.credential_reference_sha256.as_str());
+        if config.dynamic {
+            if let Some(requested) = requested_model
+                && requested != config.model
+            {
+                return Err(CliError::validation(
+                    "configured OpenRouter model does not match the requested model",
+                ));
+            }
+            requested_model = Some(config.model.as_str());
+            if let Some(requested) = catalog_sha256
+                && requested != config.catalog_sha256
+            {
+                return Err(CliError::validation(
+                    "configured OpenRouter catalog does not match the requested catalog",
+                ));
+            }
+            catalog_sha256 = Some(config.catalog_sha256.as_str());
+        }
+    }
+    let expected_catalog = provider_catalog_digest();
+    if requested_model.is_none() && catalog_sha256 != Some(expected_catalog.as_str()) {
+        return Err(CliError::validation(
+            "provider catalog identity is stale or absent",
+        ));
     }
     if provider == "ollama" {
         return Err(CliError::validation(
             "provider profile is advertised but unavailable without verified daemon evidence",
         ));
     }
-    let (provider_kind, plan, model) =
-        provider_plan_for(provider, agents, credential_reference_sha256)?;
+    let dynamic_catalog = requested_model.is_some();
+    let (provider_kind, plan, model) = if let Some(model) = requested_model {
+        let expected_catalog_sha256 = catalog_sha256
+            .ok_or_else(|| CliError::validation("provider catalog identity is stale or absent"))?;
+        if let Some(catalog) = catalog_override {
+            if catalog.digest_sha256() != expected_catalog_sha256 {
+                return Err(CliError::validation(
+                    "provider catalog identity is stale or absent",
+                ));
+            }
+            provider_plan_for_selected_model_in_catalog(
+                provider,
+                agents,
+                credential_reference_sha256,
+                model,
+                catalog,
+            )?
+        } else {
+            provider_plan_for_selected_model(
+                provider,
+                agents,
+                credential_reference_sha256,
+                model,
+                expected_catalog_sha256,
+            )?
+        }
+    } else {
+        let (provider_kind, plan, model) =
+            provider_plan_for(provider, agents, credential_reference_sha256)?;
+        (provider_kind, plan, model.to_owned())
+    };
     let effective = plan
         .effective()
         .iter()
@@ -2861,8 +3031,15 @@ fn provider_plan_at(
             .map(|item| parse_agent(&item.agent))
             .collect::<Result<Vec<_>, _>>()?,
     };
+    let catalog_identity = if dynamic_catalog {
+        catalog_sha256
+            .expect("dynamic model selection validated the catalog identity")
+            .to_owned()
+    } else {
+        expected_catalog.clone()
+    };
     let selection_sha256 =
-        provider_selection_digest(&expected_catalog, &canonical_selection, &effective)?;
+        provider_selection_digest(&catalog_identity, &canonical_selection, &effective)?;
     write_json(
         output,
         &ProviderPlanOutput {
@@ -2870,11 +3047,11 @@ fn provider_plan_at(
             ok: true,
             command: "provider-plan".to_owned(),
             dry_run: true,
-            catalog_sha256: expected_catalog,
+            catalog_sha256: catalog_identity,
             selection_sha256,
             provider_profile: provider.to_owned(),
             provider_profile_sha256: plan.profile_sha256().to_owned(),
-            model: model.to_owned(),
+            model,
             credential_source: "environment".to_owned(),
             credential_reference_sha256: credential_reference_sha256
                 .expect("provider profile resolution validated the credential reference identity")
@@ -2882,6 +3059,38 @@ fn provider_plan_at(
             effective,
         },
     )
+}
+
+struct OpenRouterPlanConfig {
+    model: String,
+    catalog_sha256: String,
+    credential_reference_sha256: String,
+    dynamic: bool,
+}
+
+fn load_openrouter_plan_config_at(store: &ConfigStore) -> Result<OpenRouterPlanConfig, CliError> {
+    let config = store
+        .load()
+        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
+        .ok_or_else(|| CliError::validation("OpenRouter configuration is absent"))?;
+    if let Some(dynamic) = config.openrouter_dynamic_model {
+        dynamic
+            .validate()
+            .map_err(|_| CliError::validation("OpenRouter dynamic configuration is invalid"))?;
+        return Ok(OpenRouterPlanConfig {
+            model: dynamic.model,
+            catalog_sha256: dynamic.catalog_sha256,
+            credential_reference_sha256: dynamic.credential.locator_sha256,
+            dynamic: true,
+        });
+    }
+    let selection = load_openrouter_config_at(store)?;
+    Ok(OpenRouterPlanConfig {
+        model: selection.model,
+        catalog_sha256: provider_catalog_digest(),
+        credential_reference_sha256: selection.credential.locator_sha256,
+        dynamic: false,
+    })
 }
 
 fn load_openrouter_config_at(store: &ConfigStore) -> Result<OpenRouterFreeModelConfig, CliError> {
@@ -2991,6 +3200,74 @@ fn provider_plan_for(
         }
     };
     Ok((selection.provider, plan, model))
+}
+
+/// Resolve an explicitly requested OpenRouter model only after the public
+/// zero-price catalog has admitted it. This keeps stale or paid model IDs out
+/// of provider plans while preserving the pinned offline path above.
+fn provider_plan_for_selected_model(
+    provider: &str,
+    agents: Vec<SelectedAgent>,
+    credential_reference_sha256: Option<&str>,
+    model: &str,
+    expected_catalog_sha256: &str,
+) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, String), CliError> {
+    if provider != "openrouter" {
+        return Err(CliError::validation(
+            "dynamic model selection is currently supported only for openrouter",
+        ));
+    }
+    let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
+    if catalog.digest_sha256() != expected_catalog_sha256 {
+        return Err(CliError::validation(
+            "provider catalog identity is stale or absent",
+        ));
+    }
+    provider_plan_for_selected_model_in_catalog(
+        provider,
+        agents,
+        credential_reference_sha256,
+        model,
+        &catalog,
+    )
+}
+
+fn provider_plan_for_selected_model_in_catalog(
+    provider: &str,
+    agents: Vec<SelectedAgent>,
+    credential_reference_sha256: Option<&str>,
+    model: &str,
+    catalog: &asb_agents::openrouter::OpenRouterModelCatalog,
+) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, String), CliError> {
+    if provider != "openrouter" {
+        return Err(CliError::validation(
+            "dynamic model selection is currently supported only for openrouter",
+        ));
+    }
+    let credential = credential_reference_sha256
+        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
+    let profile =
+        OpenRouterProfile::new_from_free_catalog(credential, catalog, model).map_err(|error| {
+            match error {
+                OpenRouterProfileError::ModelUnavailable => CliError::validation_code(
+                    "provider_model_unavailable",
+                    "OpenRouter model is unavailable or not explicitly zero-price",
+                ),
+                _ => CliError::validation("credential reference identity is invalid"),
+            }
+        })?;
+    let selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: AllAgentsProviderKind::OpenRouter,
+        agents,
+    };
+    let plan = resolve_openrouter_selection(&selection, &profile).map_err(|_| {
+        CliError::validation_code(
+            "provider_model_mismatch",
+            "provider profile is incompatible with selected agents",
+        )
+    })?;
+    Ok((AllAgentsProviderKind::OpenRouter, plan, model.to_owned()))
 }
 
 fn provider_selection_digest(
@@ -7817,6 +8094,43 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_openrouter_setup_config_round_trips_into_a_catalog_bound_plan() {
+        let scratch = Scratch::new("openrouter-dynamic-config");
+        let config_path = scratch.0.join("config.json");
+        let store = ConfigStore::new(&config_path);
+        let catalog = asb_agents::openrouter::OpenRouterModelCatalog {
+            free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                model_id: "example/free".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let setup_args = vec![
+            "--agent".into(),
+            "codex".into(),
+            "--provider-profile".into(),
+            "openrouter".into(),
+            "--model".into(),
+            "example/free".into(),
+            "--persist".into(),
+            "--config".into(),
+            config_path.to_string_lossy().into_owned(),
+        ];
+        setup_with_catalog(&setup_args, &mut Vec::new(), || Ok(catalog.clone())).unwrap();
+
+        let loaded = load_openrouter_plan_config_at(&store).unwrap();
+        assert!(loaded.dynamic);
+        assert_eq!(loaded.model, "example/free");
+        assert_eq!(loaded.catalog_sha256, catalog.digest_sha256());
+        let plan_args = vec!["--use-config".into(), "--agent".into(), "codex".into()];
+        let mut output = Vec::new();
+        provider_plan_at_with_catalog(&plan_args, &mut output, &store, Some(&catalog)).unwrap();
+        let plan: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(plan["model"], "example/free");
+        assert_eq!(plan["catalog_sha256"], catalog.digest_sha256());
+    }
+
+    #[test]
     fn plan_and_run_config_sources_bind_selection_before_execution() {
         let scratch = Scratch::new("plan-config-source");
         let store = ConfigStore::new(scratch.0.join("config.json"));
@@ -9001,6 +9315,68 @@ mod tests {
         assert!(!encoded.contains("api_key"));
         assert!(!encoded.contains("authorization"));
         assert_eq!(run_json(&args), (exit, plan));
+    }
+
+    #[test]
+    fn refreshed_provider_catalog_projects_normalized_free_models() {
+        let mut output = Vec::new();
+        provider_catalog_with_models(
+            &mut output,
+            vec!["vendor/alpha:free".into(), "vendor/zeta:free".into()],
+            "dynamic-test-digest".into(),
+            "refreshed",
+        )
+        .unwrap();
+        let catalog: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(catalog["openrouter_catalog_status"], "refreshed");
+        assert_eq!(catalog["openrouter_free_models"][0], "vendor/alpha:free");
+        assert_eq!(catalog["openrouter_free_models"][1], "vendor/zeta:free");
+    }
+
+    #[test]
+    fn provider_catalog_errors_preserve_typed_codes() {
+        assert_eq!(
+            catalog_cli_error(OpenRouterCatalogError::Unavailable).code,
+            "provider_catalog_unavailable"
+        );
+        assert_eq!(
+            catalog_cli_error(OpenRouterCatalogError::HttpStatus(429)).code,
+            "provider_catalog_http_error"
+        );
+        assert_eq!(
+            catalog_cli_error(OpenRouterCatalogError::Malformed).code,
+            "provider_catalog_malformed"
+        );
+    }
+
+    #[test]
+    fn provider_plan_model_selection_is_catalog_bound() {
+        let catalog = asb_agents::openrouter::OpenRouterModelCatalog {
+            free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                model_id: "vendor/free-model".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let (_, plan, model) = provider_plan_for_selected_model_in_catalog(
+            "openrouter",
+            vec![SelectedAgent::OpenCode],
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            "vendor/free-model",
+            &catalog,
+        )
+        .unwrap();
+        assert_eq!(model, "vendor/free-model");
+        assert_eq!(plan.effective().len(), 1);
+        let unavailable = provider_plan_for_selected_model_in_catalog(
+            "openrouter",
+            vec![SelectedAgent::OpenCode],
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            "vendor/paid-model",
+            &catalog,
+        )
+        .unwrap_err();
+        assert_eq!(unavailable.code, "provider_model_unavailable");
     }
 
     #[test]
