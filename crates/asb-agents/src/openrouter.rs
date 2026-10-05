@@ -211,6 +211,9 @@ pub enum OpenRouterCatalogError {
     /// Public catalog transport is unavailable or returned no usable bytes.
     #[error("OpenRouter model catalog is unavailable")]
     Unavailable,
+    /// The public endpoint returned a non-success status.
+    #[error("OpenRouter model catalog returned HTTP status {0}")]
+    HttpStatus(u16),
 }
 
 /// Bounded response returned by the explicit online capture transport.
@@ -539,19 +542,43 @@ pub fn normalize_openrouter_model_catalog(
 
 fn normalize_catalog_price(value: Option<&Value>) -> Option<String> {
     let raw = value?.as_str()?.trim();
-    if raw.is_empty()
-        || raw.len() > 64
-        || !raw
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'.' | b'+' | b'-' | b'e' | b'E'))
-    {
+    if raw.is_empty() || raw.len() > 64 {
         return None;
     }
-    let parsed = raw.parse::<f64>().ok()?;
-    if !parsed.is_finite() || parsed < 0.0 {
+    let unsigned = raw.strip_prefix('+').unwrap_or(raw);
+    if unsigned.starts_with('-') {
         return None;
     }
-    if parsed == 0.0 {
+    let unsigned = unsigned.strip_prefix('-').unwrap_or(unsigned);
+    let (mantissa, exponent) = unsigned
+        .split_once(['e', 'E'])
+        .map_or((unsigned, None), |(mantissa, exponent)| {
+            (mantissa, Some(exponent))
+        });
+    if let Some(exponent) = exponent {
+        let exponent_digits = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+        if exponent_digits.is_empty() || !exponent_digits.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return None;
+        }
+    }
+    let mut digits = 0usize;
+    let mut nonzero = false;
+    let mut decimal_points = 0usize;
+    for byte in mantissa.bytes() {
+        if byte == b'.' {
+            decimal_points += 1;
+        } else if byte.is_ascii_digit() {
+            digits += 1;
+            nonzero |= byte != b'0';
+        } else {
+            return None;
+        }
+    }
+    if digits == 0 || decimal_points > 1 {
+        return None;
+    }
+    if !nonzero {
         return Some("0".to_owned());
     }
     Some(raw.to_owned())
@@ -566,21 +593,51 @@ pub fn discover_openrouter_model_catalog() -> Result<OpenRouterModelCatalog, Ope
 {
     let output = Command::new("curl")
         .args([
-            "--fail",
             "--silent",
             "--show-error",
             "--max-time",
             "10",
+            "--write-out",
+            "\n%{http_code}",
             "--header",
             "Accept: application/json",
             &format!("{OPENROUTER_API_BASE}/models"),
         ])
         .output()
         .map_err(|_| OpenRouterCatalogError::Unavailable)?;
-    if !output.status.success() {
+    if !output.status.success() || output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 16 {
         return Err(OpenRouterCatalogError::Unavailable);
     }
-    normalize_openrouter_model_catalog(&output.stdout)
+    let marker = output
+        .stdout
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .ok_or(OpenRouterCatalogError::Unavailable)?;
+    let status = std::str::from_utf8(&output.stdout[marker + 1..])
+        .ok()
+        .and_then(|value| value.trim().parse::<u16>().ok())
+        .ok_or(OpenRouterCatalogError::Unavailable)?;
+    discover_openrouter_model_catalog_with(|| Ok((status, output.stdout[..marker].to_vec())))
+}
+
+/// Discover a catalog through an injected bounded HTTP transport.
+///
+/// This seam lets offline tests prove unavailable, non-success, oversized,
+/// and malformed provider responses without contacting OpenRouter.
+pub fn discover_openrouter_model_catalog_with<F>(
+    transport: F,
+) -> Result<OpenRouterModelCatalog, OpenRouterCatalogError>
+where
+    F: FnOnce() -> Result<(u16, Vec<u8>), OpenRouterCatalogError>,
+{
+    let (status, body) = transport()?;
+    if !(200..=299).contains(&status) {
+        return Err(OpenRouterCatalogError::HttpStatus(status));
+    }
+    if body.len() > MAX_LIVE_RESPONSE_BYTES {
+        return Err(OpenRouterCatalogError::TooLarge);
+    }
+    normalize_openrouter_model_catalog(&body)
 }
 
 /// Quote one curl-config value using curl's double-quoted string grammar.
@@ -1631,6 +1688,36 @@ mod tests {
             br#"{"data":[{"id":"vendor/model","pricing":{"prompt":"NaN","completion":"0"}}]}"#;
         let catalog = normalize_openrouter_model_catalog(body).unwrap();
         assert!(catalog.free_models.is_empty());
+    }
+
+    #[test]
+    fn model_catalog_rejects_tiny_positive_decimal_as_paid() {
+        let body =
+            br#"{"data":[{"id":"vendor/tiny","pricing":{"prompt":"1e-400","completion":"0"}}]}"#;
+        let catalog = normalize_openrouter_model_catalog(body).unwrap();
+        assert!(catalog.free_models.is_empty());
+    }
+
+    #[test]
+    fn model_catalog_transport_failures_are_typed_and_bounded() {
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| Err(OpenRouterCatalogError::Unavailable)),
+            Err(OpenRouterCatalogError::Unavailable)
+        ));
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| Ok((429, Vec::new()))),
+            Err(OpenRouterCatalogError::HttpStatus(429))
+        ));
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| {
+                Ok((200, vec![b'x'; MAX_LIVE_RESPONSE_BYTES + 1]))
+            }),
+            Err(OpenRouterCatalogError::TooLarge)
+        ));
+        assert!(matches!(
+            discover_openrouter_model_catalog_with(|| Ok((200, b"not-json".to_vec()))),
+            Err(OpenRouterCatalogError::Malformed)
+        ));
     }
 
     #[test]

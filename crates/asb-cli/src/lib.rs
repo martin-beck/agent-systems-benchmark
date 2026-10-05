@@ -2569,6 +2569,14 @@ fn provider_catalog(output: &mut dyn Write, refresh: bool) -> Result<(), CliErro
             "pinned",
         )
     };
+    provider_catalog_with_models(output, openrouter_free_models, openrouter_catalog_status)
+}
+
+fn provider_catalog_with_models(
+    output: &mut dyn Write,
+    openrouter_free_models: Vec<String>,
+    openrouter_catalog_status: &'static str,
+) -> Result<(), CliError> {
     write_json(
         output,
         &ProviderCatalogOutput {
@@ -3044,10 +3052,31 @@ fn provider_plan_for_selected_model(
             "dynamic model selection is currently supported only for openrouter",
         ));
     }
-    let credential = credential_reference_sha256
-        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
     let catalog = discover_openrouter_model_catalog()
         .map_err(|_| CliError::validation("OpenRouter model catalog is unavailable"))?;
+    provider_plan_for_selected_model_in_catalog(
+        provider,
+        agents,
+        credential_reference_sha256,
+        model,
+        &catalog,
+    )
+}
+
+fn provider_plan_for_selected_model_in_catalog(
+    provider: &str,
+    agents: Vec<SelectedAgent>,
+    credential_reference_sha256: Option<&str>,
+    model: &str,
+    catalog: &asb_agents::openrouter::OpenRouterModelCatalog,
+) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, String), CliError> {
+    if provider != "openrouter" {
+        return Err(CliError::validation(
+            "dynamic model selection is currently supported only for openrouter",
+        ));
+    }
+    let credential = credential_reference_sha256
+        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
     let profile =
         OpenRouterProfile::new_from_free_catalog(credential, &catalog, model).map_err(|error| {
             match error {
@@ -9076,6 +9105,52 @@ mod tests {
         assert!(!encoded.contains("api_key"));
         assert!(!encoded.contains("authorization"));
         assert_eq!(run_json(&args), (exit, plan));
+    }
+
+    #[test]
+    fn refreshed_provider_catalog_projects_normalized_free_models() {
+        let mut output = Vec::new();
+        provider_catalog_with_models(
+            &mut output,
+            vec!["vendor/alpha:free".into(), "vendor/zeta:free".into()],
+            "refreshed",
+        )
+        .unwrap();
+        let catalog: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(catalog["openrouter_catalog_status"], "refreshed");
+        assert_eq!(catalog["openrouter_free_models"][0], "vendor/alpha:free");
+        assert_eq!(catalog["openrouter_free_models"][1], "vendor/zeta:free");
+    }
+
+    #[test]
+    fn provider_plan_model_selection_is_catalog_bound() {
+        let catalog = asb_agents::openrouter::OpenRouterModelCatalog {
+            free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                model_id: "vendor/free-model".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let (_, plan, model) = provider_plan_for_selected_model_in_catalog(
+            "openrouter",
+            vec![SelectedAgent::OpenCode],
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            "vendor/free-model",
+            &catalog,
+        )
+        .unwrap();
+        assert_eq!(model, "vendor/free-model");
+        assert_eq!(plan.effective().len(), 1);
+        assert!(
+            provider_plan_for_selected_model_in_catalog(
+                "openrouter",
+                vec![SelectedAgent::OpenCode],
+                Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                "vendor/paid-model",
+                &catalog,
+            )
+            .is_err()
+        );
     }
 
     #[test]
