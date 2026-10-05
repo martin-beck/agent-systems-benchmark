@@ -4657,7 +4657,21 @@ mod tests {
             {
                 thread::sleep(Duration::from_millis(20));
             }
-            master.write_all(b"]").unwrap();
+            // The recording-cassette route is rendered asynchronously after
+            // the offline default is selected; repeat the idempotent route
+            // transition while waiting for its typed catalog request.
+            for _ in 0..6 {
+                master.write_all(b"]").unwrap();
+                thread::sleep(Duration::from_millis(250));
+                if feeder_calls
+                    .lock()
+                    .expect("feeder recorder lock")
+                    .iter()
+                    .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
+                {
+                    break;
+                }
+            }
             let catalog_deadline = Instant::now() + Duration::from_secs(3);
             while Instant::now() < catalog_deadline
                 && !feeder_calls

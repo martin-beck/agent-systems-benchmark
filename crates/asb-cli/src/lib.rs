@@ -849,6 +849,20 @@ fn record_openrouter_live(
         .map_err(|_| CliError::operation("OpenRouter live capture failed"))?;
     let response_body: Value = serde_json::from_slice(&response.body)
         .map_err(|_| CliError::operation("OpenRouter response was not JSON"))?;
+    let request_body_sha256 = format!(
+        "{:x}",
+        Sha256::digest(
+            &asb_replay::canonical_json_bytes(&request.request_body)
+                .map_err(|_| CliError::operation("OpenRouter request cannot be canonicalized"))?,
+        )
+    );
+    let response_body_sha256 = format!(
+        "{:x}",
+        Sha256::digest(
+            &asb_replay::canonical_json_bytes(&response_body)
+                .map_err(|_| CliError::operation("OpenRouter response cannot be canonicalized"))?,
+        )
+    );
     let path = if matches!(agent, OpenRouterAgent::Codex) {
         "/api/v1/responses"
     } else {
@@ -875,7 +889,7 @@ fn record_openrouter_live(
             path: path.into(),
             headers: vec![],
             body: request.request_body,
-            body_sha256: String::new(),
+            body_sha256: request_body_sha256,
             model,
             options: BTreeMap::new(),
             tools: vec![],
@@ -886,7 +900,7 @@ fn record_openrouter_live(
             headers: vec![],
             body: ResponseBody::Buffered {
                 payload: response_body,
-                payload_sha256: String::new(),
+                payload_sha256: response_body_sha256,
                 response_id: None,
                 terminal: if response.status < 400 {
                     TerminalEvent::Completed
