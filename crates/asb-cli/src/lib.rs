@@ -847,6 +847,16 @@ fn record_openrouter_live(
         .map_err(|_| CliError::validation("OpenRouter request body cannot be encoded"))?;
     let response = capture_openrouter_live(&profile, agent, &request_bytes)
         .map_err(|_| CliError::operation("OpenRouter live capture failed"))?;
+    record_openrouter_live_response(&request, agent, response, output, stdout)
+}
+
+fn record_openrouter_live_response(
+    request: &OpenRouterLiveCaptureInput,
+    agent: OpenRouterAgent,
+    response: asb_agents::openrouter::OpenRouterLiveResponse,
+    output: &Path,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
     let response_body: Value = serde_json::from_slice(&response.body)
         .map_err(|_| CliError::operation("OpenRouter response was not JSON"))?;
     let request_body_sha256 = format!(
@@ -864,9 +874,9 @@ fn record_openrouter_live(
         )
     );
     let path = if matches!(agent, OpenRouterAgent::Codex) {
-        "/api/v1/responses"
+        "/v1/responses"
     } else {
-        "/api/v1/chat/completions"
+        "/v1/chat/completions"
     };
     let model = request
         .request_body
@@ -888,7 +898,7 @@ fn record_openrouter_live(
             method: "POST".into(),
             path: path.into(),
             headers: vec![],
-            body: request.request_body,
+            body: request.request_body.clone(),
             body_sha256: request_body_sha256,
             model,
             options: BTreeMap::new(),
@@ -912,8 +922,8 @@ fn record_openrouter_live(
     };
     let capture = RecordingCapture {
         schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
-        provider_profile_sha256: request.provider_profile_sha256,
-        agent_id: request.agent_id,
+        provider_profile_sha256: request.provider_profile_sha256.clone(),
+        agent_id: request.agent_id.clone(),
         network: asb_replay::NetworkConsequence::Provider,
         estimated_cost_minor: request.estimated_cost_minor,
         confirmation: asb_replay::RecordingConfirmation {
@@ -10223,6 +10233,90 @@ mod tests {
             "recording cassette is invalid for strict replay"
         );
         let _ = digest;
+    }
+
+    #[test]
+    fn live_openrouter_success_seals_and_replays_actual_completion_offline() {
+        let scratch = Scratch::new("openrouter-live-success");
+        let cassette_path = scratch.0.join("openrouter-live.json");
+        let request = OpenRouterLiveCaptureInput {
+            schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+            provider_profile_sha256: "a".repeat(64),
+            agent_id: "opencode".into(),
+            request_body: json!({
+                "model": asb_agents::openrouter::OPENROUTER_MODEL,
+                "messages": [{"role": "user", "content": "bounded test prompt"}],
+            }),
+            estimated_cost_minor: 0,
+        };
+        let response = asb_agents::openrouter::OpenRouterLiveResponse {
+            status: 200,
+            body: br#"{"id":"live-response-1","choices":[{"message":{"content":"actual completion body"}}]}"#.to_vec(),
+        };
+        let mut metadata_output = Vec::new();
+        record_openrouter_live_response(
+            &request,
+            OpenRouterAgent::OpenCode,
+            response,
+            &cassette_path,
+            &mut metadata_output,
+        )
+        .expect("fake live response should seal");
+        let cassette_bytes = fs::read(&cassette_path).expect("cassette");
+        let cassette =
+            asb_replay::decode_cassette(&cassette_bytes, asb_replay::CassetteLimits::default())
+                .expect("sealed cassette");
+        let metadata: Value = serde_json::from_slice(&metadata_output).expect("metadata");
+        assert_eq!(metadata["network"], "provider");
+        assert_eq!(metadata["source"], "live_recording");
+        let interaction = &cassette.contents.interactions[0];
+        assert_eq!(interaction.request.path, "/v1/chat/completions");
+        let asb_replay::ResponseBody::Buffered {
+            payload,
+            payload_sha256,
+            terminal,
+            ..
+        } = &interaction.response.body
+        else {
+            panic!("expected buffered response");
+        };
+        assert_eq!(
+            payload,
+            &json!({
+                "id": "live-response-1",
+                "choices": [{"message": {"content": "actual completion body"}}],
+            })
+        );
+        assert_eq!(
+            payload_sha256,
+            &format!(
+                "{:x}",
+                Sha256::digest(&asb_replay::canonical_json_bytes(payload).unwrap())
+            )
+        );
+        assert_eq!(*terminal, asb_replay::TerminalEvent::Completed);
+        let service = asb_replay::StrictReplayService::new(
+            cassette.clone(),
+            asb_replay::ReplayLimits::default(),
+        )
+        .expect("strict replay service");
+        let request_body = asb_replay::canonical_json_bytes(&request.request_body).unwrap();
+        let replayed = service
+            .handle(
+                &asb_replay::ReplayRoute {
+                    session_id: "openrouter-live".into(),
+                    attempt_id: "openrouter-live".into(),
+                    dialect: asb_replay::ProviderDialect::OpenaiChatCompletions,
+                },
+                asb_replay::ReplayHttpRequest {
+                    method: "POST".into(),
+                    path: "/v1/chat/completions".into(),
+                    headers: Vec::new(),
+                    body: request_body,
+                },
+            )
+            .expect("offline replay");
+        assert!(String::from_utf8_lossy(&replayed.segments[0]).contains("actual completion body"));
     }
 
     #[test]
