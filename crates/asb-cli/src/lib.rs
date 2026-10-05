@@ -1254,7 +1254,22 @@ fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
     if let (Some(profile), Some(model)) = (profile, model) {
         let expected = match profile {
             "openai" => asb_agents::openai::OPENAI_MODEL,
-            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
+            "openrouter" if model == asb_agents::openrouter::OPENROUTER_MODEL => model,
+            "openrouter" => {
+                let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
+                if catalog
+                    .free_models
+                    .iter()
+                    .any(|entry| entry.model_id == model)
+                {
+                    model
+                } else {
+                    return Err(CliError::validation_code(
+                        "provider_model_unavailable",
+                        "guided setup model is unavailable or not explicitly zero-price",
+                    ));
+                }
+            }
             "ollama" => {
                 return Err(CliError::validation(
                     "guided setup provider is unavailable without verified local daemon evidence",
@@ -1675,7 +1690,9 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     if let (Some(profile), Some(model_name)) = (&provider_profile, &model) {
         let compatible = match profile.as_str() {
             "openai" => model_name.starts_with("gpt-") || model_name.starts_with("o1"),
-            "openrouter" => model_name == asb_agents::openrouter::OPENROUTER_MODEL,
+            "openrouter" => {
+                model_name == asb_agents::openrouter::OPENROUTER_MODEL || !model_name.is_empty()
+            }
             "gemini" => model_name.starts_with("gemini-"),
             "ollama" => ["llama", "mistral", "qwen", "phi"]
                 .iter()
@@ -1734,24 +1751,22 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             kind: CredentialReferenceKind::Environment,
             locator_sha256: format!("{:x}", Sha256::digest(credential_env.as_bytes())),
         };
-        let expected_model = match provider {
-            "openrouter" => asb_agents::openrouter::OPENROUTER_MODEL,
-            "openai" => asb_agents::openai::OPENAI_MODEL,
-            _ => return Err(CliError::validation("unsupported setup provider")),
-        };
-        if selected_model != expected_model {
-            return Err(CliError::validation(
-                "setup model is not currently supported by the selected provider",
-            ));
+        let selected_agents = agents
+            .iter()
+            .map(|agent| parse_agent(agent))
+            .collect::<Result<Vec<_>, _>>()?;
+        if provider == "openrouter" && selected_model != asb_agents::openrouter::OPENROUTER_MODEL {
+            let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
+            provider_plan_for_selected_model_in_catalog(
+                provider,
+                selected_agents,
+                Some(&credential.locator_sha256),
+                selected_model,
+                &catalog,
+            )?;
+        } else {
+            provider_plan_for(provider, selected_agents, Some(&credential.locator_sha256))?;
         }
-        provider_plan_for(
-            provider,
-            agents
-                .iter()
-                .map(|agent| parse_agent(agent))
-                .collect::<Result<Vec<_>, _>>()?,
-            Some(&credential.locator_sha256),
-        )?;
         let endpoint = match provider {
             "openrouter" => asb_agents::openrouter::OPENROUTER_API_BASE,
             "openai" => asb_agents::openai::OPENAI_API_BASE,
@@ -2914,6 +2929,7 @@ fn provider_plan_at(
             "provider profile is advertised but unavailable without verified daemon evidence",
         ));
     }
+    let dynamic_catalog = requested_model.is_some();
     let (provider_kind, plan, model) = if let Some(model) = requested_model {
         provider_plan_for_selected_model(
             provider,
@@ -2946,8 +2962,15 @@ fn provider_plan_at(
             .map(|item| parse_agent(&item.agent))
             .collect::<Result<Vec<_>, _>>()?,
     };
+    let catalog_identity = if dynamic_catalog {
+        catalog_sha256
+            .expect("dynamic model selection validated the catalog identity")
+            .to_owned()
+    } else {
+        expected_catalog.clone()
+    };
     let selection_sha256 =
-        provider_selection_digest(&expected_catalog, &canonical_selection, &effective)?;
+        provider_selection_digest(&catalog_identity, &canonical_selection, &effective)?;
     write_json(
         output,
         &ProviderPlanOutput {
@@ -2955,7 +2978,7 @@ fn provider_plan_at(
             ok: true,
             command: "provider-plan".to_owned(),
             dry_run: true,
-            catalog_sha256: expected_catalog,
+            catalog_sha256: catalog_identity,
             selection_sha256,
             provider_profile: provider.to_owned(),
             provider_profile_sha256: plan.profile_sha256().to_owned(),
