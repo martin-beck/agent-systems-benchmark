@@ -1936,7 +1936,7 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
         .map_err(|_| CliError::validation("recording campaign manifest is invalid"))?;
     if manifest.schema_version != asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION
         || manifest.agent_ids.len() > MAX_SELECTED_AGENTS
-        || manifest.workload_ids.len() > MAX_SELECTED_AGENTS
+        || manifest.workload_ids.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
         || manifest.entries.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
     {
         return Err(CliError::validation(
