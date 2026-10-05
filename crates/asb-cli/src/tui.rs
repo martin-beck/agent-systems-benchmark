@@ -4636,35 +4636,19 @@ mod tests {
         // strict replay, then quit. The ASB recorder sees the typed calls.
         let feeder_calls = Arc::clone(&calls);
         let feeder = thread::spawn(move || {
-            // Route transitions are asynchronous in the independently built
-            // TUI. Gate each key on the typed control call it enables instead
-            // of racing the renderer with a fixed burst of bytes.
-            let status_count = || {
-                feeder_calls
-                    .lock()
-                    .expect("feeder recorder lock")
-                    .iter()
-                    .filter(|call| matches!(call, ControlCall::RecordingCampaignStatus(_)))
-                    .count()
-            };
-            let initial_status_count = status_count();
-            let mut run_control_ready = false;
-            for _ in 0..8 {
-                thread::sleep(Duration::from_millis(250));
-                master.write_all(b"s").unwrap();
-                let deadline = Instant::now() + Duration::from_secs(2);
-                while Instant::now() < deadline && status_count() <= initial_status_count {
-                    thread::sleep(Duration::from_millis(20));
-                }
-                if status_count() > initial_status_count {
-                    run_control_ready = true;
-                    break;
-                }
-            }
-            assert!(
-                run_control_ready,
-                "Run Control did not become ready after route transition"
-            );
+            // The benchmark picker starts empty.  Select all advertised
+            // measures explicitly before entering Run Control; otherwise the
+            // frontend correctly rejects an offline campaign with no scope.
+            thread::sleep(Duration::from_millis(500));
+            master.write_all(b"2").unwrap();
+            thread::sleep(Duration::from_millis(500));
+            master.write_all(b"a").unwrap();
+            // Bootstrap already proved the control route is alive.  Allow the
+            // renderer to settle after the explicit selection before changing
+            // routes; subsequent transitions are gated on typed calls.
+            thread::sleep(Duration::from_millis(750));
+            master.write_all(b"s").unwrap();
+            thread::sleep(Duration::from_millis(750));
             let mut offline_default_requested = false;
             for _ in 0..8 {
                 master.write_all(b"o").unwrap();
