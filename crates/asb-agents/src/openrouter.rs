@@ -260,6 +260,34 @@ impl OpenRouterLiveResponse {
     pub const fn comparison_key(&self) -> (u16, usize, bool) {
         (self.status, self.body.len(), self.is_success())
     }
+
+    /// Human-readable labels used by the TUI analysis projection.
+    pub fn analysis_labels(&self) -> Vec<&'static str> {
+        let mut labels = Vec::with_capacity(4);
+        labels.push(if self.is_success() {
+            "success"
+        } else {
+            "failure"
+        });
+        if self.is_client_error() {
+            labels.push("client_error");
+        }
+        if self.is_server_error() {
+            labels.push("server_error");
+        }
+        if self.is_rate_limited() {
+            labels.push("rate_limited");
+        }
+        if self.is_redirect() {
+            labels.push("redirect");
+        }
+        if self.body_is_empty() {
+            labels.push("empty_body");
+        } else {
+            labels.push("body_present");
+        }
+        labels
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -915,6 +943,7 @@ mod tests {
         assert_eq!(response.analysis_fields()["body_bytes"], 17);
         assert_eq!(response.analysis_fields()["success"], true);
         assert_eq!(response.comparison_key(), (200, 17, true));
+        assert_eq!(response.analysis_labels(), vec!["success", "body_present"]);
         let failure_response = OpenRouterLiveResponse {
             status: 503,
             body: Vec::new(),
@@ -937,6 +966,10 @@ mod tests {
             client_response.analysis_summary(),
             "status=429 class=4 bytes=0 outcome=rate_limited"
         );
+        assert_eq!(
+            client_response.analysis_labels(),
+            vec!["failure", "client_error", "rate_limited", "empty_body"]
+        );
         let redirect_response = OpenRouterLiveResponse {
             status: 302,
             body: Vec::new(),
@@ -949,6 +982,14 @@ mod tests {
         assert_eq!(
             failure_response.analysis_summary(),
             "status=503 class=5 bytes=0 outcome=server_error"
+        );
+        assert_eq!(
+            failure_response.analysis_labels(),
+            vec!["failure", "server_error", "empty_body"]
+        );
+        assert_eq!(
+            redirect_response.analysis_labels(),
+            vec!["failure", "redirect", "empty_body"]
         );
 
         let resolved_wrapper = capture_openrouter_live_with_resolver(
