@@ -317,12 +317,18 @@ pub enum OpenRouterLiveError {
     Credential(CredentialResolutionError),
     /// The request exceeded the pinned profile bounds.
     RequestTooLarge,
+    /// The request model is not the model selected by the connected profile.
+    ModelMismatch,
     /// The local curl transport could not be started or completed.
     Transport,
     /// OpenRouter returned a body larger than the replay bound.
     ResponseTooLarge,
     /// The transport did not provide a valid HTTP status.
     InvalidStatus,
+    /// OpenRouter returned a non-success HTTP status; no cassette may be sealed.
+    HttpStatus(u16),
+    /// The approved curl executable could not be discovered on PATH.
+    CurlUnavailable,
 }
 
 impl OpenRouterLiveError {
@@ -337,9 +343,12 @@ impl fmt::Display for OpenRouterLiveError {
         match self {
             Self::Credential(_) => f.write_str("OpenRouter credential unavailable"),
             Self::RequestTooLarge => f.write_str("OpenRouter request exceeds its bound"),
+            Self::ModelMismatch => f.write_str("OpenRouter request model does not match the selected provider model"),
             Self::Transport => f.write_str("OpenRouter transport failed"),
             Self::ResponseTooLarge => f.write_str("OpenRouter response exceeds its bound"),
             Self::InvalidStatus => f.write_str("OpenRouter returned an invalid HTTP status"),
+            Self::HttpStatus(status) => write!(f, "OpenRouter returned HTTP status {status}"),
+            Self::CurlUnavailable => f.write_str("OpenRouter curl transport is unavailable"),
         }
     }
 }
@@ -384,6 +393,16 @@ where
     {
         return Err(OpenRouterLiveError::RequestTooLarge);
     }
+    let expected_model = profile
+        .translate(agent, profile.provider_profile())
+        .map_err(|_| OpenRouterLiveError::Transport)?
+        .model;
+    let requested_model = serde_json::from_slice::<Value>(request_body)
+        .ok()
+        .and_then(|value| value.get("model").and_then(Value::as_str).map(str::to_owned));
+    if requested_model.as_deref() != Some(expected_model.as_str()) {
+        return Err(OpenRouterLiveError::ModelMismatch);
+    }
     let credential = resolve(profile)?;
     capture_openrouter_live_with_credential(profile, agent, request_body, credential, transport)
 }
@@ -392,7 +411,7 @@ fn openrouter_curl_transport(
     config_path: &std::path::Path,
     body: &[u8],
 ) -> Result<(bool, Vec<u8>), OpenRouterLiveError> {
-    let result = Command::new("/usr/bin/curl")
+    let result = Command::new("curl")
         .args(["--silent", "--show-error", "--config"])
         .arg(config_path)
         .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
@@ -406,7 +425,13 @@ fn openrouter_curl_transport(
         });
     result
         .map(|output| (output.status.success(), output.stdout))
-        .map_err(|_| OpenRouterLiveError::Transport)
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                OpenRouterLiveError::CurlUnavailable
+            } else {
+                OpenRouterLiveError::Transport
+            }
+        })
 }
 
 fn capture_openrouter_live_with_credential<F>(
@@ -466,6 +491,9 @@ where
     let body = stdout[..marker].to_vec();
     if body.len() > MAX_LIVE_RESPONSE_BYTES {
         return Err(OpenRouterLiveError::ResponseTooLarge);
+    }
+    if !(200..=299).contains(&status) {
+        return Err(OpenRouterLiveError::HttpStatus(status));
     }
     Ok(OpenRouterLiveResponse { status, body })
 }
@@ -1051,10 +1079,20 @@ mod tests {
             transport_error,
             Err(OpenRouterLiveError::Transport)
         ));
+        let provider_error = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            br#"{"model":"cohere/north-mini-code:free"}"#,
+            credential(),
+            |_config, _body| Ok((true, br#"{"error":"rate limited"}
+429"#.to_vec())),
+        );
+        assert!(matches!(provider_error, Err(OpenRouterLiveError::HttpStatus(429))));
         assert!(OpenRouterLiveError::Transport.is_retryable());
         assert!(OpenRouterLiveError::ResponseTooLarge.is_retryable());
         assert!(!OpenRouterLiveError::RequestTooLarge.is_retryable());
         assert!(!OpenRouterLiveError::InvalidStatus.is_retryable());
+        assert!(!OpenRouterLiveError::HttpStatus(429).is_retryable());
 
         let invalid_status = capture_openrouter_live_with_credential(
             &profile,
@@ -1071,7 +1109,7 @@ mod tests {
         let resolver_error = capture_openrouter_live_with_resolver(
             &profile,
             OpenRouterAgent::Aider,
-            b"{}",
+            br#"{"model":"cohere/north-mini-code:free"}"#,
             |_profile| {
                 Err(OpenRouterLiveError::Credential(
                     CredentialResolutionError::Unavailable,
@@ -1195,12 +1233,15 @@ mod tests {
 
     #[test]
     fn live_error_display_and_curl_boundary_are_stable() {
-        let errors = [
+    let errors = [
             OpenRouterLiveError::Credential(CredentialResolutionError::Unavailable),
             OpenRouterLiveError::RequestTooLarge,
+            OpenRouterLiveError::ModelMismatch,
             OpenRouterLiveError::Transport,
             OpenRouterLiveError::ResponseTooLarge,
             OpenRouterLiveError::InvalidStatus,
+            OpenRouterLiveError::HttpStatus(503),
+            OpenRouterLiveError::CurlUnavailable,
         ];
         for error in errors {
             assert!(!error.to_string().is_empty());
