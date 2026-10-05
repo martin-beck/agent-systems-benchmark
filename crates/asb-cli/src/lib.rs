@@ -9332,7 +9332,7 @@ mod tests {
         );
         let completion = String::from_utf8(output).unwrap();
         assert!(completion.contains(
-            "provider-catalog workload-catalog provider-plan plan run sweep compare report"
+            "provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report"
         ));
         assert!(!completion.contains('\u{1b}'));
         assert_eq!(run_json(&["completion".into(), "zsh".into()]).0, 2);
