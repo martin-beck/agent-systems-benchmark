@@ -994,6 +994,40 @@ mod tests {
     }
 
     #[test]
+    fn live_negative_matrix_rejects_unavailable_model_and_malformed_credential() {
+        let profile = profile();
+        let unavailable_model = capture_openrouter_live_with_resolver(
+            &profile,
+            OpenRouterAgent::Aider,
+            br#"{"model":"provider/removed-model"}"#,
+            |_profile| panic!("credential lookup must not run for an unavailable model"),
+            |_config, _body| panic!("transport must not run for an unavailable model"),
+        );
+        assert!(matches!(
+            unavailable_model,
+            Err(OpenRouterLiveError::ModelMismatch)
+        ));
+
+        let malformed_credential = capture_openrouter_live_with_resolver(
+            &profile,
+            OpenRouterAgent::Aider,
+            br#"{"model":"cohere/north-mini-code:free"}"#,
+            |_profile| {
+                Err(OpenRouterLiveError::Credential(
+                    CredentialResolutionError::InvalidValue,
+                ))
+            },
+            |_config, _body| panic!("transport must not run for malformed credentials"),
+        );
+        assert!(matches!(
+            malformed_credential,
+            Err(OpenRouterLiveError::Credential(
+                CredentialResolutionError::InvalidValue
+            ))
+        ));
+    }
+
+    #[test]
     fn live_capture_transport_boundary_preserves_bounded_response_and_errors() {
         let profile = profile();
         let credential = || {
