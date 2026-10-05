@@ -441,6 +441,27 @@ fn openrouter_curl_transport(
         })
 }
 
+/// Quote one curl-config value using curl's double-quoted string grammar.
+///
+/// Credentials are validated as printable bytes at resolution time, but the
+/// escaping is still required: curl otherwise treats an unquoted header value
+/// as a config token and can silently omit the authorization header.
+fn curl_config_quote(value: &str) -> String {
+    let mut quoted = String::with_capacity(value.len() + 2);
+    quoted.push('"');
+    for byte in value.bytes() {
+        match byte {
+            b'\\' | b'"' => {
+                quoted.push('\\');
+                quoted.push(byte as char);
+            }
+            _ => quoted.push(byte as char),
+        }
+    }
+    quoted.push('"');
+    quoted
+}
+
 fn capture_openrouter_live_with_credential<F>(
     profile: &OpenRouterProfile,
     agent: OpenRouterAgent,
@@ -466,13 +487,20 @@ where
         .as_nanos();
     let config_path = std::env::temp_dir().join(format!("asb-openrouter-{nonce}.conf"));
     let config = format!(
-        "url = {}{}\nrequest = POST\nheader = Authorization: Bearer {}\nheader = Content-Type: application/json\nmax-time = 1800\nconnect-timeout = 5\nmax-filesize = {}\n",
-        translation.endpoint(),
-        match translation.api_mode {
-            OpenRouterApiMode::Responses => "/responses",
-            OpenRouterApiMode::ChatCompletions => "/chat/completions",
-        },
-        String::from_utf8_lossy(&credential),
+        "url = {}\nrequest = POST\nheader = {}\nheader = {}\nmax-time = 1800\nconnect-timeout = 5\nmax-filesize = {}\n",
+        curl_config_quote(&format!(
+            "{}{}",
+            translation.endpoint(),
+            match translation.api_mode {
+                OpenRouterApiMode::Responses => "/responses",
+                OpenRouterApiMode::ChatCompletions => "/chat/completions",
+            }
+        )),
+        curl_config_quote(&format!(
+            "Authorization: Bearer {}",
+            String::from_utf8_lossy(&credential)
+        )),
+        curl_config_quote("Content-Type: application/json"),
         MAX_LIVE_RESPONSE_BYTES
     );
     write_openrouter_config(&config_path, config.as_bytes())?;
@@ -1234,6 +1262,53 @@ mod tests {
             oversized_body,
             Err(OpenRouterLiveError::ResponseTooLarge)
         ));
+    }
+
+    #[test]
+    fn curl_config_quotes_headers_and_transport_parses_them() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        assert_eq!(
+            curl_config_quote("Authorization: Bearer synthetic\"\\key"),
+            "\"Authorization: Bearer synthetic\\\"\\\\key\""
+        );
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let read = stream.read(&mut buffer).unwrap();
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&buffer[..read]);
+            }
+            let request = String::from_utf8(request).unwrap();
+            assert!(request.contains("Authorization: Bearer synthetic-key\r\n"));
+            assert!(request.contains("Content-Type: application/json\r\n"));
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .unwrap();
+        });
+        let path = std::env::temp_dir().join(format!(
+            "asb-openrouter-curl-config-test-{}",
+            std::process::id()
+        ));
+        let config = format!(
+            "url = {}\nrequest = POST\nheader = {}\nheader = {}\n",
+            curl_config_quote(&format!("http://{address}/")),
+            curl_config_quote("Authorization: Bearer synthetic-key"),
+            curl_config_quote("Content-Type: application/json")
+        );
+        write_openrouter_config(&path, config.as_bytes()).unwrap();
+        let result = openrouter_curl_transport(&path, br#"{}"#).unwrap();
+        let _ = std::fs::remove_file(&path);
+        server.join().unwrap();
+        assert!(result.0);
+        assert!(result.1.is_empty());
     }
 
     #[test]
