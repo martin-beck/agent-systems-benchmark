@@ -4635,8 +4635,11 @@ mod tests {
         // seeded offline campaign, select its digest-only cassette, dispatch
         // strict replay, then quit. The ASB recorder sees the typed calls.
         let feeder = thread::spawn(move || {
-            for key in [b's', b'o', b']', b'J'] {
-                thread::sleep(Duration::from_secs(1));
+            for (index, key) in [b's', b'o', b']', b'J'].into_iter().enumerate() {
+                // Hosted runners can take a full scheduler slice to render the
+                // inherited-fd frontend after bootstrap. Give the first route
+                // transition a bounded settling window before sending actions.
+                thread::sleep(Duration::from_secs(if index == 0 { 2 } else { 1 }));
                 master.write_all(&[key]).unwrap();
             }
             // Replay is a bounded control round trip; repeat quit input so a
