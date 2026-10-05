@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.integration import merge_pr
+from tools.integration import merge_pr, repository_settings
 
 ROOT = Path(__file__).resolve().parents[2]
 MERGE = ROOT / "tools/integration/merge_pr.py"
@@ -434,39 +434,62 @@ class MergeIntegrityTests(unittest.TestCase):
             self.assertNotIn(str(fixture.remote), result.stderr)
             self.assertLess(len(result.stderr), 256)
 
-    def test_settings_oracle_rejects_every_web_merge_mode(self) -> None:
-        good = {
-            "allow_merge_commit": False,
-            "allow_squash_merge": False,
-            "allow_rebase_merge": False,
-            "allow_auto_merge": False,
-            "web_commit_signoff_required": True,
-        }
-        result = command(
-            ROOT, "python3", str(SETTINGS), "--settings-json", json.dumps(good)
-        )
-        self.assertIn("incompatible web merge modes are disabled", result.stdout)
-        for field, value in good.items():
-            mutated = dict(good)
+    def test_settings_oracle_requires_merge_only_and_exact_ruleset(self) -> None:
+        good_settings = dict(repository_settings.REQUIRED_SETTINGS)
+        good_ruleset = repository_settings.required_ruleset()
+
+        def audit(
+            settings: object, ruleset: object
+        ) -> subprocess.CompletedProcess[str]:
+            return command(
+                ROOT,
+                "python3",
+                str(SETTINGS),
+                "--settings-json",
+                json.dumps(settings),
+                "--ruleset-json",
+                json.dumps(ruleset),
+                check=False,
+            )
+
+        result = audit(good_settings, good_ruleset)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("protected publication is enforced", result.stdout)
+
+        for field, value in good_settings.items():
+            mutated = dict(good_settings)
             mutated[field] = not value
-            self.assertNotEqual(
-                command(
-                    ROOT,
-                    "python3",
-                    str(SETTINGS),
-                    "--settings-json",
-                    json.dumps(mutated),
-                    check=False,
-                ).returncode,
-                0,
-            )
-        for field in good:
-            missing = dict(good)
+            self.assertNotEqual(audit(mutated, good_ruleset).returncode, 0)
+            missing = dict(good_settings)
             del missing[field]
-            self.assertNotEqual(
-                command(ROOT, "python3", str(SETTINGS), "--settings-json", json.dumps(missing), check=False).returncode,
-                0,
-            )
+            self.assertNotEqual(audit(missing, good_ruleset).returncode, 0)
+
+        all_disabled = dict(good_settings)
+        all_disabled["allow_merge_commit"] = False
+        self.assertNotEqual(audit(all_disabled, good_ruleset).returncode, 0)
+
+        mutations = []
+        for mutate in (
+            lambda value: value.update(enforcement="evaluate"),
+            lambda value: value["conditions"]["ref_name"]["include"].clear(),
+            lambda value: value["rules"][3]["parameters"].update(
+                allowed_merge_methods=["squash"]
+            ),
+            lambda value: value["rules"][4]["parameters"].update(
+                strict_required_status_checks_policy=False
+            ),
+            lambda value: value["rules"][4]["parameters"][
+                "required_status_checks"
+            ].pop(),
+            lambda value: value["rules"][5]["parameters"].update(negate=False),
+        ):
+            candidate = json.loads(json.dumps(good_ruleset))
+            mutate(candidate)
+            mutations.append(candidate)
+        for candidate in mutations:
+            self.assertNotEqual(audit(good_settings, candidate).returncode, 0)
+
+        self.assertNotEqual(audit(good_settings, None).returncode, 0)
 
 
 if __name__ == "__main__":
