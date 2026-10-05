@@ -4634,6 +4634,7 @@ mod tests {
         // Exercise the real TUI action path: enter Run Control, activate the
         // seeded offline campaign, select its digest-only cassette, dispatch
         // strict replay, then quit. The ASB recorder sees the typed calls.
+        let feeder_calls = Arc::clone(&calls);
         let feeder = thread::spawn(move || {
             // Hosted runners can take a full scheduler slice to render the
             // inherited-fd frontend after bootstrap. Repeat only the idempotent
@@ -4642,10 +4643,29 @@ mod tests {
                 thread::sleep(Duration::from_secs(1));
                 master.write_all(b"s").unwrap();
             }
-            for key in [b'o', b']', b'J'] {
-                thread::sleep(Duration::from_secs(1));
-                master.write_all(&[key]).unwrap();
+            master.write_all(b"o").unwrap();
+            let offline_deadline = Instant::now() + Duration::from_secs(5);
+            while Instant::now() < offline_deadline
+                && !feeder_calls
+                    .lock()
+                    .expect("feeder recorder lock")
+                    .iter()
+                    .any(|call| matches!(call, ControlCall::RecordingCampaignOfflineDefault(_)))
+            {
+                thread::sleep(Duration::from_millis(20));
             }
+            master.write_all(b"]").unwrap();
+            let catalog_deadline = Instant::now() + Duration::from_secs(5);
+            while Instant::now() < catalog_deadline
+                && !feeder_calls
+                    .lock()
+                    .expect("feeder recorder lock")
+                    .iter()
+                    .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
+            {
+                thread::sleep(Duration::from_millis(20));
+            }
+            master.write_all(b"J").unwrap();
             // Replay is a bounded control round trip; repeat quit input so a
             // render/control transition cannot swallow the single byte.
             for _ in 0..5 {
