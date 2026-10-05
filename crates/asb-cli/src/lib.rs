@@ -14,6 +14,7 @@ use asb_agents::all_agents_provider::{
     resolve_openrouter_selection,
 };
 use asb_agents::openai::OpenAiProfile;
+use asb_agents::opencode::{OpenCodeArtifact, OpenCodeConfig};
 use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::openrouter::{OpenRouterAgent, OpenRouterLiveError, capture_openrouter_live};
 use asb_agents::provider_launch::{
@@ -30,7 +31,8 @@ use asb_metrics::LinuxCollector;
 use asb_protocol::{
     ExperimentManifestV1, Id, MeasurementArchitecture, MeasurementExecutionCapabilities,
     MeasurementOperatingSystem, MeasurementPlatformFeature, MeasurementSelectionError,
-    MeasurementSelectionReason, MeasurementSelectionV1, baseline_measurement_catalog,
+    MeasurementSelectionReason, MeasurementSelectionV1, TerminalStatus,
+    baseline_measurement_catalog,
 };
 use asb_replay::{
     CassetteContents, CassetteLimits, ExecutionSource, Interaction, PolicyVersion, ProviderDialect,
@@ -79,6 +81,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use url::Url;
 
 const OUTPUT_SCHEMA_VERSION: u16 = 1;
 const SETUP_OUTPUT_SCHEMA_VERSION: u16 = 2;
@@ -606,6 +609,72 @@ fn run_local_mock_dispatch(
     run_with_runtime_control_local_mock_owner(&args[..2], owner, stdout, stderr)
 }
 
+/// Run the pinned OpenCode adapter behind the benchmark's batch process
+/// boundary. The parent scheduler owns this process and supplies the live
+/// credential only in its environment; this helper never serializes it.
+fn run_opencode_batch(
+    binary: &Path,
+    workspace: &Path,
+    state_root: &Path,
+    model: &str,
+    timeout_ms: &str,
+    stdin: Option<&mut dyn Read>,
+) -> Result<u8, CliError> {
+    let timeout_ms = timeout_ms
+        .parse::<u64>()
+        .map_err(|_| CliError::usage("OpenCode batch timeout is invalid"))?;
+    let mut input = Vec::new();
+    stdin
+        .ok_or_else(|| CliError::operation("OpenCode batch prompt is unavailable"))?
+        .take(asb_agents::opencode::MAX_PROMPT_BYTES as u64 + 1)
+        .read_to_end(&mut input)
+        .map_err(|_| CliError::operation("OpenCode batch prompt cannot be read"))?;
+    if input.len() > asb_agents::opencode::MAX_PROMPT_BYTES {
+        return Err(CliError::validation(
+            "OpenCode batch prompt exceeds its bound",
+        ));
+    }
+    let prompt = String::from_utf8(input)
+        .map_err(|_| CliError::validation("OpenCode batch prompt is not UTF-8"))?;
+    let endpoint = Url::parse(asb_agents::openrouter::OPENROUTER_API_BASE)
+        .map_err(|_| CliError::operation("OpenRouter endpoint is unavailable"))?;
+    let adapter = OpenCodeConfig::new(
+        binary,
+        workspace,
+        state_root,
+        endpoint,
+        model,
+        OpenCodeArtifact::LinuxX86_64V1_18_29,
+    )
+    .map_err(|_| CliError::validation("pinned OpenCode adapter configuration is invalid"))?;
+    let limits = ProcessLimits::new(
+        asb_runtime::MAX_CAPTURE_BYTES,
+        asb_runtime::MAX_CAPTURE_BYTES,
+        Duration::from_millis(timeout_ms),
+        Duration::from_secs(1),
+        Duration::from_millis(10),
+    )
+    .map_err(|_| CliError::validation("OpenCode batch timeout is outside its bound"))?;
+    let mut running = adapter
+        .start(
+            Id("asb-batch-session".into()),
+            Id("asb-batch-attempt".into()),
+            &prompt,
+            limits,
+        )
+        .map_err(|_| CliError::operation("pinned OpenCode adapter could not start"))?;
+    let outcome = running.wait().map_err(|_| {
+        CliError::operation("pinned OpenCode adapter did not yield terminal evidence")
+    })?;
+    if outcome.status() == TerminalStatus::Completed && outcome.exit_code() == Some(0) {
+        Ok(0)
+    } else {
+        Err(CliError::operation(
+            "pinned OpenCode adapter reported a failed attempt",
+        ))
+    }
+}
+
 fn dispatch(
     args: &[OsString],
     stdout: &mut dyn Write,
@@ -625,6 +694,18 @@ fn dispatch(
         .filter(|word| word != "--json")
         .collect::<Vec<_>>();
     match words.as_slice() {
+        [command, binary, workspace, state_root, model, timeout_ms]
+            if command == "internal-opencode-batch" =>
+        {
+            run_opencode_batch(
+                Path::new(binary),
+                Path::new(workspace),
+                Path::new(state_root),
+                model,
+                timeout_ms,
+                stdin,
+            )
+        }
         [] => write_help(stdout).map(|()| 0),
         [word] if matches!(word.as_str(), "--help" | "-h") => write_help(stdout).map(|()| 0),
         [word] if matches!(word.as_str(), "--version" | "-V") => {
@@ -5473,9 +5554,34 @@ fn spawn_verified_agent(
         let stdin = prompt
             .try_clone()
             .map_err(|_| CliError::operation("prompt descriptor cannot be duplicated"))?;
-        let mut command = Command::new(agent_snapshot);
+        let uses_opencode_batch =
+            live_provider && launch.is_some_and(|value| value.input.adapter == "opencode");
+        let mut command = if uses_opencode_batch {
+            let executable = std::env::current_exe()
+                .map_err(|_| CliError::operation("ASB OpenCode batch adapter is unavailable"))?;
+            let launch = launch.expect("OpenCode batch adapter requires launch metadata");
+            let mut command = Command::new(executable);
+            command.args([
+                "internal-opencode-batch",
+                agent_snapshot
+                    .to_str()
+                    .ok_or_else(|| CliError::validation("OpenCode executable path is not UTF-8"))?,
+                workspace
+                    .to_str()
+                    .ok_or_else(|| CliError::validation("OpenCode workspace path is not UTF-8"))?,
+                temporary
+                    .to_str()
+                    .ok_or_else(|| CliError::validation("OpenCode state path is not UTF-8"))?,
+                launch.input.model.as_str(),
+                &limits.timeout().as_millis().to_string(),
+            ]);
+            command
+        } else {
+            let mut command = Command::new(agent_snapshot);
+            command.args(&plan.agent.arguments);
+            command
+        };
         command
-            .args(&plan.agent.arguments)
             .current_dir(workspace)
             .env_clear()
             .env("HOME", home)
@@ -5518,6 +5624,7 @@ fn spawn_verified_agent(
                 .env(provider_launch::CREDENTIAL_TARGET_ENV, credential_target);
             if live_provider && launch.input.provider == "openrouter" {
                 let key = std::env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV)
+                    .filter(|value| !value.is_empty())
                     .ok_or_else(|| {
                         CliError::validation(
                             "OPENROUTER_API_KEY is required for an explicit live development run",
@@ -8360,6 +8467,130 @@ mod tests {
         assert!(calls.contains(&(0, true)));
         assert!(calls.contains(&(0, false)));
         assert!(calls.contains(&(1, false)));
+    }
+
+    #[test]
+    fn internal_opencode_batch_rejects_invalid_timeout_before_reading_prompt() {
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "not-a-timeout",
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "usage");
+        assert_eq!(error.message, "OpenCode batch timeout is invalid");
+    }
+
+    #[test]
+    fn internal_opencode_batch_validates_prompt_and_pinned_binary() {
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "OpenCode batch prompt is unavailable");
+
+        let mut invalid_utf8 = &[0xff][..];
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            Some(&mut invalid_utf8),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "OpenCode batch prompt is not UTF-8");
+
+        let mut prompt = b"bounded prompt".as_slice();
+        let error = run_opencode_batch(
+            Path::new("/bin/true"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            Some(&mut prompt),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "pinned OpenCode adapter could not start");
+    }
+
+    #[test]
+    fn internal_opencode_batch_rejects_oversized_prompt() {
+        let prompt = vec![b'x'; asb_agents::opencode::MAX_PROMPT_BYTES + 1];
+        let mut prompt = prompt.as_slice();
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            Some(&mut prompt),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "OpenCode batch prompt exceeds its bound");
+    }
+
+    #[test]
+    fn live_opencode_launch_selects_the_adapter_child_boundary() {
+        let scratch = Scratch::new("live-opencode-adapter-child");
+        let (_, selection_value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["opencode"]);
+        let selection: ProviderPlanOutput =
+            serde_json::from_value(selection_value.clone()).unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "adapter-child");
+        bind_provider_selection(&mut plan, &selection_value, "opencode", "openrouter");
+        let executable = scratch.0.join("opencode");
+        fs::write(&executable, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+        let digest = format!("{:x}", Sha256::digest(fs::read(&executable).unwrap()));
+        plan.agent.executable = executable;
+        plan.agent.executable_sha256 = digest;
+        let launch =
+            build_provider_launch(&plan, &selection, "adapter-child", "attempt-0").unwrap();
+        let workspace = scratch.0.join("workspace");
+        let home = scratch.0.join("home");
+        let temporary = scratch.0.join("tmp");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&home).unwrap();
+        fs::create_dir_all(&temporary).unwrap();
+        let prompt_path = scratch.0.join("prompt");
+        fs::write(&prompt_path, b"bounded adapter prompt").unwrap();
+        let prompt = OpenOptions::new().read(true).open(prompt_path).unwrap();
+        let limits = ProcessLimits::new(
+            4096,
+            4096,
+            Duration::from_secs(1),
+            Duration::from_millis(50),
+            Duration::from_millis(2),
+        )
+        .unwrap();
+        let error = match spawn_verified_agent(
+            &plan,
+            &workspace,
+            &home,
+            &temporary,
+            &plan.agent.executable,
+            &prompt,
+            limits,
+            Some(&launch),
+            true,
+            None,
+        ) {
+            Ok(_) => panic!("live OpenCode launch unexpectedly started without a key"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            error.message,
+            "OPENROUTER_API_KEY is required for an explicit live development run"
+        );
     }
 
     #[test]

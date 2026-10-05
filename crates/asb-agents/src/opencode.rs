@@ -261,7 +261,11 @@ impl OpenCodeConfig {
             }
         };
 
-        let result = self.spawn_process(&run_root, prompt_file, limits);
+        let live_key = std::env::var_os("ASB_PROVIDER_LIVE")
+            .is_some()
+            .then(|| std::env::var_os(crate::openrouter::OPENROUTER_API_KEY_ENV))
+            .flatten();
+        let result = self.spawn_process(&run_root, prompt_file, limits, live_key.as_deref());
         match result {
             Ok(process) => Ok(RunningOpenCode {
                 process,
@@ -282,6 +286,7 @@ impl OpenCodeConfig {
         run_root: &Path,
         prompt_file: fs::File,
         limits: ProcessLimits,
+        live_key: Option<&std::ffi::OsStr>,
     ) -> Result<RunningProcess, AdapterError> {
         let config = self.runtime_config();
         let mut command = Command::new(&self.binary);
@@ -298,6 +303,13 @@ impl OpenCodeConfig {
             .env("XDG_CACHE_HOME", run_root.join("cache"))
             .env("OPENCODE_DISABLE_PROJECT_CONFIG", "1")
             .env("OPENCODE_CONFIG_CONTENT", config.to_string());
+        // The ASB batch child receives the development credential only for an
+        // explicitly live launch. OpenCode resolves the
+        // `{env:OPENROUTER_API_KEY}` reference from this environment;
+        // env_clear above must not drop that one deliberate secret.
+        if let Some(key) = live_key {
+            command.env(crate::openrouter::OPENROUTER_API_KEY_ENV, key);
+        }
         RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
     }
 
@@ -356,7 +368,7 @@ impl OpenCodeConfig {
 }
 
 const fn model_component_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':')
 }
 
 /// A cancellable OpenCode process whose output has not yet been collected.
@@ -986,6 +998,66 @@ mod tests {
             assert_eq!(permissions.get(denied).unwrap(), "deny");
         }
         assert_eq!(permissions.len(), 6);
+    }
+
+    #[test]
+    fn live_key_is_forwarded_after_environment_is_cleared() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-opencode-live-key-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let binary = root.join("opencode");
+        let marker = root.join("key-marker");
+        let workspace = root.join("workspace");
+        let state = root.join("state");
+        let run_root = root.join("attempt");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&state).unwrap();
+        fs::create_dir_all(run_root.join("home")).unwrap();
+        fs::create_dir_all(run_root.join("config")).unwrap();
+        fs::create_dir_all(run_root.join("data")).unwrap();
+        fs::create_dir_all(run_root.join("cache")).unwrap();
+        let script = format!(
+            "#!/bin/sh\nprintf '%s' \"$OPENROUTER_API_KEY\" > '{}'\n",
+            marker.display()
+        );
+        fs::write(&binary, script).unwrap();
+        let mut permissions = fs::metadata(&binary).unwrap().permissions();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o700);
+        fs::set_permissions(&binary, permissions).unwrap();
+        let adapter = OpenCodeConfig::new(
+            &binary,
+            &workspace,
+            &state,
+            Url::parse("http://127.0.0.1:1/v1").unwrap(),
+            "openrouter/model",
+            OpenCodeArtifact::LinuxX86_64V1_18_29,
+        )
+        .unwrap();
+        let prompt_path = run_root.join("prompt");
+        let prompt = fs::File::create(&prompt_path).unwrap();
+        let limits = ProcessLimits::new(
+            4096,
+            4096,
+            Duration::from_secs(2),
+            Duration::from_millis(50),
+            Duration::from_millis(2),
+        )
+        .unwrap();
+        let mut process = adapter
+            .spawn_process(
+                &run_root,
+                prompt,
+                limits,
+                Some(std::ffi::OsStr::new("synthetic-key")),
+            )
+            .unwrap();
+        assert_eq!(process.wait().unwrap().exit_code, Some(0));
+        assert_eq!(fs::read(&marker).unwrap(), b"synthetic-key");
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
