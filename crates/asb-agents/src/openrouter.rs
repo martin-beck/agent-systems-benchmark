@@ -814,6 +814,69 @@ mod tests {
             invalid_status,
             Err(OpenRouterLiveError::InvalidStatus)
         ));
+
+        let missing_marker = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Ok((true, b"no status marker".to_vec())),
+        );
+        assert!(matches!(
+            missing_marker,
+            Err(OpenRouterLiveError::InvalidStatus)
+        ));
+
+        let invalid_utf8_status = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Ok((true, b"{}\n\xff".to_vec())),
+        );
+        assert!(matches!(
+            invalid_utf8_status,
+            Err(OpenRouterLiveError::InvalidStatus)
+        ));
+
+        let oversized_response = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Ok((true, vec![b'x'; MAX_LIVE_RESPONSE_BYTES + 9])),
+        );
+        assert!(matches!(
+            oversized_response,
+            Err(OpenRouterLiveError::ResponseTooLarge)
+        ));
+
+        let oversized_body = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| {
+                let mut output = vec![b'x'; MAX_LIVE_RESPONSE_BYTES + 1];
+                output.extend_from_slice(b"\n200");
+                Ok((true, output))
+            },
+        );
+        assert!(matches!(
+            oversized_body,
+            Err(OpenRouterLiveError::ResponseTooLarge)
+        ));
+    }
+
+    #[test]
+    fn live_capture_without_environment_credential_is_typed_and_fail_closed() {
+        let profile = profile();
+        let result = capture_openrouter_live(
+            &profile,
+            OpenRouterAgent::Aider,
+            br#"{"model":"cohere/north-mini-code:free"}"#,
+        );
+        assert!(matches!(result, Err(OpenRouterLiveError::Credential(_))));
     }
 
     #[test]
