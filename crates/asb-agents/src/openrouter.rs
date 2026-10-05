@@ -255,6 +255,11 @@ impl OpenRouterLiveResponse {
             "rate_limited": self.is_rate_limited(),
         })
     }
+
+    /// Stable tuple used by lightweight result comparators.
+    pub const fn comparison_key(&self) -> (u16, usize, bool) {
+        (self.status, self.body.len(), self.is_success())
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -909,6 +914,7 @@ mod tests {
         );
         assert_eq!(response.analysis_fields()["body_bytes"], 17);
         assert_eq!(response.analysis_fields()["success"], true);
+        assert_eq!(response.comparison_key(), (200, 17, true));
         let failure_response = OpenRouterLiveResponse {
             status: 503,
             body: Vec::new(),
