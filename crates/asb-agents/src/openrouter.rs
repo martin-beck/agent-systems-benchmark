@@ -222,6 +222,26 @@ pub fn capture_openrouter_live(
     agent: OpenRouterAgent,
     request_body: &[u8],
 ) -> Result<OpenRouterLiveResponse, OpenRouterLiveError> {
+    capture_openrouter_live_with_resolver(
+        profile,
+        agent,
+        request_body,
+        |profile| resolve_openrouter_environment(profile).map_err(OpenRouterLiveError::Credential),
+        openrouter_curl_transport,
+    )
+}
+
+fn capture_openrouter_live_with_resolver<R, F>(
+    profile: &OpenRouterProfile,
+    agent: OpenRouterAgent,
+    request_body: &[u8],
+    resolve: R,
+    transport: F,
+) -> Result<OpenRouterLiveResponse, OpenRouterLiveError>
+where
+    R: FnOnce(&OpenRouterProfile) -> Result<ResolvedCredential, OpenRouterLiveError>,
+    F: FnOnce(&std::path::Path, &[u8]) -> Result<(bool, Vec<u8>), OpenRouterLiveError>,
+{
     profile
         .translate(agent, profile.provider_profile())
         .map_err(|_| OpenRouterLiveError::Transport)?;
@@ -230,15 +250,8 @@ pub fn capture_openrouter_live(
     {
         return Err(OpenRouterLiveError::RequestTooLarge);
     }
-    let credential =
-        resolve_openrouter_environment(profile).map_err(OpenRouterLiveError::Credential)?;
-    capture_openrouter_live_with_credential(
-        profile,
-        agent,
-        request_body,
-        credential,
-        openrouter_curl_transport,
-    )
+    let credential = resolve(profile)?;
+    capture_openrouter_live_with_credential(profile, agent, request_body, credential, transport)
 }
 
 fn openrouter_curl_transport(
@@ -796,6 +809,16 @@ mod tests {
         assert_eq!(response.status, 200);
         assert_eq!(response.body, br#"{"id":"captured"}"#);
 
+        let resolved_wrapper = capture_openrouter_live_with_resolver(
+            &profile,
+            OpenRouterAgent::Aider,
+            br#"{"model":"cohere/north-mini-code:free"}"#,
+            |_profile| Ok(credential()),
+            |_config, body| Ok((true, [body, b"\n201"].concat())),
+        )
+        .unwrap();
+        assert_eq!(resolved_wrapper.status, 201);
+
         let transport_error = capture_openrouter_live_with_credential(
             &profile,
             OpenRouterAgent::Aider,
@@ -818,6 +841,22 @@ mod tests {
         assert!(matches!(
             invalid_status,
             Err(OpenRouterLiveError::InvalidStatus)
+        ));
+
+        let resolver_error = capture_openrouter_live_with_resolver(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            |_profile| {
+                Err(OpenRouterLiveError::Credential(
+                    CredentialResolutionError::Unavailable,
+                ))
+            },
+            |_config, _body| panic!("transport must not run when resolution fails"),
+        );
+        assert!(matches!(
+            resolver_error,
+            Err(OpenRouterLiveError::Credential(_))
         ));
 
         let transport_result_error = capture_openrouter_live_with_credential(
