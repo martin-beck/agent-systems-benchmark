@@ -9,6 +9,8 @@ the immutable selection identity.
 
 ```sh
 asb provider-catalog > catalog.json
+# Optional online refresh: discovers the public zero-price OpenRouter roster.
+asb provider-catalog --refresh > catalog.json
 asb provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai|openrouter \
   --agent codex --agent opendesk \
@@ -25,6 +27,14 @@ through the OpenRouter public API with `OPENROUTER_API_KEY` as the environment
 credential reference); `openai` selects the pinned OpenAI profile. A stale
 catalog, duplicate agent, unsupported adapter, or mismatched experiment fails
 before result/work roots or processes are created.
+
+The refresh is credential-free and normalizes only models whose public catalog
+pricing explicitly reports zero prompt and completion prices. To request one of
+those models in a plan, pass `--model MODEL`; a missing, paid, stale, or
+unavailable model returns a typed validation error before any provider request.
+If the public catalog cannot be reached, retain the pinned offline roster and
+use the ordinary credential-free path; setup and local development do not block
+on authentication or discovery.
 
 ## Per-user OpenRouter configuration
 

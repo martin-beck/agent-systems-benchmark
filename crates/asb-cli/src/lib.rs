@@ -17,6 +17,7 @@ use asb_agents::openai::OpenAiProfile;
 use asb_agents::opencode::{OpenCodeArtifact, OpenCodeConfig};
 use asb_agents::openrouter::OpenRouterProfile;
 use asb_agents::openrouter::{OpenRouterAgent, OpenRouterLiveError, capture_openrouter_live};
+use asb_agents::openrouter::{OpenRouterProfileError, discover_openrouter_model_catalog};
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
     RuntimeBundleIdentity, credential_target_for_provider_agent,
@@ -728,12 +729,15 @@ fn dispatch(
         [command] if command == "capabilities" && explicit_json => {
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
-        [command] if command == "provider-catalog" => provider_catalog(stdout).map(|()| 0),
+        [command] if command == "provider-catalog" => provider_catalog(stdout, false).map(|()| 0),
+        [command, refresh] if command == "provider-catalog" && refresh == "--refresh" => {
+            provider_catalog(stdout, true).map(|()| 0)
+        }
         [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
         [command, format, value]
             if command == "provider-catalog" && format == "--format" && value == "json" =>
         {
-            provider_catalog(stdout).map(|()| 0)
+            provider_catalog(stdout, false).map(|()| 0)
         }
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
@@ -1130,7 +1134,7 @@ fn guided_local(
     if args[0] == "provider-catalog"
         && (args.len() == 1 || (args.len() == 3 && args[1] == "--format" && args[2] == "json"))
     {
-        return provider_catalog(output).map(|()| 0);
+        return provider_catalog(output, false).map(|()| 0);
     }
     if args[0] == "adapter-catalog" && args.len() == 1 {
         return adapter_catalog(output).map(|()| 0);
@@ -2463,6 +2467,10 @@ struct ProviderCatalogOutput {
     catalog_sha256: String,
     agents: &'static [&'static str],
     profiles: [ProviderCatalogEntry; 4],
+    /// Public zero-price OpenRouter roster; never contains credentials.
+    openrouter_free_models: Vec<String>,
+    /// `pinned` for the offline roster or `refreshed` after public discovery.
+    openrouter_catalog_status: &'static str,
 }
 
 #[derive(Serialize)]
@@ -2543,7 +2551,24 @@ fn workload_catalog_output(output: &mut dyn Write) -> Result<(), CliError> {
     )
 }
 
-fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
+fn provider_catalog(output: &mut dyn Write, refresh: bool) -> Result<(), CliError> {
+    let (openrouter_free_models, openrouter_catalog_status) = if refresh {
+        let catalog = discover_openrouter_model_catalog()
+            .map_err(|_| CliError::operation("OpenRouter public model catalog is unavailable"))?;
+        (
+            catalog
+                .free_models
+                .into_iter()
+                .map(|model| model.model_id)
+                .collect(),
+            "refreshed",
+        )
+    } else {
+        (
+            vec![asb_agents::openrouter::OPENROUTER_MODEL.to_owned()],
+            "pinned",
+        )
+    };
     write_json(
         output,
         &ProviderCatalogOutput {
@@ -2553,6 +2578,8 @@ fn provider_catalog(output: &mut dyn Write) -> Result<(), CliError> {
             catalog_version: PROVIDER_CATALOG_VERSION,
             catalog_sha256: provider_catalog_digest(),
             agents: &AGENT_IDS,
+            openrouter_free_models,
+            openrouter_catalog_status,
             profiles: [
                 ProviderCatalogEntry {
                     id: "openai",
@@ -2772,6 +2799,7 @@ fn provider_plan_at(
     let mut catalog_sha256 = None;
     let mut provider = None;
     let mut credential_reference_sha256 = None;
+    let mut requested_model = None;
     let mut use_config = false;
     let mut agents = Vec::new();
     let mut index = 0;
@@ -2793,12 +2821,16 @@ fn provider_plan_at(
         match flag {
             "--catalog-sha256" if catalog_sha256.replace(value.as_str()).is_none() => {}
             "--provider-profile" if provider.replace(value.as_str()).is_none() => {}
+            "--model" if requested_model.replace(value.as_str()).is_none() => {}
             "--credential-reference-sha256"
                 if credential_reference_sha256
                     .replace(value.as_str())
                     .is_none() => {}
             "--agent" if agents.len() < MAX_SELECTED_AGENTS => agents.push(parse_agent(value)?),
-            "--catalog-sha256" | "--provider-profile" | "--credential-reference-sha256" => {
+            "--catalog-sha256"
+            | "--provider-profile"
+            | "--credential-reference-sha256"
+            | "--model" => {
                 return Err(CliError::usage(
                     "provider-plan option was supplied more than once",
                 ));
@@ -2842,8 +2874,13 @@ fn provider_plan_at(
             "provider profile is advertised but unavailable without verified daemon evidence",
         ));
     }
-    let (provider_kind, plan, model) =
-        provider_plan_for(provider, agents, credential_reference_sha256)?;
+    let (provider_kind, plan, model) = if let Some(model) = requested_model {
+        provider_plan_for_selected_model(provider, agents, credential_reference_sha256, model)?
+    } else {
+        let (provider_kind, plan, model) =
+            provider_plan_for(provider, agents, credential_reference_sha256)?;
+        (provider_kind, plan, model.to_owned())
+    };
     let effective = plan
         .effective()
         .iter()
@@ -2874,7 +2911,7 @@ fn provider_plan_at(
             selection_sha256,
             provider_profile: provider.to_owned(),
             provider_profile_sha256: plan.profile_sha256().to_owned(),
-            model: model.to_owned(),
+            model,
             credential_source: "environment".to_owned(),
             credential_reference_sha256: credential_reference_sha256
                 .expect("provider profile resolution validated the credential reference identity")
@@ -2991,6 +3028,44 @@ fn provider_plan_for(
         }
     };
     Ok((selection.provider, plan, model))
+}
+
+/// Resolve an explicitly requested OpenRouter model only after the public
+/// zero-price catalog has admitted it. This keeps stale or paid model IDs out
+/// of provider plans while preserving the pinned offline path above.
+fn provider_plan_for_selected_model(
+    provider: &str,
+    agents: Vec<SelectedAgent>,
+    credential_reference_sha256: Option<&str>,
+    model: &str,
+) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, String), CliError> {
+    if provider != "openrouter" {
+        return Err(CliError::validation(
+            "dynamic model selection is currently supported only for openrouter",
+        ));
+    }
+    let credential = credential_reference_sha256
+        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
+    let catalog = discover_openrouter_model_catalog()
+        .map_err(|_| CliError::validation("OpenRouter model catalog is unavailable"))?;
+    let profile =
+        OpenRouterProfile::new_from_free_catalog(credential, &catalog, model).map_err(|error| {
+            match error {
+                OpenRouterProfileError::ModelUnavailable => CliError::validation(
+                    "OpenRouter model is unavailable or not explicitly zero-price",
+                ),
+                _ => CliError::validation("credential reference identity is invalid"),
+            }
+        })?;
+    let selection = AllAgentsProviderSelection {
+        schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
+        provider: AllAgentsProviderKind::OpenRouter,
+        agents,
+    };
+    let plan = resolve_openrouter_selection(&selection, &profile).map_err(|_| {
+        CliError::validation("provider profile is incompatible with selected agents")
+    })?;
+    Ok((AllAgentsProviderKind::OpenRouter, plan, model.to_owned()))
 }
 
 fn provider_selection_digest(
