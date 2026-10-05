@@ -15,7 +15,7 @@ use asb_agents::all_agents_provider::{
 };
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::openrouter::OpenRouterProfile;
-use asb_agents::openrouter::{OpenRouterAgent, capture_openrouter_live};
+use asb_agents::openrouter::{OpenRouterAgent, OpenRouterLiveError, capture_openrouter_live};
 use asb_agents::provider_launch::{
     LaunchPolicy, ProviderLaunchProjection, ProviderLaunchRecord, ProviderLaunchV1,
     RuntimeBundleIdentity, credential_target_for_provider_agent,
@@ -846,8 +846,47 @@ fn record_openrouter_live(
     let request_bytes = serde_json::to_vec(&request.request_body)
         .map_err(|_| CliError::validation("OpenRouter request body cannot be encoded"))?;
     let response = capture_openrouter_live(&profile, agent, &request_bytes)
-        .map_err(|_| CliError::operation("OpenRouter live capture failed"))?;
+        .map_err(openrouter_live_cli_error)?;
     record_openrouter_live_response(&request, agent, response, output, stdout)
+}
+
+/// Preserve the typed, actionable contract of the online provider boundary at
+/// the CLI output boundary.  The messages intentionally contain no credential
+/// material or transport diagnostics supplied by an external process.
+fn openrouter_live_cli_error(error: OpenRouterLiveError) -> CliError {
+    match error {
+        OpenRouterLiveError::Credential(_) => CliError::operation_code(
+            "provider_credential_unavailable",
+            "OpenRouter credential unavailable",
+        ),
+        OpenRouterLiveError::RequestTooLarge => CliError::validation_code(
+            "provider_request_too_large",
+            "OpenRouter request exceeds its bound",
+        ),
+        OpenRouterLiveError::ModelMismatch => CliError::validation_code(
+            "provider_model_mismatch",
+            "OpenRouter request model does not match the selected provider model",
+        ),
+        OpenRouterLiveError::Transport => {
+            CliError::operation_code("provider_transport_failed", "OpenRouter transport failed")
+        }
+        OpenRouterLiveError::ResponseTooLarge => CliError::operation_code(
+            "provider_response_too_large",
+            "OpenRouter response exceeds its bound",
+        ),
+        OpenRouterLiveError::InvalidStatus => CliError::operation_code(
+            "provider_invalid_status",
+            "OpenRouter returned an invalid HTTP status",
+        ),
+        OpenRouterLiveError::HttpStatus(_) => CliError::operation_code(
+            "provider_http_error",
+            "OpenRouter returned a non-success HTTP status",
+        ),
+        OpenRouterLiveError::CurlUnavailable => CliError::operation_code(
+            "provider_transport_unavailable",
+            "OpenRouter curl transport is unavailable",
+        ),
+    }
 }
 
 fn record_openrouter_live_response(
@@ -6699,6 +6738,24 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
         }
     }
+
+    const fn validation_code(code: &'static str, message: &'static str) -> Self {
+        Self {
+            code,
+            message,
+            exit_code: 3,
+            settings_issue: asb_control::SettingsIssue::InvalidFormat,
+        }
+    }
+
+    const fn operation_code(code: &'static str, message: &'static str) -> Self {
+        Self {
+            code,
+            message,
+            exit_code: 4,
+            settings_issue: asb_control::SettingsIssue::InvalidFormat,
+        }
+    }
 }
 
 fn output_error(_: io::Error) -> CliError {
@@ -10178,7 +10235,11 @@ mod tests {
             );
             assert_eq!(code, 4);
             let error: Value = serde_json::from_slice(&output).unwrap();
-            assert_eq!(error["error"]["message"], "OpenRouter live capture failed");
+            assert_eq!(
+                error["error"]["message"],
+                "OpenRouter credential unavailable"
+            );
+            assert_eq!(error["error"]["code"], "provider_credential_unavailable");
         }
         let mut invalid = Vec::new();
         fs::write(
