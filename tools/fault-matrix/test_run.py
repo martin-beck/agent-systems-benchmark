@@ -32,6 +32,20 @@ class FaultMatrixTests(unittest.TestCase):
         self.assertFalse(probe["loopback"])
         self.assertFalse(probe["external_denied"])
 
+    def test_redaction_bounds_all_credential_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "private"
+            output = " ".join([
+                str(root), "OPENAI_API_KEY=one", "OPENROUTER_API_KEY=two",
+                "GEMINI_API_KEY=three",
+            ])
+            redacted = run.redact_output(output, root)
+        self.assertNotIn("one", redacted)
+        self.assertNotIn("two", redacted)
+        self.assertNotIn("three", redacted)
+        self.assertNotIn(str(root), redacted)
+        self.assertLessEqual(len(redacted.encode()), run.MAX_OUTPUT)
+
     def test_manifest_is_closed_and_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "matrix.json"

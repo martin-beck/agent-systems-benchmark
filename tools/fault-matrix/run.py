@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import selectors
 import signal
 import shutil
@@ -171,13 +172,11 @@ def workspace_bytes(root: Path) -> int:
 def redact_output(output: str, root: Path) -> str:
     """Keep diagnostics useful without leaking private roots or credentials."""
     redacted = output.replace(str(root), "<case-root>")
-    for marker in ("OPENAI_API_KEY=", "OPENROUTER_API_KEY=", "GEMINI_API_KEY="):
-        while marker in redacted:
-            start = redacted.index(marker) + len(marker)
-            end = redacted.find("\n", start)
-            if end < 0:
-                end = len(redacted)
-            redacted = redacted[:start] + "<redacted>" + redacted[end:]
+    redacted = re.sub(
+        r"(?i)(OPENAI_API_KEY|OPENROUTER_API_KEY|GEMINI_API_KEY)=[^\s\r\n]*",
+        r"\1=<redacted>",
+        redacted,
+    )
     return redacted[:MAX_OUTPUT]
 
 
