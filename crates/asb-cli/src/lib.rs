@@ -10152,7 +10152,7 @@ mod tests {
                 &mut output,
                 &mut diagnostics,
             );
-            assert_eq!(code, 3);
+            assert_eq!(code, 4);
             let error: Value = serde_json::from_slice(&output).unwrap();
             assert_eq!(error["error"]["message"], "OpenRouter live capture failed");
         }
