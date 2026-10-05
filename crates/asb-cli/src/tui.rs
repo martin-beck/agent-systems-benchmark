@@ -4636,10 +4636,13 @@ mod tests {
         // strict replay, then quit. The ASB recorder sees the typed calls.
         let feeder_calls = Arc::clone(&calls);
         let feeder = thread::spawn(move || {
-            // A fresh development launch opens the setup wizard. Cancel it
-            // explicitly before exercising the Run Control route.
+            // A fresh development launch may open the setup wizard. Escape
+            // back to Landing without quitting; Esc is harmless there.
             thread::sleep(Duration::from_secs(1));
-            master.write_all(b"q").unwrap();
+            for _ in 0..5 {
+                master.write_all(&[0x1b]).unwrap();
+                thread::sleep(Duration::from_millis(200));
+            }
             // Hosted runners can take a full scheduler slice to render the
             // inherited-fd frontend after bootstrap. Repeat only the idempotent
             // route transition so a delayed first frame cannot swallow it.
