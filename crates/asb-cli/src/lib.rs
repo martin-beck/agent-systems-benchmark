@@ -2357,6 +2357,7 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
                 "plan",
                 "run",
                 "sweep",
+                "benchmark-live",
                 "compare",
                 "report",
                 "record",
@@ -7171,6 +7172,13 @@ mod tests {
         let doctor: Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(doctor["schema_version"], OUTPUT_SCHEMA_VERSION);
         assert_eq!(doctor["command"], "doctor");
+        assert!(
+            doctor["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|command| command == "benchmark-live")
+        );
         assert!(!output.contains(&0x1b));
         output.clear();
         assert_eq!(run(&["unknown".into()], &mut output, &mut diagnostic), 2);
