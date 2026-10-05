@@ -625,16 +625,25 @@ pub fn discover_openrouter_model_catalog() -> Result<OpenRouterModelCatalog, Ope
         .stdout(Stdio::piped())
         .spawn()
         .map_err(|_| OpenRouterCatalogError::Unavailable)?;
-    let mut stdout = child
-        .stdout
-        .take()
-        .ok_or(OpenRouterCatalogError::Unavailable)?;
+    let mut stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(OpenRouterCatalogError::Unavailable);
+        }
+    };
     let mut bounded = Vec::new();
-    stdout
+    if stdout
         .by_ref()
         .take((MAX_LIVE_RESPONSE_BYTES + 17) as u64)
         .read_to_end(&mut bounded)
-        .map_err(|_| OpenRouterCatalogError::Unavailable)?;
+        .is_err()
+    {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(OpenRouterCatalogError::Unavailable);
+    }
     if bounded.len() > MAX_LIVE_RESPONSE_BYTES + 16 {
         let _ = child.kill();
         let _ = child.wait();

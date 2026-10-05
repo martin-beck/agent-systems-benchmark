@@ -1620,6 +1620,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let mut agents = Vec::new();
     let mut credential_environment = None;
     let mut default_for_all = true;
+    let mut dynamic_catalog_sha256 = None;
     let mut index = 0;
     while index < args.len() {
         let value = args[index].as_str();
@@ -1757,6 +1758,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             .collect::<Result<Vec<_>, _>>()?;
         if provider == "openrouter" && selected_model != asb_agents::openrouter::OPENROUTER_MODEL {
             let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
+            dynamic_catalog_sha256 = Some(catalog.digest_sha256());
             provider_plan_for_selected_model_in_catalog(
                 provider,
                 selected_agents,
@@ -1790,7 +1792,7 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
                 provider: provider.to_owned(),
                 model: selected_model.to_owned(),
                 endpoint: endpoint.to_owned(),
-                credential: Some(credential),
+                credential: Some(credential.clone()),
             },
             connection_name,
             connection: ConfigConnection {
@@ -1803,6 +1805,20 @@ fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
         next = next.apply_provider_selection(&selection).map_err(|_| {
             CliError::validation("setup selection is incompatible with configuration")
         })?;
+        if provider == "openrouter" && selected_model != asb_agents::openrouter::OPENROUTER_MODEL {
+            next.openrouter_dynamic_model = Some(asb_config::OpenRouterDynamicModelConfig {
+                schema_version: 1,
+                model: selected_model.to_owned(),
+                catalog_sha256: dynamic_catalog_sha256
+                    .expect("dynamic catalog admission recorded its digest"),
+                credential: CredentialReference {
+                    kind: CredentialReferenceKind::Environment,
+                    locator_sha256: credential.locator_sha256.clone(),
+                },
+            });
+        } else {
+            next.openrouter_dynamic_model = None;
+        }
         store
             .save(&next)
             .map_err(|_| CliError::operation("setup configuration cannot be persisted"))?;
@@ -2897,14 +2913,8 @@ fn provider_plan_at(
         }
         index += 2;
     }
-    let expected_catalog = provider_catalog_digest();
-    if requested_model.is_none() && catalog_sha256 != Some(expected_catalog.as_str()) {
-        return Err(CliError::validation(
-            "provider catalog identity is stale or absent",
-        ));
-    }
     let config = use_config
-        .then(|| load_openrouter_config_at(store))
+        .then(|| load_openrouter_plan_config_at(store))
         .transpose()?;
     let provider = provider
         .or_else(|| config.as_ref().map(|_| "openrouter"))
@@ -2916,13 +2926,37 @@ fn provider_plan_at(
     }
     if let Some(config) = &config {
         if let Some(requested) = credential_reference_sha256
-            && requested != config.credential.locator_sha256
+            && requested != config.credential_reference_sha256
         {
             return Err(CliError::validation(
                 "configured credential reference does not match",
             ));
         }
-        credential_reference_sha256 = Some(config.credential.locator_sha256.as_str());
+        credential_reference_sha256 = Some(config.credential_reference_sha256.as_str());
+        if config.dynamic {
+            if let Some(requested) = requested_model
+                && requested != config.model
+            {
+                return Err(CliError::validation(
+                    "configured OpenRouter model does not match the requested model",
+                ));
+            }
+            requested_model = Some(config.model.as_str());
+            if let Some(requested) = catalog_sha256
+                && requested != config.catalog_sha256
+            {
+                return Err(CliError::validation(
+                    "configured OpenRouter catalog does not match the requested catalog",
+                ));
+            }
+            catalog_sha256 = Some(config.catalog_sha256.as_str());
+        }
+    }
+    let expected_catalog = provider_catalog_digest();
+    if requested_model.is_none() && catalog_sha256 != Some(expected_catalog.as_str()) {
+        return Err(CliError::validation(
+            "provider catalog identity is stale or absent",
+        ));
     }
     if provider == "ollama" {
         return Err(CliError::validation(
@@ -2990,6 +3024,38 @@ fn provider_plan_at(
             effective,
         },
     )
+}
+
+struct OpenRouterPlanConfig {
+    model: String,
+    catalog_sha256: String,
+    credential_reference_sha256: String,
+    dynamic: bool,
+}
+
+fn load_openrouter_plan_config_at(store: &ConfigStore) -> Result<OpenRouterPlanConfig, CliError> {
+    let config = store
+        .load()
+        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
+        .ok_or_else(|| CliError::validation("OpenRouter configuration is absent"))?;
+    if let Some(dynamic) = config.openrouter_dynamic_model {
+        dynamic
+            .validate()
+            .map_err(|_| CliError::validation("OpenRouter dynamic configuration is invalid"))?;
+        return Ok(OpenRouterPlanConfig {
+            model: dynamic.model,
+            catalog_sha256: dynamic.catalog_sha256,
+            credential_reference_sha256: dynamic.credential.locator_sha256,
+            dynamic: true,
+        });
+    }
+    let selection = load_openrouter_config_at(store)?;
+    Ok(OpenRouterPlanConfig {
+        model: selection.model,
+        catalog_sha256: provider_catalog_digest(),
+        credential_reference_sha256: selection.credential.locator_sha256,
+        dynamic: false,
+    })
 }
 
 fn load_openrouter_config_at(store: &ConfigStore) -> Result<OpenRouterFreeModelConfig, CliError> {
@@ -7990,6 +8056,48 @@ mod tests {
         ];
         assert!(provider_plan_at(&credential_mismatch, &mut Vec::new(), &store).is_err());
         assert_eq!(selection.provider, "openrouter");
+    }
+
+    #[test]
+    fn dynamic_openrouter_setup_config_round_trips_into_a_catalog_bound_plan() {
+        let scratch = Scratch::new("openrouter-dynamic-config");
+        let store = ConfigStore::new(scratch.0.join("config.json"));
+        configure_openrouter_at(&store, &mut Vec::new()).unwrap();
+        let catalog = asb_agents::openrouter::OpenRouterModelCatalog {
+            free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                model_id: "example/free".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let mut config = store.load().unwrap().unwrap();
+        let credential = config
+            .openrouter_free_model
+            .as_ref()
+            .unwrap()
+            .credential
+            .clone();
+        config.openrouter_dynamic_model = Some(asb_config::OpenRouterDynamicModelConfig {
+            schema_version: 1,
+            model: "example/free".into(),
+            catalog_sha256: catalog.digest_sha256(),
+            credential,
+        });
+        store.save(&config).unwrap();
+
+        let loaded = load_openrouter_plan_config_at(&store).unwrap();
+        assert!(loaded.dynamic);
+        assert_eq!(loaded.model, "example/free");
+        assert_eq!(loaded.catalog_sha256, catalog.digest_sha256());
+        let (_, _, model) = provider_plan_for_selected_model_in_catalog(
+            "openrouter",
+            vec![SelectedAgent::Codex],
+            Some(&loaded.credential_reference_sha256),
+            &loaded.model,
+            &catalog,
+        )
+        .unwrap();
+        assert_eq!(model, "example/free");
     }
 
     #[test]
