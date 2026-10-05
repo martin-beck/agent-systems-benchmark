@@ -550,7 +550,14 @@ fn dynamic_provider_catalog(
             provider
                 .models
                 .sort_by(|left, right| left.model_id.cmp(&right.model_id));
-            provider.availability = ProviderAvailability::Available;
+            provider.availability = if provider.models.is_empty() {
+                // Discovery succeeded, but no explicitly zero-price model was
+                // advertised. Keep this distinct from transport failure while
+                // making the provider non-selectable.
+                ProviderAvailability::Unavailable("dynamic-catalog-empty".into())
+            } else {
+                ProviderAvailability::Available
+            };
         }
         ProviderCatalogMode::Static => {
             provider.models.clear();
@@ -7910,6 +7917,15 @@ mod tests {
             unavailable.diagnostic,
             Some(ProviderCatalogDiagnostic::HttpStatus(429))
         );
+
+        let empty =
+            project_openrouter_catalog(Ok(asb_agents::openrouter::OpenRouterModelCatalog {
+                free_models: Vec::new(),
+            }));
+        assert_eq!(empty.mode, ProviderCatalogMode::Dynamic);
+        assert_ne!(empty.catalog_sha256, "0".repeat(64));
+        assert!(empty.models.is_empty());
+        assert!(empty.diagnostic.is_none());
     }
 
     #[test]
@@ -7961,6 +7977,27 @@ mod tests {
         let mut bad_dynamic_mode = dynamic_catalog;
         bad_dynamic_mode.openrouter.catalog_sha256 = "0".repeat(64);
         assert!(bad_dynamic_mode.validate().is_err());
+
+        let empty_projection =
+            project_openrouter_catalog(Ok(asb_agents::openrouter::OpenRouterModelCatalog {
+                free_models: Vec::new(),
+            }));
+        let empty_catalog = dynamic_provider_catalog(
+            build_provider_catalog("runner", 2, true, Vec::<ProviderCatalogEntry>::new()).unwrap(),
+            &empty_projection,
+        )
+        .expect("empty dynamic projection remains a valid snapshot");
+        empty_catalog.validate().unwrap();
+        let openrouter = empty_catalog
+            .catalog
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == "openrouter")
+            .unwrap();
+        assert!(matches!(
+            openrouter.availability,
+            ProviderAvailability::Unavailable(ref reason) if reason == "dynamic-catalog-empty"
+        ));
     }
 
     #[test]

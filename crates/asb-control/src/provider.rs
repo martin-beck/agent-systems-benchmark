@@ -1152,12 +1152,15 @@ fn validate_provider_entry(
     }
     if provider.models.is_empty() {
         let dynamic_placeholder = !registration
-            && matches!(
-                &provider.availability,
-                ProviderAvailability::Unavailable(reason)
-                    if reason == "dynamic-catalog-not-ready"
-                        || reason == "dynamic-catalog-unavailable"
-            );
+            && match &provider.availability {
+                ProviderAvailability::Unavailable(reason) => matches!(
+                    reason.as_str(),
+                    "dynamic-catalog-not-ready"
+                        | "dynamic-catalog-unavailable"
+                        | "dynamic-catalog-empty"
+                ),
+                _ => false,
+            };
         if !dynamic_placeholder {
             return Err(ProtocolError::InvalidResponse);
         }
