@@ -95,6 +95,11 @@ impl RecordingIndex {
         if authenticated.integrity.digest != descriptor.cassette_sha256 {
             return Err(SourceSelectionError::CassetteIdentityMismatch);
         }
+        if authenticated.contents.provider_profile_sha256.as_deref()
+            != Some(descriptor.provider_profile_sha256.as_str())
+        {
+            return Err(SourceSelectionError::ProviderIdentityMismatch);
+        }
         if !self.roots.insert(descriptor.cassette_sha256.clone()) {
             return Err(SourceSelectionError::DuplicateRecording);
         }
@@ -170,6 +175,9 @@ pub enum SourceSelectionError {
     /// Descriptor and authenticated cassette roots differ.
     #[error("recording cassette identity does not match descriptor")]
     CassetteIdentityMismatch,
+    /// Descriptor provider identity is not bound into the authenticated cassette.
+    #[error("recording provider identity does not match authenticated cassette")]
+    ProviderIdentityMismatch,
     /// The same cassette root was indexed more than once.
     #[error("recording cassette is duplicated")]
     DuplicateRecording,
@@ -222,6 +230,7 @@ mod tests {
         )
         .unwrap();
         cassette.contents.cassette_id = id.into();
+        cassette.contents.provider_profile_sha256 = Some("a".repeat(64));
         let bytes = canonical_contents_bytes(&cassette.contents).unwrap();
         cassette.integrity.digest = format!("{:x}", Sha256::digest(bytes));
         cassette
@@ -312,6 +321,40 @@ mod tests {
                 })
             ),
             Err(SourceSelectionError::RecordingUnavailable)
+        );
+    }
+
+    #[test]
+    fn provider_profile_must_be_bound_into_authenticated_cassette() {
+        let profile = "a".repeat(64);
+        let recording = cassette("recording");
+        let mut index = RecordingIndex::new();
+        let descriptor = RecordingDescriptor {
+            provider_profile_sha256: "b".repeat(64),
+            agent_id: "codex".into(),
+            cassette_sha256: recording.integrity.digest.clone(),
+        };
+        assert_eq!(
+            index.insert(descriptor, &recording),
+            Err(SourceSelectionError::ProviderIdentityMismatch)
+        );
+
+        let mut unbound = recording.clone();
+        unbound.contents.provider_profile_sha256 = None;
+        unbound.integrity.digest = format!(
+            "{:x}",
+            Sha256::digest(canonical_contents_bytes(&unbound.contents).unwrap())
+        );
+        assert_eq!(
+            index.insert(
+                RecordingDescriptor {
+                    provider_profile_sha256: profile,
+                    agent_id: "codex".into(),
+                    cassette_sha256: unbound.integrity.digest.clone(),
+                },
+                &unbound,
+            ),
+            Err(SourceSelectionError::ProviderIdentityMismatch)
         );
     }
 

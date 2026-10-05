@@ -145,6 +145,7 @@ fn replay_and_live_choices_stay_agent_and_profile_exact_in_parallel() {
         )
         .unwrap();
         cassette.contents.cassette_id = format!("parity-{}", agent_id(agent));
+        cassette.contents.provider_profile_sha256 = Some(profile_id.clone());
         cassette.integrity.digest = format!(
             "{:x}",
             Sha256::digest(canonical_contents_bytes(&cassette.contents).unwrap())
@@ -227,6 +228,12 @@ fn corrupt_recording_is_rejected_and_network_denied_replay_never_falls_back() {
         CassetteLimits::default(),
     )
     .unwrap();
+    let mut cassette = cassette;
+    cassette.contents.provider_profile_sha256 = Some(profile_id.clone());
+    cassette.integrity.digest = format!(
+        "{:x}",
+        Sha256::digest(canonical_contents_bytes(&cassette.contents).unwrap())
+    );
     let mut index = RecordingIndex::new();
     assert_eq!(
         index.insert(
@@ -395,6 +402,7 @@ fn openrouter_replay_and_live_choices_stay_profile_exact_in_parallel() {
         )
         .unwrap();
         cassette.contents.cassette_id = format!("parity-openrouter-{}", agent_id(agent));
+        cassette.contents.provider_profile_sha256 = Some(profile_id.clone());
         cassette.integrity.digest = format!(
             "{:x}",
             Sha256::digest(canonical_contents_bytes(&cassette.contents).unwrap())

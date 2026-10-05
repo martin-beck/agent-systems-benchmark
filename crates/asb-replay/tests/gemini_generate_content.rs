@@ -168,6 +168,7 @@ fn contents(responses: Vec<RecordedResponse>) -> CassetteContents {
     CassetteContents {
         schema_version: 1,
         cassette_id: "gemini-generate-content-synthetic".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions: responses

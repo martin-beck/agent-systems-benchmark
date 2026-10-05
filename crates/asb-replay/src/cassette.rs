@@ -298,6 +298,12 @@ pub struct CassetteContents {
     pub schema_version: u16,
     /// Stable content-set identity.
     pub cassette_id: String,
+    /// Credential-free provider profile identity bound to this cassette when
+    /// it is eligible for provider-specific recording selection. Legacy
+    /// cassettes may omit the field for direct strict replay, but the
+    /// recording index rejects unbound cassettes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_profile_sha256: Option<String>,
     /// Exact normalization policy used before hashing.
     pub normalization: PolicyVersion,
     /// Exact redaction policy used before hashing.

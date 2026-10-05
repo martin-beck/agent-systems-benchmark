@@ -273,6 +273,7 @@
       "properties": {
         "schema_version": {"const": 1},
         "cassette_id": {"$ref": "#/$defs/identifier"},
+        "provider_profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "normalization": {"$ref": "#/$defs/policy"},
         "redaction": {"$ref": "#/$defs/redaction"},
         "interactions": {
