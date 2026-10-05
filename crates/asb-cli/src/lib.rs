@@ -1613,7 +1613,7 @@ struct SetupAuthentication {
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
 /// phase; this contract gives scripts a stable, explicit preflight surface.
 fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
-    setup_with_catalog(args, output, || discover_openrouter_model_catalog())
+    setup_with_catalog(args, output, discover_openrouter_model_catalog)
 }
 
 fn setup_with_catalog<F>(
@@ -3247,7 +3247,7 @@ fn provider_plan_for_selected_model_in_catalog(
     let credential = credential_reference_sha256
         .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
     let profile =
-        OpenRouterProfile::new_from_free_catalog(credential, &catalog, model).map_err(|error| {
+        OpenRouterProfile::new_from_free_catalog(credential, catalog, model).map_err(|error| {
             match error {
                 OpenRouterProfileError::ModelUnavailable => CliError::validation_code(
                     "provider_model_unavailable",
