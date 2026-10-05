@@ -4636,52 +4636,94 @@ mod tests {
         // strict replay, then quit. The ASB recorder sees the typed calls.
         let feeder_calls = Arc::clone(&calls);
         let feeder = thread::spawn(move || {
-            // Hosted runners can take a full scheduler slice to render the
-            // inherited-fd frontend after bootstrap. Repeat only the idempotent
-            // route transition so a delayed first frame cannot swallow it.
-            for _ in 0..4 {
-                thread::sleep(Duration::from_millis(500));
+            // Route transitions are asynchronous in the independently built
+            // TUI. Gate each key on the typed control call it enables instead
+            // of racing the renderer with a fixed burst of bytes.
+            let status_count = || {
+                feeder_calls
+                    .lock()
+                    .expect("feeder recorder lock")
+                    .iter()
+                    .filter(|call| matches!(call, ControlCall::RecordingCampaignStatus(_)))
+                    .count()
+            };
+            let initial_status_count = status_count();
+            let mut run_control_ready = false;
+            for _ in 0..8 {
+                thread::sleep(Duration::from_millis(250));
                 master.write_all(b"s").unwrap();
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while Instant::now() < deadline && status_count() <= initial_status_count {
+                    thread::sleep(Duration::from_millis(20));
+                }
+                if status_count() > initial_status_count {
+                    run_control_ready = true;
+                    break;
+                }
             }
-            for _ in 0..4 {
-                thread::sleep(Duration::from_millis(500));
+            assert!(
+                run_control_ready,
+                "Run Control did not become ready after route transition"
+            );
+            let mut offline_default_requested = false;
+            for _ in 0..8 {
                 master.write_all(b"o").unwrap();
-            }
-            let offline_deadline = Instant::now() + Duration::from_secs(3);
-            while Instant::now() < offline_deadline
-                && !feeder_calls
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while Instant::now() < deadline
+                    && !feeder_calls
+                        .lock()
+                        .expect("feeder recorder lock")
+                        .iter()
+                        .any(|call| matches!(call, ControlCall::RecordingCampaignOfflineDefault(_)))
+                {
+                    thread::sleep(Duration::from_millis(20));
+                }
+                if feeder_calls
                     .lock()
                     .expect("feeder recorder lock")
                     .iter()
                     .any(|call| matches!(call, ControlCall::RecordingCampaignOfflineDefault(_)))
-            {
-                thread::sleep(Duration::from_millis(20));
+                {
+                    offline_default_requested = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(250));
             }
+            assert!(
+                offline_default_requested,
+                "Run Control did not dispatch offline default after readiness"
+            );
             // The recording-cassette route is rendered asynchronously after
-            // the offline default is selected; repeat the idempotent route
-            // transition while waiting for its typed catalog request.
+            // the offline default response; gate the route key on its typed
+            // catalog request rather than sending ahead of the response.
+            let mut catalog_requested = false;
             for _ in 0..6 {
                 master.write_all(b"]").unwrap();
-                thread::sleep(Duration::from_millis(250));
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while Instant::now() < deadline
+                    && !feeder_calls
+                        .lock()
+                        .expect("feeder recorder lock")
+                        .iter()
+                        .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
+                {
+                    thread::sleep(Duration::from_millis(20));
+                }
                 if feeder_calls
                     .lock()
                     .expect("feeder recorder lock")
                     .iter()
                     .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
                 {
+                    catalog_requested = true;
                     break;
                 }
+                thread::sleep(Duration::from_millis(250));
             }
-            let catalog_deadline = Instant::now() + Duration::from_secs(3);
-            while Instant::now() < catalog_deadline
-                && !feeder_calls
-                    .lock()
-                    .expect("feeder recorder lock")
-                    .iter()
-                    .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
-            {
-                thread::sleep(Duration::from_millis(20));
-            }
+            assert!(
+                catalog_requested,
+                "offline cassette catalog was not requested after activation"
+            );
             master.write_all(b"J").unwrap();
             // Replay is a bounded control round trip; repeat quit input so a
             // render/control transition cannot swallow the single byte.
