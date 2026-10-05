@@ -8424,7 +8424,14 @@ mod tests {
                 let result = capture
                     .capture(
                         &ProviderCaptureRequest {
-                            provider_profile_sha256: "a".repeat(64),
+                            provider_profile_sha256: recording_tuple_digest(
+                                &record.provider_id,
+                                &record.model_id,
+                                &entry.agent_id,
+                                &entry.workload_id,
+                                &entry.scorer_revision,
+                                entry.generation,
+                            ),
                             agent_id: entry.agent_id.clone(),
                             workload_id: entry.workload_id.clone(),
                             scorer_revision: entry.scorer_revision.clone(),
