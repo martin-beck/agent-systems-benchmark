@@ -30,6 +30,7 @@
           "plan",
           "run",
           "sweep",
+          "benchmark-live",
           "compare",
           "report",
           "record",
