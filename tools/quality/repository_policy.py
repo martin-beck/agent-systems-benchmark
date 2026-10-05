@@ -6,13 +6,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 if __package__:
@@ -58,11 +55,6 @@ PRIVATE_OUTPUT_PATTERNS = (
     re.compile(r"(?:RUNNER_NAME|HOSTNAME|runner\.name|runner\.temp|/etc/hostname)"),
     re.compile(r"^\s*set\s+-(?:[^\n]*x|[^\n]*o\s+xtrace)\s*$", re.MULTILINE),
 )
-GITHUB_WEB_FLOW_KEY = ROOT / "config/github_web_flow.gpg"
-GITHUB_WEB_FLOW_KEY_SHA256 = (
-    "6e8af687f60cf3f403151c8fb1b26e95e6f9e424ca60cc8f3787bd4466a3ef84"
-)
-GITHUB_WEB_FLOW_FINGERPRINT = "968479A1AFF927E37D1A566BB5690EEEBB952194"
 GITHUB_COMMITTER = "GitHub <noreply@github.com>"
 LOCAL_COMMITTER = "Martin Beck <martin.beck2@gmx.de>"
 PROTECTED_EVENT = "push"
@@ -408,14 +400,50 @@ def validate_merge_integrity_tools() -> None:
     if any(fragment not in merge for fragment in required_merge):
         fail("signed merge tool lacks an exact identity or lease boundary")
     required_settings = (
-        '"allow_merge_commit": False',
+        'REQUIRED_SETTINGS = {',
+        '"allow_merge_commit": True',
         '"allow_squash_merge": False',
         '"allow_rebase_merge": False',
         '"allow_auto_merge": False',
         '"web_commit_signoff_required": True',
+        'RULESET_NAME = "ASB protected main publication"',
+        '"enforcement": "active"',
+        '"refs/heads/main"',
+        '"required_signatures"',
+        '"pull_request"',
+        '"allowed_merge_methods": ["merge"]',
+        '"required_approving_review_count": 1',
+        '"dismiss_stale_reviews_on_push": True',
+        '"require_last_push_approval": True',
+        '"required_review_thread_resolution": True',
+        '"required_status_checks"',
+        '"strict_required_status_checks_policy": True',
+        '"committer_email_pattern"',
+        '"pattern": r"^noreply@github\\.com$"',
+        '"negate": True',
+        '"deletion"',
+        '"non_fast_forward"',
     )
     if any(fragment not in settings for fragment in required_settings):
-        fail("repository settings tool permits an incompatible web merge mode")
+        fail("repository settings tool lacks the exact protected-main contract")
+    required_checks = (
+        "Policy, coverage, and supply chain",
+        "Rust checks (ubuntu-24.04)",
+        "Emulated aarch64 (x86_64 host)",
+        "Retained faults (ubuntu-24.04)",
+        "Matcher and SLO mutation sentinels",
+        "Exact TUI inherited-fd and PTY journey",
+        "TLC and Alloy recovery models",
+        "Platform evidence (ubuntu-24.04)",
+        "Exact Huawei 2026 and SPDX MIT headers",
+        "Credential-free benchmark path",
+        "AWQ v0.1.0 shadow evidence",
+        "Bounded fuzz regressions",
+        "Kani bounded proofs",
+        "Loom and state models (ubuntu-24.04)",
+    )
+    if any(f'"{context}"' not in settings for context in required_checks):
+        fail("repository settings tool omits a required exact-head check")
 
 
 def topic_first_parent_spine(root: Path, base: str, tip: str) -> list[str]:
@@ -468,60 +496,6 @@ def verify_ssh(root: Path, allowed: Path, revision: str) -> None:
         fail(f"{revision} lacks an allowed SSH signature: {result.stderr.strip()}")
 
 
-def verify_github_web_flow(
-    root: Path,
-    key: Path,
-    expected_key_sha256: str,
-    expected_fingerprint: str,
-    revision: str,
-) -> None:
-    key_bytes = key.read_bytes()
-    if hashlib.sha256(key_bytes).hexdigest() != expected_key_sha256:
-        fail("pinned GitHub Web Flow key digest differs")
-    with tempfile.TemporaryDirectory(prefix="asb-web-flow-gpg-") as raw_home:
-        home = Path(raw_home)
-        home.chmod(0o700)
-        environment = os.environ.copy()
-        environment["GNUPGHOME"] = str(home)
-        imported = subprocess.run(
-            ["gpg", "--batch", "--quiet", "--import", str(key)],
-            env=environment,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if imported.returncode:
-            fail("pinned GitHub Web Flow key cannot be imported")
-        verified = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(root),
-                "-c",
-                "gpg.format=openpgp",
-                "-c",
-                "gpg.program=gpg",
-                "-c",
-                "gpg.openpgp.program=gpg",
-                "verify-commit",
-                "--raw",
-                revision,
-            ],
-            env=environment,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    status = verified.stdout + verified.stderr
-    fingerprints = {
-        fields[2]
-        for line in status.splitlines()
-        if line.startswith("[GNUPG:] VALIDSIG ") and len(fields := line.split()) >= 3
-    }
-    if verified.returncode or fingerprints != {expected_fingerprint}:
-        fail(f"{revision} lacks the pinned GitHub Web Flow signature")
-
-
 def exact_commit(root: Path, revision: str) -> str:
     if not FULL_SHA.fullmatch(revision):
         fail("protected-main commit identities must be full lowercase SHA-1 values")
@@ -543,9 +517,6 @@ def validate_commits(
     ref: str | None = None,
     root: Path = ROOT,
     allowed: Path | None = None,
-    web_flow_key: Path | None = None,
-    web_flow_key_sha256: str = GITHUB_WEB_FLOW_KEY_SHA256,
-    web_flow_fingerprint: str = GITHUB_WEB_FLOW_FINGERPRINT,
 ) -> None:
     allowed = allowed or root / "config/allowed_signers"
     if mode not in {"ssh-only", "protected-main"}:
@@ -621,10 +592,6 @@ def validate_commits(
             f"(base={base}, topic={parents[1]}, merge={head}, "
             f"preview_tree={preview_tree}, merge_tree={merge_tree})"
         )
-    # The service-generated GitHub merge is authenticated by Web Flow below,
-    # not by a redundant DCO trailer. Every reviewed topic commit remains
-    # strictly DCO- and SSH-validated; locally authored final merges remain
-    # strictly DCO- and SSH-validated as well.
     validate_dco(root, topic_revisions)
     committer = subprocess.check_output(
         ["git", "-C", str(root), "show", "-s", "--format=%cn <%ce>", head],
@@ -632,21 +599,10 @@ def validate_commits(
     ).strip()
     for revision in topic_revisions:
         verify_ssh(root, allowed, revision)
-    if committer == GITHUB_COMMITTER:
-        # Historical GitHub-created merges remain verifiable as evidence, but
-        # repository settings and the integration tool forbid creating new ones.
-        verify_github_web_flow(
-            root,
-            web_flow_key or root / GITHUB_WEB_FLOW_KEY.relative_to(ROOT),
-            web_flow_key_sha256,
-            web_flow_fingerprint,
-            head,
-        )
-    elif committer == LOCAL_COMMITTER:
-        validate_dco(root, [head])
-        verify_ssh(root, allowed, head)
-    else:
-        fail("protected-main merge committer is not an authorized integration identity")
+    if committer != LOCAL_COMMITTER:
+        fail("protected-main merge committer is not the local integration identity")
+    validate_dco(root, [head])
+    verify_ssh(root, allowed, head)
 
 
 def main() -> int:

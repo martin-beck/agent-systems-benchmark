@@ -29,18 +29,16 @@ commits require an SSH signature accepted by
 [allowed_signers](../config/allowed_signers).
 
 Canonical `push` validation on `refs/heads/main` has one additional offline
-publication rule. A final two-parent merge may use GitHub Web Flow's PGP
-signature only when its first parent is the immutable range base, its committer
-is exactly `GitHub <noreply@github.com>`, its author matches the DCO trailer, and
-every topic commit still has an allowed SSH signature. The armored key is pinned
-byte-for-byte in [github_web_flow.gpg](../config/github_web_flow.gpg) with
-SHA-256 `6e8af687f60cf3f403151c8fb1b26e95e6f9e424ca60cc8f3787bd4466a3ef84`;
-only full fingerprint `968479A1AFF927E37D1A566BB5690EEEBB952194` is accepted.
-GitHub documents `https://github.com/web-flow.gpg` as the public key for local
-verification of web-interface commits. Verification performs no key lookup or
-network request. GitHub's branch `required_signatures` result remains supporting
-evidence rather than the offline source of truth. Contributors add their public
-SSH signing identity through review; private keys are never stored here.
+publication rule. The final two-parent merge must use the local integration
+identity `Martin Beck <martin.beck2@gmx.de>`, carry its matching DCO trailer,
+and have an allowed SSH signature; every topic commit must likewise retain its
+matching DCO trailer and allowed SSH signature. GitHub Web Flow signatures are
+historical evidence only and never qualify a new protected-main publication.
+The active ruleset rejects the Web Flow committer before publication, while the
+offline gate independently enforces the local identity and signature. GitHub's
+branch `required_signatures` result remains supporting evidence rather than the
+offline source of truth. Contributors add their public SSH signing identity
+through review; private keys are never stored here.
 
 The topic normally contains only single-parent commits. A topic synchronized to
 the protected range base may instead end in one two-parent synchronization merge
