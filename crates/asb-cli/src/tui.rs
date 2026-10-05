@@ -4636,22 +4636,18 @@ mod tests {
         // strict replay, then quit. The ASB recorder sees the typed calls.
         let feeder_calls = Arc::clone(&calls);
         let feeder = thread::spawn(move || {
-            // A fresh development launch may open the setup wizard. Escape
-            // back to Landing without quitting; Esc is harmless there.
-            thread::sleep(Duration::from_secs(1));
-            for _ in 0..5 {
-                master.write_all(&[0x1b]).unwrap();
-                thread::sleep(Duration::from_millis(200));
-            }
             // Hosted runners can take a full scheduler slice to render the
             // inherited-fd frontend after bootstrap. Repeat only the idempotent
             // route transition so a delayed first frame cannot swallow it.
-            for _ in 0..3 {
-                thread::sleep(Duration::from_secs(1));
+            for _ in 0..4 {
+                thread::sleep(Duration::from_millis(500));
                 master.write_all(b"s").unwrap();
             }
-            master.write_all(b"o").unwrap();
-            let offline_deadline = Instant::now() + Duration::from_secs(5);
+            for _ in 0..4 {
+                thread::sleep(Duration::from_millis(500));
+                master.write_all(b"o").unwrap();
+            }
+            let offline_deadline = Instant::now() + Duration::from_secs(3);
             while Instant::now() < offline_deadline
                 && !feeder_calls
                     .lock()
@@ -4662,7 +4658,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(20));
             }
             master.write_all(b"]").unwrap();
-            let catalog_deadline = Instant::now() + Duration::from_secs(5);
+            let catalog_deadline = Instant::now() + Duration::from_secs(3);
             while Instant::now() < catalog_deadline
                 && !feeder_calls
                     .lock()
