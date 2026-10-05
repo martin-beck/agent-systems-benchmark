@@ -846,8 +846,34 @@ fn record_openrouter_live(
     let request_bytes = serde_json::to_vec(&request.request_body)
         .map_err(|_| CliError::validation("OpenRouter request body cannot be encoded"))?;
     let response = capture_openrouter_live(&profile, agent, &request_bytes)
-        .map_err(|_| CliError::operation("OpenRouter live capture failed"))?;
+        .map_err(|error| CliError::operation(openrouter_live_error_message(&error)))?;
     record_openrouter_live_response(&request, agent, response, output, stdout)
+}
+
+fn openrouter_live_error_message(
+    error: &asb_agents::openrouter::OpenRouterLiveError,
+) -> &'static str {
+    use asb_agents::openrouter::OpenRouterLiveError;
+    match error {
+        OpenRouterLiveError::Credential(_) => "OpenRouter live capture credential unavailable",
+        OpenRouterLiveError::RequestTooLarge => "OpenRouter live capture request exceeds its bound",
+        OpenRouterLiveError::ModelMismatch => {
+            "OpenRouter live capture model does not match the selected provider model"
+        }
+        OpenRouterLiveError::Transport => "OpenRouter live capture transport failed",
+        OpenRouterLiveError::ResponseTooLarge => {
+            "OpenRouter live capture response exceeds its bound"
+        }
+        OpenRouterLiveError::InvalidStatus => {
+            "OpenRouter live capture returned an invalid HTTP status"
+        }
+        OpenRouterLiveError::HttpStatus(_) => {
+            "OpenRouter live capture provider returned a non-success HTTP status"
+        }
+        OpenRouterLiveError::CurlUnavailable => {
+            "OpenRouter live capture curl transport is unavailable"
+        }
+    }
 }
 
 fn record_openrouter_live_response(
@@ -10178,7 +10204,10 @@ mod tests {
             );
             assert_eq!(code, 4);
             let error: Value = serde_json::from_slice(&output).unwrap();
-            assert_eq!(error["error"]["message"], "OpenRouter live capture failed");
+            assert_eq!(
+                error["error"]["message"],
+                "OpenRouter live capture credential unavailable"
+            );
         }
         let mut invalid = Vec::new();
         fs::write(
