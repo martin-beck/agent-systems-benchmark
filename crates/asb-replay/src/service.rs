@@ -413,6 +413,7 @@ impl ProviderCaptureExchange {
         Ok(crate::CassetteContents {
             schema_version: crate::CASSETTE_SCHEMA_VERSION,
             cassette_id,
+            provider_profile_sha256: None,
             normalization: crate::PolicyVersion { version: 1 },
             redaction,
             interactions: vec![interaction],

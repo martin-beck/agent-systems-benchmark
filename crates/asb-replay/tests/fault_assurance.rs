@@ -20,6 +20,7 @@ fn fixture() -> (asb_replay::Cassette, ReplayHttpRequest, ReplayRoute) {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "network-fault".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().expect("descriptor"),
         interactions: vec![Interaction {

@@ -26,6 +26,7 @@ fuzz_target!(|data: &[u8]| {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "fuzz-sse".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default()
             .descriptor()

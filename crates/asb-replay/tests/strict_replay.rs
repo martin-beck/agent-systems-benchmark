@@ -177,6 +177,7 @@ fn cassette() -> Cassette {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "strict-replay-synthetic".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions: vec![
@@ -240,6 +241,7 @@ fn pointer_redacted_cassette() -> (Cassette, Value) {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "pointer-replay-synthetic".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions: vec![interaction(
@@ -406,6 +408,7 @@ fn opendesk_contents() -> CassetteContents {
     CassetteContents {
         schema_version: 1,
         cassette_id: "opendesk-compatibility".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions: vec![
@@ -1167,6 +1170,7 @@ fn constructor_rejects_synthetic_and_inconsistent_metadata() {
     let empty = CassetteContents {
         schema_version: 1,
         cassette_id: "empty-strict-replay".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions: Vec::new(),

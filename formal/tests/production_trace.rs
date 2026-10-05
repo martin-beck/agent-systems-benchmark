@@ -180,6 +180,7 @@ fn cursor_model_matches_real_strict_replay_isolation_and_mismatch_rollback() {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "formal-production-trace".to_owned(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: RedactionPolicy::default().descriptor().unwrap(),
         interactions,

@@ -341,6 +341,7 @@ fn cassette(exchanges: &[Exchange]) -> Cassette {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "qwen-real-loopback-v1".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: policy.descriptor().unwrap(),
         interactions: exchanges
@@ -496,6 +497,7 @@ fn malformed_and_tool_inconsistent_cassettes_are_rejected_before_service_start()
     let inconsistent = CassetteContents {
         schema_version: 1,
         cassette_id: "qwen-tool-mismatch".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: policy.descriptor().unwrap(),
         interactions: vec![Interaction {

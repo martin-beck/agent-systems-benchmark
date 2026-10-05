@@ -1085,6 +1085,7 @@ fn record_openrouter_live_response(
         contents: CassetteContents {
             schema_version: asb_replay::CASSETTE_SCHEMA_VERSION,
             cassette_id: "openrouter-live".into(),
+            provider_profile_sha256: None,
             normalization: PolicyVersion { version: 1 },
             redaction: asb_replay::RedactionPolicy::default()
                 .descriptor()

@@ -310,9 +310,12 @@ pub fn seal_recording(
     let interactions = u32::try_from(capture.contents.interactions.len())
         .map_err(|_| RecordingWorkflowError::TooManyInteractions)?;
     let cassette_id = capture.contents.cassette_id.clone();
+    let mut contents = capture.contents;
+    contents.provider_profile_sha256 = Some(profile.clone());
+    contents.schema_version = crate::PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION;
     let (redacted, report) = Redactor::new(policy)
         .map_err(RecordingWorkflowError::Redaction)?
-        .redact_contents(capture.contents)
+        .redact_contents(contents)
         .map_err(RecordingWorkflowError::Redaction)?;
     let encoded = seal_cassette(redacted, limits).map_err(RecordingWorkflowError::Cassette)?;
     let cassette =
@@ -648,6 +651,10 @@ mod tests {
         )
         .expect("fixture records");
         assert!(artifact.metadata.complete);
+        assert_eq!(
+            artifact.cassette.contents.provider_profile_sha256,
+            Some("a".repeat(64))
+        );
         assert_eq!(artifact.metadata.source, "live_recording");
         assert_eq!(artifact.metadata.cassette_sha256.len(), 64);
         let public = serde_json::to_string(&artifact.metadata).unwrap();

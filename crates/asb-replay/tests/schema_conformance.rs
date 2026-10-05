@@ -6,11 +6,13 @@ use asb_replay::{CassetteLimits, ReplayLimits, StrictReplayService, decode_casse
 use serde_json::{Value, json};
 
 const SCHEMA: &str = include_str!("../schema/v1/cassette.schema.json");
+const V2_SCHEMA: &str = include_str!("../schema/v2/cassette.schema.json");
 const FIXTURES: &[&str] = &[
     include_str!("../fixtures/v1/buffered.json"),
     include_str!("../fixtures/v1/events.json"),
     include_str!("../fixtures/v1/gemini-generate-content.json"),
 ];
+const V2_FIXTURE: &str = include_str!("../fixtures/v2/provider-bound.json");
 
 #[test]
 fn public_fixtures_pass_schema_and_rust_validation() {
@@ -21,6 +23,17 @@ fn public_fixtures_pass_schema_and_rust_validation() {
         validator.validate(&fixture).unwrap();
         decode_cassette(encoded.as_bytes(), CassetteLimits::default()).unwrap();
     }
+}
+
+#[test]
+fn provider_bound_v2_fixture_passes_schema_and_runtime_validation() {
+    let schema: Value = serde_json::from_str(V2_SCHEMA).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let fixture: Value = serde_json::from_str(V2_FIXTURE).unwrap();
+    validator.validate(&fixture).unwrap();
+    let cassette = decode_cassette(V2_FIXTURE.as_bytes(), CassetteLimits::default()).unwrap();
+    assert_eq!(cassette.contents.schema_version, 2);
+    assert!(cassette.contents.provider_profile_sha256.is_some());
 }
 
 #[test]

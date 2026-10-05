@@ -410,6 +410,7 @@ fn cassette(exchanges: &[Exchange]) -> Cassette {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "codex-real-loopback-v1".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: policy.descriptor().unwrap(),
         interactions: exchanges

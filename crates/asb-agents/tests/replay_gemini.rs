@@ -300,6 +300,7 @@ fn cassette(captured: &[CapturedRequest], responses: Vec<RecordedResponse>) -> C
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "gemini-real-loopback-v1".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: policy.descriptor().unwrap(),
         interactions: captured

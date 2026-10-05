@@ -273,6 +273,7 @@ fn cassette(exchanges: &[Exchange]) -> Cassette {
     let contents = CassetteContents {
         schema_version: 1,
         cassette_id: "mini_swe-real-loopback-v1".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: policy.descriptor().unwrap(),
         interactions: exchanges
@@ -377,6 +378,7 @@ fn malformed_and_tool_inconsistent_cassettes_fail_before_service_start() {
     let inconsistent = CassetteContents {
         schema_version: 1,
         cassette_id: "mini_swe-tool-mismatch".into(),
+        provider_profile_sha256: None,
         normalization: PolicyVersion { version: 1 },
         redaction: policy.descriptor().unwrap(),
         interactions: vec![Interaction {
