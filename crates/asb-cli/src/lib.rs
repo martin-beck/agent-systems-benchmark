@@ -8469,6 +8469,130 @@ mod tests {
     }
 
     #[test]
+    fn internal_opencode_batch_rejects_invalid_timeout_before_reading_prompt() {
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "not-a-timeout",
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "usage");
+        assert_eq!(error.message, "OpenCode batch timeout is invalid");
+    }
+
+    #[test]
+    fn internal_opencode_batch_validates_prompt_and_pinned_binary() {
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "OpenCode batch prompt is unavailable");
+
+        let mut invalid_utf8 = &[0xff][..];
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            Some(&mut invalid_utf8),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "OpenCode batch prompt is not UTF-8");
+
+        let mut prompt = b"bounded prompt".as_slice();
+        let error = run_opencode_batch(
+            Path::new("/bin/true"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            Some(&mut prompt),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "pinned OpenCode adapter could not start");
+    }
+
+    #[test]
+    fn internal_opencode_batch_rejects_oversized_prompt() {
+        let prompt = vec![b'x'; asb_agents::opencode::MAX_PROMPT_BYTES + 1];
+        let mut prompt = prompt.as_slice();
+        let error = run_opencode_batch(
+            Path::new("/tmp/opencode"),
+            Path::new("/tmp/workspace"),
+            Path::new("/tmp/state"),
+            asb_agents::openrouter::OPENROUTER_MODEL,
+            "1000",
+            Some(&mut prompt),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "OpenCode batch prompt exceeds its bound");
+    }
+
+    #[test]
+    fn live_opencode_launch_selects_the_adapter_child_boundary() {
+        let scratch = Scratch::new("live-opencode-adapter-child");
+        let (_, selection_value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["opencode"]);
+        let selection: ProviderPlanOutput =
+            serde_json::from_value(selection_value.clone()).unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "adapter-child");
+        bind_provider_selection(&mut plan, &selection_value, "opencode", "openrouter");
+        let executable = scratch.0.join("opencode");
+        fs::write(&executable, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+        let digest = format!("{:x}", Sha256::digest(fs::read(&executable).unwrap()));
+        plan.agent.executable = executable;
+        plan.agent.executable_sha256 = digest;
+        let launch =
+            build_provider_launch(&plan, &selection, "adapter-child", "attempt-0").unwrap();
+        let workspace = scratch.0.join("workspace");
+        let home = scratch.0.join("home");
+        let temporary = scratch.0.join("tmp");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&home).unwrap();
+        fs::create_dir_all(&temporary).unwrap();
+        let prompt_path = scratch.0.join("prompt");
+        fs::write(&prompt_path, b"bounded adapter prompt").unwrap();
+        let prompt = OpenOptions::new().read(true).open(prompt_path).unwrap();
+        let limits = ProcessLimits::new(
+            4096,
+            4096,
+            Duration::from_secs(1),
+            Duration::from_millis(50),
+            Duration::from_millis(2),
+        )
+        .unwrap();
+        let error = match spawn_verified_agent(
+            &plan,
+            &workspace,
+            &home,
+            &temporary,
+            &plan.agent.executable,
+            &prompt,
+            limits,
+            Some(&launch),
+            true,
+            None,
+        ) {
+            Ok(_) => panic!("live OpenCode launch unexpectedly started without a key"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            error.message,
+            "OPENROUTER_API_KEY is required for an explicit live development run"
+        );
+    }
+
+    #[test]
     fn setup_rejects_cross_provider_model_without_contacting_provider() {
         let args: Vec<OsString> = [
             "setup",

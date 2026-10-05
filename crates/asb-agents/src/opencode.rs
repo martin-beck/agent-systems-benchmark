@@ -368,7 +368,7 @@ impl OpenCodeConfig {
 }
 
 const fn model_component_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':')
 }
 
 /// A cancellable OpenCode process whose output has not yet been collected.
