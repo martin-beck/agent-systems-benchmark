@@ -20,7 +20,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
@@ -197,6 +197,23 @@ impl OpenRouterDiscoveredModel {
 pub struct OpenRouterModelCatalog {
     /// Explicitly zero-price models, sorted by provider model ID.
     pub free_models: Vec<OpenRouterDiscoveredModel>,
+}
+
+impl OpenRouterModelCatalog {
+    /// Deterministic digest of the normalized zero-price roster.
+    pub fn digest_sha256(&self) -> String {
+        let mut digest = Sha256::new();
+        digest.update(b"asb-openrouter-free-catalog-v1\0");
+        for model in &self.free_models {
+            digest.update(model.model_id.as_bytes());
+            digest.update([0]);
+            digest.update(model.prompt_price.as_bytes());
+            digest.update([0]);
+            digest.update(model.completion_price.as_bytes());
+            digest.update([0]);
+        }
+        format!("{:x}", digest.finalize())
+    }
 }
 
 /// Failure while discovering or normalizing the public OpenRouter catalog.
@@ -591,33 +608,53 @@ fn normalize_catalog_price(value: Option<&Value>) -> Option<String> {
 /// network access.
 pub fn discover_openrouter_model_catalog() -> Result<OpenRouterModelCatalog, OpenRouterCatalogError>
 {
-    let output = Command::new("curl")
+    let mut child = Command::new("curl")
         .args([
             "--silent",
             "--show-error",
             "--max-time",
             "10",
+            "--max-filesize",
+            &MAX_LIVE_RESPONSE_BYTES.to_string(),
             "--write-out",
             "\n%{http_code}",
             "--header",
             "Accept: application/json",
             &format!("{OPENROUTER_API_BASE}/models"),
         ])
-        .output()
+        .stdout(Stdio::piped())
+        .spawn()
         .map_err(|_| OpenRouterCatalogError::Unavailable)?;
-    if !output.status.success() || output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 16 {
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or(OpenRouterCatalogError::Unavailable)?;
+    let mut bounded = Vec::new();
+    stdout
+        .by_ref()
+        .take((MAX_LIVE_RESPONSE_BYTES + 17) as u64)
+        .read_to_end(&mut bounded)
+        .map_err(|_| OpenRouterCatalogError::Unavailable)?;
+    if bounded.len() > MAX_LIVE_RESPONSE_BYTES + 16 {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(OpenRouterCatalogError::TooLarge);
+    }
+    let status = child
+        .wait()
+        .map_err(|_| OpenRouterCatalogError::Unavailable)?;
+    if !status.success() {
         return Err(OpenRouterCatalogError::Unavailable);
     }
-    let marker = output
-        .stdout
+    let marker = bounded
         .iter()
         .rposition(|byte| *byte == b'\n')
         .ok_or(OpenRouterCatalogError::Unavailable)?;
-    let status = std::str::from_utf8(&output.stdout[marker + 1..])
+    let status = std::str::from_utf8(&bounded[marker + 1..])
         .ok()
         .and_then(|value| value.trim().parse::<u16>().ok())
         .ok_or(OpenRouterCatalogError::Unavailable)?;
-    discover_openrouter_model_catalog_with(|| Ok((status, output.stdout[..marker].to_vec())))
+    discover_openrouter_model_catalog_with(|| Ok((status, bounded[..marker].to_vec())))
 }
 
 /// Discover a catalog through an injected bounded HTTP transport.
@@ -1718,6 +1755,25 @@ mod tests {
             discover_openrouter_model_catalog_with(|| Ok((200, b"not-json".to_vec()))),
             Err(OpenRouterCatalogError::Malformed)
         ));
+    }
+
+    #[test]
+    fn model_catalog_digest_is_order_independent_and_roster_bound() {
+        let first = OpenRouterModelCatalog {
+            free_models: vec![OpenRouterDiscoveredModel {
+                model_id: "vendor/alpha".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let second = OpenRouterModelCatalog {
+            free_models: vec![OpenRouterDiscoveredModel {
+                model_id: "vendor/beta".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        assert_ne!(first.digest_sha256(), second.digest_sha256());
     }
 
     #[test]

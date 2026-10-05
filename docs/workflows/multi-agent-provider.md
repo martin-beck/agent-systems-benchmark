@@ -32,6 +32,10 @@ The refresh is credential-free and normalizes only models whose public catalog
 pricing explicitly reports zero prompt and completion prices. To request one of
 those models in a plan, pass `--model MODEL`; a missing, paid, stale, or
 unavailable model returns a typed validation error before any provider request.
+The refreshed `catalog_sha256` is the digest of that normalized roster and must
+be passed unchanged to `provider-plan`; a plan never silently reuses a newer
+roster. Records missing a valid bounded ID or both parseable price fields are
+skipped as malformed and cannot become eligible.
 If the public catalog cannot be reached, retain the pinned offline roster and
 use the ordinary credential-free path; setup and local development do not block
 on authentication or discovery.
