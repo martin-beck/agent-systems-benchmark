@@ -225,6 +225,11 @@ pub fn capture_openrouter_live(
     profile
         .translate(agent, profile.provider_profile())
         .map_err(|_| OpenRouterLiveError::Transport)?;
+    if request_body.is_empty()
+        || request_body.len() > profile.provider_profile().transport.max_request_bytes as usize
+    {
+        return Err(OpenRouterLiveError::RequestTooLarge);
+    }
     let credential =
         resolve_openrouter_environment(profile).map_err(OpenRouterLiveError::Credential)?;
     capture_openrouter_live_with_credential(
