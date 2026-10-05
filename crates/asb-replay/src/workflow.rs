@@ -312,6 +312,7 @@ pub fn seal_recording(
     let cassette_id = capture.contents.cassette_id.clone();
     let mut contents = capture.contents;
     contents.provider_profile_sha256 = Some(profile.clone());
+    contents.schema_version = crate::PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION;
     let (redacted, report) = Redactor::new(policy)
         .map_err(RecordingWorkflowError::Redaction)?
         .redact_contents(contents)

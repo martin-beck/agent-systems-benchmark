@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ASB response cassette v1",
+  "title": "ASB response cassette v2 (provider-bound)",
   "type": "object",
   "additionalProperties": false,
   "required": ["contents", "integrity"],
@@ -266,13 +266,15 @@
       "required": [
         "schema_version",
         "cassette_id",
+        "provider_profile_sha256",
         "normalization",
         "redaction",
         "interactions"
       ],
       "properties": {
-        "schema_version": {"const": 1},
+        "schema_version": {"const": 2},
         "cassette_id": {"$ref": "#/$defs/identifier"},
+        "provider_profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "normalization": {"$ref": "#/$defs/policy"},
         "redaction": {"$ref": "#/$defs/redaction"},
         "interactions": {

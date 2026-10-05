@@ -15,6 +15,9 @@ use url::Url;
 
 /// The only cassette schema accepted by the normal decoder.
 pub const CASSETTE_SCHEMA_VERSION: u16 = 1;
+/// Additive schema revision that binds provider profile identity for indexed
+/// recording selection. Legacy v1 remains accepted for direct strict replay.
+pub const PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION: u16 = 2;
 /// Absolute ceiling for an encoded cassette.
 pub const MAX_CASSETTE_BYTES: u64 = 256 * 1024 * 1024;
 /// Absolute ceiling for one normalized request.
@@ -478,11 +481,19 @@ fn validate_contents(
     contents: &CassetteContents,
     limits: CassetteLimits,
 ) -> Result<(), CassetteError> {
-    if contents.schema_version != CASSETTE_SCHEMA_VERSION {
+    if !matches!(
+        contents.schema_version,
+        CASSETTE_SCHEMA_VERSION | PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION
+    ) {
         return Err(CassetteError::UnsupportedVersion {
             kind: "cassette schema",
             actual: contents.schema_version,
         });
+    }
+    if contents.schema_version == PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION
+        && contents.provider_profile_sha256.is_none()
+    {
+        return Err(CassetteError::InvalidIdentity);
     }
     if contents.normalization.version != 1 {
         return Err(CassetteError::UnsupportedVersion {
