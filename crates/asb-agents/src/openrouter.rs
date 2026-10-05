@@ -815,6 +815,51 @@ mod tests {
             Err(OpenRouterLiveError::InvalidStatus)
         ));
 
+        let transport_result_error = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Err(OpenRouterLiveError::Transport),
+        );
+        assert!(matches!(
+            transport_result_error,
+            Err(OpenRouterLiveError::Transport)
+        ));
+
+        let invalid_numeric_status = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Ok((true, b"{}\n99999".to_vec())),
+        );
+        assert!(matches!(
+            invalid_numeric_status,
+            Err(OpenRouterLiveError::InvalidStatus)
+        ));
+
+        let invalid_route = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Gemini,
+            b"{}",
+            credential(),
+            |_config, _body| panic!("transport must not run for unsupported route"),
+        );
+        assert!(matches!(invalid_route, Err(OpenRouterLiveError::Transport)));
+
+        let empty_request = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"",
+            credential(),
+            |_config, _body| panic!("transport must not run for empty request"),
+        );
+        assert!(matches!(
+            empty_request,
+            Err(OpenRouterLiveError::RequestTooLarge)
+        ));
+
         let missing_marker = capture_openrouter_live_with_credential(
             &profile,
             OpenRouterAgent::Aider,
