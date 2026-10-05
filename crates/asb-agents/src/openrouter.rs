@@ -423,6 +423,11 @@ fn openrouter_curl_transport(
         .arg(config_path)
         .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
         .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        // Curl diagnostics are intentionally discarded at this boundary. The
+        // typed transport/status error is the only durable diagnostic and
+        // provider responses must never leak into the ASB parent's stderr.
+        .stderr(Stdio::null())
         .spawn()
         .and_then(|mut child| {
             if let Some(mut stdin) = child.stdin.take() {
@@ -1308,7 +1313,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         server.join().unwrap();
         assert!(result.0);
-        assert!(result.1.is_empty());
+        assert_eq!(result.1, b"ok\n200");
     }
 
     #[test]
