@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Fail-closed comparison of validated experiment provenance.
 
-use asb_protocol::{ExperimentManifestError, ExperimentManifestV1};
+use asb_protocol::{
+    ExperimentManifestError, ExperimentManifestV1, ProviderProfileError, ProviderProfileV1,
+};
 use std::error::Error;
 use std::fmt;
 
@@ -15,6 +17,14 @@ pub enum ComparisonField {
     Model,
     /// Inference settings.
     ModelSettings,
+    /// Credential-free provider profile generation, family, model, or digest.
+    ProviderProfile,
+    /// Provider endpoint class or identity digest.
+    ProviderEndpoint,
+    /// Provider transport limits.
+    ProviderTransport,
+    /// Credential source or reference identity.
+    CredentialReference,
     /// Tool policy name, revision, or content.
     ToolPolicy,
     /// Workload identity, revision, or content.
@@ -106,6 +116,10 @@ pub enum ComparisonError {
     InvalidLeft(ExperimentManifestError),
     /// The right experiment manifest is invalid.
     InvalidRight(ExperimentManifestError),
+    /// The left provider profile is invalid.
+    InvalidLeftProviderProfile(ProviderProfileError),
+    /// The right provider profile is invalid.
+    InvalidRightProviderProfile(ProviderProfileError),
 }
 
 impl fmt::Display for ComparisonError {
@@ -113,6 +127,12 @@ impl fmt::Display for ComparisonError {
         match self {
             Self::InvalidLeft(error) => write!(formatter, "invalid left experiment: {error}"),
             Self::InvalidRight(error) => write!(formatter, "invalid right experiment: {error}"),
+            Self::InvalidLeftProviderProfile(error) => {
+                write!(formatter, "invalid left provider profile: {error}")
+            }
+            Self::InvalidRightProviderProfile(error) => {
+                write!(formatter, "invalid right provider profile: {error}")
+            }
         }
     }
 }
@@ -300,6 +320,74 @@ pub fn compare_experiments(
     })
 }
 
+/// Compare experiments together with the exact provider identities used by
+/// their runs. Experiment manifests intentionally carry only the public model
+/// projection; this companion API prevents two runs with the same visible
+/// provider/model from being treated as comparable when their endpoint,
+/// transport, settings, or credential lookup identity differs.
+pub fn compare_experiments_with_provider_profiles(
+    left: &ExperimentManifestV1,
+    right: &ExperimentManifestV1,
+    left_profile: &ProviderProfileV1,
+    right_profile: &ProviderProfileV1,
+) -> Result<ComparisonReport, ComparisonError> {
+    let mut report = compare_experiments(left, right)?;
+    left_profile
+        .validate()
+        .map_err(ComparisonError::InvalidLeftProviderProfile)?;
+    right_profile
+        .validate()
+        .map_err(ComparisonError::InvalidRightProviderProfile)?;
+    differing(
+        &mut report.differences,
+        ComparisonField::ProviderProfile,
+        &(
+            &left_profile.version,
+            &left_profile.provider,
+            &left_profile.model,
+            &left_profile.settings_sha256,
+        ),
+        &(
+            &right_profile.version,
+            &right_profile.provider,
+            &right_profile.model,
+            &right_profile.settings_sha256,
+        ),
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::ProviderEndpoint,
+        &left_profile.endpoint,
+        &right_profile.endpoint,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::ProviderTransport,
+        &left_profile.transport,
+        &right_profile.transport,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::ModelSettings,
+        &left_profile.settings,
+        &right_profile.settings,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::CredentialReference,
+        &left_profile.credential,
+        &right_profile.credential,
+    );
+    report.differences.sort_unstable();
+    report.differences.dedup();
+    report.qualification = if report.differences.is_empty() {
+        ComparisonQualification::Comparable
+    } else {
+        ComparisonQualification::Confounded
+    };
+    Ok(report)
+}
+
 fn differing<T: PartialEq>(
     differences: &mut Vec<ComparisonField>,
     field: ComparisonField,
@@ -314,6 +402,7 @@ fn differing<T: PartialEq>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use asb_protocol::{EndpointClass, ProviderProfileV1};
 
     fn checked_fixture(contents: &str) -> ExperimentManifestV1 {
         let value: ExperimentManifestV1 = serde_json::from_str(contents).unwrap();
@@ -384,6 +473,58 @@ mod tests {
         let mut value: ExperimentManifestV1 = serde_json::from_value(fixture).unwrap();
         value.refresh_content_address().unwrap();
         value
+    }
+
+    fn provider_profile() -> ProviderProfileV1 {
+        let profile: ProviderProfileV1 = serde_json::from_str(include_str!(
+            "../../asb-protocol/fixtures/v1/provider-profile.json"
+        ))
+        .unwrap();
+        profile
+    }
+
+    #[test]
+    fn provider_identity_is_required_for_comparability() {
+        let experiment = manifest();
+        let left = provider_profile();
+        let mut right = left.clone();
+        right.endpoint.class = EndpointClass::PublicService;
+        right.endpoint.identity_sha256 = "b".repeat(64);
+        right.settings.temperature_milli = Some(251);
+        right.transport.max_response_bytes += 1;
+        right.credential.reference_sha256 = Some("c".repeat(64));
+        right.refresh_settings_sha256().unwrap();
+
+        let report =
+            compare_experiments_with_provider_profiles(&experiment, &experiment, &left, &right)
+                .unwrap();
+        assert_eq!(report.qualification(), ComparisonQualification::Confounded);
+        assert_eq!(
+            report.differences(),
+            &[
+                ComparisonField::ModelSettings,
+                ComparisonField::ProviderProfile,
+                ComparisonField::ProviderEndpoint,
+                ComparisonField::ProviderTransport,
+                ComparisonField::CredentialReference,
+            ]
+        );
+        assert!(!report.permits_unqualified_claim());
+    }
+
+    #[test]
+    fn exact_provider_identity_preserves_valid_comparison() {
+        let experiment = manifest();
+        let profile = provider_profile();
+        let report = compare_experiments_with_provider_profiles(
+            &experiment,
+            &experiment,
+            &profile,
+            &profile,
+        )
+        .unwrap();
+        assert_eq!(report.qualification(), ComparisonQualification::Comparable);
+        assert!(report.differences().is_empty());
     }
 
     #[test]
