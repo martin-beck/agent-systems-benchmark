@@ -198,6 +198,16 @@ impl OpenRouterLiveResponse {
     pub const fn status_class(&self) -> u16 {
         self.status / 100
     }
+
+    /// Whether the provider rejected the request with a client error.
+    pub const fn is_client_error(&self) -> bool {
+        self.status_class() == 4
+    }
+
+    /// Whether the provider failed while handling the request.
+    pub const fn is_server_error(&self) -> bool {
+        self.status_class() == 5
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -850,6 +860,14 @@ mod tests {
         assert!(!failure_response.is_success());
         assert_eq!(failure_response.body_len(), 0);
         assert_eq!(failure_response.status_class(), 5);
+        assert!(!failure_response.is_client_error());
+        assert!(failure_response.is_server_error());
+        let client_response = OpenRouterLiveResponse {
+            status: 429,
+            body: Vec::new(),
+        };
+        assert!(client_response.is_client_error());
+        assert!(!client_response.is_server_error());
 
         let resolved_wrapper = capture_openrouter_live_with_resolver(
             &profile,
