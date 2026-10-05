@@ -10114,6 +10114,79 @@ mod tests {
             offline["error"]["message"],
             "runtime replay authority is required"
         );
+        let request_path = scratch.0.join("openrouter-request.json");
+        fs::write(
+            &request_path,
+            serde_json::json!({
+                "schema_version": asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+                "provider_profile_sha256": "a".repeat(64),
+                "agent_id": "opencode",
+                "request_body": {"model": "cohere/north-mini-code:free", "messages": []}
+            })
+            .to_string(),
+        )
+        .unwrap();
+        for agent in [
+            "opencode",
+            "opendesk",
+            "aider",
+            "codex",
+            "qwen-code",
+            "goose",
+            "mini-swe",
+            "openhands",
+        ] {
+            let mut output = Vec::new();
+            let code = run(
+                &[
+                    "record-live".into(),
+                    request_path.as_os_str().to_owned(),
+                    scratch
+                        .0
+                        .join(format!("{agent}.json"))
+                        .as_os_str()
+                        .to_owned(),
+                    "--openrouter".into(),
+                    "--confirm-record".into(),
+                ],
+                &mut output,
+                &mut diagnostics,
+            );
+            assert_eq!(code, 3);
+            let error: Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(error["error"]["message"], "OpenRouter live capture failed");
+        }
+        let mut invalid = Vec::new();
+        fs::write(
+            &request_path,
+            serde_json::json!({
+                "schema_version": 999,
+                "provider_profile_sha256": "a".repeat(64),
+                "agent_id": "opencode",
+                "request_body": {}
+            })
+            .to_string(),
+        )
+        .unwrap();
+        assert_eq!(
+            run(
+                &[
+                    "record-live".into(),
+                    request_path.as_os_str().to_owned(),
+                    scratch.0.join("invalid-schema.json").as_os_str().to_owned(),
+                    "--openrouter".into(),
+                    "--confirm-record".into(),
+                ],
+                &mut invalid,
+                &mut diagnostics,
+            ),
+            3
+        );
+        let invalid: Value = serde_json::from_slice(&invalid).unwrap();
+        assert_eq!(
+            invalid["error"]["message"],
+            "OpenRouter live capture schema version is unsupported"
+        );
         let mut local_output = Vec::new();
         assert_eq!(
             run(
