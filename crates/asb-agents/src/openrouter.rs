@@ -242,6 +242,19 @@ impl OpenRouterLiveResponse {
             self.body_len()
         )
     }
+
+    /// Structured content-free fields consumed by comparison/reporting layers.
+    pub fn analysis_fields(&self) -> serde_json::Value {
+        serde_json::json!({
+            "status": self.status,
+            "status_class": self.status_class(),
+            "body_bytes": self.body_len(),
+            "success": self.is_success(),
+            "client_error": self.is_client_error(),
+            "server_error": self.is_server_error(),
+            "rate_limited": self.is_rate_limited(),
+        })
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -894,6 +907,8 @@ mod tests {
             response.analysis_summary(),
             "status=200 class=2 bytes=17 outcome=success"
         );
+        assert_eq!(response.analysis_fields()["body_bytes"], 17);
+        assert_eq!(response.analysis_fields()["success"], true);
         let failure_response = OpenRouterLiveResponse {
             status: 503,
             body: Vec::new(),
