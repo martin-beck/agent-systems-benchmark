@@ -13,6 +13,25 @@ import run
 
 
 class FaultMatrixTests(unittest.TestCase):
+    def test_backend_selection_is_closed_and_fail_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported isolation backend"):
+            run.select_backend("sh -c 'network=host'")
+        with mock.patch.object(run, "preflight_backend", return_value={
+            "backend": "systemd-private-network", "available": False,
+            "loopback": False, "external_denied": False,
+            "classification": "runner_unavailable",
+        }):
+            backend, probe = run.select_backend("systemd-private-network")
+        self.assertEqual(backend, "systemd-private-network")
+        self.assertFalse(probe["available"])
+
+    def test_preflight_never_reports_ready_without_isolation(self) -> None:
+        with mock.patch.object(run, "backend_available", return_value=False):
+            probe = run.preflight_backend("unshare")
+        self.assertEqual(probe["classification"], "runner_unavailable")
+        self.assertFalse(probe["loopback"])
+        self.assertFalse(probe["external_denied"])
+
     def test_manifest_is_closed_and_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "matrix.json"
