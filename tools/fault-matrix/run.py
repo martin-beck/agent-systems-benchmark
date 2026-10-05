@@ -105,8 +105,14 @@ def isolated_command(command: list[str], backend: str = "unshare", root: Path | 
     if backend == "unshare":
         return ["unshare", "--net", "--", *command]
     if backend == "systemd-private-network":
+        if root is None:
+            raise RuntimeError("systemd backend requires a private working root")
         return ["systemd-run", "--user", "--pipe", "--wait", "--collect", "--quiet",
-                "--property=PrivateNetwork=yes", "--property=NoNewPrivileges=yes", "--", *command]
+                "--working-directory=" + str(root), "--setenv=PATH=/usr/bin:/bin",
+                "--setenv=HOME=" + str(root / "home"),
+                "--setenv=ASB_MATRIX_ROOT=" + str(root),
+                "--property=PrivateNetwork=yes", "--property=NoNewPrivileges=yes",
+                "--", *command]
     if backend == "bubblewrap-network":
         if not backend_available(backend):
             raise RuntimeError("network isolation unavailable")
@@ -221,11 +227,7 @@ def run_case(binary: Path, case: dict[str, Any], root: Path, backend: str = "uns
     selector: selectors.BaseSelector | None = None
     isolation_attempted = False
     try:
-        try:
-            command = isolated_command(command, backend, root)
-        except TypeError:
-            # Keep third-party/test seams that still provide the v1 one-argument hook.
-            command = isolated_command(command)
+        command = isolated_command(command, backend, root)
         isolation_attempted = True
         process = subprocess.Popen(command, cwd=root, env=env, text=False,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
