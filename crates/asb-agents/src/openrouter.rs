@@ -183,6 +183,23 @@ pub struct OpenRouterLiveResponse {
     pub body: Vec<u8>,
 }
 
+impl OpenRouterLiveResponse {
+    /// Whether the provider returned a successful HTTP status.
+    pub const fn is_success(&self) -> bool {
+        self.status >= 200 && self.status <= 299
+    }
+
+    /// Stable response size for capture metadata and bounded analysis.
+    pub const fn body_len(&self) -> usize {
+        self.body.len()
+    }
+
+    /// Coarse status class for human-readable analysis without retaining content.
+    pub const fn status_class(&self) -> u16 {
+        self.status / 100
+    }
+}
+
 /// Typed failure from the online OpenRouter capture boundary.
 #[derive(Debug)]
 pub enum OpenRouterLiveError {
@@ -196,6 +213,13 @@ pub enum OpenRouterLiveError {
     ResponseTooLarge,
     /// The transport did not provide a valid HTTP status.
     InvalidStatus,
+}
+
+impl OpenRouterLiveError {
+    /// Whether retrying the same request could reasonably succeed.
+    pub const fn is_retryable(&self) -> bool {
+        matches!(self, Self::Transport | Self::ResponseTooLarge)
+    }
 }
 
 impl fmt::Display for OpenRouterLiveError {
@@ -816,6 +840,16 @@ mod tests {
         .unwrap();
         assert_eq!(response.status, 200);
         assert_eq!(response.body, br#"{"id":"captured"}"#);
+        assert!(response.is_success());
+        assert_eq!(response.body_len(), 17);
+        assert_eq!(response.status_class(), 2);
+        let failure_response = OpenRouterLiveResponse {
+            status: 503,
+            body: Vec::new(),
+        };
+        assert!(!failure_response.is_success());
+        assert_eq!(failure_response.body_len(), 0);
+        assert_eq!(failure_response.status_class(), 5);
 
         let resolved_wrapper = capture_openrouter_live_with_resolver(
             &profile,
@@ -855,6 +889,10 @@ mod tests {
             transport_error,
             Err(OpenRouterLiveError::Transport)
         ));
+        assert!(OpenRouterLiveError::Transport.is_retryable());
+        assert!(OpenRouterLiveError::ResponseTooLarge.is_retryable());
+        assert!(!OpenRouterLiveError::RequestTooLarge.is_retryable());
+        assert!(!OpenRouterLiveError::InvalidStatus.is_retryable());
 
         let invalid_status = capture_openrouter_live_with_credential(
             &profile,
