@@ -222,6 +222,43 @@ pub fn capture_openrouter_live(
     agent: OpenRouterAgent,
     request_body: &[u8],
 ) -> Result<OpenRouterLiveResponse, OpenRouterLiveError> {
+    let credential =
+        resolve_openrouter_environment(profile).map_err(OpenRouterLiveError::Credential)?;
+    capture_openrouter_live_with_credential(
+        profile,
+        agent,
+        request_body,
+        credential,
+        |config_path, body| {
+            let result = Command::new("/usr/bin/curl")
+                .args(["--silent", "--show-error", "--config"])
+                .arg(config_path)
+                .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
+                .stdin(Stdio::piped())
+                .spawn()
+                .and_then(|mut child| {
+                    if let Some(mut stdin) = child.stdin.take() {
+                        stdin.write_all(body)?;
+                    }
+                    child.wait_with_output()
+                });
+            result
+                .map(|output| (output.status.success(), output.stdout))
+                .map_err(|_| OpenRouterLiveError::Transport)
+        },
+    )
+}
+
+fn capture_openrouter_live_with_credential<F>(
+    profile: &OpenRouterProfile,
+    agent: OpenRouterAgent,
+    request_body: &[u8],
+    credential: ResolvedCredential,
+    transport: F,
+) -> Result<OpenRouterLiveResponse, OpenRouterLiveError>
+where
+    F: FnOnce(&std::path::Path, &[u8]) -> Result<(bool, Vec<u8>), OpenRouterLiveError>,
+{
     let translation = profile
         .translate(agent, profile.provider_profile())
         .map_err(|_| OpenRouterLiveError::Transport)?;
@@ -230,9 +267,7 @@ pub fn capture_openrouter_live(
     {
         return Err(OpenRouterLiveError::RequestTooLarge);
     }
-    let mut credential = resolve_openrouter_environment(profile)
-        .map_err(OpenRouterLiveError::Credential)?
-        .into_transport_bytes();
+    let mut credential = credential.into_transport_bytes();
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| OpenRouterLiveError::Transport)?
@@ -258,38 +293,26 @@ pub fn capture_openrouter_live(
     file.write_all(config.as_bytes())
         .map_err(|_| OpenRouterLiveError::Transport)?;
     drop(file);
-    let result = Command::new("/usr/bin/curl")
-        .args(["--silent", "--show-error", "--config"])
-        .arg(&config_path)
-        .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
-        .stdin(Stdio::piped())
-        .spawn()
-        .and_then(|mut child| {
-            if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(request_body)?;
-            }
-            child.wait_with_output()
-        });
+    let result = transport(&config_path, request_body);
     let _ = std::fs::remove_file(&config_path);
     credential.fill(0);
-    let output = result.map_err(|_| OpenRouterLiveError::Transport)?;
-    if !output.status.success() || output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
-        return Err(if output.stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
+    let (success, stdout) = result?;
+    if !success || stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
+        return Err(if stdout.len() > MAX_LIVE_RESPONSE_BYTES + 8 {
             OpenRouterLiveError::ResponseTooLarge
         } else {
             OpenRouterLiveError::Transport
         });
     }
-    let marker = output
-        .stdout
+    let marker = stdout
         .iter()
         .rposition(|byte| *byte == b'\n')
         .ok_or(OpenRouterLiveError::InvalidStatus)?;
-    let status = std::str::from_utf8(&output.stdout[marker + 1..])
+    let status = std::str::from_utf8(&stdout[marker + 1..])
         .ok()
         .and_then(|s| s.trim().parse().ok())
         .ok_or(OpenRouterLiveError::InvalidStatus)?;
-    let body = output.stdout[..marker].to_vec();
+    let body = stdout[..marker].to_vec();
     if body.len() > MAX_LIVE_RESPONSE_BYTES {
         return Err(OpenRouterLiveError::ResponseTooLarge);
     }
@@ -731,6 +754,57 @@ mod tests {
         assert!(matches!(
             capture_openrouter_live(&profile, OpenRouterAgent::Aider, &oversized),
             Err(OpenRouterLiveError::RequestTooLarge)
+        ));
+    }
+
+    #[test]
+    fn live_capture_transport_boundary_preserves_bounded_response_and_errors() {
+        let profile = profile();
+        let credential = || {
+            resolve_openrouter_credential(&profile, |_| Some(OsString::from("synthetic-key")))
+                .unwrap()
+        };
+        let response = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            br#"{"model":"cohere/north-mini-code:free"}"#,
+            credential(),
+            |config, body| {
+                assert_eq!(body, br#"{"model":"cohere/north-mini-code:free"}"#);
+                assert!(
+                    std::fs::read_to_string(config)
+                        .unwrap()
+                        .contains("Authorization: Bearer synthetic-key")
+                );
+                Ok((true, b"{\"id\":\"captured\"}\n200".to_vec()))
+            },
+        )
+        .unwrap();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, br#"{"id":"captured"}"#);
+
+        let transport_error = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Ok((false, b"provider failed".to_vec())),
+        );
+        assert!(matches!(
+            transport_error,
+            Err(OpenRouterLiveError::Transport)
+        ));
+
+        let invalid_status = capture_openrouter_live_with_credential(
+            &profile,
+            OpenRouterAgent::Aider,
+            b"{}",
+            credential(),
+            |_config, _body| Ok((true, b"{}\nnot-status".to_vec())),
+        );
+        assert!(matches!(
+            invalid_status,
+            Err(OpenRouterLiveError::InvalidStatus)
         ));
     }
 
