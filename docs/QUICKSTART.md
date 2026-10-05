@@ -170,7 +170,7 @@ This table is checked against live `doctor` output and
 | `plan` | supported |
 | `run` | supported |
 | `sweep` | supported |
-| `benchmark-live` | supported (explicit online provider) |
+| `benchmark-live` | supported |
 | `compare` | supported |
 | `report` | supported |
 | `record-live` | supported (local mock) |
