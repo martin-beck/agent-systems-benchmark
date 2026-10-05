@@ -222,6 +222,9 @@ pub fn capture_openrouter_live(
     agent: OpenRouterAgent,
     request_body: &[u8],
 ) -> Result<OpenRouterLiveResponse, OpenRouterLiveError> {
+    profile
+        .translate(agent, profile.provider_profile())
+        .map_err(|_| OpenRouterLiveError::Transport)?;
     let credential =
         resolve_openrouter_environment(profile).map_err(OpenRouterLiveError::Credential)?;
     capture_openrouter_live_with_credential(
