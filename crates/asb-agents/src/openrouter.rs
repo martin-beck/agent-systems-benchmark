@@ -237,24 +237,29 @@ pub fn capture_openrouter_live(
         agent,
         request_body,
         credential,
-        |config_path, body| {
-            let result = Command::new("/usr/bin/curl")
-                .args(["--silent", "--show-error", "--config"])
-                .arg(config_path)
-                .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
-                .stdin(Stdio::piped())
-                .spawn()
-                .and_then(|mut child| {
-                    if let Some(mut stdin) = child.stdin.take() {
-                        stdin.write_all(body)?;
-                    }
-                    child.wait_with_output()
-                });
-            result
-                .map(|output| (output.status.success(), output.stdout))
-                .map_err(|_| OpenRouterLiveError::Transport)
-        },
+        openrouter_curl_transport,
     )
+}
+
+fn openrouter_curl_transport(
+    config_path: &std::path::Path,
+    body: &[u8],
+) -> Result<(bool, Vec<u8>), OpenRouterLiveError> {
+    let result = Command::new("/usr/bin/curl")
+        .args(["--silent", "--show-error", "--config"])
+        .arg(config_path)
+        .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
+        .stdin(Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(body)?;
+            }
+            child.wait_with_output()
+        });
+    result
+        .map(|output| (output.status.success(), output.stdout))
+        .map_err(|_| OpenRouterLiveError::Transport)
 }
 
 fn capture_openrouter_live_with_credential<F>(
@@ -922,6 +927,28 @@ mod tests {
             br#"{"model":"cohere/north-mini-code:free"}"#,
         );
         assert!(matches!(result, Err(OpenRouterLiveError::Credential(_))));
+    }
+
+    #[test]
+    fn live_error_display_and_curl_boundary_are_stable() {
+        let errors = [
+            OpenRouterLiveError::Credential(CredentialResolutionError::Unavailable),
+            OpenRouterLiveError::RequestTooLarge,
+            OpenRouterLiveError::Transport,
+            OpenRouterLiveError::ResponseTooLarge,
+            OpenRouterLiveError::InvalidStatus,
+        ];
+        for error in errors {
+            assert!(!error.to_string().is_empty());
+        }
+        let result = openrouter_curl_transport(
+            std::path::Path::new("/definitely/missing/openrouter-config"),
+            b"{}",
+        );
+        assert!(matches!(
+            result,
+            Ok((false, _)) | Err(OpenRouterLiveError::Transport)
+        ));
     }
 
     #[test]
