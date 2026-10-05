@@ -309,16 +309,7 @@ where
         String::from_utf8_lossy(&credential),
         MAX_LIVE_RESPONSE_BYTES
     );
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut file = std::fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .mode(0o600)
-        .open(&config_path)
-        .map_err(|_| OpenRouterLiveError::Transport)?;
-    file.write_all(config.as_bytes())
-        .map_err(|_| OpenRouterLiveError::Transport)?;
-    drop(file);
+    write_openrouter_config(&config_path, config.as_bytes())?;
     let result = transport(&config_path, request_body);
     let _ = std::fs::remove_file(&config_path);
     credential.fill(0);
@@ -343,6 +334,23 @@ where
         return Err(OpenRouterLiveError::ResponseTooLarge);
     }
     Ok(OpenRouterLiveResponse { status, body })
+}
+
+fn write_openrouter_config(
+    config_path: &std::path::Path,
+    config: &[u8],
+) -> Result<(), OpenRouterLiveError> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .open(config_path)
+        .map_err(|_| OpenRouterLiveError::Transport)?;
+    file.write_all(config)
+        .map_err(|_| OpenRouterLiveError::Transport)?;
+    drop(file);
+    Ok(())
 }
 
 impl fmt::Display for OpenRouterProfileError {
@@ -819,6 +827,23 @@ mod tests {
         .unwrap();
         assert_eq!(resolved_wrapper.status, 201);
 
+        let responses_wrapper = capture_openrouter_live_with_resolver(
+            &profile,
+            OpenRouterAgent::Codex,
+            br#"{"model":"cohere/north-mini-code:free"}"#,
+            |_profile| Ok(credential()),
+            |config, _body| {
+                assert!(
+                    std::fs::read_to_string(config)
+                        .unwrap()
+                        .contains("/responses")
+                );
+                Ok((true, b"{}\n200".to_vec()))
+            },
+        )
+        .unwrap();
+        assert_eq!(responses_wrapper.status, 200);
+
         let transport_error = capture_openrouter_live_with_credential(
             &profile,
             OpenRouterAgent::Aider,
@@ -988,6 +1013,15 @@ mod tests {
             result,
             Ok((false, _)) | Err(OpenRouterLiveError::Transport)
         ));
+        let directory_path =
+            std::env::temp_dir().join(format!("asb-openrouter-config-dir-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory_path);
+        std::fs::create_dir(&directory_path).unwrap();
+        assert!(matches!(
+            write_openrouter_config(&directory_path, b"config"),
+            Err(OpenRouterLiveError::Transport)
+        ));
+        std::fs::remove_dir(&directory_path).unwrap();
     }
 
     #[test]
