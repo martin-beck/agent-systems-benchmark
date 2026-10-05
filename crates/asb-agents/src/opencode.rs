@@ -348,6 +348,10 @@ impl OpenCodeConfig {
             "permission": {
                 "*": "deny",
                 "edit": "allow",
+                "read": "allow",
+                "list": "allow",
+                "glob": "allow",
+                "grep": "allow",
                 "external_directory": "deny",
                 "question": "deny",
                 "plan_enter": "deny",
@@ -989,15 +993,21 @@ mod tests {
     }
 
     #[test]
-    fn runtime_config_denies_every_permission_except_workspace_edit() {
+    fn runtime_config_allows_bounded_repository_navigation_only() {
         let value = config("http://127.0.0.1:1/v1").runtime_config();
         let permissions = value["permission"].as_object().unwrap();
         assert_eq!(permissions.get("*").unwrap(), "deny");
         assert_eq!(permissions.get("edit").unwrap(), "allow");
+        for allowed in ["read", "list", "glob", "grep"] {
+            assert_eq!(permissions.get(allowed).unwrap(), "allow");
+        }
         for denied in ["external_directory", "question", "plan_enter", "plan_exit"] {
             assert_eq!(permissions.get(denied).unwrap(), "deny");
         }
-        assert_eq!(permissions.len(), 6);
+        assert_eq!(permissions.len(), 10);
+        for unrestricted in ["bash", "task", "webfetch", "websearch", "lsp", "skill"] {
+            assert!(!permissions.contains_key(unrestricted));
+        }
     }
 
     #[test]
