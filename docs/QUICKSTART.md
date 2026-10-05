@@ -66,6 +66,11 @@ The production-shaped workflow is deliberately explicit:
    execution still requires explicit operator admission and a runtime-issued
    credential capability; provider reachability is optional supplementary
    evidence, never an offline qualification requirement.
+   For a selection-driven online benchmark over one or all configured agents,
+   use `asb benchmark-live EXPERIMENT.toml --provider-selection selection.json
+   --online [--sweep]`. The `--online` flag is mandatory; this route never
+   falls back to local/mock or replay. Human-readable output is the default;
+   add the global `--json` flag for automation.
 5. To preserve a runtime-authorized exchange, use `record-live` with explicit
    capture acknowledgements, then use `replay-offline` against the exact
    content-addressed cassette. Replay denies provider egress and cannot fall
@@ -165,6 +170,7 @@ This table is checked against live `doctor` output and
 | `plan` | supported |
 | `run` | supported |
 | `sweep` | supported |
+| `benchmark-live` | supported (explicit online provider) |
 | `compare` | supported |
 | `report` | supported |
 | `record-live` | supported (local mock) |
