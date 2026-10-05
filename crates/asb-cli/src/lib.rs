@@ -10291,7 +10291,7 @@ mod tests {
             payload_sha256,
             &format!(
                 "{:x}",
-                Sha256::digest(&asb_replay::canonical_json_bytes(payload).unwrap())
+                Sha256::digest(asb_replay::canonical_json_bytes(payload).unwrap())
             )
         );
         assert_eq!(*terminal, asb_replay::TerminalEvent::Completed);
