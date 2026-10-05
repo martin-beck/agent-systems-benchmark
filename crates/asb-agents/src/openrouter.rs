@@ -288,6 +288,26 @@ impl OpenRouterLiveResponse {
         }
         labels
     }
+
+    /// Ordered scalar columns for table-oriented comparison views.
+    pub fn analysis_columns(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("status", self.status.to_string()),
+            ("status_class", self.status_class().to_string()),
+            ("body_bytes", self.body_len().to_string()),
+            ("success", self.is_success().to_string()),
+            ("client_error", self.is_client_error().to_string()),
+            ("server_error", self.is_server_error().to_string()),
+            ("rate_limited", self.is_rate_limited().to_string()),
+            ("redirect", self.is_redirect().to_string()),
+            ("body_empty", self.body_is_empty().to_string()),
+            ("summary", self.analysis_summary()),
+            ("label_count", self.analysis_labels().len().to_string()),
+            ("comparison_status", self.comparison_key().0.to_string()),
+            ("comparison_bytes", self.comparison_key().1.to_string()),
+            ("comparison_success", self.comparison_key().2.to_string()),
+        ]
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -944,6 +964,7 @@ mod tests {
         assert_eq!(response.analysis_fields()["success"], true);
         assert_eq!(response.comparison_key(), (200, 17, true));
         assert_eq!(response.analysis_labels(), vec!["success", "body_present"]);
+        assert_eq!(response.analysis_columns().len(), 14);
         let failure_response = OpenRouterLiveResponse {
             status: 503,
             body: Vec::new(),
