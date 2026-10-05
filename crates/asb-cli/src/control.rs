@@ -4350,12 +4350,21 @@ impl RunnerBackend {
                 unavailable_reason: record.unavailable_reason.clone(),
             }
         });
-        let generation = catalog
-            .configuration
-            .as_ref()
-            .map_or(Revision(1), |configuration| {
-                Revision(configuration.generation)
-            });
+        // The status envelope and its nested lifecycle must share the same
+        // generation.  The campaign generation advances independently from
+        // configuration changes; returning the configuration generation here
+        // makes a valid campaign status fail frontend projection validation.
+        let generation = catalog.recording_campaign.as_ref().map_or_else(
+            || {
+                catalog
+                    .configuration
+                    .as_ref()
+                    .map_or(Revision(1), |configuration| {
+                        Revision(configuration.generation)
+                    })
+            },
+            |record| Revision(record.generation),
+        );
         Ok(asb_control::RecordingCampaignStatus {
             runner_instance_id: self.runner_instance_id.clone(),
             generation,
@@ -8147,7 +8156,8 @@ mod tests {
         let ControlResult::RecordingCampaignStatus(campaign_status) = campaign_status.result else {
             panic!("campaign status result");
         };
-        assert!(campaign_status.campaign.is_some());
+        let campaign = campaign_status.campaign.expect("campaign status");
+        assert_eq!(campaign_status.generation, campaign.generation);
     }
 
     #[test]
