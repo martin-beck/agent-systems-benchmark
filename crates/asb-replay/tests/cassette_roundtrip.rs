@@ -132,7 +132,7 @@ fn authenticated_redaction_descriptor_tampering_fails_independently() {
 fn unknown_versions_and_fields_are_rejected() {
     let bytes = seal_cassette(support::redacted_contents(), CassetteLimits::default()).unwrap();
     let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    value["contents"]["schema_version"] = 2.into();
+    value["contents"]["schema_version"] = 3.into();
     let unknown_version = serde_json::to_vec(&value).unwrap();
     assert!(matches!(
         decode_cassette(&unknown_version, CassetteLimits::default()),

@@ -98,7 +98,7 @@ where
     if request.attempt_id != route.attempt_id {
         return Err(ProviderCaptureError::IdentityMismatch);
     }
-    let (cassette, _report) = service
+    let (mut cassette, _report) = service
         .capture_and_seal_authenticated_connection(
             stream,
             route,
@@ -106,6 +106,16 @@ where
             forward,
         )
         .map_err(|_| ProviderCaptureError::Verification)?;
+    // Bind the runtime-issued provider identity into the authenticated v2
+    // cassette before it is handed to the recording index. The capture
+    // service initially seals the transport trajectory without coordinator
+    // metadata; re-hashing the canonical contents keeps the binding covered
+    // by the cassette root rather than trusting catalog metadata.
+    cassette.contents.schema_version = asb_replay::PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION;
+    cassette.contents.provider_profile_sha256 = Some(request.provider_profile_sha256.clone());
+    let canonical = asb_replay::canonical_contents_bytes(&cassette.contents)
+        .map_err(|_| ProviderCaptureError::Verification)?;
+    cassette.integrity.digest = format!("{:x}", Sha256::digest(canonical));
     context.check()?;
     // Re-open through the strict service constructor before reporting the
     // cassette as replay-ready. This validates route, dialect, redaction and
@@ -288,6 +298,19 @@ mod tests {
         let cassette = asb_replay::decode_cassette(&result.cassette_json, Default::default())
             .expect("sealed cassette");
         assert_eq!(cassette.integrity.digest, result.cassette_sha256);
+        assert_eq!(
+            cassette.contents.schema_version,
+            asb_replay::PROVIDER_BOUND_CASSETTE_SCHEMA_VERSION
+        );
+        assert_eq!(
+            cassette.contents.provider_profile_sha256.as_deref(),
+            Some("a".repeat(64).as_str())
+        );
+        let canonical = asb_replay::canonical_contents_bytes(&cassette.contents).unwrap();
+        assert_eq!(
+            cassette.integrity.digest,
+            format!("{:x}", Sha256::digest(canonical))
+        );
         let encoded = String::from_utf8(result.cassette_json).expect("json");
         assert!(!encoded.contains("Bearer"));
         assert!(!encoded.contains("secret"));
