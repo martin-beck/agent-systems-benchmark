@@ -5624,6 +5624,7 @@ fn spawn_verified_agent(
                 .env(provider_launch::CREDENTIAL_TARGET_ENV, credential_target);
             if live_provider && launch.input.provider == "openrouter" {
                 let key = std::env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV)
+                    .filter(|value| !value.is_empty())
                     .ok_or_else(|| {
                         CliError::validation(
                             "OPENROUTER_API_KEY is required for an explicit live development run",
