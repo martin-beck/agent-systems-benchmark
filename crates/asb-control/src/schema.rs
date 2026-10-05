@@ -432,6 +432,10 @@ fn prune_unused_definitions(value: &mut Value) {
 // response contract.
 fn prune_fanout_definitions(value: &mut Value) {
     remove_fanout_variants(value);
+    prune_unreferenced_definitions(value);
+}
+
+fn prune_unreferenced_definitions(value: &mut Value) {
     let mut reachable = BTreeSet::new();
     collect_definition_refs(value, &mut reachable);
     loop {
@@ -460,6 +464,11 @@ fn remove_fanout_variants(value: &mut Value) {
     remove_tagged_variant(value, "/oneOf", "fanout");
     remove_tagged_variant(value, "/oneOf", "fanout_cancel");
     remove_tagged_variant(value, "/$defs/ControlResult/oneOf", "fanout");
+    remove_tagged_variant(
+        value,
+        "/$defs/ControlResult/oneOf",
+        "dynamic_provider_catalog",
+    );
 }
 
 /// Canonical request schema.
@@ -874,6 +883,25 @@ pub fn control_request_schema_v1_14() -> Schema {
 
 /// Canonical response schema for runtime fan-out admission and cancellation.
 pub fn control_response_schema_v1_14() -> Schema {
+    let mut schema = canonical::<ControlResponse>();
+    settings_validation_invariant(&mut schema);
+    let mut value = serde_json::to_value(schema).expect("v1.14 response schema serializes");
+    remove_tagged_variant(
+        &mut value,
+        "/$defs/ControlResult/oneOf",
+        "dynamic_provider_catalog",
+    );
+    prune_unreferenced_definitions(&mut value);
+    serde_json::from_value(value).expect("v1.14 response schema remains valid")
+}
+
+/// Canonical schema for the dynamic provider-catalog extension.
+pub fn control_request_schema_v1_15() -> Schema {
+    canonical::<ControlRequest>()
+}
+
+/// Canonical response schema for the dynamic provider-catalog extension.
+pub fn control_response_schema_v1_15() -> Schema {
     let mut schema = canonical::<ControlResponse>();
     settings_validation_invariant(&mut schema);
     schema

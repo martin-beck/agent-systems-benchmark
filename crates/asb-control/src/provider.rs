@@ -132,6 +132,95 @@ pub struct ProviderCatalog {
     pub refreshed: bool,
 }
 
+/// Mode used for the optional dynamic provider-catalog projection.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderCatalogMode {
+    /// The runner is serving its deterministic pinned development roster.
+    Static,
+    /// The runner refreshed a bounded public provider roster.
+    Dynamic,
+    /// Refresh was attempted but no usable public roster was available.
+    Unavailable,
+}
+
+/// Typed, credential-free reason for an unavailable dynamic roster.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
+pub enum ProviderCatalogDiagnostic {
+    /// Transport could not be reached or produced no usable response.
+    Unavailable,
+    /// Provider returned a non-success HTTP response.
+    HttpStatus(u16),
+    /// Provider response exceeded the bounded discovery limit.
+    TooLarge,
+    /// Provider response could not be normalized.
+    Malformed,
+}
+
+/// Dynamic OpenRouter roster identity exposed by control v1.15.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenRouterCatalogProjection {
+    /// Digest of the normalized public zero-price roster.
+    pub catalog_sha256: String,
+    /// Refresh mode for this projection.
+    pub mode: ProviderCatalogMode,
+    /// Models admitted by the normalized roster.
+    pub models: Vec<ProviderModel>,
+    /// Typed warning when the dynamic roster is unavailable.
+    pub diagnostic: Option<ProviderCatalogDiagnostic>,
+}
+
+/// Additive provider-catalog response introduced by control v1.15.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DynamicProviderCatalog {
+    /// The ordinary generation-fenced provider catalog.
+    pub catalog: ProviderCatalog,
+    /// Dynamic OpenRouter identity and roster projection.
+    pub openrouter: OpenRouterCatalogProjection,
+}
+
+impl DynamicProviderCatalog {
+    /// Validate the ordinary catalog and the dynamic roster identity.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        self.catalog.validate()?;
+        validate_digest(&self.openrouter.catalog_sha256)?;
+        if self.openrouter.models.len() > MAX_MODELS_PER_PROVIDER {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        let mut previous = None;
+        let mut ids = BTreeSet::new();
+        for model in &self.openrouter.models {
+            validate_catalog_string(&model.model_id)?;
+            validate_catalog_string(&model.revision)?;
+            if previous.is_some_and(|id: &str| id >= model.model_id.as_str())
+                || !ids.insert(model.model_id.as_str())
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
+            previous = Some(model.model_id.as_str());
+        }
+        if matches!(self.openrouter.mode, ProviderCatalogMode::Dynamic)
+            && self.openrouter.diagnostic.is_some()
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        if matches!(self.openrouter.mode, ProviderCatalogMode::Unavailable)
+            && self.openrouter.diagnostic.is_none()
+        {
+            return Err(ProtocolError::InvalidResponse);
+        }
+        Ok(())
+    }
+}
+
 /// Read-only request for the runner's current setup state.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

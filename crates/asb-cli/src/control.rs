@@ -12,10 +12,11 @@ use asb_control::{
     AuthStatusResponse, AuthenticatedChainEnrollmentV1, BackendFailure, BoundControlResult,
     CONTROL_MEASUREMENT_SELECTION_V1, Capabilities, CertificateAuthorityV1, ConfigurationSnapshot,
     ConfigurationStatusRequest, ControlBackend, ControlCall, ControlEvent, ControlEventKind,
-    ControlLimits, ControlResult, ControlVersion, FanoutAdmission, FanoutMember,
-    MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement, Page,
-    PeerIdentity, PlanReference, ProviderAuthMethod, ProviderAvailability, ProviderCatalog,
-    ProviderCatalogAction, ProviderCatalogEntry, ProviderCatalogRequest, ProviderModel,
+    ControlLimits, ControlResult, ControlVersion, DynamicProviderCatalog, FanoutAdmission,
+    FanoutMember, MeasurementCatalogPublication, MeasurementSettingsIssue, MutationAcknowledgement,
+    OpenRouterCatalogProjection, Page, PeerIdentity, PlanReference, ProviderAuthMethod,
+    ProviderAvailability, ProviderCatalog, ProviderCatalogAction, ProviderCatalogDiagnostic,
+    ProviderCatalogEntry, ProviderCatalogMode, ProviderCatalogRequest, ProviderModel,
     ProvisionedControlServer, PublicRunState, RequestDeadline, Revision, RunId, RunSummary,
     RuntimeAuthorityEnrollmentV1, RuntimeReceiptResponseV1, SettingsIssue, SettingsValidation,
 };
@@ -361,6 +362,8 @@ struct Catalog {
     provider_profiles: BTreeMap<String, ProviderCatalogEntry>,
     #[serde(default)]
     provider_credential_references: BTreeMap<String, String>,
+    #[serde(default)]
+    openrouter_catalog: Option<OpenRouterCatalogProjection>,
     #[serde(default = "default_agent_catalog_generation")]
     agent_catalog_generation: u64,
     #[serde(default)]
@@ -459,6 +462,104 @@ fn build_provider_catalog(
         .map_err(|_| BackendFailure::Rejected)?;
     catalog.validate().map_err(|_| BackendFailure::Rejected)?;
     Ok(catalog)
+}
+
+fn static_openrouter_projection() -> OpenRouterCatalogProjection {
+    OpenRouterCatalogProjection {
+        catalog_sha256: "0".repeat(64),
+        mode: ProviderCatalogMode::Static,
+        models: Vec::new(),
+        diagnostic: None,
+    }
+}
+
+fn discover_openrouter_projection() -> OpenRouterCatalogProjection {
+    project_openrouter_catalog(asb_agents::openrouter::discover_openrouter_model_catalog())
+}
+
+fn project_openrouter_catalog(
+    result: Result<
+        asb_agents::openrouter::OpenRouterModelCatalog,
+        asb_agents::openrouter::OpenRouterCatalogError,
+    >,
+) -> OpenRouterCatalogProjection {
+    match result {
+        Ok(catalog) => {
+            if catalog.free_models.len() > 64 {
+                return OpenRouterCatalogProjection {
+                    catalog_sha256: "0".repeat(64),
+                    mode: ProviderCatalogMode::Unavailable,
+                    models: Vec::new(),
+                    diagnostic: Some(ProviderCatalogDiagnostic::TooLarge),
+                };
+            }
+            let digest = catalog.digest_sha256();
+            let models = catalog
+                .free_models
+                .into_iter()
+                .map(|model| ProviderModel {
+                    model_id: model.model_id,
+                    revision: format!("openrouter-catalog-{digest}"),
+                    availability: ProviderAvailability::Available,
+                })
+                .collect();
+            OpenRouterCatalogProjection {
+                catalog_sha256: digest,
+                mode: ProviderCatalogMode::Dynamic,
+                models,
+                diagnostic: None,
+            }
+        }
+        Err(error) => {
+            let diagnostic = match error {
+                asb_agents::openrouter::OpenRouterCatalogError::Unavailable => {
+                    ProviderCatalogDiagnostic::Unavailable
+                }
+                asb_agents::openrouter::OpenRouterCatalogError::HttpStatus(status) => {
+                    ProviderCatalogDiagnostic::HttpStatus(status)
+                }
+                asb_agents::openrouter::OpenRouterCatalogError::TooLarge => {
+                    ProviderCatalogDiagnostic::TooLarge
+                }
+                asb_agents::openrouter::OpenRouterCatalogError::Malformed => {
+                    ProviderCatalogDiagnostic::Malformed
+                }
+            };
+            OpenRouterCatalogProjection {
+                catalog_sha256: "0".repeat(64),
+                mode: ProviderCatalogMode::Unavailable,
+                models: Vec::new(),
+                diagnostic: Some(diagnostic),
+            }
+        }
+    }
+}
+
+fn dynamic_provider_catalog(
+    mut catalog: ProviderCatalog,
+    projection: &OpenRouterCatalogProjection,
+) -> Result<DynamicProviderCatalog, BackendFailure> {
+    if matches!(projection.mode, ProviderCatalogMode::Dynamic) {
+        let provider = catalog
+            .providers
+            .iter_mut()
+            .find(|provider| provider.provider_id == "openrouter")
+            .ok_or(BackendFailure::Rejected)?;
+        provider.models = projection.models.clone();
+        provider
+            .models
+            .sort_by(|left, right| left.model_id.cmp(&right.model_id));
+    }
+    catalog.catalog_sha256 = catalog
+        .computed_sha256()
+        .map_err(|_| BackendFailure::Rejected)?;
+    catalog.validate().map_err(|_| BackendFailure::Rejected)?;
+    let result = DynamicProviderCatalog {
+        catalog,
+        openrouter: projection.clone(),
+    };
+    result.validate().map_err(|_| BackendFailure::Rejected)?;
+    Ok(result)
 }
 
 fn runtime_control_session_digest(
@@ -1786,6 +1887,7 @@ fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
         provider_generation: 1,
         provider_profiles: BTreeMap::new(),
         provider_credential_references: BTreeMap::new(),
+        openrouter_catalog: None,
         agent_catalog_generation: 1,
         agent_catalog: None,
         agent_lifecycles: BTreeMap::new(),
@@ -4122,6 +4224,21 @@ impl ControlBackend for RunnerBackend {
         version: ControlVersion,
     ) -> Result<BoundControlResult, BackendFailure> {
         let mut result = self.execute(call, deadline)?;
+        if version >= asb_control::CONTROL_DYNAMIC_PROVIDER_CATALOG_V1
+            && let ControlResult::ProviderCatalog(catalog) = result.result
+        {
+            let projection = self
+                .catalog
+                .lock()
+                .map_err(|_| BackendFailure::NeedsReconciliation)?
+                .openrouter_catalog
+                .clone()
+                .unwrap_or_else(static_openrouter_projection);
+            result.result = ControlResult::DynamicProviderCatalog(dynamic_provider_catalog(
+                catalog,
+                &projection,
+            )?);
+        }
         if version < CONTROL_MEASUREMENT_SELECTION_V1
             && let ControlResult::SettingsValidation(validation) = &mut result.result
         {
@@ -5926,6 +6043,17 @@ impl RunnerBackend {
         &self,
         request: &ProviderCatalogRequest,
     ) -> Result<ProviderCatalog, BackendFailure> {
+        self.provider_catalog_with_discovery(request, discover_openrouter_projection)
+    }
+
+    fn provider_catalog_with_discovery<F>(
+        &self,
+        request: &ProviderCatalogRequest,
+        discover: F,
+    ) -> Result<ProviderCatalog, BackendFailure>
+    where
+        F: FnOnce() -> OpenRouterCatalogProjection,
+    {
         if request.runner_instance_id != self.runner_instance_id {
             return Err(BackendFailure::StaleIdentity);
         }
@@ -5961,8 +6089,10 @@ impl RunnerBackend {
             true,
             state.provider_profiles.values().cloned(),
         )?;
+        let dynamic_projection = discover();
         let mut staged = state.clone();
         staged.provider_generation = next_generation;
+        staged.openrouter_catalog = Some(dynamic_projection);
         commit_staged_catalog(&self.state_root, &mut state, staged)
             .map_err(|_| BackendFailure::NeedsReconciliation)?;
         Ok(refreshed)
@@ -7665,6 +7795,108 @@ mod tests {
         );
         drop(client);
         service.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn provider_catalog_v15_is_dynamic_and_v14_remains_legacy() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state).unwrap();
+        let call = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Status,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        let legacy = backend
+            .execute_versioned(&call, deadline(), asb_control::CONTROL_FANOUT_V1)
+            .unwrap();
+        assert!(matches!(legacy.result, ControlResult::ProviderCatalog(_)));
+        legacy
+            .validate_for_call_and_version(
+                &call,
+                ControlLimits::default(),
+                asb_control::CONTROL_FANOUT_V1,
+            )
+            .unwrap();
+
+        let dynamic = backend
+            .execute_versioned(
+                &call,
+                deadline(),
+                asb_control::CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
+            )
+            .unwrap();
+        let ControlResult::DynamicProviderCatalog(catalog) = &dynamic.result else {
+            panic!("v1.15 provider catalog result");
+        };
+        assert_eq!(catalog.openrouter.mode, ProviderCatalogMode::Static);
+        assert_eq!(catalog.openrouter.catalog_sha256, "0".repeat(64));
+        dynamic
+            .validate_for_call_and_version(
+                &call,
+                ControlLimits::default(),
+                asb_control::CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
+            )
+            .unwrap();
+
+        let refresh = ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+            action: asb_control::ProviderCatalogAction::Refresh,
+            runner_instance_id: backend.runner_instance_id().to_owned(),
+            known_generation: None,
+        });
+        let ControlCall::ProviderCatalog(refresh_request) = &refresh else {
+            unreachable!();
+        };
+        backend
+            .provider_catalog_with_discovery(refresh_request, || {
+                project_openrouter_catalog(Ok(asb_agents::openrouter::OpenRouterModelCatalog {
+                    free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                        model_id: "example/free".into(),
+                        prompt_price: "0".into(),
+                        completion_price: "0".into(),
+                    }],
+                }))
+            })
+            .unwrap();
+        let after_refresh = backend
+            .execute_versioned(
+                &call,
+                deadline(),
+                asb_control::CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
+            )
+            .unwrap();
+        let ControlResult::DynamicProviderCatalog(after_refresh) = after_refresh.result else {
+            panic!("v1.15 refreshed provider catalog result");
+        };
+        assert_eq!(after_refresh.openrouter.mode, ProviderCatalogMode::Dynamic);
+        assert_eq!(after_refresh.openrouter.models[0].model_id, "example/free");
+    }
+
+    #[test]
+    fn dynamic_provider_projection_preserves_bounded_roster_and_typed_failures() {
+        let catalog = asb_agents::openrouter::OpenRouterModelCatalog {
+            free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                model_id: "example/free".into(),
+                prompt_price: "0".into(),
+                completion_price: "0".into(),
+            }],
+        };
+        let projection = project_openrouter_catalog(Ok(catalog));
+        assert_eq!(projection.mode, ProviderCatalogMode::Dynamic);
+        assert_eq!(projection.models.len(), 1);
+        assert_eq!(projection.models[0].model_id, "example/free");
+        assert!(projection.diagnostic.is_none());
+
+        let unavailable = project_openrouter_catalog(Err(
+            asb_agents::openrouter::OpenRouterCatalogError::HttpStatus(429),
+        ));
+        assert_eq!(unavailable.mode, ProviderCatalogMode::Unavailable);
+        assert_eq!(unavailable.catalog_sha256, "0".repeat(64));
+        assert_eq!(
+            unavailable.diagnostic,
+            Some(ProviderCatalogDiagnostic::HttpStatus(429))
+        );
     }
 
     #[test]
