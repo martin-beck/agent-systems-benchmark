@@ -716,6 +716,25 @@ mod tests {
     }
 
     #[test]
+    fn live_capture_rejects_invalid_route_or_request_before_credential_lookup() {
+        let profile = profile();
+        assert!(matches!(
+            capture_openrouter_live(&profile, OpenRouterAgent::Gemini, b"{}"),
+            Err(OpenRouterLiveError::Transport)
+        ));
+        assert!(matches!(
+            capture_openrouter_live(&profile, OpenRouterAgent::Aider, &[]),
+            Err(OpenRouterLiveError::RequestTooLarge)
+        ));
+        let oversized =
+            vec![b'x'; profile.provider_profile().transport.max_request_bytes as usize + 1];
+        assert!(matches!(
+            capture_openrouter_live(&profile, OpenRouterAgent::Aider, &oversized),
+            Err(OpenRouterLiveError::RequestTooLarge)
+        ));
+    }
+
+    #[test]
     fn reference_digest_matches_the_environment_resolver_boundary() {
         let resolver = EnvironmentCredentialResolver::new(OPENROUTER_API_KEY_ENV).unwrap();
         assert_eq!(
