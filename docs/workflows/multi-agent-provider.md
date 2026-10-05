@@ -15,6 +15,11 @@ asb provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai|openrouter \
   --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
+# For a refreshed OpenRouter roster, select the admitted model explicitly:
+asb provider-plan --catalog-sha256 CATALOG_SHA256 \
+  --provider-profile openrouter --model MODEL \
+  --agent codex --agent opendesk \
+  --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
 asb plan /absolute/path/EXPERIMENT.toml --provider-selection selection.json
 asb run /absolute/path/EXPERIMENT.toml --provider-selection selection.json
 ```
@@ -58,6 +63,11 @@ The older `asb config openrouter` route remains compatible for existing
 configurations that have no setup-selected agent declarations. Once an agent
 is selected by the wizard, its persisted profile is authoritative, including
 when it replaces a prior legacy OpenRouter enrollment.
+
+When both records exist, the wizard's dynamic model record is authoritative over the
+legacy pinned record: `provider-plan --use-config` revalidates its saved model against
+the saved normalized-catalog digest. Re-run setup after refreshing the catalog to choose
+a different model; selecting the pinned model again replaces and clears the dynamic record.
 
 Persist the pinned dated free-model selection and credential-free
 `OPENROUTER_API_KEY` environment reference, then use it without repeating the

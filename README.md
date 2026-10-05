@@ -74,6 +74,9 @@ asb serve CONTROL.toml
 asb provider-catalog
 asb provider-plan --catalog-sha256 CATALOG_SHA256 --provider-profile openai --agent codex \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256
+# OpenRouter refreshed-model selection adds --model MODEL.
+asb provider-plan --catalog-sha256 CATALOG_SHA256 --provider-profile openrouter \
+  --model MODEL --agent codex --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256
 asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record
 asb record-live REQUEST.json CASSETTE.json --openrouter --confirm-record
 asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 codex
