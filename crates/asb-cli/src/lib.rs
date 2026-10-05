@@ -710,6 +710,37 @@ fn dispatch(
         [command, path, flag] if command == "run" && flag == "--live-provider" => {
             execute(Path::new(path), false, true, live_factory, stdout, stderr)
         }
+        [command, path, selection, selection_path, online]
+            if command == "benchmark-live"
+                && selection == "--provider-selection"
+                && online == "--online" =>
+        {
+            execute_with_selection_live_provider(
+                Path::new(path),
+                Path::new(selection_path),
+                false,
+                true,
+                live_factory,
+                stdout,
+                stderr,
+            )
+        }
+        [command, path, selection, selection_path, online, sweep]
+            if command == "benchmark-live"
+                && selection == "--provider-selection"
+                && online == "--online"
+                && sweep == "--sweep" =>
+        {
+            execute_with_selection_live_provider(
+                Path::new(path),
+                Path::new(selection_path),
+                true,
+                true,
+                live_factory,
+                stdout,
+                stderr,
+            )
+        }
         [command, _path, flag] if command == "sweep" && flag == "--local-mock" => {
             Ok(run_local_mock_dispatch(args, stdout, stderr))
         }
@@ -1405,6 +1436,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("plan") => "plan",
         Some("run") => "run",
         Some("sweep") => "sweep",
+        Some("benchmark-live") => "benchmark-live",
         Some("compare") => "compare",
         Some("report") => "report",
         Some("serve") => "serve",
@@ -1419,7 +1451,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
     )
     .map_err(output_error)?;
     writeln!(
@@ -1438,7 +1470,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(output, "  asb tui --help").map_err(output_error)?;
     writeln!(output, "  asb plan create --workload WORKLOAD --agent-executable /absolute/agent --output PLAN.toml")
         .map_err(output_error)?;
-    writeln!(output, "  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-live REQUEST.json CASSETTE.json --openrouter --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
+    writeln!(output, "  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-live REQUEST.json CASSETTE.json --openrouter --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
 }
 
@@ -1728,7 +1760,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep compare report record record-campaign replay completion serve tui easy --help --version' asb"
+        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -7828,6 +7860,30 @@ mod tests {
         assert!(!scratch.0.join("results").exists());
     }
 
+    #[test]
+    fn benchmark_live_requires_explicit_online_and_selection_flags() {
+        let mut json_output = Vec::new();
+        let args = vec![
+            "benchmark-live".into(),
+            "experiment.toml".into(),
+            "--provider-selection".into(),
+            "selection.json".into(),
+        ];
+        assert_eq!(run(&args, &mut json_output, &mut Vec::new()), 2);
+        let error: Value = serde_json::from_slice(&json_output).unwrap();
+        assert_eq!(error["ok"], false);
+        assert_eq!(error["error"]["code"], "usage");
+
+        let mut human_output = Vec::new();
+        assert_eq!(
+            run_with_default_mode(&args, &mut human_output, &mut Vec::new(), true),
+            2
+        );
+        let text = String::from_utf8(human_output).unwrap();
+        assert!(text.contains("benchmark-live failed"));
+        assert!(text.contains("unsupported arguments"));
+    }
+
     struct UnavailableRuntimeControlSource;
 
     impl RuntimeControlDispatchSource for UnavailableRuntimeControlSource {
@@ -8238,6 +8294,30 @@ mod tests {
             "--provider-selection".into(),
             selection_path.as_os_str().to_owned(),
             "--live-provider".into(),
+        ];
+        let mut output = Vec::new();
+        assert_ne!(
+            run_with_live_provider_factory(&args, factory, &mut output, &mut Vec::new()),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output).unwrap()["ok"],
+            false
+        );
+
+        // The user-facing live benchmark route is explicit about both the
+        // provider selection and online mode. It must use the same live
+        // factory as the canonical run/sweep paths, never local mock or
+        // replay execution.
+        let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        });
+        let args = vec![
+            "benchmark-live".into(),
+            plan_path.as_os_str().to_owned(),
+            "--provider-selection".into(),
+            selection_path.as_os_str().to_owned(),
+            "--online".into(),
         ];
         let mut output = Vec::new();
         assert_ne!(
