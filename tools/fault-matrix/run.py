@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import selectors
 import signal
 import shutil
@@ -22,6 +23,16 @@ MAX_OUTPUT = 64 * 1024
 MAX_WORKSPACE = 64 * 1024 * 1024
 MAX_TIMEOUT = 300.0
 KINDS = {"setup", "record", "replay", "benchmark", "recovery"}
+BACKENDS = {"auto", "unshare", "systemd-private-network", "bubblewrap-network"}
+PREFLIGHT_SCRIPT = (
+    "import socket; "
+    "s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(1); "
+    "p=s.getsockname()[1]; c=socket.create_connection(('127.0.0.1',p),1); "
+    "c.close(); s.close(); "
+    "x=socket.socket(); x.settimeout(.25); "
+    "\ntry: x.connect(('198.51.100.1',9)); raise SystemExit(2)\n"
+    "except (TimeoutError,OSError): pass\n"
+)
 
 
 def load_manifest(path: Path) -> list[dict[str, Any]]:
@@ -73,15 +84,82 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
     return result
 
 
-def isolated_command(command: list[str]) -> list[str]:
+def backend_available(backend: str) -> bool:
+    if backend == "unshare":
+        return os.name == "posix" and shutil.which("unshare") is not None
+    if backend == "systemd-private-network":
+        return os.name == "posix" and shutil.which("systemd-run") is not None
+    if backend == "bubblewrap-network":
+        return os.name == "posix" and shutil.which("bwrap") is not None
+    return False
+
+
+def isolated_command(command: list[str], backend: str = "unshare", root: Path | None = None) -> list[str]:
     """Return a command with an enforced private network namespace.
 
     A missing or unusable isolation primitive is a typed runner-unavailable
     result, never an implicit fallback to the host network.
     """
-    if os.name != "posix" or not shutil.which("unshare"):
+    if backend == "unshare" and not backend_available(backend):
         raise RuntimeError("network isolation unavailable")
-    return ["unshare", "--net", "--", *command]
+    if backend == "unshare":
+        return ["unshare", "--net", "--", *command]
+    if backend == "systemd-private-network":
+        if root is None:
+            raise RuntimeError("systemd backend requires a private working root")
+        return ["systemd-run", "--user", "--pipe", "--wait", "--collect", "--quiet",
+                "--working-directory=" + str(root), "--setenv=PATH=/usr/bin:/bin",
+                "--setenv=HOME=" + str(root / "home"),
+                "--setenv=ASB_MATRIX_ROOT=" + str(root),
+                "--property=PrivateNetwork=yes", "--property=NoNewPrivileges=yes",
+                "--", *command]
+    if backend == "bubblewrap-network":
+        if not backend_available(backend):
+            raise RuntimeError("network isolation unavailable")
+        bindings = []
+        for path in ("/usr", "/bin", "/lib", "/lib64"):
+            if Path(path).exists():
+                bindings.extend(["--ro-bind", path, path])
+        if root is not None:
+            bindings.extend(["--bind", str(root), str(root)])
+        binary = Path(command[0])
+        if binary.is_absolute():
+            resolved = binary.resolve()
+            bindings.extend(["--ro-bind", str(resolved), str(resolved)])
+        return ["bwrap", "--die-with-parent", "--unshare-net", "--proc", "/proc",
+                "--dev", "/dev", *bindings, "--", *command]
+    raise RuntimeError("unsupported isolation backend")
+
+
+def preflight_backend(backend: str) -> dict[str, Any]:
+    """Prove loopback works and a documentation-only external address is denied."""
+    if backend not in BACKENDS - {"auto"} or not backend_available(backend):
+        return {"backend": backend, "available": False, "loopback": False,
+                "external_denied": False, "classification": "runner_unavailable"}
+    root = Path(tempfile.mkdtemp(prefix="asb-fault-preflight-"))
+    try:
+        command = isolated_command(["python3", "-c", PREFLIGHT_SCRIPT], backend)
+        completed = subprocess.run(command, cwd=root, env={"PATH": "/usr/bin:/bin"},
+                                   capture_output=True, text=True, timeout=5)
+        ok = completed.returncode == 0
+        return {"backend": backend, "available": ok, "loopback": ok,
+                "external_denied": ok, "classification": "ready" if ok else "runner_unavailable"}
+    except (OSError, subprocess.SubprocessError):
+        return {"backend": backend, "available": False, "loopback": False,
+                "external_denied": False, "classification": "runner_unavailable"}
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def select_backend(requested: str) -> tuple[str, dict[str, Any]]:
+    if requested not in BACKENDS:
+        raise ValueError("unsupported isolation backend")
+    candidates = ["unshare", "systemd-private-network", "bubblewrap-network"] if requested == "auto" else [requested]
+    for candidate in candidates:
+        probe = preflight_backend(candidate)
+        if probe["available"]:
+            return candidate, probe
+    return candidates[0], preflight_backend(candidates[0])
 
 
 def workspace_bytes(root: Path) -> int:
@@ -95,6 +173,17 @@ def workspace_bytes(root: Path) -> int:
             if total > MAX_WORKSPACE:
                 return total
     return total
+
+
+def redact_output(output: str, root: Path) -> str:
+    """Keep diagnostics useful without leaking private roots or credentials."""
+    redacted = output.replace(str(root), "<case-root>")
+    redacted = re.sub(
+        r"(?i)(OPENAI_API_KEY|OPENROUTER_API_KEY|GEMINI_API_KEY)=[^\s\r\n]*",
+        r"\1=<redacted>",
+        redacted,
+    )
+    return redacted[:MAX_OUTPUT]
 
 
 def process_group_has_members(pgid: int) -> bool:
@@ -120,7 +209,7 @@ def process_group_has_members(pgid: int) -> bool:
     return False
 
 
-def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
+def run_case(binary: Path, case: dict[str, Any], root: Path, backend: str = "unshare") -> dict[str, Any]:
     command = [str(binary), *case["argv"]]
     env = {"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "ASB_MATRIX_ROOT": str(root)}
     root.joinpath("home").mkdir(parents=True)
@@ -138,7 +227,7 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
     selector: selectors.BaseSelector | None = None
     isolation_attempted = False
     try:
-        command = isolated_command(command)
+        command = isolated_command(command, backend, root)
         isolation_attempted = True
         process = subprocess.Popen(command, cwd=root, env=env, text=False,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -191,6 +280,9 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
                         warning_status = projection.get("status")
                         warning_code = projection.get("warning_code", projection.get("code"))
                         warning_text = projection.get("warning")
+                        if warning_code is None and isinstance(warning_text, str):
+                            if "missing credentials" in warning_text.lower():
+                                warning_code = "auth_unavailable"
                         is_warning = (
                             warning_status in {"warning", "unavailable"}
                             and (
@@ -259,6 +351,7 @@ def run_case(binary: Path, case: dict[str, Any], root: Path) -> dict[str, Any]:
             cleanup_ok = False
     if not cleanup_ok and classification == "passed":
         classification = "cleanup_failed"
+    output = redact_output(output, root)
     return {"name": case["name"], "kind": case["kind"], "classification": classification,
             "exit_code": exit_code, "expected_exit": case["expected_exit"],
             "output": output, "cleanup_ok": cleanup_ok}
@@ -268,6 +361,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--binary", type=Path, default=Path("asb"))
+    parser.add_argument("--backend", choices=sorted(BACKENDS),
+                        default=os.environ.get("ASB_FAULT_MATRIX_BACKEND", "auto"))
     parser.add_argument("--json", action="store_true", dest="machine")
     args = parser.parse_args()
     try:
@@ -278,10 +373,18 @@ def main() -> int:
             binary = args.binary
         if not binary.is_file() or not os.access(binary, os.X_OK):
             raise ValueError("binary must be an executable regular file")
+        backend, preflight = select_backend(args.backend)
         with tempfile.TemporaryDirectory(prefix="asb-fault-matrix-") as directory:
-            results = [run_case(binary, case, Path(directory) / case["name"]) for case in cases]
+            if preflight["available"]:
+                results = [run_case(binary, case, Path(directory) / case["name"], backend) for case in cases]
+            else:
+                results = [{"name": case["name"], "kind": case["kind"],
+                            "classification": "runner_unavailable", "exit_code": None,
+                            "expected_exit": case["expected_exit"], "output": "",
+                            "cleanup_ok": True} for case in cases]
         payload = {"schema_version": 1, "runner": "asb-fault-matrix-v1", "results": results,
-                   "passed": all(result["classification"] in {"passed", "warning"} for result in results)}
+                   "backend": backend, "preflight": preflight,
+                   "passed": preflight["available"] and all(result["classification"] in {"passed", "warning"} for result in results)}
         if args.machine:
             print(json.dumps(payload, sort_keys=True))
         else:

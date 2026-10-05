@@ -13,6 +13,48 @@ import run
 
 
 class FaultMatrixTests(unittest.TestCase):
+    def test_backend_selection_is_closed_and_fail_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported isolation backend"):
+            run.select_backend("sh -c 'network=host'")
+        with mock.patch.object(run, "preflight_backend", return_value={
+            "backend": "systemd-private-network", "available": False,
+            "loopback": False, "external_denied": False,
+            "classification": "runner_unavailable",
+        }):
+            backend, probe = run.select_backend("systemd-private-network")
+        self.assertEqual(backend, "systemd-private-network")
+        self.assertFalse(probe["available"])
+
+    def test_preflight_never_reports_ready_without_isolation(self) -> None:
+        with mock.patch.object(run, "backend_available", return_value=False):
+            probe = run.preflight_backend("unshare")
+        self.assertEqual(probe["classification"], "runner_unavailable")
+        self.assertFalse(probe["loopback"])
+        self.assertFalse(probe["external_denied"])
+
+    def test_systemd_backend_preserves_private_cwd_and_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            command = run.isolated_command(["/bin/true"], "systemd-private-network", root)
+        self.assertIn("--working-directory=" + str(root), command)
+        self.assertIn("--setenv=HOME=" + str(root / "home"), command)
+        self.assertIn("--setenv=ASB_MATRIX_ROOT=" + str(root), command)
+        self.assertIn("--property=PrivateNetwork=yes", command)
+
+    def test_redaction_bounds_all_credential_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "private"
+            output = " ".join([
+                str(root), "OPENAI_API_KEY=one", "OPENROUTER_API_KEY=two",
+                "GEMINI_API_KEY=three",
+            ])
+            redacted = run.redact_output(output, root)
+        self.assertNotIn("one", redacted)
+        self.assertNotIn("two", redacted)
+        self.assertNotIn("three", redacted)
+        self.assertNotIn(str(root), redacted)
+        self.assertLessEqual(len(redacted.encode()), run.MAX_OUTPUT)
+
     def test_manifest_is_closed_and_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "matrix.json"
@@ -33,7 +75,7 @@ class FaultMatrixTests(unittest.TestCase):
     def test_runner_reports_expected_success(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "case"
-            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command, *args: command):
                 result = run.run_case(Path("/bin/true"), {
                 "name": "doctor", "kind": "recovery", "argv": [], "timeout": 1.0,
                 "expected_exit": 0, "cleanup": [], "development_warning_only": False,
@@ -58,7 +100,7 @@ class FaultMatrixTests(unittest.TestCase):
     def test_streaming_output_is_capped_and_process_group_is_reaped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "case"
-            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command, *args: command):
                 result = run.run_case(Path("/bin/sh"), {
                     "name": "noisy", "kind": "record",
                     "argv": ["-c", "yes x | head -c 1000000"], "timeout": 2.0,
@@ -72,7 +114,7 @@ class FaultMatrixTests(unittest.TestCase):
     def test_timeout_kills_process_group_and_removes_private_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "case"
-            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command, *args: command):
                 result = run.run_case(Path("/bin/sh"), {
                     "name": "hang", "kind": "recovery", "argv": ["-c", "sleep 30"],
                     "timeout": 0.1, "expected_exit": 0, "cleanup": [],
@@ -87,7 +129,7 @@ class FaultMatrixTests(unittest.TestCase):
             root = Path(directory) / "case"
             marker = Path(directory) / "escaped-marker"
             command = f"sleep 0.5; echo escaped > {shlex.quote(str(marker))}"
-            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command, *args: command):
                 result = run.run_case(Path("/bin/sh"), {
                     "name": "orphan", "kind": "recovery",
                     "argv": ["-c", f"({command}) >/dev/null 2>&1 & exit 0"], "timeout": 2.0,
@@ -105,7 +147,7 @@ class FaultMatrixTests(unittest.TestCase):
             case = {"name": "warn", "kind": "setup", "argv": ["-c", "printf '{\"status\":\"warning\",\"code\":\"auth_unavailable\"}'"],
                     "timeout": 1.0, "expected_exit": 0, "cleanup": [],
                     "development_warning_only": True, "warning_code": "auth_unavailable"}
-            with mock.patch.object(run, "isolated_command", side_effect=lambda command: command):
+            with mock.patch.object(run, "isolated_command", side_effect=lambda command, *args: command):
                 result = run.run_case(Path("/bin/sh"), case, root)
             self.assertEqual(result["classification"], "warning")
 
