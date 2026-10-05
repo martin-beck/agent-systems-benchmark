@@ -1,7 +1,7 @@
 # AR-1719 portable fault-matrix isolation receipt
 
-- Implementation source head: `ba84eb96da6d085293d0b058e7e7a913d5acfb93`.
-- Implementation tree: `81cd84c4b55997500f1477a77b069e448beb58c1`.
+- Implementation source head tested: `c183f3d2ef92555c59ed4626d800632f714a933c`.
+- Implementation tree tested: `ff3cb19f7ab9e33f29d66f74efdf6db1da51dd23`.
 - Backend: `bubblewrap-network`; preflight proved loopback availability and external denial.
 - Focused tests: fault-matrix suite 12/12 passed, including bounded credential redaction.
 - Five-case matrix passed locally with `cleanup_ok=true` for every case.
