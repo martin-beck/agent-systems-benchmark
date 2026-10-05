@@ -223,6 +223,25 @@ impl OpenRouterLiveResponse {
     pub const fn is_rate_limited(&self) -> bool {
         self.status == 429
     }
+
+    /// Compact, content-free summary suitable for human-readable comparison output.
+    pub fn analysis_summary(&self) -> String {
+        let outcome = if self.is_success() {
+            "success"
+        } else if self.is_rate_limited() {
+            "rate_limited"
+        } else if self.is_server_error() {
+            "server_error"
+        } else {
+            "provider_error"
+        };
+        format!(
+            "status={} class={} bytes={} outcome={outcome}",
+            self.status,
+            self.status_class(),
+            self.body_len()
+        )
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -871,6 +890,10 @@ mod tests {
         assert!(!response.body_is_empty());
         assert!(!response.is_redirect());
         assert!(!response.is_rate_limited());
+        assert_eq!(
+            response.analysis_summary(),
+            "status=200 class=2 bytes=17 outcome=success"
+        );
         let failure_response = OpenRouterLiveResponse {
             status: 503,
             body: Vec::new(),
@@ -889,11 +912,23 @@ mod tests {
         assert!(client_response.body_is_empty());
         assert!(!client_response.is_redirect());
         assert!(client_response.is_rate_limited());
+        assert_eq!(
+            client_response.analysis_summary(),
+            "status=429 class=4 bytes=0 outcome=rate_limited"
+        );
         let redirect_response = OpenRouterLiveResponse {
             status: 302,
             body: Vec::new(),
         };
         assert!(redirect_response.is_redirect());
+        assert_eq!(
+            redirect_response.analysis_summary(),
+            "status=302 class=3 bytes=0 outcome=provider_error"
+        );
+        assert_eq!(
+            failure_response.analysis_summary(),
+            "status=503 class=5 bytes=0 outcome=server_error"
+        );
 
         let resolved_wrapper = capture_openrouter_live_with_resolver(
             &profile,
