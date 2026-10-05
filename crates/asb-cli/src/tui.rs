@@ -4634,11 +4634,81 @@ mod tests {
         // Exercise the real TUI action path: enter Run Control, activate the
         // seeded offline campaign, select its digest-only cassette, dispatch
         // strict replay, then quit. The ASB recorder sees the typed calls.
+        let feeder_calls = Arc::clone(&calls);
         let feeder = thread::spawn(move || {
-            for key in [b's', b'o', b']', b'J'] {
-                thread::sleep(Duration::from_secs(1));
-                master.write_all(&[key]).unwrap();
+            // The benchmark picker starts empty.  Select all advertised
+            // measures explicitly before entering Run Control; otherwise the
+            // frontend correctly rejects an offline campaign with no scope.
+            thread::sleep(Duration::from_millis(500));
+            master.write_all(b"2").unwrap();
+            thread::sleep(Duration::from_millis(500));
+            master.write_all(b"a").unwrap();
+            // Bootstrap already proved the control route is alive.  Allow the
+            // renderer to settle after the explicit selection before changing
+            // routes; subsequent transitions are gated on typed calls.
+            thread::sleep(Duration::from_millis(750));
+            master.write_all(b"s").unwrap();
+            thread::sleep(Duration::from_millis(750));
+            let mut offline_default_requested = false;
+            for _ in 0..8 {
+                master.write_all(b"o").unwrap();
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while Instant::now() < deadline
+                    && !feeder_calls
+                        .lock()
+                        .expect("feeder recorder lock")
+                        .iter()
+                        .any(|call| matches!(call, ControlCall::RecordingCampaignOfflineDefault(_)))
+                {
+                    thread::sleep(Duration::from_millis(20));
+                }
+                if feeder_calls
+                    .lock()
+                    .expect("feeder recorder lock")
+                    .iter()
+                    .any(|call| matches!(call, ControlCall::RecordingCampaignOfflineDefault(_)))
+                {
+                    offline_default_requested = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(250));
             }
+            assert!(
+                offline_default_requested,
+                "Run Control did not dispatch offline default after readiness"
+            );
+            // The recording-cassette route is rendered asynchronously after
+            // the offline default response; gate the route key on its typed
+            // catalog request rather than sending ahead of the response.
+            let mut catalog_requested = false;
+            for _ in 0..6 {
+                master.write_all(b"]").unwrap();
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while Instant::now() < deadline
+                    && !feeder_calls
+                        .lock()
+                        .expect("feeder recorder lock")
+                        .iter()
+                        .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
+                {
+                    thread::sleep(Duration::from_millis(20));
+                }
+                if feeder_calls
+                    .lock()
+                    .expect("feeder recorder lock")
+                    .iter()
+                    .any(|call| matches!(call, ControlCall::RecordingCassetteCatalog(_)))
+                {
+                    catalog_requested = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(250));
+            }
+            assert!(
+                catalog_requested,
+                "offline cassette catalog was not requested after activation"
+            );
+            master.write_all(b"J").unwrap();
             // Replay is a bounded control round trip; repeat quit input so a
             // render/control transition cannot swallow the single byte.
             for _ in 0..5 {
