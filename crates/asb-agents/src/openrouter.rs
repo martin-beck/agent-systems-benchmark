@@ -343,7 +343,9 @@ impl fmt::Display for OpenRouterLiveError {
         match self {
             Self::Credential(_) => f.write_str("OpenRouter credential unavailable"),
             Self::RequestTooLarge => f.write_str("OpenRouter request exceeds its bound"),
-            Self::ModelMismatch => f.write_str("OpenRouter request model does not match the selected provider model"),
+            Self::ModelMismatch => {
+                f.write_str("OpenRouter request model does not match the selected provider model")
+            }
             Self::Transport => f.write_str("OpenRouter transport failed"),
             Self::ResponseTooLarge => f.write_str("OpenRouter response exceeds its bound"),
             Self::InvalidStatus => f.write_str("OpenRouter returned an invalid HTTP status"),
@@ -399,7 +401,12 @@ where
         .model;
     let requested_model = serde_json::from_slice::<Value>(request_body)
         .ok()
-        .and_then(|value| value.get("model").and_then(Value::as_str).map(str::to_owned));
+        .and_then(|value| {
+            value
+                .get("model")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        });
     if requested_model.as_deref() != Some(expected_model.as_str()) {
         return Err(OpenRouterLiveError::ModelMismatch);
     }
@@ -1084,10 +1091,19 @@ mod tests {
             OpenRouterAgent::Aider,
             br#"{"model":"cohere/north-mini-code:free"}"#,
             credential(),
-            |_config, _body| Ok((true, br#"{"error":"rate limited"}
-429"#.to_vec())),
+            |_config, _body| {
+                Ok((
+                    true,
+                    br#"{"error":"rate limited"}
+429"#
+                        .to_vec(),
+                ))
+            },
         );
-        assert!(matches!(provider_error, Err(OpenRouterLiveError::HttpStatus(429))));
+        assert!(matches!(
+            provider_error,
+            Err(OpenRouterLiveError::HttpStatus(429))
+        ));
         assert!(OpenRouterLiveError::Transport.is_retryable());
         assert!(OpenRouterLiveError::ResponseTooLarge.is_retryable());
         assert!(!OpenRouterLiveError::RequestTooLarge.is_retryable());
@@ -1233,7 +1249,7 @@ mod tests {
 
     #[test]
     fn live_error_display_and_curl_boundary_are_stable() {
-    let errors = [
+        let errors = [
             OpenRouterLiveError::Credential(CredentialResolutionError::Unavailable),
             OpenRouterLiveError::RequestTooLarge,
             OpenRouterLiveError::ModelMismatch,
