@@ -108,6 +108,13 @@ cassettes remain valid for direct strict replay, but are deliberately not
 eligible for provider-index selection until migrated into v2 by a trusted
 recording workflow.
 
+The migration boundary is explicit: a capture workflow must bind the selected
+provider profile, canonicalize the resulting contents, and recompute the
+integrity digest before publishing the cassette. Editing a v1 file in place is
+not a migration and is rejected by the contract checks; use the recording
+workflow to produce a new v2 cassette while retaining the original v1 file as
+an independent direct-replay artifact.
+
 Before accepting any future migration, `verify_migration_references` requires
 the source and destination to preserve session, attempt, interaction, response,
 prior-response and tool-call identities, all causal edges, interaction/event
