@@ -207,15 +207,38 @@ impl DynamicProviderCatalog {
             }
             previous = Some(model.model_id.as_str());
         }
-        if matches!(self.openrouter.mode, ProviderCatalogMode::Dynamic)
-            && self.openrouter.diagnostic.is_some()
-        {
+        let openrouter = self
+            .catalog
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == "openrouter")
+            .ok_or(ProtocolError::InvalidResponse)?;
+        if openrouter.models != self.openrouter.models {
             return Err(ProtocolError::InvalidResponse);
         }
-        if matches!(self.openrouter.mode, ProviderCatalogMode::Unavailable)
-            && self.openrouter.diagnostic.is_none()
-        {
-            return Err(ProtocolError::InvalidResponse);
+        let zero_digest = self.openrouter.catalog_sha256 == "0".repeat(64);
+        match self.openrouter.mode {
+            ProviderCatalogMode::Static => {
+                if !zero_digest
+                    || !self.openrouter.models.is_empty()
+                    || self.openrouter.diagnostic.is_some()
+                {
+                    return Err(ProtocolError::InvalidResponse);
+                }
+            }
+            ProviderCatalogMode::Unavailable => {
+                if !zero_digest
+                    || !self.openrouter.models.is_empty()
+                    || self.openrouter.diagnostic.is_none()
+                {
+                    return Err(ProtocolError::InvalidResponse);
+                }
+            }
+            ProviderCatalogMode::Dynamic => {
+                if zero_digest || self.openrouter.diagnostic.is_some() {
+                    return Err(ProtocolError::InvalidResponse);
+                }
+            }
         }
         Ok(())
     }
@@ -1127,7 +1150,18 @@ fn validate_provider_entry(
             return Err(ProtocolError::InvalidResponse);
         }
     }
-    if provider.models.is_empty() || provider.models.len() > MAX_MODELS_PER_PROVIDER {
+    if provider.models.is_empty() {
+        let dynamic_placeholder = !registration
+            && matches!(
+                &provider.availability,
+                ProviderAvailability::Unavailable(reason)
+                    if reason == "dynamic-catalog-not-ready"
+                        || reason == "dynamic-catalog-unavailable"
+            );
+        if !dynamic_placeholder {
+            return Err(ProtocolError::InvalidResponse);
+        }
+    } else if provider.models.len() > MAX_MODELS_PER_PROVIDER {
         return Err(ProtocolError::InvalidResponse);
     }
     if registration

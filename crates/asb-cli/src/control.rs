@@ -539,16 +539,29 @@ fn dynamic_provider_catalog(
     mut catalog: ProviderCatalog,
     projection: &OpenRouterCatalogProjection,
 ) -> Result<DynamicProviderCatalog, BackendFailure> {
-    if matches!(projection.mode, ProviderCatalogMode::Dynamic) {
-        let provider = catalog
-            .providers
-            .iter_mut()
-            .find(|provider| provider.provider_id == "openrouter")
-            .ok_or(BackendFailure::Rejected)?;
-        provider.models = projection.models.clone();
-        provider
-            .models
-            .sort_by(|left, right| left.model_id.cmp(&right.model_id));
+    let provider = catalog
+        .providers
+        .iter_mut()
+        .find(|provider| provider.provider_id == "openrouter")
+        .ok_or(BackendFailure::Rejected)?;
+    match projection.mode {
+        ProviderCatalogMode::Dynamic => {
+            provider.models = projection.models.clone();
+            provider
+                .models
+                .sort_by(|left, right| left.model_id.cmp(&right.model_id));
+            provider.availability = ProviderAvailability::Available;
+        }
+        ProviderCatalogMode::Static => {
+            provider.models.clear();
+            provider.availability =
+                ProviderAvailability::Unavailable("dynamic-catalog-not-ready".into());
+        }
+        ProviderCatalogMode::Unavailable => {
+            provider.models.clear();
+            provider.availability =
+                ProviderAvailability::Unavailable("dynamic-catalog-unavailable".into());
+        }
     }
     catalog.catalog_sha256 = catalog
         .computed_sha256()
@@ -7897,6 +7910,57 @@ mod tests {
             unavailable.diagnostic,
             Some(ProviderCatalogDiagnostic::HttpStatus(429))
         );
+    }
+
+    #[test]
+    fn dynamic_provider_catalog_validation_fences_modes_and_model_identity() {
+        let base =
+            build_provider_catalog("runner", 1, false, Vec::<ProviderCatalogEntry>::new()).unwrap();
+        let static_catalog =
+            dynamic_provider_catalog(base.clone(), &static_openrouter_projection())
+                .expect("static projection");
+        static_catalog.validate().unwrap();
+        let mut bad_static = static_catalog.clone();
+        bad_static.openrouter.catalog_sha256 = "a".repeat(64);
+        assert!(bad_static.validate().is_err());
+        let mut bad_static_models = static_catalog.clone();
+        bad_static_models.openrouter.models.push(ProviderModel {
+            model_id: "example/free".into(),
+            revision: "revision".into(),
+            availability: ProviderAvailability::Available,
+        });
+        assert!(bad_static_models.validate().is_err());
+
+        let unavailable_projection = OpenRouterCatalogProjection {
+            catalog_sha256: "0".repeat(64),
+            mode: ProviderCatalogMode::Unavailable,
+            models: Vec::new(),
+            diagnostic: Some(ProviderCatalogDiagnostic::Unavailable),
+        };
+        let unavailable_catalog = dynamic_provider_catalog(base.clone(), &unavailable_projection)
+            .expect("unavailable projection");
+        unavailable_catalog.validate().unwrap();
+        let mut bad_unavailable = unavailable_catalog.clone();
+        bad_unavailable.openrouter.diagnostic = None;
+        assert!(bad_unavailable.validate().is_err());
+
+        let dynamic_projection =
+            project_openrouter_catalog(Ok(asb_agents::openrouter::OpenRouterModelCatalog {
+                free_models: vec![asb_agents::openrouter::OpenRouterDiscoveredModel {
+                    model_id: "example/free".into(),
+                    prompt_price: "0".into(),
+                    completion_price: "0".into(),
+                }],
+            }));
+        let dynamic_catalog =
+            dynamic_provider_catalog(base, &dynamic_projection).expect("dynamic projection");
+        dynamic_catalog.validate().unwrap();
+        let mut bad_dynamic = dynamic_catalog.clone();
+        bad_dynamic.openrouter.models.clear();
+        assert!(bad_dynamic.validate().is_err());
+        let mut bad_dynamic_mode = dynamic_catalog;
+        bad_dynamic_mode.openrouter.catalog_sha256 = "0".repeat(64);
+        assert!(bad_dynamic_mode.validate().is_err());
     }
 
     #[test]
