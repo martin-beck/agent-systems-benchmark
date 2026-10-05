@@ -208,6 +208,21 @@ impl OpenRouterLiveResponse {
     pub const fn is_server_error(&self) -> bool {
         self.status_class() == 5
     }
+
+    /// Whether no provider response bytes were retained.
+    pub const fn body_is_empty(&self) -> bool {
+        self.body.is_empty()
+    }
+
+    /// Whether the status represents a redirect that must not be followed silently.
+    pub const fn is_redirect(&self) -> bool {
+        self.status_class() == 3
+    }
+
+    /// Whether the provider reported rate limiting.
+    pub const fn is_rate_limited(&self) -> bool {
+        self.status == 429
+    }
 }
 
 /// Typed failure from the online OpenRouter capture boundary.
@@ -853,6 +868,9 @@ mod tests {
         assert!(response.is_success());
         assert_eq!(response.body_len(), 17);
         assert_eq!(response.status_class(), 2);
+        assert!(!response.body_is_empty());
+        assert!(!response.is_redirect());
+        assert!(!response.is_rate_limited());
         let failure_response = OpenRouterLiveResponse {
             status: 503,
             body: Vec::new(),
@@ -868,6 +886,14 @@ mod tests {
         };
         assert!(client_response.is_client_error());
         assert!(!client_response.is_server_error());
+        assert!(client_response.body_is_empty());
+        assert!(!client_response.is_redirect());
+        assert!(client_response.is_rate_limited());
+        let redirect_response = OpenRouterLiveResponse {
+            status: 302,
+            body: Vec::new(),
+        };
+        assert!(redirect_response.is_redirect());
 
         let resolved_wrapper = capture_openrouter_live_with_resolver(
             &profile,
