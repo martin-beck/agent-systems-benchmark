@@ -8,11 +8,13 @@ use asb_control::{
     AuthenticatedGenerationProducer, BrokerConnection, BrokerState, ControlBackend, ControlLimits,
     ProvisionedControlServer,
 };
+use nix::sys::signal::{SigSet, SigmaskHow, Signal as NixSignal, pthread_sigmask};
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
     memfd_create, mkdirat, openat, renameat, unlinkat,
 };
-use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, kill_process_group, waitid};
+use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, getpgrp, kill_process_group, waitid};
+use rustix::termios::{tcgetpgrp, tcsetpgrp};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -1662,6 +1664,7 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
     state_root: &Path,
     backend: B,
 ) -> Result<std::process::ExitStatus, RouterError> {
+    let mut foreground_terminal = DevelopmentForegroundTerminal::capture()?;
     let broker_root = development_broker_root(state_root);
     let control_dir = broker_root.join("control");
     let provisioning_dir = broker_root.join("provisioning");
@@ -1699,111 +1702,192 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
             return Err(RouterError::operation("development_launch_failed"));
         }
     };
-    // A parent-first handoff is only valid while the frontend is alive.  Do
-    // not reserve or publish a generation to a child which already exited:
-    // this also keeps the ordinary cleanup path bounded for short-lived
-    // commands such as `/bin/true`.
-    if child.try_wait().ok().flatten().is_some() {
+    if let Some(terminal) = foreground_terminal.as_mut()
+        && terminal.assign(Pid::from_child(&child)).is_err()
+    {
         terminate_development_child(&mut child);
         let _ = fs::remove_dir_all(&broker_root);
-        return Err(RouterError::operation("development_launch_failed"));
+        return Err(RouterError::operation("development_terminal_unavailable"));
     }
-    // The deadline only bounds admission of the two handshake endpoints. Once
-    // both endpoints are admitted, `serve_connections_until` joins their
-    // workers and remains alive for the interactive child lifetime.
-    let mut server_worker = Some(thread::spawn(move || {
-        server.serve_connections_until(1, 1, Some(DEV_CONTROL_HANDSHAKE_TIMEOUT))
-    }));
-    let producer = match AuthenticatedGenerationProducer::new(
-        control_socket,
-        provisioning_socket,
-        ControlLimits::default(),
-    ) {
-        Ok(producer) => producer,
-        Err(_) => {
+    let result = (|| {
+        // A parent-first handoff is only valid while the frontend is alive.  Do
+        // not reserve or publish a generation to a child which already exited:
+        // this also keeps the ordinary cleanup path bounded for short-lived
+        // commands such as `/bin/true`.
+        if child.try_wait().ok().flatten().is_some() {
             terminate_development_child(&mut child);
+            let _ = fs::remove_dir_all(&broker_root);
+            return Err(RouterError::operation("development_launch_failed"));
+        }
+        // The deadline only bounds admission of the two handshake endpoints. Once
+        // both endpoints are admitted, `serve_connections_until` joins their
+        // workers and remains alive for the interactive child lifetime.
+        let mut server_worker = Some(thread::spawn(move || {
+            server.serve_connections_until(1, 1, Some(DEV_CONTROL_HANDSHAKE_TIMEOUT))
+        }));
+        let producer = match AuthenticatedGenerationProducer::new(
+            control_socket,
+            provisioning_socket,
+            ControlLimits::default(),
+        ) {
+            Ok(producer) => producer,
+            Err(_) => {
+                terminate_development_child(&mut child);
+                let _ = server_worker.take().expect("server worker").join();
+                let _ = fs::remove_dir_all(&broker_root);
+                return Err(RouterError::operation("development_control_unavailable"));
+            }
+        };
+        let authenticated = match producer.acquire(&pending) {
+            Ok(authenticated) => authenticated,
+            Err(_) => {
+                terminate_development_child(&mut child);
+                let _ = server_worker.take().expect("server worker").join();
+                let _ = fs::remove_dir_all(&broker_root);
+                return Err(RouterError::operation("development_channel_rejected"));
+            }
+        };
+        // The child can exit while the parent is admitting the two control
+        // endpoints. Never commit a generation for an already-dead frontend.
+        if child.try_wait().ok().flatten().is_some() {
+            terminate_development_child(&mut child);
+            drop(authenticated);
+            drop(router);
             let _ = server_worker.take().expect("server worker").join();
             let _ = fs::remove_dir_all(&broker_root);
-            return Err(RouterError::operation("development_control_unavailable"));
+            return Err(RouterError::operation("development_launch_failed"));
         }
-    };
-    let authenticated = match producer.acquire(&pending) {
-        Ok(authenticated) => authenticated,
-        Err(_) => {
+        if broker_state
+            .commit_success(pending, &router, authenticated)
+            .is_err()
+        {
             terminate_development_child(&mut child);
             let _ = server_worker.take().expect("server worker").join();
             let _ = fs::remove_dir_all(&broker_root);
             return Err(RouterError::operation("development_channel_rejected"));
         }
-    };
-    // The child can exit while the parent is admitting the two control
-    // endpoints. Never commit a generation for an already-dead frontend.
-    if child.try_wait().ok().flatten().is_some() {
-        terminate_development_child(&mut child);
-        drop(authenticated);
-        drop(router);
-        let _ = server_worker.take().expect("server worker").join();
-        let _ = fs::remove_dir_all(&broker_root);
-        return Err(RouterError::operation("development_launch_failed"));
-    }
-    if broker_state
-        .commit_success(pending, &router, authenticated)
-        .is_err()
-    {
-        terminate_development_child(&mut child);
-        let _ = server_worker.take().expect("server worker").join();
-        let _ = fs::remove_dir_all(&broker_root);
-        return Err(RouterError::operation("development_channel_rejected"));
-    }
-    let child_deadline = Instant::now() + Duration::from_secs(15);
-    loop {
-        if Instant::now() >= child_deadline {
-            terminate_development_child(&mut child);
-            drop(router);
-            if let Some(worker) = server_worker.take() {
-                let _ = worker.join();
-            }
-            let _ = fs::remove_dir_all(&broker_root);
-            return Err(RouterError::operation("development_launch_timeout"));
-        }
-        let child_status = match child.try_wait() {
-            Ok(status) => status,
-            Err(_) => {
+        let child_deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            if Instant::now() >= child_deadline {
                 terminate_development_child(&mut child);
+                drop(router);
                 if let Some(worker) = server_worker.take() {
                     let _ = worker.join();
                 }
                 let _ = fs::remove_dir_all(&broker_root);
-                return Err(RouterError::operation("development_launch_failed"));
+                return Err(RouterError::operation("development_launch_timeout"));
             }
-        };
-        if let Some(status) = child_status {
-            let server_ok = server_worker
-                .take()
-                .expect("server worker")
-                .join()
-                .is_ok_and(|result| result.is_ok());
-            let _ = fs::remove_dir_all(&broker_root);
-            return server_ok
-                .then_some(status)
-                .ok_or_else(|| RouterError::operation("development_control_failed"));
-        }
-        if server_worker
-            .as_ref()
-            .is_some_and(std::thread::JoinHandle::is_finished)
-        {
-            let server_ok = server_worker
-                .take()
-                .expect("server worker")
-                .join()
-                .is_ok_and(|result| result.is_ok());
-            if !server_ok {
-                terminate_development_child(&mut child);
+            let child_status = match child.try_wait() {
+                Ok(status) => status,
+                Err(_) => {
+                    terminate_development_child(&mut child);
+                    if let Some(worker) = server_worker.take() {
+                        let _ = worker.join();
+                    }
+                    let _ = fs::remove_dir_all(&broker_root);
+                    return Err(RouterError::operation("development_launch_failed"));
+                }
+            };
+            if let Some(status) = child_status {
+                let server_ok = server_worker
+                    .take()
+                    .expect("server worker")
+                    .join()
+                    .is_ok_and(|result| result.is_ok());
                 let _ = fs::remove_dir_all(&broker_root);
-                return Err(RouterError::operation("development_control_failed"));
+                return server_ok
+                    .then_some(status)
+                    .ok_or_else(|| RouterError::operation("development_control_failed"));
             }
+            if server_worker
+                .as_ref()
+                .is_some_and(std::thread::JoinHandle::is_finished)
+            {
+                let server_ok = server_worker
+                    .take()
+                    .expect("server worker")
+                    .join()
+                    .is_ok_and(|result| result.is_ok());
+                if !server_ok {
+                    terminate_development_child(&mut child);
+                    let _ = fs::remove_dir_all(&broker_root);
+                    return Err(RouterError::operation("development_control_failed"));
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
         }
-        thread::sleep(Duration::from_millis(10));
+    })();
+    if foreground_terminal
+        .as_mut()
+        .is_some_and(|terminal| terminal.restore().is_err())
+    {
+        return Err(RouterError::operation("development_terminal_unavailable"));
+    }
+    result
+}
+
+/// Scoped foreground ownership for the development frontend's private process
+/// group. The ASB launcher must already be the foreground group before it can
+/// delegate the terminal, and the exact prior group is restored on every exit.
+struct DevelopmentForegroundTerminal {
+    terminal: File,
+    original_group: Pid,
+    assigned: bool,
+}
+
+impl DevelopmentForegroundTerminal {
+    fn capture() -> Result<Option<Self>, RouterError> {
+        if !io::stdin().is_terminal() {
+            return Ok(None);
+        }
+        let terminal = File::open("/proc/self/fd/0")
+            .map_err(|_| RouterError::operation("development_terminal_unavailable"))?;
+        if !terminal.is_terminal() {
+            return Err(RouterError::operation("development_terminal_unavailable"));
+        }
+        let original_group = tcgetpgrp(&terminal)
+            .map_err(|_| RouterError::operation("development_terminal_unavailable"))?;
+        if original_group != getpgrp() {
+            return Err(RouterError::operation("development_terminal_unavailable"));
+        }
+        Ok(Some(Self {
+            terminal,
+            original_group,
+            assigned: false,
+        }))
+    }
+
+    fn assign(&mut self, child_group: Pid) -> Result<(), rustix::io::Errno> {
+        tcsetpgrp(&self.terminal, child_group)?;
+        self.assigned = true;
+        // The child may reach terminal setup in the short interval between
+        // spawn and tcsetpgrp and be stopped by SIGTTIN/SIGTTOU. Continuing
+        // the now-foreground group is harmless when it never stopped.
+        kill_process_group(child_group, Signal::CONT)
+    }
+
+    fn restore(&mut self) -> Result<(), ()> {
+        if !self.assigned {
+            return Ok(());
+        }
+        let mut blocked = SigSet::empty();
+        blocked.add(NixSignal::SIGTTOU);
+        let mut previous = SigSet::empty();
+        pthread_sigmask(SigmaskHow::SIG_BLOCK, Some(&blocked), Some(&mut previous))
+            .map_err(|_| ())?;
+        let restored = tcsetpgrp(&self.terminal, self.original_group).map_err(|_| ());
+        let mask_restored =
+            pthread_sigmask(SigmaskHow::SIG_SETMASK, Some(&previous), None).map_err(|_| ());
+        if restored.is_ok() {
+            self.assigned = false;
+        }
+        restored.and(mask_restored)
+    }
+}
+
+impl Drop for DevelopmentForegroundTerminal {
+    fn drop(&mut self) {
+        let _ = self.restore();
     }
 }
 
@@ -3973,14 +4057,17 @@ mod tests {
         assert_eq!(failure.remediation(), None);
     }
     use asb_control::{
-        ControlBackend, ControlCall, ControlClient, ControlResult, RequestDeadline,
-        SUPPORTED_CONTROL_VERSIONS_LEGACY,
+        BROKER_PACKET_BYTES, BrokerPacket, ControlBackend, ControlCall, ControlClient,
+        ControlResult, HandoffStatus, RequestDeadline, SUPPORTED_CONTROL_VERSIONS_LEGACY,
     };
+    use rustix::net::{RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags, ReturnFlags, recvmsg};
     #[cfg(feature = "cross-repo-qualification")]
     use rustix::pty::{OpenptFlags, grantpt, ioctl_tiocgptpeer, openpt, ptsname, unlockpt};
     #[cfg(feature = "cross-repo-qualification")]
     use rustix::termios::{Winsize, tcsetwinsize};
     use std::collections::VecDeque;
+    use std::io::IoSliceMut;
+    use std::mem::MaybeUninit;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -4834,6 +4921,123 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         assert!(!Path::new(&format!("/proc/{pid}")).exists());
+    }
+
+    #[test]
+    fn development_broker_foregrounds_interactive_child_and_restores_terminal() {
+        const ROLE: &str = "ASB_AR1727_FOREGROUND_TEST_ROLE";
+        const MARKER: &str = "ASB_AR1727_FOREGROUND_TEST_MARKER";
+        const TEST_NAME: &str =
+            "tui::tests::development_broker_foregrounds_interactive_child_and_restores_terminal";
+
+        match std::env::var(ROLE).as_deref() {
+            Ok("frontend") => {
+                let terminal = File::open("/dev/tty").expect("frontend controlling terminal");
+                let group = getpgrp();
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while tcgetpgrp(&terminal).ok() != Some(group) {
+                    assert!(
+                        Instant::now() < deadline,
+                        "development frontend never became the terminal foreground group"
+                    );
+                    thread::sleep(Duration::from_millis(10));
+                }
+                let broker = rustix::io::dup(io::stdin()).expect("duplicate inherited broker");
+                let mut payload = [0_u8; BROKER_PACKET_BYTES];
+                let mut iov = [IoSliceMut::new(&mut payload)];
+                let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
+                let mut ancillary = RecvAncillaryBuffer::new(&mut space);
+                let received = recvmsg(
+                    &broker,
+                    &mut iov,
+                    &mut ancillary,
+                    RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
+                )
+                .expect("receive parent-first broker generation");
+                assert_eq!(received.bytes, BROKER_PACKET_BYTES);
+                assert!(
+                    !received
+                        .flags
+                        .intersects(ReturnFlags::TRUNC | ReturnFlags::CTRUNC)
+                );
+                let mut descriptors = Vec::new();
+                for message in ancillary.drain() {
+                    match message {
+                        RecvAncillaryMessage::ScmRights(rights) => descriptors.extend(rights),
+                        _ => panic!("unexpected broker ancillary message"),
+                    }
+                }
+                assert_eq!(
+                    descriptors.len(),
+                    1,
+                    "broker must transfer one control stream"
+                );
+                let packet = BrokerPacket::decode(&payload).expect("valid broker packet");
+                assert_eq!(packet.status, HandoffStatus::Success);
+                fs::write(
+                    std::env::var_os(MARKER).expect("foreground marker path"),
+                    format!("{}\n", group.as_raw_nonzero()),
+                )
+                .expect("record foreground ownership");
+                // The parent-first producer completed admission before this
+                // point. Close the deterministic control stream after proving
+                // the transfer; the server must finish and the launcher must
+                // still restore terminal ownership.
+                drop(descriptors);
+                return;
+            }
+            Ok("launcher") => {
+                assert!(
+                    io::stdin().is_terminal(),
+                    "launcher needs a controlling PTY"
+                );
+                let terminal = File::open("/dev/tty").expect("launcher controlling terminal");
+                let original_group = tcgetpgrp(&terminal).expect("original foreground group");
+                assert_eq!(original_group, getpgrp(), "launcher must start foreground");
+
+                let scratch = Scratch::new("broker-foreground");
+                let marker = scratch.0.join("frontend-foreground");
+                let mut command = Command::new(std::env::current_exe().expect("test executable"));
+                command
+                    .args(["--exact", TEST_NAME, "--nocapture"])
+                    .env(ROLE, "frontend")
+                    .env(MARKER, &marker)
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit());
+                let backend =
+                    open_development_backend(scratch.0.clone()).expect("development backend");
+                let status = launch_development_broker_with_backend(command, &scratch.0, backend)
+                    .expect("development broker launch");
+                assert!(status.success(), "development frontend failed: {status}");
+                assert!(
+                    marker.exists(),
+                    "frontend did not observe foreground ownership"
+                );
+                assert_eq!(
+                    tcgetpgrp(&terminal).expect("restored foreground group"),
+                    original_group,
+                    "development broker did not restore the caller foreground group"
+                );
+                return;
+            }
+            Ok(other) => panic!("unexpected foreground test role: {other}"),
+            Err(_) => {}
+        }
+
+        let executable = std::env::current_exe().expect("test executable");
+        let command = format!(
+            "{} --exact {TEST_NAME} --nocapture",
+            shell_quote(&executable)
+        );
+        let status = Command::new("/usr/bin/script")
+            .args(["-qefc", &command, "/dev/null"])
+            .env(ROLE, "launcher")
+            .status()
+            .expect("controlling PTY harness");
+        assert!(
+            status.success(),
+            "controlling PTY regression failed: {status}"
+        );
     }
 
     #[test]
