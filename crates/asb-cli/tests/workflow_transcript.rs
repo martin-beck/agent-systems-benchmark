@@ -354,10 +354,12 @@ fn merge_attestation_preserves_the_historical_unsigned_publication_boundary() {
     assert_eq!(attestation["published_commit_signature"], "unsigned");
     assert_eq!(attestation["publication_method"], "rebase");
     let policy = include_str!("../../../docs/DEVELOPMENT.md");
-    assert!(
-        policy.contains("GitHub web\nmerge, squash, rebase, and auto-merge are not authorized")
-    );
-    assert!(policy.contains("locally SSH-signed merge"));
+    assert!(policy.contains(
+        "requires one pull-request merge method to remain enabled, so only merge-commit is exposed"
+    ));
+    assert!(policy.contains("protected-main ruleset rejects GitHub Web Flow committers"));
+    assert!(policy.contains("web merge, squash, rebase, and\nauto-merge remain unauthorized"));
     assert!(policy.contains("signed DCO two-parent commit locally"));
+    assert!(policy.contains("publishes only through an exact target-ref lease"));
     assert!(!policy.contains("gh pr merge --merge"));
 }

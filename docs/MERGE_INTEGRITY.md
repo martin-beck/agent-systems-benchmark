@@ -1,8 +1,10 @@
 # Signed merge integrity
 
 ASB integrates a reviewed pull request by constructing a local two-parent merge whose tree is the
-approved pull-request tree. GitHub web merge, squash, rebase, and auto-merge are not authorized
-integration paths because they cannot create a commit signed by an ASB allowed signer.
+approved pull-request tree. GitHub requires one pull-request merge method to remain enabled, so the
+repository exposes merge-commit only. An active protected-main ruleset rejects GitHub Web Flow
+committer email, while squash, rebase, auto-merge, and every web-created merge remain unauthorized
+because they cannot create a commit signed by an ASB allowed signer.
 
 Before integration, record full object IDs for current remote `main`, the reviewed pull-request
 head, and its tree. Use a clean isolated integration worktree at the exact base and run:
@@ -38,15 +40,22 @@ manual runs, but never cancels a `push` run on protected `main`. The workflow co
 therefore queue concurrent main pushes and preserve each immutable merge SHA's exact evidence;
 later main activity cannot silently cancel the earlier merge's assurance run.
 
-Repository administrators disable every GitHub web merge mode after reviewing the change:
+Repository administrators apply the GitHub-compatible merge-only settings and exact protected-main
+ruleset after reviewing the change:
 
 ```sh
 python3 tools/integration/repository_settings.py --apply
 python3 tools/integration/repository_settings.py
 ```
 
-The second command is a fail-closed audit. The setting change is external and must be recorded with
-its exact response; failure means protected-main admission is not ready and must be escalated to a repository administrator. It does not retroactively repair an old merge. Historical merge
+The ruleset requires a pull request, one fresh independent approval, resolved review threads,
+strict exact-head checks, verified signatures, and merge commits only. It rejects the exact GitHub
+Web Flow committer email and prevents deletion and non-fast-forward updates. The repository setting
+keeps merge-commit enabled solely because GitHub rejects disabling all three pull-request merge
+methods; it disables squash, rebase, and auto-merge and requires web signoff. The second command is
+a fail-closed audit of both settings and ruleset. The external change must be recorded with its exact
+response; failure means protected-main admission is not ready and must be escalated to a repository
+administrator. It does not retroactively repair an old merge. Historical merge
 `b6d04a8305ce6d49cc327e4e6d2d6fa42a88050b` remains unsigned/non-DCO. A signed descendant can
 restore a green current-main evidence range, but must not be described as changing that history.
 

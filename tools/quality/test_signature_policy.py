@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import subprocess
@@ -43,34 +42,23 @@ def run(*args: str, cwd: Path, env: dict[str, str] | None = None) -> str:
 class SignaturePolicyTests(unittest.TestCase):
     def test_current_protected_merge_and_topic_dco_validation(self) -> None:
         for revision in (MERGE_0C, A01, CAD9):
-            policy.verify_github_web_flow(
-                policy.ROOT,
-                policy.GITHUB_WEB_FLOW_KEY,
-                policy.GITHUB_WEB_FLOW_KEY_SHA256,
-                policy.GITHUB_WEB_FLOW_FINGERPRINT,
-                revision,
+            self.assertEqual(
+                run("git", "show", "-s", "--format=%cn <%ce>", revision, cwd=policy.ROOT),
+                policy.GITHUB_COMMITTER,
             )
-        policy.validate_commits(
-            A01,
-            CAD9,
-            mode="protected-main",
-            event="push",
-            ref="refs/heads/main",
-        )
-        policy.validate_commits(
-            MERGE_0C_BASE,
-            MERGE_0C,
-            mode="protected-main",
-            event="push",
-            ref="refs/heads/main",
-        )
-        policy.validate_commits(
-            MERGE_0C,
-            A01,
-            mode="protected-main",
-            event="push",
-            ref="refs/heads/main",
-        )
+        for base, head in (
+            (A01, CAD9),
+            (MERGE_0C_BASE, MERGE_0C),
+            (MERGE_0C, A01),
+        ):
+            with self.assertRaisesRegex(ValueError, "local integration identity"):
+                policy.validate_commits(
+                    base,
+                    head,
+                    mode="protected-main",
+                    event="push",
+                    ref="refs/heads/main",
+                )
 
     def test_pr132_exact_topic_sync_recovery(self) -> None:
         attestation = json.loads(PR132_ATTESTATION.read_text(encoding="utf-8"))
@@ -120,13 +108,14 @@ class SignaturePolicyTests(unittest.TestCase):
         self.assertEqual(policy.commit_parents(policy.ROOT, PR132_TOPIC)[1], PR132_BASE)
         self.assertEqual(policy.commit_tree(policy.ROOT, PR132_TOPIC), PR132_TREE)
         self.assertEqual(policy.commit_tree(policy.ROOT, PR132_MERGE), PR132_TREE)
-        policy.validate_commits(
-            PR132_BASE,
-            PR132_MERGE,
-            mode="protected-main",
-            event="push",
-            ref="refs/heads/main",
-        )
+        with self.assertRaisesRegex(ValueError, "local integration identity"):
+            policy.validate_commits(
+                PR132_BASE,
+                PR132_MERGE,
+                mode="protected-main",
+                event="push",
+                ref="refs/heads/main",
+            )
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="asb-signature-policy-")
@@ -164,53 +153,10 @@ class SignaturePolicyTests(unittest.TestCase):
         self.ssh_commit("topic")
         self.topic = run("git", "rev-parse", "HEAD", cwd=self.root)
         run("git", "checkout", "-q", "main", cwd=self.root)
-        self.gpg_home = self.root / "gnupg"
-        self.gpg_home.mkdir(mode=0o700)
-        self.gpg_env = os.environ.copy()
-        self.gpg_env["GNUPGHOME"] = str(self.gpg_home)
-        self.fingerprint = self.make_gpg_key("Fixture Web Flow <noreply@github.com>")
-        self.web_key = self.root / "web-flow.gpg"
-        exported = subprocess.check_output(
-            ["gpg", "--batch", "--armor", "--export", self.fingerprint],
-            env=self.gpg_env,
-        )
-        self.web_key.write_bytes(exported)
-        self.web_key_sha256 = hashlib.sha256(exported).hexdigest()
-        self.merge = self.gpg_merge(
-            "GitHub", "noreply@github.com", "Web Author", "web@example.invalid"
-        )
+        self.merge = self.ssh_merge("topic", "merge fixture")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
-
-    def make_gpg_key(self, identity: str) -> str:
-        run(
-            "gpg",
-            "--batch",
-            "--passphrase",
-            "",
-            "--quick-generate-key",
-            identity,
-            "rsa2048",
-            "sign",
-            "0",
-            cwd=self.root,
-            env=self.gpg_env,
-        )
-        listing = run(
-            "gpg",
-            "--batch",
-            "--with-colons",
-            "--fingerprint",
-            identity,
-            cwd=self.root,
-            env=self.gpg_env,
-        )
-        return next(
-            line.split(":")[9]
-            for line in listing.splitlines()
-            if line.startswith("fpr:")
-        )
 
     def ssh_commit(self, subject: str) -> None:
         run(
@@ -221,71 +167,6 @@ class SignaturePolicyTests(unittest.TestCase):
             f"{subject}\n\nSigned-off-by: Fixture <fixture@example.invalid>",
             cwd=self.root,
         )
-
-    def gpg_merge(
-        self,
-        committer_name: str,
-        committer_email: str,
-        author_name: str,
-        author_email: str,
-        trailer_name: str | None = None,
-        topic_ref: str = "topic",
-    ) -> str:
-        environment = self.gpg_env | {
-            "GIT_AUTHOR_NAME": author_name,
-            "GIT_AUTHOR_EMAIL": author_email,
-            "GIT_COMMITTER_NAME": committer_name,
-            "GIT_COMMITTER_EMAIL": committer_email,
-        }
-        signer = trailer_name or author_name
-        run(
-            "git",
-            "-c",
-            "gpg.format=openpgp",
-            "-c",
-            f"user.signingkey={self.fingerprint}",
-            "merge",
-            "--no-ff",
-            "-S",
-            topic_ref,
-            "-m",
-            f"merge fixture\n\nSigned-off-by: {signer} <{author_email}>",
-            cwd=self.root,
-            env=environment,
-        )
-        return run("git", "rev-parse", "HEAD", cwd=self.root)
-
-    def gpg_commit_tree(self, tree: str, parents: list[str]) -> str:
-        environment = self.gpg_env | {
-            "GIT_AUTHOR_NAME": "Web Author",
-            "GIT_AUTHOR_EMAIL": "web@example.invalid",
-            "GIT_COMMITTER_NAME": "GitHub",
-            "GIT_COMMITTER_EMAIL": "noreply@github.com",
-        }
-        command = [
-            "git",
-            "-c",
-            "gpg.format=openpgp",
-            "-c",
-            f"user.signingkey={self.fingerprint}",
-            "commit-tree",
-            "-S",
-            tree,
-        ]
-        for parent in parents:
-            command.extend(["-p", parent])
-        completed = subprocess.run(
-            command,
-            cwd=self.root,
-            env=environment,
-            input=(
-                "merge fixture\n\nSigned-off-by: Web Author <web@example.invalid>\n"
-            ),
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-        return completed.stdout.strip()
 
     def ssh_commit_tree(
         self, tree: str, parents: list[str], subject: str, *, dco: bool = True
@@ -322,18 +203,34 @@ class SignaturePolicyTests(unittest.TestCase):
         *,
         signed: bool = True,
         dco: bool = True,
+        committer: tuple[str, str] | None = None,
+        signing_key: Path | None = None,
     ) -> str:
+        local_name, local_email = "Martin Beck", "martin.beck2@gmx.de"
         message = subject
         if dco:
-            message += "\n\nSigned-off-by: Fixture <fixture@example.invalid>"
-        arguments = ["git"]
+            message += f"\n\nSigned-off-by: {local_name} <{local_email}>"
+        arguments = [
+            "git",
+            "-c",
+            "gpg.format=ssh",
+            "-c",
+            f"user.signingkey={signing_key or self.ssh_key}",
+        ]
         if not signed:
             arguments.extend(["-c", "commit.gpgsign=false"])
         arguments.extend(["merge", "--no-ff"])
         if signed:
             arguments.append("-S")
         arguments.extend([revision, "-m", message])
-        run(*arguments, cwd=self.root)
+        committer_name, committer_email = committer or (local_name, local_email)
+        environment = os.environ.copy() | {
+            "GIT_AUTHOR_NAME": local_name,
+            "GIT_AUTHOR_EMAIL": local_email,
+            "GIT_COMMITTER_NAME": committer_name,
+            "GIT_COMMITTER_EMAIL": committer_email,
+        }
+        run(*arguments, cwd=self.root, env=environment)
         return run("git", "rev-parse", "HEAD", cwd=self.root)
 
     def sync_fixture(
@@ -365,13 +262,7 @@ class SignaturePolicyTests(unittest.TestCase):
             dco=dco,
         )
         run("git", "checkout", "-q", "advanced-main", cwd=self.root)
-        final_merge = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="sync-topic",
-        )
+        final_merge = self.ssh_merge("sync-topic", "merge fixture")
         return advanced_base, sync_tip, final_merge
 
     def validate(
@@ -383,9 +274,6 @@ class SignaturePolicyTests(unittest.TestCase):
             "ref": "refs/heads/main",
             "root": self.root,
             "allowed": self.allowed,
-            "web_flow_key": self.web_key,
-            "web_flow_key_sha256": self.web_key_sha256,
-            "web_flow_fingerprint": self.fingerprint,
         }
         arguments.update(changes)
         policy.validate_commits(base or self.base, head or self.merge, **arguments)
@@ -401,13 +289,12 @@ class SignaturePolicyTests(unittest.TestCase):
             root=self.root,
             allowed=self.allowed,
         )
-        with self.assertRaisesRegex(ValueError, "allowed SSH signature"):
-            policy.validate_commits(
-                self.base,
-                self.merge,
-                root=self.root,
-                allowed=self.allowed,
-            )
+        policy.validate_commits(
+            self.base,
+            self.merge,
+            root=self.root,
+            allowed=self.allowed,
+        )
 
     def test_squash_publication_fails_closed_before_signature_acceptance(self) -> None:
         run("git", "checkout", "-q", "main", cwd=self.root)
@@ -448,13 +335,7 @@ class SignaturePolicyTests(unittest.TestCase):
         run("git", "checkout", "-q", "-B", "sync-topic", historical_tip, cwd=self.root)
         self.ssh_merge(advanced_base, "topic-tip sync")
         run("git", "checkout", "-q", "advanced-main", cwd=self.root)
-        final_merge = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="sync-topic",
-        )
+        final_merge = self.ssh_merge("sync-topic", "merge fixture")
         self.validate(base=advanced_base, head=final_merge)
 
     def test_topic_sync_rejects_an_off_tip_sync(self) -> None:
@@ -465,13 +346,7 @@ class SignaturePolicyTests(unittest.TestCase):
         self.ssh_commit("commit after sync")
         run("git", "checkout", "-q", "advanced-main", cwd=self.root)
         run("git", "reset", "--hard", "-q", advanced_base, cwd=self.root)
-        off_tip = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="sync-topic",
-        )
+        off_tip = self.ssh_merge("sync-topic", "merge fixture")
         with self.assertRaisesRegex(ValueError, "must be at the tip"):
             self.validate(base=advanced_base, head=off_tip)
 
@@ -508,13 +383,7 @@ class SignaturePolicyTests(unittest.TestCase):
         octopus_tip = run("git", "rev-parse", "HEAD", cwd=self.root)
         self.assertGreaterEqual(len(policy.commit_parents(self.root, octopus_tip)), 3)
         run("git", "checkout", "-q", "advanced-main", cwd=self.root)
-        octopus_final = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="octopus-topic",
-        )
+        octopus_final = self.ssh_merge("octopus-topic", "merge fixture")
         with self.assertRaisesRegex(ValueError, "outside its first-parent spine"):
             self.validate(base=advanced_base, head=octopus_final)
 
@@ -541,13 +410,7 @@ class SignaturePolicyTests(unittest.TestCase):
         run("git", "checkout", "-q", "many-syncs", cwd=self.root)
         self.ssh_merge(advanced_base, "topic-tip sync")
         run("git", "checkout", "-q", "checkpoint-main", cwd=self.root)
-        final_merge = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="many-syncs",
-        )
+        final_merge = self.ssh_merge("many-syncs", "merge fixture")
         with self.assertRaisesRegex(ValueError, "more than one historical"):
             self.validate(base=advanced_base, head=final_merge)
 
@@ -566,13 +429,7 @@ class SignaturePolicyTests(unittest.TestCase):
         run("git", "reset", "--hard", "-q", repeated_sync, cwd=self.root)
         run("git", "checkout", "-q", "advanced-main", cwd=self.root)
         run("git", "reset", "--hard", "-q", advanced_base, cwd=self.root)
-        final_merge = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="sync-topic",
-        )
+        final_merge = self.ssh_merge("sync-topic", "merge fixture")
         with self.assertRaisesRegex(ValueError, "redundantly merges"):
             self.validate(base=advanced_base, head=final_merge)
 
@@ -624,13 +481,7 @@ class SignaturePolicyTests(unittest.TestCase):
         )
         run("git", "reset", "--hard", "-q", redundant_tip, cwd=self.root)
         run("git", "checkout", "-q", "advanced-main", cwd=self.root)
-        redundant_final = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            topic_ref="redundant-topic",
-        )
+        redundant_final = self.ssh_merge("redundant-topic", "merge fixture")
         with self.assertRaisesRegex(ValueError, "redundantly merges"):
             self.validate(base=advanced_base, head=redundant_final)
 
@@ -643,9 +494,10 @@ class SignaturePolicyTests(unittest.TestCase):
         self.ssh_commit("temporary final tree source")
         changed_tree = run("git", "show", "-s", "--format=%T", "HEAD", cwd=self.root)
         run("git", "reset", "--hard", "-q", advanced_base, cwd=self.root)
-        changed_final = self.gpg_commit_tree(
+        changed_final = self.ssh_commit_tree(
             changed_tree,
             [advanced_base, run("git", "rev-parse", "sync-topic", cwd=self.root)],
+            "merge fixture",
         )
         with self.assertRaisesRegex(ValueError, "reviewed topic tree") as failure:
             self.validate(base=advanced_base, head=changed_final)
@@ -669,8 +521,6 @@ class SignaturePolicyTests(unittest.TestCase):
                 ValueError, "canonical push event and main ref"
             ):
                 self.validate(**changes)
-        with self.assertRaisesRegex(ValueError, "key digest differs"):
-            self.validate(web_flow_key_sha256="0" * 64)
         with self.assertRaisesRegex(ValueError, "topology or first parent differs"):
             self.validate(base=self.topic)
         with self.assertRaisesRegex(ValueError, "topology or first parent differs"):
@@ -684,9 +534,6 @@ class SignaturePolicyTests(unittest.TestCase):
                 ref="refs/heads/main",
                 root=self.root,
                 allowed=self.allowed,
-                web_flow_key=self.web_key,
-                web_flow_key_sha256=self.web_key_sha256,
-                web_flow_fingerprint=self.fingerprint,
             )
         with self.assertRaisesRegex(ValueError, "full lowercase SHA-1"):
             policy.validate_commits(
@@ -697,43 +544,41 @@ class SignaturePolicyTests(unittest.TestCase):
                 ref="refs/heads/main",
                 root=self.root,
                 allowed=self.allowed,
-                web_flow_key=self.web_key,
-                web_flow_key_sha256=self.web_key_sha256,
-                web_flow_fingerprint=self.fingerprint,
             )
 
     def test_wrong_committer_and_dco_fail_closed(self) -> None:
         run("git", "reset", "--hard", "-q", self.base, cwd=self.root)
-        wrong_committer = self.gpg_merge(
-            "Not GitHub", "noreply@github.com", "Web Author", "web@example.invalid"
+        wrong_committer = self.ssh_merge(
+            "topic",
+            "wrong committer",
+            committer=("GitHub", "noreply@github.com"),
         )
-        with self.assertRaisesRegex(ValueError, "committer"):
+        with self.assertRaisesRegex(ValueError, "local integration identity"):
             self.validate(head=wrong_committer)
         run("git", "reset", "--hard", "-q", self.base, cwd=self.root)
-        wrong_dco = self.gpg_merge(
-            "GitHub",
-            "noreply@github.com",
-            "Web Author",
-            "web@example.invalid",
-            trailer_name="Different Author",
-        )
-        # The authenticated GitHub Web Flow signature is the merge attestation;
-        # a service-generated merge does not need a redundant DCO trailer.
-        self.validate(head=wrong_dco)
+        wrong_dco = self.ssh_merge("topic", "missing DCO", dco=False)
+        with self.assertRaisesRegex(ValueError, "matching Signed-off-by"):
+            self.validate(head=wrong_dco)
 
     def test_wrong_signer_and_mixed_range_fail_closed(self) -> None:
-        other_fingerprint = self.make_gpg_key("Substitute <substitute@example.invalid>")
-        other_key = self.root / "other.gpg"
-        other_bytes = subprocess.check_output(
-            ["gpg", "--batch", "--armor", "--export", other_fingerprint],
-            env=self.gpg_env,
+        other_key = self.root / "other-ssh"
+        run(
+            "ssh-keygen",
+            "-q",
+            "-t",
+            "ed25519",
+            "-N",
+            "",
+            "-f",
+            str(other_key),
+            cwd=self.root,
         )
-        other_key.write_bytes(other_bytes)
-        with self.assertRaisesRegex(ValueError, "pinned GitHub Web Flow signature"):
-            self.validate(
-                web_flow_key=other_key,
-                web_flow_key_sha256=hashlib.sha256(other_bytes).hexdigest(),
-            )
+        run("git", "reset", "--hard", "-q", self.base, cwd=self.root)
+        wrong_signer = self.ssh_merge(
+            "topic", "wrong signer", signing_key=other_key
+        )
+        with self.assertRaisesRegex(ValueError, "allowed SSH signature"):
+            self.validate(head=wrong_signer)
         run("git", "checkout", "-q", "-b", "after-merge", self.merge, cwd=self.root)
         (self.root / "after").write_text("after\n", encoding="utf-8")
         run("git", "add", "after", cwd=self.root)
@@ -744,26 +589,8 @@ class SignaturePolicyTests(unittest.TestCase):
 
     def test_unsigned_protected_merge_fails_closed(self) -> None:
         run("git", "reset", "--hard", "-q", self.base, cwd=self.root)
-        environment = os.environ.copy() | {
-            "GIT_AUTHOR_NAME": "Web Author",
-            "GIT_AUTHOR_EMAIL": "web@example.invalid",
-            "GIT_COMMITTER_NAME": "GitHub",
-            "GIT_COMMITTER_EMAIL": "noreply@github.com",
-        }
-        run(
-            "git",
-            "-c",
-            "commit.gpgsign=false",
-            "merge",
-            "--no-ff",
-            "topic",
-            "-m",
-            "unsigned fixture\n\nSigned-off-by: Web Author <web@example.invalid>",
-            cwd=self.root,
-            env=environment,
-        )
-        unsigned = run("git", "rev-parse", "HEAD", cwd=self.root)
-        with self.assertRaisesRegex(ValueError, "pinned GitHub Web Flow signature"):
+        unsigned = self.ssh_merge("topic", "unsigned fixture", signed=False)
+        with self.assertRaisesRegex(ValueError, "allowed SSH signature"):
             self.validate(head=unsigned)
 
     def test_octopus_merge_fails_closed(self) -> None:
@@ -773,18 +600,12 @@ class SignaturePolicyTests(unittest.TestCase):
         self.ssh_commit("extra")
         run("git", "checkout", "-q", "main", cwd=self.root)
         run("git", "reset", "--hard", "-q", self.base, cwd=self.root)
-        environment = self.gpg_env | {
-            "GIT_AUTHOR_NAME": "Web Author",
-            "GIT_AUTHOR_EMAIL": "web@example.invalid",
-            "GIT_COMMITTER_NAME": "GitHub",
-            "GIT_COMMITTER_EMAIL": "noreply@github.com",
-        }
         run(
             "git",
             "-c",
-            "gpg.format=openpgp",
+            "gpg.format=ssh",
             "-c",
-            f"user.signingkey={self.fingerprint}",
+            f"user.signingkey={self.ssh_key}",
             "merge",
             "--no-ff",
             "-S",
@@ -793,7 +614,6 @@ class SignaturePolicyTests(unittest.TestCase):
             "-m",
             "octopus fixture\n\nSigned-off-by: Web Author <web@example.invalid>",
             cwd=self.root,
-            env=environment,
         )
         octopus = run("git", "rev-parse", "HEAD", cwd=self.root)
         self.assertEqual(len(policy.commit_parents(self.root, octopus)), 3)

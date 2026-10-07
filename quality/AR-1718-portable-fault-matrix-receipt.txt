@@ -1,0 +1,17 @@
+# AR-1718 portable fault-matrix isolation receipt
+
+- Qualification source: tested implementation snapshot `9b7941cdd810de1a948b0bfa632b8cfe649e748c`.
+- Qualification source tree: `750af8cff80d90208388176f26b285aca6aaac4f`.
+- This receipt is carried by PR #490 as a documentation-only provenance correction;
+  the qualification evidence below applies to the identified implementation snapshot.
+- Backend: `bubblewrap-network`; preflight proved loopback availability and external-network denial.
+- Preflight: `available=true`, `loopback=true`, `external_denied=true`, classification `ready`.
+- Focused fault-matrix tests: 13/13 passed, including credential-redaction and cleanup coverage.
+- Five-case matrix: `setup-missing-auth=warning`, `record-invalid-input=passed`,
+  `replay-invalid-cassette=passed`, `benchmark-invalid-plan=passed`,
+  `recovery-doctor=passed`.
+- Every case reported `cleanup_ok=true`; no private paths, credentials, or raw host
+  diagnostics are included in this receipt.
+- No host-network fallback; unavailable isolation remains typed `runner_unavailable`.
+- The development-only missing-auth result is a warning and does not block setup.
+- Qualification checks for the identified implementation snapshot completed successfully.

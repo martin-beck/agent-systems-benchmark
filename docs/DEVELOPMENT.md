@@ -68,9 +68,10 @@ handoffctl; schema/tooling/policy changes need review and CI. Do not manually ed
 generated CURRENT, PROJECT_STATE or WORKTREES views. Both repositories reject
 unrelated private project history and runtime configuration.
 
-Reviewed product changes use the [signed merge integrity](MERGE_INTEGRITY.md) procedure. GitHub web
-merge, squash, rebase, and auto-merge are not authorized because they cannot create the required
-locally SSH-signed merge. Integration records the exact base, reviewed head and tree, constructs a
+Reviewed product changes use the [signed merge integrity](MERGE_INTEGRITY.md) procedure. GitHub
+requires one pull-request merge method to remain enabled, so only merge-commit is exposed; the
+protected-main ruleset rejects GitHub Web Flow committers, and web merge, squash, rebase, and
+auto-merge remain unauthorized. Integration records the exact base, reviewed head and tree, constructs a
 signed DCO two-parent commit locally, and publishes only through an exact target-ref lease.
 Before releasing its AR, verify the GitHub merge commit is signed, its tree is the independently
 reviewed tree, and the reviewed commit retains its raw matching DCO trailer. A mismatch remains an
