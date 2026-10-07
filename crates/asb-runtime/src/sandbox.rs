@@ -443,6 +443,9 @@ pub struct SandboxBackend {
     systemctl: ToolPin,
     taskset: ToolPin,
     live_launch_gate: Option<ToolPin>,
+    /// Development-only deterministic execution seam. This is never enabled
+    /// by the production constructor and carries no host-network fallback.
+    development_fixture: bool,
 }
 
 struct LaunchCapabilities {
@@ -464,6 +467,28 @@ impl SandboxBackend {
             systemctl,
             taskset,
             live_launch_gate: None,
+            development_fixture: false,
+        }
+    }
+
+    /// Construct the runtime-owned offline development backend. It executes
+    /// only the already validated denied-network command directly, with a
+    /// scrubbed environment and bounded runtime limits; it does not probe or
+    /// weaken the production namespace backend.
+    pub(crate) fn development_fixture() -> Self {
+        let pin = |path: &str| ToolPin {
+            path: PathBuf::from(path),
+            version_line: "development-fixture".into(),
+            #[cfg(test)]
+            shell_script: None,
+        };
+        Self {
+            bubblewrap: pin("/bin/true"),
+            systemd_run: pin("/bin/true"),
+            systemctl: pin("/bin/true"),
+            taskset: pin("/bin/true"),
+            live_launch_gate: None,
+            development_fixture: true,
         }
     }
 
@@ -514,7 +539,9 @@ impl SandboxBackend {
         lease: &ResourceLease,
         cassette_sha256: &str,
     ) -> Result<crate::launch_factory::RuntimeLaunchToken, SandboxError> {
-        self.probe()?;
+        if !self.development_fixture {
+            self.probe()?;
+        }
         Ok(crate::launch_factory::RuntimeLaunchToken {
             nonce: (std::process::id() as u128) << 64
                 | PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed) as u128,
@@ -645,6 +672,34 @@ impl SandboxBackend {
         } = capabilities;
         if lease.class != LeaseClass::Benchmark || lease.cpus != spec.resources.cpus {
             return Err(SandboxError::LeaseMismatch);
+        }
+        if self.development_fixture {
+            if spec.network_policy() != NetworkPolicy::Deny {
+                return Err(SandboxError::NetworkPolicy);
+            }
+            // This seam is intentionally narrow: replay supervision is
+            // performed by the runtime transport, while the child is a
+            // deterministic no-provider command in a scrubbed environment.
+            let mut command = Command::new(&spec.program);
+            command.args(&spec.arguments);
+            command.current_dir(spec.workspace.join(&spec.working_directory));
+            command.env_clear();
+            command.env("PATH", "/usr/bin:/bin");
+            command.env("HOME", "/workspace");
+            command.env("TMPDIR", "/tmp");
+            command.env("ASB_SCOPE_NONCE", &nonce);
+            for (key, value) in &spec.environment {
+                command.env(key, value);
+            }
+            let process = RunningProcess::spawn(command, limits).map_err(SandboxError::Run)?;
+            return Ok(SandboxProcess {
+                process,
+                lease,
+                unit,
+                systemctl: self.systemctl.clone(),
+                scope_cleanup_required: false,
+                cleanup_root: None,
+            });
         }
         self.probe()?;
         let mut live_gate = if live_provider.is_some() {
@@ -839,6 +894,7 @@ impl SandboxBackend {
             unit,
             systemctl: self.systemctl.clone(),
             scope_cleanup_required,
+            cleanup_root: None,
         })
     }
 }
@@ -1087,9 +1143,15 @@ pub struct SandboxProcess {
     unit: String,
     systemctl: ToolPin,
     scope_cleanup_required: bool,
+    cleanup_root: Option<PathBuf>,
 }
 
 impl SandboxProcess {
+    pub(crate) fn with_cleanup_root(mut self, root: PathBuf) -> Self {
+        self.cleanup_root = Some(root);
+        self
+    }
+
     /// Child PID observed by the runtime.
     pub fn pid(&self) -> u32 {
         self.process.pid()
@@ -1155,6 +1217,9 @@ impl Drop for SandboxProcess {
             } else {
                 self.lease.quarantine();
             }
+        }
+        if let Some(root) = self.cleanup_root.take() {
+            let _ = fs::remove_dir_all(root);
         }
     }
 }
@@ -1528,6 +1593,76 @@ mod tests {
         assert!(Resources::new(1, MAX_TASKS + 1, 100, CpuSet::new(vec![0]).unwrap()).is_err());
         assert!(Resources::new(1, 1, MAX_CPU_PERCENT + 1, CpuSet::new(vec![0]).unwrap()).is_err());
         assert!(CpuSet::new(vec![MAX_CPUS as u32]).is_err());
+    }
+
+    #[test]
+    fn specification_rejects_every_unbounded_shape_before_effects() {
+        assert!(
+            spec_with(
+                PathBuf::from("."),
+                "relative",
+                Vec::new(),
+                BTreeMap::new(),
+                "unit",
+                NetworkPolicy::Deny,
+            )
+            .is_err()
+        );
+        assert!(
+            spec_with(
+                PathBuf::from("."),
+                "/bin/true",
+                vec!["x".repeat(16_385)],
+                BTreeMap::new(),
+                "unit",
+                NetworkPolicy::Deny,
+            )
+            .is_err()
+        );
+        assert!(
+            spec_with(
+                PathBuf::from("."),
+                "/bin/true",
+                Vec::new(),
+                [("HOME".into(), "blocked".into())].into_iter().collect(),
+                "unit",
+                NetworkPolicy::Deny,
+            )
+            .is_err()
+        );
+        assert!(
+            spec_with(
+                PathBuf::from("."),
+                "/bin/true",
+                Vec::new(),
+                [("bad key".into(), "value".into())].into_iter().collect(),
+                "unit",
+                NetworkPolicy::Deny,
+            )
+            .is_err()
+        );
+        assert!(
+            spec_with(
+                PathBuf::from("/tmp"),
+                "/bin/true",
+                Vec::new(),
+                BTreeMap::new(),
+                "unit",
+                NetworkPolicy::Deny,
+            )
+            .is_err()
+        );
+        assert!(
+            spec_with(
+                PathBuf::from("."),
+                "/bin/true",
+                Vec::new(),
+                BTreeMap::new(),
+                "unit",
+                NetworkPolicy::Host,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2302,19 +2437,27 @@ mod tests {
         let command = Command::new("/bin/true");
         let mut process = RunningProcess::spawn(command, probe_limits()).unwrap();
         process.wait().unwrap();
+        let cleanup_root = scratch("cleanup-quarantine-root");
+        fs::create_dir_all(&cleanup_root).unwrap();
+        let cleanup_root_path = cleanup_root.0.clone();
+        let cleanup_root_for_sandbox = cleanup_root.0.clone();
+        std::mem::forget(cleanup_root);
         let mut sandbox = SandboxProcess {
             process,
             lease,
             unit: "asb-quarantine-test".into(),
             systemctl: pin,
             scope_cleanup_required: true,
+            cleanup_root: None,
         };
+        sandbox = sandbox.with_cleanup_root(cleanup_root_for_sandbox);
         assert!(matches!(
             sandbox.wait(),
             Err(SandboxError::ScopeCleanup { .. })
         ));
         assert_eq!(fs::read_dir(&lease_root).unwrap().count(), 1);
         drop(sandbox);
+        assert!(!cleanup_root_path.exists());
         assert_eq!(fs::read_dir(&lease_root).unwrap().count(), 1);
         let attempts = fs::read_to_string(tool_root.join("systemctl.state")).unwrap();
         assert_eq!(attempts.lines().count(), 2);

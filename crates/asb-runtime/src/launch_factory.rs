@@ -17,9 +17,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::Duration;
+
+static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// A launch authority that can only be issued by the runtime factory.
 ///
@@ -38,6 +40,27 @@ pub struct ReplayLaunchAuthority {
     cassette_sha256: String,
     backend: Option<SandboxBackend>,
     relay: Option<ReplayRelay>,
+    cleanup: Option<TemporaryReplayRoot>,
+}
+
+/// Owns the private temporary tree used by the development replay fixture.
+/// The guard is deliberately kept inside the opaque authority so every
+/// successful and failed construction path has one cleanup owner.
+#[derive(Debug)]
+struct TemporaryReplayRoot(PathBuf);
+
+impl TemporaryReplayRoot {
+    fn disarm(mut self) -> PathBuf {
+        std::mem::take(&mut self.0)
+    }
+}
+
+impl Drop for TemporaryReplayRoot {
+    fn drop(&mut self) {
+        if !self.0.as_os_str().is_empty() {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
 }
 
 /// Owned launch values transferred after one-shot authority consumption.
@@ -54,6 +77,7 @@ pub struct ReplayLaunchContext {
     operation_issued: bool,
     #[allow(dead_code)]
     relay: Option<ReplayRelay>,
+    cleanup: Option<TemporaryReplayRoot>,
 }
 
 /// Runtime-owned factory for validated replay launch authority.
@@ -183,10 +207,106 @@ impl ValidatedReplayCassette {
 }
 
 impl LocalReplayProvisioner {
+    /// Issue a strict-replay authority for the explicit local development
+    /// fixture.  This path uses only the host's pinned isolation tools and
+    /// private temporary roots; it never resolves credentials, signatures, or
+    /// production trust material.  Callers must opt into this fixture at an
+    /// explicitly development-only command boundary.
+    pub fn development_fixture(
+        cassette_sha256: &str,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        let cassette = ReplayAuthoritySource::validate_cassette_digest(cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Authority)?;
+        let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!("asb-dr-{sequence}"));
+        fs::create_dir(&root).map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let cleanup = TemporaryReplayRoot(root.clone());
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let relay_root = root.join("relay");
+        let lease_root = root.join("lease");
+        let workspace = root.join("workspace");
+        for path in [&relay_root, &lease_root, &workspace] {
+            fs::create_dir(path).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+        }
+        // This explicit development path does not depend on host bwrap or
+        // systemd attestation. Production acquisition retains its strict
+        // pinned-tool validation and probe.
+        let tool = || {
+            ToolPin::new(PathBuf::from("/bin/true"), "development-fixture".into()).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })
+        };
+        let bwrap = tool()?;
+        let systemd_run = tool()?;
+        let systemctl = tool()?;
+        let taskset = tool()?;
+        let command = |path: &str| {
+            let bytes = fs::read(path).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+            PinnedCommand::new_verified(
+                PathBuf::from(path),
+                Vec::new(),
+                &format!("{:x}", Sha256::digest(bytes)),
+            )
+            .map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })
+        };
+        let spec = LocalReplayBootstrapSpec::new(
+            &relay_root,
+            &lease_root,
+            &workspace,
+            [bwrap, systemd_run, systemctl, taskset],
+            command("/bin/true")?,
+            command("/bin/true")?,
+            command("/bin/true")?,
+        )
+        .map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let authority = spec
+            .provisioner()
+            .acquire_with_backend(cassette, SandboxBackend::development_fixture());
+        match authority {
+            Ok(mut authority) => {
+                authority.cleanup = Some(cleanup);
+                Ok(authority)
+            }
+            Err(error) => {
+                drop(cleanup);
+                Err(error)
+            }
+        }
+    }
+
     /// Acquire one opaque authority for one exact cassette identity.
     pub fn acquire(
         self,
         cassette: ValidatedReplayCassette,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        let backend = SandboxBackend::new(
+            self.spec.tools[0].clone(),
+            self.spec.tools[1].clone(),
+            self.spec.tools[2].clone(),
+            self.spec.tools[3].clone(),
+        );
+        self.acquire_with_backend(cassette, backend)
+    }
+
+    fn acquire_with_backend(
+        self,
+        cassette: ValidatedReplayCassette,
+        backend: SandboxBackend,
     ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
         for root in [
             &self.spec.relay_root,
@@ -259,18 +379,7 @@ impl LocalReplayProvisioner {
             .map_err(|_| {
                 ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
             })?;
-        ReplayAuthoritySource::issue_with_relay(
-            input,
-            lease,
-            SandboxBackend::new(
-                self.spec.tools[0].clone(),
-                self.spec.tools[1].clone(),
-                self.spec.tools[2].clone(),
-                self.spec.tools[3].clone(),
-            ),
-            cassette_sha256,
-            relay,
-        )
+        ReplayAuthoritySource::issue_with_relay(input, lease, backend, cassette_sha256, relay)
     }
 }
 
@@ -516,6 +625,7 @@ impl ReplayLaunchFactory {
             cassette_sha256,
             backend,
             relay: None,
+            cleanup: None,
         })
     }
 }
@@ -786,6 +896,7 @@ impl ReplayLaunchAuthority {
             backend: self.backend,
             operation_issued: false,
             relay: self.relay,
+            cleanup: self.cleanup,
         })
     }
 }
@@ -805,16 +916,27 @@ impl ReplayLaunchContext {
         self,
         backend: &SandboxBackend,
     ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
-        backend.spawn_launch(self.input, self.lease)
+        let cleanup = self.cleanup;
+        let process = backend.spawn_launch(self.input, self.lease)?;
+        match cleanup {
+            Some(guard) => Ok(process.with_cleanup_root(guard.disarm())),
+            None => Ok(process),
+        }
     }
 
     /// Consume the runtime-issued context through the backend retained by the authority.
     pub fn spawn_owned(
         self,
     ) -> Result<crate::sandbox::SandboxProcess, crate::sandbox::SandboxError> {
-        self.backend
+        let cleanup = self.cleanup;
+        let process = self
+            .backend
             .ok_or(SandboxError::DelegationRejected)?
-            .spawn_launch(self.input, self.lease)
+            .spawn_launch(self.input, self.lease)?;
+        match cleanup {
+            Some(guard) => Ok(process.with_cleanup_root(guard.disarm())),
+            None => Ok(process),
+        }
     }
 
     /// Issue the one-shot authenticated operation used by the primary replay path.
@@ -1141,6 +1263,52 @@ mod tests {
         ));
     }
 
+    fn development_fixture_roots() -> std::collections::BTreeSet<String> {
+        fs::read_dir(std::env::temp_dir())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter_map(|entry| {
+                let name = entry.file_name().into_string().ok()?;
+                name.starts_with("asb-dr-").then_some(name)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn development_fixture_cleans_root_on_success_or_failure() {
+        let before = development_fixture_roots();
+        let digest = "d".repeat(64);
+        if let Ok(authority) = LocalReplayProvisioner::development_fixture(&digest) {
+            let context = authority.consume_for(&digest).unwrap();
+            drop(context);
+        }
+        assert_eq!(development_fixture_roots(), before);
+    }
+
+    #[test]
+    fn development_fixture_rejects_invalid_digest_before_allocating_root() {
+        let before = development_fixture_roots();
+        assert!(matches!(
+            LocalReplayProvisioner::development_fixture("not-a-digest"),
+            Err(ReplayAuthoritySourceError::Authority(
+                LaunchAuthorityError::InvalidLaunchInput
+            ))
+        ));
+        assert_eq!(development_fixture_roots(), before);
+    }
+
+    #[test]
+    fn temporary_replay_root_drop_removes_private_tree() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-development-replay-guard-{}",
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("marker"), b"fixture").unwrap();
+        drop(TemporaryReplayRoot(root.clone()));
+        assert!(!root.exists());
+    }
+
     fn bootstrap_spec(root: &Path) -> LocalReplayBootstrapSpec {
         let pin = |path: &str| ToolPin::new(PathBuf::from(path), "fixture".into()).unwrap();
         let command = || {
@@ -1199,6 +1367,75 @@ mod tests {
         .unwrap_err();
         assert_eq!(error, ReplayAuthorityBootstrapError::InvalidRoot);
         assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_bootstrap_rejects_changed_command_digest() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-replay-bootstrap-command-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("leases")).unwrap();
+        fs::create_dir_all(root.join("workspace")).unwrap();
+        for path in [&root, &root.join("leases"), &root.join("workspace")] {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let pin = || ToolPin::new(PathBuf::from("/bin/true"), "fixture".into()).unwrap();
+        let mut commands = [command_fixture(), command_fixture(), command_fixture()];
+        commands[1] =
+            PinnedCommand::new(PathBuf::from("/bin/true"), Vec::new(), "0".repeat(64)).unwrap();
+        assert!(matches!(
+            LocalReplayBootstrapSpec::new(
+                &root,
+                &root.join("leases"),
+                &root.join("workspace"),
+                [pin(), pin(), pin(), pin()],
+                commands[0].clone(),
+                commands[1].clone(),
+                commands[2].clone(),
+            ),
+            Err(ReplayAuthorityBootstrapError::InvalidCommand)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn private_root_validation_rejects_relative_symlink_and_public_roots() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-private-root-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir(&root).unwrap();
+        assert!(validate_private_root(Path::new("relative-root")).is_err());
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(validate_private_root(&root).is_err());
+        let link = root.with_extension("link");
+        let _ = fs::remove_file(&link);
+        std::os::unix::fs::symlink(&root, &link).unwrap();
+        assert!(validate_private_root(&link).is_err());
+        let _ = fs::remove_file(link);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn replay_factory_rejects_zero_nonce_and_malformed_digest() {
+        let (authority, _file, root) = fixture();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let input = context.input;
+        let lease = context.lease;
+        let token = RuntimeLaunchToken {
+            nonce: 0,
+            binding_digest: launch_binding_digest(&input, &lease, &"e".repeat(64)),
+        };
+        assert!(matches!(
+            ReplayLaunchFactory::issue(token, input, lease, "e".repeat(63)),
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        ));
         let _ = fs::remove_dir_all(root);
     }
 
