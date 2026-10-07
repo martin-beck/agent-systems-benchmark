@@ -11,11 +11,11 @@ use asb_control::{
     control_request_schema_v1_4, control_request_schema_v1_5, control_request_schema_v1_6,
     control_request_schema_v1_7, control_request_schema_v1_10, control_request_schema_v1_11,
     control_request_schema_v1_12, control_request_schema_v1_13, control_request_schema_v1_14,
-    control_response_schema, control_response_schema_v1_2, control_response_schema_v1_3,
-    control_response_schema_v1_4, control_response_schema_v1_5, control_response_schema_v1_6,
-    control_response_schema_v1_7, control_response_schema_v1_10, control_response_schema_v1_11,
-    control_response_schema_v1_12, control_response_schema_v1_13, control_response_schema_v1_14,
-    history_evidence_schema,
+    control_request_schema_v1_15, control_response_schema, control_response_schema_v1_2,
+    control_response_schema_v1_3, control_response_schema_v1_4, control_response_schema_v1_5,
+    control_response_schema_v1_6, control_response_schema_v1_7, control_response_schema_v1_10,
+    control_response_schema_v1_11, control_response_schema_v1_12, control_response_schema_v1_13,
+    control_response_schema_v1_14, control_response_schema_v1_15, history_evidence_schema,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -183,6 +183,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &output_v1_14,
             "response.schema.json",
             &control_response_schema_v1_14(),
+        )?;
+    }
+    if let Some(output_v1_15) = std::env::args_os().nth(13).map(PathBuf::from) {
+        fs::create_dir_all(&output_v1_15)?;
+        write(
+            &output_v1_15,
+            "request.schema.json",
+            &control_request_schema_v1_15(),
+        )?;
+        write(
+            &output_v1_15,
+            "response.schema.json",
+            &control_response_schema_v1_15(),
         )?;
     }
     Ok(())

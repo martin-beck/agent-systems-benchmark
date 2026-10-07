@@ -70,6 +70,11 @@ pub const CONTROL_FANOUT_V1: ControlVersion = ControlVersion {
     major: 1,
     minor: 14,
 };
+/// Version of the additive dynamic provider-catalog projection.
+pub const CONTROL_DYNAMIC_PROVIDER_CATALOG_V1: ControlVersion = ControlVersion {
+    major: 1,
+    minor: 15,
+};
 /// Version of additive provider-profile registration and replacement.
 ///
 /// This operation is included in the already negotiated v1.8 setup extension;
@@ -77,7 +82,7 @@ pub const CONTROL_FANOUT_V1: ControlVersion = ControlVersion {
 /// provider setup operations.
 pub const CONTROL_PROVIDER_REGISTRATION_V1: ControlVersion = CONTROL_RECORDING_LIFECYCLE_V1;
 /// Exact wire versions implemented by the endpoint, in negotiation order.
-pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 14] = [
+pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 15] = [
     CONTROL_V1,
     CONTROL_MEASUREMENT_CATALOG_V1,
     CONTROL_MEASUREMENT_SELECTION_V1,
@@ -92,6 +97,7 @@ pub const SUPPORTED_CONTROL_VERSIONS: [ControlVersion; 14] = [
     CONTROL_CASSETTE_CONTROL_V1,
     CONTROL_RECORDING_REPAIR_V1,
     CONTROL_FANOUT_V1,
+    CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
 ];
 /// Versions understood by frontends that have not adopted cassette control.
 /// They retain v1.11 as the highest common fallback.
@@ -1716,6 +1722,8 @@ pub enum ControlResult {
     RuntimeBootstrap(RuntimeBootstrapResponseV1),
     /// Authenticated provider/model catalog snapshot.
     ProviderCatalog(crate::ProviderCatalog),
+    /// Dynamic provider/model catalog projection introduced in control v1.15.
+    DynamicProviderCatalog(crate::DynamicProviderCatalog),
     /// Provider catalog returned after a generation-fenced profile update.
     ProviderProfile(crate::ProviderCatalog),
     /// Privacy-safe current setup projection.
@@ -1800,6 +1808,11 @@ impl BoundControlResult {
             ControlResult::ProviderCatalog(_) if version < CONTROL_PROVIDER_CATALOG_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
+            ControlResult::DynamicProviderCatalog(_)
+                if version < CONTROL_DYNAMIC_PROVIDER_CATALOG_V1 =>
+            {
+                return Err(ProtocolError::InvalidResponse);
+            }
             ControlResult::ProviderProfile(_) if version < CONTROL_PROVIDER_REGISTRATION_V1 => {
                 return Err(ProtocolError::InvalidResponse);
             }
@@ -1859,6 +1872,7 @@ impl ControlResult {
             Self::Capabilities(_) => Ok(()),
             Self::AgentCatalog(value) => value.validate(),
             Self::ProviderCatalog(value) => value.validate(),
+            Self::DynamicProviderCatalog(value) => value.validate(),
             Self::ProviderProfile(value) => value.validate(),
             Self::Configuration(value) => value.validate(),
             Self::RecordingCampaignEstimate(value) => value.validate(),
@@ -2064,6 +2078,10 @@ impl ControlResult {
                 )
                 | (ControlCall::ProviderCatalog(_), Self::ProviderCatalog(_))
                 | (
+                    ControlCall::ProviderCatalog(_),
+                    Self::DynamicProviderCatalog(_)
+                )
+                | (
                     ControlCall::ProviderProfileUpsert(_),
                     Self::ProviderProfile(_)
                 )
@@ -2171,6 +2189,11 @@ impl ControlResult {
             (ControlCall::ProviderCatalog(request), Self::ProviderCatalog(catalog)) => {
                 catalog.runner_instance_id == request.runner_instance_id
                     && catalog.refreshed
+                        == matches!(request.action, crate::ProviderCatalogAction::Refresh)
+            }
+            (ControlCall::ProviderCatalog(request), Self::DynamicProviderCatalog(catalog)) => {
+                catalog.catalog.runner_instance_id == request.runner_instance_id
+                    && catalog.catalog.refreshed
                         == matches!(request.action, crate::ProviderCatalogAction::Refresh)
             }
             (ControlCall::ProviderProfileUpsert(request), Self::ProviderProfile(catalog)) => {
