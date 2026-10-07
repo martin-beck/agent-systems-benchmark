@@ -2312,13 +2312,18 @@ mod tests {
         let command = Command::new("/bin/true");
         let mut process = RunningProcess::spawn(command, probe_limits()).unwrap();
         process.wait().unwrap();
+        let cleanup_root = scratch("cleanup-quarantine-root");
+        fs::create_dir_all(&cleanup_root).unwrap();
+        let cleanup_root_path = cleanup_root.0.clone();
+        let cleanup_root_for_sandbox = cleanup_root.0.clone();
+        std::mem::forget(cleanup_root);
         let mut sandbox = SandboxProcess {
             process,
             lease,
             unit: "asb-quarantine-test".into(),
             systemctl: pin,
             scope_cleanup_required: true,
-            cleanup_root: None,
+            cleanup_root: Some(cleanup_root_for_sandbox),
         };
         assert!(matches!(
             sandbox.wait(),
@@ -2326,6 +2331,7 @@ mod tests {
         ));
         assert_eq!(fs::read_dir(&lease_root).unwrap().count(), 1);
         drop(sandbox);
+        assert!(!cleanup_root_path.exists());
         assert_eq!(fs::read_dir(&lease_root).unwrap().count(), 1);
         let attempts = fs::read_to_string(tool_root.join("systemctl.state")).unwrap();
         assert_eq!(attempts.lines().count(), 2);

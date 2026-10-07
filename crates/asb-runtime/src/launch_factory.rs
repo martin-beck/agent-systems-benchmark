@@ -1295,6 +1295,30 @@ mod tests {
         assert_eq!(development_fixture_roots(), before);
     }
 
+    #[test]
+    fn development_fixture_rejects_invalid_digest_before_allocating_root() {
+        let before = development_fixture_roots();
+        assert!(matches!(
+            LocalReplayProvisioner::development_fixture("not-a-digest"),
+            Err(ReplayAuthoritySourceError::Authority(
+                LaunchAuthorityError::InvalidLaunchInput
+            ))
+        ));
+        assert_eq!(development_fixture_roots(), before);
+    }
+
+    #[test]
+    fn temporary_replay_root_drop_removes_private_tree() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-development-replay-guard-{}",
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("marker"), b"fixture").unwrap();
+        drop(TemporaryReplayRoot(root.clone()));
+        assert!(!root.exists());
+    }
+
     fn bootstrap_spec(root: &Path) -> LocalReplayBootstrapSpec {
         let pin = |path: &str| ToolPin::new(PathBuf::from(path), "fixture".into()).unwrap();
         let command = || {
