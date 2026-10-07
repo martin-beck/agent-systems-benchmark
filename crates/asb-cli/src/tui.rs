@@ -90,6 +90,8 @@ enum Operation {
     Doctor,
     Remove,
     Launch,
+    LiveProvider,
+    DynamicCatalog,
     Help,
     Version,
 }
@@ -104,6 +106,8 @@ impl Operation {
             Self::Doctor => "doctor",
             Self::Remove => "remove",
             Self::Launch => "launch",
+            Self::LiveProvider => "live_provider",
+            Self::DynamicCatalog => "dynamic_catalog",
             Self::Help => "help",
             Self::Version => "version",
         }
@@ -495,7 +499,7 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
     if operation == Operation::Help {
         writeln!(
             output,
-            "Usage: asb tui [preflight|launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\nFresh installs default to the development channel; existing installations preserve their active channel."
+            "Usage: asb tui [preflight|launch|live-provider|dynamic-catalog|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]\nFresh installs default to the development channel; existing installations preserve their active channel."
         )
         .map_err(output_error)?;
         return Ok(0);
@@ -574,6 +578,8 @@ fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
         None => (Operation::Launch, &args[0..]),
         Some("preflight") => (Operation::Preflight, &args[1..]),
         Some("launch") => (Operation::Launch, &args[1..]),
+        Some("live-provider") => (Operation::LiveProvider, &args[1..]),
+        Some("dynamic-catalog") => (Operation::DynamicCatalog, &args[1..]),
         Some("status") => (Operation::Status, &args[1..]),
         Some("doctor") => (Operation::Doctor, &args[1..]),
         Some("remove") => (Operation::Remove, &args[1..]),
@@ -679,7 +685,11 @@ fn execute(
             install_or_upgrade(operation, options, paths, source, now)
         }
         Operation::Preflight => preflight_development(),
-        Operation::Status | Operation::Remove | Operation::Launch => {
+        Operation::Status
+        | Operation::Remove
+        | Operation::Launch
+        | Operation::LiveProvider
+        | Operation::DynamicCatalog => {
             if existing_channel(options, paths)? == Channel::Dev {
                 if operation == Operation::Remove {
                     // Keep an absent default-dev installation read-only; a
@@ -1604,7 +1614,7 @@ fn execute_development_existing(
                 &active,
             ))
         }
-        Operation::Launch => {
+        Operation::Launch | Operation::LiveProvider | Operation::DynamicCatalog => {
             let descriptor = development_broker_descriptor(&active)?;
             let mut command = Command::new(&executable);
             command
@@ -1615,6 +1625,9 @@ fn execute_development_existing(
                 .env(DEV_BROKER_TUI_COMMIT_ENV, &active.source_commit)
                 .env(DEV_BROKER_TUI_TREE_ENV, &active.source_tree)
                 .args(["run", "--broker", "--development"]);
+            if let Some(route) = frontend_route_flag(operation) {
+                command.arg(route);
+            }
             add_candidate_environment(&mut command)?;
             add_development_terminal_environment(&mut command)?;
             let status = launch_development_broker(command, &paths.state_root)?;
@@ -2190,7 +2203,14 @@ fn delegate_existing(
         "schema_version": 1,
         "install_root": paths.install_root,
     });
-    let delegated = run_candidate(&executable, &request, operation != Operation::Launch)?;
+    let delegated = run_candidate(
+        &executable,
+        &request,
+        !matches!(
+            operation,
+            Operation::Launch | Operation::LiveProvider | Operation::DynamicCatalog
+        ),
+    )?;
     if operation == Operation::Status
         && delegated.release.is_some()
         && !delegated_status_matches_active(&delegated, &active)
@@ -3061,7 +3081,9 @@ fn validate_delegated(
             Operation::Install => "extension_installed",
             Operation::Upgrade => "extension_upgraded",
             Operation::Remove => "extension_removed",
-            Operation::Launch => "frontend_exited",
+            Operation::Launch | Operation::LiveProvider | Operation::DynamicCatalog => {
+                "frontend_exited"
+            }
             Operation::Status => "verified_installation",
             Operation::Preflight | Operation::Doctor | Operation::Help | Operation::Version => {
                 return Err(RouterError::policy("candidate_response_invalid"));
@@ -3100,6 +3122,17 @@ fn validate_delegated(
         return Err(RouterError::policy("candidate_response_invalid"));
     }
     Ok(())
+}
+
+/// The lifecycle operation is carried in the authenticated JSON request for
+/// installed bundles; the development executable receives the same route
+/// explicitly because it is launched directly after the broker handoff.
+fn frontend_route_flag(operation: Operation) -> Option<&'static str> {
+    match operation {
+        Operation::LiveProvider => Some("--live-provider"),
+        Operation::DynamicCatalog => Some("--dynamic-catalog"),
+        _ => None,
+    }
 }
 
 fn valid_verified_status(response: &DelegatedResponse) -> bool {
@@ -4912,6 +4945,14 @@ mod tests {
     fn parser_is_closed_and_typed() {
         assert_eq!(parse(&[]).unwrap().0, Operation::Launch);
         assert_eq!(parse(&["status".into()]).unwrap().0, Operation::Status);
+        assert_eq!(
+            parse(&["live-provider".into()]).unwrap().0,
+            Operation::LiveProvider
+        );
+        assert_eq!(
+            parse(&["dynamic-catalog".into()]).unwrap().0,
+            Operation::DynamicCatalog
+        );
         assert_eq!(parse(&["install".into()]).unwrap().1.channel, Channel::Dev);
         for name in ["dev", "stable", "nightly", "experimental"] {
             let parsed = parse(&["install".into(), "--channel".into(), name.into()]);
