@@ -35,6 +35,12 @@ Use the coordinator wrapper for product/Git/build/review mutations. For worktree
 creation, run the command from the canonical checkout under the claimed task.
 Worktree names and feature branches are declared by each AR.
 
+Development merge review identity is defined in
+[`DEVELOPMENT_REVIEW_POLICY.md`](DEVELOPMENT_REVIEW_POLICY.md). A separate
+technical review worker remains mandatory, but a same-account GitHub approval is
+acceptable for development-only integration after that review and all exact-head
+checks pass. This does not change signed merge integrity or release gates.
+
 ```sh
 ../agent-systems-benchmark-state/tools/handoffctl run --owner WORKER_ID AR-NNNN -- COMMAND ARGUMENTS
 ```
