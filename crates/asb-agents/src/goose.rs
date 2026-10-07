@@ -1644,7 +1644,7 @@ mod tests {
         let binary = root.join("goose");
         let digest = executable(
             &binary,
-            "#!/bin/sh\nprintf '%s\\n' '{\"type\":\"message\",\"message\":{\"id\":\"m\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}' '{\"type\":\"complete\"}'\necho extension-warning >&2\n",
+            "#!/bin/sh\nprintf '%s\\n' '{\"type\":\"message\",\"message\":{\"id\":\"m\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}' '{\"type\":\"complete\"}'\nprintf '%s\\n' extension-warning >&2\n",
         );
         let mut cfg = config(&binary, &workspace, &state);
         cfg.verification_digest_override = Some(digest.clone());
