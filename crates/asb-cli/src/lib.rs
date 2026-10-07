@@ -11213,6 +11213,26 @@ mod tests {
         assert!(cassette_path.is_file());
         assert!(literature_cassette_path.is_file());
 
+        // The top-level route must provide the same credential-free development
+        // campaign as the guided `easy` route. This is the documented CLI path
+        // used by automation and must not require provider authentication.
+        let mut direct_output = Vec::new();
+        assert_eq!(
+            run(
+                &[
+                    "record-campaign".into(),
+                    manifest_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut direct_output,
+                &mut diagnostics,
+            ),
+            0
+        );
+        let direct: Value = serde_json::from_slice(&direct_output).unwrap();
+        assert_eq!(direct["complete_coverage"], true);
+        assert_eq!(direct["offline_ready"], true);
+
         let failed_first_path = scratch.0.join("failed-first-cassette.json");
         let failed_second_path = scratch.0.join("failed-second-cassette.json");
         let mut failure_manifest = manifest.clone();
