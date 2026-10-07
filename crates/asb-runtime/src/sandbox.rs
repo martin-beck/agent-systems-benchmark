@@ -2323,8 +2323,9 @@ mod tests {
             unit: "asb-quarantine-test".into(),
             systemctl: pin,
             scope_cleanup_required: true,
-            cleanup_root: Some(cleanup_root_for_sandbox),
+            cleanup_root: None,
         };
+        sandbox = sandbox.with_cleanup_root(cleanup_root_for_sandbox);
         assert!(matches!(
             sandbox.wait(),
             Err(SandboxError::ScopeCleanup { .. })
