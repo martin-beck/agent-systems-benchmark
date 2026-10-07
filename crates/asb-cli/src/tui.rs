@@ -12,6 +12,7 @@ use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
     memfd_create, mkdirat, openat, renameat, unlinkat,
 };
+use rustix::io::{FdFlags, fcntl_getfd, fcntl_setfd};
 use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, kill_process_group, waitid};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -161,10 +162,35 @@ struct RouterError {
     exit_code: u8,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 struct DevelopmentCargo {
     path: PathBuf,
+    bound_file: Option<File>,
     group_writable_rustup_paths: bool,
+}
+
+#[derive(Debug)]
+struct DevelopmentTool {
+    path: PathBuf,
+    bound_file: Option<File>,
+}
+
+impl DevelopmentTool {
+    fn execution_path(&self) -> PathBuf {
+        self.bound_file
+            .as_ref()
+            .map(descriptor_path)
+            .unwrap_or_else(|| self.path.clone())
+    }
+}
+
+impl DevelopmentCargo {
+    fn execution_path(&self) -> PathBuf {
+        self.bound_file
+            .as_ref()
+            .map(descriptor_path)
+            .unwrap_or_else(|| self.path.clone())
+    }
 }
 
 impl RouterError {
@@ -888,7 +914,7 @@ fn preflight_development() -> Result<RouterResponse, RouterError> {
     resolve_development_tool_candidates(DEV_LD_OVERRIDE, &["/usr/bin/ld", "/usr/local/bin/ld"])?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
-    let _ = resolve_development_rustc(
+    let _ = resolve_development_rustc_bound(
         &cargo.path,
         rustup_home.as_deref(),
         std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
@@ -1095,7 +1121,7 @@ fn materialize_development(
     )?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
-    let rustc = resolve_development_rustc(
+    let rustc = resolve_development_rustc_bound(
         &cargo.path,
         rustup_home.as_deref(),
         std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
@@ -1186,6 +1212,8 @@ fn materialize_development(
         validate_development_source_commit(&commit, &checked_commit)?;
         let cargo_home = root.join("cargo-home");
         prepare_private_directory(&cargo_home)?;
+        let cargo_program = cargo.execution_path();
+        let rustc_program = rustc.as_ref().map(DevelopmentTool::execution_path);
         let mut build = Command::new(&setsid);
         build
             .env_clear()
@@ -1201,23 +1229,34 @@ fn materialize_development(
             )
             .current_dir(&source)
             .args(["--wait"])
-            .arg(&cargo.path)
+            .arg(&cargo_program)
             .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
         apply_development_toolchain_environment(
             &mut build,
             rustup_home.as_deref(),
-            rustc.as_deref(),
+            rustc_program.as_deref(),
             Some(&cc),
             Some(&ar),
             Some(&ld),
         );
-        run_development_command_with_limits_and_roots(
+        let inherited_flags = make_toolchain_descriptors_inheritable(
+            cargo.bound_file.as_ref(),
+            rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
+        )?;
+        let build_result = run_development_command_with_limits_and_roots(
             build,
             &root,
             &[root.as_path(), target.as_path()],
             DEV_COMMAND_TIMEOUT,
             MAX_DEV_WORKSPACE_BYTES,
-        )?;
+        );
+        let restore_result = restore_toolchain_descriptor_flags(
+            cargo.bound_file.as_ref(),
+            rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
+            inherited_flags,
+        );
+        restore_result?;
+        build_result?;
         enforce_workspace_quota_for_roots(
             &[root.as_path(), target.as_path()],
             MAX_DEV_WORKSPACE_BYTES,
@@ -3655,10 +3694,11 @@ fn resolve_development_cargo_from_with_rustup(
         let candidate = PathBuf::from(value);
         let resolved = validate_development_tool(&candidate)
             .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
-        let (path, group_writable_rustup_paths) =
+        let (path, bound_file, group_writable_rustup_paths) =
             resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
         return Ok(DevelopmentCargo {
             path,
+            bound_file,
             group_writable_rustup_paths,
         });
     }
@@ -3680,10 +3720,11 @@ fn resolve_development_cargo_from_with_rustup(
     for (candidate, allow_group_writable_shim) in candidates {
         let strict_error = match validate_development_tool(&candidate) {
             Ok(resolved) => {
-                let (path, group_writable_rustup_paths) =
+                let (path, bound_file, group_writable_rustup_paths) =
                     resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
                 return Ok(DevelopmentCargo {
                     path,
+                    bound_file,
                     group_writable_rustup_paths,
                 });
             }
@@ -3695,9 +3736,10 @@ fn resolve_development_cargo_from_with_rustup(
         }
         match validate_group_writable_rustup_shim(&candidate) {
             Ok(Some(resolved)) => {
-                let (path, _) = resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
+                let (path, bound_file, _) = resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
                 return Ok(DevelopmentCargo {
                     path,
+                    bound_file,
                     group_writable_rustup_paths: true,
                 });
             }
@@ -3792,9 +3834,9 @@ fn trusted_owner_and_mode(owner: u32, mode: u32, uid: u32, allow_group_write: bo
 fn resolve_rustup_proxy_cargo(
     resolved: &Path,
     rustup_home: Option<&Path>,
-) -> Result<(PathBuf, bool), RouterError> {
+) -> Result<(PathBuf, Option<File>, bool), RouterError> {
     if resolved.file_name() != Some(std::ffi::OsStr::new("rustup")) {
-        return Ok((resolved.to_path_buf(), false));
+        return Ok((resolved.to_path_buf(), None, false));
     }
     let Some(rustup_home) = rustup_home else {
         return Err(RouterError::operation("trusted_tool_unavailable"));
@@ -3824,8 +3866,13 @@ fn resolve_rustup_proxy_cargo(
         .join("toolchains")
         .join(toolchain)
         .join("bin/cargo");
-    let (cargo, toolchain_group_writable) = validate_development_rustup_tool(&cargo, rustup_home)?;
-    Ok((cargo, settings_group_writable || toolchain_group_writable))
+    let (cargo, file, toolchain_group_writable) =
+        validate_development_rustup_tool(&cargo, rustup_home)?;
+    Ok((
+        cargo,
+        Some(file),
+        settings_group_writable || toolchain_group_writable,
+    ))
 }
 
 fn read_development_rustup_settings(rustup_home: &Path) -> Result<(Vec<u8>, bool), RouterError> {
@@ -3875,14 +3922,13 @@ fn read_development_rustup_settings(rustup_home: &Path) -> Result<(Vec<u8>, bool
 fn validate_development_rustup_tool(
     path: &Path,
     rustup_home: &Path,
-) -> Result<(PathBuf, bool), RouterError> {
+) -> Result<(PathBuf, File, bool), RouterError> {
     if !safe_absolute(path) || !safe_absolute(rustup_home) {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
     let rustup_root = fs::canonicalize(rustup_home)
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    let resolved =
-        fs::canonicalize(path).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let resolved = path.to_path_buf();
     if resolved != path || !resolved.starts_with(rustup_root.join("toolchains")) {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
@@ -3899,45 +3945,64 @@ fn validate_development_rustup_tool(
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
     let uid = rustix::process::geteuid().as_raw();
-    let group_writable = validate_rustup_tool_parent_chain(&resolved, &rustup_root, uid)?;
-    let metadata = fs::symlink_metadata(&resolved)
+    let root_link_metadata = fs::symlink_metadata(&rustup_root)
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !metadata.is_file()
-        || metadata.file_type().is_symlink()
-        || metadata.uid() != uid
-        || metadata.mode() & 0o022 != 0
+    let mut directory =
+        File::open(&rustup_root).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let root_metadata = directory
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !root_metadata.is_dir()
+        || root_link_metadata.file_type().is_symlink()
+        || root_link_metadata.dev() != root_metadata.dev()
+        || root_link_metadata.ino() != root_metadata.ino()
+        || !trusted_owner_and_mode(root_metadata.uid(), root_metadata.mode(), uid, false)
     {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
-    Ok((resolved, group_writable))
+    let mut group_writable = false;
+    for component in [&components[0], &components[1], &components[2]] {
+        let next = openat(
+            &directory,
+            component.as_os_str(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map(File::from)
+        .map_err(classify_trusted_tool_open_error)?;
+        let metadata = next
+            .metadata()
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !metadata.is_dir() || !trusted_owner_and_mode(metadata.uid(), metadata.mode(), uid, true)
+        {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        group_writable |= metadata.mode() & 0o020 != 0;
+        directory = next;
+    }
+    let file = openat(
+        &directory,
+        components[3].as_os_str(),
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(classify_trusted_tool_open_error)?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !metadata.is_file() || metadata.uid() != uid || metadata.mode() & 0o022 != 0 {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    Ok((resolved, file, group_writable))
 }
 
-fn validate_rustup_tool_parent_chain(
-    path: &Path,
-    rustup_root: &Path,
-    uid: u32,
-) -> Result<bool, RouterError> {
-    let mut current = PathBuf::from("/");
-    let mut accepted_group_write = false;
-    let parent = path
-        .parent()
-        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
-    for component in parent.components() {
-        if let Component::Normal(name) = component {
-            current.push(name);
-            let metadata = fs::symlink_metadata(&current)
-                .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-            let inside_toolchains = current.starts_with(rustup_root.join("toolchains"));
-            if !metadata.is_dir()
-                || metadata.file_type().is_symlink()
-                || !trusted_owner_and_mode(metadata.uid(), metadata.mode(), uid, inside_toolchains)
-            {
-                return Err(RouterError::policy("trusted_tool_invalid"));
-            }
-            accepted_group_write |= inside_toolchains && metadata.mode() & 0o020 != 0;
-        }
+fn classify_trusted_tool_open_error(error: rustix::io::Errno) -> RouterError {
+    if error == rustix::io::Errno::NOENT {
+        RouterError::operation("trusted_tool_unavailable")
+    } else {
+        RouterError::policy("trusted_tool_invalid")
     }
-    Ok(accepted_group_write)
 }
 
 fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Path>) {
@@ -3946,11 +4011,20 @@ fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Pat
     }
 }
 
+#[cfg(test)]
 fn resolve_development_rustc(
     cargo: &Path,
     rustup_home: Option<&Path>,
     direct_override: bool,
 ) -> Result<Option<PathBuf>, RouterError> {
+    Ok(resolve_development_rustc_bound(cargo, rustup_home, direct_override)?.map(|tool| tool.path))
+}
+
+fn resolve_development_rustc_bound(
+    cargo: &Path,
+    rustup_home: Option<&Path>,
+    direct_override: bool,
+) -> Result<Option<DevelopmentTool>, RouterError> {
     if rustup_home.is_none() && !direct_override {
         return Ok(None);
     }
@@ -3972,11 +4046,66 @@ fn resolve_development_rustc(
         .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
     let rustc = bin.join("rustc");
     if let Some(rustup_home) = rustup_home {
-        validate_development_rustup_tool(&rustc, rustup_home)?;
+        let (path, file, _) = validate_development_rustup_tool(&rustc, rustup_home)?;
+        Ok(Some(DevelopmentTool {
+            path,
+            bound_file: Some(file),
+        }))
     } else {
-        validate_development_tool(&rustc)?;
+        let path = validate_development_tool(&rustc)?;
+        Ok(Some(DevelopmentTool {
+            path,
+            bound_file: None,
+        }))
     }
-    Ok(Some(rustc))
+}
+
+fn descriptor_path(file: &File) -> PathBuf {
+    PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd()))
+}
+
+fn make_descriptor_inheritable(file: &File) -> Result<FdFlags, RouterError> {
+    let flags =
+        fcntl_getfd(file).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    fcntl_setfd(file, flags - FdFlags::CLOEXEC)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    Ok(flags)
+}
+
+fn restore_descriptor_flags(file: &File, flags: FdFlags) -> Result<(), RouterError> {
+    fcntl_setfd(file, flags).map_err(|_| RouterError::operation("trusted_tool_unavailable"))
+}
+
+fn make_toolchain_descriptors_inheritable(
+    cargo: Option<&File>,
+    rustc: Option<&File>,
+) -> Result<(Option<FdFlags>, Option<FdFlags>), RouterError> {
+    let cargo_flags = cargo.map(make_descriptor_inheritable).transpose()?;
+    match rustc.map(make_descriptor_inheritable).transpose() {
+        Ok(rustc_flags) => Ok((cargo_flags, rustc_flags)),
+        Err(error) => {
+            if let (Some(file), Some(flags)) = (cargo, cargo_flags) {
+                let _ = restore_descriptor_flags(file, flags);
+            }
+            Err(error)
+        }
+    }
+}
+
+fn restore_toolchain_descriptor_flags(
+    cargo: Option<&File>,
+    rustc: Option<&File>,
+    flags: (Option<FdFlags>, Option<FdFlags>),
+) -> Result<(), RouterError> {
+    let rustc_result = match (rustc, flags.1) {
+        (Some(file), Some(flags)) => restore_descriptor_flags(file, flags),
+        _ => Ok(()),
+    };
+    let cargo_result = match (cargo, flags.0) {
+        (Some(file), Some(flags)) => restore_descriptor_flags(file, flags),
+        _ => Ok(()),
+    };
+    rustc_result.and(cargo_result)
 }
 
 fn apply_development_toolchain_environment(
@@ -5569,6 +5698,68 @@ mod tests {
         let mut human = Vec::new();
         crate::render_human(&json, &mut human).unwrap();
         assert!(String::from_utf8_lossy(&human).contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_tools_execute_validated_objects_after_path_replacement() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1726-object-binding-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let bin = root.join("toolchains/fixture-toolchain/bin");
+        prepare_private_directory(&bin).unwrap();
+        fs::set_permissions(
+            root.join("toolchains/fixture-toolchain"),
+            fs::Permissions::from_mode(0o775),
+        )
+        .unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o775)).unwrap();
+        let cargo_path = bin.join("cargo");
+        let rustc_path = bin.join("rustc");
+        fs::write(&cargo_path, b"#!/bin/sh\nexec \"$RUSTC\"\n").unwrap();
+        fs::write(&rustc_path, b"#!/bin/sh\nprintf validated-rustc\n").unwrap();
+        fs::set_permissions(&cargo_path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc_path, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let (cargo_display, cargo_file, cargo_warning) =
+            validate_development_rustup_tool(&cargo_path, &root).unwrap();
+        let (rustc_display, rustc_file, rustc_warning) =
+            validate_development_rustup_tool(&rustc_path, &root).unwrap();
+        assert_eq!(cargo_display, cargo_path);
+        assert_eq!(rustc_display, rustc_path);
+        assert!(cargo_warning && rustc_warning);
+        let cargo_descriptor = descriptor_path(&cargo_file);
+        let rustc_descriptor = descriptor_path(&rustc_file);
+
+        fs::rename(&cargo_path, bin.join("validated-cargo")).unwrap();
+        fs::rename(&rustc_path, bin.join("validated-rustc")).unwrap();
+        fs::write(&cargo_path, b"#!/bin/sh\nprintf substituted-cargo\n").unwrap();
+        fs::write(&rustc_path, b"#!/bin/sh\nprintf substituted-rustc\n").unwrap();
+        fs::set_permissions(&cargo_path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc_path, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let inherited =
+            make_toolchain_descriptors_inheritable(Some(&cargo_file), Some(&rustc_file)).unwrap();
+        let output = Command::new(DEV_SETSID)
+            .env_clear()
+            .env("RUSTC", &rustc_descriptor)
+            .args(["--wait"])
+            .arg(&cargo_descriptor)
+            .output()
+            .unwrap();
+        restore_toolchain_descriptor_flags(Some(&cargo_file), Some(&rustc_file), inherited)
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"validated-rustc");
+        assert!(fcntl_getfd(&cargo_file).unwrap().contains(FdFlags::CLOEXEC));
+        assert!(fcntl_getfd(&rustc_file).unwrap().contains(FdFlags::CLOEXEC));
+
+        drop(cargo_file);
+        drop(rustc_file);
+        assert!(!cargo_descriptor.exists());
+        assert!(!rustc_descriptor.exists());
         fs::remove_dir_all(root).unwrap();
     }
 
