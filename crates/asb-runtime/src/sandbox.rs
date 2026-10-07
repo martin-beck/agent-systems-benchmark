@@ -839,6 +839,7 @@ impl SandboxBackend {
             unit,
             systemctl: self.systemctl.clone(),
             scope_cleanup_required,
+            cleanup_root: None,
         })
     }
 }
@@ -1087,9 +1088,15 @@ pub struct SandboxProcess {
     unit: String,
     systemctl: ToolPin,
     scope_cleanup_required: bool,
+    cleanup_root: Option<PathBuf>,
 }
 
 impl SandboxProcess {
+    pub(crate) fn with_cleanup_root(mut self, root: PathBuf) -> Self {
+        self.cleanup_root = Some(root);
+        self
+    }
+
     /// Child PID observed by the runtime.
     pub fn pid(&self) -> u32 {
         self.process.pid()
@@ -1155,6 +1162,9 @@ impl Drop for SandboxProcess {
             } else {
                 self.lease.quarantine();
             }
+        }
+        if let Some(root) = self.cleanup_root.take() {
+            let _ = fs::remove_dir_all(root);
         }
     }
 }
@@ -2308,6 +2318,7 @@ mod tests {
             unit: "asb-quarantine-test".into(),
             systemctl: pin,
             scope_cleanup_required: true,
+            cleanup_root: None,
         };
         assert!(matches!(
             sandbox.wait(),
