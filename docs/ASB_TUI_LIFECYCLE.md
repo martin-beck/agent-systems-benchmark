@@ -67,6 +67,14 @@ substituted channel manifest returns a typed `development_installation_invalid`
 diagnostic. The development response is explicitly `development_only` and warns
 that authentication, signatures, and key management are unavailable; those
 warnings do not weaken the stable channel's fail-closed publication rules.
+The development resolver also accepts a conventional current-user-owned rustup
+layout when only `~/.cargo`, `~/.cargo/bin`, the rustup `settings.toml`, or the
+selected `toolchains/<name>/bin` path are group-writable but not world-writable.
+Such acceptance is reported as
+`development_user_owned_group_writable_rustup_paths_allowed` in JSON and human
+output. It does not apply to overrides or stable channels; non-owner,
+world-writable, symlinked-parent, escaping, missing, malformed, and substituted
+paths remain hard failures.
 The nested release build disables incremental state, fixes its source epoch, and
 remaps staging, target, and Cargo-home paths to stable virtual prefixes so an
 identical source pair produces the same executable digest across fresh installs.
