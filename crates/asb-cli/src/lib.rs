@@ -11216,6 +11216,7 @@ mod tests {
         // The top-level route must provide the same credential-free development
         // campaign as the guided `easy` route. This is the documented CLI path
         // used by automation and must not require provider authentication.
+        diagnostics.clear();
         let mut direct_output = Vec::new();
         assert_eq!(
             run(
@@ -11232,6 +11233,10 @@ mod tests {
         let direct: Value = serde_json::from_slice(&direct_output).unwrap();
         assert_eq!(direct["complete_coverage"], true);
         assert_eq!(direct["offline_ready"], true);
+        assert!(
+            diagnostics.is_empty(),
+            "credential-free direct route emitted diagnostics: {diagnostics:?}"
+        );
 
         let failed_first_path = scratch.0.join("failed-first-cassette.json");
         let failed_second_path = scratch.0.join("failed-second-cassette.json");
