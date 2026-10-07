@@ -43,7 +43,8 @@ use asb_replay::{
 };
 use asb_runtime::control_owner_contract::LocalMockRuntimeControlOwner;
 use asb_runtime::launch_factory::{
-    LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, ReplayLaunchAuthority,
+    LaunchAuthorityError, LiveProviderAttempt, LiveProviderAttemptFactory, LocalReplayProvisioner,
+    ReplayLaunchAuthority,
 };
 use asb_runtime::live_service::{
     LiveProviderRuntimeDispatchSource, LiveProviderRuntimeScheduler, LocalProviderMockBackend,
@@ -915,6 +916,11 @@ fn dispatch(
             stdout,
         )
         .map(|()| 0),
+        [command, cassette, profile, agent, fixture]
+            if command == "replay-offline" && fixture == "--local-mock" =>
+        {
+            replay_offline_development_fixture(Path::new(cassette), profile, agent, stdout, stderr)
+        }
         _ => Err(CliError::usage("unsupported arguments; use asb --help")),
     }
 }
@@ -2229,6 +2235,31 @@ fn replay(
             response_sha256: format!("{response_sha256:x}"),
         },
     )
+}
+
+fn replay_offline_development_fixture(
+    cassette_path: &Path,
+    provider_profile_sha256: &str,
+    agent_id: &str,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> Result<u8, CliError> {
+    let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
+    let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
+        .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+    let authority = LocalReplayProvisioner::development_fixture(&cassette.integrity.digest)
+        .map_err(|_| CliError::operation("development replay authority is unavailable"))?;
+    Ok(run_with_replay_authority(
+        &[
+            OsString::from("replay-offline"),
+            cassette_path.as_os_str().to_owned(),
+            OsString::from(provider_profile_sha256),
+            OsString::from(agent_id),
+        ],
+        authority,
+        stdout,
+        stderr,
+    ))
 }
 
 fn replay_local_mock(

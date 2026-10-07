@@ -15,11 +15,14 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::Duration;
+
+static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// A launch authority that can only be issued by the runtime factory.
 ///
@@ -183,6 +186,89 @@ impl ValidatedReplayCassette {
 }
 
 impl LocalReplayProvisioner {
+    /// Issue a strict-replay authority for the explicit local development
+    /// fixture.  This path uses only the host's pinned isolation tools and
+    /// private temporary roots; it never resolves credentials, signatures, or
+    /// production trust material.  Callers must opt into this fixture at an
+    /// explicitly development-only command boundary.
+    pub fn development_fixture(
+        cassette_sha256: &str,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        let cassette = ReplayAuthoritySource::validate_cassette_digest(cassette_sha256)
+            .map_err(ReplayAuthoritySourceError::Authority)?;
+        let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "asb-development-replay-{}-{}",
+            std::process::id(),
+            sequence
+        ));
+        fs::create_dir(&root).map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        let relay_root = root.join("relay");
+        let lease_root = root.join("lease");
+        let workspace = root.join("workspace");
+        for path in [&relay_root, &lease_root, &workspace] {
+            fs::create_dir(path).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+        }
+        let tool = |path: &str| {
+            let output = Command::new(path).arg("--version").output().map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+            let version = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            if !output.status.success() || version.is_empty() {
+                return Err(ReplayAuthoritySourceError::Authority(
+                    LaunchAuthorityError::InvalidLaunchInput,
+                ));
+            }
+            ToolPin::new(PathBuf::from(path), version).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })
+        };
+        let bwrap = tool("/usr/bin/bwrap")?;
+        let systemd_run = tool("/usr/bin/systemd-run")?;
+        let systemctl = tool("/usr/bin/systemctl")?;
+        let taskset = tool("/usr/bin/taskset")?;
+        let command = |path: &str| {
+            let bytes = fs::read(path).map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })?;
+            PinnedCommand::new_verified(
+                PathBuf::from(path),
+                Vec::new(),
+                &format!("{:x}", Sha256::digest(bytes)),
+            )
+            .map_err(|_| {
+                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+            })
+        };
+        let spec = LocalReplayBootstrapSpec::new(
+            &relay_root,
+            &lease_root,
+            &workspace,
+            [bwrap, systemd_run, systemctl, taskset],
+            command("/bin/true")?,
+            command("/bin/true")?,
+            command("/bin/true")?,
+        )
+        .map_err(|_| {
+            ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
+        })?;
+        spec.provisioner().acquire(cassette)
+    }
+
     /// Acquire one opaque authority for one exact cassette identity.
     pub fn acquire(
         self,
