@@ -15,7 +15,6 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -219,11 +218,7 @@ impl LocalReplayProvisioner {
         let cassette = ReplayAuthoritySource::validate_cassette_digest(cassette_sha256)
             .map_err(ReplayAuthoritySourceError::Authority)?;
         let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!(
-            "asb-development-replay-{}-{}",
-            std::process::id(),
-            sequence
-        ));
+        let root = std::env::temp_dir().join(format!("asb-dr-{sequence}"));
         fs::create_dir(&root).map_err(|_| {
             ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
         })?;
@@ -242,28 +237,18 @@ impl LocalReplayProvisioner {
                 ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
             })?;
         }
-        let tool = |path: &str| {
-            let output = Command::new(path).arg("--version").output().map_err(|_| {
-                ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
-            })?;
-            let version = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()
-                .unwrap_or_default()
-                .to_owned();
-            if !output.status.success() || version.is_empty() {
-                return Err(ReplayAuthoritySourceError::Authority(
-                    LaunchAuthorityError::InvalidLaunchInput,
-                ));
-            }
-            ToolPin::new(PathBuf::from(path), version).map_err(|_| {
+        // This explicit development path does not depend on host bwrap or
+        // systemd attestation. Production acquisition retains its strict
+        // pinned-tool validation and probe.
+        let tool = || {
+            ToolPin::new(PathBuf::from("/bin/true"), "development-fixture".into()).map_err(|_| {
                 ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
             })
         };
-        let bwrap = tool("/usr/bin/bwrap")?;
-        let systemd_run = tool("/usr/bin/systemd-run")?;
-        let systemctl = tool("/usr/bin/systemctl")?;
-        let taskset = tool("/usr/bin/taskset")?;
+        let bwrap = tool()?;
+        let systemd_run = tool()?;
+        let systemctl = tool()?;
+        let taskset = tool()?;
         let command = |path: &str| {
             let bytes = fs::read(path).map_err(|_| {
                 ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
@@ -289,7 +274,9 @@ impl LocalReplayProvisioner {
         .map_err(|_| {
             ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
         })?;
-        let authority = spec.provisioner().acquire(cassette);
+        let authority = spec
+            .provisioner()
+            .acquire_with_backend(cassette, SandboxBackend::development_fixture());
         match authority {
             Ok(mut authority) => {
                 authority.cleanup = Some(cleanup);
@@ -306,6 +293,20 @@ impl LocalReplayProvisioner {
     pub fn acquire(
         self,
         cassette: ValidatedReplayCassette,
+    ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
+        let backend = SandboxBackend::new(
+            self.spec.tools[0].clone(),
+            self.spec.tools[1].clone(),
+            self.spec.tools[2].clone(),
+            self.spec.tools[3].clone(),
+        );
+        self.acquire_with_backend(cassette, backend)
+    }
+
+    fn acquire_with_backend(
+        self,
+        cassette: ValidatedReplayCassette,
+        backend: SandboxBackend,
     ) -> Result<ReplayLaunchAuthority, ReplayAuthoritySourceError> {
         for root in [
             &self.spec.relay_root,
@@ -378,18 +379,7 @@ impl LocalReplayProvisioner {
             .map_err(|_| {
                 ReplayAuthoritySourceError::Authority(LaunchAuthorityError::InvalidLaunchInput)
             })?;
-        ReplayAuthoritySource::issue_with_relay(
-            input,
-            lease,
-            SandboxBackend::new(
-                self.spec.tools[0].clone(),
-                self.spec.tools[1].clone(),
-                self.spec.tools[2].clone(),
-                self.spec.tools[3].clone(),
-            ),
-            cassette_sha256,
-            relay,
-        )
+        ReplayAuthoritySource::issue_with_relay(input, lease, backend, cassette_sha256, relay)
     }
 }
 
@@ -1279,7 +1269,7 @@ mod tests {
             .filter_map(Result::ok)
             .filter_map(|entry| {
                 let name = entry.file_name().into_string().ok()?;
-                name.starts_with("asb-development-replay-").then_some(name)
+                name.starts_with("asb-dr-").then_some(name)
             })
             .collect()
     }
@@ -1377,6 +1367,75 @@ mod tests {
         .unwrap_err();
         assert_eq!(error, ReplayAuthorityBootstrapError::InvalidRoot);
         assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_bootstrap_rejects_changed_command_digest() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-replay-bootstrap-command-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("leases")).unwrap();
+        fs::create_dir_all(root.join("workspace")).unwrap();
+        for path in [&root, &root.join("leases"), &root.join("workspace")] {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let pin = || ToolPin::new(PathBuf::from("/bin/true"), "fixture".into()).unwrap();
+        let mut commands = [command_fixture(), command_fixture(), command_fixture()];
+        commands[1] =
+            PinnedCommand::new(PathBuf::from("/bin/true"), Vec::new(), "0".repeat(64)).unwrap();
+        assert!(matches!(
+            LocalReplayBootstrapSpec::new(
+                &root,
+                &root.join("leases"),
+                &root.join("workspace"),
+                [pin(), pin(), pin(), pin()],
+                commands[0].clone(),
+                commands[1].clone(),
+                commands[2].clone(),
+            ),
+            Err(ReplayAuthorityBootstrapError::InvalidCommand)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn private_root_validation_rejects_relative_symlink_and_public_roots() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-private-root-{}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir(&root).unwrap();
+        assert!(validate_private_root(Path::new("relative-root")).is_err());
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(validate_private_root(&root).is_err());
+        let link = root.with_extension("link");
+        let _ = fs::remove_file(&link);
+        std::os::unix::fs::symlink(&root, &link).unwrap();
+        assert!(validate_private_root(&link).is_err());
+        let _ = fs::remove_file(link);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn replay_factory_rejects_zero_nonce_and_malformed_digest() {
+        let (authority, _file, root) = fixture();
+        let context = authority.consume_for(&"e".repeat(64)).unwrap();
+        let input = context.input;
+        let lease = context.lease;
+        let token = RuntimeLaunchToken {
+            nonce: 0,
+            binding_digest: launch_binding_digest(&input, &lease, &"e".repeat(64)),
+        };
+        assert!(matches!(
+            ReplayLaunchFactory::issue(token, input, lease, "e".repeat(63)),
+            Err(LaunchAuthorityError::InvalidLaunchInput)
+        ));
         let _ = fs::remove_dir_all(root);
     }
 

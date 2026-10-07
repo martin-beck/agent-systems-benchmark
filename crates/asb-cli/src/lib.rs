@@ -2247,8 +2247,14 @@ fn replay_offline_development_fixture(
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
         .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
-    let authority = LocalReplayProvisioner::development_fixture(&cassette.integrity.digest)
-        .map_err(|_| CliError::operation("development replay authority is unavailable"))?;
+    let authority = match LocalReplayProvisioner::development_fixture(&cassette.integrity.digest) {
+        Ok(authority) => authority,
+        Err(_error) => {
+            return Err(CliError::operation(
+                "development replay authority is unavailable",
+            ));
+        }
+    };
     Ok(run_with_replay_authority(
         &[
             OsString::from("replay-offline"),
