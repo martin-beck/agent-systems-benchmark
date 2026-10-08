@@ -73,7 +73,9 @@ clean:
 	prefix="$(PREFIX)"; case "$$prefix" in /*) ;; *) printf '%s\n' 'ERROR: PREFIX must be an absolute path.' >&2; exit 1 ;; esac; \
 	case "$$prefix" in *'/../'*|../*|*/..|..) printf '%s\n' 'ERROR: PREFIX must not contain parent-directory traversal.' >&2; exit 1 ;; esac; \
 	[ "$$prefix" != / ] && [ "$$prefix" != /.local ] && [ "$$prefix" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe PREFIX (filesystem or repository root).' >&2; exit 1; }; \
-	if [ -f "$$prefix/.asb-make-staging" ]; then rm -f -- "$$prefix/bin/asb" "$$prefix/.asb-make-staging"; rmdir -- "$$prefix/bin" 2>/dev/null || :; fi; \
+	reject_symlink_chain() { path=$$1; rest=$${path#/}; current=/; while [ -n "$$rest" ]; do component=$${rest%%/*}; [ "$$rest" = "$$component" ] && rest= || rest=$${rest#*/}; current="$$current$$component"; [ ! -L "$$current" ] || { printf '%s\n' "ERROR: refusing symlink in PREFIX path: $$current" >&2; exit 1; }; [ ! -e "$$current" ] || [ -d "$$current" ] || { printf '%s\n' "ERROR: PREFIX path component is not a directory: $$current" >&2; exit 1; }; current="$$current/"; done; }; \
+	reject_symlink_chain "$$prefix"; \
+	if [ -f "$$prefix/.asb-make-staging" ]; then reject_symlink_chain "$$prefix/bin"; rm -f -- "$$prefix/bin/asb" "$$prefix/.asb-make-staging"; rmdir -- "$$prefix/bin" 2>/dev/null || :; fi; \
 	if [ "$$target" != "$$root/target" ] || [ -d "$$target" ]; then rm -rf -- "$$target"; fi
 
 update: check-deps

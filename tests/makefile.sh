@@ -171,6 +171,18 @@ if PREFIX="$symlink_prefix" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT=
 fi
 test ! -e "$outside/asb"
 
+clean_prefix="$tmp/clean-symlink-prefix"
+mkdir -p "$clean_prefix" "$outside"
+ln -s "$outside" "$clean_prefix/bin"
+printf 'protected\n' >"$outside/asb"
+touch "$clean_prefix/.asb-make-staging"
+if PREFIX="$clean_prefix" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" clean >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked clean PREFIX/bin unexpectedly passed' >&2
+    exit 1
+fi
+test -f "$outside/asb"
+
 if PREFIX=relative-prefix CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
     make -C "$root" install >/dev/null 2>&1; then
     printf '%s\n' 'relative PREFIX unexpectedly passed' >&2
