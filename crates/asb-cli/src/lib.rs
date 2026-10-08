@@ -758,7 +758,7 @@ fn dispatch(
             plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
         }
         [command, subcommand, create_args @ ..] if command == "plan" && subcommand == "create" => {
-            create_plan(create_args, stdout, stderr).map(|()| 0)
+            create_plan(create_args, stdout, stderr, stdin).map(|()| 0)
         }
         [command, _path, flag] if command == "run" && flag == "--local-mock" => {
             Ok(run_local_mock_dispatch(args, stdout, stderr))
@@ -3777,6 +3777,7 @@ fn create_plan(
     args: &[String],
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    mut stdin: Option<&mut dyn Read>,
 ) -> Result<(), CliError> {
     let mut workload = None;
     let mut executable = None;
@@ -3830,7 +3831,7 @@ fn create_plan(
     }
     let workload = match workload {
         Some(value) => value,
-        None if io::stdin().is_terminal() => {
+        None if stdin.is_some() && io::stdin().is_terminal() => {
             let platform = format!("linux-{}", std::env::consts::ARCH);
             let candidates = workload_catalog()
                 .into_iter()
@@ -3842,10 +3843,23 @@ fn create_plan(
             }
             write!(progress, "> ").map_err(output_error)?;
             progress.flush().map_err(output_error)?;
-            let mut selection = String::new();
-            io::stdin()
-                .read_line(&mut selection)
-                .map_err(output_error)?;
+            let mut selection = Vec::new();
+            let input = stdin.take().expect("interactive plan creation has stdin");
+            let mut byte = [0_u8; 1];
+            while selection.len() < 64 {
+                let read = input.read(&mut byte).map_err(output_error)?;
+                if read == 0 || byte[0] == b'\n' {
+                    break;
+                }
+                selection.push(byte[0]);
+            }
+            if selection.len() == 64 {
+                return Err(CliError::validation(
+                    "workload selection exceeds the 64-byte bound",
+                ));
+            }
+            let selection = String::from_utf8(selection)
+                .map_err(|_| CliError::validation("workload selection is not UTF-8"))?;
             let number: usize = selection
                 .trim()
                 .parse()
