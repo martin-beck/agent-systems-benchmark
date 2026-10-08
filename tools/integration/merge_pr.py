@@ -28,6 +28,7 @@ COMMAND_TIMEOUT_SECONDS = 60
 class CommandResult:
     returncode: int
     stdout: str
+    stderr: str
 
 
 def bounded_command(
@@ -72,11 +73,13 @@ def bounded_command(
         ):
             raise ValueError("bounded subprocess output exceeded limit")
         stdout.seek(0)
+        stderr.seek(0)
         try:
-            output = stdout.read().decode("utf-8")
+            stdout_text = stdout.read().decode("utf-8")
+            stderr_text = stderr.read().decode("utf-8")
         except UnicodeDecodeError as error:
             raise ValueError("bounded subprocess emitted invalid UTF-8") from error
-        return CommandResult(process.returncode, output)
+        return CommandResult(process.returncode, stdout_text, stderr_text)
 
 
 def run(root: Path, *args: str, input_text: str | None = None) -> str:

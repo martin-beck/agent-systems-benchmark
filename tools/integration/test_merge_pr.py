@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.integration import merge_pr, repository_settings
 
@@ -490,6 +491,165 @@ class MergeIntegrityTests(unittest.TestCase):
             self.assertNotEqual(audit(good_settings, candidate).returncode, 0)
 
         self.assertNotEqual(audit(good_settings, None).returncode, 0)
+
+    def test_settings_api_failures_are_typed_bounded_and_private(self) -> None:
+        cases = (
+            (401, "Bad credentials", "authentication", "rejected"),
+            (
+                403,
+                "Resource not accessible by personal access token",
+                "authorization",
+                "rejected",
+            ),
+            (404, "Not Found", "not-found", "rejected"),
+            (409, "Conflict", "conflict", "rejected"),
+            (422, "Validation Failed", "validation", "rejected"),
+            (500, "Internal Server Error", "server", "ambiguous"),
+        )
+        sentinel = "private-path-token-query-secret"
+        for status, message, category, effect in cases:
+            with self.subTest(status=status):
+                response = merge_pr.CommandResult(
+                    1,
+                    json.dumps(
+                        {
+                            "message": message,
+                            "status": str(status),
+                            "errors": [{"code": "invalid", "private": sentinel}],
+                            "documentation_url": f"https://example.invalid/?{sentinel}",
+                        }
+                    ),
+                    f"gh: {message} (HTTP {status}) {sentinel}",
+                )
+                with (
+                    mock.patch.object(
+                        repository_settings, "bounded_command", return_value=response
+                    ),
+                    self.assertRaises(ValueError) as raised,
+                ):
+                    repository_settings.api(
+                        f"repos/owner/name?token={sentinel}",
+                        operation="update",
+                        subject="repository-settings",
+                    )
+                diagnostic = str(raised.exception)
+                self.assertIn(f"category={category}", diagnostic)
+                self.assertIn(f"status={status}", diagnostic)
+                self.assertIn(f"effect={effect}", diagnostic)
+                self.assertIn(f"message={message}", diagnostic)
+                self.assertIn("code=invalid", diagnostic)
+                self.assertNotIn(sentinel, diagnostic)
+                self.assertLess(len(diagnostic), 256)
+
+        network = merge_pr.CommandResult(1, "", f"network failed {sentinel}")
+        with (
+            mock.patch.object(
+                repository_settings, "bounded_command", return_value=network
+            ),
+            self.assertRaises(ValueError) as raised,
+        ):
+            repository_settings.api(
+                "repos/owner/name",
+                operation="read",
+                subject="ruleset-index",
+            )
+        diagnostic = str(raised.exception)
+        self.assertIn("category=transport", diagnostic)
+        self.assertIn("status=unknown", diagnostic)
+        self.assertIn("effect=ambiguous", diagnostic)
+        self.assertNotIn(sentinel, diagnostic)
+
+    def test_settings_api_redacts_unapproved_response_fields(self) -> None:
+        sentinel = "credential-private-host-path"
+        response = merge_pr.CommandResult(
+            1,
+            json.dumps(
+                {
+                    "message": sentinel,
+                    "code": sentinel,
+                    "status": "422",
+                    "errors": [{"code": sentinel}],
+                }
+            ),
+            f"gh: {sentinel} (HTTP 422)",
+        )
+        with (
+            mock.patch.object(
+                repository_settings, "bounded_command", return_value=response
+            ),
+            self.assertRaises(ValueError) as raised,
+        ):
+            repository_settings.api(
+                "repos/private/value",
+                operation="create",
+                subject="protected-main-ruleset",
+            )
+        diagnostic = str(raised.exception)
+        self.assertEqual(
+            diagnostic,
+            "GitHub API create protected-main-ruleset failed; "
+            "category=validation; status=422; effect=rejected; exit=1",
+        )
+        self.assertNotIn(sentinel, diagnostic)
+
+    def test_settings_apply_reports_partial_effect(self) -> None:
+        ruleset = repository_settings.required_ruleset()
+        ruleset["id"] = 17
+        failure = ValueError(
+            "GitHub API update repository-settings failed; "
+            "category=validation; status=422; effect=rejected"
+        )
+        with (
+            mock.patch.object(
+                repository_settings,
+                "fetch",
+                return_value=(dict(repository_settings.REQUIRED_SETTINGS), None),
+            ),
+            mock.patch.object(
+                repository_settings, "api", side_effect=(ruleset, failure)
+            ) as mocked_api,
+            self.assertRaises(ValueError) as raised,
+        ):
+            repository_settings.apply("owner/repository")
+        diagnostic = str(raised.exception)
+        self.assertIn("phase=repository-settings", diagnostic)
+        self.assertIn("prior-ruleset-effect=applied", diagnostic)
+        self.assertEqual(mocked_api.call_count, 2)
+
+    def test_settings_reapply_updates_only_named_ruleset(self) -> None:
+        settings = dict(repository_settings.REQUIRED_SETTINGS)
+        ruleset = repository_settings.required_ruleset()
+        ruleset["id"] = 17
+        summaries = [
+            {"id": 99, "name": "Unrelated policy"},
+            {"id": 17, "name": repository_settings.RULESET_NAME},
+        ]
+        with mock.patch.object(
+            repository_settings,
+            "api",
+            side_effect=(settings, summaries, ruleset, ruleset, settings),
+        ) as mocked_api:
+            applied_settings, applied_ruleset = repository_settings.apply(
+                "owner/repository"
+            )
+        self.assertEqual(applied_settings, settings)
+        self.assertEqual(applied_ruleset, ruleset)
+        update_call = mocked_api.call_args_list[3]
+        self.assertIn("PUT", update_call.args)
+        self.assertIn("repos/owner/repository/rulesets/17", update_call.args)
+        self.assertNotIn("repos/owner/repository/rulesets/99", update_call.args)
+
+        duplicates = [
+            {"id": 17, "name": repository_settings.RULESET_NAME},
+            {"id": 18, "name": repository_settings.RULESET_NAME},
+        ]
+        with (
+            mock.patch.object(
+                repository_settings, "api", side_effect=(settings, duplicates)
+            ),
+            self.assertRaisesRegex(ValueError, "duplicated"),
+        ):
+            repository_settings.fetch("owner/repository")
 
 
 if __name__ == "__main__":
