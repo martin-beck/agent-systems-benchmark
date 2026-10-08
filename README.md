@@ -64,7 +64,11 @@ run `make`. The default development-channel lifecycle runs `update`, `build`,
 `test`, then `install` in that order; Make stops immediately if any stage fails.
 `make check-deps` is read-only and reports remediation without installing
 anything. Explicit `make build`, `make test`, `make install`, `make clean`, and
-`make update` retain the locked workspace and clean-tree boundaries. Make is not
+`make update` retain the locked workspace and clean-tree boundaries. `make update`
+only fast-forwards Git and validates the existing lockfile; it never mutates
+`Cargo.lock`. To intentionally refresh dependencies, run `make refresh-lock` on
+a clean tree, review the resulting `Cargo.lock` diff, and commit it before using
+the locked lifecycle. Make is not
 required by the ASB runtime, release artifacts, or installed CLI. The install
 prefix defaults to the marked, repository-local `.make/install` staging path.
 
