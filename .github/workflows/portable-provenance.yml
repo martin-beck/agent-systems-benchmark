@@ -1,0 +1,46 @@
+name: Portable protected-main provenance
+"on":
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read # Inspect exact commit objects and GitHub verification results.
+  pull-requests: read # Bind a protected-main merge to its unique pull request.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+jobs:
+  provenance:
+    name: Portable protected-main provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact event head with complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify exact portable publication provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            base="$PR_BASE"
+            ref=refs/pull
+          elif [[ "$EVENT_NAME" == push ]]; then
+            base="$PUSH_BASE"
+            ref="$EVENT_REF"
+          else
+            exit 1
+          fi
+          python3 tools/integration/portable_provenance.py \
+            --repository "$GITHUB_REPOSITORY" --event "$EVENT_NAME" --ref "$ref" \
+            --base "$base" --head "$EVENT_HEAD" --event-head "$EVENT_HEAD"
+      - name: Verify clean tree
+        run: git diff --exit-code
