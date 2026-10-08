@@ -1074,11 +1074,16 @@ class MergeIntegrityTests(unittest.TestCase):
         }
         with mock.patch.object(
             repository_settings, "api", side_effect=(commit, success)
-        ):
+        ) as mocked_api:
             self.assertEqual(
                 repository_settings.provenance_status("owner/repository", settings),
                 head,
             )
+        projection_call = mocked_api.call_args_list[0]
+        self.assertEqual(projection_call.args[:2], ("--jq", "{sha: .sha}"))
+        self.assertEqual(
+            projection_call.args[-1], "repos/owner/repository/commits/main"
+        )
         for checks, diagnostic in (
             ({"total_count": 0, "check_runs": []}, "missing or ambiguous"),
             (
@@ -1124,6 +1129,57 @@ class MergeIntegrityTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, diagnostic),
             ):
                 repository_settings.provenance_status("owner/repository", settings)
+
+    def test_settings_head_projection_rejects_hostile_output_before_mutation(
+        self,
+    ) -> None:
+        settings = {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        owner = {
+            "login": "owner",
+            "type": "User",
+            "plan": {"name": "pro"},
+        }
+        prefix = (
+            merge_pr.CommandResult(0, json.dumps(settings), ""),
+            merge_pr.CommandResult(0, "[]", ""),
+            merge_pr.CommandResult(0, json.dumps(owner), ""),
+        )
+        hostile = (
+            merge_pr.CommandResult(0, "", ""),
+            merge_pr.CommandResult(
+                0,
+                json.dumps({"sha": "a" * 40}) + "\n" + json.dumps({"sha": "b" * 40}),
+                "",
+            ),
+            merge_pr.CommandResult(0, json.dumps({"sha": "malformed"}), ""),
+            ValueError("bounded subprocess output exceeded limit"),
+        )
+        for final in hostile:
+            with self.subTest(final=type(final).__name__):
+                side_effect = (*prefix, final)
+                with (
+                    mock.patch.object(
+                        repository_settings,
+                        "bounded_command",
+                        side_effect=side_effect,
+                    ) as command,
+                    self.assertRaisesRegex(
+                        ValueError,
+                        "response-invalid|identity is malformed|local-boundary",
+                    ),
+                ):
+                    repository_settings.apply("owner/repository")
+                self.assertEqual(command.call_count, 4)
+                for call in command.call_args_list:
+                    self.assertNotIn("--method", call.args)
+                projected = command.call_args_list[-1].args
+                self.assertIn("--jq", projected)
+                self.assertEqual(projected[projected.index("--jq") + 1], "{sha: .sha}")
 
     def test_portable_provenance_rejects_hostile_identity_and_api_data(self) -> None:
         for identity, diagnostic in (

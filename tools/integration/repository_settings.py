@@ -438,6 +438,8 @@ def provenance_status(repository: str, settings: dict[str, object]) -> str:
     if settings.get("default_branch") != "main":
         raise ValueError("repository default branch is not protected main")
     commit = api(
+        "--jq",
+        "{sha: .sha}",
         f"repos/{repository}/commits/main",
         operation="read",
         subject="protected-main-head",
