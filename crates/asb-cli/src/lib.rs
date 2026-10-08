@@ -1451,7 +1451,7 @@ fn guided_lifecycle_at(
     root: &Path,
 ) -> Result<u8, CliError> {
     let (requested_channel, yes, dry_run) = easy_channel(args)?;
-    let mut state = easy_state(&root)?;
+    let mut state = easy_state(root)?;
     let channel = if operation == "update" && args.iter().all(|a| !a.starts_with("--channel")) {
         state.active_channel.clone().unwrap_or(requested_channel)
     } else {
@@ -1505,7 +1505,7 @@ fn guided_lifecycle_at(
             );
             let digest = format!("{:x}", Sha256::digest(bytes.as_bytes()));
             state.artifact_sha256 = Some(digest.clone());
-            easy_write_state(&root, &state)?;
+            easy_write_state(root, &state)?;
             easy_lifecycle_output(
                 output,
                 operation,
@@ -1551,7 +1551,7 @@ fn guided_lifecycle_at(
             state.active_channel = Some(prior.clone());
             state.previous_channel = None;
             state.generation = state.generation.saturating_add(1);
-            easy_write_state(&root, &state)?;
+            easy_write_state(root, &state)?;
             easy_lifecycle_output(
                 output,
                 operation,
@@ -1567,7 +1567,7 @@ fn guided_lifecycle_at(
                 schema_version: 1,
                 ..Default::default()
             };
-            easy_write_state(&root, &state)?;
+            easy_write_state(root, &state)?;
             easy_lifecycle_output(
                 output,
                 operation,
