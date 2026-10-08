@@ -136,3 +136,9 @@ any provider host whose `NO_PROXY` scope would include OpenDesk's telemetry host
 is rejected. These environment
 controls are defense in depth, not a network sandbox. Strong network and
 filesystem containment remains the responsibility of the ASB sandbox layer.
+
+## Native easy lifecycle
+
+The dependency-free channel lifecycle (`asb easy build`, `install`, `update`,
+`test`, `status`, `rollback`, and `remove`) is documented in
+[`docs/EASY_LIFECYCLE.md`](docs/EASY_LIFECYCLE.md).
