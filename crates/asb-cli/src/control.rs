@@ -8928,6 +8928,7 @@ mod tests {
         ));
         drop(client);
         service.join().unwrap().unwrap();
+        drop(server);
         fs::remove_file(
             cassette_root
                 .join("cassettes")
