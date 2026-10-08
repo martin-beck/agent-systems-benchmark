@@ -10,7 +10,7 @@ GIT ?= git
 MAKE ?= make
 RUSTUP_TOOLCHAIN ?= 1.93.0
 TARGET ?= x86_64-unknown-linux-gnu
-PREFIX ?= $(CURDIR)/.make/install
+PREFIX ?= $(HOME)/.local
 CARGO_TARGET_DIR ?= $(CURDIR)/target
 
 .PHONY: help lifecycle check-deps build install clean update refresh-lock test
@@ -22,7 +22,7 @@ help:
 		'  make check-deps  Verify pinned Rust, target, and host tools (no installs)' \
 		'  make build       Build the locked workspace' \
 		'  make test        Run format, Clippy, tests, and rustdoc gates' \
-		'  make install     Install asb into PREFIX (default: .make/install)' \
+		'  make install     Install asb into PREFIX (default: $$HOME/.local/bin/asb)' \
 		'  make clean       Remove only Cargo target and marked Make staging data' \
 		'  make update      Fast-forward Git and validate Cargo.lock without changing it' \
 		'  make refresh-lock  Deliberately refresh Cargo.lock, then validate it (review changes)' \
@@ -51,20 +51,31 @@ build: check-deps
 
 install: check-deps
 	@set -eu; \
-	root=$$(pwd -P); case "$(PREFIX)" in /*) prefix=$(PREFIX);; *) prefix=$$root/$(PREFIX);; esac; \
-	[ -n "$$prefix" ] || { printf '%s\n' "ERROR: PREFIX must name a creatable directory." >&2; exit 1; }; \
-	[ "$$prefix" != / ] && [ "$$prefix" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe PREFIX (filesystem or repository root).' >&2; exit 1; }; \
-	case "$$prefix" in "$$root"/.make/*) ;; *) printf '%s\n' 'ERROR: PREFIX must be below the repository .make staging directory.' >&2; exit 1 ;; esac; \
+	root=$$(pwd -P); prefix="$(PREFIX)"; \
+	case "$$prefix" in /*) ;; *) printf '%s\n' 'ERROR: PREFIX must be an absolute path (for example $$HOME/.local).' >&2; exit 1 ;; esac; \
+	case "$$prefix" in *'/../'*|../*|*/..|..) printf '%s\n' 'ERROR: PREFIX must not contain parent-directory traversal.' >&2; exit 1 ;; esac; \
+	[ "$$prefix" != / ] && [ "$$prefix" != /.local ] && [ "$$prefix" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe PREFIX (filesystem or repository root).' >&2; exit 1; }; \
+	reject_symlink_chain() { path=$$1; rest=$${path#/}; current=/; while [ -n "$$rest" ]; do component=$${rest%%/*}; [ "$$rest" = "$$component" ] && rest= || rest=$${rest#*/}; current="$$current$$component"; [ ! -L "$$current" ] || { printf '%s\n' "ERROR: refusing symlink in PREFIX path: $$current" >&2; exit 1; }; [ ! -e "$$current" ] || [ -d "$$current" ] || { printf '%s\n' "ERROR: PREFIX path component is not a directory: $$current" >&2; exit 1; }; current="$$current/"; done; }; \
+	reject_symlink_chain "$$prefix"; \
 	mkdir -p -- "$$prefix"; \
+	reject_symlink_chain "$$prefix/bin"; \
+	[ ! -L "$$prefix/bin/asb" ] || { printf '%s\n' 'ERROR: refusing symlink at PREFIX/bin/asb.' >&2; exit 1; }; \
 	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" install --locked --path crates/asb-cli --root "$$prefix"; \
-	touch -- "$$prefix/.asb-make-staging"
+	touch -- "$$prefix/.asb-make-staging"; \
+	printf '%s\n' "Installed ASB at $$prefix/bin/asb"; \
+	case ":$${PATH:-}:" in *:"$$prefix/bin":*) ;; *) printf '%s\n' "Add $$prefix/bin to PATH to run asb." ;; esac
 
 clean:
 	@set -eu; \
 	root=$$(pwd -P); case "$(CARGO_TARGET_DIR)" in /*) target=$(CARGO_TARGET_DIR);; *) target=$$root/$(CARGO_TARGET_DIR);; esac; \
 	[ -n "$$target" ] && [ "$$target" != / ] && [ "$$target" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe CARGO_TARGET_DIR.' >&2; exit 1; }; \
 	case "$$target" in "$$root"/*|/tmp/*) ;; *) printf '%s\n' 'ERROR: CARGO_TARGET_DIR must be repository-local or under /tmp.' >&2; exit 1 ;; esac; \
-	if [ -d "$(PREFIX)" ] && [ -f "$(PREFIX)/.asb-make-staging" ]; then rm -rf -- "$(PREFIX)"; fi; \
+	prefix="$(PREFIX)"; case "$$prefix" in /*) ;; *) printf '%s\n' 'ERROR: PREFIX must be an absolute path.' >&2; exit 1 ;; esac; \
+	case "$$prefix" in *'/../'*|../*|*/..|..) printf '%s\n' 'ERROR: PREFIX must not contain parent-directory traversal.' >&2; exit 1 ;; esac; \
+	[ "$$prefix" != / ] && [ "$$prefix" != /.local ] && [ "$$prefix" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe PREFIX (filesystem or repository root).' >&2; exit 1; }; \
+	reject_symlink_chain() { path=$$1; rest=$${path#/}; current=/; while [ -n "$$rest" ]; do component=$${rest%%/*}; [ "$$rest" = "$$component" ] && rest= || rest=$${rest#*/}; current="$$current$$component"; [ ! -L "$$current" ] || { printf '%s\n' "ERROR: refusing symlink in PREFIX path: $$current" >&2; exit 1; }; [ ! -e "$$current" ] || [ -d "$$current" ] || { printf '%s\n' "ERROR: PREFIX path component is not a directory: $$current" >&2; exit 1; }; current="$$current/"; done; }; \
+	reject_symlink_chain "$$prefix"; \
+	if [ -f "$$prefix/.asb-make-staging" ]; then reject_symlink_chain "$$prefix/bin"; rm -f -- "$$prefix/bin/asb" "$$prefix/.asb-make-staging"; rmdir -- "$$prefix/bin" 2>/dev/null || :; fi; \
 	if [ "$$target" != "$$root/target" ] || [ -d "$$target" ]; then rm -rf -- "$$target"; fi
 
 update: check-deps

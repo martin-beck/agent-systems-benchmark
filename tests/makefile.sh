@@ -8,6 +8,8 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/asb-makefile-test.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT HUP INT TERM
 make -C "$root" help >/dev/null
 grep -F -- '.DEFAULT_GOAL := lifecycle' "$root/Makefile" >/dev/null
+grep -F -- 'PREFIX ?= $(HOME)/.local' "$root/Makefile" >/dev/null
+grep -F -- 'default: $$HOME/.local/bin/asb' "$root/Makefile" >/dev/null
 grep -F -- 'lifecycle: update build test install' "$root/Makefile" >/dev/null
 if grep -F -- 'lifecycle: install test build update' "$root/Makefile" >/dev/null; then
     printf '%s\n' 'lifecycle order is reversed' >&2
@@ -113,4 +115,82 @@ if FAKE_LOG="$tmp/log" FAKE_GIT_DIRTY=1 CARGO="$tmp/cargo" RUSTUP="$tmp/rustup" 
     exit 1
 fi
 test ! -s "$tmp/log"
+
+# Exercise the default user-local install and a safe explicit packaging prefix
+# with a bounded fake Cargo. No root privileges or real compilation are used.
+cat >"$tmp/install-cargo" <<'EOF'
+#!/bin/sh
+printf 'cargo %s\n' "$*" >>"$FAKE_LOG"
+case "$*" in
+    *' install '*)
+        root=
+        previous=
+        for arg in "$@"; do
+            if test "$previous" = '--root'; then root=$arg; fi
+            previous=$arg
+        done
+        test -n "$root"
+        mkdir -p "$root/bin"
+        printf '#!/bin/sh\n' >"$root/bin/asb"
+        chmod 755 "$root/bin/asb"
+        ;;
+    *) exit 2 ;;
+esac
+EOF
+chmod +x "$tmp/install-cargo"
+install_home="$tmp/home"
+mkdir -p "$install_home"
+: >"$tmp/log"
+HOME="$install_home" FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >"$tmp/install-out"
+test -x "$install_home/.local/bin/asb"
+test -f "$install_home/.local/.asb-make-staging"
+grep -F -- "Installed ASB at $install_home/.local/bin/asb" "$tmp/install-out" >/dev/null
+grep -F -- "--root $install_home/.local" "$tmp/log" >/dev/null
+
+explicit="$tmp/package-root"
+: >"$tmp/log"
+FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$explicit" \
+    make -C "$root" install >/dev/null
+test -x "$explicit/bin/asb"
+
+space_home="$tmp/home with space"
+mkdir -p "$space_home"
+HOME="$space_home" FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null
+test -x "$space_home/.local/bin/asb"
+
+symlink_prefix="$tmp/symlink-prefix"
+outside="$tmp/outside"
+mkdir -p "$symlink_prefix" "$outside"
+ln -s "$outside" "$symlink_prefix/bin"
+if PREFIX="$symlink_prefix" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked PREFIX/bin unexpectedly passed' >&2
+    exit 1
+fi
+test ! -e "$outside/asb"
+
+clean_prefix="$tmp/clean-symlink-prefix"
+mkdir -p "$clean_prefix" "$outside"
+ln -s "$outside" "$clean_prefix/bin"
+printf 'protected\n' >"$outside/asb"
+touch "$clean_prefix/.asb-make-staging"
+if PREFIX="$clean_prefix" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" clean >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked clean PREFIX/bin unexpectedly passed' >&2
+    exit 1
+fi
+test -f "$outside/asb"
+
+if PREFIX=relative-prefix CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'relative PREFIX unexpectedly passed' >&2
+    exit 1
+fi
+if PREFIX=/ CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'root PREFIX unexpectedly passed' >&2
+    exit 1
+fi
 printf '%s\n' 'repository Makefile checks passed'
