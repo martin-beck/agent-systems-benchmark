@@ -13,6 +13,7 @@ use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
     memfd_create, mkdirat, openat, renameat, unlinkat,
 };
+use rustix::io::{FdFlags, fcntl_getfd, fcntl_setfd};
 use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, getpgrp, kill_process_group, waitid};
 use rustix::termios::{tcgetpgrp, tcsetpgrp};
 use serde::{Deserialize, Serialize};
@@ -73,6 +74,8 @@ const DEV_LD_OVERRIDE: &str = "ASB_DEV_LD";
 const DEV_CARGO_HOME: &str = "CARGO_HOME";
 const DEV_RUSTUP_HOME: &str = "ASB_DEV_RUSTUP_HOME";
 const DEV_BUNDLE_OVERRIDE: &str = "ASB_TUI_DEV_BUNDLE";
+const GROUP_WRITABLE_RUSTUP_PATH_WARNING: &str =
+    "development_user_owned_group_writable_rustup_paths_allowed";
 mod build_identity {
     include!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
 }
@@ -159,6 +162,38 @@ impl Channel {
 struct RouterError {
     code: &'static str,
     exit_code: u8,
+}
+
+#[derive(Debug)]
+struct DevelopmentCargo {
+    path: PathBuf,
+    bound_file: Option<File>,
+    bound_rustup_bin: Option<File>,
+    group_writable_rustup_paths: bool,
+}
+
+#[derive(Debug)]
+struct DevelopmentTool {
+    path: PathBuf,
+    bound_file: Option<File>,
+}
+
+impl DevelopmentTool {
+    fn execution_path(&self) -> PathBuf {
+        self.bound_file
+            .as_ref()
+            .map(descriptor_path)
+            .unwrap_or_else(|| self.path.clone())
+    }
+}
+
+impl DevelopmentCargo {
+    fn execution_path(&self) -> PathBuf {
+        self.bound_file
+            .as_ref()
+            .map(descriptor_path)
+            .unwrap_or_else(|| self.path.clone())
+    }
 }
 
 impl RouterError {
@@ -882,7 +917,7 @@ fn preflight_development() -> Result<RouterResponse, RouterError> {
     resolve_development_tool_candidates(DEV_LD_OVERRIDE, &["/usr/bin/ld", "/usr/local/bin/ld"])?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
-    let _ = resolve_development_rustc(
+    let _ = resolve_development_rustc_bound(
         &cargo,
         rustup_home.as_deref(),
         std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
@@ -894,7 +929,9 @@ fn preflight_development() -> Result<RouterResponse, RouterError> {
         "denied",
     );
     response.classification = Some("host_ready");
-    response.warnings = Some(development_warnings());
+    response.warnings = Some(development_warnings_with_toolchain(
+        cargo.group_writable_rustup_paths,
+    ));
     Ok(response)
 }
 
@@ -1087,7 +1124,7 @@ fn materialize_development(
     )?;
     let rustup_home = resolve_development_rustup_home()?;
     let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
-    let rustc = resolve_development_rustc(
+    let rustc = resolve_development_rustc_bound(
         &cargo,
         rustup_home.as_deref(),
         std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
@@ -1178,6 +1215,8 @@ fn materialize_development(
         validate_development_source_commit(&commit, &checked_commit)?;
         let cargo_home = root.join("cargo-home");
         prepare_private_directory(&cargo_home)?;
+        let cargo_program = cargo.execution_path();
+        let rustc_program = rustc.as_ref().map(DevelopmentTool::execution_path);
         let mut build = Command::new(&setsid);
         build
             .env_clear()
@@ -1193,23 +1232,34 @@ fn materialize_development(
             )
             .current_dir(&source)
             .args(["--wait"])
-            .arg(&cargo)
+            .arg(&cargo_program)
             .args(["build", "--locked", "--release", "--bin", "asb-tui"]);
         apply_development_toolchain_environment(
             &mut build,
             rustup_home.as_deref(),
-            rustc.as_deref(),
+            rustc_program.as_deref(),
             Some(&cc),
             Some(&ar),
             Some(&ld),
         );
-        run_development_command_with_limits_and_roots(
+        let inherited_flags = make_toolchain_descriptors_inheritable(
+            cargo.bound_file.as_ref(),
+            rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
+        )?;
+        let build_result = run_development_command_with_limits_and_roots(
             build,
             &root,
             &[root.as_path(), target.as_path()],
             DEV_COMMAND_TIMEOUT,
             MAX_DEV_WORKSPACE_BYTES,
-        )?;
+        );
+        let restore_result = restore_toolchain_descriptor_flags(
+            cargo.bound_file.as_ref(),
+            rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
+            inherited_flags,
+        );
+        restore_result?;
+        build_result?;
         enforce_workspace_quota_for_roots(
             &[root.as_path(), target.as_path()],
             MAX_DEV_WORKSPACE_BYTES,
@@ -1268,7 +1318,9 @@ fn materialize_development(
             response.asb_source_commit = Some(asb_source_commit.to_owned());
             response.asb_source_tree = Some(asb_source_tree.to_owned());
             response.channel_manifest_sha256 = Some(channel_manifest_sha256);
-            response.warnings = Some(development_warnings());
+            response.warnings = Some(development_warnings_with_toolchain(
+                cargo.group_writable_rustup_paths,
+            ));
             return Ok(response);
         }
         publish_development_version(&paths.install_root, &executable_sha256, &bytes, &metadata)?;
@@ -1286,7 +1338,9 @@ fn materialize_development(
         response.asb_source_commit = Some(asb_source_commit.to_owned());
         response.asb_source_tree = Some(asb_source_tree.to_owned());
         response.channel_manifest_sha256 = Some(channel_manifest_sha256);
-        response.warnings = Some(development_warnings());
+        response.warnings = Some(development_warnings_with_toolchain(
+            cargo.group_writable_rustup_paths,
+        ));
         if options.launch {
             let launched = execute_development_existing(Operation::Launch, paths)?;
             if !launched.ok {
@@ -1489,6 +1543,14 @@ fn development_warnings() -> Vec<&'static str> {
         "development_missing_signatures_allowed",
         "development_missing_key_management_allowed",
     ]
+}
+
+fn development_warnings_with_toolchain(group_writable_rustup_paths: bool) -> Vec<&'static str> {
+    let mut warnings = development_warnings();
+    if group_writable_rustup_paths {
+        warnings.push(GROUP_WRITABLE_RUSTUP_PATH_WARNING);
+    }
+    warnings
 }
 
 fn read_development_channel_manifest(
@@ -3735,7 +3797,7 @@ fn resolve_development_tool_from(
 
 fn resolve_development_cargo_with_rustup(
     rustup_home: Option<&Path>,
-) -> Result<PathBuf, RouterError> {
+) -> Result<DevelopmentCargo, RouterError> {
     let override_path = std::env::var_os(DEV_CARGO_OVERRIDE);
     let home = std::env::var_os("HOME");
     let cargo_home = std::env::var_os(DEV_CARGO_HOME);
@@ -3805,44 +3867,163 @@ fn resolve_development_cargo_from_with_rustup(
     home: Option<&std::ffi::OsStr>,
     cargo_home: Option<&std::ffi::OsStr>,
     rustup_home: Option<&Path>,
-) -> Result<PathBuf, RouterError> {
+) -> Result<DevelopmentCargo, RouterError> {
     if let Some(value) = override_path {
         let candidate = PathBuf::from(value);
         let resolved = validate_development_tool(&candidate)
             .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
-        return resolve_rustup_proxy_cargo(&resolved, rustup_home);
+        let (path, bound_file, bound_rustup_bin, group_writable_rustup_paths) =
+            resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
+        return Ok(DevelopmentCargo {
+            path,
+            bound_file,
+            bound_rustup_bin,
+            group_writable_rustup_paths,
+        });
     }
 
     let mut candidates = Vec::new();
     if let Some(value) = cargo_home.map(PathBuf::from) {
-        candidates.push(value.join("bin/cargo"));
+        let conventional = home
+            .map(PathBuf::from)
+            .is_some_and(|home| value == home.join(".cargo"));
+        candidates.push((value.join("bin/cargo"), conventional));
     }
     if let Some(value) = home.map(PathBuf::from) {
-        candidates.push(value.join(".cargo/bin/cargo"));
+        candidates.push((value.join(".cargo/bin/cargo"), true));
     }
     candidates.extend([
-        PathBuf::from("/usr/bin/cargo"),
-        PathBuf::from("/usr/local/bin/cargo"),
+        (PathBuf::from("/usr/bin/cargo"), false),
+        (PathBuf::from("/usr/local/bin/cargo"), false),
     ]);
-    for candidate in candidates {
-        if let Ok(resolved) = validate_development_tool(&candidate) {
-            return resolve_rustup_proxy_cargo(&resolved, rustup_home);
+    for (candidate, allow_group_writable_shim) in candidates {
+        let strict_error = match validate_development_tool(&candidate) {
+            Ok(resolved) => {
+                let (path, bound_file, bound_rustup_bin, group_writable_rustup_paths) =
+                    resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
+                return Ok(DevelopmentCargo {
+                    path,
+                    bound_file,
+                    bound_rustup_bin,
+                    group_writable_rustup_paths,
+                });
+            }
+            Err(error) if error.code == "trusted_tool_unavailable" => continue,
+            Err(error) => error,
+        };
+        if !allow_group_writable_shim {
+            return Err(strict_error);
+        }
+        match validate_group_writable_rustup_shim(&candidate) {
+            Ok(Some(resolved)) => {
+                let (path, bound_file, bound_rustup_bin, _) =
+                    resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
+                return Ok(DevelopmentCargo {
+                    path,
+                    bound_file,
+                    bound_rustup_bin,
+                    group_writable_rustup_paths: true,
+                });
+            }
+            Ok(None) => return Err(strict_error),
+            Err(error) if error.code == "trusted_tool_unavailable" => continue,
+            Err(error) => return Err(error),
         }
     }
     Err(RouterError::operation("trusted_tool_unavailable"))
 }
 
+/// Accept the conventional `~/.cargo/bin/cargo -> rustup` shim only when the
+/// sole strict-policy violation is group write on its current-user-owned
+/// `.cargo` and/or `bin` ancestors. The resolved rustup binary remains a
+/// current-user-owned, non-symlink, non-writable executable at the exact
+/// sibling path.
+fn validate_group_writable_rustup_shim(path: &Path) -> Result<Option<PathBuf>, RouterError> {
+    if !safe_absolute(path)
+        || path.file_name() != Some(std::ffi::OsStr::new("cargo"))
+        || path.parent().and_then(Path::file_name) != Some(std::ffi::OsStr::new("bin"))
+        || path
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::file_name)
+            != Some(std::ffi::OsStr::new(".cargo"))
+    {
+        return Ok(None);
+    }
+    let uid = rustix::process::geteuid().as_raw();
+    validate_rustup_shim_parent_chain(path, uid)?;
+    let link_metadata = fs::symlink_metadata(path)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !link_metadata.file_type().is_symlink() || link_metadata.uid() != uid {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let resolved =
+        fs::canonicalize(path).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let expected_rustup = path
+        .parent()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?
+        .join("rustup");
+    if resolved != expected_rustup {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let metadata = fs::symlink_metadata(&resolved)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.uid() != uid
+        || metadata.mode() & 0o022 != 0
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    Ok(Some(resolved))
+}
+
+fn validate_rustup_shim_parent_chain(path: &Path, uid: u32) -> Result<(), RouterError> {
+    let cargo_root = path
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    let shim_bin = path
+        .parent()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    let mut current = PathBuf::from("/");
+    let parent = path
+        .parent()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    for component in parent.components() {
+        if let Component::Normal(name) = component {
+            current.push(name);
+            let metadata = fs::symlink_metadata(&current)
+                .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+            let allow_group_write = current == cargo_root || current == shim_bin;
+            if !trusted_owner_and_mode(metadata.uid(), metadata.mode(), uid, allow_group_write)
+                || !metadata.is_dir()
+                || metadata.file_type().is_symlink()
+            {
+                return Err(RouterError::policy("trusted_tool_invalid"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn trusted_owner_and_mode(owner: u32, mode: u32, uid: u32, allow_group_write: bool) -> bool {
+    (owner == 0 || owner == uid)
+        && mode & 0o002 == 0
+        && (mode & 0o020 == 0 || (allow_group_write && owner == uid))
+}
+
 fn resolve_rustup_proxy_cargo(
     resolved: &Path,
     rustup_home: Option<&Path>,
-) -> Result<PathBuf, RouterError> {
+) -> Result<(PathBuf, Option<File>, Option<File>, bool), RouterError> {
     if resolved.file_name() != Some(std::ffi::OsStr::new("rustup")) {
-        return Ok(resolved.to_path_buf());
+        return Ok((resolved.to_path_buf(), None, None, false));
     }
     let Some(rustup_home) = rustup_home else {
         return Err(RouterError::operation("trusted_tool_unavailable"));
     };
-    let settings = read_bounded(&rustup_home.join("settings.toml"), 64 * 1024)
+    let (settings, settings_group_writable) = read_development_rustup_settings(rustup_home)
         .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
     let settings =
         std::str::from_utf8(&settings).map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
@@ -3867,8 +4048,144 @@ fn resolve_rustup_proxy_cargo(
         .join("toolchains")
         .join(toolchain)
         .join("bin/cargo");
-    validate_development_tool(&cargo)
-        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))
+    let (cargo, file, bin, toolchain_group_writable) =
+        validate_development_rustup_tool(&cargo, rustup_home)?;
+    Ok((
+        cargo,
+        Some(file),
+        Some(bin),
+        settings_group_writable || toolchain_group_writable,
+    ))
+}
+
+fn read_development_rustup_settings(rustup_home: &Path) -> Result<(Vec<u8>, bool), RouterError> {
+    let uid = rustix::process::geteuid().as_raw();
+    let directory_metadata = fs::symlink_metadata(rustup_home)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let directory =
+        File::open(rustup_home).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let opened_directory = directory
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !opened_directory.is_dir()
+        || directory_metadata.dev() != opened_directory.dev()
+        || directory_metadata.ino() != opened_directory.ino()
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let file = openat(
+        &directory,
+        "settings.toml",
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !metadata.is_file()
+        || metadata.uid() != uid
+        || metadata.mode() & 0o002 != 0
+        || metadata.len() > 64 * 1024
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let group_writable = metadata.mode() & 0o020 != 0;
+    let mut bytes = Vec::new();
+    file.take(64 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+    if bytes.len() > 64 * 1024 {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    Ok((bytes, group_writable))
+}
+
+fn validate_development_rustup_tool(
+    path: &Path,
+    rustup_home: &Path,
+) -> Result<(PathBuf, File, File, bool), RouterError> {
+    if !safe_absolute(path) || !safe_absolute(rustup_home) {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let rustup_root = fs::canonicalize(rustup_home)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let resolved = path.to_path_buf();
+    if resolved != path || !resolved.starts_with(rustup_root.join("toolchains")) {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let relative = resolved
+        .strip_prefix(&rustup_root)
+        .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+    let components = relative.components().collect::<Vec<_>>();
+    if components.len() != 4
+        || components[0].as_os_str() != "toolchains"
+        || !matches!(components[1], Component::Normal(_))
+        || components[2].as_os_str() != "bin"
+        || !matches!(components[3].as_os_str().to_str(), Some("cargo" | "rustc"))
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let uid = rustix::process::geteuid().as_raw();
+    let root_link_metadata = fs::symlink_metadata(&rustup_root)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let mut directory =
+        File::open(&rustup_root).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let root_metadata = directory
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !root_metadata.is_dir()
+        || root_link_metadata.file_type().is_symlink()
+        || root_link_metadata.dev() != root_metadata.dev()
+        || root_link_metadata.ino() != root_metadata.ino()
+        || !trusted_owner_and_mode(root_metadata.uid(), root_metadata.mode(), uid, false)
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let mut group_writable = false;
+    for component in [&components[0], &components[1], &components[2]] {
+        let next = openat(
+            &directory,
+            component.as_os_str(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map(File::from)
+        .map_err(classify_trusted_tool_open_error)?;
+        let metadata = next
+            .metadata()
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !metadata.is_dir() || !trusted_owner_and_mode(metadata.uid(), metadata.mode(), uid, true)
+        {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        group_writable |= metadata.mode() & 0o020 != 0;
+        directory = next;
+    }
+    let file = openat(
+        &directory,
+        components[3].as_os_str(),
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(classify_trusted_tool_open_error)?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if !metadata.is_file() || metadata.uid() != uid || metadata.mode() & 0o022 != 0 {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    Ok((resolved, file, directory, group_writable))
+}
+
+fn classify_trusted_tool_open_error(error: rustix::io::Errno) -> RouterError {
+    if error == rustix::io::Errno::NOENT {
+        RouterError::operation("trusted_tool_unavailable")
+    } else {
+        RouterError::policy("trusted_tool_invalid")
+    }
 }
 
 fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Path>) {
@@ -3877,16 +4194,52 @@ fn apply_development_rustup_home(command: &mut Command, rustup_home: Option<&Pat
     }
 }
 
+#[cfg(test)]
 fn resolve_development_rustc(
     cargo: &Path,
     rustup_home: Option<&Path>,
     direct_override: bool,
 ) -> Result<Option<PathBuf>, RouterError> {
+    let cargo = DevelopmentCargo {
+        path: cargo.to_path_buf(),
+        bound_file: None,
+        bound_rustup_bin: None,
+        group_writable_rustup_paths: false,
+    };
+    Ok(
+        resolve_development_rustc_bound(&cargo, rustup_home, direct_override)?
+            .map(|tool| tool.path),
+    )
+}
+
+fn resolve_development_rustc_bound(
+    cargo: &DevelopmentCargo,
+    rustup_home: Option<&Path>,
+    direct_override: bool,
+) -> Result<Option<DevelopmentTool>, RouterError> {
     if rustup_home.is_none() && !direct_override {
         return Ok(None);
     }
-    let resolved =
-        fs::canonicalize(cargo).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if let Some(bin) = cargo.bound_rustup_bin.as_ref() {
+        if cargo.bound_file.is_none()
+            || cargo.path.file_name() != Some(std::ffi::OsStr::new("cargo"))
+            || cargo.path.parent().and_then(Path::file_name) != Some(std::ffi::OsStr::new("bin"))
+        {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        let path = cargo
+            .path
+            .parent()
+            .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?
+            .join("rustc");
+        let file = open_validated_development_rustup_tool_at(bin, "rustc")?;
+        return Ok(Some(DevelopmentTool {
+            path,
+            bound_file: Some(file),
+        }));
+    }
+    let resolved = fs::canonicalize(&cargo.path)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
     if resolved.file_name() != Some(std::ffi::OsStr::new("cargo")) {
         return Ok(None);
     }
@@ -3902,8 +4255,86 @@ fn resolve_development_rustc(
         .filter(|path| path.file_name() == Some(std::ffi::OsStr::new("bin")))
         .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
     let rustc = bin.join("rustc");
-    validate_development_tool(&rustc)?;
-    Ok(Some(rustc))
+    if let Some(rustup_home) = rustup_home {
+        let (path, file, _, _) = validate_development_rustup_tool(&rustc, rustup_home)?;
+        Ok(Some(DevelopmentTool {
+            path,
+            bound_file: Some(file),
+        }))
+    } else {
+        let path = validate_development_tool(&rustc)?;
+        Ok(Some(DevelopmentTool {
+            path,
+            bound_file: None,
+        }))
+    }
+}
+
+fn open_validated_development_rustup_tool_at(bin: &File, name: &str) -> Result<File, RouterError> {
+    let file = openat(
+        bin,
+        name,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(classify_trusted_tool_open_error)?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let uid = rustix::process::geteuid().as_raw();
+    if !metadata.is_file() || metadata.uid() != uid || metadata.mode() & 0o022 != 0 {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    Ok(file)
+}
+
+fn descriptor_path(file: &File) -> PathBuf {
+    PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd()))
+}
+
+fn make_descriptor_inheritable(file: &File) -> Result<FdFlags, RouterError> {
+    let flags =
+        fcntl_getfd(file).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    fcntl_setfd(file, flags - FdFlags::CLOEXEC)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    Ok(flags)
+}
+
+fn restore_descriptor_flags(file: &File, flags: FdFlags) -> Result<(), RouterError> {
+    fcntl_setfd(file, flags).map_err(|_| RouterError::operation("trusted_tool_unavailable"))
+}
+
+fn make_toolchain_descriptors_inheritable(
+    cargo: Option<&File>,
+    rustc: Option<&File>,
+) -> Result<(Option<FdFlags>, Option<FdFlags>), RouterError> {
+    let cargo_flags = cargo.map(make_descriptor_inheritable).transpose()?;
+    match rustc.map(make_descriptor_inheritable).transpose() {
+        Ok(rustc_flags) => Ok((cargo_flags, rustc_flags)),
+        Err(error) => {
+            if let (Some(file), Some(flags)) = (cargo, cargo_flags) {
+                let _ = restore_descriptor_flags(file, flags);
+            }
+            Err(error)
+        }
+    }
+}
+
+fn restore_toolchain_descriptor_flags(
+    cargo: Option<&File>,
+    rustc: Option<&File>,
+    flags: (Option<FdFlags>, Option<FdFlags>),
+) -> Result<(), RouterError> {
+    let rustc_result = match (rustc, flags.1) {
+        (Some(file), Some(flags)) => restore_descriptor_flags(file, flags),
+        _ => Ok(()),
+    };
+    let cargo_result = match (cargo, flags.0) {
+        (Some(file), Some(flags)) => restore_descriptor_flags(file, flags),
+        _ => Ok(()),
+    };
+    rustc_result.and(cargo_result)
 }
 
 fn apply_development_toolchain_environment(
@@ -5533,7 +5964,8 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(resolved, fs::canonicalize(cargo).unwrap());
+        assert_eq!(resolved.path, fs::canonicalize(cargo).unwrap());
+        assert!(!resolved.group_writable_rustup_paths);
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -5675,6 +6107,11 @@ mod tests {
             b"version = \"12\"\ndefault_toolchain = \"fixture-toolchain\"\n",
         )
         .unwrap();
+        fs::set_permissions(
+            root.join("settings.toml"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
         let proxy = root.join("bin/rustup");
         prepare_private_directory(proxy.parent().unwrap()).unwrap();
         fs::write(&proxy, b"rustup proxy").unwrap();
@@ -5699,18 +6136,396 @@ mod tests {
             Some(&root),
         )
         .unwrap();
-        assert_eq!(resolved, cargo);
+        assert_eq!(resolved.path, cargo);
+        assert!(!resolved.group_writable_rustup_paths);
         assert_eq!(
-            resolve_development_rustc(&resolved, Some(&root), false).unwrap(),
+            resolve_development_rustc(&resolved.path, Some(&root), false).unwrap(),
             Some(cargo.parent().unwrap().join("rustc"))
         );
         assert_eq!(
-            resolve_development_rustc(&resolved, None, false).unwrap(),
+            resolve_development_rustc(&resolved.path, None, false).unwrap(),
             None
         );
         assert_eq!(
-            resolve_development_rustc(&resolved, None, true).unwrap(),
+            resolve_development_rustc(&resolved.path, None, true).unwrap(),
             Some(cargo.parent().unwrap().join("rustc"))
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_cargo_accepts_user_owned_group_writable_rustup_shim_with_warning() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1726-rustup-shim-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let home = root.join("home");
+        let cargo_root = home.join(".cargo");
+        let shim_bin = cargo_root.join("bin");
+        prepare_private_directory(&home).unwrap();
+        prepare_private_directory(&cargo_root).unwrap();
+        prepare_private_directory(&shim_bin).unwrap();
+        fs::set_permissions(&cargo_root, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(&shim_bin, fs::Permissions::from_mode(0o775)).unwrap();
+
+        let proxy = shim_bin.join("rustup");
+        fs::write(&proxy, b"rustup proxy").unwrap();
+        fs::set_permissions(&proxy, fs::Permissions::from_mode(0o700)).unwrap();
+        std::os::unix::fs::symlink(&proxy, shim_bin.join("cargo")).unwrap();
+
+        let rustup_home = root.join("rustup");
+        prepare_private_directory(&rustup_home).unwrap();
+        fs::write(
+            rustup_home.join("settings.toml"),
+            b"version = \"12\"\ndefault_toolchain = \"fixture-toolchain\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(
+            rustup_home.join("settings.toml"),
+            fs::Permissions::from_mode(0o664),
+        )
+        .unwrap();
+        let toolchain_bin = rustup_home.join("toolchains/fixture-toolchain/bin");
+        prepare_private_directory(&toolchain_bin).unwrap();
+        fs::set_permissions(
+            rustup_home.join("toolchains/fixture-toolchain"),
+            fs::Permissions::from_mode(0o775),
+        )
+        .unwrap();
+        fs::set_permissions(&toolchain_bin, fs::Permissions::from_mode(0o775)).unwrap();
+        let cargo = toolchain_bin.join("cargo");
+        let rustc = toolchain_bin.join("rustc");
+        fs::write(&cargo, b"toolchain cargo").unwrap();
+        fs::write(&rustc, b"toolchain rustc").unwrap();
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            validate_development_tool(&cargo).unwrap_err().code,
+            "trusted_tool_invalid"
+        );
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(
+                Some(shim_bin.join("cargo").as_os_str()),
+                None,
+                None,
+                Some(&rustup_home),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        let cargo_home_resolved = resolve_development_cargo_from_with_rustup(
+            None,
+            Some(home.as_os_str()),
+            Some(cargo_root.as_os_str()),
+            Some(&rustup_home),
+        )
+        .unwrap();
+        assert_eq!(cargo_home_resolved.path, cargo);
+        assert!(cargo_home_resolved.group_writable_rustup_paths);
+
+        let resolved = resolve_development_cargo_from_with_rustup(
+            None,
+            Some(home.as_os_str()),
+            None,
+            Some(&rustup_home),
+        )
+        .unwrap();
+        assert_eq!(resolved.path, cargo);
+        assert!(resolved.group_writable_rustup_paths);
+        assert_eq!(
+            resolve_development_rustc(&resolved.path, Some(&rustup_home), false).unwrap(),
+            Some(rustc)
+        );
+
+        let mut response = RouterResponse::result(
+            Operation::Preflight,
+            true,
+            "development_host_ready",
+            "denied",
+        );
+        response.warnings = Some(development_warnings_with_toolchain(
+            resolved.group_writable_rustup_paths,
+        ));
+        let json = serde_json::to_vec(&response).unwrap();
+        assert!(String::from_utf8_lossy(&json).contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
+        let mut human = Vec::new();
+        crate::render_human(&json, &mut human).unwrap();
+        assert!(String::from_utf8_lossy(&human).contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_tools_execute_validated_objects_after_path_replacement() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1726-object-binding-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let bin = root.join("toolchains/fixture-toolchain/bin");
+        prepare_private_directory(&bin).unwrap();
+        fs::set_permissions(
+            root.join("toolchains/fixture-toolchain"),
+            fs::Permissions::from_mode(0o775),
+        )
+        .unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o775)).unwrap();
+        let cargo_path = bin.join("cargo");
+        let rustc_path = bin.join("rustc");
+        fs::write(&cargo_path, b"#!/bin/sh\nexec \"$RUSTC\"\n").unwrap();
+        fs::write(&rustc_path, b"#!/bin/sh\nprintf validated-rustc\n").unwrap();
+        fs::set_permissions(&cargo_path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc_path, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let (cargo_display, cargo_file, _, cargo_warning) =
+            validate_development_rustup_tool(&cargo_path, &root).unwrap();
+        let (rustc_display, rustc_file, _, rustc_warning) =
+            validate_development_rustup_tool(&rustc_path, &root).unwrap();
+        assert_eq!(cargo_display, cargo_path);
+        assert_eq!(rustc_display, rustc_path);
+        assert!(cargo_warning && rustc_warning);
+        let cargo_descriptor = descriptor_path(&cargo_file);
+        let rustc_descriptor = descriptor_path(&rustc_file);
+
+        fs::rename(&cargo_path, bin.join("validated-cargo")).unwrap();
+        fs::rename(&rustc_path, bin.join("validated-rustc")).unwrap();
+        fs::write(&cargo_path, b"#!/bin/sh\nprintf substituted-cargo\n").unwrap();
+        fs::write(&rustc_path, b"#!/bin/sh\nprintf substituted-rustc\n").unwrap();
+        fs::set_permissions(&cargo_path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc_path, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let inherited =
+            make_toolchain_descriptors_inheritable(Some(&cargo_file), Some(&rustc_file)).unwrap();
+        let output = Command::new(DEV_SETSID)
+            .env_clear()
+            .env("RUSTC", &rustc_descriptor)
+            .args(["--wait"])
+            .arg(&cargo_descriptor)
+            .output()
+            .unwrap();
+        restore_toolchain_descriptor_flags(Some(&cargo_file), Some(&rustc_file), inherited)
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"validated-rustc");
+        assert!(fcntl_getfd(&cargo_file).unwrap().contains(FdFlags::CLOEXEC));
+        assert!(fcntl_getfd(&rustc_file).unwrap().contains(FdFlags::CLOEXEC));
+
+        drop(cargo_file);
+        drop(rustc_file);
+        assert!(!cargo_descriptor.exists());
+        assert!(!rustc_descriptor.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_rustup_cargo_and_rustc_remain_bound_to_one_toolchain() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!(
+                "asb-ar1726-toolchain-pairing-{}",
+                std::process::id()
+            ));
+        prepare_private_directory(&root).unwrap();
+        let toolchains = root.join("toolchains");
+        let selected = toolchains.join("selected-toolchain");
+        let retained = toolchains.join("retained-toolchain");
+        let alternate = toolchains.join("alternate-toolchain");
+        let selected_bin = selected.join("bin");
+        let alternate_bin = alternate.join("bin");
+        prepare_private_directory(&selected_bin).unwrap();
+        prepare_private_directory(&alternate_bin).unwrap();
+        for directory in [
+            &toolchains,
+            &selected,
+            &selected_bin,
+            &alternate,
+            &alternate_bin,
+        ] {
+            fs::set_permissions(directory, fs::Permissions::from_mode(0o775)).unwrap();
+        }
+        let selected_cargo = selected_bin.join("cargo");
+        fs::write(&selected_cargo, b"#!/bin/sh\nexec \"$RUSTC\"\n").unwrap();
+        fs::set_permissions(&selected_cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        let alternate_cargo = alternate_bin.join("cargo");
+        let alternate_rustc = alternate_bin.join("rustc");
+        fs::write(&alternate_cargo, b"#!/bin/sh\nprintf alternate-cargo\n").unwrap();
+        fs::write(&alternate_rustc, b"#!/bin/sh\nprintf alternate-rustc\n").unwrap();
+        fs::set_permissions(&alternate_cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&alternate_rustc, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let (cargo_path, cargo_file, cargo_bin, cargo_warning) =
+            validate_development_rustup_tool(&selected_cargo, &root).unwrap();
+        assert!(cargo_warning);
+        let cargo = DevelopmentCargo {
+            path: cargo_path,
+            bound_file: Some(cargo_file),
+            bound_rustup_bin: Some(cargo_bin),
+            group_writable_rustup_paths: true,
+        };
+        let cargo_descriptor = cargo.execution_path();
+        assert!(
+            fcntl_getfd(cargo.bound_file.as_ref().unwrap())
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+
+        fs::rename(&selected, &retained).unwrap();
+        std::os::unix::fs::symlink(&alternate, &selected).unwrap();
+        assert_eq!(
+            resolve_development_rustc_bound(&cargo, Some(&root), false)
+                .unwrap_err()
+                .code,
+            "trusted_tool_unavailable"
+        );
+        assert!(cargo_descriptor.exists());
+        assert!(
+            fcntl_getfd(cargo.bound_file.as_ref().unwrap())
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+
+        let retained_rustc = retained.join("bin/rustc");
+        std::os::unix::fs::symlink(&alternate_rustc, &retained_rustc).unwrap();
+        assert_eq!(
+            resolve_development_rustc_bound(&cargo, Some(&root), false)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_file(&retained_rustc).unwrap();
+        fs::write(&retained_rustc, b"#!/bin/sh\nprintf selected-rustc\n").unwrap();
+        fs::set_permissions(&retained_rustc, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let rustc = resolve_development_rustc_bound(&cargo, Some(&root), false)
+            .unwrap()
+            .unwrap();
+        let rustc_descriptor = rustc.execution_path();
+        let inherited = make_toolchain_descriptors_inheritable(
+            cargo.bound_file.as_ref(),
+            rustc.bound_file.as_ref(),
+        )
+        .unwrap();
+        let output = Command::new(DEV_SETSID)
+            .env_clear()
+            .env("RUSTC", &rustc_descriptor)
+            .args(["--wait"])
+            .arg(&cargo_descriptor)
+            .output()
+            .unwrap();
+        restore_toolchain_descriptor_flags(
+            cargo.bound_file.as_ref(),
+            rustc.bound_file.as_ref(),
+            inherited,
+        )
+        .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"selected-rustc");
+        assert!(
+            fcntl_getfd(cargo.bound_file.as_ref().unwrap())
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+        assert!(
+            fcntl_getfd(rustc.bound_file.as_ref().unwrap())
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+
+        let cargo_identity = cargo.bound_file.as_ref().unwrap().metadata().unwrap();
+        let rustc_identity = rustc.bound_file.as_ref().unwrap().metadata().unwrap();
+        drop(rustc);
+        drop(cargo);
+        for (descriptor, identity) in [
+            (&cargo_descriptor, cargo_identity),
+            (&rustc_descriptor, rustc_identity),
+        ] {
+            if let Ok(reused) = fs::metadata(descriptor) {
+                assert_ne!(
+                    (reused.dev(), reused.ino()),
+                    (identity.dev(), identity.ino())
+                );
+            }
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_group_writable_rustup_shim_keeps_hostile_paths_fail_closed() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1726-hostile-shim-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let cargo_root = root.join("home/.cargo");
+        let shim_bin = cargo_root.join("bin");
+        prepare_private_directory(&shim_bin).unwrap();
+        fs::set_permissions(&cargo_root, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(&shim_bin, fs::Permissions::from_mode(0o775)).unwrap();
+        let proxy = shim_bin.join("rustup");
+        fs::write(&proxy, b"rustup").unwrap();
+        fs::set_permissions(&proxy, fs::Permissions::from_mode(0o700)).unwrap();
+        let shim = shim_bin.join("cargo");
+        std::os::unix::fs::symlink(&proxy, &shim).unwrap();
+
+        fs::set_permissions(&cargo_root, fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            validate_group_writable_rustup_shim(&shim).unwrap_err().code,
+            "trusted_tool_invalid"
+        );
+        fs::set_permissions(&cargo_root, fs::Permissions::from_mode(0o775)).unwrap();
+
+        fs::remove_file(&shim).unwrap();
+        let escaped = root.join("escaped-rustup");
+        fs::write(&escaped, b"rustup").unwrap();
+        fs::set_permissions(&escaped, fs::Permissions::from_mode(0o700)).unwrap();
+        std::os::unix::fs::symlink(&escaped, &shim).unwrap();
+        assert_eq!(
+            validate_group_writable_rustup_shim(&shim).unwrap_err().code,
+            "trusted_tool_invalid"
+        );
+
+        fs::remove_file(&shim).unwrap();
+        fs::write(&shim, b"substituted cargo").unwrap();
+        fs::set_permissions(&shim, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            validate_group_writable_rustup_shim(&shim).unwrap_err().code,
+            "trusted_tool_invalid"
+        );
+
+        assert!(!trusted_owner_and_mode(1234, 0o755, 5678, true));
+        assert!(!trusted_owner_and_mode(5678, 0o757, 5678, true));
+        assert!(trusted_owner_and_mode(5678, 0o775, 5678, true));
+        assert!(!trusted_owner_and_mode(5678, 0o775, 5678, false));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_group_writable_rustup_shim_rejects_symlinked_parent() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!(
+                "asb-ar1726-parent-substitution-{}",
+                std::process::id()
+            ));
+        prepare_private_directory(&root).unwrap();
+        let home = root.join("home");
+        let real_cargo = root.join("real-cargo");
+        prepare_private_directory(&home).unwrap();
+        prepare_private_directory(&real_cargo.join("bin")).unwrap();
+        fs::set_permissions(&real_cargo, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::set_permissions(real_cargo.join("bin"), fs::Permissions::from_mode(0o775)).unwrap();
+        std::os::unix::fs::symlink(&real_cargo, home.join(".cargo")).unwrap();
+        let proxy = root.join("rustup");
+        fs::write(&proxy, b"rustup").unwrap();
+        fs::set_permissions(&proxy, fs::Permissions::from_mode(0o700)).unwrap();
+        let shim = home.join(".cargo/bin/cargo");
+        std::os::unix::fs::symlink(&proxy, &shim).unwrap();
+        assert_eq!(
+            validate_group_writable_rustup_shim(&shim).unwrap_err().code,
+            "trusted_tool_invalid"
         );
         fs::remove_dir_all(root).unwrap();
     }
@@ -5738,6 +6553,62 @@ mod tests {
             "trusted_tool_invalid"
         );
         fs::write(root.join("settings.toml"), vec![b'x'; 64 * 1024 + 1]).unwrap();
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(
+                Some(proxy.as_os_str()),
+                None,
+                None,
+                Some(&root),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        fs::write(
+            root.join("settings.toml"),
+            b"version = \"12\"\ndefault_toolchain = \"fixture-toolchain\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(
+            root.join("settings.toml"),
+            fs::Permissions::from_mode(0o666),
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(
+                Some(proxy.as_os_str()),
+                None,
+                None,
+                Some(&root),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        fs::write(
+            root.join("settings.toml"),
+            b"version = \"12\"\ndefault_toolchain = \"../escape\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_development_cargo_from_with_rustup(
+                Some(proxy.as_os_str()),
+                None,
+                None,
+                Some(&root),
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_file(root.join("settings.toml")).unwrap();
+        let substituted_settings = root.join("substituted-settings.toml");
+        fs::write(
+            &substituted_settings,
+            b"version = \"12\"\ndefault_toolchain = \"fixture-toolchain\"\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&substituted_settings, root.join("settings.toml")).unwrap();
         assert_eq!(
             resolve_development_cargo_from_with_rustup(
                 Some(proxy.as_os_str()),
