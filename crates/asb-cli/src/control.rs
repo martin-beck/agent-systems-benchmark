@@ -6803,7 +6803,11 @@ mod tests {
 
         let socket = scratch.0.join("measurement-catalog.sock");
         let mut server = ControlServer::bind(&socket, ControlLimits::default(), backend).unwrap();
-        let service = thread::spawn(move || server.serve_one());
+        let service = thread::spawn(move || {
+            let result = server.serve_one();
+            drop(server);
+            result
+        });
         let mut client = asb_control::ControlClient::connect_with_versions(
             &socket,
             ControlLimits::default(),

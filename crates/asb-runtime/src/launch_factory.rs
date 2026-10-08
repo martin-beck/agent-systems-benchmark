@@ -991,10 +991,14 @@ mod tests {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    };
     use std::time::Duration;
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    static DEVELOPMENT_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn test_backend() -> SandboxBackend {
         let pin = |path: &str| ToolPin::new(PathBuf::from(path), "test".into()).unwrap();
@@ -1276,6 +1280,7 @@ mod tests {
 
     #[test]
     fn development_fixture_cleans_root_on_success_or_failure() {
+        let _guard = DEVELOPMENT_FIXTURE_TEST_LOCK.lock().unwrap();
         let before = development_fixture_roots();
         let digest = "d".repeat(64);
         if let Ok(authority) = LocalReplayProvisioner::development_fixture(&digest) {
@@ -1287,6 +1292,7 @@ mod tests {
 
     #[test]
     fn development_fixture_rejects_invalid_digest_before_allocating_root() {
+        let _guard = DEVELOPMENT_FIXTURE_TEST_LOCK.lock().unwrap();
         let before = development_fixture_roots();
         assert!(matches!(
             LocalReplayProvisioner::development_fixture("not-a-digest"),

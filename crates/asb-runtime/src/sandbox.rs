@@ -1480,11 +1480,12 @@ mod tests {
     }
 
     fn scratch(name: &str) -> ScratchPath {
-        let base = resolve_target_root(
-            std::env::var_os("CARGO_TARGET_DIR"),
-            &std::env::current_dir().unwrap(),
-        );
         let sequence = SCRATCH_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        // Test fixtures must stay outside Cargo's build target, even when the
+        // Makefile exports CARGO_TARGET_DIR to the test process. Keeping the
+        // fixture root independent prevents tests from treating build output as
+        // scratch state and preserves the external-root contract.
+        let base = std::env::temp_dir();
         ScratchPath(base.join(format!(
             "asb-sandbox-{name}-{}-{sequence}",
             std::process::id()

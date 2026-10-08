@@ -132,7 +132,13 @@ fn target_root() -> PathBuf {
 
 fn test_root(name: &str) -> TestRoot {
     let sequence = HELPER_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let path = target_root().join(format!("sandbox-{name}-{}-{sequence}", std::process::id()));
+    // Fixture roots must not inherit CARGO_TARGET_DIR: long checkout paths can
+    // push Unix-domain socket names past SUN_LEN, and build output is not
+    // scratch state. Keep target_root() for the path-resolution tests only.
+    let path = env::temp_dir().join(format!(
+        "asb-sandbox-{name}-{}-{sequence}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&path);
     fs::create_dir_all(path.join("work")).unwrap();
     fs::create_dir(path.join("leases")).unwrap();
