@@ -13,7 +13,7 @@ TARGET ?= x86_64-unknown-linux-gnu
 PREFIX ?= $(CURDIR)/.make/install
 CARGO_TARGET_DIR ?= $(CURDIR)/target
 
-.PHONY: help lifecycle check-deps build install clean update test
+.PHONY: help lifecycle check-deps build install clean update refresh-lock test
 
 help:
 	@printf '%s\n' \
@@ -24,7 +24,8 @@ help:
 		'  make test        Run format, Clippy, tests, and rustdoc gates' \
 		'  make install     Install asb into PREFIX (default: .make/install)' \
 		'  make clean       Remove only Cargo target and marked Make staging data' \
-		'  make update      Fast-forward Git and validate the locked dependency set' \
+		'  make update      Fast-forward Git and validate Cargo.lock without changing it' \
+		'  make refresh-lock  Deliberately refresh Cargo.lock, then validate it (review changes)' \
 		'' \
 		'Overrides: CARGO, RUSTUP, GIT, RUSTUP_TOOLCHAIN, TARGET, PREFIX, CARGO_TARGET_DIR'
 
@@ -70,7 +71,18 @@ update: check-deps
 	@set -eu; \
 	"$(GIT)" diff --quiet && "$(GIT)" diff --cached --quiet || { printf '%s\n' 'ERROR: update requires a clean source tree (commit or stash changes first).' >&2; exit 1; }; \
 	"$(GIT)" pull --ff-only; \
-	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" update --locked
+	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" metadata --locked --no-deps >/dev/null || { \
+		printf '%s\n' 'ERROR: Cargo.lock is not valid for the workspace; run make refresh-lock deliberately, review Cargo.lock, then commit it.' >&2; exit 1; \
+	}
+
+refresh-lock: check-deps
+	@set -eu; \
+	"$(GIT)" diff --quiet && "$(GIT)" diff --cached --quiet || { printf '%s\n' 'ERROR: refresh-lock requires a clean source tree (commit or stash changes first).' >&2; exit 1; }; \
+	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" update; \
+	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" metadata --locked --no-deps >/dev/null || { \
+		printf '%s\n' 'ERROR: refreshed Cargo.lock failed locked validation; inspect and repair Cargo.lock before committing.' >&2; exit 1; \
+	}; \
+	printf '%s\n' 'Cargo.lock refreshed. Review the diff and commit it intentionally; locked build/test/install remain separate.'
 
 test: check-deps
 	@CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" fmt --all -- --check
