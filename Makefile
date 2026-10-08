@@ -2,7 +2,7 @@
 # not depend on make being installed.
 
 SHELL := /bin/sh
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL := lifecycle
 
 CARGO ?= cargo
 RUSTUP ?= rustup
@@ -13,11 +13,12 @@ TARGET ?= x86_64-unknown-linux-gnu
 PREFIX ?= $(CURDIR)/.make/install
 CARGO_TARGET_DIR ?= $(CURDIR)/target
 
-.PHONY: help check-deps build install clean update test
+.PHONY: help lifecycle check-deps build install clean update test
 
 help:
 	@printf '%s\n' \
 		'ASB optional developer targets (Make is never needed at runtime):' \
+		'  make            Run update, build, test, then install (development channel)' \
 		'  make check-deps  Verify pinned Rust, target, and host tools (no installs)' \
 		'  make build       Build the locked workspace' \
 		'  make test        Run format, Clippy, tests, and rustdoc gates' \
@@ -26,6 +27,8 @@ help:
 		'  make update      Fast-forward Git and validate the locked dependency set' \
 		'' \
 		'Overrides: CARGO, RUSTUP, GIT, RUSTUP_TOOLCHAIN, TARGET, PREFIX, CARGO_TARGET_DIR'
+
+lifecycle: update build test install
 
 check-deps:
 	@set -eu; \

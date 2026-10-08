@@ -60,8 +60,10 @@ cargo run --locked -p asb-cli -- capabilities --format json
 ```
 
 For an optional developer convenience wrapper around these same pinned commands,
-run `make help`. `make check-deps` is read-only and reports remediation without
-installing anything; `make build`, `make test`, `make install`, `make clean`, and
+run `make`. The default development-channel lifecycle runs `update`, `build`,
+`test`, then `install` in that order; Make stops immediately if any stage fails.
+`make check-deps` is read-only and reports remediation without installing
+anything. Explicit `make build`, `make test`, `make install`, `make clean`, and
 `make update` retain the locked workspace and clean-tree boundaries. Make is not
 required by the ASB runtime, release artifacts, or installed CLI. The install
 prefix defaults to the marked, repository-local `.make/install` staging path.
