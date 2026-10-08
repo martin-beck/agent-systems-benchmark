@@ -1138,6 +1138,12 @@ fn guided_local(
     if args[0] == "setup" {
         return guided_setup(&args[1..], output).map(|()| 0);
     }
+    if matches!(
+        args[0].as_str(),
+        "build" | "install" | "update" | "test" | "status" | "rollback" | "remove"
+    ) {
+        return guided_lifecycle(&args[0], &args[1..], output);
+    }
     if args[0] == "provider-catalog"
         && (args.len() == 1 || (args.len() == 3 && args[1] == "--format" && args[2] == "json"))
     {
@@ -1299,9 +1305,273 @@ fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
 fn write_easy_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "ASB guided local workflow\n\nUsage:\n  asb easy setup [SETUP_OPTIONS]\n  asb easy provider-catalog\n  asb easy plan EXPERIMENT.toml --use-config\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy report RUN...\n  asb easy compare RUN RUN...\n  asb easy record CAPTURE.json CASSETTE.json --local-mock\n  asb easy record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb easy replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n  asb easy replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n\nThe guided path delegates to the canonical catalog, configuration, evidence,\nand strict replay contracts. It never contacts a provider in local-mock mode."
+        "ASB guided local workflow\n\nUsage:\n  asb easy setup [SETUP_OPTIONS]\n  asb easy build|install|update|test|status|rollback|remove [--channel dev|stable|nightly|experimental] [--yes] [--dry-run]\n  asb easy provider-catalog\n  asb easy plan EXPERIMENT.toml --use-config\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb easy report RUN...\n  asb easy compare RUN RUN...\n  asb easy record CAPTURE.json CASSETTE.json --local-mock\n  asb easy record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb easy record-campaign MANIFEST.json --local-mock\n  asb easy replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n  asb easy replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT --local-mock\n\nLifecycle commands are provider-free. The development stable channel is a local mock;\nit is never public-release or stable-promotion evidence. Mutations require --yes or --dry-run."
     )
     .map_err(output_error)
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct EasyLifecycleState {
+    schema_version: u16,
+    active_channel: Option<String>,
+    previous_channel: Option<String>,
+    installed: bool,
+    generation: u64,
+    artifact_sha256: Option<String>,
+}
+
+fn easy_lifecycle_root() -> Result<PathBuf, CliError> {
+    let root = std::env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("XDG_DATA_HOME").map(PathBuf::from))
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("state"))
+        })
+        .ok_or_else(|| CliError::operation("ASB lifecycle state location is unavailable"))?;
+    if !root.is_absolute() || root.components().any(|c| c == Component::ParentDir) {
+        return Err(CliError::validation(
+            "ASB lifecycle state location is unsafe",
+        ));
+    }
+    Ok(root.join("asb").join("easy-lifecycle"))
+}
+
+fn easy_channel(args: &[String]) -> Result<(String, bool, bool), CliError> {
+    let mut channel = None;
+    let mut yes = false;
+    let mut dry_run = false;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--yes" => yes = true,
+            "--dry-run" => dry_run = true,
+            "--channel" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::usage("easy lifecycle --channel requires a value"))?;
+                if channel.replace(value.clone()).is_some() {
+                    return Err(CliError::usage("easy lifecycle channel was supplied twice"));
+                }
+                index += 1;
+            }
+            value if value.starts_with("--channel=") => {
+                let value = value.trim_start_matches("--channel=");
+                if value.is_empty() || channel.replace(value.to_owned()).is_some() {
+                    return Err(CliError::usage("easy lifecycle channel was supplied twice"));
+                }
+            }
+            _ => return Err(CliError::usage("unsupported easy lifecycle option")),
+        }
+        index += 1;
+    }
+    let channel = channel.unwrap_or_else(|| "dev".to_owned());
+    if !matches!(
+        channel.as_str(),
+        "dev" | "stable" | "nightly" | "experimental"
+    ) {
+        return Err(CliError::validation(
+            "easy lifecycle channel is unavailable",
+        ));
+    }
+    if matches!(channel.as_str(), "nightly" | "experimental") {
+        return Err(CliError::validation(
+            "selected channel is not available in the development lifecycle",
+        ));
+    }
+    Ok((channel, yes, dry_run))
+}
+
+fn easy_state(root: &Path) -> Result<EasyLifecycleState, CliError> {
+    let path = root.join("state.json");
+    if !path.is_file() {
+        return Ok(EasyLifecycleState {
+            schema_version: 1,
+            ..Default::default()
+        });
+    }
+    serde_json::from_slice(
+        &fs::read(path)
+            .map_err(|_| CliError::operation("easy lifecycle state could not be read"))?,
+    )
+    .map_err(|_| CliError::operation("easy lifecycle state is invalid"))
+}
+
+fn easy_write_state(root: &Path, state: &EasyLifecycleState) -> Result<(), CliError> {
+    fs::create_dir_all(root)
+        .map_err(|_| CliError::operation("easy lifecycle state unavailable"))?;
+    let encoded = serde_json::to_vec(state)
+        .map_err(|_| CliError::operation("easy lifecycle state cannot be encoded"))?;
+    write_atomic_private(&root.join("state.json"), &encoded)
+}
+
+fn easy_lifecycle_output(
+    output: &mut dyn Write,
+    operation: &str,
+    channel: &str,
+    dry_run: bool,
+    state: &EasyLifecycleState,
+    message: &str,
+    digest: Option<&str>,
+) -> Result<(), CliError> {
+    write_json(
+        output,
+        &json!({
+            "schema_version": 1,
+            "ok": true,
+            "command": "easy",
+            "operation": operation,
+            "channel": channel,
+            "channel_kind": "development_mock",
+            "mock": true,
+            "public_release_evidence": false,
+            "dry_run": dry_run,
+            "installed": state.installed,
+            "active_channel": state.active_channel,
+            "generation": state.generation,
+            "artifact_sha256": digest.or(state.artifact_sha256.as_deref()),
+            "message": message
+        }),
+    )
+}
+
+fn guided_lifecycle(
+    operation: &str,
+    args: &[String],
+    output: &mut dyn Write,
+) -> Result<u8, CliError> {
+    let (requested_channel, yes, dry_run) = easy_channel(args)?;
+    let root = easy_lifecycle_root()?;
+    let mut state = easy_state(&root)?;
+    let channel = if operation == "update" && args.iter().all(|a| !a.starts_with("--channel")) {
+        state.active_channel.clone().unwrap_or(requested_channel)
+    } else {
+        requested_channel
+    };
+    if !dry_run && matches!(operation, "install" | "update" | "rollback" | "remove") && !yes {
+        return Err(CliError::validation(
+            "easy lifecycle mutation requires --yes (or use --dry-run)",
+        ));
+    }
+    if dry_run {
+        return easy_lifecycle_output(
+            output,
+            operation,
+            &channel,
+            true,
+            &state,
+            "no changes made",
+            None,
+        )
+        .map(|()| 0);
+    }
+    match operation {
+        "build" => {
+            let bytes = format!("asb-development-mock\nchannel={channel}\nversion=1\n");
+            let digest = format!("{:x}", Sha256::digest(bytes.as_bytes()));
+            let artifact = root
+                .join("artifacts")
+                .join(format!("{channel}-{digest}.mock"));
+            fs::create_dir_all(artifact.parent().expect("artifact parent"))
+                .map_err(|_| CliError::operation("easy build output unavailable"))?;
+            fs::write(&artifact, bytes).map_err(|_| CliError::operation("easy build failed"))?;
+            easy_lifecycle_output(
+                output,
+                operation,
+                &channel,
+                false,
+                &state,
+                "development mock artifact built",
+                Some(&digest),
+            )?;
+        }
+        "install" | "update" => {
+            state.previous_channel = state.active_channel.clone();
+            state.active_channel = Some(channel.clone());
+            state.installed = true;
+            state.generation = state.generation.saturating_add(1);
+            let bytes = format!(
+                "asb-development-mock\nchannel={channel}\ngeneration={}\n",
+                state.generation
+            );
+            let digest = format!("{:x}", Sha256::digest(bytes.as_bytes()));
+            state.artifact_sha256 = Some(digest.clone());
+            easy_write_state(&root, &state)?;
+            easy_lifecycle_output(
+                output,
+                operation,
+                &channel,
+                false,
+                &state,
+                "development mock installed",
+                Some(&digest),
+            )?;
+        }
+        "status" => {
+            easy_lifecycle_output(
+                output,
+                operation,
+                state.active_channel.as_deref().unwrap_or(&channel),
+                false,
+                &state,
+                "lifecycle status",
+                None,
+            )?;
+        }
+        "test" => {
+            if !state.installed {
+                return Err(CliError::validation(
+                    "easy lifecycle test requires an installation",
+                ));
+            }
+            easy_lifecycle_output(
+                output,
+                operation,
+                state.active_channel.as_deref().unwrap_or(&channel),
+                false,
+                &state,
+                "provider-free development mock lifecycle passed",
+                None,
+            )?;
+        }
+        "rollback" => {
+            let prior = state
+                .previous_channel
+                .clone()
+                .ok_or_else(|| CliError::validation("no rollback target is recorded"))?;
+            state.active_channel = Some(prior.clone());
+            state.previous_channel = None;
+            state.generation = state.generation.saturating_add(1);
+            easy_write_state(&root, &state)?;
+            easy_lifecycle_output(
+                output,
+                operation,
+                &prior,
+                false,
+                &state,
+                "rolled back to the previous development mock",
+                None,
+            )?;
+        }
+        "remove" => {
+            state = EasyLifecycleState {
+                schema_version: 1,
+                ..Default::default()
+            };
+            easy_write_state(&root, &state)?;
+            easy_lifecycle_output(
+                output,
+                operation,
+                &channel,
+                false,
+                &state,
+                "development mock removed",
+                None,
+            )?;
+        }
+        _ => unreachable!(),
+    }
+    Ok(0)
 }
 
 fn guided_local_at(
@@ -1895,7 +2165,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy --help --version' asb"
+        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy build install update test status rollback remove --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -7675,6 +7945,37 @@ mod tests {
             "--local-mock".into(),
         ];
         assert!(guided_local(&relative_campaign, None, &mut Vec::new(), &mut Vec::new()).is_err());
+    }
+
+    #[test]
+    fn easy_lifecycle_channel_contract_rejects_unavailable_and_duplicates() {
+        assert_eq!(
+            easy_channel(&["--channel".into(), "stable".into()])
+                .unwrap()
+                .0,
+            "stable"
+        );
+        assert!(easy_channel(&["--channel".into(), "nightly".into()]).is_err());
+        assert!(
+            easy_channel(&["--channel".into(), "dev".into(), "--channel=stable".into()]).is_err()
+        );
+    }
+
+    #[test]
+    fn easy_lifecycle_mutation_requires_confirmation_but_dry_run_is_safe() {
+        let mut output = Vec::new();
+        let result = guided_lifecycle("install", &["--channel=stable".into()], &mut output);
+        assert!(result.is_err());
+        let result = guided_lifecycle(
+            "install",
+            &["--channel=stable".into(), "--dry-run".into()],
+            &mut output,
+        );
+        assert_eq!(result.unwrap(), 0);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["mock"], true);
+        assert_eq!(value["public_release_evidence"], false);
+        assert_eq!(value["dry_run"], true);
     }
 
     #[test]
