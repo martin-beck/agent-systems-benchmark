@@ -12,6 +12,10 @@ RUSTUP_TOOLCHAIN ?= 1.93.0
 TARGET ?= x86_64-unknown-linux-gnu
 PREFIX ?= $(HOME)/.local
 CARGO_TARGET_DIR ?= $(CURDIR)/target
+# The workspace contains process/state fixture tests that must not race when
+# make exports a repository-local target directory. Keep the developer gate
+# deterministic by default; callers can opt into parallel tests explicitly.
+RUST_TEST_THREADS ?= 1
 
 .PHONY: help lifecycle check-deps build install clean update refresh-lock test
 
@@ -27,7 +31,7 @@ help:
 		'  make update      Fast-forward Git and validate Cargo.lock without changing it' \
 		'  make refresh-lock  Deliberately refresh Cargo.lock, then validate it (review changes)' \
 		'' \
-		'Overrides: CARGO, RUSTUP, GIT, RUSTUP_TOOLCHAIN, TARGET, PREFIX, CARGO_TARGET_DIR'
+		'Overrides: CARGO, RUSTUP, GIT, RUSTUP_TOOLCHAIN, TARGET, PREFIX, CARGO_TARGET_DIR, RUST_TEST_THREADS'
 
 lifecycle: update build test install
 
@@ -98,5 +102,5 @@ refresh-lock: check-deps
 test: check-deps
 	@CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" fmt --all -- --check
 	@CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" clippy --locked --workspace --all-targets --target "$(TARGET)" -- -D warnings
-	@CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" test --locked --workspace --target "$(TARGET)"
+	@CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" RUST_TEST_THREADS="$(RUST_TEST_THREADS)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" test --locked --workspace --target "$(TARGET)"
 	@RUSTDOCFLAGS='-D warnings' CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" doc --locked --workspace --no-deps --target "$(TARGET)"
