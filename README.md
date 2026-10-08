@@ -70,7 +70,11 @@ only fast-forwards Git and validates the existing lockfile; it never mutates
 a clean tree, review the resulting `Cargo.lock` diff, and commit it before using
 the locked lifecycle. Make is not
 required by the ASB runtime, release artifacts, or installed CLI. The install
-prefix defaults to the marked, repository-local `.make/install` staging path.
+prefix defaults to `$HOME/.local`, so the executable is written to
+`$HOME/.local/bin/asb`. If that directory is not already on `PATH`, add
+`$HOME/.local/bin` to the shell startup configuration or use the path printed
+by `make install`. Set `PREFIX` explicitly for packaging or CI; it must be an
+absolute, non-root path.
 
 The implemented command forms are:
 
