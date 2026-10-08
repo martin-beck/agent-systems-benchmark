@@ -7979,6 +7979,40 @@ mod tests {
     }
 
     #[test]
+    fn easy_lifecycle_local_journey_covers_build_install_update_test_rollback_remove() {
+        let root = std::env::temp_dir().join(format!("asb-easy-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let previous_state_home = std::env::var_os("XDG_STATE_HOME");
+        // This test is the sole lifecycle environment mutator and does not
+        // spawn threads or child processes while the variable is changed.
+        unsafe { std::env::set_var("XDG_STATE_HOME", &root) };
+        for (operation, args) in [
+            ("build", vec!["--channel=stable"]),
+            ("install", vec!["--channel=stable", "--yes"]),
+            ("status", vec!["--json"]),
+            ("test", vec!["--channel=stable"]),
+            ("update", vec!["--yes"]),
+            ("rollback", vec!["--yes"]),
+            ("remove", vec!["--yes"]),
+        ] {
+            let args = args.into_iter().map(String::from).collect::<Vec<_>>();
+            guided_lifecycle(operation, &args, &mut Vec::new()).unwrap();
+        }
+        assert!(
+            !easy_state(&root.join("asb/easy-lifecycle"))
+                .unwrap()
+                .installed
+        );
+        if let Some(previous) = previous_state_home {
+            unsafe { std::env::set_var("XDG_STATE_HOME", previous) };
+        } else {
+            unsafe { std::env::remove_var("XDG_STATE_HOME") };
+        }
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn guided_wrapper_help_and_provider_catalog_are_explicit() {
         let mut output = Vec::new();
         assert_eq!(
