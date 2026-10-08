@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::{self, IsTerminal, Read, Write};
 use std::os::fd::AsRawFd;
+use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
@@ -985,15 +986,54 @@ fn publish_development_channel_manifest(
 }
 
 /// Keep compiler paths independent from the per-install random staging roots.
-/// Cargo/Rust otherwise embeds those absolute paths in release debug metadata,
-/// which changes the executable digest on every otherwise identical build.
-fn development_reproducibility_flags(root: &Path, target: &Path, cargo_home: &Path) -> String {
-    format!(
-        "--remap-path-prefix={}=/asb-dev/workspace --remap-path-prefix={}=/asb-dev/target --remap-path-prefix={}=/asb-dev/cargo-home",
-        root.display(),
-        target.display(),
-        cargo_home.display()
-    )
+/// Cargo/Rust otherwise embeds those absolute paths in release debug metadata.
+/// The validated linker root shares this one effective Cargo-to-rustc channel;
+/// setting both global and target-specific flags makes Cargo ignore the latter.
+fn development_encoded_rustflags(
+    root: &Path,
+    target: &Path,
+    cargo_home: &Path,
+    ld: &Path,
+) -> Result<std::ffi::OsString, RouterError> {
+    let validated_ld = validate_development_tool(ld)?;
+    if validated_ld != ld {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let search_root = validated_ld
+        .parent()
+        .filter(|path| safe_absolute(path))
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    let search_root = search_root
+        .to_str()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    let arguments = [
+        development_remap_argument(root, "/asb-dev/workspace")?,
+        development_remap_argument(target, "/asb-dev/target")?,
+        development_remap_argument(cargo_home, "/asb-dev/cargo-home")?,
+        "-C".to_owned(),
+        format!("link-arg=-B{search_root}"),
+    ];
+    let mut encoded = Vec::new();
+    for (index, argument) in arguments.iter().enumerate() {
+        if argument.as_bytes().contains(&0) || argument.as_bytes().contains(&0x1f) {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        if index != 0 {
+            encoded.push(0x1f);
+        }
+        encoded.extend_from_slice(argument.as_bytes());
+    }
+    Ok(std::ffi::OsString::from_vec(encoded))
+}
+
+fn development_remap_argument(path: &Path, destination: &str) -> Result<String, RouterError> {
+    if !safe_absolute(path) {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let source = path
+        .to_str()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    Ok(format!("--remap-path-prefix={source}={destination}"))
 }
 
 /// Check the bounded development host before starting a clone or build.  This
@@ -1325,9 +1365,10 @@ fn materialize_development(
             .env("CARGO_INCREMENTAL", "0")
             .env("SOURCE_DATE_EPOCH", "0")
             .env(
-                "RUSTFLAGS",
-                development_reproducibility_flags(&root, &target, &cargo_home),
+                "CARGO_ENCODED_RUSTFLAGS",
+                development_encoded_rustflags(&root, &target, &cargo_home, &ld)?,
             )
+            .env_remove("RUSTFLAGS")
             .current_dir(&source)
             .args(["--wait"])
             .arg(&cargo_program)
@@ -4478,16 +4519,8 @@ fn apply_development_toolchain_environment(
     if let Some(ar) = ar {
         command.env("AR", ar);
     }
-    if let Some(ld) = ld
-        && let Some(search_root) = ld.parent()
-    {
-        command.env(
-            format!(
-                "CARGO_TARGET_{}_RUSTFLAGS",
-                target().to_ascii_uppercase().replace('-', "_")
-            ),
-            format!("-C link-arg=-B{}", search_root.display()),
-        );
+    if let Some(ld) = ld {
+        command.env("LD", ld);
     }
 }
 
@@ -6988,15 +7021,221 @@ mod tests {
                 .lines()
                 .any(|line| line == format!("AR={}", ar.display()))
         );
-        assert!(variables.lines().any(|line| {
-            line == format!(
-                "CARGO_TARGET_{}_RUSTFLAGS=-C link-arg=-B{}",
-                target().to_ascii_uppercase().replace('-', "_"),
-                ld.parent().unwrap().display()
-            )
-        }));
+        assert!(
+            variables
+                .lines()
+                .any(|line| line == format!("LD={}", ld.display()))
+        );
+        assert!(!variables.lines().any(|line| line == "RUSTFLAGS="));
+        assert!(
+            !variables
+                .lines()
+                .any(|line| line.starts_with("CARGO_TARGET_") && line.contains("_RUSTFLAGS="))
+        );
         assert!(!variables.lines().any(|line| line.starts_with("PATH=")));
+
+        let target_dir = root.join("target");
+        let cargo_home = root.join("cargo-home");
+        let encoded = development_encoded_rustflags(&root, &target_dir, &cargo_home, &ld)
+            .unwrap()
+            .into_vec();
+        let arguments: Vec<&[u8]> = encoded.split(|byte| *byte == 0x1f).collect();
+        assert_eq!(arguments.len(), 5);
+        assert_eq!(
+            arguments[0],
+            format!("--remap-path-prefix={}=/asb-dev/workspace", root.display()).as_bytes()
+        );
+        assert_eq!(
+            arguments[1],
+            format!(
+                "--remap-path-prefix={}=/asb-dev/target",
+                target_dir.display()
+            )
+            .as_bytes()
+        );
+        assert_eq!(
+            arguments[2],
+            format!(
+                "--remap-path-prefix={}=/asb-dev/cargo-home",
+                cargo_home.display()
+            )
+            .as_bytes()
+        );
+        assert_eq!(arguments[3], b"-C");
+        assert_eq!(
+            arguments[4],
+            format!("link-arg=-B{}", ld.parent().unwrap().display()).as_bytes()
+        );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_env_cleared_cargo_links_with_validated_ld_root() {
+        let scratch = Scratch::new("development-real-link");
+        let source = scratch.0.join("source");
+        let target_dir = scratch.0.join("target");
+        let cargo_home = scratch.0.join("cargo-home");
+        prepare_private_directory(&source.join("src")).unwrap();
+        prepare_private_directory(&target_dir).unwrap();
+        prepare_private_directory(&cargo_home).unwrap();
+        fs::write(
+            source.join("Cargo.toml"),
+            b"[package]\nname = \"asb-development-link-fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .unwrap();
+        fs::write(
+            source.join("src/main.rs"),
+            b"fn main() { println!(\"validated linker fixture\"); }\n",
+        )
+        .unwrap();
+
+        let rustup_home = resolve_development_rustup_home().unwrap();
+        let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref()).unwrap();
+        let rustc = resolve_development_rustc_bound(
+            &cargo,
+            rustup_home.as_deref(),
+            std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
+        )
+        .unwrap();
+        let cc = resolve_development_tool_candidates(
+            DEV_CC_OVERRIDE,
+            &["/usr/bin/cc", "/usr/local/bin/cc"],
+        )
+        .unwrap();
+        let ar = resolve_development_tool_candidates(
+            DEV_AR_OVERRIDE,
+            &["/usr/bin/ar", "/usr/local/bin/ar"],
+        )
+        .unwrap();
+        let ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )
+        .unwrap();
+        let mut command = Command::new(cargo.execution_path());
+        command
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .env("HOME", &scratch.0)
+            .env("CARGO_HOME", &cargo_home)
+            .env("CARGO_TARGET_DIR", &target_dir)
+            .env("CARGO_INCREMENTAL", "0")
+            .env("SOURCE_DATE_EPOCH", "0")
+            .env(
+                "CARGO_ENCODED_RUSTFLAGS",
+                development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &ld).unwrap(),
+            )
+            .current_dir(&source)
+            .args(["build", "--offline", "--release"]);
+        apply_development_toolchain_environment(
+            &mut command,
+            rustup_home.as_deref(),
+            rustc.as_ref().map(|tool| tool.execution_path()).as_deref(),
+            Some(&cc),
+            Some(&ar),
+            Some(&ld),
+        );
+        let inherited = make_toolchain_descriptors_inheritable(
+            cargo.bound_file.as_ref(),
+            rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
+        )
+        .unwrap();
+        let output = command.output().unwrap();
+        restore_toolchain_descriptor_flags(
+            cargo.bound_file.as_ref(),
+            rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
+            inherited,
+        )
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "env-cleared Cargo link failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            target_dir
+                .join("release/asb-development-link-fixture")
+                .is_file()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_encoded_rustflags_reject_untrusted_linker_paths() {
+        let scratch = Scratch::new("development-linker-rejection");
+        let target_dir = scratch.0.join("target");
+        let cargo_home = scratch.0.join("cargo-home");
+        let missing = scratch.0.join("missing-ld");
+        assert_eq!(
+            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &missing)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        assert_eq!(
+            development_encoded_rustflags(
+                &scratch.0,
+                &target_dir,
+                &cargo_home,
+                Path::new("relative-ld")
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_invalid"
+        );
+
+        let writable = scratch.0.join("writable-ld");
+        fs::write(&writable, b"not executable").unwrap();
+        fs::set_permissions(&writable, fs::Permissions::from_mode(0o722)).unwrap();
+        assert_eq!(
+            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &writable)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+
+        let trusted = scratch.0.join("trusted-ld");
+        let substituted = scratch.0.join("substituted-ld");
+        fs::write(&trusted, b"fixture").unwrap();
+        fs::set_permissions(&trusted, fs::Permissions::from_mode(0o700)).unwrap();
+        symlink(&trusted, &substituted).unwrap();
+        assert_eq!(
+            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &substituted)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+
+        let encoded_separator = scratch.0.join("encoded\u{1f}separator");
+        let ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )
+        .unwrap();
+        assert_eq!(
+            development_encoded_rustflags(&encoded_separator, &target_dir, &cargo_home, &ld)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+
+        let private_root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1737-non-utf8-linker-{}", std::process::id()));
+        let non_utf8_root =
+            private_root.join(std::ffi::OsString::from_vec(vec![b'l', b'd', b'-', 0xff]));
+        prepare_private_directory(&non_utf8_root).unwrap();
+        let non_utf8_ld = non_utf8_root.join("ld");
+        fs::write(&non_utf8_ld, b"fixture").unwrap();
+        fs::set_permissions(&non_utf8_ld, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &non_utf8_ld)
+                .unwrap_err()
+                .code,
+            "trusted_tool_invalid"
+        );
+        fs::remove_dir_all(private_root).unwrap();
     }
 
     #[cfg(unix)]
@@ -7552,7 +7791,18 @@ mod tests {
             )
             .unwrap();
             let executable = target.join("fixture");
-            let flags = development_reproducibility_flags(&root, &target, &cargo_home);
+            let ld = resolve_development_tool_candidates(
+                DEV_LD_OVERRIDE,
+                &["/usr/bin/ld", "/usr/local/bin/ld"],
+            )
+            .unwrap();
+            let flags = development_encoded_rustflags(&root, &target, &cargo_home, &ld)
+                .unwrap()
+                .into_vec();
+            let flags: Vec<String> = flags
+                .split(|byte| *byte == 0x1f)
+                .map(|argument| String::from_utf8(argument.to_vec()).unwrap())
+                .collect();
             let mut command = Command::new("rustc");
             command
                 .env_clear()
@@ -7567,7 +7817,7 @@ mod tests {
                     "-C",
                     "incremental=no",
                 ])
-                .args(flags.split_whitespace())
+                .args(flags)
                 .args(["main.rs", "-o"])
                 .arg(&executable);
             assert!(command.status().unwrap().success());
