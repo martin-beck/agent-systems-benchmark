@@ -46,30 +46,72 @@ Repository administrators apply the GitHub-compatible merge-only settings and ex
 ruleset after reviewing the change:
 
 ```sh
-python3 tools/integration/repository_settings.py --apply
+python3 tools/integration/repository_settings.py \
+  --apply --expected-ruleset-id 24750310
 ```
 
-The first successful creation prints a bounded `ruleset-id=N` receipt. Every partial or ambiguous
-path after GitHub returns a positive ID also prints that ID and classifies its ownership as either
-`response-only` or `readback-verified`. Record the ID and classification from success **or failure**
-in the owning AR's durable external-settings receipt; never rediscover it by publishing raw
-authenticated API output. Verify a subsequent audit reads back the same ID. Every later apply must
-bind that recorded ownership identity explicitly:
+Ruleset `24750310` is the immutable owned identity. The tool updates that ID in
+place with PUT and never creates, deletes, recreates, or selects mutation ownership
+by name. Every partial or ambiguous path after GitHub returns the positive ID also
+prints that ID and classifies its ownership as either `response-only` or
+`readback-verified`. Record the ID and classification from success **or failure**
+in the owning AR's durable external-settings receipt; never publish raw
+authenticated API output. Every apply and audit binds the recorded identity:
 
 ```sh
-python3 tools/integration/repository_settings.py --apply --expected-ruleset-id N
-python3 tools/integration/repository_settings.py --expected-ruleset-id N
+python3 tools/integration/repository_settings.py --apply --expected-ruleset-id 24750310
+python3 tools/integration/repository_settings.py --expected-ruleset-id 24750310
 ```
 
+A circular legacy approval rule may be recovered only with the separately
+reviewed, exact-ID, ruleset-only boundary:
+
+```sh
+python3 tools/integration/repository_settings.py \
+  --apply --ruleset-only --expected-ruleset-id 24750310
+python3 tools/integration/repository_settings.py \
+  --ruleset-only --expected-ruleset-id 24750310
+```
+
+The first command performs the same identity, protected-head, capability,
+inventory, strict-settings-tuple, exact-ID, response-normalization, and fresh
+readback barriers as normal apply, but returns immediately after the verified
+ruleset readback and can never PATCH repository settings. The second command is
+read-only: it admits only the exact documented pre/final settings tuple and
+requires the desired ruleset. This is a recovery-only bootstrap, not a general
+administrative interface. Offline fixtures are incompatible, and no live use is
+permitted until its exact candidate has independent review, all hosted checks,
+and an explicit execution gate.
+
 An existing same-name ruleset without that exact recorded ID is foreign and fails before mutation.
-After creating or updating the ruleset, the tool validates the bounded response and performs an
-exact ruleset/inventory readback before it attempts the repository-settings PATCH.
+The request sends an explicit empty `required_reviewers`, zero GitHub approvals,
+and no last-push approval. GitHub's response may add exactly
+`require_extra_approval_for_unattributed_changes=true`; the canonicalizer removes
+only that response normalization and then requires exact request equality, including
+the empty reviewers. False or non-boolean normalization, nonempty or malformed
+reviewers, or any unknown response key fails closed. After PUT, the tool performs a
+fresh complete ID-bound ruleset/inventory readback and requires stable repository
+identity, protected-main head, owner plan/capability, and foreign inventory before
+it attempts the repository-settings PATCH. The admission check accepts only the
+exact normalized owned policy recorded at the fixed pre-apply boundary or the
+already-updated policy; it validates repository identity, shape, and provenance
+without incorrectly requiring the later PATCH result. The five merge/signoff
+settings must also equal one complete strict-Boolean tuple: either documented
+prestate `true,true,true,false,false` or final state
+`true,false,false,false,true`, in merge/squash/rebase/auto/signoff order. Missing,
+non-Boolean, or mixed tuples fail before PUT. Full desired settings and policy
+validation remains mandatory after PATCH.
 The second command is the required read-only audit: it binds the index summary, fetched detail, and
 durable expected ID and emits the same `ruleset-id=N; ownership=readback-verified` receipt.
 
-The ruleset requires a pull request, one fresh independent approval, resolved review threads,
-strict exact-head checks including Portable protected-main provenance, verified signatures, and
-merge commits only. The portable check rejects Web Flow/noreply identities; a supported Enterprise
+The ruleset requires a pull request, resolved review threads, strict exact-head
+checks including Portable protected-main provenance, verified signatures, and
+merge commits only. Development review is instead durable independent-agent
+Coordinator evidence; the same GitHub account may publish after that separate
+technical review, so the GitHub approving count is zero and last-push approval is
+false. This does not relax the independent review, exact-head CI, signed local
+merge, DCO, portable provenance, merge-only admission, or resolved-thread gates.
+The portable check rejects Web Flow/noreply identities; a supported Enterprise
 organization also retains the metadata rule. Deletion and non-fast-forward updates are prevented.
 The repository setting
 keeps merge-commit enabled solely because GitHub rejects disabling all three pull-request merge

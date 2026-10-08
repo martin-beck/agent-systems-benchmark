@@ -77,8 +77,9 @@ lowercase author-matching trailer documented above.
 
 The [signed merge procedure](MERGE_INTEGRITY.md) also binds the integration commit's parents and
 tree to the approved base and pull-request head. GitHub requires one pull-request merge method, so
-merge-commit alone remains enabled behind an audited protected-main ruleset that requires the
-portable Web Flow provenance gate, fresh strict checks/review/signatures, and prevents non-fast-forward
+merge-commit alone remains enabled behind an ID-bound audited protected-main ruleset that requires the
+portable Web Flow provenance gate, strict checks, durable independent-agent review, and signatures,
+and prevents non-fast-forward
 updates; squash, rebase, auto-merge, and web publication remain forbidden. The local publisher
 rechecks remote refs and uses an exact force-with-lease. A later signed
 attestation does not make an earlier unsigned or non-DCO merge compliant.

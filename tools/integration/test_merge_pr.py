@@ -23,6 +23,7 @@ from tools.quality import repository_policy
 ROOT = Path(__file__).resolve().parents[2]
 MERGE = ROOT / "tools/integration/merge_pr.py"
 SETTINGS = ROOT / "tools/integration/repository_settings.py"
+CORE_CAPABILITY = ("owner", "User", "free", "public", "core")
 
 
 def command(
@@ -34,6 +35,30 @@ def command(
     return subprocess.run(
         args, cwd=cwd, text=True, capture_output=True, check=check, env=env
     )
+
+
+def ruleset_response(identifier: int | None = None) -> dict[str, object]:
+    """Return the exact server-normalized response fixture."""
+    value = json.loads(json.dumps(repository_settings.required_ruleset()))
+    parameters = next(
+        rule["parameters"] for rule in value["rules"] if rule["type"] == "pull_request"
+    )
+    parameters["require_extra_approval_for_unattributed_changes"] = True
+    if identifier is not None:
+        value["id"] = identifier
+    return value
+
+
+def previous_ruleset_response(identifier: int | None = None) -> dict[str, object]:
+    """Return the exact normalized ruleset at the documented fixed start."""
+    value = json.loads(json.dumps(repository_settings.previous_ruleset()))
+    parameters = next(
+        rule["parameters"] for rule in value["rules"] if rule["type"] == "pull_request"
+    )
+    parameters["require_extra_approval_for_unattributed_changes"] = True
+    if identifier is not None:
+        value["id"] = identifier
+    return value
 
 
 class Fixture:
@@ -443,7 +468,7 @@ class MergeIntegrityTests(unittest.TestCase):
             "owner": {"login": "owner", "type": "User"},
         }
         good_owner = {"login": "owner", "type": "User", "plan": {"name": "free"}}
-        good_ruleset = repository_settings.required_ruleset()
+        good_ruleset = ruleset_response()
 
         def audit(
             settings: object, ruleset: object
@@ -607,8 +632,8 @@ class MergeIntegrityTests(unittest.TestCase):
         self.assertNotIn(sentinel, diagnostic)
 
     def test_settings_apply_reports_partial_effect(self) -> None:
-        ruleset = repository_settings.required_ruleset()
-        ruleset["id"] = 17
+        identifier = repository_settings.OWNED_RULESET_ID
+        ruleset = ruleset_response(identifier)
         settings = dict(repository_settings.REQUIRED_SETTINGS) | {
             "id": 17,
             "visibility": "public",
@@ -624,8 +649,8 @@ class MergeIntegrityTests(unittest.TestCase):
                 repository_settings,
                 "fetch_admission",
                 side_effect=(
-                    (settings, None, "core", "a" * 40, ()),
-                    (settings, ruleset, "core", "a" * 40, ()),
+                    (settings, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
+                    (settings, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
                 ),
             ),
             mock.patch.object(
@@ -633,46 +658,392 @@ class MergeIntegrityTests(unittest.TestCase):
             ) as mocked_api,
             self.assertRaises(ValueError) as raised,
         ):
-            repository_settings.apply("owner/repository")
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         diagnostic = str(raised.exception)
         self.assertIn("phase=repository-settings", diagnostic)
         self.assertIn("prior-ruleset-effect=applied", diagnostic)
-        self.assertIn("ruleset-id=17", diagnostic)
+        self.assertIn(f"ruleset-id={identifier}", diagnostic)
         self.assertIn("ownership=readback-verified", diagnostic)
         self.assertEqual(mocked_api.call_count, 2)
 
-    def test_settings_reapply_updates_only_named_ruleset(self) -> None:
+    def test_settings_documented_prestate_runs_ordered_guarded_transaction(
+        self,
+    ) -> None:
+        before = dict(repository_settings.PRE_APPLY_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        after = dict(repository_settings.REQUIRED_SETTINGS) | {
+            key: before[key] for key in ("id", "visibility", "default_branch", "owner")
+        }
+        identifier = repository_settings.OWNED_RULESET_ID
+        previous = previous_ruleset_response(identifier)
+        ruleset = ruleset_response(identifier)
+        events = []
+        admissions = iter(
+            (
+                (before, previous, "core", CORE_CAPABILITY, "a" * 40, ()),
+                (before, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
+                (after, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
+            )
+        )
+        read_phases = iter(("initial", "readback", "final"))
+
+        def fetch_admission(_repository: str) -> tuple[object, ...]:
+            events.append(next(read_phases))
+            return next(admissions)
+
+        def api(*arguments: str, **_kwargs: object) -> object:
+            if "PUT" in arguments:
+                events.append("PUT")
+                return ruleset
+            if "PATCH" in arguments:
+                events.append("PATCH")
+                return after
+            self.fail("unexpected API operation")
+
+        with (
+            mock.patch.object(
+                repository_settings,
+                "fetch_admission",
+                side_effect=fetch_admission,
+            ),
+            mock.patch.object(
+                repository_settings, "api", side_effect=api
+            ) as mocked_api,
+        ):
+            applied_settings, applied_ruleset = repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
+        self.assertEqual(events, ["initial", "PUT", "readback", "PATCH", "final"])
+        self.assertEqual(applied_settings, after)
+        self.assertEqual(applied_ruleset, ruleset)
+        update_call = mocked_api.call_args_list[0]
+        self.assertIn("PUT", update_call.args)
+        self.assertIn(f"repos/owner/repository/rulesets/{identifier}", update_call.args)
+        self.assertNotIn("repos/owner/repository/rulesets/99", update_call.args)
+        request = update_call.kwargs["input_value"]
+        self.assertEqual(request, repository_settings.required_ruleset())
+        request_parameters = next(
+            rule["parameters"]
+            for rule in request["rules"]
+            if rule["type"] == "pull_request"
+        )
+        self.assertEqual(request_parameters["required_reviewers"], [])
+        self.assertEqual(request_parameters["required_approving_review_count"], 0)
+        self.assertIs(request_parameters["require_last_push_approval"], False)
+        self.assertNotIn(
+            "require_extra_approval_for_unattributed_changes", request_parameters
+        )
+        with self.assertRaisesRegex(ValueError, "allow_squash_merge"):
+            repository_settings.validate(before, previous, "core", True)
+
+    def test_settings_ruleset_only_apply_stops_after_verified_readback(self) -> None:
+        before = dict(repository_settings.PRE_APPLY_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        identifier = repository_settings.OWNED_RULESET_ID
+        previous = previous_ruleset_response(identifier)
+        desired = ruleset_response(identifier)
+        with (
+            mock.patch.object(
+                repository_settings,
+                "fetch_admission",
+                side_effect=(
+                    (before, previous, "core", CORE_CAPABILITY, "a" * 40, ()),
+                    (before, desired, "core", CORE_CAPABILITY, "a" * 40, ()),
+                ),
+            ) as fetch,
+            mock.patch.object(repository_settings, "api", return_value=desired) as api,
+        ):
+            settings, ruleset = repository_settings.apply(
+                "owner/repository",
+                expected_ruleset_id=identifier,
+                ruleset_only=True,
+            )
+        self.assertEqual(settings, before)
+        self.assertEqual(ruleset, desired)
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(api.call_count, 1)
+        self.assertIn("PUT", api.call_args.args)
+        self.assertNotIn("PATCH", api.call_args.args)
+
+    def test_settings_hostile_prestate_fails_before_put(self) -> None:
+        settings = dict(repository_settings.PRE_APPLY_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        identifier = repository_settings.OWNED_RULESET_ID
+        exact = previous_ruleset_response(identifier)
+        hostile = []
+        wrong_normalization = json.loads(json.dumps(exact))
+        next(
+            rule["parameters"]
+            for rule in wrong_normalization["rules"]
+            if rule["type"] == "pull_request"
+        )["require_extra_approval_for_unattributed_changes"] = False
+        hostile.append(wrong_normalization)
+        wrong_review_count = json.loads(json.dumps(exact))
+        next(
+            rule["parameters"]
+            for rule in wrong_review_count["rules"]
+            if rule["type"] == "pull_request"
+        )["required_approving_review_count"] = 2
+        hostile.append(wrong_review_count)
+        unknown_policy = json.loads(json.dumps(exact))
+        next(
+            rule["parameters"]
+            for rule in unknown_policy["rules"]
+            if rule["type"] == "pull_request"
+        )["unknown_server_field"] = True
+        hostile.append(unknown_policy)
+        for ruleset in hostile:
+            with (
+                mock.patch.object(
+                    repository_settings,
+                    "fetch_admission",
+                    return_value=(
+                        settings,
+                        ruleset,
+                        "core",
+                        CORE_CAPABILITY,
+                        "a" * 40,
+                        (),
+                    ),
+                ),
+                mock.patch.object(repository_settings, "api") as api,
+                self.assertRaisesRegex(ValueError, "admitted owned policy"),
+            ):
+                repository_settings.apply(
+                    "owner/repository",
+                    expected_ruleset_id=identifier,
+                    ruleset_only=True,
+                )
+            api.assert_not_called()
+
+    def test_settings_ruleset_only_cli_and_invalid_fixture_combinations(self) -> None:
+        settings = dict(repository_settings.PRE_APPLY_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        identifier = repository_settings.OWNED_RULESET_ID
+        desired = ruleset_response(identifier)
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "repository_settings.py",
+                    "--ruleset-only",
+                    "--expected-ruleset-id",
+                    str(identifier),
+                ],
+            ),
+            mock.patch.object(
+                repository_settings,
+                "fetch_admission",
+                return_value=(
+                    settings,
+                    desired,
+                    "core",
+                    CORE_CAPABILITY,
+                    "a" * 40,
+                    (),
+                ),
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(repository_settings.main(), 0)
+        self.assertIn("ruleset-only recovery is enforced", output.getvalue())
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "repository_settings.py",
+                    "--apply",
+                    "--ruleset-only",
+                    "--expected-ruleset-id",
+                    str(identifier),
+                ],
+            ),
+            mock.patch.object(
+                repository_settings, "apply", return_value=(settings, desired)
+            ) as apply,
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(repository_settings.main(), 0)
+        apply.assert_called_once_with(
+            "martin-beck/agent-systems-benchmark",
+            identifier,
+            ruleset_only=True,
+        )
+        self.assertIn("ruleset-only recovery is enforced", output.getvalue())
+
+        previous = previous_ruleset_response(identifier)
+        error = io.StringIO()
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "repository_settings.py",
+                    "--ruleset-only",
+                    "--expected-ruleset-id",
+                    str(identifier),
+                ],
+            ),
+            mock.patch.object(
+                repository_settings,
+                "fetch_admission",
+                return_value=(
+                    settings,
+                    previous,
+                    "core",
+                    CORE_CAPABILITY,
+                    "a" * 40,
+                    (),
+                ),
+            ),
+            contextlib.redirect_stderr(error),
+        ):
+            self.assertEqual(repository_settings.main(), 1)
+        self.assertIn("required policy", error.getvalue())
+
+        fixture_arguments = [
+            "--settings-json",
+            "{}",
+            "--ruleset-json",
+            "{}",
+            "--owner-json",
+            "{}",
+            "--provenance-status",
+            "success",
+        ]
+        for mutation in ([], ["--apply"]):
+            error = io.StringIO()
+            with (
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "repository_settings.py",
+                        "--ruleset-only",
+                        *mutation,
+                        *fixture_arguments,
+                    ],
+                ),
+                mock.patch.object(repository_settings, "api") as api,
+                contextlib.redirect_stderr(error),
+            ):
+                self.assertEqual(repository_settings.main(), 1)
+            api.assert_not_called()
+            self.assertIn("offline fixtures", error.getvalue())
+
+    def test_settings_hostile_repository_tuple_fails_before_put(self) -> None:
+        identity = {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        identifier = repository_settings.OWNED_RULESET_ID
+        ruleset = previous_ruleset_response(identifier)
+        hostile = []
+        reviewer_reproduction = dict(repository_settings.PRE_APPLY_SETTINGS)
+        reviewer_reproduction["allow_squash_merge"] = False
+        hostile.append(reviewer_reproduction)
+        for key in repository_settings.REQUIRED_SETTINGS:
+            missing = dict(repository_settings.PRE_APPLY_SETTINGS)
+            del missing[key]
+            hostile.append(missing)
+            for value in (0, 1, "true", None):
+                malformed = dict(repository_settings.PRE_APPLY_SETTINGS)
+                malformed[key] = value
+                hostile.append(malformed)
+        for key in (
+            "allow_squash_merge",
+            "allow_rebase_merge",
+            "web_commit_signoff_required",
+        ):
+            partial = dict(repository_settings.PRE_APPLY_SETTINGS)
+            partial[key] = repository_settings.REQUIRED_SETTINGS[key]
+            hostile.append(partial)
+        for key in ("allow_merge_commit", "allow_auto_merge"):
+            unknown = dict(repository_settings.PRE_APPLY_SETTINGS)
+            unknown[key] = not unknown[key]
+            hostile.append(unknown)
+        for settings_tuple in hostile:
+            with (
+                mock.patch.object(
+                    repository_settings,
+                    "fetch_admission",
+                    return_value=(
+                        settings_tuple | identity,
+                        ruleset,
+                        "core",
+                        CORE_CAPABILITY,
+                        "a" * 40,
+                        (),
+                    ),
+                ),
+                mock.patch.object(repository_settings, "api") as api,
+                self.assertRaisesRegex(
+                    (TypeError, ValueError), "settings evidence|admitted transition"
+                ),
+            ):
+                repository_settings.apply(
+                    "owner/repository",
+                    expected_ruleset_id=identifier,
+                    ruleset_only=True,
+                )
+            api.assert_not_called()
+
+    def test_settings_capability_receipt_drift_stops_before_patch(self) -> None:
         settings = dict(repository_settings.REQUIRED_SETTINGS) | {
             "id": 17,
             "visibility": "public",
             "default_branch": "main",
             "owner": {"login": "owner", "type": "User"},
         }
-        ruleset = repository_settings.required_ruleset()
-        ruleset["id"] = 17
+        identifier = repository_settings.OWNED_RULESET_ID
+        ruleset = ruleset_response(identifier)
+        changed_plan = ("owner", "User", "pro", "public", "core")
         with (
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
                 side_effect=(
-                    (settings, ruleset, "core", "a" * 40, ()),
-                    (settings, ruleset, "core", "a" * 40, ()),
-                    (settings, ruleset, "core", "a" * 40, ()),
+                    (settings, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
+                    (settings, ruleset, "core", changed_plan, "a" * 40, ()),
                 ),
             ),
-            mock.patch.object(
-                repository_settings, "api", side_effect=(ruleset, settings)
-            ) as mocked_api,
+            mock.patch.object(repository_settings, "api", return_value=ruleset) as api,
+            self.assertRaisesRegex(ValueError, "phase=ruleset-readback") as raised,
         ):
-            applied_settings, applied_ruleset = repository_settings.apply(
-                "owner/repository", expected_ruleset_id=17
+            repository_settings.apply(
+                "owner/repository",
+                expected_ruleset_id=identifier,
+                ruleset_only=True,
             )
-        self.assertEqual(applied_settings, settings)
-        self.assertEqual(applied_ruleset, ruleset)
-        update_call = mocked_api.call_args_list[0]
-        self.assertIn("PUT", update_call.args)
-        self.assertIn("repos/owner/repository/rulesets/17", update_call.args)
-        self.assertNotIn("repos/owner/repository/rulesets/99", update_call.args)
+        self.assertEqual(api.call_count, 1)
+        self.assertIn("PUT", api.call_args.args)
+        self.assertNotIn("PATCH", api.call_args.args)
+        self.assertIn("ownership=response-only", str(raised.exception))
 
     def test_settings_ruleset_response_and_readback_precede_patch(self) -> None:
         settings = dict(repository_settings.REQUIRED_SETTINGS) | {
@@ -681,7 +1052,8 @@ class MergeIntegrityTests(unittest.TestCase):
             "default_branch": "main",
             "owner": {"login": "owner", "type": "User"},
         }
-        exact = repository_settings.required_ruleset() | {"id": 17}
+        identifier = repository_settings.OWNED_RULESET_ID
+        exact = ruleset_response(identifier)
         responses = []
         wrong_name = json.loads(json.dumps(exact))
         wrong_name["name"] = "foreign"
@@ -694,29 +1066,78 @@ class MergeIntegrityTests(unittest.TestCase):
             "strict_required_status_checks_policy"
         ] = False
         responses.append(wrong_policy)
+        for value in (False, "true", 1, None):
+            wrong_normalization = json.loads(json.dumps(exact))
+            next(
+                rule["parameters"]
+                for rule in wrong_normalization["rules"]
+                if rule["type"] == "pull_request"
+            )["require_extra_approval_for_unattributed_changes"] = value
+            responses.append(wrong_normalization)
+        missing_normalization = json.loads(json.dumps(exact))
+        del next(
+            rule["parameters"]
+            for rule in missing_normalization["rules"]
+            if rule["type"] == "pull_request"
+        )["require_extra_approval_for_unattributed_changes"]
+        responses.append(missing_normalization)
+        for reviewers in (
+            [
+                {
+                    "file_patterns": [],
+                    "minimum_approvals": 0,
+                    "reviewer": {"id": 1, "type": "Team"},
+                }
+            ],
+            "malformed",
+            [None],
+        ):
+            wrong_reviewers = json.loads(json.dumps(exact))
+            next(
+                rule["parameters"]
+                for rule in wrong_reviewers["rules"]
+                if rule["type"] == "pull_request"
+            )["required_reviewers"] = reviewers
+            responses.append(wrong_reviewers)
+        unknown_parameter = json.loads(json.dumps(exact))
+        next(
+            rule["parameters"]
+            for rule in unknown_parameter["rules"]
+            if rule["type"] == "pull_request"
+        )["unknown_server_field"] = True
+        responses.append(unknown_parameter)
         for response in responses:
             with (
                 mock.patch.object(
                     repository_settings,
                     "fetch_admission",
-                    return_value=(settings, None, "core", "a" * 40, ()),
+                    return_value=(
+                        settings,
+                        exact,
+                        "core",
+                        CORE_CAPABILITY,
+                        "a" * 40,
+                        (),
+                    ),
                 ),
                 mock.patch.object(
                     repository_settings, "api", return_value=response
                 ) as api,
                 self.assertRaisesRegex(ValueError, "phase=ruleset-readback") as raised,
             ):
-                repository_settings.apply("owner/repository")
+                repository_settings.apply(
+                    "owner/repository", expected_ruleset_id=identifier
+                )
             self.assertEqual(api.call_count, 1)
             self.assertNotIn("PATCH", api.call_args.args)
-            self.assertIn("ruleset-id=17", str(raised.exception))
+            self.assertIn(f"ruleset-id={identifier}", str(raised.exception))
             self.assertIn("ownership=response-only", str(raised.exception))
 
         with (
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
-                return_value=(settings, exact, "core", "a" * 40, ()),
+                return_value=(settings, exact, "core", CORE_CAPABILITY, "a" * 40, ()),
             ),
             mock.patch.object(
                 repository_settings, "api", return_value=exact | {"id": 18}
@@ -725,7 +1146,9 @@ class MergeIntegrityTests(unittest.TestCase):
                 ValueError, "ownership response is ambiguous"
             ) as raised,
         ):
-            repository_settings.apply("owner/repository", expected_ruleset_id=17)
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         self.assertEqual(api.call_count, 1)
         self.assertIn("ruleset-id=18", str(raised.exception))
         self.assertIn("ownership=response-only", str(raised.exception))
@@ -737,24 +1160,41 @@ class MergeIntegrityTests(unittest.TestCase):
                 repository_settings,
                 "fetch_admission",
                 side_effect=(
-                    (settings, None, "core", "a" * 40, ()),
-                    (settings, mismatched, "core", "a" * 40, ()),
+                    (settings, exact, "core", CORE_CAPABILITY, "a" * 40, ()),
+                    (settings, mismatched, "core", CORE_CAPABILITY, "a" * 40, ()),
                 ),
             ),
             mock.patch.object(repository_settings, "api", return_value=exact) as api,
             self.assertRaisesRegex(ValueError, "phase=ruleset-readback") as raised,
         ):
-            repository_settings.apply("owner/repository")
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         self.assertEqual(api.call_count, 1)
-        self.assertIn("ruleset-id=17", str(raised.exception))
+        self.assertIn(f"ruleset-id={identifier}", str(raised.exception))
         self.assertIn("ownership=response-only", str(raised.exception))
 
     def test_settings_apply_emits_bounded_ruleset_identity_receipt(self) -> None:
-        settings = dict(repository_settings.REQUIRED_SETTINGS)
-        ruleset = repository_settings.required_ruleset() | {"id": 17}
+        settings = dict(repository_settings.REQUIRED_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        identifier = repository_settings.OWNED_RULESET_ID
+        ruleset = ruleset_response(identifier)
         output = io.StringIO()
         with (
-            mock.patch.object(sys, "argv", ["repository_settings.py", "--apply"]),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "repository_settings.py",
+                    "--apply",
+                    "--expected-ruleset-id",
+                    str(identifier),
+                ],
+            ),
             mock.patch.object(
                 repository_settings, "apply", return_value=(settings, ruleset)
             ),
@@ -764,14 +1204,18 @@ class MergeIntegrityTests(unittest.TestCase):
         self.assertEqual(
             output.getvalue().strip(),
             "merge settings: GitHub-compatible protected publication is enforced; "
-            "ruleset-id=17; ownership=readback-verified",
+            f"ruleset-id={identifier}; ownership=readback-verified",
         )
 
     def test_settings_live_audit_binds_summary_detail_and_expected_id(self) -> None:
-        settings = dict(repository_settings.REQUIRED_SETTINGS)
-        ruleset = repository_settings.required_ruleset() | {
-            "id": repository_settings.MAX_RULESET_ID
+        settings = dict(repository_settings.REQUIRED_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
         }
+        identifier = repository_settings.OWNED_RULESET_ID
+        ruleset = ruleset_response(identifier)
         output = io.StringIO()
         with (
             mock.patch.object(
@@ -780,27 +1224,23 @@ class MergeIntegrityTests(unittest.TestCase):
                 [
                     "repository_settings.py",
                     "--expected-ruleset-id",
-                    str(repository_settings.MAX_RULESET_ID),
+                    str(identifier),
                 ],
             ),
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
-                return_value=(settings, ruleset, "core", "a" * 40, ()),
+                return_value=(settings, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
             ),
             contextlib.redirect_stdout(output),
         ):
             self.assertEqual(repository_settings.main(), 0)
         self.assertIn(
-            f"ruleset-id={repository_settings.MAX_RULESET_ID}; "
-            "ownership=readback-verified",
+            f"ruleset-id={identifier}; ownership=readback-verified",
             output.getvalue(),
         )
 
-        for expected in (
-            repository_settings.MAX_RULESET_ID - 1,
-            repository_settings.MAX_RULESET_ID + 1,
-        ):
+        for expected in (identifier - 1, identifier + 1):
             error = io.StringIO()
             with (
                 mock.patch.object(
@@ -811,19 +1251,22 @@ class MergeIntegrityTests(unittest.TestCase):
                 mock.patch.object(
                     repository_settings,
                     "fetch_admission",
-                    return_value=(settings, ruleset, "core", "a" * 40, ()),
+                    return_value=(
+                        settings,
+                        ruleset,
+                        "core",
+                        CORE_CAPABILITY,
+                        "a" * 40,
+                        (),
+                    ),
                 ) as fetch,
                 mock.patch.object(repository_settings, "api") as mutation,
                 contextlib.redirect_stderr(error),
             ):
                 self.assertEqual(repository_settings.main(), 1)
             mutation.assert_not_called()
-            if expected > repository_settings.MAX_RULESET_ID:
-                fetch.assert_not_called()
-                self.assertIn("identity is invalid", error.getvalue())
-            else:
-                fetch.assert_called_once()
-                self.assertIn("identity differs", error.getvalue())
+            fetch.assert_not_called()
+            self.assertIn("identity is invalid", error.getvalue())
 
         duplicates = [
             {
@@ -914,8 +1357,8 @@ class MergeIntegrityTests(unittest.TestCase):
             "default_branch": "main",
             "owner": {"login": "owner", "type": "User"},
         }
-        foreign = repository_settings.required_ruleset() | {
-            "id": 99,
+        identifier = repository_settings.OWNED_RULESET_ID
+        foreign = ruleset_response(identifier) | {
             "target": "tag",
             "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
         }
@@ -923,38 +1366,52 @@ class MergeIntegrityTests(unittest.TestCase):
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
-                return_value=(settings, foreign, "core", "a" * 40, ()),
+                return_value=(settings, foreign, "core", CORE_CAPABILITY, "a" * 40, ()),
             ),
             mock.patch.object(repository_settings, "api") as mutation,
             self.assertRaisesRegex(ValueError, "protected-main ruleset differs"),
         ):
-            repository_settings.apply("owner/repository", expected_ruleset_id=99)
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         mutation.assert_not_called()
 
+        foreign_id = ruleset_response(99)
         with (
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
-                return_value=(settings, foreign, "core", "a" * 40, ()),
+                return_value=(
+                    settings,
+                    foreign_id,
+                    "core",
+                    CORE_CAPABILITY,
+                    "a" * 40,
+                    (),
+                ),
             ),
             mock.patch.object(repository_settings, "api") as mutation,
             self.assertRaisesRegex(ValueError, "ownership identity is unbound"),
         ):
-            repository_settings.apply("owner/repository")
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         mutation.assert_not_called()
 
         with (
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
-                return_value=(settings, None, "core", "a" * 40, ()),
+                return_value=(settings, None, "core", CORE_CAPABILITY, "a" * 40, ()),
             ),
             mock.patch.object(repository_settings, "api") as mutation,
             self.assertRaisesRegex(
                 ValueError, "owned protected-main ruleset is missing"
             ),
         ):
-            repository_settings.apply("owner/repository", expected_ruleset_id=99)
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         mutation.assert_not_called()
 
     def test_settings_openapi_projection_rejects_hostile_shapes(self) -> None:
@@ -1052,7 +1509,10 @@ class MergeIntegrityTests(unittest.TestCase):
             mock.patch.object(repository_settings, "api") as mutation,
             self.assertRaisesRegex(ValueError, "missing or ambiguous"),
         ):
-            repository_settings.apply("owner/repository")
+            repository_settings.apply(
+                "owner/repository",
+                expected_ruleset_id=repository_settings.OWNED_RULESET_ID,
+            )
         mutation.assert_not_called()
 
     def test_settings_provenance_status_rejects_missing_stale_and_truncated(
@@ -1173,7 +1633,10 @@ class MergeIntegrityTests(unittest.TestCase):
                         "response-invalid|identity is malformed|local-boundary",
                     ),
                 ):
-                    repository_settings.apply("owner/repository")
+                    repository_settings.apply(
+                        "owner/repository",
+                        expected_ruleset_id=repository_settings.OWNED_RULESET_ID,
+                    )
                 self.assertEqual(command.call_count, 4)
                 for call in command.call_args_list:
                     self.assertNotIn("--method", call.args)
@@ -1255,14 +1718,15 @@ class MergeIntegrityTests(unittest.TestCase):
             "default_branch": "main",
             "owner": {"login": "owner", "type": "User"},
         }
-        ruleset = repository_settings.required_ruleset() | {"id": 17}
+        identifier = repository_settings.OWNED_RULESET_ID
+        ruleset = ruleset_response(identifier)
         with (
             mock.patch.object(
                 repository_settings,
                 "fetch_admission",
                 side_effect=(
-                    (settings, None, "core", "a" * 40, ()),
-                    (settings, ruleset, "core", "a" * 40, ()),
+                    (settings, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
+                    (settings, ruleset, "core", CORE_CAPABILITY, "a" * 40, ()),
                     ValueError("post-read mismatch"),
                 ),
             ),
@@ -1271,13 +1735,15 @@ class MergeIntegrityTests(unittest.TestCase):
             ),
             self.assertRaises(ValueError) as raised,
         ):
-            repository_settings.apply("owner/repository")
+            repository_settings.apply(
+                "owner/repository", expected_ruleset_id=identifier
+            )
         diagnostic = str(raised.exception)
         self.assertIn("phase=post-read", diagnostic)
         self.assertIn("prior-ruleset-effect=applied", diagnostic)
         self.assertIn("prior-settings-effect=applied", diagnostic)
         self.assertIn("effect=ambiguous", diagnostic)
-        self.assertIn("ruleset-id=17", diagnostic)
+        self.assertIn(f"ruleset-id={identifier}", diagnostic)
         self.assertIn("ownership=readback-verified", diagnostic)
 
     def test_portable_provenance_accepts_signed_topic_and_rejects_event_drift(
