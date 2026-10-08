@@ -60,6 +60,14 @@ const DEV_BROKER_ASB_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_COMMIT";
 const DEV_BROKER_ASB_TREE_ENV: &str = "ASB_TUI_EXPECTED_ASB_SOURCE_TREE";
 const DEV_BROKER_TUI_COMMIT_ENV: &str = "ASB_TUI_EXPECTED_TUI_SOURCE_COMMIT";
 const DEV_BROKER_TUI_TREE_ENV: &str = "ASB_TUI_EXPECTED_TUI_SOURCE_TREE";
+const TUI_DEV_GIT_ENV: &str = "ASB_TUI_DEV_GIT";
+const TUI_DEV_CARGO_ENV: &str = "ASB_TUI_DEV_CARGO";
+const TUI_DEV_RUSTC_ENV: &str = "ASB_TUI_DEV_RUSTC";
+const TUI_DEV_SETSID_ENV: &str = "ASB_TUI_DEV_SETSID";
+const TUI_DEV_CC_ENV: &str = "ASB_TUI_DEV_CC";
+const TUI_DEV_AR_ENV: &str = "ASB_TUI_DEV_AR";
+const TUI_DEV_LD_ENV: &str = "ASB_TUI_DEV_LD";
+const TUI_DEV_RUSTUP_HOME_ENV: &str = "ASB_TUI_DEV_RUSTUP_HOME";
 const DEV_BROKER_PROTOCOL_MINOR: u64 = 10;
 const UNIX_SOCKET_PATH_LIMIT: usize = 108;
 const DEV_GIT: &str = "/usr/bin/git";
@@ -176,6 +184,96 @@ struct DevelopmentCargo {
 struct DevelopmentTool {
     path: PathBuf,
     bound_file: Option<File>,
+}
+
+#[derive(Debug)]
+struct DevelopmentLaunchTools {
+    git: PathBuf,
+    setsid: PathBuf,
+    cc: PathBuf,
+    ar: PathBuf,
+    ld: PathBuf,
+    rustup_home: Option<PathBuf>,
+    cargo: DevelopmentCargo,
+    rustc: Option<DevelopmentTool>,
+}
+
+impl DevelopmentLaunchTools {
+    fn resolve() -> Result<Self, RouterError> {
+        let git = resolve_development_tool(DEV_GIT_OVERRIDE, DEV_GIT)?;
+        let setsid = resolve_development_tool(DEV_SETSID_OVERRIDE, DEV_SETSID)?;
+        let cc = resolve_development_tool_candidates(
+            DEV_CC_OVERRIDE,
+            &["/usr/bin/cc", "/usr/local/bin/cc"],
+        )?;
+        let ar = resolve_development_tool_candidates(
+            DEV_AR_OVERRIDE,
+            &["/usr/bin/ar", "/usr/local/bin/ar"],
+        )?;
+        let ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )?;
+        let rustup_home = resolve_development_rustup_home()?;
+        let cargo = resolve_development_cargo_with_rustup(rustup_home.as_deref())?;
+        let rustc = resolve_development_rustc_bound(
+            &cargo,
+            rustup_home.as_deref(),
+            std::env::var_os(DEV_CARGO_OVERRIDE).is_some(),
+        )?;
+        Ok(Self {
+            git,
+            setsid,
+            cc,
+            ar,
+            ld,
+            rustup_home,
+            cargo,
+            rustc,
+        })
+    }
+
+    fn apply(&self, command: &mut Command) {
+        command
+            .env_remove("PATH")
+            .env("LANG", "C.UTF-8")
+            .env(TUI_DEV_GIT_ENV, &self.git)
+            .env(TUI_DEV_CARGO_ENV, self.cargo.execution_path())
+            .env(TUI_DEV_SETSID_ENV, &self.setsid)
+            .env(TUI_DEV_CC_ENV, &self.cc)
+            .env(TUI_DEV_AR_ENV, &self.ar)
+            .env(TUI_DEV_LD_ENV, &self.ld);
+        if let Some(rustc) = &self.rustc {
+            command.env(TUI_DEV_RUSTC_ENV, rustc.execution_path());
+        }
+        if let Some(rustup_home) = &self.rustup_home {
+            command.env(TUI_DEV_RUSTUP_HOME_ENV, rustup_home);
+        }
+    }
+
+    fn make_descriptors_inheritable(
+        &self,
+    ) -> Result<(Option<FdFlags>, Option<FdFlags>), RouterError> {
+        make_toolchain_descriptors_inheritable(
+            self.cargo.bound_file.as_ref(),
+            self.rustc
+                .as_ref()
+                .and_then(|tool| tool.bound_file.as_ref()),
+        )
+    }
+
+    fn restore_descriptor_flags(
+        &self,
+        flags: (Option<FdFlags>, Option<FdFlags>),
+    ) -> Result<(), RouterError> {
+        restore_toolchain_descriptor_flags(
+            self.cargo.bound_file.as_ref(),
+            self.rustc
+                .as_ref()
+                .and_then(|tool| tool.bound_file.as_ref()),
+            flags,
+        )
+    }
 }
 
 impl DevelopmentTool {
@@ -1694,7 +1792,13 @@ fn execute_development_existing(
             }
             add_candidate_environment(&mut command)?;
             add_development_terminal_environment(&mut command)?;
-            let status = launch_development_broker(command, &paths.state_root)?;
+            let tools = DevelopmentLaunchTools::resolve()?;
+            tools.apply(&mut command);
+            let inherited = tools.make_descriptors_inheritable()?;
+            let launch_result = launch_development_broker(command, &paths.state_root);
+            let restore_result = tools.restore_descriptor_flags(inherited);
+            restore_result?;
+            let status = launch_result?;
             if !status.success() {
                 return Err(RouterError::operation("development_launch_failed"));
             }
@@ -5223,6 +5327,7 @@ mod tests {
         });
         let mut command = Command::new(binary);
         command
+            .env_clear()
             .args(["run", "--broker", "--development"])
             .env(
                 DEV_BROKER_DESCRIPTOR_ENV,
@@ -5242,6 +5347,9 @@ mod tests {
             .env("ASB_TUI_DEVELOPMENT_TERMINAL_PATH", &terminal_path)
             .stdout(Stdio::from(slave.try_clone().unwrap()))
             .stderr(Stdio::inherit());
+        let tools = DevelopmentLaunchTools::resolve().unwrap();
+        tools.apply(&mut command);
+        let inherited = tools.make_descriptors_inheritable().unwrap();
         let root = scratch.0.clone();
         let (launch_done, launch_result) = std::sync::mpsc::channel();
         thread::spawn(move || {
@@ -5371,6 +5479,7 @@ mod tests {
                 panic!("development launch completion timed out: {error}; calls={calls:?}");
             }
         };
+        tools.restore_descriptor_flags(inherited).unwrap();
         feeder.join().unwrap();
         assert!(result.code().is_some(), "development child did not exit");
         let observed = calls.lock().expect("cassette recorder lock").clone();
@@ -6316,6 +6425,148 @@ mod tests {
         assert!(!cargo_descriptor.exists());
         assert!(!rustc_descriptor.exists());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_launch_propagates_only_bound_tools_across_hostile_path_replacement() {
+        let root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!("asb-ar1734-launch-tools-{}", std::process::id()));
+        prepare_private_directory(&root).unwrap();
+        let bin = root.join("toolchains/fixture-toolchain/bin");
+        prepare_private_directory(&bin).unwrap();
+        fs::set_permissions(
+            root.join("toolchains/fixture-toolchain"),
+            fs::Permissions::from_mode(0o775),
+        )
+        .unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o775)).unwrap();
+        let cargo_path = bin.join("cargo");
+        let rustc_path = bin.join("rustc");
+        fs::write(&cargo_path, b"#!/bin/sh\nexec \"$ASB_TUI_DEV_RUSTC\"\n").unwrap();
+        fs::write(&rustc_path, b"#!/bin/sh\nprintf validated-toolchain\n").unwrap();
+        fs::set_permissions(&cargo_path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc_path, fs::Permissions::from_mode(0o700)).unwrap();
+        let (cargo_path, cargo_file, cargo_bin, _) =
+            validate_development_rustup_tool(&cargo_path, &root).unwrap();
+        let cargo = DevelopmentCargo {
+            path: cargo_path,
+            bound_file: Some(cargo_file),
+            bound_rustup_bin: Some(cargo_bin),
+            group_writable_rustup_paths: true,
+        };
+        let rustc = resolve_development_rustc_bound(&cargo, Some(&root), false)
+            .unwrap()
+            .unwrap();
+        let cargo_descriptor = cargo.execution_path();
+        let rustc_descriptor = rustc.execution_path();
+        let tools = DevelopmentLaunchTools {
+            git: PathBuf::from(DEV_GIT),
+            setsid: PathBuf::from(DEV_SETSID),
+            cc: PathBuf::from("/usr/bin/cc"),
+            ar: PathBuf::from("/usr/bin/ar"),
+            ld: PathBuf::from("/usr/bin/ld"),
+            rustup_home: Some(root.clone()),
+            cargo,
+            rustc: Some(rustc),
+        };
+        let hostile = root.join("hostile-bin");
+        prepare_private_directory(&hostile).unwrap();
+        for name in ["cargo", "rustc", "git", "setsid", "cc", "ar", "ld"] {
+            fs::write(hostile.join(name), b"#!/bin/sh\nprintf hostile\n").unwrap();
+            fs::set_permissions(hostile.join(name), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let mut command = Command::new("/bin/sh");
+        command
+            .env_clear()
+            .env("PATH", &hostile)
+            .args([
+                "-c",
+                "test \"$ASB_TUI_DEV_GIT\" = /usr/bin/git && test \"$ASB_TUI_DEV_SETSID\" = /usr/bin/setsid && test \"$ASB_TUI_DEV_CC\" = /usr/bin/cc && test \"$ASB_TUI_DEV_AR\" = /usr/bin/ar && test \"$ASB_TUI_DEV_LD\" = /usr/bin/ld && test \"$ASB_TUI_DEV_RUSTUP_HOME\" != /hostile && exec \"$ASB_TUI_DEV_CARGO\"",
+            ]);
+        tools.apply(&mut command);
+        assert!(
+            !command
+                .get_envs()
+                .any(|(name, value)| name == std::ffi::OsStr::new("PATH") && value.is_some())
+        );
+
+        fs::rename(&bin, root.join("retained-bin")).unwrap();
+        prepare_private_directory(&bin).unwrap();
+        fs::write(bin.join("cargo"), b"#!/bin/sh\nprintf substituted-cargo\n").unwrap();
+        fs::write(bin.join("rustc"), b"#!/bin/sh\nprintf substituted-rustc\n").unwrap();
+        fs::set_permissions(bin.join("cargo"), fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(bin.join("rustc"), fs::Permissions::from_mode(0o700)).unwrap();
+
+        let inherited = tools.make_descriptors_inheritable().unwrap();
+        let output = command.output().unwrap();
+        tools.restore_descriptor_flags(inherited).unwrap();
+        assert!(
+            output.status.success(),
+            "status={:?} stdout={} stderr={}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.stdout, b"validated-toolchain");
+        assert!(cargo_descriptor.exists());
+        assert!(rustc_descriptor.exists());
+        assert!(
+            fcntl_getfd(tools.cargo.bound_file.as_ref().unwrap())
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+        assert!(
+            fcntl_getfd(
+                tools
+                    .rustc
+                    .as_ref()
+                    .and_then(|tool| tool.bound_file.as_ref())
+                    .unwrap()
+            )
+            .unwrap()
+            .contains(FdFlags::CLOEXEC)
+        );
+        drop(tools);
+        assert!(!cargo_descriptor.exists());
+        assert!(!rustc_descriptor.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn development_launch_tool_failure_has_stable_human_and_json_contract() {
+        let error = RouterError::operation("trusted_tool_unavailable");
+        let mut response = RouterResponse::result(Operation::Launch, false, error.code, "denied");
+        response.classification = Some(error.classification());
+        response.remediation = error.remediation();
+        annotate_channel(&mut response, Channel::Dev);
+        assert_eq!(
+            resolve_development_tool_candidates(
+                "ASB_AR1734_MISSING_TOOL_OVERRIDE",
+                &["/definitely/missing/asb-ar1734-tool"],
+            )
+            .unwrap_err()
+            .code,
+            "trusted_tool_unavailable"
+        );
+        let json = serde_json::to_vec(&response).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&json).unwrap();
+        assert_eq!(value["code"], "trusted_tool_unavailable");
+        assert_eq!(value["classification"], "host_limitation");
+        assert_eq!(
+            value["remediation"],
+            "install_a_supported_rust_toolchain_or_set_ASB_DEV_CARGO"
+        );
+        assert_eq!(value["channel"], "dev");
+        assert_eq!(value["development_only"], true);
+        assert_eq!(value["network"], "denied");
+        let mut human = Vec::new();
+        crate::render_human(&json, &mut human).unwrap();
+        let human = String::from_utf8(human).unwrap();
+        assert!(human.contains("trusted_tool_unavailable"));
+        assert!(human.contains("install_a_supported_rust_toolchain_or_set_ASB_DEV_CARGO"));
+        assert!(!human.contains('/'));
     }
 
     #[cfg(unix)]
