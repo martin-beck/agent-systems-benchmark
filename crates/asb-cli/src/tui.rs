@@ -1832,7 +1832,67 @@ fn launch_development_broker_with_backend<B: ControlBackend + Send + Sync + 'sta
 struct DevelopmentForegroundTerminal {
     terminal: File,
     original_group: Pid,
-    assigned: bool,
+    assigned_group: Option<Pid>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DevelopmentTerminalError {
+    ForegroundChanged,
+    SignalMask,
+    Terminal,
+}
+
+struct SigttouBlock {
+    previous: SigSet,
+    restored: bool,
+}
+
+impl SigttouBlock {
+    fn acquire() -> Result<Self, DevelopmentTerminalError> {
+        let mut blocked = SigSet::empty();
+        blocked.add(NixSignal::SIGTTOU);
+        let mut previous = SigSet::empty();
+        pthread_sigmask(SigmaskHow::SIG_BLOCK, Some(&blocked), Some(&mut previous))
+            .map_err(|_| DevelopmentTerminalError::SignalMask)?;
+        Ok(Self {
+            previous,
+            restored: false,
+        })
+    }
+
+    fn restore(mut self) -> Result<(), DevelopmentTerminalError> {
+        pthread_sigmask(SigmaskHow::SIG_SETMASK, Some(&self.previous), None)
+            .map_err(|_| DevelopmentTerminalError::SignalMask)?;
+        self.restored = true;
+        Ok(())
+    }
+}
+
+impl Drop for SigttouBlock {
+    fn drop(&mut self) {
+        if !self.restored {
+            let _ = pthread_sigmask(SigmaskHow::SIG_SETMASK, Some(&self.previous), None);
+        }
+    }
+}
+
+#[cfg(test)]
+type DevelopmentForegroundHook = Box<dyn FnOnce(&File, Pid)>;
+
+#[cfg(test)]
+thread_local! {
+    static DEVELOPMENT_FOREGROUND_BEFORE_ASSIGN: std::cell::RefCell<
+        Option<DevelopmentForegroundHook>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn run_development_foreground_before_assign(terminal: &File, child_group: Pid) {
+    DEVELOPMENT_FOREGROUND_BEFORE_ASSIGN.with(|hook| {
+        if let Some(hook) = hook.borrow_mut().take() {
+            hook(terminal, child_group);
+        }
+    });
 }
 
 impl DevelopmentForegroundTerminal {
@@ -1853,34 +1913,67 @@ impl DevelopmentForegroundTerminal {
         Ok(Some(Self {
             terminal,
             original_group,
-            assigned: false,
+            assigned_group: None,
         }))
     }
 
-    fn assign(&mut self, child_group: Pid) -> Result<(), rustix::io::Errno> {
-        tcsetpgrp(&self.terminal, child_group)?;
-        self.assigned = true;
-        // The child may reach terminal setup in the short interval between
-        // spawn and tcsetpgrp and be stopped by SIGTTIN/SIGTTOU. Continuing
-        // the now-foreground group is harmless when it never stopped.
-        kill_process_group(child_group, Signal::CONT)
+    fn assign(&mut self, child_group: Pid) -> Result<(), DevelopmentTerminalError> {
+        let blocked = SigttouBlock::acquire()?;
+        #[cfg(test)]
+        run_development_foreground_before_assign(&self.terminal, child_group);
+        let assigned = (|| {
+            if tcgetpgrp(&self.terminal).map_err(|_| DevelopmentTerminalError::Terminal)?
+                != self.original_group
+            {
+                return Err(DevelopmentTerminalError::ForegroundChanged);
+            }
+            // Keep this handoff adjacent to the ownership revalidation. The
+            // scoped SIGTTOU block makes a changed owner a typed failure
+            // instead of stopping the launcher in a background process group.
+            tcsetpgrp(&self.terminal, child_group)
+                .map_err(|_| DevelopmentTerminalError::Terminal)?;
+            self.assigned_group = Some(child_group);
+            // The child may reach terminal setup in the short interval between
+            // spawn and tcsetpgrp and be stopped by SIGTTIN/SIGTTOU. Continuing
+            // the now-foreground group is harmless when it never stopped.
+            kill_process_group(child_group, Signal::CONT)
+                .map_err(|_| DevelopmentTerminalError::Terminal)
+        })();
+        let mask_restored = blocked.restore();
+        assigned.and(mask_restored)
     }
 
-    fn restore(&mut self) -> Result<(), ()> {
-        if !self.assigned {
+    fn restore(&mut self) -> Result<(), DevelopmentTerminalError> {
+        let Some(assigned_group) = self.assigned_group else {
+            return Ok(());
+        };
+        let blocked = SigttouBlock::acquire()?;
+        let current_group = match tcgetpgrp(&self.terminal) {
+            Ok(group) => group,
+            Err(_) => {
+                self.assigned_group = None;
+                blocked.restore()?;
+                return Err(DevelopmentTerminalError::Terminal);
+            }
+        };
+        if current_group == self.original_group {
+            self.assigned_group = None;
+            blocked.restore()?;
             return Ok(());
         }
-        let mut blocked = SigSet::empty();
-        blocked.add(NixSignal::SIGTTOU);
-        let mut previous = SigSet::empty();
-        pthread_sigmask(SigmaskHow::SIG_BLOCK, Some(&blocked), Some(&mut previous))
-            .map_err(|_| ())?;
-        let restored = tcsetpgrp(&self.terminal, self.original_group).map_err(|_| ());
-        let mask_restored =
-            pthread_sigmask(SigmaskHow::SIG_SETMASK, Some(&previous), None).map_err(|_| ());
-        if restored.is_ok() {
-            self.assigned = false;
+        if current_group != assigned_group {
+            // Another foreground owner won after assignment. Relinquish the
+            // lease without overwriting that legitimate owner.
+            self.assigned_group = None;
+            blocked.restore()?;
+            return Err(DevelopmentTerminalError::ForegroundChanged);
         }
+        let restored = tcsetpgrp(&self.terminal, self.original_group)
+            .map_err(|_| DevelopmentTerminalError::Terminal);
+        if restored.is_ok() {
+            self.assigned_group = None;
+        }
+        let mask_restored = blocked.restore();
         restored.and(mask_restored)
     }
 }
@@ -4070,7 +4163,7 @@ mod tests {
     use std::mem::MaybeUninit;
     use std::os::unix::fs::DirBuilderExt;
     use std::os::unix::fs::symlink;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
 
     static NONCE: AtomicU64 = AtomicU64::new(0);
@@ -4993,6 +5086,7 @@ mod tests {
                 );
                 let terminal = File::open("/dev/tty").expect("launcher controlling terminal");
                 let original_group = tcgetpgrp(&terminal).expect("original foreground group");
+                let original_mask = SigSet::thread_get_mask().expect("original signal mask");
                 assert_eq!(original_group, getpgrp(), "launcher must start foreground");
 
                 let scratch = Scratch::new("broker-foreground");
@@ -5018,6 +5112,11 @@ mod tests {
                     original_group,
                     "development broker did not restore the caller foreground group"
                 );
+                assert_eq!(
+                    SigSet::thread_get_mask().expect("restored signal mask"),
+                    original_mask,
+                    "development broker did not restore the caller signal mask"
+                );
                 return;
             }
             Ok(other) => panic!("unexpected foreground test role: {other}"),
@@ -5037,6 +5136,206 @@ mod tests {
         assert!(
             status.success(),
             "controlling PTY regression failed: {status}"
+        );
+    }
+
+    #[test]
+    fn development_broker_rejects_changed_foreground_owner_and_reaps_child() {
+        const ROLE: &str = "ASB_AR1727_CHANGED_FOREGROUND_TEST_ROLE";
+        const TEST_NAME: &str =
+            "tui::tests::development_broker_rejects_changed_foreground_owner_and_reaps_child";
+
+        match std::env::var(ROLE).as_deref() {
+            Ok("launcher") => {
+                assert!(
+                    io::stdin().is_terminal(),
+                    "launcher needs a controlling PTY"
+                );
+                let terminal = File::open("/dev/tty").expect("launcher controlling terminal");
+                let original_group = tcgetpgrp(&terminal).expect("original foreground group");
+                let original_mask = SigSet::thread_get_mask().expect("original signal mask");
+                assert_eq!(original_group, getpgrp(), "launcher must start foreground");
+
+                let mut contender = Command::new("/bin/sleep");
+                contender
+                    .arg("30")
+                    .process_group(0)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null());
+                let mut contender = contender.spawn().expect("foreground contender");
+                let contender_group = Pid::from_child(&contender);
+                let launched_group = Arc::new(AtomicI32::new(0));
+                let observed_group = Arc::clone(&launched_group);
+                DEVELOPMENT_FOREGROUND_BEFORE_ASSIGN.with(|hook| {
+                    assert!(hook.borrow().is_none(), "foreground hook already installed");
+                    *hook.borrow_mut() = Some(Box::new(move |terminal, child_group| {
+                        observed_group.store(child_group.as_raw_nonzero().get(), Ordering::SeqCst);
+                        tcsetpgrp(terminal, contender_group)
+                            .expect("transfer foreground to intervening owner");
+                    }));
+                });
+
+                let scratch = Scratch::new("broker-changed-foreground");
+                let backend =
+                    open_development_backend(scratch.0.clone()).expect("development backend");
+                let mut command = Command::new("/bin/sleep");
+                command.arg("30");
+                let failure = launch_development_broker_with_backend(command, &scratch.0, backend)
+                    .expect_err("changed foreground owner must reject launch");
+                assert_eq!(failure.code, "development_terminal_unavailable");
+                assert_eq!(
+                    tcgetpgrp(&terminal).expect("intervening foreground owner"),
+                    contender_group,
+                    "failed assignment overwrote the intervening foreground owner"
+                );
+
+                let launched_pid = launched_group.load(Ordering::SeqCst);
+                assert!(launched_pid > 0, "launch hook did not observe child group");
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while Instant::now() < deadline
+                    && Path::new(&format!("/proc/{launched_pid}")).exists()
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                assert!(
+                    !Path::new(&format!("/proc/{launched_pid}")).exists(),
+                    "rejected development child was not reaped"
+                );
+                assert!(
+                    !development_broker_root(&scratch.0).exists(),
+                    "rejected broker root was not removed"
+                );
+
+                // Test-harness cleanup happens only after proving the launcher
+                // preserved the intervening owner. Restore the harness group
+                // under the same scoped signal discipline used in production.
+                let blocked = SigttouBlock::acquire().expect("block SIGTTOU for harness cleanup");
+                tcsetpgrp(&terminal, original_group).expect("restore harness foreground group");
+                blocked.restore().expect("restore harness signal mask");
+                let _ = kill_process_group(contender_group, Signal::KILL);
+                contender.wait().expect("reap foreground contender");
+                assert_eq!(
+                    tcgetpgrp(&terminal).expect("restored harness foreground group"),
+                    original_group
+                );
+                assert_eq!(
+                    SigSet::thread_get_mask().expect("restored signal mask"),
+                    original_mask,
+                    "rejected handoff did not restore the caller signal mask"
+                );
+                return;
+            }
+            Ok(other) => panic!("unexpected changed-foreground test role: {other}"),
+            Err(_) => {}
+        }
+
+        let executable = std::env::current_exe().expect("test executable");
+        let command = format!(
+            "{} --exact {TEST_NAME} --nocapture",
+            shell_quote(&executable)
+        );
+        let status = Command::new("/usr/bin/script")
+            .args(["-qefc", &command, "/dev/null"])
+            .env(ROLE, "launcher")
+            .status()
+            .expect("controlling PTY harness");
+        assert!(
+            status.success(),
+            "changed-foreground PTY regression failed: {status}"
+        );
+    }
+
+    #[test]
+    fn development_terminal_restore_preserves_intervening_foreground_owner() {
+        const ROLE: &str = "ASB_AR1727_RESTORE_OWNER_TEST_ROLE";
+        const TEST_NAME: &str =
+            "tui::tests::development_terminal_restore_preserves_intervening_foreground_owner";
+
+        match std::env::var(ROLE).as_deref() {
+            Ok("launcher") => {
+                let terminal = File::open("/dev/tty").expect("launcher controlling terminal");
+                let original_group = tcgetpgrp(&terminal).expect("original foreground group");
+                let original_mask = SigSet::thread_get_mask().expect("original signal mask");
+                assert_eq!(original_group, getpgrp(), "launcher must start foreground");
+                let mut assigned = Command::new("/bin/sleep")
+                    .arg("30")
+                    .process_group(0)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .expect("assigned child");
+                let assigned_group = Pid::from_child(&assigned);
+                let mut contender = Command::new("/bin/sleep")
+                    .arg("30")
+                    .process_group(0)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .expect("foreground contender");
+                let contender_group = Pid::from_child(&contender);
+
+                let mut ownership = DevelopmentForegroundTerminal::capture()
+                    .expect("capture foreground terminal")
+                    .expect("controlling terminal");
+                ownership
+                    .assign(assigned_group)
+                    .expect("assign child foreground group");
+                assert_eq!(
+                    tcgetpgrp(&terminal).expect("assigned foreground group"),
+                    assigned_group
+                );
+                let blocked = SigttouBlock::acquire().expect("block SIGTTOU for owner change");
+                tcsetpgrp(&terminal, contender_group).expect("install intervening owner");
+                blocked
+                    .restore()
+                    .expect("restore signal mask after owner change");
+                assert_eq!(
+                    ownership.restore(),
+                    Err(DevelopmentTerminalError::ForegroundChanged)
+                );
+                assert_eq!(
+                    tcgetpgrp(&terminal).expect("preserved intervening owner"),
+                    contender_group,
+                    "restore overwrote the intervening foreground owner"
+                );
+                assert_eq!(
+                    SigSet::thread_get_mask().expect("signal mask after rejected restore"),
+                    original_mask
+                );
+
+                let blocked = SigttouBlock::acquire().expect("block SIGTTOU for harness cleanup");
+                tcsetpgrp(&terminal, original_group).expect("restore harness foreground group");
+                blocked.restore().expect("restore harness signal mask");
+                let _ = kill_process_group(assigned_group, Signal::KILL);
+                let _ = kill_process_group(contender_group, Signal::KILL);
+                assigned.wait().expect("reap assigned child");
+                contender.wait().expect("reap foreground contender");
+                assert_eq!(
+                    tcgetpgrp(&terminal).expect("restored harness foreground group"),
+                    original_group
+                );
+                return;
+            }
+            Ok(other) => panic!("unexpected restore-owner test role: {other}"),
+            Err(_) => {}
+        }
+
+        let executable = std::env::current_exe().expect("test executable");
+        let command = format!(
+            "{} --exact {TEST_NAME} --nocapture",
+            shell_quote(&executable)
+        );
+        let status = Command::new("/usr/bin/script")
+            .args(["-qefc", &command, "/dev/null"])
+            .env(ROLE, "launcher")
+            .status()
+            .expect("controlling PTY harness");
+        assert!(
+            status.success(),
+            "restore-owner PTY regression failed: {status}"
         );
     }
 
