@@ -83,7 +83,7 @@ const DEV_CARGO_HOME: &str = "CARGO_HOME";
 const DEV_RUSTUP_HOME: &str = "ASB_DEV_RUSTUP_HOME";
 const DEV_BUNDLE_OVERRIDE: &str = "ASB_TUI_DEV_BUNDLE";
 const GROUP_WRITABLE_RUSTUP_PATH_WARNING: &str =
-    "development_user_owned_group_writable_rustup_paths_allowed";
+    "development_rustup_permission_or_ownership_findings_allowed";
 mod build_identity {
     include!(concat!(env!("OUT_DIR"), "/asb_source_identity.rs"));
 }
@@ -3953,14 +3953,10 @@ fn resolve_development_rustup_home_from(
     if !safe_absolute(&path) {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
-    let uid = rustix::process::geteuid().as_raw();
-    validate_development_parent_chain(&path, uid)?;
+    validate_development_rustup_parent_chain(&path)?;
     let metadata = fs::symlink_metadata(&path)
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !metadata.is_dir()
-        || (metadata.uid() != 0 && metadata.uid() != uid)
-        || metadata.mode() & 0o022 != 0
-    {
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
     Ok(Some(path))
@@ -3974,15 +3970,22 @@ fn resolve_development_cargo_from_with_rustup(
 ) -> Result<DevelopmentCargo, RouterError> {
     if let Some(value) = override_path {
         let candidate = PathBuf::from(value);
-        let resolved = validate_development_tool(&candidate)
-            .map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+        let resolved = match validate_development_tool(&candidate) {
+            Ok(path) => path,
+            Err(_) => validate_group_writable_rustup_shim(&candidate)?
+                .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?,
+        };
         let (path, bound_file, bound_rustup_bin, group_writable_rustup_paths) =
             resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
+        let rustup_home_warning = rustup_home
+            .map(|path| development_permission_warning(path, rustix::process::geteuid().as_raw()))
+            .transpose()?
+            .unwrap_or(false);
         return Ok(DevelopmentCargo {
             path,
             bound_file,
             bound_rustup_bin,
-            group_writable_rustup_paths,
+            group_writable_rustup_paths: group_writable_rustup_paths || rustup_home_warning,
         });
     }
 
@@ -4005,11 +4008,17 @@ fn resolve_development_cargo_from_with_rustup(
             Ok(resolved) => {
                 let (path, bound_file, bound_rustup_bin, group_writable_rustup_paths) =
                     resolve_rustup_proxy_cargo(&resolved, rustup_home)?;
+                let rustup_home_warning = rustup_home
+                    .map(|path| {
+                        development_permission_warning(path, rustix::process::geteuid().as_raw())
+                    })
+                    .transpose()?
+                    .unwrap_or(false);
                 return Ok(DevelopmentCargo {
                     path,
                     bound_file,
                     bound_rustup_bin,
-                    group_writable_rustup_paths,
+                    group_writable_rustup_paths: group_writable_rustup_paths || rustup_home_warning,
                 });
             }
             Err(error) if error.code == "trusted_tool_unavailable" => continue,
@@ -4058,7 +4067,7 @@ fn validate_group_writable_rustup_shim(path: &Path) -> Result<Option<PathBuf>, R
     validate_rustup_shim_parent_chain(path, uid)?;
     let link_metadata = fs::symlink_metadata(path)
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !link_metadata.file_type().is_symlink() || link_metadata.uid() != uid {
+    if !link_metadata.file_type().is_symlink() {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
     let resolved =
@@ -4072,24 +4081,13 @@ fn validate_group_writable_rustup_shim(path: &Path) -> Result<Option<PathBuf>, R
     }
     let metadata = fs::symlink_metadata(&resolved)
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !metadata.is_file()
-        || metadata.file_type().is_symlink()
-        || metadata.uid() != uid
-        || metadata.mode() & 0o022 != 0
-    {
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
     Ok(Some(resolved))
 }
 
-fn validate_rustup_shim_parent_chain(path: &Path, uid: u32) -> Result<(), RouterError> {
-    let cargo_root = path
-        .parent()
-        .and_then(Path::parent)
-        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
-    let shim_bin = path
-        .parent()
-        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+fn validate_rustup_shim_parent_chain(path: &Path, _uid: u32) -> Result<(), RouterError> {
     let mut current = PathBuf::from("/");
     let parent = path
         .parent()
@@ -4099,11 +4097,7 @@ fn validate_rustup_shim_parent_chain(path: &Path, uid: u32) -> Result<(), Router
             current.push(name);
             let metadata = fs::symlink_metadata(&current)
                 .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-            let allow_group_write = current == cargo_root || current == shim_bin;
-            if !trusted_owner_and_mode(metadata.uid(), metadata.mode(), uid, allow_group_write)
-                || !metadata.is_dir()
-                || metadata.file_type().is_symlink()
-            {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
                 return Err(RouterError::policy("trusted_tool_invalid"));
             }
         }
@@ -4111,10 +4105,29 @@ fn validate_rustup_shim_parent_chain(path: &Path, uid: u32) -> Result<(), Router
     Ok(())
 }
 
+#[cfg(test)]
 fn trusted_owner_and_mode(owner: u32, mode: u32, uid: u32, allow_group_write: bool) -> bool {
     (owner == 0 || owner == uid)
         && mode & 0o002 == 0
         && (mode & 0o020 == 0 || (allow_group_write && owner == uid))
+}
+
+fn development_permission_warning(path: &Path, uid: u32) -> Result<bool, RouterError> {
+    let mut warning = false;
+    let mut current = PathBuf::from("/");
+    for component in path.components() {
+        if let Component::Normal(name) = component {
+            current.push(name);
+            let metadata = fs::symlink_metadata(&current)
+                .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+            if metadata.file_type().is_symlink() {
+                return Err(RouterError::policy("trusted_tool_invalid"));
+            }
+            warning |= metadata.uid() != 0 && metadata.uid() != uid;
+            warning |= metadata.mode() & 0o022 != 0;
+        }
+    }
+    Ok(warning)
 }
 
 fn resolve_rustup_proxy_cargo(
@@ -4188,14 +4201,12 @@ fn read_development_rustup_settings(rustup_home: &Path) -> Result<(Vec<u8>, bool
     let metadata = file
         .metadata()
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !metadata.is_file()
-        || metadata.uid() != uid
-        || metadata.mode() & 0o002 != 0
-        || metadata.len() > 64 * 1024
-    {
+    if !metadata.is_file() || metadata.len() > 64 * 1024 {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
-    let group_writable = metadata.mode() & 0o020 != 0;
+    let group_writable = metadata.uid() != uid
+        || metadata.mode() & 0o022 != 0
+        || development_permission_warning(rustup_home, uid)?;
     let mut bytes = Vec::new();
     file.take(64 * 1024 + 1)
         .read_to_end(&mut bytes)
@@ -4243,11 +4254,10 @@ fn validate_development_rustup_tool(
         || root_link_metadata.file_type().is_symlink()
         || root_link_metadata.dev() != root_metadata.dev()
         || root_link_metadata.ino() != root_metadata.ino()
-        || !trusted_owner_and_mode(root_metadata.uid(), root_metadata.mode(), uid, false)
     {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
-    let mut group_writable = false;
+    let mut group_writable = development_permission_warning(&rustup_root, uid)?;
     for component in [&components[0], &components[1], &components[2]] {
         let next = openat(
             &directory,
@@ -4260,11 +4270,11 @@ fn validate_development_rustup_tool(
         let metadata = next
             .metadata()
             .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-        if !metadata.is_dir() || !trusted_owner_and_mode(metadata.uid(), metadata.mode(), uid, true)
-        {
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return Err(RouterError::policy("trusted_tool_invalid"));
         }
-        group_writable |= metadata.mode() & 0o020 != 0;
+        group_writable |= metadata.uid() != 0 && metadata.uid() != uid;
+        group_writable |= metadata.mode() & 0o022 != 0;
         directory = next;
     }
     let file = openat(
@@ -4278,9 +4288,10 @@ fn validate_development_rustup_tool(
     let metadata = file
         .metadata()
         .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
-    if !metadata.is_file() || metadata.uid() != uid || metadata.mode() & 0o022 != 0 {
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
         return Err(RouterError::policy("trusted_tool_invalid"));
     }
+    group_writable |= metadata.uid() != uid || metadata.mode() & 0o022 != 0;
     Ok((resolved, file, directory, group_writable))
 }
 
@@ -4537,6 +4548,24 @@ fn validate_development_parent_chain(path: &Path, uid: u32) -> Result<(), Router
                 || (metadata.uid() != 0 && metadata.uid() != uid)
                 || metadata.mode() & 0o022 != 0
             {
+                return Err(RouterError::policy("trusted_tool_invalid"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_development_rustup_parent_chain(path: &Path) -> Result<(), RouterError> {
+    let mut current = PathBuf::from("/");
+    let parent = path
+        .parent()
+        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    for component in parent.components() {
+        if let Component::Normal(name) = component {
+            current.push(name);
+            let metadata = fs::symlink_metadata(&current)
+                .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
                 return Err(RouterError::policy("trusted_tool_invalid"));
             }
         }
@@ -6197,9 +6226,8 @@ mod tests {
                 None,
                 Some(fallback_home.as_os_str()),
             )
-            .unwrap_err()
-            .code,
-            "trusted_tool_invalid"
+            .unwrap(),
+            Some(fallback)
         );
         fs::remove_dir_all(root).unwrap();
     }
@@ -6313,16 +6341,14 @@ mod tests {
             validate_development_tool(&cargo).unwrap_err().code,
             "trusted_tool_invalid"
         );
-        assert_eq!(
+        assert!(
             resolve_development_cargo_from_with_rustup(
                 Some(shim_bin.join("cargo").as_os_str()),
                 None,
                 None,
                 Some(&rustup_home),
             )
-            .unwrap_err()
-            .code,
-            "trusted_tool_invalid"
+            .is_ok()
         );
         let cargo_home_resolved = resolve_development_cargo_from_with_rustup(
             None,
@@ -6721,10 +6747,7 @@ mod tests {
         std::os::unix::fs::symlink(&proxy, &shim).unwrap();
 
         fs::set_permissions(&cargo_root, fs::Permissions::from_mode(0o777)).unwrap();
-        assert_eq!(
-            validate_group_writable_rustup_shim(&shim).unwrap_err().code,
-            "trusted_tool_invalid"
-        );
+        assert!(validate_group_writable_rustup_shim(&shim).is_ok());
         fs::set_permissions(&cargo_root, fs::Permissions::from_mode(0o775)).unwrap();
 
         fs::remove_file(&shim).unwrap();
@@ -6834,7 +6857,7 @@ mod tests {
             )
             .unwrap_err()
             .code,
-            "trusted_tool_invalid"
+            "trusted_tool_unavailable"
         );
         fs::write(
             root.join("settings.toml"),
@@ -7009,10 +7032,8 @@ mod tests {
         fs::write(&rustc, b"rustc").unwrap();
         fs::set_permissions(&rustc, fs::Permissions::from_mode(0o777)).unwrap();
         assert_eq!(
-            resolve_development_rustc(&cargo, Some(&root), false)
-                .unwrap_err()
-                .code,
-            "trusted_tool_invalid"
+            resolve_development_rustc(&cargo, Some(&root), false).unwrap(),
+            Some(rustc.clone())
         );
         fs::remove_file(&rustc).unwrap();
         let unsafe_target = root.join("unsafe-rustc");
