@@ -357,8 +357,9 @@ fn merge_attestation_preserves_the_historical_unsigned_publication_boundary() {
     assert!(policy.contains(
         "requires one pull-request merge method to remain enabled, so only merge-commit is exposed"
     ));
-    assert!(policy.contains("protected-main ruleset rejects GitHub Web Flow committers"));
-    assert!(policy.contains("web merge, squash, rebase, and\nauto-merge remain unauthorized"));
+    assert!(policy.contains("protected-main ruleset requires the portable provenance context"));
+    assert!(policy.contains("rejects GitHub Web Flow and\nnoreply committers"));
+    assert!(policy.contains("Web merge, squash, rebase, and auto-merge remain unauthorized"));
     assert!(policy.contains("signed DCO two-parent commit locally"));
     assert!(policy.contains("publishes only through an exact target-ref lease"));
     assert!(!policy.contains("gh pr merge --merge"));

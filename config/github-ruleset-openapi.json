@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "api_version": "2022-11-28",
+  "source_commit": "7dee0622aeecf9df3c5060ca28c7a57ee5007804",
+  "source_blob": "63926c4dc629284e7d29ecc9de9938bf4ac0fd82",
+  "source_sha256": "0d2fa885d4a15f57a6fe06811cbd13e7e0f580d292530199db1a59cfc2b7d14e",
+  "source_path": "descriptions/api.github.com/api.github.com.2022-11-28.json",
+  "repository_rule_types": ["deletion", "non_fast_forward", "required_signatures", "pull_request", "required_status_checks", "committer_email_pattern"],
+  "pattern_operators": ["starts_with", "ends_with", "contains", "regex"]
+}

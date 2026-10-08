@@ -14,7 +14,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.integration import merge_pr, repository_settings
+from tools.integration import merge_pr, portable_provenance, repository_settings
+from tools.quality import repository_policy
 
 ROOT = Path(__file__).resolve().parents[2]
 MERGE = ROOT / "tools/integration/merge_pr.py"
@@ -236,9 +237,7 @@ class MergeIntegrityTests(unittest.TestCase):
             )
             command(fixture.repository, "git", "checkout", "-q", "main")
 
-            result = command(
-                fixture.repository, *fixture.merge_command(), check=False
-            )
+            result = command(fixture.repository, *fixture.merge_command(), check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("fresh exact-main qualification required", result.stderr)
 
@@ -410,9 +409,7 @@ class MergeIntegrityTests(unittest.TestCase):
             "license-headers.yml",
             "native-platforms.yml",
         )
-        required = (
-            "  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}"
-        )
+        required = "  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}"
         for workflow in workflows:
             with self.subTest(workflow=workflow):
                 text = (ROOT / ".github/workflows" / workflow).read_text(
@@ -436,7 +433,13 @@ class MergeIntegrityTests(unittest.TestCase):
             self.assertLess(len(result.stderr), 256)
 
     def test_settings_oracle_requires_merge_only_and_exact_ruleset(self) -> None:
-        good_settings = dict(repository_settings.REQUIRED_SETTINGS)
+        good_settings = dict(repository_settings.REQUIRED_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        good_owner = {"login": "owner", "type": "User", "plan": {"name": "free"}}
         good_ruleset = repository_settings.required_ruleset()
 
         def audit(
@@ -450,6 +453,12 @@ class MergeIntegrityTests(unittest.TestCase):
                 json.dumps(settings),
                 "--ruleset-json",
                 json.dumps(ruleset),
+                "--owner-json",
+                json.dumps(good_owner),
+                "--provenance-status",
+                "success",
+                "--repository",
+                "owner/repository",
                 check=False,
             )
 
@@ -457,7 +466,7 @@ class MergeIntegrityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("protected publication is enforced", result.stdout)
 
-        for field, value in good_settings.items():
+        for field, value in repository_settings.REQUIRED_SETTINGS.items():
             mutated = dict(good_settings)
             mutated[field] = not value
             self.assertNotEqual(audit(mutated, good_ruleset).returncode, 0)
@@ -482,7 +491,9 @@ class MergeIntegrityTests(unittest.TestCase):
             lambda value: value["rules"][4]["parameters"][
                 "required_status_checks"
             ].pop(),
-            lambda value: value["rules"][5]["parameters"].update(negate=False),
+            lambda value: value["rules"][4]["parameters"]["required_status_checks"].pop(
+                0
+            ),
         ):
             candidate = json.loads(json.dumps(good_ruleset))
             mutate(candidate)
@@ -595,6 +606,12 @@ class MergeIntegrityTests(unittest.TestCase):
     def test_settings_apply_reports_partial_effect(self) -> None:
         ruleset = repository_settings.required_ruleset()
         ruleset["id"] = 17
+        settings = dict(repository_settings.REQUIRED_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
         failure = ValueError(
             "GitHub API update repository-settings failed; "
             "category=validation; status=422; effect=rejected"
@@ -602,8 +619,8 @@ class MergeIntegrityTests(unittest.TestCase):
         with (
             mock.patch.object(
                 repository_settings,
-                "fetch",
-                return_value=(dict(repository_settings.REQUIRED_SETTINGS), None),
+                "fetch_admission",
+                return_value=(settings, None, "core", "a" * 40),
             ),
             mock.patch.object(
                 repository_settings, "api", side_effect=(ruleset, failure)
@@ -617,24 +634,33 @@ class MergeIntegrityTests(unittest.TestCase):
         self.assertEqual(mocked_api.call_count, 2)
 
     def test_settings_reapply_updates_only_named_ruleset(self) -> None:
-        settings = dict(repository_settings.REQUIRED_SETTINGS)
+        settings = dict(repository_settings.REQUIRED_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
         ruleset = repository_settings.required_ruleset()
         ruleset["id"] = 17
-        summaries = [
-            {"id": 99, "name": "Unrelated policy"},
-            {"id": 17, "name": repository_settings.RULESET_NAME},
-        ]
-        with mock.patch.object(
-            repository_settings,
-            "api",
-            side_effect=(settings, summaries, ruleset, ruleset, settings),
-        ) as mocked_api:
+        with (
+            mock.patch.object(
+                repository_settings,
+                "fetch_admission",
+                side_effect=(
+                    (settings, ruleset, "core", "a" * 40),
+                    (settings, ruleset, "core", "a" * 40),
+                ),
+            ),
+            mock.patch.object(
+                repository_settings, "api", side_effect=(ruleset, settings)
+            ) as mocked_api,
+        ):
             applied_settings, applied_ruleset = repository_settings.apply(
                 "owner/repository"
             )
         self.assertEqual(applied_settings, settings)
         self.assertEqual(applied_ruleset, ruleset)
-        update_call = mocked_api.call_args_list[3]
+        update_call = mocked_api.call_args_list[0]
         self.assertIn("PUT", update_call.args)
         self.assertIn("repos/owner/repository/rulesets/17", update_call.args)
         self.assertNotIn("repos/owner/repository/rulesets/99", update_call.args)
@@ -650,6 +676,333 @@ class MergeIntegrityTests(unittest.TestCase):
             self.assertRaisesRegex(ValueError, "duplicated"),
         ):
             repository_settings.fetch("owner/repository")
+
+    def test_settings_capability_matrix_and_safe_validation_detail(self) -> None:
+        settings = {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        self.assertEqual(
+            repository_settings.capability(
+                "owner/repository",
+                settings,
+                {"login": "owner", "type": "User", "plan": {"name": "free"}},
+            ),
+            "core",
+        )
+        organization = dict(settings) | {
+            "owner": {"login": "owner", "type": "Organization"}
+        }
+        self.assertEqual(
+            repository_settings.capability(
+                "owner/repository",
+                organization,
+                {
+                    "login": "owner",
+                    "type": "Organization",
+                    "plan": {"name": "enterprise"},
+                },
+            ),
+            "metadata",
+        )
+        with self.assertRaisesRegex(ValueError, "unknown|missing"):
+            repository_settings.capability(
+                "owner/repository",
+                organization,
+                {"login": "owner", "type": "Organization", "plan": {"name": "mystery"}},
+            )
+        response = merge_pr.CommandResult(
+            1,
+            json.dumps(
+                {
+                    "message": "Validation Failed",
+                    "status": "422",
+                    "errors": [
+                        {
+                            "resource": "RepositoryRule",
+                            "field": "type",
+                            "code": "invalid",
+                            "private": "secret-value",
+                        }
+                    ],
+                }
+            ),
+            "gh: Validation Failed (HTTP 422)",
+        )
+        with (
+            mock.patch.object(
+                repository_settings, "bounded_command", return_value=response
+            ),
+            self.assertRaises(ValueError) as raised,
+        ):
+            repository_settings.api(
+                "ignored", operation="create", subject="protected-main-ruleset"
+            )
+        self.assertIn("detail=RepositoryRule.type.invalid", str(raised.exception))
+        self.assertNotIn("secret-value", str(raised.exception))
+
+    def test_settings_requires_successful_exact_main_before_mutation(self) -> None:
+        failure = ValueError("portable provenance check is missing or ambiguous")
+        with (
+            mock.patch.object(
+                repository_settings, "fetch_admission", side_effect=failure
+            ),
+            mock.patch.object(repository_settings, "api") as mutation,
+            self.assertRaisesRegex(ValueError, "missing or ambiguous"),
+        ):
+            repository_settings.apply("owner/repository")
+        mutation.assert_not_called()
+
+    def test_settings_provenance_status_rejects_missing_stale_and_truncated(
+        self,
+    ) -> None:
+        settings = {"default_branch": "main"}
+        head = "a" * 40
+        commit = {"sha": head}
+        success = {
+            "total_count": 1,
+            "check_runs": [
+                {
+                    "name": repository_settings.PROVENANCE_CONTEXT,
+                    "head_sha": head,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ],
+        }
+        with mock.patch.object(
+            repository_settings, "api", side_effect=(commit, success)
+        ):
+            self.assertEqual(
+                repository_settings.provenance_status("owner/repository", settings),
+                head,
+            )
+        for checks, diagnostic in (
+            ({"total_count": 0, "check_runs": []}, "missing or ambiguous"),
+            (
+                {
+                    "total_count": 2,
+                    "check_runs": success["check_runs"] * 2,
+                },
+                "missing or ambiguous",
+            ),
+            (
+                {
+                    "total_count": 1,
+                    "check_runs": [success["check_runs"][0] | {"head_sha": "b" * 40}],
+                },
+                "stale, skipped, or unsuccessful",
+            ),
+            (
+                {
+                    "total_count": 1,
+                    "check_runs": [
+                        success["check_runs"][0]
+                        | {"status": "completed", "conclusion": "skipped"}
+                    ],
+                },
+                "stale, skipped, or unsuccessful",
+            ),
+            (
+                {
+                    "total_count": 1,
+                    "check_runs": [
+                        success["check_runs"][0]
+                        | {"status": "completed", "conclusion": "failure"}
+                    ],
+                },
+                "stale, skipped, or unsuccessful",
+            ),
+            ({"total_count": 101, "check_runs": []}, "truncated or malformed"),
+        ):
+            with (
+                mock.patch.object(
+                    repository_settings, "api", side_effect=(commit, checks)
+                ),
+                self.assertRaisesRegex(ValueError, diagnostic),
+            ):
+                repository_settings.provenance_status("owner/repository", settings)
+
+    def test_portable_provenance_rejects_hostile_identity_and_api_data(self) -> None:
+        for identity, diagnostic in (
+            (
+                "Trusted Human\0noreply@github.com\0Integrator\0safe@example.invalid",
+                "Web Flow",
+            ),
+            (
+                (
+                    "Contributor\0safe@example.invalid\0Trusted Human\0"
+                    "12345+owner@users.noreply.github.com"
+                ),
+                "Web Flow",
+            ),
+            (
+                "Contributor\u202e\0safe@example.invalid\0Integrator\0safe@example.invalid",
+                "malformed or oversized",
+            ),
+            (
+                "Contributor\0safe@example.invalid\0Integrator\nInjected\0safe@example.invalid",
+                "malformed or oversized",
+            ),
+        ):
+            with (
+                mock.patch.object(portable_provenance, "git", return_value=identity),
+                self.assertRaisesRegex(ValueError, diagnostic),
+            ):
+                portable_provenance.validate_identity(ROOT, "a" * 40)
+        with (
+            mock.patch.object(
+                repository_settings,
+                "api",
+                return_value={
+                    "sha": "a" * 40,
+                    "commit": {
+                        "verification": {"verified": False, "reason": "bad_signature"}
+                    },
+                    "parents": [],
+                    "message": "private-token-host-path",
+                },
+            ),
+            self.assertRaisesRegex(ValueError, "verification is not valid") as raised,
+        ):
+            portable_provenance.api_commit("owner/repository", "a" * 40)
+        self.assertNotIn("private-token-host-path", str(raised.exception))
+
+    def test_settings_post_read_failure_reports_both_applied_effects(self) -> None:
+        settings = dict(repository_settings.REQUIRED_SETTINGS) | {
+            "id": 17,
+            "visibility": "public",
+            "default_branch": "main",
+            "owner": {"login": "owner", "type": "User"},
+        }
+        ruleset = repository_settings.required_ruleset() | {"id": 17}
+        with (
+            mock.patch.object(
+                repository_settings,
+                "fetch_admission",
+                side_effect=(
+                    (settings, None, "core", "a" * 40),
+                    ValueError("post-read mismatch"),
+                ),
+            ),
+            mock.patch.object(
+                repository_settings, "api", side_effect=(ruleset, settings)
+            ),
+            self.assertRaises(ValueError) as raised,
+        ):
+            repository_settings.apply("owner/repository")
+        diagnostic = str(raised.exception)
+        self.assertIn("phase=post-read", diagnostic)
+        self.assertIn("prior-ruleset-effect=applied", diagnostic)
+        self.assertIn("prior-settings-effect=applied", diagnostic)
+        self.assertIn("effect=ambiguous", diagnostic)
+
+    def test_portable_provenance_accepts_signed_topic_and_rejects_event_drift(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-portable-pr-") as raw:
+            fixture = Fixture(Path(raw))
+
+            def api(*args: str, **_kwargs: object) -> object:
+                revision = args[-1].rsplit("/", 1)[-1]
+                return {
+                    "sha": revision,
+                    "commit": {"verification": {"verified": True, "reason": "valid"}},
+                    "parents": [
+                        {"sha": value}
+                        for value in portable_provenance.parents(
+                            fixture.repository, revision
+                        )
+                    ],
+                }
+
+            with (
+                mock.patch.object(repository_settings, "api", side_effect=api),
+                mock.patch.object(
+                    repository_policy,
+                    "LOCAL_COMMITTER",
+                    "Fixture <fixture@example.invalid>",
+                ),
+            ):
+                portable_provenance.validate(
+                    fixture.repository,
+                    "owner/repository",
+                    "pull_request",
+                    "refs/pull",
+                    fixture.base,
+                    fixture.head,
+                    fixture.head,
+                )
+                with self.assertRaisesRegex(ValueError, "event head"):
+                    portable_provenance.validate(
+                        fixture.repository,
+                        "owner/repository",
+                        "pull_request",
+                        "refs/pull",
+                        fixture.base,
+                        fixture.head,
+                        "0" * 40,
+                    )
+
+    def test_portable_provenance_accepts_exact_signed_merge_association(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="asb-portable-push-") as raw:
+            fixture = Fixture(Path(raw))
+            result = command(fixture.repository, *fixture.merge_command())
+            merge = dict(line.split("=", 1) for line in result.stdout.splitlines())[
+                "MERGE"
+            ]
+
+            def api(*args: str, **_kwargs: object) -> object:
+                endpoint = args[-1]
+                if endpoint.endswith("pulls?per_page=2"):
+                    return [
+                        {
+                            "number": 7,
+                            "state": "closed",
+                            "merged_at": "2026-10-08T00:00:00Z",
+                            "merge_commit_sha": merge,
+                            "base": {"sha": fixture.base, "ref": "main"},
+                            "head": {"sha": fixture.head},
+                        }
+                    ]
+                revision = endpoint.rsplit("/", 1)[-1]
+                return {
+                    "sha": revision,
+                    "commit": {"verification": {"verified": True, "reason": "valid"}},
+                    "parents": [
+                        {"sha": value}
+                        for value in portable_provenance.parents(
+                            fixture.repository, revision
+                        )
+                    ],
+                }
+
+            with (
+                mock.patch.object(repository_settings, "api", side_effect=api),
+                mock.patch.object(
+                    repository_policy,
+                    "LOCAL_COMMITTER",
+                    "Fixture <fixture@example.invalid>",
+                ),
+            ):
+                portable_provenance.validate(
+                    fixture.repository,
+                    "owner/repository",
+                    "push",
+                    "refs/heads/main",
+                    fixture.base,
+                    merge,
+                    merge,
+                )
+            with (
+                mock.patch.object(repository_settings, "api", return_value=[]),
+                self.assertRaisesRegex(ValueError, "missing or ambiguous"),
+            ):
+                portable_provenance.validate_pull_association(
+                    fixture.repository, "owner/repository", fixture.base, merge
+                )
 
 
 if __name__ == "__main__":

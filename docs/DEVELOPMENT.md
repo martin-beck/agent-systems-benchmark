@@ -70,8 +70,11 @@ unrelated private project history and runtime configuration.
 
 Reviewed product changes use the [signed merge integrity](MERGE_INTEGRITY.md) procedure. GitHub
 requires one pull-request merge method to remain enabled, so only merge-commit is exposed; the
-protected-main ruleset rejects GitHub Web Flow committers, and web merge, squash, rebase, and
-auto-merge remain unauthorized. Integration records the exact base, reviewed head and tree, constructs a
+protected-main ruleset requires the portable provenance context, which rejects GitHub Web Flow and
+noreply committers while validating the exact signed-DCO publication. On supported Enterprise
+organization capabilities, the ruleset retains the metadata restriction as defense in depth.
+Web merge, squash, rebase, and auto-merge remain unauthorized. Integration records the exact base,
+reviewed head and tree, constructs a
 signed DCO two-parent commit locally, and publishes only through an exact target-ref lease.
 Before releasing its AR, verify the GitHub merge commit is signed, its tree is the independently
 reviewed tree, and the reviewed commit retains its raw matching DCO trailer. A mismatch remains an

@@ -34,8 +34,10 @@ identity `Martin Beck <martin.beck2@gmx.de>`, carry its matching DCO trailer,
 and have an allowed SSH signature; every topic commit must likewise retain its
 matching DCO trailer and allowed SSH signature. GitHub Web Flow signatures are
 historical evidence only and never qualify a new protected-main publication.
-The active ruleset rejects the Web Flow committer before publication, while the
-offline gate independently enforces the local identity and signature. GitHub's
+The active ruleset requires the portable provenance context, which rejects Web Flow/noreply
+identities and binds GitHub verification plus the exact local signature, DCO, parent, reviewed-head,
+and reviewed-tree evidence. A capability-supported Enterprise organization also retains the
+metadata rule as defense in depth. GitHub's
 branch `required_signatures` result remains supporting evidence rather than the
 offline source of truth. Contributors add their public SSH signing identity
 through review; private keys are never stored here.
@@ -75,8 +77,8 @@ lowercase author-matching trailer documented above.
 
 The [signed merge procedure](MERGE_INTEGRITY.md) also binds the integration commit's parents and
 tree to the approved base and pull-request head. GitHub requires one pull-request merge method, so
-merge-commit alone remains enabled behind an audited protected-main ruleset that rejects GitHub Web
-Flow committers, requires fresh strict checks/review/signatures, and prevents non-fast-forward
+merge-commit alone remains enabled behind an audited protected-main ruleset that requires the
+portable Web Flow provenance gate, fresh strict checks/review/signatures, and prevents non-fast-forward
 updates; squash, rebase, auto-merge, and web publication remain forbidden. The local publisher
 rechecks remote refs and uses an exact force-with-lease. A later signed
 attestation does not make an earlier unsigned or non-DCO merge compliant.

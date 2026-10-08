@@ -17,6 +17,9 @@ else:
     from merge_pr import bounded_command
 
 RULESET_NAME = "ASB protected main publication"
+PROVENANCE_CONTEXT = "Portable protected-main provenance"
+ROOT = Path(__file__).resolve().parents[2]
+OPENAPI_PROJECTION = ROOT / "config/github-ruleset-openapi.json"
 HTTP_STATUS = re.compile(r"\(HTTP ([1-5][0-9]{2})\)")
 SAFE_GITHUB_MESSAGES = frozenset(
     {
@@ -46,6 +49,10 @@ SAFE_GITHUB_CODES = frozenset(
         "unprocessable_entity",
     }
 )
+SAFE_GITHUB_RESOURCES = frozenset(
+    {"Repository", "RepositoryRule", "RepositoryRuleset", "Ruleset"}
+)
+SAFE_GITHUB_FIELDS = frozenset({"enforcement", "parameters", "rules", "target", "type"})
 REQUIRED_SETTINGS = {
     # GitHub requires one pull-request merge method. Keep only the two-parent
     # method used by merge_pr.py; the ruleset rejects GitHub Web Flow commits.
@@ -70,42 +77,40 @@ REQUIRED_CHECKS = (
     "Bounded fuzz regressions",
     "Kani bounded proofs",
     "Loom and state models (ubuntu-24.04)",
+    PROVENANCE_CONTEXT,
 )
 
 
-def required_ruleset() -> dict[str, object]:
+def required_ruleset(metadata_capable: bool = False) -> dict[str, object]:
     """Return the exact main ruleset accepted by the offline oracle."""
-    return {
-        "name": RULESET_NAME,
-        "target": "branch",
-        "enforcement": "active",
-        "bypass_actors": [],
-        "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
-        "rules": [
-            {"type": "deletion"},
-            {"type": "non_fast_forward"},
-            {"type": "required_signatures"},
-            {
-                "type": "pull_request",
-                "parameters": {
-                    "required_approving_review_count": 1,
-                    "dismiss_stale_reviews_on_push": True,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": True,
-                    "required_review_thread_resolution": True,
-                    "allowed_merge_methods": ["merge"],
-                },
+    rules: list[dict[str, object]] = [
+        {"type": "deletion"},
+        {"type": "non_fast_forward"},
+        {"type": "required_signatures"},
+        {
+            "type": "pull_request",
+            "parameters": {
+                "required_approving_review_count": 1,
+                "dismiss_stale_reviews_on_push": True,
+                "require_code_owner_review": False,
+                "require_last_push_approval": True,
+                "required_review_thread_resolution": True,
+                "allowed_merge_methods": ["merge"],
             },
-            {
-                "type": "required_status_checks",
-                "parameters": {
-                    "required_status_checks": [
-                        {"context": context} for context in REQUIRED_CHECKS
-                    ],
-                    "strict_required_status_checks_policy": True,
-                    "do_not_enforce_on_create": False,
-                },
+        },
+        {
+            "type": "required_status_checks",
+            "parameters": {
+                "required_status_checks": [
+                    {"context": context} for context in REQUIRED_CHECKS
+                ],
+                "strict_required_status_checks_policy": True,
+                "do_not_enforce_on_create": False,
             },
+        },
+    ]
+    if metadata_capable:
+        rules.append(
             {
                 "type": "committer_email_pattern",
                 "parameters": {
@@ -114,9 +119,40 @@ def required_ruleset() -> dict[str, object]:
                     "operator": "regex",
                     "pattern": r"^noreply@github\.com$",
                 },
-            },
-        ],
+            }
+        )
+    return {
+        "name": RULESET_NAME,
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
+        "rules": rules,
     }
+
+
+def validate_openapi_projection(ruleset: dict[str, object]) -> None:
+    value = json.loads(OPENAPI_PROJECTION.read_text(encoding="utf-8"))
+    if (
+        value.get("schema_version") != 1
+        or value.get("api_version") != "2022-11-28"
+        or value.get("source_commit") != "7dee0622aeecf9df3c5060ca28c7a57ee5007804"
+        or value.get("source_blob") != "63926c4dc629284e7d29ecc9de9938bf4ac0fd82"
+        or value.get("source_sha256")
+        != "0d2fa885d4a15f57a6fe06811cbd13e7e0f580d292530199db1a59cfc2b7d14e"
+    ):
+        raise ValueError("official GitHub ruleset schema projection differs")
+    allowed = value.get("repository_rule_types")
+    rules = ruleset.get("rules")
+    if (
+        not isinstance(allowed, list)
+        or not isinstance(rules, list)
+        or any(
+            not isinstance(rule, dict) or rule.get("type") not in allowed
+            for rule in rules
+        )
+    ):
+        raise ValueError("ruleset payload is outside the pinned structural schema")
 
 
 def _github_failure(
@@ -176,6 +212,21 @@ def _github_failure(
                     break
         if isinstance(code, str) and code in SAFE_GITHUB_CODES:
             parts.append(f"code={code}")
+        if isinstance(errors, list):
+            for item in errors[:2]:
+                if not isinstance(item, dict):
+                    continue
+                resource, field, detail_code = (
+                    item.get("resource"),
+                    item.get("field"),
+                    item.get("code"),
+                )
+                if (
+                    resource in SAFE_GITHUB_RESOURCES
+                    and field in SAFE_GITHUB_FIELDS
+                    and detail_code in SAFE_GITHUB_CODES
+                ):
+                    parts.append(f"detail={resource}.{field}.{detail_code}")
     return ValueError("; ".join(parts))
 
 
@@ -243,8 +294,106 @@ def fetch(repository: str) -> tuple[dict[str, object], dict[str, object] | None]
     return settings, ruleset
 
 
+def capability(
+    repository: str, settings: dict[str, object], owner: dict[str, object]
+) -> str:
+    requested_owner = repository.split("/", 1)[0]
+    repository_owner = settings.get("owner")
+    if (
+        not isinstance(settings.get("id"), int)
+        or settings["id"] <= 0
+        or settings.get("visibility") not in {"public", "private", "internal"}
+        or not isinstance(repository_owner, dict)
+        or repository_owner.get("login") != requested_owner
+        or repository_owner.get("type") not in {"User", "Organization"}
+        or owner.get("login") != requested_owner
+        or owner.get("type") != repository_owner.get("type")
+    ):
+        raise ValueError(
+            "repository owner or identity capability evidence is malformed"
+        )
+    plan = owner.get("plan")
+    if not isinstance(plan, dict) or not isinstance(plan.get("name"), str):
+        raise TypeError("repository owner plan capability evidence is missing")
+    plan_name = plan["name"].casefold()
+    if repository_owner["type"] == "User" and plan_name in {"free", "pro"}:
+        return "core"
+    if repository_owner["type"] == "Organization" and plan_name == "enterprise":
+        return "metadata"
+    if repository_owner["type"] == "Organization" and plan_name in {"free", "team"}:
+        return "core"
+    raise ValueError("repository owner plan capability is unknown")
+
+
+def provenance_status(repository: str, settings: dict[str, object]) -> str:
+    if settings.get("default_branch") != "main":
+        raise ValueError("repository default branch is not protected main")
+    commit = api(
+        f"repos/{repository}/commits/main",
+        operation="read",
+        subject="protected-main-head",
+    )
+    if not isinstance(commit, dict) or not re.fullmatch(
+        r"[0-9a-f]{40}", str(commit.get("sha", ""))
+    ):
+        raise ValueError("protected-main head identity is malformed")
+    head = str(commit["sha"])
+    checks = api(
+        f"repos/{repository}/commits/{head}/check-runs?filter=latest&per_page=100",
+        operation="read",
+        subject="portable-provenance-check",
+    )
+    if not isinstance(checks, dict) or not isinstance(checks.get("check_runs"), list):
+        raise TypeError("portable provenance check response is malformed")
+    runs = checks["check_runs"]
+    if (
+        checks.get("total_count") != len(runs)
+        or len(runs) > 100
+        or any(not isinstance(run, dict) for run in runs)
+    ):
+        raise ValueError("portable provenance check response is truncated or malformed")
+    matching = [run for run in runs if run.get("name") == PROVENANCE_CONTEXT]
+    if len(matching) != 1:
+        raise ValueError("portable provenance check is missing or ambiguous")
+    run = matching[0]
+    if (
+        run.get("head_sha") != head
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+    ):
+        raise ValueError("portable provenance check is stale, skipped, or unsuccessful")
+    return head
+
+
+def fetch_admission(
+    repository: str,
+) -> tuple[dict[str, object], dict[str, object] | None, str, str]:
+    settings, ruleset = fetch(repository)
+    repository_owner = settings.get("owner")
+    if not isinstance(repository_owner, dict):
+        raise TypeError("repository owner capability evidence is malformed")
+    login, owner_type = repository_owner.get("login"), repository_owner.get("type")
+    if not isinstance(login, str) or owner_type not in {"User", "Organization"}:
+        raise ValueError("repository owner capability evidence is malformed")
+    owner = api(
+        f"{'users' if owner_type == 'User' else 'orgs'}/{login}",
+        operation="read",
+        subject="owner-capability",
+    )
+    if not isinstance(owner, dict):
+        raise TypeError("repository owner capability response is malformed")
+    return (
+        settings,
+        ruleset,
+        capability(repository, settings, owner),
+        provenance_status(repository, settings),
+    )
+
+
 def apply(repository: str) -> tuple[dict[str, object], dict[str, object]]:
-    _, existing = fetch(repository)
+    before, existing, mode, head = fetch_admission(repository)
+    expected = required_ruleset(mode == "metadata")
+    validate_openapi_projection(expected)
     endpoint = f"repos/{repository}/rulesets"
     method = "POST"
     if existing is not None:
@@ -258,7 +407,7 @@ def apply(repository: str) -> tuple[dict[str, object], dict[str, object]]:
         "-",
         operation="create" if method == "POST" else "update",
         subject="protected-main-ruleset",
-        input_value=required_ruleset(),
+        input_value=expected,
     )
     if not isinstance(ruleset, dict):
         raise TypeError(
@@ -275,10 +424,29 @@ def apply(repository: str) -> tuple[dict[str, object], dict[str, object]]:
         raise ValueError(
             f"{error}; phase=repository-settings; prior-ruleset-effect=applied"
         ) from error
-    return settings, ruleset
+    try:
+        after, observed, after_mode, after_head = fetch_admission(repository)
+        if (
+            after.get("id") != before.get("id")
+            or after_mode != mode
+            or after_head != head
+        ):
+            raise ValueError("post-apply repository identity or capability changed")
+        validate(after, observed, after_mode, True)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            f"{error}; phase=post-read; prior-ruleset-effect=applied; "
+            "prior-settings-effect=applied; effect=ambiguous"
+        ) from error
+    return after, observed
 
 
-def validate(settings: dict[str, object], ruleset: dict[str, object] | None) -> None:
+def validate(
+    settings: dict[str, object],
+    ruleset: dict[str, object] | None,
+    mode: str,
+    provenance_ready: bool,
+) -> None:
     for key, expected in REQUIRED_SETTINGS.items():
         if settings.get(key) is not expected:
             raise ValueError(
@@ -286,7 +454,12 @@ def validate(settings: dict[str, object], ruleset: dict[str, object] | None) -> 
             )
     if ruleset is None:
         raise ValueError("protected-main ruleset is missing")
-    expected_ruleset = required_ruleset()
+    if mode not in {"core", "metadata"}:
+        raise ValueError("repository capability mode is unknown")
+    if provenance_ready is not True:
+        raise ValueError("portable provenance check is not successful on exact main")
+    expected_ruleset = required_ruleset(mode == "metadata")
+    validate_openapi_projection(expected_ruleset)
     if {key: ruleset.get(key) for key in expected_ruleset} != expected_ruleset:
         raise ValueError("protected-main ruleset differs from the required policy")
 
@@ -296,24 +469,60 @@ def main() -> int:
     parser.add_argument("--repository", default="martin-beck/agent-systems-benchmark")
     parser.add_argument("--settings-json", help="offline settings fixture")
     parser.add_argument("--ruleset-json", help="offline ruleset fixture")
+    parser.add_argument("--owner-json", help="offline owner capability fixture")
+    parser.add_argument(
+        "--provenance-status",
+        choices=("success", "missing", "stale", "skipped", "failure"),
+    )
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     try:
-        fixtures = args.settings_json is not None or args.ruleset_json is not None
-        if fixtures and (args.settings_json is None or args.ruleset_json is None):
-            raise ValueError("offline audit requires both fixture arguments")
+        fixtures = any(
+            value is not None
+            for value in (
+                args.settings_json,
+                args.ruleset_json,
+                args.owner_json,
+                args.provenance_status,
+            )
+        )
+        if fixtures and any(
+            value is None
+            for value in (
+                args.settings_json,
+                args.ruleset_json,
+                args.owner_json,
+                args.provenance_status,
+            )
+        ):
+            raise ValueError("offline audit requires every fixture argument")
         if fixtures and args.apply:
             raise ValueError("offline fixtures cannot be combined with --apply")
         if fixtures:
             settings = json.loads(args.settings_json)
             ruleset = json.loads(args.ruleset_json)
+            owner = json.loads(args.owner_json)
+            if not isinstance(settings, dict) or not isinstance(owner, dict):
+                raise TypeError("offline capability fixture has unexpected shape")
+            mode = capability(args.repository, settings, owner)
+            provenance_ready = args.provenance_status == "success"
         elif args.apply:
             settings, ruleset = apply(args.repository)
+            mode = (
+                "metadata"
+                if any(
+                    rule.get("type") == "committer_email_pattern"
+                    for rule in ruleset["rules"]
+                )
+                else "core"
+            )
+            provenance_ready = True
         else:
-            settings, ruleset = fetch(args.repository)
+            settings, ruleset, mode, _ = fetch_admission(args.repository)
+            provenance_ready = True
         if not isinstance(settings, dict) or not isinstance(ruleset, dict):
             raise TypeError("protected-publication fixture has unexpected shape")
-        validate(settings, ruleset)
+        validate(settings, ruleset, mode, provenance_ready)
     except OSError:
         print("merge settings: bounded local operation failed", file=sys.stderr)
         return 1

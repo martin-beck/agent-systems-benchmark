@@ -2,9 +2,11 @@
 
 ASB integrates a reviewed pull request by constructing a local two-parent merge whose tree is the
 approved pull-request tree. GitHub requires one pull-request merge method to remain enabled, so the
-repository exposes merge-commit only. An active protected-main ruleset rejects GitHub Web Flow
-committer email, while squash, rebase, auto-merge, and every web-created merge remain unauthorized
-because they cannot create a commit signed by an ASB allowed signer.
+repository exposes merge-commit only. An active protected-main ruleset requires the portable
+provenance check, which rejects GitHub Web Flow and noreply identities and validates the exact
+allowed-SSH, DCO, parent, reviewed-head, and reviewed-tree publication. The metadata email rule is
+retained only when bounded owner-plan evidence proves that capability is supported. Squash, rebase,
+auto-merge, and every web-created merge remain unauthorized.
 
 Before integration, record full object IDs for current remote `main`, the reviewed pull-request
 head, and its tree. Use a clean isolated integration worktree at the exact base and run:
@@ -49,8 +51,10 @@ python3 tools/integration/repository_settings.py
 ```
 
 The ruleset requires a pull request, one fresh independent approval, resolved review threads,
-strict exact-head checks, verified signatures, and merge commits only. It rejects the exact GitHub
-Web Flow committer email and prevents deletion and non-fast-forward updates. The repository setting
+strict exact-head checks including Portable protected-main provenance, verified signatures, and
+merge commits only. The portable check rejects Web Flow/noreply identities; a supported Enterprise
+organization also retains the metadata rule. Deletion and non-fast-forward updates are prevented.
+The repository setting
 keeps merge-commit enabled solely because GitHub rejects disabling all three pull-request merge
 methods; it disables squash, rebase, and auto-merge and requires web signoff. The second command is
 a fail-closed audit of both settings and ruleset. The external change must be recorded with its exact
@@ -58,6 +62,12 @@ response; failure means protected-main admission is not ready and must be escala
 administrator. It does not retroactively repair an old merge. Historical merge
 `b6d04a8305ce6d49cc327e4e6d2d6fa42a88050b` remains unsigned/non-DCO. A signed descendant can
 restore a green current-main evidence range, but must not be described as changing that history.
+
+The ruleset payload is structurally checked against the repository projection of GitHub's
+immutable REST OpenAPI 2022-11-28 description. Its upstream commit, Git blob, full-file SHA-256,
+and relevant rule-type enumeration are pinned in
+[github-ruleset-openapi.json](../config/github-ruleset-openapi.json). Structural availability does
+not establish account capability; owner type and plan are admitted separately before mutation.
 
 The later OpenJiuwen merge `1c07e907a6fdf270264a94bef4af6b8ac4e5cbaf` is likewise preserved as published
 history after its post-merge policy check rejected the missing DCO trailer. Recovery must add a new signed,
