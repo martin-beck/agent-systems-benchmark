@@ -1069,11 +1069,13 @@ mod tests {
     }
 
     fn scratch_base() -> PathBuf {
-        let base = resolve_scratch_base(
-            std::env::var_os("ASB_TEST_SCRATCH").map(PathBuf::from),
-            std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from),
-            std::env::temp_dir(),
-        );
+        // Keep mutable workload fixtures outside the checkout.  CARGO_TARGET_DIR
+        // is commonly repository-local under `make test`; running git apply from
+        // an ignored nested target path changes Git's path boundary semantics.
+        // An explicit ASB_TEST_SCRATCH remains supported for isolated runners.
+        let base = std::env::var_os("ASB_TEST_SCRATCH")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&base).unwrap();
         base
     }
