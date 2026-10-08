@@ -991,7 +991,10 @@ mod tests {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
-    use std::sync::{Mutex, atomic::{AtomicU64, Ordering}};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    };
     use std::time::Duration;
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
