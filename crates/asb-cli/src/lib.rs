@@ -1440,8 +1440,17 @@ fn guided_lifecycle(
     args: &[String],
     output: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    let (requested_channel, yes, dry_run) = easy_channel(args)?;
     let root = easy_lifecycle_root()?;
+    guided_lifecycle_at(operation, args, output, &root)
+}
+
+fn guided_lifecycle_at(
+    operation: &str,
+    args: &[String],
+    output: &mut dyn Write,
+    root: &Path,
+) -> Result<u8, CliError> {
+    let (requested_channel, yes, dry_run) = easy_channel(args)?;
     let mut state = easy_state(&root)?;
     let channel = if operation == "update" && args.iter().all(|a| !a.starts_with("--channel")) {
         state.active_channel.clone().unwrap_or(requested_channel)
@@ -7983,32 +7992,23 @@ mod tests {
         let root = std::env::temp_dir().join(format!("asb-easy-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
-        let previous_state_home = std::env::var_os("XDG_STATE_HOME");
-        // This test is the sole lifecycle environment mutator and does not
-        // spawn threads or child processes while the variable is changed.
-        unsafe { std::env::set_var("XDG_STATE_HOME", &root) };
         for (operation, args) in [
             ("build", vec!["--channel=stable"]),
             ("install", vec!["--channel=stable", "--yes"]),
-            ("status", vec!["--json"]),
+            ("status", Vec::<&str>::new()),
             ("test", vec!["--channel=stable"]),
             ("update", vec!["--yes"]),
             ("rollback", vec!["--yes"]),
             ("remove", vec!["--yes"]),
         ] {
             let args = args.into_iter().map(String::from).collect::<Vec<_>>();
-            guided_lifecycle(operation, &args, &mut Vec::new()).unwrap();
+            guided_lifecycle_at(operation, &args, &mut Vec::new(), &root).unwrap();
         }
         assert!(
             !easy_state(&root.join("asb/easy-lifecycle"))
                 .unwrap()
                 .installed
         );
-        if let Some(previous) = previous_state_home {
-            unsafe { std::env::set_var("XDG_STATE_HOME", previous) };
-        } else {
-            unsafe { std::env::remove_var("XDG_STATE_HOME") };
-        }
         let _ = fs::remove_dir_all(&root);
     }
 
