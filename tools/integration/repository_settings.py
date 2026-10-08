@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -22,10 +23,11 @@ PROVENANCE_CONTEXT = "Portable protected-main provenance"
 ROOT = Path(__file__).resolve().parents[2]
 OPENAPI_PROJECTION = ROOT / "config/github-ruleset-openapi.json"
 OPENAPI_SCHEMA_SHA256 = (
-    "1020eab3122a871115f74424ae6fb72a74eedb063fcf4249129057c1c502e216"
+    "1d8b23ac3500edc76ab9ba3f34ff87c3ccb3bbe29706327d9df6e72cd0727c6e"
 )
 MAX_RULESET_SUMMARIES = 100
 MAX_RULESET_ID = (1 << 63) - 1
+OWNED_RULESET_ID = 24750310
 HTTP_STATUS = re.compile(r"\(HTTP ([1-5][0-9]{2})\)")
 SAFE_GITHUB_MESSAGES = frozenset(
     {
@@ -68,6 +70,13 @@ REQUIRED_SETTINGS = {
     "allow_auto_merge": False,
     "web_commit_signoff_required": True,
 }
+PRE_APPLY_SETTINGS = {
+    "allow_merge_commit": True,
+    "allow_squash_merge": True,
+    "allow_rebase_merge": True,
+    "allow_auto_merge": False,
+    "web_commit_signoff_required": False,
+}
 REQUIRED_CHECKS = (
     "Policy, coverage, and supply chain",
     "Rust checks (ubuntu-24.04)",
@@ -96,11 +105,12 @@ def required_ruleset(metadata_capable: bool = False) -> dict[str, object]:
         {
             "type": "pull_request",
             "parameters": {
-                "required_approving_review_count": 1,
+                "required_approving_review_count": 0,
                 "dismiss_stale_reviews_on_push": True,
                 "require_code_owner_review": False,
-                "require_last_push_approval": True,
+                "require_last_push_approval": False,
                 "required_review_thread_resolution": True,
+                "required_reviewers": [],
                 "allowed_merge_methods": ["merge"],
             },
         },
@@ -135,6 +145,55 @@ def required_ruleset(metadata_capable: bool = False) -> dict[str, object]:
         "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
         "rules": rules,
     }
+
+
+def previous_ruleset(metadata_capable: bool = False) -> dict[str, object]:
+    """Return the exact policy recorded before the development review change."""
+    ruleset = required_ruleset(metadata_capable)
+    parameters = _pull_request_parameters(ruleset)
+    parameters["required_approving_review_count"] = 1
+    parameters["require_last_push_approval"] = True
+    return ruleset
+
+
+def _pull_request_parameters(ruleset: dict[str, object]) -> dict[str, object]:
+    """Return the single pull-request parameter object from a ruleset."""
+    rules = ruleset.get("rules")
+    if not isinstance(rules, list):
+        raise TypeError("protected-main ruleset differs from the required policy")
+    matches = [
+        rule
+        for rule in rules
+        if isinstance(rule, dict) and rule.get("type") == "pull_request"
+    ]
+    if len(matches) != 1 or not isinstance(matches[0].get("parameters"), dict):
+        raise ValueError("protected-main ruleset differs from the required policy")
+    return matches[0]["parameters"]
+
+
+def canonicalize_ruleset_response(
+    ruleset: dict[str, object],
+    metadata_capable: bool = False,
+    *,
+    expected: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Validate and remove the one exact server-only ruleset normalization."""
+    if expected is None:
+        expected = required_ruleset(metadata_capable)
+    projected = copy.deepcopy({key: ruleset.get(key) for key in expected})
+    parameters = _pull_request_parameters(projected)
+    expected_parameters = _pull_request_parameters(expected)
+    normalization = "require_extra_approval_for_unattributed_changes"
+    if set(parameters) != {*expected_parameters, normalization}:
+        raise ValueError("protected-main ruleset response has unknown policy fields")
+    if parameters.get(normalization) is not True:
+        raise ValueError("protected-main ruleset response normalization differs")
+    if parameters.get("required_reviewers") != []:
+        raise ValueError("protected-main ruleset response reviewers differ")
+    del parameters[normalization]
+    if projected != expected:
+        raise ValueError("protected-main ruleset differs from the required policy")
+    return projected
 
 
 def _schema_type_matches(value: object, expected: object) -> bool:
@@ -434,6 +493,26 @@ def capability(
     raise ValueError("repository owner plan capability is unknown")
 
 
+def capability_receipt(
+    repository: str, settings: dict[str, object], owner: dict[str, object]
+) -> tuple[str, str, str, str, str]:
+    """Return the exact bounded owner-plan capability identity."""
+    mode = capability(repository, settings, owner)
+    repository_owner = settings["owner"]
+    plan = owner["plan"]
+    assert isinstance(repository_owner, dict)
+    assert isinstance(plan, dict)
+    login = repository_owner["login"]
+    owner_type = repository_owner["type"]
+    plan_name = plan["name"]
+    visibility = settings["visibility"]
+    assert isinstance(login, str)
+    assert isinstance(owner_type, str)
+    assert isinstance(plan_name, str)
+    assert isinstance(visibility, str)
+    return (login, owner_type, plan_name.casefold(), visibility, mode)
+
+
 def provenance_status(repository: str, settings: dict[str, object]) -> str:
     if settings.get("default_branch") != "main":
         raise ValueError("repository default branch is not protected main")
@@ -482,6 +561,7 @@ def fetch_admission(
     dict[str, object],
     dict[str, object] | None,
     str,
+    tuple[str, str, str, str, str],
     str,
     tuple[tuple[int, str, str, str], ...],
 ]:
@@ -499,51 +579,43 @@ def fetch_admission(
     )
     if not isinstance(owner, dict):
         raise TypeError("repository owner capability response is malformed")
+    receipt = capability_receipt(repository, settings, owner)
     return (
         settings,
         ruleset,
-        capability(repository, settings, owner),
+        receipt[-1],
+        receipt,
         provenance_status(repository, settings),
         foreign,
     )
 
 
 def apply(
-    repository: str, expected_ruleset_id: int | None = None
+    repository: str,
+    expected_ruleset_id: int | None = None,
+    *,
+    ruleset_only: bool = False,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    if expected_ruleset_id is not None and (
-        isinstance(expected_ruleset_id, bool)
-        or expected_ruleset_id <= 0
-        or expected_ruleset_id > MAX_RULESET_ID
-    ):
+    if isinstance(expected_ruleset_id, bool) or expected_ruleset_id != OWNED_RULESET_ID:
         raise ValueError("expected ruleset ownership identity is invalid")
-    before, existing, mode, head, foreign = fetch_admission(repository)
+    before, existing, mode, capability_before, head, foreign = fetch_admission(
+        repository
+    )
     expected = required_ruleset(mode == "metadata")
     validate_openapi_projection(expected)
-    if existing is not None:
-        if (
-            expected_ruleset_id is None
-            or isinstance(expected_ruleset_id, bool)
-            or expected_ruleset_id <= 0
-            or expected_ruleset_id > MAX_RULESET_ID
-            or existing.get("id") != expected_ruleset_id
-        ):
-            raise ValueError("protected-main ruleset ownership identity is unbound")
-        validate(before, existing, mode, True)
-    elif expected_ruleset_id is not None:
+    if existing is None:
         raise ValueError("owned protected-main ruleset is missing")
-    endpoint = f"repos/{repository}/rulesets"
-    method = "POST"
-    if existing is not None:
-        endpoint += f"/{existing['id']}"
-        method = "PUT"
+    if existing.get("id") != expected_ruleset_id:
+        raise ValueError("protected-main ruleset ownership identity is unbound")
+    validate_admission(before, existing, mode, True)
+    endpoint = f"repos/{repository}/rulesets/{expected_ruleset_id}"
     ruleset = api(
         "--method",
-        method,
+        "PUT",
         endpoint,
         "--input",
         "-",
-        operation="create" if method == "POST" else "update",
+        operation="update",
         subject="protected-main-ruleset",
         input_value=expected,
     )
@@ -568,12 +640,18 @@ def apply(
         )
     try:
         validate_ruleset(ruleset, mode)
-        interim, observed, interim_mode, interim_head, interim_foreign = (
-            fetch_admission(repository)
-        )
+        (
+            interim,
+            observed,
+            interim_mode,
+            interim_capability,
+            interim_head,
+            interim_foreign,
+        ) = fetch_admission(repository)
         if (
             interim.get("id") != before.get("id")
             or interim_mode != mode
+            or interim_capability != capability_before
             or interim_head != head
             or interim_foreign != foreign
             or observed is None
@@ -587,6 +665,8 @@ def apply(
             "settings-effect=not-attempted; effect=ambiguous; "
             f"ruleset-id={applied_identifier}; ownership=response-only"
         ) from error
+    if ruleset_only:
+        return interim, observed
     command = ["--method", "PATCH", f"repos/{repository}"]
     for key, value in REQUIRED_SETTINGS.items():
         command.extend(["-F", f"{key}={str(value).lower()}"])
@@ -600,12 +680,18 @@ def apply(
             f"ruleset-id={applied_identifier}; ownership=readback-verified"
         ) from error
     try:
-        after, observed, after_mode, after_head, after_foreign = fetch_admission(
-            repository
-        )
+        (
+            after,
+            observed,
+            after_mode,
+            after_capability,
+            after_head,
+            after_foreign,
+        ) = fetch_admission(repository)
         if (
             after.get("id") != before.get("id")
             or after_mode != mode
+            or after_capability != capability_before
             or after_head != head
             or after_foreign != foreign
             or observed is None
@@ -628,6 +714,7 @@ def validate(
     mode: str,
     provenance_ready: bool,
 ) -> None:
+    validate_admission(settings, ruleset, mode, provenance_ready)
     for key, expected in REQUIRED_SETTINGS.items():
         if settings.get(key) is not expected:
             raise ValueError(
@@ -635,11 +722,53 @@ def validate(
             )
     if ruleset is None:
         raise ValueError("protected-main ruleset is missing")
+    validate_ruleset(ruleset, mode)
+
+
+def validate_admission(
+    settings: dict[str, object],
+    ruleset: dict[str, object] | None,
+    mode: str,
+    provenance_ready: bool,
+) -> None:
+    """Validate immutable admission evidence without requiring final settings."""
+    repository_owner = settings.get("owner")
+    if (
+        not isinstance(settings.get("id"), int)
+        or isinstance(settings.get("id"), bool)
+        or settings["id"] <= 0
+        or settings.get("visibility") not in {"public", "private", "internal"}
+        or settings.get("default_branch") != "main"
+        or not isinstance(repository_owner, dict)
+        or not isinstance(repository_owner.get("login"), str)
+        or repository_owner.get("type") not in {"User", "Organization"}
+    ):
+        raise ValueError("repository identity evidence is malformed")
+    observed_settings = {key: settings.get(key) for key in REQUIRED_SETTINGS}
+    if any(
+        value is not True and value is not False for value in observed_settings.values()
+    ):
+        raise TypeError("repository settings evidence is missing or malformed")
+    if observed_settings not in (PRE_APPLY_SETTINGS, REQUIRED_SETTINGS):
+        raise ValueError("repository settings are outside the admitted transition")
+    if ruleset is None:
+        raise ValueError("protected-main ruleset is missing")
     if mode not in {"core", "metadata"}:
         raise ValueError("repository capability mode is unknown")
     if provenance_ready is not True:
         raise ValueError("portable provenance check is not successful on exact main")
-    validate_ruleset(ruleset, mode)
+    metadata_capable = mode == "metadata"
+    for candidate in (
+        required_ruleset(metadata_capable),
+        previous_ruleset(metadata_capable),
+    ):
+        try:
+            validate_openapi_projection(candidate)
+            canonicalize_ruleset_response(ruleset, metadata_capable, expected=candidate)
+        except (TypeError, ValueError):
+            continue
+        return
+    raise ValueError("protected-main ruleset differs from an admitted owned policy")
 
 
 def validate_ruleset(ruleset: dict[str, object], mode: str) -> None:
@@ -647,8 +776,7 @@ def validate_ruleset(ruleset: dict[str, object], mode: str) -> None:
         raise ValueError("repository capability mode is unknown")
     expected_ruleset = required_ruleset(mode == "metadata")
     validate_openapi_projection(expected_ruleset)
-    if {key: ruleset.get(key) for key in expected_ruleset} != expected_ruleset:
-        raise ValueError("protected-main ruleset differs from the required policy")
+    canonicalize_ruleset_response(ruleset, mode == "metadata")
 
 
 def main() -> int:
@@ -662,6 +790,7 @@ def main() -> int:
         choices=("success", "missing", "stale", "skipped", "failure"),
     )
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--ruleset-only", action="store_true")
     parser.add_argument("--expected-ruleset-id", type=int)
     args = parser.parse_args()
     try:
@@ -686,10 +815,12 @@ def main() -> int:
             raise ValueError("offline audit requires every fixture argument")
         if fixtures and args.apply:
             raise ValueError("offline fixtures cannot be combined with --apply")
+        if fixtures and args.ruleset_only:
+            raise ValueError("offline fixtures cannot be combined with --ruleset-only")
         if fixtures and args.expected_ruleset_id is not None:
             raise ValueError("offline fixtures cannot claim a live ruleset identity")
         if args.expected_ruleset_id is not None and (
-            args.expected_ruleset_id <= 0 or args.expected_ruleset_id > MAX_RULESET_ID
+            args.expected_ruleset_id != OWNED_RULESET_ID
         ):
             raise ValueError("expected ruleset ownership identity is invalid")
         if fixtures:
@@ -701,7 +832,13 @@ def main() -> int:
             mode = capability(args.repository, settings, owner)
             provenance_ready = args.provenance_status == "success"
         elif args.apply:
-            settings, ruleset = apply(args.repository, args.expected_ruleset_id)
+            if args.expected_ruleset_id != OWNED_RULESET_ID:
+                raise ValueError("expected ruleset ownership identity is invalid")
+            settings, ruleset = apply(
+                args.repository,
+                args.expected_ruleset_id,
+                ruleset_only=args.ruleset_only,
+            )
             mode = (
                 "metadata"
                 if any(
@@ -712,15 +849,19 @@ def main() -> int:
             )
             provenance_ready = True
         else:
-            if args.expected_ruleset_id is None:
+            if args.expected_ruleset_id != OWNED_RULESET_ID:
                 raise ValueError("live audit requires the recorded ruleset identity")
-            settings, ruleset, mode, _, _ = fetch_admission(args.repository)
+            settings, ruleset, mode, _, _, _ = fetch_admission(args.repository)
             if ruleset is None or ruleset.get("id") != args.expected_ruleset_id:
                 raise ValueError("live ruleset ownership identity differs")
             provenance_ready = True
         if not isinstance(settings, dict) or not isinstance(ruleset, dict):
             raise TypeError("protected-publication fixture has unexpected shape")
-        validate(settings, ruleset, mode, provenance_ready)
+        if args.ruleset_only:
+            validate_admission(settings, ruleset, mode, provenance_ready)
+            validate_ruleset(ruleset, mode)
+        else:
+            validate(settings, ruleset, mode, provenance_ready)
     except OSError:
         print("merge settings: bounded local operation failed", file=sys.stderr)
         return 1
@@ -730,9 +871,8 @@ def main() -> int:
     receipt = ""
     if not fixtures:
         receipt = f"; ruleset-id={ruleset['id']}; ownership=readback-verified"
-    print(
-        f"merge settings: GitHub-compatible protected publication is enforced{receipt}"
-    )
+    boundary = "ruleset-only recovery" if args.ruleset_only else "protected publication"
+    print(f"merge settings: GitHub-compatible {boundary} is enforced{receipt}")
     return 0
 
 

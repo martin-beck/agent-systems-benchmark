@@ -58,7 +58,7 @@
                 "type": {"type": "string", "enum": ["pull_request"]},
                 "parameters": {
                   "type": "object",
-                  "required": ["allowed_merge_methods", "dismiss_stale_reviews_on_push", "require_code_owner_review", "require_last_push_approval", "required_approving_review_count", "required_review_thread_resolution"],
+                  "required": ["allowed_merge_methods", "dismiss_stale_reviews_on_push", "require_code_owner_review", "require_last_push_approval", "required_approving_review_count", "required_review_thread_resolution", "required_reviewers"],
                   "additionalProperties": false,
                   "properties": {
                     "allowed_merge_methods": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["merge", "squash", "rebase"]}},
@@ -66,7 +66,28 @@
                     "require_code_owner_review": {"type": "boolean"},
                     "require_last_push_approval": {"type": "boolean"},
                     "required_approving_review_count": {"type": "integer", "minimum": 0, "maximum": 10},
-                    "required_review_thread_resolution": {"type": "boolean"}
+                    "required_review_thread_resolution": {"type": "boolean"},
+                    "required_reviewers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["file_patterns", "minimum_approvals", "reviewer"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "file_patterns": {"type": "array", "items": {"type": "string"}},
+                          "minimum_approvals": {"type": "integer"},
+                          "reviewer": {
+                            "type": "object",
+                            "required": ["id", "type"],
+                            "additionalProperties": false,
+                            "properties": {
+                              "id": {"type": "integer"},
+                              "type": {"type": "string", "enum": ["Team"]}
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
