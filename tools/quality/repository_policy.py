@@ -29,6 +29,8 @@ QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
 EMULATED_AARCH64_WORKFLOW = Path(".github/workflows/emulated-aarch64.yml")
 MERGE_TOOL = Path("tools/integration/merge_pr.py")
 MERGE_SETTINGS = Path("tools/integration/repository_settings.py")
+PORTABLE_PROVENANCE = Path("tools/integration/portable_provenance.py")
+PROVENANCE_WORKFLOW = Path(".github/workflows/portable-provenance.yml")
 HUAWEI_COPYRIGHT = "Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved."
 SPDX_MIT = "SPDX-License-Identifier: MIT"
 EXTENSIONLESS_SOURCES = frozenset({Path("tools/awq")})
@@ -391,6 +393,8 @@ def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
 def validate_merge_integrity_tools() -> None:
     merge = (ROOT / MERGE_TOOL).read_text(encoding="utf-8")
     settings = (ROOT / MERGE_SETTINGS).read_text(encoding="utf-8")
+    provenance = (ROOT / PORTABLE_PROVENANCE).read_text(encoding="utf-8")
+    provenance_workflow = (ROOT / PROVENANCE_WORKFLOW).read_text(encoding="utf-8")
     required_merge = (
         '"commit-tree",\n                "-S",',
         'f"--force-with-lease={args.target_ref}:{base}"',
@@ -418,6 +422,8 @@ def validate_merge_integrity_tools() -> None:
         '"required_review_thread_resolution": True',
         '"required_status_checks"',
         '"strict_required_status_checks_policy": True',
+        'PROVENANCE_CONTEXT = "Portable protected-main provenance"',
+        'if metadata_capable:',
         '"committer_email_pattern"',
         '"pattern": r"^noreply@github\\.com$"',
         '"negate": True',
@@ -444,6 +450,29 @@ def validate_merge_integrity_tools() -> None:
     )
     if any(f'"{context}"' not in settings for context in required_checks):
         fail("repository settings tool omits a required exact-head check")
+    if any(
+        fragment not in provenance
+        for fragment in (
+            "repository_policy.validate_commits(",
+            "validate_pull_association(",
+            "GitHub Web Flow or noreply commit identity is forbidden",
+            "GitHub commit verification is not valid",
+            "checked head differs from the immutable event head",
+        )
+    ):
+        fail("portable provenance verifier lacks an exact fail-closed boundary")
+    if any(
+        fragment not in provenance_workflow
+        for fragment in (
+            "name: Portable protected-main provenance",
+            "push:\n    branches: [main]",
+            "pull_request:",
+            "persist-credentials: false",
+            "fetch-depth: 0",
+            "tools/integration/portable_provenance.py",
+        )
+    ):
+        fail("portable provenance workflow is not a required exact-head gate")
 
 
 def topic_first_parent_spine(root: Path, base: str, tip: str) -> list[str]:
