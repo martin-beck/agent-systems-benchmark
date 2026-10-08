@@ -34,7 +34,7 @@ check-deps:
 			printf '%s\n' "ERROR: missing '$$tool'; install it using your OS/toolchain policy (Make does not install dependencies)." >&2; exit 1; \
 		}; \
 	done; \
-	"$(RUSTUP)" toolchain list | awk -v wanted='$(RUSTUP_TOOLCHAIN)' '$$1 == wanted { found=1 } END { if (!found) exit 1 }' || { \
+	"$(RUSTUP)" toolchain list | awk -v wanted='$(RUSTUP_TOOLCHAIN)' '$$1 == wanted || index($$1, wanted "-") == 1 { found=1 } END { if (!found) exit 1 }' || { \
 		printf '%s\n' "ERROR: Rust toolchain $(RUSTUP_TOOLCHAIN) is unavailable; install it with rustup outside this Makefile." >&2; exit 1; \
 	}; \
 	"$(RUSTUP)" target list --toolchain "$(RUSTUP_TOOLCHAIN)" --installed | awk -v wanted='$(TARGET)' '$$1 == wanted { found=1 } END { if (!found) exit 1 }' || { \
