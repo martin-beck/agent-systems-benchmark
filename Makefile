@@ -51,11 +51,15 @@ build: check-deps
 
 install: check-deps
 	@set -eu; \
-	root=$$(pwd -P); prefix=$(PREFIX); \
+	root=$$(pwd -P); prefix="$(PREFIX)"; \
 	case "$$prefix" in /*) ;; *) printf '%s\n' 'ERROR: PREFIX must be an absolute path (for example $$HOME/.local).' >&2; exit 1 ;; esac; \
 	case "$$prefix" in *'/../'*|../*|*/..|..) printf '%s\n' 'ERROR: PREFIX must not contain parent-directory traversal.' >&2; exit 1 ;; esac; \
 	[ "$$prefix" != / ] && [ "$$prefix" != /.local ] && [ "$$prefix" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe PREFIX (filesystem or repository root).' >&2; exit 1; }; \
+	reject_symlink_chain() { path=$$1; rest=$${path#/}; current=/; while [ -n "$$rest" ]; do component=$${rest%%/*}; [ "$$rest" = "$$component" ] && rest= || rest=$${rest#*/}; current="$$current$$component"; [ ! -L "$$current" ] || { printf '%s\n' "ERROR: refusing symlink in PREFIX path: $$current" >&2; exit 1; }; [ ! -e "$$current" ] || [ -d "$$current" ] || { printf '%s\n' "ERROR: PREFIX path component is not a directory: $$current" >&2; exit 1; }; current="$$current/"; done; }; \
+	reject_symlink_chain "$$prefix"; \
 	mkdir -p -- "$$prefix"; \
+	reject_symlink_chain "$$prefix/bin"; \
+	[ ! -L "$$prefix/bin/asb" ] || { printf '%s\n' 'ERROR: refusing symlink at PREFIX/bin/asb.' >&2; exit 1; }; \
 	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" install --locked --path crates/asb-cli --root "$$prefix"; \
 	touch -- "$$prefix/.asb-make-staging"; \
 	printf '%s\n' "Installed ASB at $$prefix/bin/asb"; \
@@ -66,7 +70,7 @@ clean:
 	root=$$(pwd -P); case "$(CARGO_TARGET_DIR)" in /*) target=$(CARGO_TARGET_DIR);; *) target=$$root/$(CARGO_TARGET_DIR);; esac; \
 	[ -n "$$target" ] && [ "$$target" != / ] && [ "$$target" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe CARGO_TARGET_DIR.' >&2; exit 1; }; \
 	case "$$target" in "$$root"/*|/tmp/*) ;; *) printf '%s\n' 'ERROR: CARGO_TARGET_DIR must be repository-local or under /tmp.' >&2; exit 1 ;; esac; \
-	prefix=$(PREFIX); case "$$prefix" in /*) ;; *) printf '%s\n' 'ERROR: PREFIX must be an absolute path.' >&2; exit 1 ;; esac; \
+	prefix="$(PREFIX)"; case "$$prefix" in /*) ;; *) printf '%s\n' 'ERROR: PREFIX must be an absolute path.' >&2; exit 1 ;; esac; \
 	case "$$prefix" in *'/../'*|../*|*/..|..) printf '%s\n' 'ERROR: PREFIX must not contain parent-directory traversal.' >&2; exit 1 ;; esac; \
 	[ "$$prefix" != / ] && [ "$$prefix" != /.local ] && [ "$$prefix" != "$$root" ] || { printf '%s\n' 'ERROR: refusing unsafe PREFIX (filesystem or repository root).' >&2; exit 1; }; \
 	if [ -f "$$prefix/.asb-make-staging" ]; then rm -f -- "$$prefix/bin/asb" "$$prefix/.asb-make-staging"; rmdir -- "$$prefix/bin" 2>/dev/null || :; fi; \

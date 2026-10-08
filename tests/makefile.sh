@@ -153,6 +153,24 @@ explicit="$tmp/package-root"
 FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$explicit" \
     make -C "$root" install >/dev/null
 test -x "$explicit/bin/asb"
+
+space_home="$tmp/home with space"
+mkdir -p "$space_home"
+HOME="$space_home" FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null
+test -x "$space_home/.local/bin/asb"
+
+symlink_prefix="$tmp/symlink-prefix"
+outside="$tmp/outside"
+mkdir -p "$symlink_prefix" "$outside"
+ln -s "$outside" "$symlink_prefix/bin"
+if PREFIX="$symlink_prefix" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked PREFIX/bin unexpectedly passed' >&2
+    exit 1
+fi
+test ! -e "$outside/asb"
+
 if PREFIX=relative-prefix CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
     make -C "$root" install >/dev/null 2>&1; then
     printf '%s\n' 'relative PREFIX unexpectedly passed' >&2
