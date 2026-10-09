@@ -75,14 +75,34 @@ fn assert_constructor_paths_are_direct_calls(
 
 fn assert_no_error_type_aliases(source: &'static str) -> Result<(), String> {
     for error_type in ["CliError", "RouterError"] {
-        for (offset, _) in source.match_indices("type ") {
-            let declaration = &source[offset..];
-            if declaration.split_once(';').is_some_and(|(statement, _)| {
-                statement.contains('=') && statement.contains(error_type)
-            }) {
-                return Err(format!(
-                    "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
-                ));
+        for (offset, _) in source.match_indices("type") {
+            let before = source[..offset].chars().next_back();
+            let after = &source[offset + "type".len()..];
+            if before.is_some_and(|character| character.is_alphanumeric() || character == '_')
+                || after
+                    .chars()
+                    .next()
+                    .is_some_and(|character| character.is_alphanumeric() || character == '_')
+            {
+                continue;
+            }
+            let alias = skip_rust_trivia(after);
+            let alias_end = alias
+                .find(|character: char| !(character.is_alphanumeric() || character == '_'))
+                .unwrap_or(alias.len());
+            if alias_end == 0 {
+                continue;
+            }
+            let after_alias = skip_rust_trivia(&alias[alias_end..]);
+            if let Some(right_hand_side) = after_alias.strip_prefix('=') {
+                if right_hand_side
+                    .split_once(';')
+                    .is_some_and(|(target, _)| target.contains(error_type))
+                {
+                    return Err(format!(
+                        "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
+                    ));
+                }
             }
         }
         for (offset, _) in source.match_indices(error_type) {
@@ -423,9 +443,21 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(multiline_type_alias)
         .expect_err("the completeness gate must reject a multiline routed type alias");
     assert!(error.contains("aliases are forbidden"));
+    let trivia_after_type = "type /* boundary */ Error = crate::RouterError;\nError::policy(\"future_type_trivia_router_error\")";
+    let error = assert_catalogued_routed_codes(trivia_after_type)
+        .expect_err("the completeness gate must reject routed type-token trivia");
+    assert!(error.contains("aliases are forbidden"));
     let type_alias = "type Error = RouterError;\nError::policy(\"future_type_alias_router_error\")";
     let error = assert_catalogued_routed_codes(type_alias)
         .expect_err("the completeness gate must reject a routed type alias");
+    assert!(error.contains("aliases are forbidden"));
+    let trivia_after_type = "type /* boundary */ Error = crate::CliError;\nError::legacy_operation(\"future_type_trivia_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        trivia_after_type,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject legacy type-token trivia");
     assert!(error.contains("aliases are forbidden"));
     let commented_type_alias = "type Error = /* alias boundary */ RouterError;\nError::policy(\"future_commented_type_alias_router_error\")";
     let error = assert_catalogued_routed_codes(commented_type_alias)
