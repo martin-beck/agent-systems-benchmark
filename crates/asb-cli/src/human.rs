@@ -2563,6 +2563,9 @@ fn warning_text(code: &str) -> &'static str {
         "development_rustup_permission_or_ownership_findings_allowed" => {
             "The development Rust toolchain contains group-writable or differently owned paths; restrict permissions and ownership before relying on it."
         }
+        "development authentication, signatures, and keys are warning-only; discovery does not require them" => {
+            "Tool discovery completed without production authentication, signature, or key-management services; discovery is usable, but it does not establish production trust."
+        }
         "attacker_defined_claim" => {
             "The supplied claim is attacker-defined and cannot establish trusted provenance."
         }
@@ -2570,7 +2573,7 @@ fn warning_text(code: &str) -> &'static str {
             "This result is development-only and must not be presented as production qualification."
         }
         _ => {
-            "A catalogued warning limits this operation; inspect the machine-readable result for the bounded warning identity."
+            "ASB received an unrecognized warning identity; this version cannot classify its limitation, so do not treat the result as fully qualified. Inspect the bounded machine-readable warning identity before relying on it."
         }
     }
 }
@@ -2600,6 +2603,15 @@ fn tui_failure_text(code: &str) -> &'static str {
         }
         "development_control_failed" => "the development control exchange did not complete",
         "development_control_unavailable" => "the development control service is unavailable",
+        "development_source_identity_invalid" | "dev_source_identity_invalid" => {
+            "the development source identity is invalid"
+        }
+        "development_source_identity_mismatch" | "dev_source_identity_mismatch" => {
+            "the development source identity does not match the selected artifact"
+        }
+        "dev_source_identity_stale" => {
+            "the development source identity is stale and must be reconciled"
+        }
         "development_descriptor_failed" => {
             "the development descriptor could not be validated or published"
         }
@@ -2616,6 +2628,9 @@ fn tui_failure_text(code: &str) -> &'static str {
         "development_launch_timeout" => {
             "the terminal interface launch exceeded its bounded deadline"
         }
+        "development_metadata_failed" | "dev_metadata_failed" => {
+            "development metadata could not be produced or validated"
+        }
         "development_operation_invalid" => "the requested terminal interface operation is invalid",
         "development_remove_failed" => {
             "the development installation could not be removed completely"
@@ -2624,6 +2639,21 @@ fn tui_failure_text(code: &str) -> &'static str {
             "the development source is unavailable while offline"
         }
         "development_terminal_unavailable" => "the required terminal capability is unavailable",
+        "development_host_unavailable" => "the required development host capability is unavailable",
+        "candidate_rejected_lifecycle" => {
+            "the lifecycle candidate rejected the requested transition; resulting state must be reconciled"
+        }
+        "rollback_rejected" => "the requested rollback violates the accepted lifecycle state",
+        "artifact_quota_exceeded" => {
+            "the bounded artifact storage quota was exhausted before publication"
+        }
+        "dev_workspace_quota_exceeded" => {
+            "the bounded development workspace quota was exhausted before completion"
+        }
+        "trusted_tool_unavailable" | "host_capability_unavailable" => {
+            "the required trusted host capability is unavailable"
+        }
+        "signature_verifier_unavailable" => "the signature-verifier capability is unavailable",
         _ => {
             "the terminal interface reported an unclassified failure; inspect the machine-readable code"
         }
@@ -3080,6 +3110,29 @@ mod tests {
     }
 
     #[test]
+    fn routed_lifecycle_and_quota_failures_are_not_generic() {
+        let cases = [
+            ("candidate_rejected_lifecycle", "requested transition"),
+            ("rollback_rejected", "accepted lifecycle state"),
+            ("dev_workspace_quota_exceeded", "quota was exhausted"),
+            ("artifact_quota_exceeded", "quota was exhausted"),
+        ];
+        for (code, expected) in cases {
+            let output = render(
+                &["tui", "status", "--channel", "dev"],
+                serde_json::json!({
+                    "schema_version":1,"ok":false,"command":"tui",
+                    "operation":"status","classification":"product_failure",
+                    "code":code,"channel":"dev"
+                }),
+                false,
+            );
+            assert!(output.contains(expected), "{code}: {output}");
+            assert!(!output.contains("unclassified failure"), "{code}: {output}");
+        }
+    }
+
+    #[test]
     fn every_tui_operation_has_truthful_success_wording() {
         let cases = [
             ("launch", "launched"),
@@ -3106,6 +3159,40 @@ mod tests {
             assert_eq!(output.matches("group-writable").count(), 1, "{operation}");
             assert!(!output.contains("development_rustup_permission"));
         }
+    }
+
+    #[test]
+    fn every_known_warning_has_explicit_consequence_text() {
+        let cases = [
+            ("development_authentication_warning", "live-provider"),
+            (
+                "development_missing_authentication_allowed",
+                "live-provider",
+            ),
+            (
+                "development_missing_signatures_allowed",
+                "production-trusted",
+            ),
+            ("development_missing_key_management_allowed", "key-rotation"),
+            (
+                "development_rustup_permission_or_ownership_findings_allowed",
+                "permissions",
+            ),
+            ("attacker_defined_claim", "attacker-defined"),
+            ("development_only", "development-only"),
+            (
+                "development authentication, signatures, and keys are warning-only; discovery does not require them",
+                "production trust",
+            ),
+        ];
+        for (code, consequence) in cases {
+            let text = warning_text(code);
+            assert!(!text.contains("unrecognized"), "{code}: {text}");
+            assert!(text.contains(consequence), "{code}: {text}");
+        }
+        let unknown = warning_text("future_warning_identity");
+        assert!(unknown.contains("unrecognized warning identity"));
+        assert!(unknown.contains("cannot classify its limitation"));
     }
 
     #[test]

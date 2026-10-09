@@ -38,6 +38,8 @@ pub enum Cause {
     PermissionDenied,
     /// Storage refused mutation because it is read-only or full.
     ReadOnlyStorage,
+    /// A bounded storage or workspace quota was exhausted.
+    ResourceExhausted,
     /// A symlink or overlapping root makes the topology unsafe.
     UnsafeTopology,
     /// A supplied path is empty or otherwise invalid.
@@ -56,6 +58,8 @@ pub enum Cause {
     ProviderAuthentication,
     /// A provider rejected an otherwise bounded request.
     ProviderRejection,
+    /// The lifecycle owner rejected a requested state transition.
+    LifecycleRejected,
     /// Transport could not complete a bounded exchange.
     TransportFailure,
     /// A bounded deadline expired.
@@ -337,6 +341,7 @@ impl Diagnostic {
             Cause::NotRegularFile => "the selected path is not a regular file",
             Cause::PermissionDenied => "access to the affected resource was denied",
             Cause::ReadOnlyStorage => "the destination storage refused the requested change",
+            Cause::ResourceExhausted => "the bounded storage or workspace quota was exhausted",
             Cause::UnsafeTopology => "the path topology is unsafe for this operation",
             Cause::InvalidPath => "the supplied path is invalid",
             Cause::MalformedInput => "the input is malformed",
@@ -346,6 +351,7 @@ impl Diagnostic {
             Cause::MissingTool => "the required tool is not installed or registered",
             Cause::ProviderAuthentication => "provider authentication could not be established",
             Cause::ProviderRejection => "the provider rejected the bounded request",
+            Cause::LifecycleRejected => "the lifecycle owner rejected the requested transition",
             Cause::TransportFailure => "the bounded transport exchange did not complete",
             Cause::Timeout => "the bounded deadline expired",
             Cause::Cancellation => "the operation was cancelled before completion",
@@ -626,12 +632,24 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
-        "candidate_rejected_lifecycle" | "rollback_rejected" => {
+        "candidate_rejected_lifecycle" => {
             return (
-                Cause::ProviderRejection,
+                Cause::LifecycleRejected,
                 Context::new(
                     Subject::State,
                     "change_state",
+                    Phase::Commit,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "rollback_rejected" => {
+            return (
+                Cause::LifecycleRejected,
+                Context::new(
+                    Subject::State,
+                    "rollback",
                     Phase::Validate,
                     StateChange::Unchanged,
                     Remediation::CorrectInput,
@@ -666,7 +684,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
         }
         "artifact_quota_exceeded" | "dev_workspace_quota_exceeded" => {
             return (
-                Cause::ReadOnlyStorage,
+                Cause::ResourceExhausted,
                 Context::new(
                     Subject::Workspace,
                     "write_workspace",
@@ -924,6 +942,84 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     )
 }
 
+/// Stable routed producers with an explicit reviewed catalog mapping.
+///
+/// Keeping this inventory beside the resolver makes omissions test-visible;
+/// future public producers must add a row and a semantic fixture rather than
+/// silently falling through to a generic message.
+pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
+    ("development_filesystem_invalid", Cause::UnsafeTopology),
+    ("development_installation_invalid", Cause::UnsafeTopology),
+    (
+        "development_source_identity_invalid",
+        Cause::IncompatibleInput,
+    ),
+    (
+        "development_source_identity_mismatch",
+        Cause::IncompatibleInput,
+    ),
+    ("development_bundle_invalid", Cause::IncompatibleInput),
+    ("development_channel_rejected", Cause::IncompatibleInput),
+    (
+        "development_source_unavailable_offline",
+        Cause::TransportFailure,
+    ),
+    ("development_control_unavailable", Cause::TransportFailure),
+    ("development_channel_unavailable", Cause::TransportFailure),
+    ("development_control_failed", Cause::TransportFailure),
+    (
+        "development_terminal_unavailable",
+        Cause::UnavailableCapability,
+    ),
+    (
+        "development_compiler_unsupported",
+        Cause::UnavailableCapability,
+    ),
+    ("development_host_unavailable", Cause::UnavailableCapability),
+    ("development_launch_timeout", Cause::Timeout),
+    ("development_descriptor_oversized", Cause::MalformedInput),
+    ("development_operation_invalid", Cause::InvalidPath),
+    ("development_launch_failed", Cause::UnexpectedProductFailure),
+    ("development_remove_failed", Cause::UnexpectedProductFailure),
+    (
+        "development_descriptor_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    (
+        "development_metadata_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    (
+        "provider_credential_unavailable",
+        Cause::ProviderAuthentication,
+    ),
+    ("provider_transport_unavailable", Cause::TransportFailure),
+    ("provider_transport_failed", Cause::TransportFailure),
+    ("transfer_unavailable", Cause::TransportFailure),
+    ("transfer_failed", Cause::TransportFailure),
+    ("provider_catalog_unavailable", Cause::TransportFailure),
+    ("provider_catalog_http_error", Cause::TransportFailure),
+    ("provider_http_error", Cause::ProviderRejection),
+    ("provider_invalid_status", Cause::ProviderRejection),
+    ("provider_response_too_large", Cause::ProviderRejection),
+    ("trusted_tool_unavailable", Cause::UnavailableCapability),
+    ("host_capability_unavailable", Cause::UnavailableCapability),
+    (
+        "signature_verifier_unavailable",
+        Cause::UnavailableCapability,
+    ),
+    ("candidate_timeout", Cause::Timeout),
+    ("dev_command_timeout", Cause::Timeout),
+    ("candidate_rejected_lifecycle", Cause::LifecycleRejected),
+    ("rollback_rejected", Cause::LifecycleRejected),
+    ("dev_source_identity_stale", Cause::StaleIdentity),
+    ("dev_source_identity_invalid", Cause::IncompatibleInput),
+    ("dev_source_identity_mismatch", Cause::IncompatibleInput),
+    ("manifest_digest_mismatch", Cause::IncompatibleInput),
+    ("artifact_quota_exceeded", Cause::ResourceExhausted),
+    ("dev_workspace_quota_exceeded", Cause::ResourceExhausted),
+];
+
 fn message_contains(message: &str, needle: &str) -> bool {
     message
         .as_bytes()
@@ -933,7 +1029,9 @@ fn message_contains(message: &str, needle: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cause, Context, Diagnostic, Remediation, Severity, StateChange, Subject};
+    use super::{
+        CATALOGUED_CODES, Cause, Context, Diagnostic, Remediation, Severity, StateChange, Subject,
+    };
 
     #[test]
     fn required_fine_grained_causes_remain_distinct() {
@@ -1062,6 +1160,43 @@ mod tests {
             assert!(!diagnostic.state_change_explanation().is_empty());
             assert!(!diagnostic.remediation_explanation().is_empty());
         }
+    }
+
+    #[test]
+    fn every_catalogued_producer_has_an_explicit_cause_and_context() {
+        for &(code, expected_cause) in CATALOGUED_CODES {
+            let diagnostic = Diagnostic::for_code(code, code, Severity::Failure);
+            assert_eq!(
+                diagnostic.cause, expected_cause,
+                "catalog mapping for {code}"
+            );
+            assert!(diagnostic.is_catalogued(), "catalogued producer {code}");
+            assert_ne!(diagnostic.context.subject, Subject::Unknown, "{code}");
+            assert_ne!(diagnostic.context.operation, "unknown", "{code}");
+            assert!(!diagnostic.cause_explanation().is_empty(), "{code}");
+            assert!(!diagnostic.remediation_explanation().is_empty(), "{code}");
+        }
+    }
+
+    #[test]
+    fn lifecycle_and_resource_failures_keep_their_fine_grained_causes() {
+        let lifecycle = Diagnostic::for_code(
+            "candidate_rejected_lifecycle",
+            "candidate_rejected_lifecycle",
+            Severity::Failure,
+        );
+        assert_eq!(lifecycle.cause, Cause::LifecycleRejected);
+        assert_ne!(lifecycle.cause, Cause::ProviderRejection);
+        assert_eq!(lifecycle.context.remediation, Remediation::Reconcile);
+
+        let quota = Diagnostic::for_code(
+            "dev_workspace_quota_exceeded",
+            "dev_workspace_quota_exceeded",
+            Severity::Error,
+        );
+        assert_eq!(quota.cause, Cause::ResourceExhausted);
+        assert_ne!(quota.cause, Cause::ReadOnlyStorage);
+        assert_eq!(quota.context.subject, Subject::Workspace);
     }
 
     #[test]
