@@ -234,13 +234,13 @@ grep -F -- 'preserve marker target' "$tmp/marker-target" >/dev/null
 
 marker_directory="$tmp/marker-directory-prefix"
 mkdir -p "$marker_directory/.asb-make-staging"
-find "$marker_directory" -printf '%P %y\n' | sort >"$tmp/marker-directory-before"
+find "$marker_directory" -print | sort >"$tmp/marker-directory-before"
 if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$marker_directory" \
     make -C "$root" install >/dev/null 2>&1; then
     printf '%s\n' 'non-regular ownership marker unexpectedly passed' >&2
     exit 1
 fi
-find "$marker_directory" -printf '%P %y\n' | sort >"$tmp/marker-directory-after"
+find "$marker_directory" -print | sort >"$tmp/marker-directory-after"
 cmp "$tmp/marker-directory-before" "$tmp/marker-directory-after"
 test ! -s "$tmp/log"
 test ! -e "$marker_directory/bin/asb"
