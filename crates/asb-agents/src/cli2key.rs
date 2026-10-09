@@ -1,3 +1,5 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
 //! Development-only cli2key provider identities.
 #![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
