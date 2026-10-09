@@ -3424,32 +3424,50 @@ fn tool_install(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
     ensure_project_directory(&root.join(".asb/tools"), 0o700)?;
     ensure_project_directory(&root.join(format!(".asb/tools/{id}")), 0o700)?;
     let mut created_destination = false;
-    if destination.exists() {
-        let current = fs::read(&destination)
-            .map_err(|_| CliError::validation("existing tool cannot be read"))?;
-        if Sha256::digest(&current) != Sha256::digest(&bytes) {
+    match fs::symlink_metadata(&destination) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                return Err(CliError::validation(
+                    "tool destination must be a regular file, not a symlink",
+                ));
+            }
+            if !metadata.file_type().is_file() {
+                return Err(CliError::validation(
+                    "tool destination must be a regular file",
+                ));
+            }
+            let current = fs::read(&destination)
+                .map_err(|_| CliError::validation("existing tool cannot be read"))?;
+            if Sha256::digest(&current) != Sha256::digest(&bytes) {
+                return Err(CliError::validation(
+                    "tool destination already exists with a different digest",
+                ));
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let temporary = root.join(format!(".asb/tools/{id}/.tool-{}.tmp", std::process::id()));
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o700)
+                .open(&temporary)
+                .map_err(|_| CliError::operation("tool source cannot be staged"))?;
+            if file.write_all(&bytes).is_err()
+                || file.sync_all().is_err()
+                || fs::rename(&temporary, &destination).is_err()
+            {
+                let _ = fs::remove_file(&temporary);
+                return Err(CliError::operation(
+                    "tool installation failed and was rolled back",
+                ));
+            }
+            created_destination = true;
+        }
+        Err(_) => {
             return Err(CliError::validation(
-                "tool destination already exists with a different digest",
+                "tool destination cannot be inspected safely",
             ));
         }
-    } else {
-        let temporary = root.join(format!(".asb/tools/{id}/.tool-{}.tmp", std::process::id()));
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o700)
-            .open(&temporary)
-            .map_err(|_| CliError::operation("tool source cannot be staged"))?;
-        if file.write_all(&bytes).is_err()
-            || file.sync_all().is_err()
-            || fs::rename(&temporary, &destination).is_err()
-        {
-            let _ = fs::remove_file(&temporary);
-            return Err(CliError::operation(
-                "tool installation failed and was rolled back",
-            ));
-        }
-        created_destination = true;
     }
     tool_kind_map_mut(&mut config, kind).insert(id.to_owned(), record);
     if let Err(error) = save_tool_project(&root, &config) {
@@ -8946,6 +8964,56 @@ mod tests {
         assert_ne!(
             run_with_default_mode(&symlink_args, &mut Vec::new(), &mut Vec::new(), false),
             0
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tool_install_rejects_matching_destination_symlink_before_reading_target() {
+        let scratch = Scratch::new("tool-install-destination-symlink");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let install = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("symlink-destination"),
+            OsString::from("--kind"),
+            OsString::from("support"),
+            OsString::from("--source"),
+            OsString::from("fixture://symlink-destination"),
+            OsString::from("--version"),
+            OsString::from("1.0.0"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&install, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let destination = project.join(".asb/tools/symlink-destination/tool");
+        let target = scratch.0.join("matching-target");
+        let bytes = b"ASB deterministic tool fixture symlink-destination\n";
+        fs::write(&target, bytes).unwrap();
+        fs::remove_file(&destination).unwrap();
+        std::os::unix::fs::symlink(&target, &destination).unwrap();
+        assert_ne!(
+            run_with_default_mode(&install, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        assert_eq!(fs::read(&target).unwrap(), bytes);
+        assert!(
+            fs::symlink_metadata(&destination)
+                .unwrap()
+                .file_type()
+                .is_symlink()
         );
     }
 
