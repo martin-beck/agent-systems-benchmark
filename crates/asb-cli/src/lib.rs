@@ -13,6 +13,7 @@ use asb_agents::all_agents_provider::{
     AllAgentsProviderSelection, EffectiveApiMode, SelectedAgent, resolve_openai_selection,
     resolve_openrouter_selection,
 };
+use asb_agents::cli2key::Cli2KeyLaunch;
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::opencode::{OpenCodeArtifact, OpenCodeConfig};
 use asb_agents::openrouter::OpenRouterCatalogError;
@@ -3173,6 +3174,9 @@ struct ProviderPlanOutput {
     credential_source: String,
     credential_reference_sha256: String,
     effective: Vec<EffectiveCliAgent>,
+    /// Runtime-issued development-only cli2key launch binding, when selected.
+    #[serde(default)]
+    cli2key_launch: Option<Cli2KeyLaunch>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -3373,6 +3377,7 @@ fn provider_plan_at_with_catalog(
                 .expect("provider profile resolution validated the credential reference identity")
                 .to_owned(),
             effective,
+            cli2key_launch: None,
         },
     )
 }
@@ -3470,6 +3475,7 @@ fn provider_plan_from_selection(
         credential_source: "environment".into(),
         credential_reference_sha256: credential.into(),
         effective,
+        cli2key_launch: None,
     };
     validate_provider_selection(&output)?;
     Ok(output)
@@ -4137,6 +4143,7 @@ fn provider_plan_from_configuration(
         credential_source: "environment".into(),
         credential_reference_sha256: credential.locator_sha256.clone(),
         effective,
+        cli2key_launch: None,
     };
     validate_provider_selection(&output)?;
     Ok(output)
@@ -4199,7 +4206,8 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         || !value.ok
         || value.command != "provider-plan"
         || !value.dry_run
-        || value.catalog_sha256 != provider_catalog_digest()
+        || (value.provider_profile != "cli2key"
+            && value.catalog_sha256 != provider_catalog_digest())
         || value.credential_source != "environment"
         || !valid_sha256(&value.credential_reference_sha256)
         || !valid_sha256(&value.provider_profile_sha256)
@@ -4209,6 +4217,26 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         return Err(CliError::validation(
             "provider selection identity is invalid",
         ));
+    }
+    if value.provider_profile == "cli2key" {
+        let launch = value.cli2key_launch.as_ref().ok_or_else(|| {
+            CliError::validation("cli2key provider selection lacks a runtime launch")
+        })?;
+        launch
+            .validate_shape()
+            .map_err(|_| CliError::validation("cli2key launch identity is invalid"))?;
+        if value.model != launch.selection.model_id
+            || value.catalog_sha256 != launch.selection.catalog_sha256
+            || value.credential_reference_sha256 != launch.selection.credential_reference_sha256
+            || value.effective.len() != 1
+            || value.effective[0].agent != "codex"
+            || value.effective[0].api_mode != EffectiveApiMode::Responses
+        {
+            return Err(CliError::validation(
+                "cli2key provider selection identity is invalid",
+            ));
+        }
+        return Ok(());
     }
     let agents = value
         .effective
@@ -4354,6 +4382,30 @@ fn build_provider_launch(
                 projection,
                 profile.provider_profile().endpoint.identity_sha256.clone(),
             )
+        }
+        "cli2key" => {
+            let launch = selection.cli2key_launch.as_ref().ok_or_else(|| {
+                CliError::validation("cli2key provider selection lacks a runtime launch")
+            })?;
+            launch
+                .validate_shape()
+                .map_err(|_| CliError::validation("cli2key launch identity is invalid"))?;
+            if selected_agent != SelectedAgent::Codex
+                || launch.selection.model_id != selection.model
+                || launch.selection.credential_reference_sha256
+                    != selection.credential_reference_sha256
+                || launch.selection.catalog_sha256 != selection.catalog_sha256
+            {
+                return Err(CliError::validation("cli2key selection binding is invalid"));
+            }
+            let projection = ProviderLaunchProjection::cli2key(
+                &selection.model,
+                &selection.provider_profile_sha256,
+                &selection.credential_reference_sha256,
+                selected_agent,
+            )
+            .map_err(|_| CliError::validation("selected adapter has no exact cli2key route"))?;
+            (projection, launch.selection.endpoint_sha256.clone())
         }
         _ => return Err(CliError::validation("provider selection is incompatible")),
     };
@@ -9252,6 +9304,57 @@ mod tests {
         assert_ne!(first.launch_sha256, second.launch_sha256);
         assert!(first.validate().is_ok());
         assert!(second.validate().is_ok());
+    }
+
+    #[test]
+    fn cli2key_selection_builds_codex_run_launch_and_rejects_drift() {
+        let scratch = Scratch::new("cli2key-run-selection");
+        let (_, mut value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        value["provider_profile"] = json!("cli2key");
+        value["model"] = json!("codex-local");
+        value["provider_profile_sha256"] = json!("a".repeat(64));
+        value["credential_reference_sha256"] = json!("b".repeat(64));
+        value["catalog_sha256"] = json!("c".repeat(64));
+        value["selection_sha256"] = json!("d".repeat(64));
+        value["effective"][0]["api_mode"] = json!("responses");
+        value["cli2key_launch"] = json!({
+            "schema_version": 1,
+            "selection": {
+                "schema_version": 1,
+                "provider_id": "cli2key",
+                "catalog_generation": 1,
+                "catalog_sha256": "c".repeat(64),
+                "model_id": "codex-local",
+                "bridge_revision": "fixture",
+                "bridge_tree_sha256": "e".repeat(64),
+                "executable_sha256": "f".repeat(64),
+                "endpoint_sha256": "1".repeat(64),
+                "credential_reference_sha256": "b".repeat(64),
+                "agent_id": "codex"
+            },
+            "api_mode": "responses",
+            "endpoint_host": "127.0.0.1",
+            "endpoint_port": 43123,
+            "generation": "fixture-generation"
+        });
+        let selection: ProviderPlanOutput = serde_json::from_value(value).unwrap();
+        validate_provider_selection(&selection).unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "cli2key-run");
+        plan.experiment.agent.implementation = "codex".into();
+        plan.experiment.agent.implementation = "codex".into();
+        plan.experiment.model.provider = "cli2key".into();
+        plan.experiment.model.model = "codex-local".into();
+        plan.experiment.model.settings.additional_settings_sha256 =
+            Some(selection.provider_profile_sha256.clone());
+        plan.experiment.refresh_content_address().unwrap();
+        let launch = build_provider_launch(&plan, &selection, "cli2key-run", "attempt-0");
+        assert!(launch.is_ok());
+        assert_eq!(launch.unwrap().input.provider, "cli2key");
+
+        let mut drifted = selection;
+        drifted.cli2key_launch.as_mut().unwrap().endpoint_host = "10.0.0.1".into();
+        assert!(validate_provider_selection(&drifted).is_err());
     }
 
     #[test]

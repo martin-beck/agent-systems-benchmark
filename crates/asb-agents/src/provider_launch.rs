@@ -394,6 +394,36 @@ impl ProviderLaunchProjection {
         })
     }
 
+    /// Construct the exact development-only Codex projection for a validated
+    /// cli2key selection. The endpoint and ephemeral key remain runtime-owned;
+    /// only their content identities cross this boundary.
+    pub fn cli2key(
+        model: &str,
+        settings_sha256: &str,
+        credential_reference_sha256: &str,
+        agent: SelectedAgent,
+    ) -> Result<Self, ProviderLaunchError> {
+        if agent != SelectedAgent::Codex
+            || model.is_empty()
+            || !is_sha256(settings_sha256)
+            || !is_sha256(credential_reference_sha256)
+        {
+            return Err(ProviderLaunchError::UnsupportedAdapter);
+        }
+        Ok(Self {
+            agent: agent_id(agent).to_owned(),
+            adapter: agent_id(agent).to_owned(),
+            provider: "cli2key".to_owned(),
+            model: model.to_owned(),
+            api_mode: EffectiveApiMode::Responses,
+            settings_sha256: settings_sha256.to_owned(),
+            credential: CredentialResolverIdentity {
+                kind: CredentialResolverKind::Environment,
+                reference_sha256: credential_reference_sha256.to_owned(),
+            },
+        })
+    }
+
     fn validate_against(&self, input: &ProviderLaunchV1) -> Result<(), ProviderLaunchError> {
         if self.agent != input.agent {
             return Err(ProviderLaunchError::ProjectionMismatch("agent"));
@@ -448,6 +478,7 @@ pub fn credential_target_for_provider_agent(provider: &str, agent: &str) -> Opti
     match provider {
         "openrouter" => openrouter_credential_target_for_agent(agent),
         "openai" => credential_target_for_agent(agent),
+        "cli2key" if agent == "codex" => Some("ASB_CLI2KEY_CREDENTIAL_REFERENCE"),
         _ => None,
     }
 }
