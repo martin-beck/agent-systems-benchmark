@@ -1359,6 +1359,7 @@ fn project_for_presentation(
         ],
         CommandKind::Capabilities => &["protocol_version", "capabilities"],
         CommandKind::Project => &["initialized", "recovered", "config", "results", "catalogs"],
+        CommandKind::Tool => &["ok", "command", "tools", "warnings"],
         CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
         CommandKind::AdapterCatalog => &["adapters"],
         CommandKind::WorkloadCatalog => &["entries"],
@@ -1398,7 +1399,6 @@ fn project_for_presentation(
         ],
         CommandKind::Record
         | CommandKind::RecordLive
-        | CommandKind::Tool
         | CommandKind::Cli
         | CommandKind::Help
         | CommandKind::Version
@@ -1546,6 +1546,19 @@ fn present(
             value.next = NextAction::new(["asb", "provider-catalog"]);
             value
         }
+        CommandKind::Tool => {
+            let mut value = Presentation::new("ASB discovered project and system tools.");
+            fact_count(&mut value, object, "tools", "discovered tools");
+            if let Some(warnings) = object.get("warnings").and_then(Value::as_array)
+                && !warnings.is_empty()
+            {
+                value.warning(format!(
+                    "{} development warning(s) were reported.",
+                    warnings.len()
+                ));
+            }
+            value
+        }
         CommandKind::ProviderCatalog => present_catalog(
             "ASB loaded the provider catalog.",
             object,
@@ -1639,7 +1652,6 @@ fn present(
             value
         }
         CommandKind::Cli
-        | CommandKind::Tool
         | CommandKind::Help
         | CommandKind::Version
         | CommandKind::Completion
@@ -2559,7 +2571,7 @@ mod tests {
             &["tui", "launch"],
             &["capabilities"],
             &["project", "init", "/tmp/project"],
-            &["tool"],
+            &["tool", "discover"],
             &["provider-catalog"],
             &["adapter-catalog"],
             &["workload-catalog"],

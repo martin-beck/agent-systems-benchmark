@@ -6,6 +6,7 @@ pub mod capabilities;
 mod control;
 mod human;
 mod provider_launch;
+pub mod tool_discovery;
 mod tui;
 pub mod tui_handoff;
 
@@ -836,6 +837,11 @@ fn dispatch(
             provider_catalog(stdout, true, presentation_context).map(|()| 0)
         }
         [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
+        [command, subcommand, discover_args @ ..]
+            if command == "tool" && matches!(subcommand.as_str(), "discover" | "list") =>
+        {
+            tool_discovery(discover_args, stdout).map(|()| 0)
+        }
         [command, format, value]
             if command == "provider-catalog" && format == "--format" && value == "json" =>
         {
@@ -3532,6 +3538,56 @@ fn tool_remove(args: &[String], output: &mut dyn Write) -> Result<(), CliError> 
         output,
         &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool remove", "id": id, "kind": kind}),
     )
+}
+
+/// Read-only system/project tool inventory.  Discovery intentionally never
+/// rewrites the project configuration; installation and catalog generation
+/// remain separate commands and authorities.
+fn tool_discovery(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    if args.len() > 1 {
+        return Err(CliError::usage("tool discover accepts at most one PATH"));
+    }
+    let root = PathBuf::from(args.first().map_or(".", String::as_str));
+    if fs::symlink_metadata(&root)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(CliError::validation(
+            "tool discovery project path cannot be a symlink",
+        ));
+    }
+    if !root.is_dir() {
+        return Err(CliError::validation(
+            "tool discovery project path must be a directory",
+        ));
+    }
+    let config_path = root.join(".asb/project.json");
+    let config = match fs::symlink_metadata(&config_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(CliError::validation(
+                "tool discovery configuration is a symlink",
+            ));
+        }
+        Ok(_) => {
+            let bytes = read_bounded_json(
+                &config_path,
+                MAX_CONFIG_BYTES,
+                "tool discovery configuration is unreadable",
+            )?;
+            Some(
+                decode_project_config(&bytes)
+                    .map_err(|_| CliError::validation("tool discovery configuration is invalid"))?,
+            )
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(_) => {
+            return Err(CliError::operation(
+                "tool discovery configuration cannot be inspected",
+            ));
+        }
+    };
+    let report = tool_discovery::discover(&root, config.as_ref(), std::env::var_os("PATH"));
+    write_json(output, &report)
 }
 
 fn ensure_project_root(root: &Path) -> Result<(), CliError> {
