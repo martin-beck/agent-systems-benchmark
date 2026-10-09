@@ -6,6 +6,7 @@ pub mod capabilities;
 mod control;
 mod human;
 mod provider_launch;
+pub mod tool_discovery;
 mod tui;
 pub mod tui_handoff;
 
@@ -835,6 +836,11 @@ fn dispatch(
             provider_catalog(stdout, true, presentation_context).map(|()| 0)
         }
         [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
+        [command, subcommand, discover_args @ ..]
+            if command == "tool" && matches!(subcommand.as_str(), "discover" | "list") =>
+        {
+            tool_discovery(discover_args, stdout).map(|()| 0)
+        }
         [command, format, value]
             if command == "provider-catalog" && format == "--format" && value == "json" =>
         {
@@ -1989,6 +1995,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
         Some("project") => "project",
+        Some("tool") => "tool",
         Some("provider-catalog") => "provider-catalog",
         Some("workload-catalog") => "workload-catalog",
         Some("config") => "config",
@@ -2016,6 +2023,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
     )
     .map_err(output_error)?;
+    writeln!(output, "  asb tool discover|list [PATH]").map_err(output_error)?;
     writeln!(
         output,
         "  asb auth setup --provider openrouter [--api-key-stdin]"
@@ -3092,6 +3100,56 @@ fn project_init(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
             ],
         },
     )
+}
+
+/// Read-only system/project tool inventory.  Discovery intentionally never
+/// rewrites the project configuration; installation and catalog generation
+/// remain separate commands and authorities.
+fn tool_discovery(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    if args.len() > 1 {
+        return Err(CliError::usage("tool discover accepts at most one PATH"));
+    }
+    let root = PathBuf::from(args.first().map_or(".", String::as_str));
+    if fs::symlink_metadata(&root)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(CliError::validation(
+            "tool discovery project path cannot be a symlink",
+        ));
+    }
+    if !root.is_dir() {
+        return Err(CliError::validation(
+            "tool discovery project path must be a directory",
+        ));
+    }
+    let config_path = root.join(".asb/project.json");
+    let config = match fs::symlink_metadata(&config_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(CliError::validation(
+                "tool discovery configuration is a symlink",
+            ));
+        }
+        Ok(_) => {
+            let bytes = read_bounded_json(
+                &config_path,
+                MAX_CONFIG_BYTES,
+                "tool discovery configuration is unreadable",
+            )?;
+            Some(
+                decode_project_config(&bytes)
+                    .map_err(|_| CliError::validation("tool discovery configuration is invalid"))?,
+            )
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(_) => {
+            return Err(CliError::operation(
+                "tool discovery configuration cannot be inspected",
+            ));
+        }
+    };
+    let report = tool_discovery::discover(&root, config.as_ref(), std::env::var_os("PATH"));
+    write_json(output, &report)
 }
 
 fn ensure_project_root(root: &Path) -> Result<(), CliError> {
@@ -8372,6 +8430,33 @@ mod tests {
         assert!(project.join("catalogs").is_dir());
         let config = decode_project_config(&fs::read(project.join(".asb/project.json")).unwrap());
         assert!(config.is_ok());
+    }
+
+    #[test]
+    fn tool_discover_is_read_only_and_supports_json() {
+        let scratch = Scratch::new("tool-discovery");
+        let project = scratch.0.join("workspace");
+        fs::create_dir_all(project.join(".asb")).unwrap();
+        let original = br#"{"schema_version":1,"roots":{"project":".","results":"results","catalogs":"catalogs"},"agents":{},"harnesses":{},"benchmarks":{},"workloads":{},"support_tools":{},"selections":{"support_tools":[]},"catalogs":{}}"#;
+        fs::write(project.join(".asb/project.json"), original).unwrap();
+        let args = vec![
+            OsString::from("tool"),
+            OsString::from("discover"),
+            project.clone().into_os_string(),
+            OsString::from("--json"),
+        ];
+        let mut output = Vec::new();
+        assert_eq!(
+            run_with_default_mode(&args, &mut output, &mut Vec::new(), false),
+            0
+        );
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["command"], "tool discover");
+        assert_eq!(value["ok"], true);
+        assert_eq!(
+            fs::read(project.join(".asb/project.json")).unwrap(),
+            original
+        );
     }
 
     #[test]
