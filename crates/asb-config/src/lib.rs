@@ -641,7 +641,13 @@ fn validate_selection(
 
 fn validate_source_ref(value: &str, field: &'static str) -> Result<(), ConfigError> {
     validate_text(value, field)?;
-    if value.contains("://") && !value.starts_with("https://") {
+    if value.contains("://") && !value.starts_with("https://")
+        || value.contains('@')
+        || value.contains("token=")
+        || value.contains("key=")
+        || value.contains("secret=")
+        || value.contains("password=")
+    {
         return Err(ConfigError::InvalidValue(field.into()));
     }
     Ok(())
@@ -2308,6 +2314,22 @@ mod tests {
         assert!(config.validate().is_err());
 
         config.roots.results = "results".into();
+        let mut secret_source = ProjectConfigV1::empty();
+        secret_source.support_tools.insert(
+            "tool".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::SupportTool,
+                source_ref: "https://user:password@example.invalid/tool".into(),
+                version: "1.0.0".into(),
+                platform: "linux-x86_64".into(),
+                path: None,
+                digest_sha256: None,
+                capabilities: Vec::new(),
+                status: ProjectToolStatus::Available,
+            },
+        );
+        assert!(secret_source.validate().is_err());
+
         config.catalogs.insert(
             "models".into(),
             GeneratedCatalogReferenceV1 {
