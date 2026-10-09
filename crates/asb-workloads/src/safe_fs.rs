@@ -1,0 +1,315 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
+//! Descriptor-relative preparation for command-owned workload fixtures.
+
+use rustix::fs::{AtFlags, Mode, OFlags, fchmod, mkdirat, openat, unlinkat};
+use std::ffi::OsStr;
+use std::fs::File;
+use std::io::{self, Write};
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Component, Path};
+
+#[derive(Debug)]
+pub(crate) struct OwnedDirectory {
+    pub(crate) file: File,
+    pub(crate) created: Option<(File, std::ffi::OsString)>,
+}
+
+pub(crate) fn prepare_absolute(path: &Path, mode: u32) -> io::Result<OwnedDirectory> {
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::RootDir | Component::Normal(_)))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsafe absolute path",
+        ));
+    }
+    let mut current = File::open("/")?;
+    let mut created = Vec::<(File, std::ffi::OsString)>::new();
+    for component in path.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        let next = match openat(
+            &current,
+            name,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+        ) {
+            Ok(fd) => File::from(fd),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let parent = match current.try_clone() {
+                    Ok(parent) => parent,
+                    Err(error) => {
+                        rollback(&created);
+                        return Err(error);
+                    }
+                };
+                match mkdirat(&current, name, Mode::from(mode)) {
+                    Ok(()) => created.push((parent, name.to_owned())),
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                    Err(error) => {
+                        rollback(&created);
+                        return Err(error.into());
+                    }
+                }
+                match openat(
+                    &current,
+                    name,
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                    Mode::empty(),
+                ) {
+                    Ok(fd) => {
+                        let next = File::from(fd);
+                        if let Err(error) = fchmod(&next, Mode::from(mode)) {
+                            rollback(&created);
+                            return Err(error.into());
+                        }
+                        next
+                    }
+                    Err(error) => {
+                        rollback(&created);
+                        return Err(error.into());
+                    }
+                }
+            }
+            Err(error) => {
+                rollback(&created);
+                return Err(error.into());
+            }
+        };
+        current = next;
+    }
+    Ok(OwnedDirectory {
+        file: current,
+        created: None,
+    })
+}
+
+pub(crate) fn prepare_child(parent: &File, name: &OsStr, mode: u32) -> io::Result<OwnedDirectory> {
+    if name.is_empty()
+        || name
+            .as_bytes()
+            .iter()
+            .any(|byte| *byte == b'/' || *byte == 0)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsafe directory name",
+        ));
+    }
+    let (next, created) = match openat(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        Mode::empty(),
+    ) {
+        Ok(fd) => (File::from(fd), false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let created = match mkdirat(parent, name, Mode::from(mode)) {
+                Ok(()) => true,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
+                Err(error) => return Err(error.into()),
+            };
+            let next = match openat(
+                parent,
+                name,
+                OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                Mode::empty(),
+            ) {
+                Ok(fd) => File::from(fd),
+                Err(error) => {
+                    if created {
+                        let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+                    }
+                    return Err(error.into());
+                }
+            };
+            (next, created)
+        }
+        Err(error) => return Err(error.into()),
+    };
+    if let Err(error) = fchmod(&next, Mode::from(mode)) {
+        if created {
+            let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+        }
+        return Err(error.into());
+    }
+    let created_entry = if created {
+        match parent.try_clone() {
+            Ok(parent_clone) => Some((parent_clone, name.to_owned())),
+            Err(error) => {
+                let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+                return Err(error);
+            }
+        }
+    } else {
+        None
+    };
+    Ok(OwnedDirectory {
+        file: next,
+        created: created_entry,
+    })
+}
+
+pub(crate) fn write_new_tracked(
+    parent: &File,
+    name: &OsStr,
+    bytes: &[u8],
+) -> io::Result<(File, std::ffi::OsString)> {
+    let fd = openat(
+        parent,
+        name,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        Mode::from(0o600),
+    )?;
+    let mut file = File::from(fd);
+    if let Err(error) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+        let _ = unlinkat(parent, name, AtFlags::empty());
+        return Err(error);
+    }
+    if let Err(error) = parent.sync_all() {
+        let _ = unlinkat(parent, name, AtFlags::empty());
+        return Err(error);
+    }
+    let parent_clone = match parent.try_clone() {
+        Ok(parent_clone) => parent_clone,
+        Err(error) => {
+            let _ = unlinkat(parent, name, AtFlags::empty());
+            return Err(error);
+        }
+    };
+    Ok((parent_clone, name.to_owned()))
+}
+
+pub(crate) fn write_new(parent: &File, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+    write_new_tracked(parent, name, bytes).map(|_| ())
+}
+
+fn rollback(created: &[(File, std::ffi::OsString)]) {
+    for (parent, name) in created.iter().rev() {
+        let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+    }
+}
+
+pub(crate) fn rollback_transaction(
+    files: &[(File, std::ffi::OsString)],
+    directories: &[(File, std::ffi::OsString)],
+) {
+    for (parent, name) in files.iter().rev() {
+        let _ = unlinkat(parent, name, AtFlags::empty());
+    }
+    rollback(directories);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn concurrent_child_creation_reopens_the_winner_without_following_a_link() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let parent = prepare_absolute(&root, 0o700).expect("root directory");
+        let barrier = Arc::new(Barrier::new(8));
+        let mut workers = Vec::new();
+        for _ in 0..8 {
+            let barrier = Arc::clone(&barrier);
+            let descriptor = parent.file.try_clone().expect("parent descriptor");
+            workers.push(thread::spawn(move || {
+                barrier.wait();
+                prepare_child(&descriptor, OsStr::new("child"), 0o700).is_ok()
+            }));
+        }
+        assert!(workers.into_iter().all(|worker| worker.join().unwrap()));
+        let metadata = fs::symlink_metadata(root.join("child")).expect("child");
+        assert!(metadata.is_dir());
+        assert!(!metadata.file_type().is_symlink());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn file_parent_fails_without_creating_children() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-file-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::write(&root, b"not a directory").expect("file parent");
+        let child = root.join("child");
+        assert!(prepare_absolute(&child, 0o700).is_err());
+        assert!(!child.exists());
+        fs::remove_file(root).expect("cleanup");
+    }
+
+    #[test]
+    fn nested_setup_rolls_back_only_directories_created_by_the_transaction() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-rollback-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let parent = prepare_absolute(&root, 0o700).expect("root directory");
+        let workspace = prepare_child(&parent.file, OsStr::new("workspace"), 0o700)
+            .expect("workspace directory");
+        let mut created = Vec::new();
+        let nested =
+            prepare_child(&workspace.file, OsStr::new("nested"), 0o700).expect("nested directory");
+        created.push(nested.created.expect("new nested directory"));
+        write_new(&workspace.file, OsStr::new("blocked"), b"file").expect("blocking file");
+        assert!(prepare_child(&workspace.file, OsStr::new("blocked"), 0o700).is_err());
+        rollback(&created);
+        assert!(!root.join("workspace/nested").exists());
+        assert!(root.join("workspace/blocked").is_file());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn transaction_rollback_removes_created_files_before_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-file-rollback-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let workspace_path = root.join("workspace");
+        fs::create_dir_all(&workspace_path).expect("pre-existing workspace");
+        fs::write(workspace_path.join("keep"), b"keep").expect("pre-existing file");
+        let workspace = prepare_absolute(&workspace_path, 0o700).expect("workspace");
+        let nested =
+            prepare_child(&workspace.file, OsStr::new("nested"), 0o700).expect("nested directory");
+        let directories = vec![nested.created.expect("created nested directory")];
+        let files = vec![
+            write_new_tracked(&nested.file, OsStr::new("first"), b"first").expect("created file"),
+        ];
+
+        let later_error = write_new_tracked(&workspace.file, OsStr::new("nested"), b"conflict")
+            .expect_err("directory collision must fail");
+        assert_eq!(later_error.kind(), io::ErrorKind::AlreadyExists);
+        rollback_transaction(&files, &directories);
+
+        assert!(workspace_path.join("keep").is_file());
+        assert!(!workspace_path.join("nested").exists());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+}

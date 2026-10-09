@@ -5,6 +5,7 @@
 mod interactive;
 mod literature;
 mod refresh;
+mod safe_fs;
 mod validity;
 
 pub use interactive::{
@@ -35,8 +36,9 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+#[cfg(test)]
+use std::io::Write;
+use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 
 /// Maximum number of regular files accepted from one attempt workspace.
@@ -371,8 +373,10 @@ impl PreparedWorkload {
         verify_owner(&self.root, self.fixture.id)?;
         let workspace = self.workspace();
         remove_workspace(&workspace)?;
-        fs::DirBuilder::new().mode(0o700).create(&workspace)?;
-        write_initial(self.fixture, &workspace)
+        let root = safe_fs::prepare_absolute(&self.root, 0o700)?;
+        let workspace =
+            safe_fs::prepare_child(&root.file, Path::new(WORKSPACE_DIR).as_os_str(), 0o700)?;
+        write_initial(&workspace.file, self.fixture)
     }
 
     /// Remove the exact prepared root after verifying its private owner marker.
@@ -422,19 +426,22 @@ impl OriginalWorkloads {
             });
         }
         let parent = root.parent().ok_or(WorkloadError::UnsafePath)?;
-        if !parent.exists()
+        if !parent.is_dir()
             || fs::symlink_metadata(parent)?.file_type().is_symlink()
-            || !fs::symlink_metadata(parent)?.is_dir()
             || fs::canonicalize(parent)? != parent
         {
             return Err(WorkloadError::UnsafePath);
         }
-        fs::DirBuilder::new().mode(0o700).create(&root)?;
+        let root_fd = safe_fs::prepare_absolute(&root, 0o700)?;
         let result = (|| {
-            let workspace = root.join(WORKSPACE_DIR);
-            fs::DirBuilder::new().mode(0o700).create(&workspace)?;
-            write_owner(&root, fixture.id)?;
-            write_initial(fixture, &workspace)
+            safe_fs::write_new(
+                &root_fd.file,
+                Path::new(OWNER_FILE).as_os_str(),
+                fixture.id.as_bytes(),
+            )?;
+            let workspace =
+                safe_fs::prepare_child(&root_fd.file, Path::new(WORKSPACE_DIR).as_os_str(), 0o700)?;
+            write_initial(&workspace.file, fixture)
         })();
         if let Err(error) = result {
             let _ = fs::remove_dir_all(&root);
@@ -557,17 +564,6 @@ fn validate_absolute(path: &Path) -> Result<(), WorkloadError> {
     Ok(())
 }
 
-fn write_owner(root: &Path, id: &str) -> Result<(), WorkloadError> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(root.join(OWNER_FILE))?;
-    file.write_all(id.as_bytes())?;
-    file.sync_all()?;
-    Ok(())
-}
-
 fn verify_owner(root: &Path, id: &str) -> Result<(), WorkloadError> {
     if fs::symlink_metadata(root)?.file_type().is_symlink() {
         return Err(WorkloadError::UnsafePath);
@@ -579,17 +575,49 @@ fn verify_owner(root: &Path, id: &str) -> Result<(), WorkloadError> {
     Ok(())
 }
 
-fn write_initial(fixture: &Fixture, workspace: &Path) -> Result<(), WorkloadError> {
+fn write_initial(workspace: &std::fs::File, fixture: &Fixture) -> Result<(), WorkloadError> {
+    let mut created_files = Vec::<(std::fs::File, std::ffi::OsString)>::new();
+    let mut created_directories = Vec::<(std::fs::File, std::ffi::OsString)>::new();
     for (relative, contents) in fixture.initial {
-        let path = workspace.join(relative);
-        let parent = path.parent().ok_or(WorkloadError::UnsafePath)?;
-        fs::create_dir_all(parent)?;
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)?;
-        file.write_all(contents.as_bytes())?;
+        let path = Path::new(relative);
+        let name = match path.file_name() {
+            Some(name) => name,
+            None => {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(WorkloadError::UnsafePath);
+            }
+        };
+        let mut parent = match workspace.try_clone() {
+            Ok(parent) => parent,
+            Err(error) => {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(error.into());
+            }
+        };
+        for component in path.parent().into_iter().flat_map(Path::components) {
+            let Component::Normal(component) = component else {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(WorkloadError::UnsafePath);
+            };
+            let prepared = match safe_fs::prepare_child(&parent, component, 0o700) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    safe_fs::rollback_transaction(&created_files, &created_directories);
+                    return Err(error.into());
+                }
+            };
+            if let Some(entry) = prepared.created {
+                created_directories.push(entry);
+            }
+            parent = prepared.file;
+        }
+        match safe_fs::write_new_tracked(&parent, name, contents.as_bytes()) {
+            Ok(entry) => created_files.push(entry),
+            Err(error) => {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(error.into());
+            }
+        };
     }
     Ok(())
 }

@@ -12,9 +12,8 @@ use asb_protocol::{Id, WorkloadManifest};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt;
-use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::fs;
+use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 
 const EXTERNAL_REGISTRY: &str = include_str!("../registry/v1/external-workloads.json");
@@ -893,8 +892,10 @@ impl LiteraturePrepared {
             return Err(LiteratureError::UnsafePath);
         }
         fs::remove_dir_all(&workspace)?;
-        fs::DirBuilder::new().mode(0o700).create(&workspace)?;
-        write_fixture(&workspace, &self.prompt())
+        let root = crate::safe_fs::prepare_absolute(&self.root, 0o700)?;
+        let workspace =
+            crate::safe_fs::prepare_child(&root.file, Path::new("workspace").as_os_str(), 0o700)?;
+        write_fixture(&workspace.file, &self.prompt())
     }
     /// Remove only the exact owned root.
     pub fn cleanup(self) -> Result<(), LiteratureError> {
@@ -1007,16 +1008,26 @@ impl LiteratureAdapter {
             return Err(LiteratureError::DestinationExists);
         }
         let parent = root.parent().ok_or(LiteratureError::UnsafePath)?;
-        if !parent.is_dir() || fs::symlink_metadata(parent)?.file_type().is_symlink() {
+        if !parent.is_dir()
+            || fs::symlink_metadata(parent)?.file_type().is_symlink()
+            || fs::canonicalize(parent)? != parent
+        {
             return Err(LiteratureError::UnsafePath);
         }
-        fs::DirBuilder::new().mode(0o700).create(&root)?;
+        let root_fd = crate::safe_fs::prepare_absolute(&root, 0o700)?;
         let result = (|| {
-            write_owner(&root, &descriptor.id)?;
-            let workspace = root.join("workspace");
-            fs::DirBuilder::new().mode(0o700).create(&workspace)?;
+            crate::safe_fs::write_new(
+                &root_fd.file,
+                Path::new(OWNER).as_os_str(),
+                descriptor.id.as_bytes(),
+            )?;
+            let workspace = crate::safe_fs::prepare_child(
+                &root_fd.file,
+                Path::new("workspace").as_os_str(),
+                0o700,
+            )?;
             write_fixture(
-                &workspace,
+                &workspace.file,
                 &format!(
                     "Implement the bounded local fixture for {} ({:?}).\n",
                     descriptor.id, descriptor.family
@@ -1221,16 +1232,6 @@ fn is_safe_archive(path: &Path) -> bool {
             .map(|m| m.is_file())
             .unwrap_or(false)
 }
-fn write_owner(root: &Path, id: &str) -> Result<(), LiteratureError> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(root.join(OWNER))?;
-    file.write_all(id.as_bytes())?;
-    file.sync_all()?;
-    Ok(())
-}
 fn verify_owner(root: &Path, id: &str) -> Result<(), LiteratureError> {
     if !root.is_dir() || fs::symlink_metadata(root)?.file_type().is_symlink() {
         return Err(LiteratureError::UnsafePath);
@@ -1241,14 +1242,8 @@ fn verify_owner(root: &Path, id: &str) -> Result<(), LiteratureError> {
     }
     Ok(())
 }
-fn write_fixture(workspace: &Path, prompt: &str) -> Result<(), LiteratureError> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(workspace.join(PROMPT))?;
-    file.write_all(prompt.as_bytes())?;
-    file.sync_all()?;
+fn write_fixture(workspace: &std::fs::File, prompt: &str) -> Result<(), LiteratureError> {
+    crate::safe_fs::write_new(workspace, Path::new(PROMPT).as_os_str(), prompt.as_bytes())?;
     Ok(())
 }
 

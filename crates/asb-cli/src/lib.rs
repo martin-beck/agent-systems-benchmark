@@ -73,13 +73,17 @@ use asb_workloads::{
     CatalogKind, OriginalWorkloads, PreparedWorkloadChoice, WorkloadEvaluation, describe_workload,
     prepare_workload, select_workload, workload_catalog,
 };
+use rustix::fs::{
+    AtFlags, Mode as RustixMode, OFlags, RenameFlags, fchmod, fsync, mkdirat, openat, readlinkat,
+    renameat, renameat_with, unlinkat,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, IsTerminal, Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
@@ -1796,7 +1800,13 @@ fn guided_lifecycle_at_with_progress(
                 DirectoryPurpose::Lifecycle,
                 human.then_some(&mut *progress),
             )?;
-            fs::write(&artifact, bytes).map_err(|_| CliError::operation("easy build failed"))?;
+            write_atomic_private(
+                &artifact,
+                bytes.as_bytes(),
+                DirectoryPurpose::Lifecycle,
+                None,
+            )
+            .map_err(|_| CliError::operation("easy build failed"))?;
             easy_lifecycle_output(
                 output,
                 operation,
@@ -3044,40 +3054,57 @@ fn write_atomic_private(
     purpose: DirectoryPurpose,
     progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
-    prepare_output_parent(path, purpose, progress)?;
-    if let Ok(metadata) = fs::symlink_metadata(path)
-        && metadata.file_type().is_symlink()
+    let parent = prepare_output_parent(path, purpose, progress)?;
+    let name = output_name(path)?;
+    let transaction = RECORDING_TRANSACTION_NONCE.fetch_add(1, Ordering::Relaxed);
+    let temporary = OsString::from(format!(
+        ".asb-record-{}-{}.tmp",
+        std::process::id(),
+        transaction
+    ));
+    stage_output_at(&parent.file, &temporary, bytes, 0o600)?;
+
+    let existing = match inspect_output_at(&parent.file, &name) {
+        Ok(existing) => existing,
+        Err(error) => {
+            let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
+            return Err(error);
+        }
+    };
+    let backup = existing.map(|_| {
+        OsString::from(format!(
+            ".asb-record-{}-{}.bak",
+            std::process::id(),
+            transaction
+        ))
+    });
+    if let Some(backup_name) = &backup
+        && renameat_with(
+            &parent.file,
+            &name,
+            &parent.file,
+            backup_name,
+            RenameFlags::NOREPLACE,
+        )
+        .is_err()
     {
-        return Err(CliError::validation(
-            "workflow output cannot replace a symlink",
-        ));
+        let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
+        return Err(CliError::operation("workflow output cannot be backed up"));
     }
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let temporary = parent.join(format!(".asb-record-{}.tmp", std::process::id()));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&temporary)
-        .map_err(|_| CliError::operation("workflow output cannot be staged"))?;
-    if file.write_all(bytes).is_err() || file.sync_all().is_err() {
-        let _ = fs::remove_file(&temporary);
-        return Err(CliError::operation("workflow output cannot be written"));
+    if let Err(error) = renameat(&parent.file, &temporary, &parent.file, &name) {
+        if let Some(backup_name) = &backup {
+            let _ = renameat(&parent.file, backup_name, &parent.file, &name);
+        }
+        let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
+        let _ = error;
+        return Err(CliError::operation("workflow output cannot be installed"));
     }
-    drop(file);
-    fs::rename(&temporary, path).map_err(|_| {
-        let _ = fs::remove_file(&temporary);
-        CliError::operation("workflow output cannot be installed")
-    })?;
-    if fs::symlink_metadata(path)
-        .map(|metadata| metadata.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        let _ = fs::remove_file(path);
-        return Err(CliError::validation(
-            "workflow output destination changed to a symlink",
-        ));
+    if let Some(backup_name) = backup {
+        unlinkat(&parent.file, &backup_name, AtFlags::empty())
+            .map_err(|_| CliError::operation("workflow output backup cannot be removed"))?;
     }
+    fsync(&parent.file)
+        .map_err(|_| CliError::operation("workflow output directory cannot be synchronized"))?;
     Ok(())
 }
 
@@ -3085,116 +3112,279 @@ fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliE
     let transaction = RECORDING_TRANSACTION_NONCE.fetch_add(1, Ordering::Relaxed);
     let mut staged = Vec::with_capacity(pending.len());
     for (index, (path, bytes)) in pending.iter().enumerate() {
-        if let Ok(metadata) = fs::symlink_metadata(path)
-            && metadata.file_type().is_symlink()
-        {
-            for (_, temporary) in &staged {
-                let _ = fs::remove_file(temporary);
+        let parent = match prepare_output_parent(path, DirectoryPurpose::Recording, None) {
+            Ok(parent) => parent,
+            Err(error) => {
+                cleanup_staged_outputs(&staged);
+                return Err(error);
             }
-            return Err(CliError::validation(
-                "workflow output cannot replace a symlink",
-            ));
-        }
-        let parent = path.parent().unwrap_or_else(|| Path::new("."));
-        let temporary = parent.join(format!(
+        };
+        let name = match output_name(path) {
+            Ok(name) => name,
+            Err(error) => {
+                cleanup_staged_outputs(&staged);
+                return Err(error);
+            }
+        };
+        let temporary = OsString::from(format!(
             ".asb-record-{}-{}-{}.tmp",
             std::process::id(),
             transaction,
             index
         ));
-        let mut file = match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&temporary)
-        {
-            Ok(file) => file,
-            Err(_) => {
-                for (_, temporary) in staged {
-                    let _ = fs::remove_file(temporary);
-                }
-                return Err(CliError::operation("workflow output cannot be staged"));
-            }
-        };
-        if file.write_all(bytes).is_err() || file.sync_all().is_err() {
-            let _ = fs::remove_file(&temporary);
-            for (_, temporary) in staged {
-                let _ = fs::remove_file(temporary);
-            }
-            return Err(CliError::operation("workflow output cannot be written"));
+        if let Err(error) = stage_output_at(&parent.file, &temporary, bytes, 0o600) {
+            cleanup_staged_outputs(&staged);
+            return Err(error);
         }
-        staged.push((path.clone(), temporary));
+        staged.push(StagedOutput {
+            parent: parent.file,
+            name,
+            temporary,
+        });
     }
 
-    let mut installed: Vec<(PathBuf, Option<PathBuf>)> = Vec::with_capacity(staged.len());
-    for (index, (path, temporary)) in staged.iter().enumerate() {
+    let mut installed: Vec<InstalledOutput> = Vec::with_capacity(staged.len());
+    for (index, staged_output) in staged.iter().enumerate() {
+        let rollback_parent = match staged_output.parent.try_clone() {
+            Ok(parent) => parent,
+            Err(_) => {
+                rollback_recording_campaign(&staged, &installed);
+                return Err(CliError::operation(
+                    "workflow output cannot retain rollback state",
+                ));
+            }
+        };
         #[cfg(test)]
         if FAIL_RECORDING_INSTALL_AT.load(Ordering::Relaxed) == index as u64 {
-            let _ = fs::remove_file(temporary);
+            let _ = unlinkat(
+                &staged_output.parent,
+                &staged_output.temporary,
+                AtFlags::empty(),
+            );
             rollback_recording_campaign(&staged, &installed);
             return Err(CliError::operation("workflow output cannot be installed"));
         }
-        let backup = match fs::symlink_metadata(path) {
-            Ok(metadata) => {
-                if metadata.file_type().is_symlink() {
-                    rollback_recording_campaign(&staged, &installed);
-                    return Err(CliError::validation(
-                        "workflow output cannot replace a symlink",
-                    ));
-                }
-                let backup = path.with_file_name(format!(
+        let backup = match inspect_output_at(&staged_output.parent, &staged_output.name) {
+            Ok(Some(_)) => {
+                let backup = OsString::from(format!(
                     ".asb-record-{}-{}-{}.bak",
                     std::process::id(),
                     transaction,
                     index
                 ));
-                if fs::rename(path, &backup).is_err() {
+                if renameat_with(
+                    &staged_output.parent,
+                    &staged_output.name,
+                    &staged_output.parent,
+                    &backup,
+                    RenameFlags::NOREPLACE,
+                )
+                .is_err()
+                {
                     rollback_recording_campaign(&staged, &installed);
                     return Err(CliError::operation("workflow output cannot be backed up"));
                 }
                 Some(backup)
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(_) => {
+            Ok(None) => None,
+            Err(error) => {
                 rollback_recording_campaign(&staged, &installed);
-                return Err(CliError::operation("workflow output cannot be inspected"));
+                return Err(error);
             }
         };
-        if fs::rename(temporary, path).is_err() {
+        if renameat(
+            &staged_output.parent,
+            &staged_output.temporary,
+            &staged_output.parent,
+            &staged_output.name,
+        )
+        .is_err()
+        {
             if let Some(backup) = &backup {
-                let _ = fs::rename(backup, path);
+                let _ = renameat(
+                    &staged_output.parent,
+                    backup,
+                    &staged_output.parent,
+                    &staged_output.name,
+                );
             }
             rollback_recording_campaign(&staged, &installed);
             return Err(CliError::operation("workflow output cannot be installed"));
         }
-        installed.push((path.clone(), backup));
+        installed.push(InstalledOutput {
+            parent: rollback_parent,
+            name: staged_output.name.clone(),
+            backup,
+        });
     }
-    for (_, backup) in installed {
-        if let Some(backup) = backup {
-            let _ = fs::remove_file(backup);
+    for installed_output in &installed {
+        fsync(&installed_output.parent)
+            .map_err(|_| CliError::operation("workflow output directory cannot be synchronized"))?;
+    }
+    for installed_output in installed {
+        if let Some(backup) = installed_output.backup {
+            unlinkat(&installed_output.parent, &backup, AtFlags::empty())
+                .map_err(|_| CliError::operation("workflow output backup cannot be removed"))?;
         }
     }
     Ok(())
 }
 
-fn rollback_recording_campaign(
-    staged: &[(PathBuf, PathBuf)],
-    installed: &[(PathBuf, Option<PathBuf>)],
-) {
-    for (path, backup) in installed.iter().rev() {
-        let _ = fs::remove_file(path);
-        if let Some(backup) = backup {
-            let _ = fs::rename(backup, path);
+#[derive(Debug)]
+struct StagedOutput {
+    parent: File,
+    name: OsString,
+    temporary: OsString,
+}
+
+#[derive(Debug)]
+struct InstalledOutput {
+    parent: File,
+    name: OsString,
+    backup: Option<OsString>,
+}
+
+fn cleanup_staged_outputs(staged: &[StagedOutput]) {
+    for output in staged {
+        let _ = unlinkat(&output.parent, &output.temporary, AtFlags::empty());
+    }
+}
+
+fn rollback_recording_campaign(staged: &[StagedOutput], installed: &[InstalledOutput]) {
+    for output in installed.iter().rev() {
+        let _ = unlinkat(&output.parent, &output.name, AtFlags::empty());
+        if let Some(backup) = &output.backup {
+            let _ = renameat(&output.parent, backup, &output.parent, &output.name);
         }
     }
-    for (path, temporary) in staged {
-        if !installed
-            .iter()
-            .any(|(installed_path, _)| installed_path == path)
-        {
-            let _ = fs::remove_file(temporary);
-        }
+    cleanup_staged_outputs(staged);
+}
+
+fn stage_output_at(
+    parent: &File,
+    temporary: &OsString,
+    bytes: &[u8],
+    mode: u32,
+) -> Result<(), CliError> {
+    let fd = openat(
+        parent,
+        temporary,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        RustixMode::from(mode),
+    )
+    .map_err(|_| CliError::operation("workflow output cannot be staged"))?;
+    let mut file = File::from(fd);
+    if file.write_all(bytes).is_err() || fsync(&file).is_err() {
+        drop(file);
+        let _ = unlinkat(parent, temporary, AtFlags::empty());
+        return Err(CliError::operation("workflow output cannot be written"));
     }
+    Ok(())
+}
+
+fn write_new_output_at(
+    parent: &File,
+    name: &OsString,
+    bytes: &[u8],
+    mode: u32,
+) -> Result<(), CliError> {
+    let fd = openat(
+        parent,
+        name,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        RustixMode::from(mode),
+    )
+    .map_err(|_| CliError::operation("output cannot be created"))?;
+    let mut file = File::from(fd);
+    if file.write_all(bytes).is_err() || fsync(&file).is_err() {
+        drop(file);
+        let _ = unlinkat(parent, name, AtFlags::empty());
+        return Err(CliError::operation("output cannot be written"));
+    }
+    fsync(parent).map_err(|_| CliError::operation("output directory cannot be synchronized"))
+}
+
+fn create_private_prompt(parent: &File, bytes: &[u8]) -> Result<File, CliError> {
+    let name = OsString::from("prompt");
+    let fd = openat(
+        parent,
+        &name,
+        OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        RustixMode::from(0o600),
+    )
+    .map_err(|_| CliError::operation("prompt descriptor cannot be created"))?;
+    let mut prompt = File::from(fd);
+    if prompt.write_all(bytes).is_err()
+        || prompt.flush().is_err()
+        || prompt.seek(SeekFrom::Start(0)).is_err()
+        || fsync(&prompt).is_err()
+        || unlinkat(parent, &name, AtFlags::empty()).is_err()
+    {
+        let _ = unlinkat(parent, &name, AtFlags::empty());
+        return Err(CliError::operation("prompt descriptor cannot be prepared"));
+    }
+    Ok(prompt)
+}
+
+fn output_name(path: &Path) -> Result<OsString, CliError> {
+    path.file_name()
+        .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+        .map(OsString::from)
+        .ok_or_else(|| CliError::validation("output destination has no file name").with_path(path))
+}
+
+fn inspect_output_at(parent: &File, name: &OsString) -> Result<Option<Metadata>, CliError> {
+    match openat(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        RustixMode::empty(),
+    ) {
+        Ok(fd) => {
+            let file = File::from(fd);
+            let metadata = file
+                .metadata()
+                .map_err(|_| CliError::operation("workflow output cannot be inspected"))?;
+            if !metadata.is_file() {
+                return Err(CliError::validation(
+                    "workflow output destination must be a regular file",
+                ));
+            }
+            Ok(Some(metadata))
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) if error.raw_os_error() == libc::ELOOP => Err(CliError::validation(
+            "workflow output cannot replace a symlink",
+        )),
+        Err(_) => Err(CliError::operation("workflow output cannot be inspected")),
+    }
+}
+
+fn read_output_at(parent: &File, name: &OsString, maximum: u64) -> Result<Vec<u8>, CliError> {
+    let fd = openat(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        RustixMode::empty(),
+    )
+    .map_err(|_| CliError::validation("existing output cannot be read"))?;
+    let file = File::from(fd);
+    let metadata = file
+        .metadata()
+        .map_err(|_| CliError::validation("existing output cannot be inspected"))?;
+    if !metadata.is_file() || metadata.len() > maximum {
+        return Err(CliError::validation(
+            "existing output is not a bounded regular file",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|_| CliError::validation("existing output cannot be read"))?;
+    if bytes.len() as u64 > maximum {
+        return Err(CliError::validation("existing output exceeds its bound"));
+    }
+    Ok(bytes)
 }
 
 #[derive(Serialize)]
@@ -3702,56 +3892,50 @@ fn tool_install_with_progress(
         DirectoryPurpose::Tools,
         human.then_some(&mut *progress),
     )?;
+    let parent = prepare_output_parent(
+        &destination,
+        DirectoryPurpose::Tools,
+        human.then_some(&mut *progress),
+    )?;
+    let destination_name = output_name(&destination)?;
     let mut created_destination = false;
-    match fs::symlink_metadata(&destination) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() {
-                return Err(CliError::validation(
-                    "tool destination must be a regular file, not a symlink",
-                ));
-            }
-            if !metadata.file_type().is_file() {
-                return Err(CliError::validation(
-                    "tool destination must be a regular file",
-                ));
-            }
-            let current = fs::read(&destination)
-                .map_err(|_| CliError::validation("existing tool cannot be read"))?;
+    match inspect_output_at(&parent.file, &destination_name)? {
+        Some(_) => {
+            let current = read_output_at(&parent.file, &destination_name, MAX_EXECUTABLE_BYTES)?;
             if Sha256::digest(&current) != Sha256::digest(&bytes) {
                 return Err(CliError::validation(
                     "tool destination already exists with a different digest",
                 ));
             }
         }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            let temporary = root.join(format!(".asb/tools/{id}/.tool-{}.tmp", std::process::id()));
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o700)
-                .open(&temporary)
+        None => {
+            let temporary = OsString::from(format!(".tool-{}.tmp", std::process::id()));
+            stage_output_at(&parent.file, &temporary, &bytes, 0o700)
                 .map_err(|_| CliError::operation("tool source cannot be staged"))?;
-            if file.write_all(&bytes).is_err()
-                || file.sync_all().is_err()
-                || fs::rename(&temporary, &destination).is_err()
+            if renameat_with(
+                &parent.file,
+                &temporary,
+                &parent.file,
+                &destination_name,
+                RenameFlags::NOREPLACE,
+            )
+            .is_err()
             {
-                let _ = fs::remove_file(&temporary);
+                let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
                 return Err(CliError::operation(
                     "tool installation failed and was rolled back",
                 ));
             }
+            fsync(&parent.file).map_err(|_| {
+                CliError::operation("tool installation directory cannot be synchronized")
+            })?;
             created_destination = true;
-        }
-        Err(_) => {
-            return Err(CliError::validation(
-                "tool destination cannot be inspected safely",
-            ));
         }
     }
     tool_kind_map_mut(&mut config, kind).insert(id.to_owned(), record);
     if let Err(error) = save_tool_project(&root, &config) {
         if created_destination {
-            let _ = fs::remove_file(&destination);
+            let _ = unlinkat(&parent.file, &destination_name, AtFlags::empty());
         }
         return Err(error);
     }
@@ -3898,6 +4082,7 @@ impl DirectoryPurpose {
 
 #[derive(Debug)]
 struct DirectoryPreparation {
+    file: File,
     path: PathBuf,
     created: bool,
 }
@@ -3911,18 +4096,33 @@ fn prepare_owned_directory(
     path: &Path,
     mode: u32,
     purpose: DirectoryPurpose,
-    progress: Option<&mut dyn Write>,
+    mut progress: Option<&mut dyn Write>,
 ) -> Result<DirectoryPreparation, CliError> {
     if path.as_os_str().is_empty() {
         return Err(CliError::validation("directory path cannot be empty").with_path(path));
     }
+    // Validate the entire lexical path before opening or creating anything.
+    // This preserves the no-mutation contract for traversal and unsupported
+    // prefix inputs even when a valid component precedes the bad one.
+    for component in path.components() {
+        if matches!(component, Component::ParentDir | Component::Prefix(_)) {
+            return Err(
+                CliError::validation(if matches!(component, Component::ParentDir) {
+                    "directory path contains unsafe traversal"
+                } else {
+                    "directory path has an unsupported prefix"
+                })
+                .with_path(path),
+            );
+        }
+    }
     let mut current = if path.is_absolute() {
-        PathBuf::from("/")
+        File::open("/").map_err(|_| CliError::operation("directory path cannot be resolved"))?
     } else {
-        std::env::current_dir()
-            .map_err(|_| CliError::operation("directory path cannot be resolved"))?
+        File::open(".").map_err(|_| CliError::operation("directory path cannot be resolved"))?
     };
-    let mut missing = Vec::new();
+    let mut created = Vec::new();
+    let mut announced = false;
     for component in path.components() {
         match component {
             Component::RootDir | Component::CurDir => {}
@@ -3933,32 +4133,97 @@ fn prepare_owned_directory(
                 );
             }
             Component::Normal(part) => {
-                current.push(part);
-                if !missing.is_empty() {
-                    missing.push(current.clone());
-                    continue;
-                }
-                match fs::symlink_metadata(&current) {
-                    Ok(metadata) if metadata.file_type().is_symlink() => {
+                let next = match openat(
+                    &current,
+                    part,
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                    RustixMode::empty(),
+                ) {
+                    Ok(fd) => File::from(fd),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        if !announced {
+                            if let Some(stream) = progress.as_deref_mut() {
+                                writeln!(
+                                    stream,
+                                    "ASB will create directory {} for {}.",
+                                    display_local_path(path),
+                                    purpose.label()
+                                )
+                                .map_err(output_error)?;
+                                stream.flush().map_err(output_error)?;
+                            }
+                            announced = true;
+                        }
+                        let created_here = match mkdirat(&current, part, RustixMode::from(mode)) {
+                            Ok(()) => true,
+                            Err(create_error)
+                                if create_error.kind() == io::ErrorKind::AlreadyExists =>
+                            {
+                                false
+                            }
+                            Err(create_error) => {
+                                rollback_created_directories(&created);
+                                return Err(directory_io_error(create_error.into(), path));
+                            }
+                        };
+                        if created_here {
+                            let parent = match current.try_clone() {
+                                Ok(parent) => parent,
+                                Err(_) => {
+                                    let _ = unlinkat(&current, part, AtFlags::REMOVEDIR);
+                                    rollback_created_directories(&created);
+                                    return Err(directory_io_error(
+                                        io::Error::other("directory descriptor cannot be cloned"),
+                                        path,
+                                    ));
+                                }
+                            };
+                            created.push((parent, OsString::from(part)));
+                        }
+                        let next = match openat(
+                            &current,
+                            part,
+                            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                            RustixMode::empty(),
+                        ) {
+                            Ok(fd) => File::from(fd),
+                            Err(error)
+                                if error.raw_os_error() == libc::ELOOP
+                                    || component_is_symlink(&current, part) =>
+                            {
+                                rollback_created_directories(&created);
+                                return Err(CliError::validation(
+                                    "directory destination was replaced by a symlink",
+                                )
+                                .with_path(path));
+                            }
+                            Err(error) => {
+                                rollback_created_directories(&created);
+                                return Err(directory_io_error(error.into(), path));
+                            }
+                        };
+                        if let Err(error) = fchmod(&next, RustixMode::from(mode)) {
+                            rollback_created_directories(&created);
+                            return Err(directory_io_error(error.into(), path));
+                        }
+                        next
+                    }
+                    Err(error)
+                        if error.raw_os_error() == libc::ELOOP
+                            || component_is_symlink(&current, part) =>
+                    {
+                        rollback_created_directories(&created);
                         return Err(CliError::validation(
                             "directory destination is unsafe or a symlink",
                         )
                         .with_path(path));
                     }
-                    Ok(metadata) if !metadata.is_dir() => {
-                        return Err(CliError::validation(
-                            "directory destination is not a directory",
-                        )
-                        .with_path(path));
-                    }
-                    Ok(_) => {}
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                        missing.push(current.clone());
-                    }
                     Err(error) => {
-                        return Err(directory_io_error(error, path));
+                        rollback_created_directories(&created);
+                        return Err(directory_io_error(error.into(), path));
                     }
-                }
+                };
+                current = next;
             }
             Component::Prefix(_) => {
                 return Err(
@@ -3968,72 +4233,21 @@ fn prepare_owned_directory(
             }
         }
     }
-    if missing.is_empty() {
-        return Ok(DirectoryPreparation {
-            path: path.to_owned(),
-            created: false,
-        });
-    }
-    if let Some(stream) = progress {
-        writeln!(
-            stream,
-            "ASB will create directory {} for {}.",
-            display_local_path(path),
-            purpose.label()
-        )
-        .map_err(output_error)?;
-        stream.flush().map_err(output_error)?;
-    }
-    let mut created = Vec::new();
-    for component in &missing {
-        match fs::DirBuilder::new().mode(mode).create(component) {
-            Ok(()) => {
-                if let Err(error) = fs::set_permissions(component, fs::Permissions::from_mode(mode))
-                {
-                    rollback_created_directories(&created);
-                    let _ = fs::remove_dir(component);
-                    return Err(directory_io_error(error, path));
-                }
-                created.push(component.clone());
-            }
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => {
-                rollback_created_directories(&created);
-                return Err(directory_io_error(error, path));
-            }
-        }
-        match fs::symlink_metadata(component) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                rollback_created_directories(&created);
-                return Err(CliError::validation(
-                    "directory destination was replaced by a symlink",
-                )
-                .with_path(path));
-            }
-            Ok(metadata) if !metadata.is_dir() => {
-                rollback_created_directories(&created);
-                return Err(CliError::validation(
-                    "directory destination was replaced by a non-directory",
-                )
-                .with_path(path));
-            }
-            Ok(_) => {}
-            Err(error) => {
-                rollback_created_directories(&created);
-                return Err(directory_io_error(error, path));
-            }
-        }
-    }
     Ok(DirectoryPreparation {
+        file: current,
         path: path.to_owned(),
         created: !created.is_empty(),
     })
 }
 
-fn rollback_created_directories(created: &[PathBuf]) {
-    for path in created.iter().rev() {
-        let _ = fs::remove_dir(path);
+fn rollback_created_directories(created: &[(File, OsString)]) {
+    for (parent, name) in created.iter().rev() {
+        let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
     }
+}
+
+fn component_is_symlink(parent: &File, name: &std::ffi::OsStr) -> bool {
+    readlinkat(parent, name, Vec::<u8>::new()).is_ok()
 }
 
 fn directory_io_error(error: io::Error, path: &Path) -> CliError {
@@ -4062,16 +4276,20 @@ fn prepare_output_parent(
     path: &Path,
     purpose: DirectoryPurpose,
     progress: Option<&mut dyn Write>,
-) -> Result<(), CliError> {
+) -> Result<DirectoryPreparation, CliError> {
     let parent = path
         .parent()
         .ok_or_else(|| CliError::validation("output destination has no parent").with_path(path))?;
-    if parent.as_os_str().is_empty() || parent == Path::new(".") {
-        return Ok(());
-    }
-    let prepared = prepare_owned_directory(parent, 0o700, purpose, progress)?;
-    let _ = (prepared.path, prepared.created);
-    Ok(())
+    prepare_owned_directory(
+        if parent.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            parent
+        },
+        0o700,
+        purpose,
+        progress,
+    )
 }
 
 fn ensure_project_root_with_progress(
@@ -4095,36 +4313,21 @@ fn ensure_project_directory_with_progress(
 }
 
 fn install_project_config(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| CliError::operation("project configuration parent is unavailable"))?;
-    let temporary = parent.join(format!(".project.json.{}.tmp", std::process::id()));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&temporary)
-        .map_err(|_| CliError::operation("project configuration cannot be staged"))?;
-    if file.write_all(bytes).is_err() || file.sync_all().is_err() {
-        let _ = fs::remove_file(&temporary);
-        return Err(CliError::operation(
-            "project configuration cannot be written",
-        ));
-    }
-    drop(file);
-    if fs::hard_link(&temporary, path).is_err() {
-        let _ = fs::remove_file(&temporary);
-        if fs::symlink_metadata(path).is_ok() {
-            return Err(CliError::validation(
+    let parent = prepare_output_parent(path, DirectoryPurpose::ProjectMetadata, None)?;
+    let name = output_name(path)?;
+    write_new_output_at(&parent.file, &name, bytes, 0o600).map_err(|_| {
+        if inspect_output_at(&parent.file, &name)
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            CliError::validation(
                 "project configuration appeared concurrently; rerun init to recover",
-            ));
+            )
+        } else {
+            CliError::operation("project configuration cannot be installed")
         }
-        return Err(CliError::operation(
-            "project configuration cannot be installed",
-        ));
-    }
-    fs::remove_file(&temporary)
-        .map_err(|_| CliError::operation("project configuration staging cannot be cleaned"))
+    })
 }
 
 #[derive(Serialize)]
@@ -5337,14 +5540,12 @@ fn create_plan_with_progress(
         .parent()
         .ok_or_else(|| CliError::validation("plan output parent is unavailable"))?;
     let mut notice = human.then_some(progress as &mut dyn Write);
-    let _ = prepare_owned_directory(parent, 0o700, DirectoryPurpose::PlanOutput, notice.take())?;
+    let prepared =
+        prepare_owned_directory(parent, 0o700, DirectoryPurpose::PlanOutput, notice.take())?;
     let text =
         toml::to_string_pretty(&plan).map_err(|_| CliError::operation("plan cannot be encoded"))?;
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&destination)
-        .and_then(|mut file| file.write_all(text.as_bytes()))
+    let name = output_name(&destination)?;
+    write_new_output_at(&prepared.file, &name, text.as_bytes(), 0o600)
         .map_err(|_| CliError::operation("plan output cannot be written"))?;
     write_json(
         output,
@@ -7444,37 +7645,20 @@ fn run_attempt(
         prepare_workload(&plan.workload, &attempt_root)
             .map_err(|_| CliError::operation("workload preparation failed"))?,
     );
-    let private = attempt_root.join(".asb-private");
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&private)
-        .map_err(|_| CliError::operation("private attempt state cannot be created"))?;
-    let prompt_path = private.join("prompt");
-    let mut prompt = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&prompt_path)
-        .map_err(|_| CliError::operation("prompt descriptor cannot be created"))?;
-    fs::remove_file(&prompt_path)
-        .map_err(|_| CliError::operation("prompt descriptor cannot be unlinked"))?;
-    prompt
-        .write_all(prepared.prompt().as_bytes())
-        .and_then(|()| prompt.flush())
-        .and_then(|()| prompt.seek(SeekFrom::Start(0)).map(|_| ()))
-        .map_err(|_| CliError::operation("prompt descriptor cannot be prepared"))?;
-    let home = private.join("home");
-    let temporary = private.join("tmp");
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&home)
-        .and_then(|()| fs::DirBuilder::new().mode(0o700).create(&temporary))
-        .map_err(|_| CliError::operation("private agent directories cannot be created"))?;
+    let private_path = attempt_root.join(".asb-private");
+    let private =
+        prepare_owned_directory(&private_path, 0o700, DirectoryPurpose::RunWorkspace, None)?;
+    let prompt = create_private_prompt(&private.file, prepared.prompt().as_bytes())?;
+    let home = private_path.join("home");
+    let temporary = private_path.join("tmp");
+    let _home_directory =
+        prepare_owned_directory(&home, 0o700, DirectoryPurpose::RunWorkspace, None)?;
+    let _temporary_directory =
+        prepare_owned_directory(&temporary, 0o700, DirectoryPurpose::RunWorkspace, None)?;
     if cancelled.load(Ordering::SeqCst) {
         return Ok(None);
     }
-    let agent_snapshot = snapshot_agent(&plan.agent, &private)?;
+    let agent_snapshot = snapshot_agent(&plan.agent, &private_path)?;
     if cancelled.load(Ordering::SeqCst) {
         return Ok(None);
     }
@@ -9522,6 +9706,105 @@ mod tests {
             .expect_err("a symlink cannot become an output directory");
             assert_eq!(symlink_error.path.as_deref(), Some(link.as_path()));
         }
+    }
+
+    #[test]
+    fn owned_directory_preparation_is_safe_for_concurrent_reuse() {
+        let scratch = Scratch::new("owned-directory-concurrent-reuse");
+        let destination = scratch.0.join("results").join("nested");
+        let barrier = Arc::new(std::sync::Barrier::new(8));
+        let mut workers = Vec::new();
+        for _ in 0..8 {
+            let barrier = Arc::clone(&barrier);
+            let destination = destination.clone();
+            workers.push(thread::spawn(move || {
+                barrier.wait();
+                super::prepare_owned_directory(
+                    &destination,
+                    0o700,
+                    super::DirectoryPurpose::RunResults,
+                    None,
+                )
+                .map(|prepared| (prepared.created, prepared.path))
+            }));
+        }
+        for worker in workers {
+            let result = worker.join().expect("directory worker must not panic");
+            assert!(result.is_ok(), "concurrent preparation failed: {result:?}");
+        }
+        assert!(destination.is_dir());
+        assert_eq!(
+            fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn atomic_publication_never_follows_replaced_parent_or_destination_symlink() {
+        let scratch = Scratch::new("atomic-publication-descriptor-safety");
+        let outside = scratch.0.join("outside");
+        fs::create_dir(&outside).unwrap();
+
+        let parent = scratch.0.join("output");
+        std::os::unix::fs::symlink(&outside, &parent).unwrap();
+        let parent_target = parent.join("result.json");
+        let parent_error = super::write_atomic_private(
+            &parent_target,
+            br#"{"ok":true}"#,
+            super::DirectoryPurpose::Results,
+            None,
+        )
+        .expect_err("a symlinked output ancestor must fail closed");
+        assert!(
+            parent_error.message.contains("symlink"),
+            "unexpected parent error: {:?}",
+            parent_error.message
+        );
+        assert!(!outside.join("result.json").exists());
+
+        fs::remove_file(&parent).unwrap();
+        fs::create_dir(&parent).unwrap();
+        let destination = parent.join("result.json");
+        let outside_file = outside.join("outside.json");
+        fs::write(&outside_file, b"outside").unwrap();
+        std::os::unix::fs::symlink(&outside_file, &destination).unwrap();
+        let destination_error = super::write_atomic_private(
+            &destination,
+            br#"{"changed":true}"#,
+            super::DirectoryPurpose::Results,
+            None,
+        )
+        .expect_err("a symlinked output destination must fail closed");
+        assert!(destination_error.message.contains("symlink"));
+        assert_eq!(fs::read(&outside_file).unwrap(), b"outside");
+    }
+
+    #[test]
+    fn atomic_publication_replaces_regular_files_and_keeps_private_mode() {
+        let scratch = Scratch::new("atomic-publication-regular");
+        let destination = scratch.0.join("nested").join("result.json");
+        super::write_atomic_private(
+            &destination,
+            br#"{"version":1}"#,
+            super::DirectoryPurpose::Results,
+            None,
+        )
+        .expect("first publication");
+        assert_eq!(fs::read(&destination).unwrap(), br#"{"version":1}"#);
+        assert_eq!(
+            fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        super::write_atomic_private(
+            &destination,
+            br#"{"version":2}"#,
+            super::DirectoryPurpose::Results,
+            None,
+        )
+        .expect("replacement publication");
+        assert_eq!(fs::read(&destination).unwrap(), br#"{"version":2}"#);
+        assert!(!destination.with_file_name(".asb-record-0-0.bak").exists());
     }
 
     #[test]
