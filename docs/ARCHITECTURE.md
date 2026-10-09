@@ -125,6 +125,12 @@ Its generated identity and local/mock qualification are deterministic fixture
 evidence only; missing production authentication, signature validation, or key
 management is a warning in development and never a production authorization.
 
+The optional [`cli2key development contract`](CLI2KEY_DEVELOPMENT.md) separately
+pins an unofficial loopback Responses bridge backed by user-approved Codex OAuth.
+Its fresh local client key is not an OpenAI Platform API key, and Codex
+`app-server` is prohibited as a raw provider because nested-agent execution would
+invalidate normal benchmark comparability.
+
 ## CSB decision
 
 CSB's bm-runner uses benchkit, native/container execution units and a MonitorFactory.
