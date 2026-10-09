@@ -73,8 +73,10 @@ required by the ASB runtime, release artifacts, or installed CLI. The install
 prefix defaults to `$HOME/.local`, so the executable is written to
 `$HOME/.local/bin/asb`. If that directory is not already on `PATH`, add
 `$HOME/.local/bin` to the shell startup configuration or use the path printed
-by `make install`. Set `PREFIX` explicitly for packaging or CI; it must be an
-absolute, non-root path.
+by `make install`. Rerun the same plain `make install` command to replace an
+existing ASB executable in that validated prefix; no additional Make option is
+required. Set `PREFIX` explicitly for packaging or CI; it must be an absolute,
+non-root path.
 
 The implemented command forms are:
 

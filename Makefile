@@ -64,7 +64,7 @@ install: check-deps
 	mkdir -p -- "$$prefix"; \
 	reject_symlink_chain "$$prefix/bin"; \
 	[ ! -L "$$prefix/bin/asb" ] || { printf '%s\n' 'ERROR: refusing symlink at PREFIX/bin/asb.' >&2; exit 1; }; \
-	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" install --locked --path crates/asb-cli --root "$$prefix"; \
+	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" install --locked --force --path crates/asb-cli --root "$$prefix"; \
 	touch -- "$$prefix/.asb-make-staging"; \
 	printf '%s\n' "Installed ASB at $$prefix/bin/asb"; \
 	case ":$${PATH:-}:" in *:"$$prefix/bin":*) ;; *) printf '%s\n' "Add $$prefix/bin to PATH to run asb." ;; esac
