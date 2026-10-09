@@ -11,7 +11,7 @@ use asb_control::{
 use nix::sys::signal::{SigSet, SigmaskHow, Signal as NixSignal, pthread_sigmask};
 use rustix::fs::{
     AtFlags, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, fcntl_getfl, fcntl_setfl, fsync,
-    memfd_create, mkdirat, openat, renameat, unlinkat,
+    memfd_create, mkdirat, open, openat, renameat, unlinkat,
 };
 use rustix::io::{FdFlags, fcntl_getfd, fcntl_setfd};
 use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, getpgrp, kill_process_group, waitid};
@@ -188,6 +188,12 @@ struct DevelopmentTool {
 }
 
 #[derive(Debug)]
+struct DevelopmentLinkerPrefix {
+    directory: File,
+    linker: File,
+}
+
+#[derive(Debug)]
 struct DevelopmentLaunchTools {
     git: PathBuf,
     setsid: PathBuf,
@@ -283,6 +289,80 @@ impl DevelopmentTool {
             .as_ref()
             .map(descriptor_path)
             .unwrap_or_else(|| self.path.clone())
+    }
+}
+
+impl DevelopmentLinkerPrefix {
+    fn search_root(&self) -> PathBuf {
+        descriptor_path(&self.directory)
+    }
+
+    fn linker_path(&self) -> PathBuf {
+        self.search_root().join("ld")
+    }
+
+    fn validate(&self) -> Result<(), RouterError> {
+        let uid = rustix::process::geteuid().as_raw();
+        let directory = self
+            .directory
+            .metadata()
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !directory.is_dir() || directory.uid() != uid || directory.mode() & 0o777 != 0o500 {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        let mut entries = fs::read_dir(self.search_root())
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        let entry = entries
+            .next()
+            .transpose()
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?
+            .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+        if entry.file_name() != std::ffi::OsStr::new("ld")
+            || !entry
+                .file_type()
+                .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?
+                .is_file()
+            || entries.next().is_some()
+        {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        let opened = openat(
+            &self.directory,
+            "ld",
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map(File::from)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        let opened = opened
+            .metadata()
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        let retained = self
+            .linker
+            .metadata()
+            .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+        if !opened.is_file()
+            || opened.uid() != uid
+            || opened.mode() & 0o777 != 0o500
+            || opened.len() == 0
+            || opened.len() > MAX_ARTIFACT_BYTES
+            || opened.dev() != retained.dev()
+            || opened.ino() != retained.ino()
+        {
+            return Err(RouterError::policy("trusted_tool_invalid"));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for DevelopmentLinkerPrefix {
+    fn drop(&mut self) {
+        // The prefix is non-writable for the entire child lifetime. Restore
+        // owner write only after the retained descriptors leave that boundary
+        // so the enclosing private build root can be removed deterministically.
+        let _ = self
+            .directory
+            .set_permissions(fs::Permissions::from_mode(0o700));
     }
 }
 
@@ -993,16 +1073,10 @@ fn development_encoded_rustflags(
     root: &Path,
     target: &Path,
     cargo_home: &Path,
-    ld: &Path,
+    linker_prefix: &DevelopmentLinkerPrefix,
 ) -> Result<std::ffi::OsString, RouterError> {
-    let validated_ld = validate_development_tool(ld)?;
-    if validated_ld != ld {
-        return Err(RouterError::policy("trusted_tool_invalid"));
-    }
-    let search_root = validated_ld
-        .parent()
-        .filter(|path| safe_absolute(path))
-        .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
+    linker_prefix.validate()?;
+    let search_root = linker_prefix.search_root();
     let search_root = search_root
         .to_str()
         .ok_or_else(|| RouterError::policy("trusted_tool_invalid"))?;
@@ -1024,6 +1098,118 @@ fn development_encoded_rustflags(
         encoded.extend_from_slice(argument.as_bytes());
     }
     Ok(std::ffi::OsString::from_vec(encoded))
+}
+
+/// Copy exactly one validated linker into a fresh private GCC program prefix.
+/// GCC gives `-B` broad helper and library semantics, so the validated linker
+/// source directory must never be supplied to the child. The directory fd
+/// also keeps later lookup on the opened directory if its visible path moves.
+fn materialize_development_linker_prefix(
+    root: &Path,
+    ld: &Path,
+) -> Result<DevelopmentLinkerPrefix, RouterError> {
+    let validated =
+        validate_development_tool(ld).map_err(|_| RouterError::policy("trusted_tool_invalid"))?;
+    if validated != ld || validated.to_str().is_none() {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+    let path_metadata = fs::symlink_metadata(&validated)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let mut source = open(
+        &validated,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let source_metadata = source
+        .metadata()
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let uid = rustix::process::geteuid().as_raw();
+    if !source_metadata.is_file()
+        || (source_metadata.uid() != 0 && source_metadata.uid() != uid)
+        || source_metadata.mode() & 0o022 != 0
+        || source_metadata.mode() & 0o111 == 0
+        || source_metadata.len() == 0
+        || source_metadata.len() > MAX_ARTIFACT_BYTES
+        || source_metadata.dev() != path_metadata.dev()
+        || source_metadata.ino() != path_metadata.ino()
+    {
+        return Err(RouterError::policy("trusted_tool_invalid"));
+    }
+
+    let prefix_path = root.join("linker-prefix");
+    prepare_private_directory(&prefix_path)?;
+    let directory = open_private_directory(&prefix_path, false)?;
+    let mut output = openat(
+        &directory,
+        "ld",
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::from_raw_mode(0o500),
+    )
+    .map(File::from)
+    .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let copied = io::copy(&mut source, &mut output)
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    if copied != source_metadata.len() || output.sync_all().is_err() {
+        return Err(RouterError::operation("trusted_tool_unavailable"));
+    }
+    output
+        .set_permissions(fs::Permissions::from_mode(0o500))
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    drop(output);
+    directory
+        .set_permissions(fs::Permissions::from_mode(0o500))
+        .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    fsync(&directory).map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let linker = openat(
+        &directory,
+        "ld",
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(|_| RouterError::operation("trusted_tool_unavailable"))?;
+    let prefix = DevelopmentLinkerPrefix { directory, linker };
+    prefix.validate()?;
+    Ok(prefix)
+}
+
+fn validate_development_gcc_driver(
+    cc: &Path,
+    linker_prefix: &DevelopmentLinkerPrefix,
+    root: &Path,
+) -> Result<(), RouterError> {
+    linker_prefix.validate()?;
+    let inherited = make_descriptor_inheritable(&linker_prefix.directory)?;
+    let search_argument = format!("-B{}", linker_prefix.search_root().display());
+    let mut command = Command::new(cc);
+    command
+        .env_clear()
+        .env("LANG", "C.UTF-8")
+        .args([search_argument.as_str(), "-print-prog-name=collect2"]);
+    let probe = run_development_command_with_limits(
+        command,
+        root,
+        Duration::from_secs(5),
+        MAX_DEV_WORKSPACE_BYTES,
+    );
+    let restore = restore_descriptor_flags(&linker_prefix.directory, inherited);
+    restore?;
+    let output = probe.map_err(|_| RouterError::policy("development_compiler_unsupported"))?;
+    let output = std::str::from_utf8(&output)
+        .map_err(|_| RouterError::policy("development_compiler_unsupported"))?
+        .trim();
+    if output.is_empty() || output.split_whitespace().count() != 1 {
+        return Err(RouterError::policy("development_compiler_unsupported"));
+    }
+    let collect2 = Path::new(output);
+    if !safe_absolute(collect2) || collect2.starts_with(linker_prefix.search_root()) {
+        return Err(RouterError::policy("development_compiler_unsupported"));
+    }
+    validate_development_tool(collect2)
+        .map(|_| ())
+        .map_err(|_| RouterError::policy("development_compiler_unsupported"))
 }
 
 fn development_remap_argument(path: &Path, destination: &str) -> Result<String, RouterError> {
@@ -1353,8 +1539,11 @@ fn materialize_development(
         validate_development_source_commit(&commit, &checked_commit)?;
         let cargo_home = root.join("cargo-home");
         prepare_private_directory(&cargo_home)?;
+        let linker_prefix = materialize_development_linker_prefix(&root, &ld)?;
+        validate_development_gcc_driver(&cc, &linker_prefix, &root)?;
         let cargo_program = cargo.execution_path();
         let rustc_program = rustc.as_ref().map(DevelopmentTool::execution_path);
+        let linker_program = linker_prefix.linker_path();
         let mut build = Command::new(&setsid);
         build
             .env_clear()
@@ -1366,7 +1555,7 @@ fn materialize_development(
             .env("SOURCE_DATE_EPOCH", "0")
             .env(
                 "CARGO_ENCODED_RUSTFLAGS",
-                development_encoded_rustflags(&root, &target, &cargo_home, &ld)?,
+                development_encoded_rustflags(&root, &target, &cargo_home, &linker_prefix)?,
             )
             .env_remove("RUSTFLAGS")
             .current_dir(&source)
@@ -1379,12 +1568,17 @@ fn materialize_development(
             rustc_program.as_deref(),
             Some(&cc),
             Some(&ar),
-            Some(&ld),
+            Some(&linker_program),
         );
+        linker_prefix.validate()?;
+        let linker_directory_flags = make_descriptor_inheritable(&linker_prefix.directory)?;
         let inherited_flags = make_toolchain_descriptors_inheritable(
             cargo.bound_file.as_ref(),
             rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
-        )?;
+        )
+        .inspect_err(|_| {
+            let _ = restore_descriptor_flags(&linker_prefix.directory, linker_directory_flags);
+        })?;
         let build_result = run_development_command_with_limits_and_roots(
             build,
             &root,
@@ -1397,6 +1591,9 @@ fn materialize_development(
             rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
             inherited_flags,
         );
+        let linker_restore_result =
+            restore_descriptor_flags(&linker_prefix.directory, linker_directory_flags);
+        linker_restore_result?;
         restore_result?;
         build_result?;
         enforce_workspace_quota_for_roots(
@@ -6979,13 +7176,15 @@ mod tests {
         let cc = validate_development_tool(&cc).unwrap();
         let ar = validate_development_tool(&ar).unwrap();
         let ld = validate_development_tool(&ld).unwrap();
+        let linker_prefix = materialize_development_linker_prefix(&root, &ld).unwrap();
+        let linker_path = linker_prefix.linker_path();
         apply_development_toolchain_environment(
             &mut command,
             Some(&root),
             Some(&rustc),
             Some(&cc),
             Some(&ar),
-            Some(&ld),
+            Some(&linker_path),
         );
         let output = command.output().unwrap();
         let variables = String::from_utf8_lossy(&output.stdout);
@@ -7024,7 +7223,7 @@ mod tests {
         assert!(
             variables
                 .lines()
-                .any(|line| line == format!("LD={}", ld.display()))
+                .any(|line| line == format!("LD={}", linker_path.display()))
         );
         assert!(!variables.lines().any(|line| line == "RUSTFLAGS="));
         assert!(
@@ -7036,9 +7235,10 @@ mod tests {
 
         let target_dir = root.join("target");
         let cargo_home = root.join("cargo-home");
-        let encoded = development_encoded_rustflags(&root, &target_dir, &cargo_home, &ld)
-            .unwrap()
-            .into_vec();
+        let encoded =
+            development_encoded_rustflags(&root, &target_dir, &cargo_home, &linker_prefix)
+                .unwrap()
+                .into_vec();
         let arguments: Vec<&[u8]> = encoded.split(|byte| *byte == 0x1f).collect();
         assert_eq!(arguments.len(), 5);
         assert_eq!(
@@ -7064,8 +7264,9 @@ mod tests {
         assert_eq!(arguments[3], b"-C");
         assert_eq!(
             arguments[4],
-            format!("link-arg=-B{}", ld.parent().unwrap().display()).as_bytes()
+            format!("link-arg=-B{}", linker_prefix.search_root().display()).as_bytes()
         );
+        drop(linker_prefix);
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -7113,6 +7314,8 @@ mod tests {
             &["/usr/bin/ld", "/usr/local/bin/ld"],
         )
         .unwrap();
+        let linker_prefix = materialize_development_linker_prefix(&scratch.0, &ld).unwrap();
+        let linker_path = linker_prefix.linker_path();
         let mut command = Command::new(cargo.execution_path());
         command
             .env_clear()
@@ -7124,7 +7327,8 @@ mod tests {
             .env("SOURCE_DATE_EPOCH", "0")
             .env(
                 "CARGO_ENCODED_RUSTFLAGS",
-                development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &ld).unwrap(),
+                development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &linker_prefix)
+                    .unwrap(),
             )
             .current_dir(&source)
             .args(["build", "--offline", "--release"]);
@@ -7134,14 +7338,17 @@ mod tests {
             rustc.as_ref().map(|tool| tool.execution_path()).as_deref(),
             Some(&cc),
             Some(&ar),
-            Some(&ld),
+            Some(&linker_path),
         );
+        linker_prefix.validate().unwrap();
+        let linker_flags = make_descriptor_inheritable(&linker_prefix.directory).unwrap();
         let inherited = make_toolchain_descriptors_inheritable(
             cargo.bound_file.as_ref(),
             rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
         )
         .unwrap();
         let output = command.output().unwrap();
+        restore_descriptor_flags(&linker_prefix.directory, linker_flags).unwrap();
         restore_toolchain_descriptor_flags(
             cargo.bound_file.as_ref(),
             rustc.as_ref().and_then(|tool| tool.bound_file.as_ref()),
@@ -7162,26 +7369,228 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn development_encoded_rustflags_reject_untrusted_linker_paths() {
+    fn development_linker_prefix_excludes_hostile_siblings_and_path_replacement() {
+        let scratch = Scratch::new("development-hostile-linker-siblings");
+        let hostile_root = PathBuf::from(std::env::var_os("HOME").unwrap())
+            .join(".cache")
+            .join(format!(
+                "asb-ar1751-hostile-linker-{}-{}",
+                std::process::id(),
+                TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+            ));
+        let build_root = scratch.0.join("build");
+        prepare_private_directory(&hostile_root).unwrap();
+        prepare_private_directory(&build_root).unwrap();
+        let system_ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )
+        .unwrap();
+        let source_ld = hostile_root.join("ld");
+        fs::copy(&system_ld, &source_ld).unwrap();
+        fs::set_permissions(&source_ld, fs::Permissions::from_mode(0o700)).unwrap();
+        let marker = scratch.0.join("hostile-helper-ran");
+        fs::write(
+            hostile_root.join("collect2"),
+            format!(
+                "#!/bin/sh\nprintf hostile > {}\nexit 91\n",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(
+            hostile_root.join("collect2"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        fs::write(hostile_root.join("crtbegin.o"), b"hostile startup object").unwrap();
+        fs::write(hostile_root.join("libgcc.a"), b"hostile library").unwrap();
+
+        let linker_prefix = materialize_development_linker_prefix(&build_root, &source_ld).unwrap();
+        let retained_prefix = build_root.join("retained-linker-prefix");
+        fs::rename(build_root.join("linker-prefix"), &retained_prefix).unwrap();
+        prepare_private_directory(&build_root.join("linker-prefix")).unwrap();
+        fs::copy("/bin/false", build_root.join("linker-prefix/ld")).unwrap();
+        fs::copy("/bin/false", build_root.join("linker-prefix/collect2")).unwrap();
+        fs::rename(&source_ld, hostile_root.join("validated-ld-replaced")).unwrap();
+        fs::copy("/bin/false", &source_ld).unwrap();
+        fs::set_permissions(&source_ld, fs::Permissions::from_mode(0o700)).unwrap();
+        linker_prefix.validate().unwrap();
+
+        let before = fcntl_getfd(&linker_prefix.directory).unwrap();
+        assert!(before.contains(FdFlags::CLOEXEC));
+        let inherited = make_descriptor_inheritable(&linker_prefix.directory).unwrap();
+        assert!(
+            !fcntl_getfd(&linker_prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+        let cc = resolve_development_tool_candidates(
+            DEV_CC_OVERRIDE,
+            &["/usr/bin/cc", "/usr/local/bin/cc"],
+        )
+        .unwrap();
+        let search_argument = format!("-B{}", linker_prefix.search_root().display());
+        let trace = Command::new(&cc)
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .args([
+                "-###",
+                &search_argument,
+                "-x",
+                "c",
+                "/dev/null",
+                "-o",
+                "/dev/null",
+            ])
+            .output()
+            .unwrap();
+        assert!(trace.status.success());
+        let trace = String::from_utf8_lossy(&trace.stderr);
+        assert!(trace.contains(&format!("-L{}", linker_prefix.search_root().display())));
+        assert!(!trace.contains(&hostile_root.to_string_lossy().into_owned()));
+        assert!(
+            !trace.contains(
+                &build_root
+                    .join("linker-prefix")
+                    .to_string_lossy()
+                    .into_owned()
+            )
+        );
+        assert!(!trace.contains(&format!(
+            "{}/collect2",
+            linker_prefix.search_root().display()
+        )));
+
+        let source = scratch.0.join("main.c");
+        let executable = scratch.0.join("fixture");
+        fs::write(&source, b"int main(void) { return 0; }\n").unwrap();
+        let output = Command::new(&cc)
+            .env_clear()
+            .env("LANG", "C.UTF-8")
+            .arg(&search_argument)
+            .arg(&source)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        restore_descriptor_flags(&linker_prefix.directory, inherited).unwrap();
+        assert!(
+            fcntl_getfd(&linker_prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+        assert!(
+            output.status.success(),
+            "confined GCC link failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(executable.is_file());
+        assert!(!marker.exists());
+        fs::remove_dir_all(hostile_root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_linker_prefix_rejects_extra_entry_and_inode_substitution() {
+        let scratch = Scratch::new("development-linker-prefix-substitution");
+        let ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )
+        .unwrap();
+        let prefix = materialize_development_linker_prefix(&scratch.0, &ld).unwrap();
+        prefix
+            .directory
+            .set_permissions(fs::Permissions::from_mode(0o700))
+            .unwrap();
+        fs::write(prefix.search_root().join("collect2"), b"hostile helper").unwrap();
+        prefix
+            .directory
+            .set_permissions(fs::Permissions::from_mode(0o500))
+            .unwrap();
+        assert_eq!(prefix.validate().unwrap_err().code, "trusted_tool_invalid");
+
+        prefix
+            .directory
+            .set_permissions(fs::Permissions::from_mode(0o700))
+            .unwrap();
+        fs::remove_file(prefix.search_root().join("collect2")).unwrap();
+        fs::remove_file(prefix.linker_path()).unwrap();
+        fs::copy("/bin/false", prefix.linker_path()).unwrap();
+        fs::set_permissions(prefix.linker_path(), fs::Permissions::from_mode(0o500)).unwrap();
+        prefix
+            .directory
+            .set_permissions(fs::Permissions::from_mode(0o500))
+            .unwrap();
+        assert_eq!(prefix.validate().unwrap_err().code, "trusted_tool_invalid");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_linker_prefix_requires_gcc_collect2_semantics() {
+        let scratch = Scratch::new("development-linker-driver");
+        let ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )
+        .unwrap();
+        let prefix = materialize_development_linker_prefix(&scratch.0, &ld).unwrap();
+        let cc = resolve_development_tool_candidates(
+            DEV_CC_OVERRIDE,
+            &["/usr/bin/cc", "/usr/local/bin/cc"],
+        )
+        .unwrap();
+        validate_development_gcc_driver(&cc, &prefix, &scratch.0).unwrap();
+        assert_eq!(
+            validate_development_gcc_driver(Path::new("/bin/false"), &prefix, &scratch.0)
+                .unwrap_err()
+                .code,
+            "development_compiler_unsupported"
+        );
+
+        let relative = scratch.0.join("relative-driver");
+        fs::write(&relative, b"#!/bin/sh\nprintf relative-collect2\n").unwrap();
+        fs::set_permissions(&relative, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            validate_development_gcc_driver(&relative, &prefix, &scratch.0)
+                .unwrap_err()
+                .code,
+            "development_compiler_unsupported"
+        );
+
+        let missing = scratch.0.join("missing-driver");
+        fs::write(
+            &missing,
+            b"#!/bin/sh\nprintf /definitely/missing/collect2\n",
+        )
+        .unwrap();
+        fs::set_permissions(&missing, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            validate_development_gcc_driver(&missing, &prefix, &scratch.0)
+                .unwrap_err()
+                .code,
+            "development_compiler_unsupported"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_linker_prefix_rejects_untrusted_linker_paths() {
         let scratch = Scratch::new("development-linker-rejection");
         let target_dir = scratch.0.join("target");
         let cargo_home = scratch.0.join("cargo-home");
         let missing = scratch.0.join("missing-ld");
         assert_eq!(
-            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &missing)
+            materialize_development_linker_prefix(&scratch.0, &missing)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
         );
         assert_eq!(
-            development_encoded_rustflags(
-                &scratch.0,
-                &target_dir,
-                &cargo_home,
-                Path::new("relative-ld")
-            )
-            .unwrap_err()
-            .code,
+            materialize_development_linker_prefix(&scratch.0, Path::new("relative-ld"))
+                .unwrap_err()
+                .code,
             "trusted_tool_invalid"
         );
 
@@ -7189,7 +7598,7 @@ mod tests {
         fs::write(&writable, b"not executable").unwrap();
         fs::set_permissions(&writable, fs::Permissions::from_mode(0o722)).unwrap();
         assert_eq!(
-            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &writable)
+            materialize_development_linker_prefix(&scratch.0, &writable)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
@@ -7201,7 +7610,7 @@ mod tests {
         fs::set_permissions(&trusted, fs::Permissions::from_mode(0o700)).unwrap();
         symlink(&trusted, &substituted).unwrap();
         assert_eq!(
-            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &substituted)
+            materialize_development_linker_prefix(&scratch.0, &substituted)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
@@ -7213,10 +7622,19 @@ mod tests {
             &["/usr/bin/ld", "/usr/local/bin/ld"],
         )
         .unwrap();
+        let encoded_prefix_root = scratch.0.join("encoded-prefix");
+        prepare_private_directory(&encoded_prefix_root).unwrap();
+        let linker_prefix =
+            materialize_development_linker_prefix(&encoded_prefix_root, &ld).unwrap();
         assert_eq!(
-            development_encoded_rustflags(&encoded_separator, &target_dir, &cargo_home, &ld)
-                .unwrap_err()
-                .code,
+            development_encoded_rustflags(
+                &encoded_separator,
+                &target_dir,
+                &cargo_home,
+                &linker_prefix,
+            )
+            .unwrap_err()
+            .code,
             "trusted_tool_invalid"
         );
 
@@ -7230,7 +7648,7 @@ mod tests {
         fs::write(&non_utf8_ld, b"fixture").unwrap();
         fs::set_permissions(&non_utf8_ld, fs::Permissions::from_mode(0o700)).unwrap();
         assert_eq!(
-            development_encoded_rustflags(&scratch.0, &target_dir, &cargo_home, &non_utf8_ld)
+            materialize_development_linker_prefix(&scratch.0, &non_utf8_ld)
                 .unwrap_err()
                 .code,
             "trusted_tool_invalid"
@@ -7796,7 +8214,8 @@ mod tests {
                 &["/usr/bin/ld", "/usr/local/bin/ld"],
             )
             .unwrap();
-            let flags = development_encoded_rustflags(&root, &target, &cargo_home, &ld)
+            let linker_prefix = materialize_development_linker_prefix(&root, &ld).unwrap();
+            let flags = development_encoded_rustflags(&root, &target, &cargo_home, &linker_prefix)
                 .unwrap()
                 .into_vec();
             let flags: Vec<String> = flags
@@ -7820,7 +8239,9 @@ mod tests {
                 .args(flags)
                 .args(["main.rs", "-o"])
                 .arg(&executable);
+            let linker_flags = make_descriptor_inheritable(&linker_prefix.directory).unwrap();
             assert!(command.status().unwrap().success());
+            restore_descriptor_flags(&linker_prefix.directory, linker_flags).unwrap();
             digests.push(fs::read(executable).map(|bytes| digest(&bytes)).unwrap());
         }
         assert_eq!(digests[0], digests[1]);

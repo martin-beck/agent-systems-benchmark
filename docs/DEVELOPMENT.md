@@ -11,6 +11,20 @@ Use the pinned QEMU AArch64 lane for applicable userspace portability checks; ke
 PMU, eBPF, timing, contention, performance, and support-cell claims explicitly unqualified until
 separate native evidence exists. See [the native ARM64 policy](NATIVE_AARCH64_POLICY.md).
 
+Development TUI source builds keep ambient `PATH` absent. The router copies the
+opened, validated linker into a fresh private prefix containing exactly one
+regular `ld`, makes that prefix non-writable, and passes GCC an inherited
+directory-descriptor path. It never supplies the validated linker source
+directory to the broad GCC `-B` helper and library search. The prefix contents
+and retained file identities are checked immediately before child creation.
+
+This boundary excludes other users, unvalidated sibling tools and libraries,
+and pathname replacement. A malicious process running as the same effective
+user is inside the development-tool trust boundary: it can already ptrace or
+mutate the build process. Directory modes and retained descriptors still limit
+accidental mutation, and deterministic tests reject any substitution observed
+before spawn. This development boundary is not production release attestation.
+
 ## Start and recover
 
 Read PLAN, ARCHITECTURE and QUALITY and preserve all existing work. Reconcile
