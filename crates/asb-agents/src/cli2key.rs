@@ -111,7 +111,8 @@ impl Cli2KeySelection {
     }
 }
 impl Cli2KeyLaunch {
-    pub fn validate_against(&self, c: &Cli2KeyCatalog) -> Result<(), &'static str> {
+    /// Validate the secret-free launch shape before a catalog is available.
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
         if self.schema_version != 1
             || self.api_mode != "responses"
             || !matches!(self.endpoint_host.as_str(), "127.0.0.1" | "::1")
@@ -125,6 +126,19 @@ impl Cli2KeyLaunch {
         {
             return Err("cli2key launch is not loopback Responses");
         }
+        if self.selection.provider_id != "cli2key"
+            || self.selection.agent_id != "codex"
+            || !valid_digest(&self.selection.catalog_sha256)
+            || !valid_digest(&self.selection.credential_reference_sha256)
+            || !valid_digest(&self.selection.endpoint_sha256)
+        {
+            return Err("cli2key selection is invalid");
+        }
+        Ok(())
+    }
+
+    pub fn validate_against(&self, c: &Cli2KeyCatalog) -> Result<(), &'static str> {
+        self.validate_shape()?;
         self.selection.validate_against(c)
     }
 }

@@ -13,6 +13,7 @@ use asb_agents::all_agents_provider::{
     AllAgentsProviderSelection, EffectiveApiMode, SelectedAgent, resolve_openai_selection,
     resolve_openrouter_selection,
 };
+use asb_agents::cli2key::Cli2KeyLaunch;
 use asb_agents::openai::OpenAiProfile;
 use asb_agents::opencode::{OpenCodeArtifact, OpenCodeConfig};
 use asb_agents::openrouter::OpenRouterCatalogError;
@@ -3173,6 +3174,9 @@ struct ProviderPlanOutput {
     credential_source: String,
     credential_reference_sha256: String,
     effective: Vec<EffectiveCliAgent>,
+    /// Runtime-issued development-only cli2key launch binding, when selected.
+    #[serde(default)]
+    cli2key_launch: Option<Cli2KeyLaunch>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -3373,6 +3377,7 @@ fn provider_plan_at_with_catalog(
                 .expect("provider profile resolution validated the credential reference identity")
                 .to_owned(),
             effective,
+            cli2key_launch: None,
         },
     )
 }
@@ -3470,6 +3475,7 @@ fn provider_plan_from_selection(
         credential_source: "environment".into(),
         credential_reference_sha256: credential.into(),
         effective,
+        cli2key_launch: None,
     };
     validate_provider_selection(&output)?;
     Ok(output)
@@ -4137,6 +4143,7 @@ fn provider_plan_from_configuration(
         credential_source: "environment".into(),
         credential_reference_sha256: credential.locator_sha256.clone(),
         effective,
+        cli2key_launch: None,
     };
     validate_provider_selection(&output)?;
     Ok(output)
@@ -4199,7 +4206,8 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         || !value.ok
         || value.command != "provider-plan"
         || !value.dry_run
-        || value.catalog_sha256 != provider_catalog_digest()
+        || (value.provider_profile != "cli2key"
+            && value.catalog_sha256 != provider_catalog_digest())
         || value.credential_source != "environment"
         || !valid_sha256(&value.credential_reference_sha256)
         || !valid_sha256(&value.provider_profile_sha256)
@@ -4209,6 +4217,26 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         return Err(CliError::validation(
             "provider selection identity is invalid",
         ));
+    }
+    if value.provider_profile == "cli2key" {
+        let launch = value.cli2key_launch.as_ref().ok_or_else(|| {
+            CliError::validation("cli2key provider selection lacks a runtime launch")
+        })?;
+        launch
+            .validate_shape()
+            .map_err(|_| CliError::validation("cli2key launch identity is invalid"))?;
+        if value.model != launch.selection.model_id
+            || value.catalog_sha256 != launch.selection.catalog_sha256
+            || value.credential_reference_sha256 != launch.selection.credential_reference_sha256
+            || value.effective.len() != 1
+            || value.effective[0].agent != "codex"
+            || value.effective[0].api_mode != EffectiveApiMode::Responses
+        {
+            return Err(CliError::validation(
+                "cli2key provider selection identity is invalid",
+            ));
+        }
+        return Ok(());
     }
     let agents = value
         .effective
@@ -4354,6 +4382,30 @@ fn build_provider_launch(
                 projection,
                 profile.provider_profile().endpoint.identity_sha256.clone(),
             )
+        }
+        "cli2key" => {
+            let launch = selection.cli2key_launch.as_ref().ok_or_else(|| {
+                CliError::validation("cli2key provider selection lacks a runtime launch")
+            })?;
+            launch
+                .validate_shape()
+                .map_err(|_| CliError::validation("cli2key launch identity is invalid"))?;
+            if selected_agent != SelectedAgent::Codex
+                || launch.selection.model_id != selection.model
+                || launch.selection.credential_reference_sha256
+                    != selection.credential_reference_sha256
+                || launch.selection.catalog_sha256 != selection.catalog_sha256
+            {
+                return Err(CliError::validation("cli2key selection binding is invalid"));
+            }
+            let projection = ProviderLaunchProjection::cli2key(
+                &selection.model,
+                &selection.provider_profile_sha256,
+                &selection.credential_reference_sha256,
+                selected_agent,
+            )
+            .map_err(|_| CliError::validation("selected adapter has no exact cli2key route"))?;
+            (projection, launch.selection.endpoint_sha256.clone())
         }
         _ => return Err(CliError::validation("provider selection is incompatible")),
     };
@@ -5343,6 +5395,11 @@ fn execute_inner_from_source_with_owner(
         let selection = selection
             .as_ref()
             .ok_or_else(|| CliError::validation("live provider requires an explicit selection"))?;
+        if selection.provider_profile == "cli2key" {
+            return Err(CliError::validation(
+                "cli2key live execution requires a runtime-issued sidecar launch",
+            ));
+        }
         if selection.provider_profile != "openrouter" {
             return Err(CliError::validation(
                 "development live execution currently supports only openrouter",
@@ -5595,7 +5652,11 @@ fn run_point_with_selection_with_owner(
     let summaries = Arc::new(Mutex::new(Vec::<AttemptSummary>::new()));
     let attempt_failures = Arc::new(Mutex::new(Vec::<AttemptFailureEvidence>::new()));
     let plan_owned = plan.clone();
-    let launch_owned = launch.clone();
+    // The manifest binds the run-level selection, while each scheduler
+    // admission receives a fresh launch record below.  In particular, a
+    // sweep must never reuse an attempt id (or a stale generation binding)
+    // across points or retries.
+    let selection_owned = selection.cloned();
     let measurement_selection_owned = measurement_selection.clone();
     let work_root = plan.work_root.clone();
     let run_for_attempt = run_id.clone();
@@ -5614,7 +5675,25 @@ fn run_point_with_selection_with_owner(
                     Some(factory) => match factory.acquire(context.input_id(), context.is_warmup())
                     {
                         Ok(attempt) => Some(attempt),
-                        Err(_) => return AttemptOutcome::InfrastructureFailure,
+                        Err(_) => {
+                            // Preserve a bounded typed observation for an
+                            // unavailable/crashed sidecar or stale runtime
+                            // capability. Never retry or switch providers.
+                            failures_for_attempt
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                .push(AttemptFailureEvidence {
+                                    input_id: context.input_id(),
+                                    phase: if context.is_warmup() {
+                                        "warmup"
+                                    } else {
+                                        "measured"
+                                    },
+                                    code: "live_provider_attempt_unavailable",
+                                    message: "runtime live-provider attempt unavailable",
+                                });
+                            return AttemptOutcome::InfrastructureFailure;
+                        }
                     },
                     // Direct CLI development-live mode uses the selected
                     // adapter process with its one-shot environment key.
@@ -5623,6 +5702,36 @@ fn run_point_with_selection_with_owner(
                 }
             } else {
                 None
+            };
+            let attempt_launch = selection_owned
+                .as_ref()
+                .map(|value| {
+                    build_provider_launch(
+                        &plan_owned,
+                        value,
+                        &run_for_attempt,
+                        &format!("{run_for_attempt}-attempt-{}", context.input_id()),
+                    )
+                })
+                .transpose();
+            let attempt_launch = match attempt_launch {
+                Ok(value) => value,
+                Err(error) => {
+                    failures_for_attempt
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .push(AttemptFailureEvidence {
+                            input_id: context.input_id(),
+                            phase: if context.is_warmup() {
+                                "warmup"
+                            } else {
+                                "measured"
+                            },
+                            code: error.code,
+                            message: error.message,
+                        });
+                    return AttemptOutcome::InfrastructureFailure;
+                }
             };
             let summary = if local_mock {
                 let mock_attempt_id = context.input_id().saturating_add(1);
@@ -5680,7 +5789,7 @@ fn run_point_with_selection_with_owner(
                     &run_for_attempt,
                     context.input_id(),
                     context.is_warmup(),
-                    launch_owned.as_ref(),
+                    attempt_launch.as_ref(),
                     &measurement_selection_owned,
                     Arc::clone(&cancelled_for_attempt),
                     live_provider,
@@ -9104,6 +9213,12 @@ mod tests {
             serde_json::from_slice::<Value>(&output).unwrap()["ok"],
             false
         );
+        let failure = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(failure["points"][0]["infrastructure_failures"], 1);
+        assert_eq!(
+            failure["points"][0]["attempt_failures"][0]["code"],
+            "live_provider_attempt_unavailable"
+        );
 
         let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
             Err(LaunchAuthorityError::InvalidLaunchInput)
@@ -9172,6 +9287,138 @@ mod tests {
         assert!(calls.contains(&(0, true)));
         assert!(calls.contains(&(0, false)));
         assert!(calls.contains(&(1, false)));
+    }
+
+    #[test]
+    fn provider_launch_binding_is_fresh_for_each_attempt() {
+        let scratch = Scratch::new("per-attempt-provider-binding");
+        let (_, selection_value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let selection: ProviderPlanOutput = serde_json::from_value(selection_value).unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "per-attempt");
+        bind_provider_selection(
+            &mut plan,
+            &serde_json::to_value(&selection).unwrap(),
+            "codex",
+            "openrouter",
+        );
+        let first = build_provider_launch(&plan, &selection, "run-c1", "run-c1-attempt-0").unwrap();
+        let second =
+            build_provider_launch(&plan, &selection, "run-c1", "run-c1-attempt-1").unwrap();
+        assert_ne!(first.input.attempt_id, second.input.attempt_id);
+        assert_ne!(first.launch_sha256, second.launch_sha256);
+        assert!(first.validate().is_ok());
+        assert!(second.validate().is_ok());
+    }
+
+    #[test]
+    fn cli2key_selection_builds_codex_run_launch_and_rejects_drift() {
+        let scratch = Scratch::new("cli2key-run-selection");
+        let (_, mut value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        value["provider_profile"] = json!("cli2key");
+        value["model"] = json!("codex-local");
+        value["provider_profile_sha256"] = json!("a".repeat(64));
+        value["credential_reference_sha256"] = json!("b".repeat(64));
+        value["catalog_sha256"] = json!("c".repeat(64));
+        value["selection_sha256"] = json!("d".repeat(64));
+        value["effective"][0]["api_mode"] = json!("responses");
+        value["cli2key_launch"] = json!({
+            "schema_version": 1,
+            "selection": {
+                "schema_version": 1,
+                "provider_id": "cli2key",
+                "catalog_generation": 1,
+                "catalog_sha256": "c".repeat(64),
+                "model_id": "codex-local",
+                "bridge_revision": "fixture",
+                "bridge_tree_sha256": "e".repeat(64),
+                "executable_sha256": "f".repeat(64),
+                "endpoint_sha256": "1".repeat(64),
+                "credential_reference_sha256": "b".repeat(64),
+                "agent_id": "codex"
+            },
+            "api_mode": "responses",
+            "endpoint_host": "127.0.0.1",
+            "endpoint_port": 43123,
+            "generation": "fixture-generation"
+        });
+        let selection: ProviderPlanOutput = serde_json::from_value(value).unwrap();
+        validate_provider_selection(&selection).unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "cli2key-run");
+        plan.experiment.agent.implementation = "codex".into();
+        plan.experiment.agent.implementation = "codex".into();
+        plan.experiment.model.provider = "cli2key".into();
+        plan.experiment.model.model = "codex-local".into();
+        plan.experiment.model.settings.additional_settings_sha256 =
+            Some(selection.provider_profile_sha256.clone());
+        plan.experiment.refresh_content_address().unwrap();
+        let launch = build_provider_launch(&plan, &selection, "cli2key-run", "attempt-0");
+        assert!(launch.is_ok());
+        assert_eq!(launch.unwrap().input.provider, "cli2key");
+
+        let mut drifted = selection;
+        drifted.cli2key_launch.as_mut().unwrap().endpoint_host = "10.0.0.1".into();
+        assert!(validate_provider_selection(&drifted).is_err());
+    }
+
+    #[test]
+    fn cli2key_run_dispatch_reaches_runtime_factory_without_fallback() {
+        let scratch = Scratch::new("cli2key-run-dispatch");
+        let (selection_path, mut value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        value["provider_profile"] = json!("cli2key");
+        value["model"] = json!("codex-local");
+        value["provider_profile_sha256"] = json!("a".repeat(64));
+        value["credential_reference_sha256"] = json!("b".repeat(64));
+        value["catalog_sha256"] = json!("c".repeat(64));
+        value["selection_sha256"] = json!("d".repeat(64));
+        value["effective"][0]["api_mode"] = json!("responses");
+        value["cli2key_launch"] = json!({
+            "schema_version": 1,
+            "selection": {
+                "schema_version": 1,
+                "provider_id": "cli2key",
+                "catalog_generation": 1,
+                "catalog_sha256": "c".repeat(64),
+                "model_id": "codex-local",
+                "bridge_revision": "fixture",
+                "bridge_tree_sha256": "e".repeat(64),
+                "executable_sha256": "f".repeat(64),
+                "endpoint_sha256": "1".repeat(64),
+                "credential_reference_sha256": "b".repeat(64),
+                "agent_id": "codex"
+            },
+            "api_mode": "responses",
+            "endpoint_host": "127.0.0.1",
+            "endpoint_port": 43123,
+            "generation": "fixture-generation"
+        });
+        fs::write(&selection_path, serde_json::to_vec(&value).unwrap()).unwrap();
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "cli2key-dispatch");
+        plan.experiment.agent.implementation = "codex".into();
+        plan.experiment.model.provider = "cli2key".into();
+        plan.experiment.model.model = "codex-local".into();
+        plan.experiment.model.settings.additional_settings_sha256 = Some("a".repeat(64));
+        plan.point.measured = 1;
+        plan.point.warmups = 0;
+        plan.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let code = run_with_live_provider_factory(
+            &[
+                "run".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+                "--live-provider".into(),
+            ],
+            LiveProviderAttemptFactory::from_fn(|_, _| {
+                Err(LaunchAuthorityError::InvalidLaunchInput)
+            }),
+            &mut Vec::new(),
+            &mut Vec::new(),
+        );
+        assert_eq!(code, 6);
     }
 
     #[test]
