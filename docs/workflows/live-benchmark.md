@@ -45,7 +45,8 @@ production authentication or signature claim.
 1. Enroll only a logical credential reference through the runtime-owned control
    service. Never put secret bytes in argv, environment exports, plans, logs,
    manifests, cassettes, or reports.
-2. Capture a fresh `provider-catalog` response and preserve its exact digest.
+2. Capture `asb --json provider-catalog > catalog.json` and preserve the exact
+   `catalog_sha256` from that machine-readable response.
 3. Create `provider-plan` for one catalog-advertised provider/model and the
    complete agent set. Reject stale, mixed, duplicate, or unsupported selections.
 4. Validate with `plan`, then execute `run` or `sweep` with explicit live

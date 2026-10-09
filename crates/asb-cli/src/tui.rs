@@ -6868,8 +6868,10 @@ mod tests {
         let json = serde_json::to_vec(&response).unwrap();
         assert!(String::from_utf8_lossy(&json).contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
         let mut human = Vec::new();
-        crate::render_human(&json, &mut human).unwrap();
-        assert!(String::from_utf8_lossy(&human).contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
+        crate::render_human(&["tui".into(), "preflight".into()], &json, &mut human).unwrap();
+        let human = String::from_utf8(human).unwrap();
+        assert!(human.contains("group-writable or differently owned paths"));
+        assert!(!human.contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -7070,10 +7072,10 @@ mod tests {
         assert_eq!(value["development_only"], true);
         assert_eq!(value["network"], "denied");
         let mut human = Vec::new();
-        crate::render_human(&json, &mut human).unwrap();
+        crate::render_human(&["tui".into()], &json, &mut human).unwrap();
         let human = String::from_utf8(human).unwrap();
-        assert!(human.contains("trusted_tool_unavailable"));
-        assert!(human.contains("install_a_supported_rust_toolchain_or_set_ASB_DEV_CARGO"));
+        assert!(human.contains("trusted tool unavailable"));
+        assert!(human.contains("Next: asb tui doctor"));
         assert!(!human.contains('/'));
     }
 

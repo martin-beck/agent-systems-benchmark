@@ -1,0 +1,18 @@
+[
+  "doctor",
+  "setup",
+  "capabilities",
+  "project init",
+  "provider-catalog",
+  "provider-plan",
+  "plan",
+  "run",
+  "sweep",
+  "benchmark-live",
+  "compare",
+  "report",
+  "record",
+  "replay",
+  "completion",
+  "serve"
+]

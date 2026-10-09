@@ -9,8 +9,9 @@ result or work root.
 
 ## Provider selection is stale or incompatible
 
-Run `asb provider-catalog` again and regenerate `selection.json` with its exact
-catalog digest. Never edit a selection manifest by hand. Verify every selected
+Run `asb --json provider-catalog > catalog.json` again, read the exact
+`catalog_sha256` from that machine-readable response, and regenerate
+`selection.json` with it. Never edit a selection manifest by hand. Verify every selected
 agent is advertised by the chosen provider; use separate explicit plans for
 per-agent provider profiles.
 
