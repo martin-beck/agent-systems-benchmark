@@ -57,7 +57,7 @@ impl PresentationContext {
 /// Authoritative public top-level command inventory for dispatch, help, and
 /// human-presentation exhaustiveness. Legacy doctor/completion projections are
 /// independently pinned to their compatibility fixtures.
-pub(super) const PUBLIC_COMMANDS: &[&str] = &[
+pub(crate) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
     "setup",
     "capabilities",
@@ -3310,6 +3310,43 @@ mod tests {
         let unknown = warning_text("future_warning_identity");
         assert!(unknown.contains("unrecognized warning identity"));
         assert!(unknown.contains("cannot classify its limitation"));
+    }
+
+    #[test]
+    fn every_public_command_has_a_human_safe_invalid_argument_journey() {
+        for command in PUBLIC_COMMANDS {
+            let args = [
+                OsString::from(*command),
+                OsString::from("--invalid-diagnostic-fixture"),
+            ];
+            let mut output = Vec::new();
+            let mut diagnostic = Vec::new();
+            let exit =
+                super::super::run_with_default_mode(&args, &mut output, &mut diagnostic, true);
+            assert_ne!(exit, 0, "{command} invalid journey unexpectedly succeeded");
+            if *command == "serve" {
+                assert_eq!(
+                    String::from_utf8(diagnostic).expect("serve progress is UTF-8"),
+                    "ASB is attempting to start the control service from the supplied configuration.\n"
+                );
+            } else {
+                assert!(
+                    diagnostic.is_empty(),
+                    "{command} unexpectedly wrote diagnostics"
+                );
+            }
+            let rendered = String::from_utf8(output).expect("human diagnostic is UTF-8");
+            assert!(
+                rendered.contains("ASB could not complete"),
+                "{command}: {rendered}"
+            );
+            assert!(rendered.contains("Affected "), "{command}: {rendered}");
+            assert!(rendered.contains("Recovery: "), "{command}: {rendered}");
+            assert!(
+                !rendered.contains("credential payload"),
+                "{command}: {rendered}"
+            );
+        }
     }
 
     #[test]

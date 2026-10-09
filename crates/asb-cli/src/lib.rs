@@ -115,6 +115,15 @@ static RECORDING_TRANSACTION_NONCE: AtomicU64 = AtomicU64::new(0);
 #[cfg(test)]
 static FAIL_RECORDING_INSTALL_AT: AtomicU64 = AtomicU64::new(u64::MAX);
 
+/// Return the closed public top-level command inventory.
+///
+/// This is shared by dispatch/help presentation and diagnostic qualification so
+/// a new public command cannot silently escape the executable negative journey.
+#[must_use]
+pub fn public_command_inventory() -> &'static [&'static str] {
+    human::PUBLIC_COMMANDS
+}
+
 /// Run the command-line interface with process standard streams.
 #[must_use]
 pub fn entry(args: Vec<OsString>) -> ExitCode {

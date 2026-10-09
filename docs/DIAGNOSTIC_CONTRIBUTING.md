@@ -18,8 +18,12 @@ When adding a public diagnostic:
    `crates/asb-cli/tests/diagnostic_contract.rs`.
 4. For a warning, add a consequence to `warning_text` in `human.rs`; a warning
    without an operator-visible limitation is not sufficient.
-5. Run `cargo test --locked -p asb-cli --test diagnostic_contract`.  Repository
-   quality runs the same required gate on pull requests and protected main.
+5. Add an invalid, side-effect-free case to `diagnostic_journey.rs` for a new
+   top-level command. Run `cargo test --locked -p asb-cli --test
+   diagnostic_contract` and `cargo test --locked -p asb-cli --test
+   diagnostic_journey`; also run `cargo test --locked -p asb-cli
+   every_public_command_has_a_human_safe_invalid_argument_journey`. Repository
+   quality runs all required gates on pull requests and protected main.
 
 Unknown producer identities are intentionally rendered as unclassified.  They
 are safe fallback behavior for compatibility, not permission to add a new

@@ -113,7 +113,10 @@ jobs:
           python3 -m unittest tools.quality.test_signature_policy
           python3 tests/quality/test_artifact_outcome.py
       - name: Enforce human diagnostic completeness
-        run: cargo test --locked -p asb-cli --test diagnostic_contract
+        run: |
+          cargo test --locked -p asb-cli --test diagnostic_contract
+          cargo test --locked -p asb-cli --test diagnostic_journey
+          cargo test --locked -p asb-cli every_public_command_has_a_human_safe_invalid_argument_journey
       - name: Validate platform manifests and failure fixtures
         run: |
           python3 tools/platforms/validate_manifests.py
