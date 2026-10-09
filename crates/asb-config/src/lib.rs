@@ -394,6 +394,288 @@ pub struct Configuration {
     pub openrouter_dynamic_model: Option<OpenRouterDynamicModelConfig>,
 }
 
+/// Version of the project and external-tool inventory contract.
+pub const PROJECT_CONFIG_SCHEMA_VERSION: u16 = 1;
+
+/// The five inventory classes understood by the project configuration.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectToolKind {
+    /// A benchmark agent executable or adapter.
+    Agent,
+    /// A harness used to execute or grade a benchmark.
+    Harness,
+    /// A benchmark implementation or benchmark suite.
+    Benchmark,
+    /// A selectable workload or dataset preparation tool.
+    Workload,
+    /// A support tool such as Cargo, QEMU, or a catalog generator.
+    SupportTool,
+}
+
+/// Availability of an inventory record.  Missing and stale records remain
+/// useful diagnostics and are not silently removed from project state.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectToolStatus {
+    /// The record was observed and is usable for its declared purpose.
+    Available,
+    /// The record is configured but was not found during discovery.
+    Missing,
+    /// The record was observed but its version or digest no longer matches.
+    Stale,
+    /// The record is known but cannot run on this platform.
+    Unsupported,
+    /// Discovery or validation observed a bounded, user-actionable failure.
+    Error,
+}
+
+/// Relative project directories.  Values are deliberately relative so a
+/// project can be moved without persisting private host paths.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectRootsV1 {
+    /// Project source/configuration root, normally `.`.
+    pub project: String,
+    /// Bounded result output directory relative to `project`.
+    pub results: String,
+    /// Generated catalog directory relative to `project`.
+    pub catalogs: String,
+}
+
+/// One public, credential-free inventory entry.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectToolRecordV1 {
+    /// Inventory class of this record.
+    pub kind: ProjectToolKind,
+    /// Public source URL, package name, or immutable source reference.
+    pub source_ref: String,
+    /// Public version or release identifier.
+    pub version: String,
+    /// Target platform label such as `linux-x86_64`.
+    pub platform: String,
+    /// Relative executable or package path, if project-local.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// SHA-256 digest of the observed immutable artifact, if available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digest_sha256: Option<String>,
+    /// Stable capabilities advertised by this record.
+    pub capabilities: Vec<String>,
+    /// Last known bounded availability status.
+    pub status: ProjectToolStatus,
+}
+
+/// A selected inventory name, kept separate from the full inventory so later
+/// commands can update discovery without changing the user's selections.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectSelectionsV1 {
+    /// Selected agent, if one has been chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Selected harness, if one has been chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<String>,
+    /// Selected benchmark, if one has been chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub benchmark: Option<String>,
+    /// Selected workload, if one has been chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workload: Option<String>,
+    /// Selected support tools, in deterministic order.
+    #[serde(default)]
+    pub support_tools: Vec<String>,
+}
+
+/// Provenance of one generated catalog consumed by later commands.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratedCatalogReferenceV1 {
+    /// Stable catalog identifier.
+    pub id: String,
+    /// Catalog schema identifier and version.
+    pub schema: String,
+    /// Public generator/source reference, never a private path.
+    pub source_ref: String,
+    /// SHA-256 digest of the generated catalog bytes.
+    pub digest_sha256: String,
+    /// Bounded UTC generation timestamp in RFC3339 shape.
+    pub generated_at: String,
+}
+
+/// Canonical project configuration shared by initialization, discovery,
+/// installation, catalog selection, and benchmark commands.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectConfigV1 {
+    /// On-disk project configuration schema version.
+    pub schema_version: u16,
+    /// Relative project directory layout.
+    pub roots: ProjectRootsV1,
+    /// Agent inventory keyed by stable user-facing name.
+    pub agents: BTreeMap<String, ProjectToolRecordV1>,
+    /// Harness inventory keyed by stable user-facing name.
+    pub harnesses: BTreeMap<String, ProjectToolRecordV1>,
+    /// Benchmark inventory keyed by stable user-facing name.
+    pub benchmarks: BTreeMap<String, ProjectToolRecordV1>,
+    /// Workload inventory keyed by stable user-facing name.
+    pub workloads: BTreeMap<String, ProjectToolRecordV1>,
+    /// Support-tool inventory keyed by stable user-facing name.
+    pub support_tools: BTreeMap<String, ProjectToolRecordV1>,
+    /// Active selections used when a command does not specify an override.
+    pub selections: ProjectSelectionsV1,
+    /// Generated catalog provenance keyed by catalog identifier.
+    pub catalogs: BTreeMap<String, GeneratedCatalogReferenceV1>,
+}
+
+impl ProjectConfigV1 {
+    /// Construct an empty, valid project contract with portable directories.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            schema_version: PROJECT_CONFIG_SCHEMA_VERSION,
+            roots: ProjectRootsV1 {
+                project: ".".into(),
+                results: "results".into(),
+                catalogs: "catalogs".into(),
+            },
+            agents: BTreeMap::new(),
+            harnesses: BTreeMap::new(),
+            benchmarks: BTreeMap::new(),
+            workloads: BTreeMap::new(),
+            support_tools: BTreeMap::new(),
+            selections: ProjectSelectionsV1::default(),
+            catalogs: BTreeMap::new(),
+        }
+    }
+
+    /// Validate bounds, references, portable paths, and secret-free values.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != PROJECT_CONFIG_SCHEMA_VERSION {
+            return Err(ConfigError::UnsupportedVersion(self.schema_version));
+        }
+        validate_relative_path(&self.roots.project, "project root")?;
+        validate_relative_path(&self.roots.results, "results root")?;
+        validate_relative_path(&self.roots.catalogs, "catalog root")?;
+        validate_inventory(&self.agents, ProjectToolKind::Agent)?;
+        validate_inventory(&self.harnesses, ProjectToolKind::Harness)?;
+        validate_inventory(&self.benchmarks, ProjectToolKind::Benchmark)?;
+        validate_inventory(&self.workloads, ProjectToolKind::Workload)?;
+        validate_inventory(&self.support_tools, ProjectToolKind::SupportTool)?;
+        validate_selection(self.selections.agent.as_ref(), &self.agents, "agent")?;
+        validate_selection(self.selections.harness.as_ref(), &self.harnesses, "harness")?;
+        validate_selection(
+            self.selections.benchmark.as_ref(),
+            &self.benchmarks,
+            "benchmark",
+        )?;
+        validate_selection(
+            self.selections.workload.as_ref(),
+            &self.workloads,
+            "workload",
+        )?;
+        validate_list(&self.selections.support_tools, "support_tools")?;
+        for name in &self.selections.support_tools {
+            if !self.support_tools.contains_key(name) {
+                return Err(ConfigError::UnknownReference(name.clone()));
+            }
+        }
+        if self.catalogs.len() > 128 {
+            return Err(ConfigError::TooLarge("catalogs"));
+        }
+        for (name, catalog) in &self.catalogs {
+            validate_name(name, "catalog name")?;
+            validate_name(&catalog.id, "catalog id")?;
+            validate_text(&catalog.schema, "catalog schema")?;
+            validate_source_ref(&catalog.source_ref, "catalog source")?;
+            validate_sha256(&catalog.digest_sha256, "catalog digest")?;
+            validate_timestamp(&catalog.generated_at)?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_inventory(
+    inventory: &BTreeMap<String, ProjectToolRecordV1>,
+    expected: ProjectToolKind,
+) -> Result<(), ConfigError> {
+    if inventory.len() > 256 {
+        return Err(ConfigError::TooLarge("tool inventory"));
+    }
+    for (name, record) in inventory {
+        validate_name(name, "tool name")?;
+        if record.kind != expected {
+            return Err(ConfigError::InvalidValue(
+                "tool kind does not match inventory".into(),
+            ));
+        }
+        validate_source_ref(&record.source_ref, "tool source")?;
+        validate_text(&record.version, "tool version")?;
+        validate_name(&record.platform, "tool platform")?;
+        if let Some(path) = &record.path {
+            validate_relative_path(path, "tool path")?;
+        }
+        if let Some(digest) = &record.digest_sha256 {
+            validate_sha256(digest, "tool digest")?;
+        }
+        validate_list(&record.capabilities, "tool capabilities")?;
+    }
+    Ok(())
+}
+
+fn validate_selection(
+    selection: Option<&String>,
+    inventory: &BTreeMap<String, ProjectToolRecordV1>,
+    field: &'static str,
+) -> Result<(), ConfigError> {
+    if let Some(name) = selection {
+        validate_name(name, field)?;
+        if !inventory.contains_key(name) {
+            return Err(ConfigError::UnknownReference(name.clone()));
+        }
+    }
+    Ok(())
+}
+
+fn validate_source_ref(value: &str, field: &'static str) -> Result<(), ConfigError> {
+    validate_text(value, field)?;
+    if value.contains("://") && !value.starts_with("https://")
+        || value.contains('@')
+        || value.contains("token=")
+        || value.contains("key=")
+        || value.contains("secret=")
+        || value.contains("password=")
+    {
+        return Err(ConfigError::InvalidValue(field.into()));
+    }
+    Ok(())
+}
+
+fn validate_relative_path(value: &str, field: &'static str) -> Result<(), ConfigError> {
+    validate_text(value, field)?;
+    let path = Path::new(value);
+    if path.is_absolute()
+        || value == "~"
+        || value.starts_with("~/")
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err(ConfigError::InvalidValue(field.into()));
+    }
+    Ok(())
+}
+
+fn validate_timestamp(value: &str) -> Result<(), ConfigError> {
+    validate_text(value, "catalog generated_at")?;
+    if value.len() < 20 || !value.ends_with('Z') || !value.contains('T') {
+        return Err(ConfigError::InvalidValue("catalog generated_at".into()));
+    }
+    Ok(())
+}
+
 /// Bounded, credential-free provider/model discovery record.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -1143,6 +1425,18 @@ pub fn decode(bytes: &[u8]) -> Result<Configuration, ConfigError> {
     }
     let config: Configuration =
         serde_json::from_value(value).map_err(|error| ConfigError::Corrupt(error.to_string()))?;
+    config.validate()?;
+    Ok(config)
+}
+
+/// Decode and validate the separate project/tool contract without accepting
+/// legacy configuration fields or unknown secret-bearing members.
+pub fn decode_project_config(bytes: &[u8]) -> Result<ProjectConfigV1, ConfigError> {
+    if bytes.len() > MAX_CONFIG_BYTES {
+        return Err(ConfigError::TooLarge("project configuration"));
+    }
+    let config: ProjectConfigV1 =
+        serde_json::from_slice(bytes).map_err(|error| ConfigError::Corrupt(error.to_string()))?;
     config.validate()?;
     Ok(config)
 }
@@ -1987,5 +2281,71 @@ mod tests {
             OpenRouterFreeModelConfig::enroll("bad".into(), "2026-9-2".into(), "a".repeat(64), 1)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn project_config_accepts_portable_inventory_and_selection() {
+        let record = ProjectToolRecordV1 {
+            kind: ProjectToolKind::SupportTool,
+            source_ref: "https://example.invalid/tool.tar.gz".into(),
+            version: "1.0.0".into(),
+            platform: "linux-x86_64".into(),
+            path: Some("tools/bin/tool".into()),
+            digest_sha256: Some("a".repeat(64)),
+            capabilities: vec!["catalog_generation".into()],
+            status: ProjectToolStatus::Available,
+        };
+        let mut config = ProjectConfigV1::empty();
+        config.support_tools.insert("tool".into(), record);
+        config.selections.support_tools.push("tool".into());
+        assert!(config.validate().is_ok());
+        let encoded = serde_json::to_vec(&config).unwrap();
+        assert_eq!(decode_project_config(&encoded).unwrap(), config);
+    }
+
+    #[test]
+    fn project_config_rejects_unknown_secret_path_and_stale_selection() {
+        let mut config = ProjectConfigV1::empty();
+        config.selections.agent = Some("missing".into());
+        assert!(config.validate().is_err());
+
+        config.selections.agent = None;
+        config.roots.results = "../private".into();
+        assert!(config.validate().is_err());
+
+        config.roots.results = "results".into();
+        let mut secret_source = ProjectConfigV1::empty();
+        secret_source.support_tools.insert(
+            "tool".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::SupportTool,
+                source_ref: "https://user:password@example.invalid/tool".into(),
+                version: "1.0.0".into(),
+                platform: "linux-x86_64".into(),
+                path: None,
+                digest_sha256: None,
+                capabilities: Vec::new(),
+                status: ProjectToolStatus::Available,
+            },
+        );
+        assert!(secret_source.validate().is_err());
+
+        config.catalogs.insert(
+            "models".into(),
+            GeneratedCatalogReferenceV1 {
+                id: "models".into(),
+                schema: "asb.models.v1".into(),
+                source_ref: "https://example.invalid/catalog".into(),
+                digest_sha256: "b".repeat(64),
+                generated_at: "2026-10-09T12:00:00Z".into(),
+            },
+        );
+        let mut value = serde_json::to_value(&config).unwrap();
+        value["api_key"] = Value::String("secret".into());
+        assert!(decode_project_config(&serde_json::to_vec(&value).unwrap()).is_err());
+
+        let mut bad = config;
+        bad.catalogs.get_mut("models").unwrap().generated_at = "yesterday".into();
+        assert!(bad.validate().is_err());
     }
 }
