@@ -8,15 +8,15 @@ the immutable selection identity.
 ## CLI route
 
 ```sh
-asb provider-catalog > catalog.json
+asb --json provider-catalog > catalog.json
 # Optional online refresh: discovers the public zero-price OpenRouter roster.
-asb provider-catalog --refresh > catalog.json
-asb provider-plan --catalog-sha256 CATALOG_SHA256 \
+asb --json provider-catalog --refresh > catalog.json
+asb --json provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai|openrouter \
   --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
 # For a refreshed OpenRouter roster, select the admitted model explicitly:
-asb provider-plan --catalog-sha256 CATALOG_SHA256 \
+asb --json provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openrouter --model MODEL \
   --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
@@ -75,7 +75,7 @@ digest on every command:
 
 ```sh
 asb config openrouter
-asb provider-plan --catalog-sha256 CATALOG_SHA256 --use-config --agent codex > selection.json
+asb --json provider-plan --catalog-sha256 CATALOG_SHA256 --use-config --agent codex > selection.json
 asb plan /absolute/path/EXPERIMENT.toml --use-config
 asb run /absolute/path/EXPERIMENT.toml --use-config
 asb sweep /absolute/path/EXPERIMENT.toml --use-config
@@ -135,8 +135,8 @@ selection, refresh the catalog and generate a new content-pinned plan; do not
 edit a prior selection or maintain a second model registry:
 
 ```sh
-asb provider-catalog > catalog.json
-asb provider-plan --catalog-sha256 "$(jq -r .catalog_sha256 catalog.json)" \
+asb --json provider-catalog > catalog.json
+asb --json provider-plan --catalog-sha256 "$(jq -r .catalog_sha256 catalog.json)" \
   --provider-profile openrouter \
   --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
@@ -183,7 +183,7 @@ timings, and token counters. Prompts, responses, credentials, headers, and
 private paths are not retained.
 
 ```sh
-cargo run --locked -q -p asb-cli --bin asb -- provider-catalog > /tmp/asb-provider-catalog.json
+cargo run --locked -q -p asb-cli --bin asb -- --json provider-catalog > /tmp/asb-provider-catalog.json
 python3 tools/local_openrouter_measurement.py \
   --catalog /tmp/asb-provider-catalog.json \
   --workload-id original.bug-fix --agent codex --trials 1
