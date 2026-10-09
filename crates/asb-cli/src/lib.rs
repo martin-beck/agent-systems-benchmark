@@ -813,8 +813,20 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
-        [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
-        [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
+        [command] if command == "setup" => setup_with_progress(
+            &[],
+            stdout,
+            stderr,
+            presentation_context.is_some(),
+        )
+        .map(|()| 0),
+        [command, setup_args @ ..] if command == "setup" => setup_with_progress(
+            setup_args,
+            stdout,
+            stderr,
+            presentation_context.is_some(),
+        )
+        .map(|()| 0),
         [command, easy_args @ ..] if command == "easy" => guided_local_with_context(
             easy_args,
             replay_authority.take(),
@@ -822,7 +834,9 @@ fn dispatch(
             stderr,
             presentation_context,
         ),
-        [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
+        [command, tui_args @ ..] if command == "tui" => {
+            tui::dispatch(tui_args, stdout, stderr, presentation_context.is_some())
+        }
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
         {
@@ -850,12 +864,28 @@ fn dispatch(
         }
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
-            configure_openrouter(stdout).map(|()| 0)
+            configure_openrouter_with_progress(
+                stdout,
+                presentation_context.is_some().then_some(stderr),
+            )
+            .map(|()| 0)
         }
         [command, subcommand, init_args @ ..] if command == "project" && subcommand == "init" => {
-            project_init(init_args, stdout).map(|()| 0)
+            project_init_with_progress(
+                init_args,
+                stdout,
+                stderr,
+                presentation_context.is_some(),
+            )
+            .map(|()| 0)
         }
-        [command, tool_args @ ..] if command == "tool" => tool(tool_args, stdout).map(|()| 0),
+        [command, tool_args @ ..] if command == "tool" => tool_with_progress(
+            tool_args,
+            stdout,
+            stderr,
+            presentation_context.is_some(),
+        )
+        .map(|()| 0),
         [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout, stdin),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
@@ -877,7 +907,14 @@ fn dispatch(
             .map(|()| 0)
         }
         [command, subcommand, create_args @ ..] if command == "plan" && subcommand == "create" => {
-            create_plan(create_args, stdout, stderr, stdin).map(|()| 0)
+            create_plan_with_progress(
+                create_args,
+                stdout,
+                stderr,
+                stdin,
+                presentation_context.is_some(),
+            )
+            .map(|()| 0)
         }
         [command, _path, flag] if command == "run" && flag == "--local-mock" => {
             if presentation_context.is_some() {
@@ -1047,27 +1084,58 @@ fn dispatch(
             report(runs, stdout).map(|()| 0)
         }
         [command, input, output] if command == "record" => {
-            record(Path::new(input), Path::new(output), stdout).map(|()| 0)
+            record_with_progress(
+                Path::new(input),
+                Path::new(output),
+                stdout,
+                presentation_context.is_some().then_some(stderr),
+            )
+            .map(|()| 0)
         }
         [command, input, output, flag] if command == "record-live" && flag == "--local-mock" => {
-            record_live(Path::new(input), Path::new(output), false, stdout).map(|()| 0)
+            record_live_with_progress(
+                Path::new(input),
+                Path::new(output),
+                false,
+                stdout,
+                presentation_context.is_some().then_some(stderr),
+            )
+            .map(|()| 0)
         }
         [command, input, output, local, confirm]
             if command == "record-live"
                 && local == "--local-mock"
                 && confirm == "--confirm-record" =>
         {
-            record_live(Path::new(input), Path::new(output), true, stdout).map(|()| 0)
+            record_live_with_progress(
+                Path::new(input),
+                Path::new(output),
+                true,
+                stdout,
+                presentation_context.is_some().then_some(stderr),
+            )
+            .map(|()| 0)
         }
         [command, input, output, online, confirm]
             if command == "record-live"
                 && online == "--openrouter"
                 && confirm == "--confirm-record" =>
         {
-            record_openrouter_live(Path::new(input), Path::new(output), stdout).map(|()| 0)
+            record_openrouter_live_with_progress(
+                Path::new(input),
+                Path::new(output),
+                stdout,
+                presentation_context.is_some().then_some(stderr),
+            )
+            .map(|()| 0)
         }
         [command, manifest, flag] if command == "record-campaign" && flag == "--local-mock" => {
-            record_campaign(Path::new(manifest), stdout).map(|()| 0)
+            record_campaign_with_progress(
+                Path::new(manifest),
+                stdout,
+                presentation_context.is_some().then_some(stderr),
+            )
+            .map(|()| 0)
         }
         [command, cassette, profile, agent] if command == "replay" => replay(
             Path::new(cassette),
@@ -1105,10 +1173,11 @@ struct OpenRouterLiveCaptureInput {
     estimated_cost_minor: u64,
 }
 
-fn record_openrouter_live(
+fn record_openrouter_live_with_progress(
     input: &Path,
     output: &Path,
     stdout: &mut dyn Write,
+    progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "OpenRouter live capture request")?;
     let request: OpenRouterLiveCaptureInput = serde_json::from_slice(&bytes)
@@ -1139,7 +1208,7 @@ fn record_openrouter_live(
         .map_err(|_| CliError::validation("OpenRouter request body cannot be encoded"))?;
     let response = capture_openrouter_live(&profile, agent, &request_bytes)
         .map_err(openrouter_live_cli_error)?;
-    record_openrouter_live_response(&request, agent, response, output, stdout)
+    record_openrouter_live_response(&request, agent, response, output, stdout, progress)
 }
 
 /// Preserve the typed, actionable contract of the online provider boundary at
@@ -1187,6 +1256,7 @@ fn record_openrouter_live_response(
     response: asb_agents::openrouter::OpenRouterLiveResponse,
     output: &Path,
     stdout: &mut dyn Write,
+    progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     let response_body: Value = serde_json::from_slice(&response.body)
         .map_err(|_| CliError::operation("OpenRouter response was not JSON"))?;
@@ -1277,7 +1347,7 @@ fn record_openrouter_live_response(
         .map_err(|_| CliError::operation("OpenRouter live capture could not be sealed"))?;
     let encoded = serde_json::to_vec(&artifact.cassette)
         .map_err(|_| CliError::operation("OpenRouter live cassette cannot be encoded"))?;
-    write_atomic_private(output, &encoded)?;
+    write_atomic_private(output, &encoded, DirectoryPurpose::Recording, progress)?;
     write_json(stdout, &artifact.metadata)
 }
 
@@ -1316,13 +1386,25 @@ fn guided_local_with_context(
         return write_easy_help(output).map(|()| 0);
     }
     if args[0] == "setup" {
-        return guided_setup(&args[1..], output).map(|()| 0);
+        return guided_setup_with_progress(
+            &args[1..],
+            output,
+            progress,
+            presentation_context.is_some(),
+        )
+        .map(|()| 0);
     }
     if matches!(
         args[0].as_str(),
         "build" | "install" | "update" | "test" | "status" | "rollback" | "remove"
     ) {
-        return guided_lifecycle(&args[0], &args[1..], output);
+        return guided_lifecycle_with_progress(
+            &args[0],
+            &args[1..],
+            output,
+            progress,
+            presentation_context.is_some(),
+        );
     }
     if args[0] == "provider-catalog"
         && (args.len() == 1 || (args.len() == 3 && args[1] == "--format" && args[2] == "json"))
@@ -1345,7 +1427,13 @@ fn guided_local_with_context(
     if args[0] == "record" && args.len() == 4 && args[3] == "--local-mock" {
         let input = guided_path(&args[1], "recording capture")?;
         let destination = guided_path(&args[2], "recording cassette output")?;
-        return record(&input, &destination, output).map(|()| 0);
+        return record_with_progress(
+            &input,
+            &destination,
+            output,
+            presentation_context.is_some().then_some(progress),
+        )
+        .map(|()| 0);
     }
     if args[0] == "record-live" && args.len() == 5 {
         if args[3] != "--local-mock" || args[4] != "--confirm-record" {
@@ -1355,7 +1443,14 @@ fn guided_local_with_context(
         }
         let input = guided_path(&args[1], "recording capture")?;
         let destination = guided_path(&args[2], "recording cassette output")?;
-        return record_live(&input, &destination, true, output).map(|()| 0);
+        return record_live_with_progress(
+            &input,
+            &destination,
+            true,
+            output,
+            presentation_context.is_some().then_some(progress),
+        )
+        .map(|()| 0);
     }
     if args[0] == "replay" && args.len() == 5 && args[4] == "--local-mock" {
         let cassette = guided_path(&args[1], "recording cassette")?;
@@ -1372,7 +1467,12 @@ fn guided_local_with_context(
             ));
         }
         let manifest = guided_path(&args[1], "recording campaign manifest")?;
-        return record_campaign(&manifest, output).map(|()| 0);
+        return record_campaign_with_progress(
+            &manifest,
+            output,
+            presentation_context.is_some().then_some(progress),
+        )
+        .map(|()| 0);
     }
     if args.len() != 4 {
         return Err(CliError::usage(
@@ -1413,7 +1513,12 @@ fn guided_path(value: &str, label: &'static str) -> Result<PathBuf, CliError> {
     Ok(path.to_owned())
 }
 
-fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+fn guided_setup_with_progress(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
     let mut profile = None;
     let mut model = None;
     let mut index = 0;
@@ -1480,7 +1585,7 @@ fn guided_setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
             ));
         }
     }
-    setup(args, output)
+    setup_with_progress(args, output, progress, human)
 }
 
 fn write_easy_help(output: &mut dyn Write) -> Result<(), CliError> {
@@ -1579,11 +1684,14 @@ fn easy_state(root: &Path) -> Result<EasyLifecycleState, CliError> {
 }
 
 fn easy_write_state(root: &Path, state: &EasyLifecycleState) -> Result<(), CliError> {
-    fs::create_dir_all(root)
-        .map_err(|_| CliError::operation("easy lifecycle state unavailable"))?;
     let encoded = serde_json::to_vec(state)
         .map_err(|_| CliError::operation("easy lifecycle state cannot be encoded"))?;
-    write_atomic_private(&root.join("state.json"), &encoded)
+    write_atomic_private(
+        &root.join("state.json"),
+        &encoded,
+        DirectoryPurpose::Lifecycle,
+        None,
+    )
 }
 
 fn easy_lifecycle_output(
@@ -1616,20 +1724,45 @@ fn easy_lifecycle_output(
     )
 }
 
+#[cfg(test)]
 fn guided_lifecycle(
     operation: &str,
     args: &[String],
     output: &mut dyn Write,
 ) -> Result<u8, CliError> {
-    let root = easy_lifecycle_root()?;
-    guided_lifecycle_at(operation, args, output, &root)
+    let mut sink = io::sink();
+    guided_lifecycle_with_progress(operation, args, output, &mut sink, false)
 }
 
+fn guided_lifecycle_with_progress(
+    operation: &str,
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<u8, CliError> {
+    let root = easy_lifecycle_root()?;
+    guided_lifecycle_at_with_progress(operation, args, output, &root, progress, human)
+}
+
+#[cfg(test)]
 fn guided_lifecycle_at(
     operation: &str,
     args: &[String],
     output: &mut dyn Write,
     root: &Path,
+) -> Result<u8, CliError> {
+    let mut sink = io::sink();
+    guided_lifecycle_at_with_progress(operation, args, output, root, &mut sink, false)
+}
+
+fn guided_lifecycle_at_with_progress(
+    operation: &str,
+    args: &[String],
+    output: &mut dyn Write,
+    root: &Path,
+    progress: &mut dyn Write,
+    human: bool,
 ) -> Result<u8, CliError> {
     let (requested_channel, yes, dry_run) = easy_channel(args)?;
     let mut state = easy_state(root)?;
@@ -1655,6 +1788,14 @@ fn guided_lifecycle_at(
         )
         .map(|()| 0);
     }
+    if matches!(operation, "build" | "install" | "update" | "rollback" | "remove") {
+        let _ = prepare_owned_directory(
+            root,
+            0o700,
+            DirectoryPurpose::Lifecycle,
+            human.then_some(&mut *progress),
+        )?;
+    }
     match operation {
         "build" => {
             let bytes = format!("asb-development-mock\nchannel={channel}\nversion=1\n");
@@ -1662,8 +1803,13 @@ fn guided_lifecycle_at(
             let artifact = root
                 .join("artifacts")
                 .join(format!("{channel}-{digest}.mock"));
-            fs::create_dir_all(artifact.parent().expect("artifact parent"))
-                .map_err(|_| CliError::operation("easy build output unavailable"))?;
+            let artifact_parent = artifact.parent().expect("artifact parent");
+            let _ = prepare_owned_directory(
+                artifact_parent,
+                0o700,
+                DirectoryPurpose::Lifecycle,
+                human.then_some(&mut *progress),
+            )?;
             fs::write(&artifact, bytes).map_err(|_| CliError::operation("easy build failed"))?;
             easy_lifecycle_output(
                 output,
@@ -2089,14 +2235,52 @@ struct SetupAuthentication {
 
 /// Emit a side-effect-free setup checklist. Interactive mutation is a later
 /// phase; this contract gives scripts a stable, explicit preflight surface.
+#[cfg(test)]
 fn setup(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
-    setup_with_catalog(args, output, discover_openrouter_model_catalog)
+    let mut sink = io::sink();
+    setup_with_catalog_and_progress(
+        args,
+        output,
+        discover_openrouter_model_catalog,
+        &mut sink,
+        false,
+    )
 }
 
+fn setup_with_progress(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
+    setup_with_catalog_and_progress(
+        args,
+        output,
+        discover_openrouter_model_catalog,
+        progress,
+        human,
+    )
+}
+
+#[cfg(test)]
 fn setup_with_catalog<F>(
     args: &[String],
     output: &mut dyn Write,
     discover_catalog: F,
+) -> Result<(), CliError>
+where
+    F: Fn() -> Result<asb_agents::openrouter::OpenRouterModelCatalog, OpenRouterCatalogError>,
+{
+    let mut sink = io::sink();
+    setup_with_catalog_and_progress(args, output, discover_catalog, &mut sink, false)
+}
+
+fn setup_with_catalog_and_progress<F>(
+    args: &[String],
+    output: &mut dyn Write,
+    discover_catalog: F,
+    progress: &mut dyn Write,
+    human: bool,
 ) -> Result<(), CliError>
 where
     F: Fn() -> Result<asb_agents::openrouter::OpenRouterModelCatalog, OpenRouterCatalogError>,
@@ -2308,6 +2492,11 @@ where
         } else {
             next.openrouter_dynamic_model = None;
         }
+        prepare_output_parent(
+            store.path(),
+            DirectoryPurpose::Configuration,
+            human.then_some(&mut *progress),
+        )?;
         store
             .save(&next)
             .map_err(|_| CliError::operation("setup configuration cannot be persisted"))?;
@@ -2356,7 +2545,12 @@ where
     if let Some(path) = output_path {
         let encoded = serde_json::to_vec(&contract)
             .map_err(|_| CliError::operation("setup configuration cannot be encoded"))?;
-        write_atomic_private(Path::new(&path), &encoded)?;
+        write_atomic_private(
+            Path::new(&path),
+            &encoded,
+            DirectoryPurpose::Configuration,
+            human.then_some(&mut *progress),
+        )?;
     }
     write_json(output, &contract)
 }
@@ -2386,7 +2580,12 @@ struct ReplayWorkflowOutput {
     response_sha256: String,
 }
 
-fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
+fn record_with_progress(
+    input: &Path,
+    output: &Path,
+    stdout: &mut dyn Write,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
     let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "recording capture")?;
     let capture: RecordingCapture = serde_json::from_slice(&bytes)
         .map_err(|_| CliError::validation("recording capture syntax or shape is invalid"))?;
@@ -2401,7 +2600,7 @@ fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), Cli
             "recording cassette exceeds its byte limit",
         ));
     }
-    write_atomic_private(output, &encoded)?;
+    write_atomic_private(output, &encoded, DirectoryPurpose::Recording, progress)?;
     write_json(stdout, &artifact.metadata)
 }
 
@@ -2409,11 +2608,12 @@ fn record(input: &Path, output: &Path, stdout: &mut dyn Write) -> Result<(), Cli
 ///
 /// This qualification path is local/mock only: it has no provider side effect.
 /// The separate confirmation flag prevents accidental durable recording.
-fn record_live(
+fn record_live_with_progress(
     input: &Path,
     output: &Path,
     confirmed: bool,
     stdout: &mut dyn Write,
+    progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     if !confirmed {
         return Err(CliError::validation_with_remediation(
@@ -2421,7 +2621,7 @@ fn record_live(
             ErrorRemediation::RecordConfirmation,
         ));
     }
-    record(input, output, stdout)
+    record_with_progress(input, output, stdout, progress)
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -2455,7 +2655,11 @@ struct RecordingCampaignOutput {
     recordings: Vec<asb_replay::RecordingMetadata>,
 }
 
-fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
+fn record_campaign_with_progress(
+    input: &Path,
+    stdout: &mut dyn Write,
+    mut progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
     let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "recording campaign manifest")?;
     let manifest: RecordingCampaignManifest = serde_json::from_slice(&bytes)
         .map_err(|_| CliError::validation("recording campaign manifest is invalid"))?;
@@ -2570,6 +2774,10 @@ fn record_campaign(input: &Path, stdout: &mut dyn Write) -> Result<(), CliError>
     // and can be mistaken for replay coverage. The typed result below still
     // reports the unavailable campaign for human and JSON callers.
     if complete {
+        for (path, _) in &pending_writes {
+            let notice = progress.as_mut().map(|stream| &mut **stream as &mut dyn Write);
+            prepare_output_parent(path, DirectoryPurpose::Recording, notice)?;
+        }
         publish_recording_campaign(&pending_writes)?;
     }
     let campaign_id = format!(
@@ -2842,7 +3050,13 @@ fn read_bounded_file(path: &Path, maximum: u64) -> Result<Vec<u8>, CliError> {
     Ok(bytes)
 }
 
-fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
+fn write_atomic_private(
+    path: &Path,
+    bytes: &[u8],
+    purpose: DirectoryPurpose,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
+    prepare_output_parent(path, purpose, progress)?;
     if let Ok(metadata) = fs::symlink_metadata(path)
         && metadata.file_type().is_symlink()
     {
@@ -2866,7 +3080,17 @@ fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
     fs::rename(&temporary, path).map_err(|_| {
         let _ = fs::remove_file(&temporary);
         CliError::operation("workflow output cannot be installed")
-    })
+    })?;
+    if fs::symlink_metadata(path)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        let _ = fs::remove_file(path);
+        return Err(CliError::validation(
+            "workflow output destination changed to a symlink",
+        ));
+    }
+    Ok(())
 }
 
 fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliError> {
@@ -3058,15 +3282,25 @@ const PROJECT_INIT_CONFIG: &str = ".asb/project.json";
 /// The configuration is installed last through a create-new hard link from a
 /// synced temporary file.  Thus an interrupted initialization leaves only
 /// recoverable directories, while an existing configuration is never replaced.
-fn project_init(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+fn project_init_with_progress(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
     if args.len() > 1 {
         return Err(CliError::usage("project init accepts at most one PATH"));
     }
     let root = PathBuf::from(args.first().map_or(".", String::as_str));
-    ensure_project_root(&root)?;
+    ensure_project_root_with_progress(&root, human.then_some(progress))?;
 
     let metadata_root = root.join(".asb");
-    ensure_project_directory(&metadata_root, 0o700)?;
+    ensure_project_directory_with_progress(
+        &metadata_root,
+        0o700,
+        DirectoryPurpose::ProjectMetadata,
+        human.then_some(progress),
+    )?;
     let results = root.join("results");
     let catalogs = root.join("catalogs");
     let config_path = metadata_root.join("project.json");
@@ -3103,8 +3337,18 @@ fn project_init(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
         recovered = true;
     }
 
-    ensure_project_directory(&results, 0o755)?;
-    ensure_project_directory(&catalogs, 0o755)?;
+    ensure_project_directory_with_progress(
+        &results,
+        0o755,
+        DirectoryPurpose::Results,
+        human.then_some(progress),
+    )?;
+    ensure_project_directory_with_progress(
+        &catalogs,
+        0o755,
+        DirectoryPurpose::Catalogs,
+        human.then_some(progress),
+    )?;
 
     if !recovered {
         let config = ProjectConfigV1::empty();
@@ -3137,18 +3381,29 @@ fn project_init(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
 ///
 /// Install accepts only a local regular file or a deterministic `fixture://`
 /// source.  It never invokes a shell, package manager, downloader, or tool.
-fn tool(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+fn tool_with_progress(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
     let operation = args
         .first()
         .map(String::as_str)
         .ok_or_else(|| CliError::usage("tool requires install|list|status|remove"))?;
     match operation {
-        "install" => tool_install(&args[1..], output),
+        "install" => tool_install_with_progress(&args[1..], output, progress, human),
         "list" => tool_inventory(&args[1..], output),
         "status" => tool_status(&args[1..], output),
         "remove" => tool_remove(&args[1..], output),
         _ => Err(CliError::usage("tool requires install|list|status|remove")),
     }
+}
+
+#[cfg(test)]
+fn tool(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let mut progress = Vec::new();
+    tool_with_progress(args, output, &mut progress, false)
 }
 
 fn tool_kind(value: &str) -> Result<ProjectToolKind, CliError> {
@@ -3213,7 +3468,16 @@ fn tool_project_path(args: &[String], start: usize) -> Result<PathBuf, CliError>
 }
 
 fn load_tool_project(root: &Path) -> Result<ProjectConfigV1, CliError> {
-    ensure_project_root(root)?;
+    match fs::symlink_metadata(root) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(CliError::validation("ASB project root is not a directory").with_path(root));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err(CliError::validation("ASB project root is missing").with_path(root));
+        }
+        Err(error) => return Err(directory_io_error(error, root)),
+    }
     let config_path = root.join(PROJECT_INIT_CONFIG);
     let bytes = read_bounded_json(
         &config_path,
@@ -3233,7 +3497,12 @@ fn save_tool_project(root: &Path, config: &ProjectConfigV1) -> Result<(), CliErr
         .map_err(|_| CliError::validation("tool registry update is invalid"))?;
     let bytes = serde_json::to_vec_pretty(config)
         .map_err(|_| CliError::operation("tool registry cannot be encoded"))?;
-    write_atomic_private(&root.join(PROJECT_INIT_CONFIG), &bytes)
+    write_atomic_private(
+        &root.join(PROJECT_INIT_CONFIG),
+        &bytes,
+        DirectoryPurpose::ProjectMetadata,
+        None,
+    )
 }
 
 fn parse_tool_project_only(args: &[String]) -> Result<PathBuf, CliError> {
@@ -3320,7 +3589,12 @@ fn platform_label() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
-fn tool_install(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+fn tool_install_with_progress(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), CliError> {
     let (id, options) = args
         .split_first()
         .ok_or_else(|| CliError::usage("tool install requires an ID"))?;
@@ -3428,8 +3702,18 @@ fn tool_install(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
             &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": true}),
         );
     }
-    ensure_project_directory(&root.join(".asb/tools"), 0o700)?;
-    ensure_project_directory(&root.join(format!(".asb/tools/{id}")), 0o700)?;
+    ensure_project_directory_with_progress(
+        &root.join(".asb/tools"),
+        0o700,
+        DirectoryPurpose::Tools,
+        human.then_some(&mut *progress),
+    )?;
+    ensure_project_directory_with_progress(
+        &root.join(format!(".asb/tools/{id}")),
+        0o700,
+        DirectoryPurpose::Tools,
+        human.then_some(&mut *progress),
+    )?;
     let mut created_destination = false;
     match fs::symlink_metadata(&destination) {
         Ok(metadata) => {
@@ -3591,52 +3875,229 @@ fn tool_discovery(args: &[String], output: &mut dyn Write) -> Result<(), CliErro
     write_json(output, &report)
 }
 
-fn ensure_project_root(root: &Path) -> Result<(), CliError> {
-    if root.as_os_str().is_empty() {
-        return Err(CliError::validation("project path cannot be empty"));
-    }
-    reject_path_symlinks(root)?;
-    if let Ok(metadata) = fs::symlink_metadata(root) {
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(CliError::validation(
-                "project path must be a directory and cannot be a symlink",
-            ));
-        }
-        return Ok(());
-    }
-    fs::create_dir_all(root)
-        .map_err(|_| CliError::operation("project directory cannot be created"))?;
-    reject_path_symlinks(root)
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DirectoryPurpose {
+    Project,
+    Configuration,
+    ProjectMetadata,
+    Results,
+    Catalogs,
+    Tools,
+    Lifecycle,
+    PlanOutput,
+    Recording,
+    RunWorkspace,
+    RunResults,
 }
 
-fn reject_path_symlinks(path: &Path) -> Result<(), CliError> {
-    let mut current = PathBuf::new();
-    for component in path.components() {
-        current.push(component.as_os_str());
-        if let Ok(metadata) = fs::symlink_metadata(&current)
-            && metadata.file_type().is_symlink()
-        {
-            return Err(CliError::validation(
-                "project path contains a symlink component",
-            ));
+impl DirectoryPurpose {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Project => "the ASB project workspace",
+            Self::Configuration => "ASB configuration",
+            Self::ProjectMetadata => "ASB project metadata",
+            Self::Results => "benchmark results",
+            Self::Catalogs => "generated catalogs",
+            Self::Tools => "installed project tools",
+            Self::Lifecycle => "ASB easy lifecycle state",
+            Self::PlanOutput => "a generated benchmark plan",
+            Self::Recording => "recording or replay artifacts",
+            Self::RunWorkspace => "the benchmark work workspace",
+            Self::RunResults => "benchmark run results",
         }
     }
+}
+
+#[derive(Debug)]
+struct DirectoryPreparation {
+    path: PathBuf,
+    created: bool,
+}
+
+/// Prepare one command-owned directory without following a symlink or
+/// recursively crossing an unvalidated path boundary.  Missing components are
+/// created one at a time, and only empty directories created by this call are
+/// removed if a later component fails.  Human notices are deliberately passed
+/// separately from command output so JSON stdout remains machine-only.
+fn prepare_owned_directory(
+    path: &Path,
+    mode: u32,
+    purpose: DirectoryPurpose,
+    mut progress: Option<&mut dyn Write>,
+) -> Result<DirectoryPreparation, CliError> {
+    if path.as_os_str().is_empty() {
+        return Err(CliError::validation("directory path cannot be empty").with_path(path));
+    }
+    let mut current = if path.is_absolute() {
+        PathBuf::from("/")
+    } else {
+        std::env::current_dir()
+            .map_err(|_| CliError::operation("directory path cannot be resolved"))?
+    };
+    let mut missing = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::RootDir | Component::CurDir => {}
+            Component::ParentDir => {
+                return Err(
+                    CliError::validation("directory path contains unsafe traversal")
+                        .with_path(path),
+                );
+            }
+            Component::Normal(part) => {
+                current.push(part);
+                if !missing.is_empty() {
+                    missing.push(current.clone());
+                    continue;
+                }
+                match fs::symlink_metadata(&current) {
+                    Ok(metadata) if metadata.file_type().is_symlink() => {
+                        return Err(
+                            CliError::validation("directory destination is unsafe or a symlink")
+                                .with_path(path),
+                        );
+                    }
+                    Ok(metadata) if !metadata.is_dir() => {
+                        return Err(
+                            CliError::validation("directory destination is not a directory")
+                                .with_path(path),
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        missing.push(current.clone());
+                    }
+                    Err(error) => {
+                        return Err(directory_io_error(error, path));
+                    }
+                }
+            }
+            Component::Prefix(_) => {
+                return Err(
+                    CliError::validation("directory path has an unsupported prefix")
+                        .with_path(path),
+                );
+            }
+        }
+    }
+    if missing.is_empty() {
+        return Ok(DirectoryPreparation {
+            path: path.to_owned(),
+            created: false,
+        });
+    }
+    if let Some(stream) = progress.as_deref_mut() {
+        writeln!(
+            stream,
+            "ASB will create directory {} for {}.",
+            display_local_path(path),
+            purpose.label()
+        )
+        .map_err(output_error)?;
+        stream.flush().map_err(output_error)?;
+    }
+    let mut created = Vec::new();
+    for component in &missing {
+        match fs::DirBuilder::new().mode(mode).create(component) {
+            Ok(()) => {
+                if let Err(error) = fs::set_permissions(component, fs::Permissions::from_mode(mode))
+                {
+                    rollback_created_directories(&created);
+                    let _ = fs::remove_dir(component);
+                    return Err(directory_io_error(error, path));
+                }
+                created.push(component.clone());
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                rollback_created_directories(&created);
+                return Err(directory_io_error(error, path));
+            }
+        }
+        match fs::symlink_metadata(component) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                rollback_created_directories(&created);
+                return Err(
+                    CliError::validation("directory destination was replaced by a symlink")
+                        .with_path(path),
+                );
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                rollback_created_directories(&created);
+                return Err(
+                    CliError::validation("directory destination was replaced by a non-directory")
+                        .with_path(path),
+                );
+            }
+            Ok(_) => {}
+            Err(error) => {
+                rollback_created_directories(&created);
+                return Err(directory_io_error(error, path));
+            }
+        }
+    }
+    Ok(DirectoryPreparation {
+        path: path.to_owned(),
+        created: !created.is_empty(),
+    })
+}
+
+fn rollback_created_directories(created: &[PathBuf]) {
+    for path in created.iter().rev() {
+        let _ = fs::remove_dir(path);
+    }
+}
+
+fn directory_io_error(error: io::Error, path: &Path) -> CliError {
+    let message = match error.kind() {
+        io::ErrorKind::PermissionDenied => "directory destination is not accessible",
+        io::ErrorKind::ReadOnlyFilesystem => "directory destination is read-only",
+        _ => "directory destination cannot be created",
+    };
+    CliError::operation(message).with_path(path)
+}
+
+fn display_local_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .chars()
+        .map(|character| if character.is_control() { '?' } else { character })
+        .collect()
+}
+
+fn prepare_output_parent(
+    path: &Path,
+    purpose: DirectoryPurpose,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| CliError::validation("output destination has no parent").with_path(path))?;
+    if parent.as_os_str().is_empty() || parent == Path::new(".") {
+        return Ok(());
+    }
+    let prepared = prepare_owned_directory(parent, 0o700, purpose, progress)?;
+    let _ = (prepared.path, prepared.created);
     Ok(())
 }
 
-fn ensure_project_directory(path: &Path, mode: u32) -> Result<(), CliError> {
-    if let Ok(metadata) = fs::symlink_metadata(path) {
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(CliError::validation(
-                "project layout contains a conflicting file or symlink",
-            ));
-        }
-        return Ok(());
-    }
-    fs::DirBuilder::new()
-        .mode(mode)
-        .create(path)
-        .map_err(|_| CliError::operation("project layout directory cannot be created"))
+fn ensure_project_root_with_progress(
+    root: &Path,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
+    let prepared = prepare_owned_directory(root, 0o700, DirectoryPurpose::Project, progress)?;
+    let _ = (prepared.path, prepared.created);
+    Ok(())
+}
+
+fn ensure_project_directory_with_progress(
+    path: &Path,
+    mode: u32,
+    purpose: DirectoryPurpose,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
+    let prepared = prepare_owned_directory(path, mode, purpose, progress)?;
+    let _ = (prepared.path, prepared.created);
+    Ok(())
 }
 
 fn install_project_config(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
@@ -3978,13 +4439,25 @@ struct ConfigOutput {
 }
 
 /// Persist the credential-free, pinned OpenRouter user configuration.
-fn configure_openrouter(output: &mut dyn Write) -> Result<(), CliError> {
+fn configure_openrouter_with_progress(
+    output: &mut dyn Write,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
-    configure_openrouter_at(&store, output)
+    configure_openrouter_at_with_progress(&store, output, progress)
 }
 
+#[cfg(test)]
 fn configure_openrouter_at(store: &ConfigStore, output: &mut dyn Write) -> Result<(), CliError> {
+    configure_openrouter_at_with_progress(store, output, None)
+}
+
+fn configure_openrouter_at_with_progress(
+    store: &ConfigStore,
+    output: &mut dyn Write,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
     let mut config = store
         .load()
         .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
@@ -4018,6 +4491,7 @@ fn configure_openrouter_at(store: &ConfigStore, output: &mut dyn Write) -> Resul
         generation: selection.enrollment.generation,
     };
     config.openrouter_free_model = Some(selection);
+    prepare_output_parent(store.path(), DirectoryPurpose::Configuration, progress)?;
     store
         .save(&config)
         .map_err(|_| CliError::operation("OpenRouter configuration cannot be persisted"))?;
@@ -4650,11 +5124,12 @@ fn plan_with_context(
 /// plan file. With `--use-config`, it resolves the already-persisted provider
 /// selection locally and binds that identity into the generated plan; it does
 /// not contact a provider or read credential material.
-fn create_plan(
+fn create_plan_with_progress(
     args: &[String],
     output: &mut dyn Write,
     progress: &mut dyn Write,
     mut stdin: Option<&mut dyn Read>,
+    human: bool,
 ) -> Result<(), CliError> {
     let mut workload = None;
     let mut executable = None;
@@ -4867,11 +5342,8 @@ fn create_plan(
     let parent = destination
         .parent()
         .ok_or_else(|| CliError::validation("plan output parent is unavailable"))?;
-    if !parent.is_dir() || fs::canonicalize(parent).ok().as_deref() != Some(parent) {
-        return Err(CliError::validation(
-            "plan output parent is unavailable or unsafe",
-        ));
-    }
+    let mut notice = human.then_some(progress as &mut dyn Write);
+    let _ = prepare_owned_directory(parent, 0o700, DirectoryPurpose::PlanOutput, notice.take())?;
     let text =
         toml::to_string_pretty(&plan).map_err(|_| CliError::operation("plan cannot be encoded"))?;
     OpenOptions::new()
@@ -6373,8 +6845,17 @@ fn execute_inner_from_source_with_owner(
     if sweep && plan.point.sweep_max_concurrency.is_none() {
         return Err(CliError::validation("sweep requires sweep_max_concurrency"));
     }
-    prepare_root(&plan.result_root)?;
-    prepare_root(&plan.work_root)?;
+    let human_directory_notices = presentation_context.is_some();
+    prepare_root_with_progress(
+        &plan.result_root,
+        DirectoryPurpose::RunResults,
+        human_directory_notices.then_some(&mut *progress),
+    )?;
+    prepare_root_with_progress(
+        &plan.work_root,
+        DirectoryPurpose::RunWorkspace,
+        human_directory_notices.then_some(&mut *progress),
+    )?;
     let store = Arc::new(
         AtomicStore::open(&plan.result_root, StoreLimits::default())
             .map_err(|_| CliError::operation("result store cannot be opened"))?,
@@ -7506,13 +7987,16 @@ fn append_state(
 }
 
 fn prepare_root(path: &Path) -> Result<(), CliError> {
-    if path.exists() {
-        return Ok(());
-    }
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(path)
-        .map_err(|_| CliError::operation("run root cannot be created"))
+    prepare_root_with_progress(path, DirectoryPurpose::RunResults, None)
+}
+
+fn prepare_root_with_progress(
+    path: &Path,
+    purpose: DirectoryPurpose,
+    progress: Option<&mut dyn Write>,
+) -> Result<(), CliError> {
+    let _ = prepare_owned_directory(path, 0o700, purpose, progress)?;
+    Ok(())
 }
 
 fn termination_name(value: Termination) -> &'static str {
@@ -8511,7 +8995,7 @@ struct ErrorEnvelope {
     error: CliError,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct CliError {
     code: &'static str,
     message: &'static str,
@@ -8524,6 +9008,10 @@ struct CliError {
     remediation: ErrorRemediation,
     #[serde(skip)]
     diagnostic: diagnostic::Diagnostic,
+    /// Local-only destination context for a human diagnostic.  This is never
+    /// serialized into the machine envelope or retained in durable evidence.
+    #[serde(skip)]
+    path: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -8556,6 +9044,7 @@ impl CliError {
                 message,
                 diagnostic::Severity::Error,
             ),
+            path: None,
         }
     }
 
@@ -8572,6 +9061,7 @@ impl CliError {
                 message,
                 diagnostic::Severity::Error,
             ),
+            path: None,
         }
     }
 
@@ -8588,6 +9078,7 @@ impl CliError {
                 message,
                 diagnostic::Severity::Error,
             ),
+            path: None,
         }
     }
 
@@ -8604,6 +9095,7 @@ impl CliError {
                 message,
                 diagnostic::Severity::Error,
             ),
+            path: None,
         }
     }
 
@@ -8620,6 +9112,7 @@ impl CliError {
                 message,
                 diagnostic::Severity::Failure,
             ),
+            path: None,
         }
     }
 
@@ -8636,6 +9129,7 @@ impl CliError {
                 message,
                 diagnostic::Severity::Error,
             ),
+            path: None,
         }
     }
 
@@ -8668,7 +9162,13 @@ impl CliError {
                 message,
                 diagnostic::Severity::Failure,
             ),
+            path: None,
         }
+    }
+
+    fn with_path(mut self, path: &Path) -> Self {
+        self.path = Some(path.to_owned());
+        self
     }
 }
 
@@ -8948,6 +9448,90 @@ mod tests {
             run_with_default_mode(&args, &mut output, &mut Vec::new(), false),
             0
         );
+    }
+
+    #[test]
+    fn owned_directory_preparation_creates_once_and_notices_on_stderr() {
+        let scratch = Scratch::new("owned-directory-preparation");
+        let destination = scratch.0.join("results").join("nested");
+        let mut progress = Vec::new();
+        let prepared = super::prepare_owned_directory(
+            &destination,
+            0o700,
+            super::DirectoryPurpose::RunResults,
+            Some(&mut progress),
+        )
+        .expect("missing command-owned directories are created");
+        assert!(prepared.created);
+        assert_eq!(prepared.path, destination);
+        assert!(prepared.path.is_dir());
+        assert_eq!(
+            fs::metadata(&prepared.path).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        let notice = String::from_utf8(progress).unwrap();
+        assert_eq!(
+            notice,
+            format!(
+                "ASB will create directory {} for benchmark run results.\n",
+                display_local_path(&prepared.path)
+            )
+        );
+
+        let mut reused_progress = Vec::new();
+        let reused = super::prepare_owned_directory(
+            &prepared.path,
+            0o700,
+            super::DirectoryPurpose::RunResults,
+            Some(&mut reused_progress),
+        )
+        .expect("existing command-owned directories are reused");
+        assert!(!reused.created);
+        assert!(reused_progress.is_empty());
+    }
+
+    #[test]
+    fn owned_directory_preparation_rejects_traversal_and_files_without_mutation() {
+        let scratch = Scratch::new("owned-directory-preparation-negative");
+        let traversal = scratch.0.join("safe").join("..").join("escape");
+        let traversal_error = super::prepare_owned_directory(
+            &traversal,
+            0o700,
+            super::DirectoryPurpose::Results,
+            None,
+        )
+        .expect_err("parent traversal must fail closed");
+        assert_eq!(traversal_error.path.as_deref(), Some(traversal.as_path()));
+        assert!(!scratch.0.join("safe").exists());
+
+        let file = scratch.0.join("not-a-directory");
+        fs::write(&file, b"fixture").unwrap();
+        let file_error = super::prepare_owned_directory(
+            &file,
+            0o700,
+            super::DirectoryPurpose::Results,
+            None,
+        )
+        .expect_err("a regular file cannot become an output directory");
+        assert_eq!(file_error.path.as_deref(), Some(file.as_path()));
+        let encoded = serde_json::to_string(&file_error).unwrap();
+        assert!(!encoded.contains(file.to_string_lossy().as_ref()));
+
+        #[cfg(unix)]
+        {
+            let target = scratch.0.join("target");
+            fs::create_dir(&target).unwrap();
+            let link = scratch.0.join("link");
+            std::os::unix::fs::symlink(&target, &link).unwrap();
+            let symlink_error = super::prepare_owned_directory(
+                &link,
+                0o700,
+                super::DirectoryPurpose::Results,
+                None,
+            )
+            .expect_err("a symlink cannot become an output directory");
+            assert_eq!(symlink_error.path.as_deref(), Some(link.as_path()));
+        }
     }
 
     #[test]
@@ -13396,6 +13980,7 @@ mod tests {
             response,
             &cassette_path,
             &mut metadata_output,
+            None,
         )
         .expect("fake live response should seal");
         let cassette_bytes = fs::read(&cassette_path).expect("cassette");

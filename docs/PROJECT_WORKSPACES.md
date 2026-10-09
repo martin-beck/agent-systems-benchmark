@@ -17,6 +17,14 @@ results/             # Bounded benchmark results and run evidence
 catalogs/            # Generated agent/tool/workload catalogs
 ```
 
+ASB prepares missing command-owned output directories automatically, one
+validated component at a time. In human mode it announces each creation on
+stderr, for example `ASB will create directory ... for benchmark results.`;
+stdout remains reserved for the command result, including unchanged JSON
+schemas. Input directories are never created implicitly: a missing or unsafe
+project supplied as `--project` fails closed and tells the user to run
+`asb project init` first. Dry-run commands do not create directories.
+
 Initialization is safe to repeat. A valid existing `.asb/project.json` is
 validated and preserved; missing layout directories are recreated. A partial
 initialization can therefore be recovered by rerunning the same command. An

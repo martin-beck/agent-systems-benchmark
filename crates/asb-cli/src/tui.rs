@@ -725,7 +725,12 @@ impl Source for CurlSource {
     }
 }
 
-pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, CliError> {
+pub(crate) fn dispatch(
+    args: &[String],
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<u8, CliError> {
     let (operation, options) = parse(args)?;
     if operation == Operation::Help {
         writeln!(
@@ -752,7 +757,15 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
         } else {
             existing_channel(options, &paths).unwrap_or(options.channel)
         };
-        execute(operation, options, &paths, &mut source, system_now_unix()?)
+        execute(
+            operation,
+            options,
+            &paths,
+            &mut source,
+            system_now_unix()?,
+            progress,
+            human,
+        )
     }) {
         Ok(response) => response,
         Err(error) => {
@@ -902,11 +915,18 @@ fn execute(
     paths: &RouterPaths,
     source: &mut impl Source,
     now: u64,
+    progress: &mut dyn Write,
+    human: bool,
 ) -> Result<RouterResponse, RouterError> {
     match operation {
         Operation::Install | Operation::Upgrade => {
             if options.channel == Channel::Dev {
-                prepare_private_directory(&paths.state_root)?;
+                prepare_private_directory_with_notice(
+                    &paths.state_root,
+                    "ASB TUI lifecycle state",
+                    progress,
+                    human,
+                )?;
                 let lock = open_lock(&paths.state_root.join("router.lock"))?;
                 lock.try_lock()
                     .map_err(|_| RouterError::operation("lifecycle_busy"))?;
@@ -915,6 +935,18 @@ fn execute(
             if options.channel != Channel::Stable {
                 return Err(RouterError::policy("channel_unavailable"));
             }
+            prepare_private_directory_with_notice(
+                &paths.cache_root,
+                "ASB TUI release cache",
+                progress,
+                human,
+            )?;
+            prepare_private_directory_with_notice(
+                &paths.state_root,
+                "ASB TUI lifecycle state",
+                progress,
+                human,
+            )?;
             install_or_upgrade(operation, options, paths, source, now)
         }
         Operation::Preflight => preflight_development(),
@@ -928,7 +960,12 @@ fn execute(
                     // Keep an absent default-dev installation read-only; a
                     // no-op remove must not create XDG state directories.
                     if development_active(paths)?.is_some() {
-                        prepare_private_directory(&paths.state_root)?;
+                        prepare_private_directory_with_notice(
+                            &paths.state_root,
+                            "ASB TUI lifecycle state",
+                            progress,
+                            human,
+                        )?;
                         let lock = open_lock(&paths.state_root.join("router.lock"))?;
                         lock.try_lock()
                             .map_err(|_| RouterError::operation("lifecycle_busy"))?;
@@ -3970,6 +4007,32 @@ fn prepare_private_directory(path: &Path) -> Result<(), RouterError> {
     open_private_directory(path, true).map(|_| ())
 }
 
+fn prepare_private_directory_with_notice(
+    path: &Path,
+    purpose: &str,
+    progress: &mut dyn Write,
+    human: bool,
+) -> Result<(), RouterError> {
+    let missing = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.file_type().is_symlink() || !metadata.is_dir(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+        Err(_) => false,
+    };
+    if human && missing {
+        writeln!(
+            progress,
+            "ASB will create directory {} for {}.",
+            path.display(),
+            purpose
+        )
+        .map_err(|_| RouterError::operation("output_unavailable"))?;
+        progress
+            .flush()
+            .map_err(|_| RouterError::operation("output_unavailable"))?;
+    }
+    prepare_private_directory(path)
+}
+
 fn validate_private_directory(path: &Path) -> Result<(), RouterError> {
     open_private_directory(path, false)
         .map(|_| ())
@@ -5028,6 +5091,36 @@ mod tests {
         let failure = RouterError::operation("candidate_execution_failed");
         assert_eq!(failure.classification(), "product_failure");
         assert_eq!(failure.remediation(), None);
+    }
+
+    #[test]
+    fn tui_directory_preparation_notices_only_missing_human_destinations() {
+        let scratch = Scratch::new("tui-directory-notice");
+        let destination = scratch.0.join("state");
+        let mut progress = Vec::new();
+        prepare_private_directory_with_notice(
+            &destination,
+            "ASB TUI lifecycle state",
+            &mut progress,
+            true,
+        )
+        .expect("TUI state directory");
+        assert_eq!(
+            String::from_utf8(progress).unwrap(),
+            format!(
+                "ASB will create directory {} for ASB TUI lifecycle state.\n",
+                destination.display()
+            )
+        );
+        let mut reused_progress = Vec::new();
+        prepare_private_directory_with_notice(
+            &destination,
+            "ASB TUI lifecycle state",
+            &mut reused_progress,
+            true,
+        )
+        .expect("existing TUI state directory");
+        assert!(reused_progress.is_empty());
     }
     use asb_control::{
         BROKER_PACKET_BYTES, BrokerPacket, CONTROL_DYNAMIC_PROVIDER_CATALOG_V1, CONTROL_FANOUT_V1,
@@ -9002,7 +9095,16 @@ mod tests {
                 channel_explicit: true,
                 ..Options::default()
             };
-            let error = execute(Operation::Install, options, &paths, &mut source, 1).unwrap_err();
+            let error = execute(
+                Operation::Install,
+                options,
+                &paths,
+                &mut source,
+                1,
+                &mut Vec::new(),
+                false,
+            )
+            .unwrap_err();
             assert_eq!(error.code, "channel_unavailable");
         }
         let options = Options {
@@ -9010,7 +9112,16 @@ mod tests {
             channel_explicit: true,
             ..Options::default()
         };
-        let error = execute(Operation::Status, options, &paths, &mut source, 1).unwrap_err();
+        let error = execute(
+            Operation::Status,
+            options,
+            &paths,
+            &mut source,
+            1,
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap_err();
         assert_eq!(error.code, "channel_unavailable");
     }
 
