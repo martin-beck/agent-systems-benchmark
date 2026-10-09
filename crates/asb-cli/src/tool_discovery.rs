@@ -306,10 +306,12 @@ fn inspect_record(name: &str, record: &ProjectToolRecordV1, root: &Path) -> Disc
         record.kind,
         &record.capabilities,
         &root.join(relative),
-        DiscoverySource::Configured,
-        root,
-        true,
-        Some(record.version.clone()),
+        CandidateContext {
+            source: DiscoverySource::Configured,
+            root,
+            project_local: true,
+            configured_version: Some(record.version.clone()),
+        },
     );
     if record.status == ProjectToolStatus::Stale && item.status == ProjectToolStatus::Missing {
         item.status = ProjectToolStatus::Stale;
@@ -330,11 +332,20 @@ fn inspect_candidate(
         known.kind,
         known.capabilities,
         path,
-        source,
-        root,
-        project_local,
-        None,
+        CandidateContext {
+            source,
+            root,
+            project_local,
+            configured_version: None,
+        },
     )
+}
+
+struct CandidateContext<'a> {
+    source: DiscoverySource,
+    root: &'a Path,
+    project_local: bool,
+    configured_version: Option<String>,
 }
 
 fn inspect_candidate_with<T: ToString>(
@@ -342,10 +353,7 @@ fn inspect_candidate_with<T: ToString>(
     kind: ProjectToolKind,
     capabilities: &[T],
     path: &Path,
-    source: DiscoverySource,
-    root: &Path,
-    project_local: bool,
-    configured_version: Option<String>,
+    context: CandidateContext<'_>,
 ) -> DiscoveredTool {
     let capabilities = capabilities
         .iter()
@@ -353,24 +361,31 @@ fn inspect_candidate_with<T: ToString>(
         .collect::<Vec<_>>();
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
-        Err(_) => return unavailable(name, kind, source, capabilities, "missing"),
+        Err(_) => return unavailable(name, kind, context.source, capabilities, "missing"),
     };
     let canonical = match fs::canonicalize(path) {
         Ok(canonical) => canonical,
-        Err(_) => return unavailable(name, kind, source, capabilities, "unsafe_path"),
+        Err(_) => return unavailable(name, kind, context.source, capabilities, "unsafe_path"),
     };
     if !metadata.is_file() && !metadata.file_type().is_symlink() {
         return unavailable_with_path(
             name,
             kind,
-            source,
+            context.source,
             capabilities,
             &canonical,
             "not_regular_file",
         );
     }
-    if project_local && !canonical.starts_with(root) {
-        return unavailable_with_path(name, kind, source, capabilities, &canonical, "unsafe_path");
+    if context.project_local && !canonical.starts_with(context.root) {
+        return unavailable_with_path(
+            name,
+            kind,
+            context.source,
+            capabilities,
+            &canonical,
+            "unsafe_path",
+        );
     }
     if canonical
         .metadata()
@@ -380,13 +395,15 @@ fn inspect_candidate_with<T: ToString>(
         return unavailable_with_path(
             name,
             kind,
-            source,
+            context.source,
             capabilities,
             &canonical,
             "not_executable",
         );
     }
-    let version = configured_version.or_else(|| probe_version(&canonical));
+    let version = context
+        .configured_version
+        .or_else(|| probe_version(&canonical));
     let reason = if version.is_none() {
         Some("version_probe_unavailable".into())
     } else {
@@ -396,7 +413,7 @@ fn inspect_candidate_with<T: ToString>(
         identity: tool_identity(name, kind),
         name: name.into(),
         kind,
-        source,
+        source: context.source,
         selected: true,
         canonical_path: Some(canonical.display().to_string()),
         version,
