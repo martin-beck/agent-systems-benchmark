@@ -11,6 +11,7 @@ pub mod all_agents_provider;
 pub mod auth;
 pub mod auth_backend;
 pub mod authenticated_request;
+pub mod cli2key;
 pub mod codex;
 pub mod credential;
 pub mod development_fixture;
