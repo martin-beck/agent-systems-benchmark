@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Bounded adapter for the Codex structured command-line interface.
 
+use crate::cli2key::Cli2KeyLaunch;
 use asb_protocol::{
     Capability, Event, ExtensionEvent, ExtensionKind, ExtensionManifest, Id, PROTOCOL_V1, RpcError,
     TerminalStatus, Usage,
@@ -65,8 +66,15 @@ pub struct CodexConfig {
     endpoint: Url,
     model: String,
     artifact: CodexArtifact,
+    cli2key: Option<Cli2KeyBinding>,
     #[cfg(test)]
     verification_digest_override: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct Cli2KeyBinding {
+    credential_reference_sha256: String,
+    generation: String,
 }
 
 /// Configuration or production-boundary failure.
@@ -94,6 +102,8 @@ pub enum AdapterError {
     TruncatedOutput,
     /// Codex emitted malformed, inconsistent, or unsupported structured output.
     InvalidEvent,
+    /// The cli2key launch binding was malformed or stale.
+    InvalidCli2KeyLaunch,
 }
 
 impl fmt::Display for AdapterError {
@@ -110,6 +120,9 @@ impl fmt::Display for AdapterError {
             Self::Process(error) => write!(formatter, "Codex process failed: {error}"),
             Self::TruncatedOutput => formatter.write_str("Codex structured output was truncated"),
             Self::InvalidEvent => formatter.write_str("invalid Codex structured event"),
+            Self::InvalidCli2KeyLaunch => {
+                formatter.write_str("invalid cli2key Codex launch binding")
+            }
         }
     }
 }
@@ -181,9 +194,36 @@ impl CodexConfig {
             endpoint,
             model,
             artifact,
+            cli2key: None,
             #[cfg(test)]
             verification_digest_override: None,
         })
+    }
+
+    /// Bind this adapter to one validated development-only cli2key launch.
+    /// The credential remains an opaque reference and is projected only into
+    /// the final child environment; key material is never accepted here.
+    pub fn with_cli2key_launch(
+        mut self,
+        launch: Cli2KeyLaunch,
+        catalog: &crate::cli2key::Cli2KeyCatalog,
+        expected_generation: &str,
+    ) -> Result<Self, AdapterError> {
+        if launch.validate_against(catalog).is_err() || launch.generation != expected_generation {
+            return Err(AdapterError::InvalidCli2KeyLaunch);
+        }
+        let endpoint = Url::parse(&format!(
+            "http://{}:{}",
+            launch.endpoint_host, launch.endpoint_port
+        ))
+        .map_err(|_| AdapterError::InvalidCli2KeyLaunch)?;
+        self.endpoint = endpoint;
+        self.model = launch.selection.model_id.clone();
+        self.cli2key = Some(Cli2KeyBinding {
+            credential_reference_sha256: launch.selection.credential_reference_sha256,
+            generation: launch.generation,
+        });
+        Ok(self)
     }
 
     /// Produce the explicit capabilities for this exact installation.
@@ -296,6 +336,19 @@ impl CodexConfig {
         limits: ProcessLimits,
     ) -> Result<RunningProcess, AdapterError> {
         let mut command = Command::new(&self.binary);
+        let (credential_env, credential_value) = match &self.cli2key {
+            Some(binding) => (
+                "ASB_CLI2KEY_CREDENTIAL_REFERENCE",
+                format!(
+                    "{}:{}",
+                    binding.generation, binding.credential_reference_sha256
+                ),
+            ),
+            None => (
+                "ASB_CODEX_PROVIDER_KEY",
+                "asb-credential-free-fixture".to_owned(),
+            ),
+        };
         command
             .args([
                 "exec",
@@ -321,10 +374,10 @@ impl CodexConfig {
                 "model_providers.asb_fixture.base_url={:?}",
                 self.endpoint.as_str()
             ))
-            .args([
-                "-c",
-                "model_providers.asb_fixture.env_key=\"ASB_CODEX_PROVIDER_KEY\"",
-            ])
+            .arg("-c")
+            .arg(format!(
+                "model_providers.asb_fixture.env_key=\"{credential_env}\""
+            ))
             .args(["-c", "model_providers.asb_fixture.wire_api=\"responses\""])
             .args([
                 "-c",
@@ -341,7 +394,7 @@ impl CodexConfig {
             .env("XDG_CONFIG_HOME", run_root.join("config"))
             .env("XDG_DATA_HOME", run_root.join("data"))
             .env("XDG_CACHE_HOME", run_root.join("cache"))
-            .env("ASB_CODEX_PROVIDER_KEY", "asb-credential-free-fixture");
+            .env(credential_env, credential_value);
         RunningProcess::spawn(command, limits).map_err(AdapterError::Process)
     }
 
@@ -1012,6 +1065,91 @@ mod tests {
             CodexArtifact::LinuxX86_64V0_153_4,
         )
         .unwrap()
+    }
+
+    fn cli2key_launch() -> Cli2KeyLaunch {
+        Cli2KeyLaunch {
+            schema_version: 1,
+            selection: crate::cli2key::Cli2KeySelection {
+                schema_version: 1,
+                provider_id: "cli2key".into(),
+                catalog_generation: 9,
+                catalog_sha256: "a".repeat(64),
+                model_id: "codex-local".into(),
+                bridge_revision: "bridge-r1".into(),
+                bridge_tree_sha256: "b".repeat(64),
+                executable_sha256: "c".repeat(64),
+                endpoint_sha256: "d".repeat(64),
+                credential_reference_sha256: "e".repeat(64),
+                agent_id: "codex".into(),
+            },
+            api_mode: "responses".into(),
+            endpoint_host: "127.0.0.1".into(),
+            endpoint_port: 4312,
+            generation: "generation-9".into(),
+        }
+    }
+
+    fn cli2key_catalog() -> crate::cli2key::Cli2KeyCatalog {
+        crate::cli2key::Cli2KeyCatalog {
+            schema_version: 1,
+            provider_id: "cli2key".into(),
+            classification: "development-only-unofficial".into(),
+            catalog_generation: 9,
+            bridge_revision: "bridge-r1".into(),
+            bridge_tree_sha256: "b".repeat(64),
+            executable_sha256: "c".repeat(64),
+            endpoint_sha256: "d".repeat(64),
+            models: vec![crate::cli2key::Cli2KeyModel {
+                model_id: "codex-local".into(),
+                revision: "m1".into(),
+            }],
+        }
+    }
+
+    #[test]
+    fn cli2key_binding_replaces_endpoint_and_model_without_fallback() {
+        let catalog = cli2key_catalog();
+        let mut launch = cli2key_launch();
+        launch.selection.catalog_sha256 = catalog.digest().unwrap();
+        let bound = config("http://127.0.0.1:1/v1")
+            .with_cli2key_launch(launch, &catalog, "generation-9")
+            .unwrap();
+        assert_eq!(bound.endpoint.as_str(), "http://127.0.0.1:4312/");
+        assert_eq!(bound.model, "codex-local");
+        assert!(bound.cli2key.is_some());
+    }
+
+    #[test]
+    fn cli2key_binding_rejects_remote_or_stale_launch_shape() {
+        let catalog = cli2key_catalog();
+        let mut launch = cli2key_launch();
+        launch.selection.catalog_sha256 = catalog.digest().unwrap();
+        launch.endpoint_host = "198.51.100.10".into();
+        assert!(matches!(
+            config("http://127.0.0.1:1/v1").with_cli2key_launch(launch, &catalog, "generation-9"),
+            Err(AdapterError::InvalidCli2KeyLaunch)
+        ));
+    }
+
+    #[test]
+    fn cli2key_binding_rejects_stale_generation_and_wrong_key_reference() {
+        let catalog = cli2key_catalog();
+        let mut launch = cli2key_launch();
+        launch.selection.catalog_sha256 = catalog.digest().unwrap();
+        assert!(matches!(
+            config("http://127.0.0.1:1/v1").with_cli2key_launch(
+                launch.clone(),
+                &catalog,
+                "generation-8"
+            ),
+            Err(AdapterError::InvalidCli2KeyLaunch)
+        ));
+        launch.selection.credential_reference_sha256 = "E".repeat(64);
+        assert!(matches!(
+            config("http://127.0.0.1:1/v1").with_cli2key_launch(launch, &catalog, "generation-9"),
+            Err(AdapterError::InvalidCli2KeyLaunch)
+        ));
     }
     fn completed() -> &'static [u8] {
         br#"{"type":"thread.started","thread_id":"thread-1"}
