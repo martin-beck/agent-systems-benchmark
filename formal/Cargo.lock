@@ -122,6 +122,7 @@ name = "asb-workloads"
 version = "0.1.0"
 dependencies = [
  "asb-protocol",
+ "rustix",
  "schemars",
  "serde",
  "serde_json",

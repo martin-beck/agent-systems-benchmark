@@ -39,7 +39,13 @@ pub(crate) fn prepare_absolute(path: &Path, mode: u32) -> io::Result<OwnedDirect
         ) {
             Ok(fd) => File::from(fd),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let parent = current.try_clone()?;
+                let parent = match current.try_clone() {
+                    Ok(parent) => parent,
+                    Err(error) => {
+                        rollback(&created);
+                        return Err(error);
+                    }
+                };
                 match mkdirat(&current, name, Mode::from(mode)) {
                     Ok(()) => created.push((parent, name.to_owned())),
                     Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
@@ -185,5 +191,22 @@ mod tests {
         assert!(metadata.is_dir());
         assert!(!metadata.file_type().is_symlink());
         fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn file_parent_fails_without_creating_children() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-file-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::write(&root, b"not a directory").expect("file parent");
+        let child = root.join("child");
+        assert!(prepare_absolute(&child, 0o700).is_err());
+        assert!(!child.exists());
+        fs::remove_file(root).expect("cleanup");
     }
 }

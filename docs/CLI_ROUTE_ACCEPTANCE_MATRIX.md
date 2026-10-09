@@ -26,3 +26,11 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 
 The route tests are intentionally offline and use bounded local fixtures. They
 do not claim live-provider, native-kernel, or public-release evidence.
+
+The helper-level negative evidence is `safe_fs::tests::file_parent_fails_without_creating_children`
+for inaccessible/non-directory parents and
+`safe_fs::tests::concurrent_child_creation_reopens_the_winner_without_following_a_link`
+for concurrent reuse. Existing `filesystem_object_boundaries_fail_closed`,
+`destination_material_is_never_overwritten`, and recording rollback tests cover
+permission-shaped, read-only, replacement, and rollback outcomes at the public
+workload boundary.
