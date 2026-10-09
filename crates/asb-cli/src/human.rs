@@ -2559,6 +2559,7 @@ mod tests {
             &["tui", "launch"],
             &["capabilities"],
             &["project", "init", "/tmp/project"],
+            &["tool"],
             &["provider-catalog"],
             &["adapter-catalog"],
             &["workload-catalog"],
