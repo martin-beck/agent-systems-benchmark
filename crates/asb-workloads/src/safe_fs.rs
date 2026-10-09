@@ -298,12 +298,10 @@ mod tests {
         let workspace = prepare_absolute(&workspace_path, 0o700).expect("workspace");
         let nested =
             prepare_child(&workspace.file, OsStr::new("nested"), 0o700).expect("nested directory");
-        let mut directories = Vec::new();
-        directories.push(nested.created.expect("created nested directory"));
-        let mut files = Vec::new();
-        files.push(
+        let directories = vec![nested.created.expect("created nested directory")];
+        let files = vec![
             write_new_tracked(&nested.file, OsStr::new("first"), b"first").expect("created file"),
-        );
+        ];
 
         let later_error = write_new_tracked(&workspace.file, OsStr::new("nested"), b"conflict")
             .expect_err("directory collision must fail");
