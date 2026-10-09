@@ -56,8 +56,8 @@ For a live provider, first bind a catalog and a logical credential reference;
 the reference digest is not a credential value:
 
 ```sh
-asb provider-catalog > catalog.json
-asb provider-plan --catalog-sha256 CATALOG_SHA256 \
+asb --json provider-catalog > catalog.json
+asb --json provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
 asb plan /absolute/path/EXPERIMENT.toml --provider-selection selection.json

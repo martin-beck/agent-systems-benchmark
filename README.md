@@ -107,9 +107,10 @@ asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 codex
 
 `plan` validates without launching. `run` executes one configured capacity point;
 `sweep` executes the bounded range in the plan. `compare` requires at least two
-persisted run directories and `report` requires at least one. Structured results
-and errors are JSON on stdout, progress is on stderr, and invalid usage returns a
-nonzero status. See `asb --help` for the authoritative command list. The complete
+persisted run directories and `report` requires at least one. Clear outcome
+sentences are printed on stdout by default; add `--json` for the complete stable
+machine response or `--details` for bounded human diagnostics. Progress remains
+on stderr, and invalid usage returns a nonzero status. See `asb --help` for the authoritative command list. The complete
 workflow is documented in [the live benchmark workflow](docs/workflows/live-benchmark.md).
 No paid API call or workload download is required by repository tests. The support
 matrix in [Provider-aware launches](docs/PROVIDER_LAUNCH.md) is digest-anchored and

@@ -4,6 +4,7 @@
 
 pub mod capabilities;
 mod control;
+mod human;
 mod provider_launch;
 mod tui;
 pub mod tui_handoff;
@@ -134,25 +135,36 @@ fn run_with_default_mode_and_stdin(
     human_default: bool,
     stdin: Option<&mut dyn Read>,
 ) -> u8 {
-    let (json, normalized) = match parse_output_mode(args) {
+    let (output_mode, normalized) = match parse_output_mode(args) {
         Ok(value) => value,
         Err(error) => {
+            let explicit_json = args
+                .iter()
+                .any(|arg| arg == "--json" || arg == "--format=json" || arg == "--format");
             let envelope = ErrorEnvelope {
                 schema_version: OUTPUT_SCHEMA_VERSION,
                 ok: false,
                 command: command_name(args),
                 error,
             };
-            let _ = write_json(stdout, &envelope);
+            if human_default && !explicit_json {
+                let _ = human::render_error(args, &envelope.error, false, stdout);
+            } else {
+                let _ = write_json(stdout, &envelope);
+            }
             return envelope.error.exit_code;
         }
     };
-    let human = human_default && !json;
+    let human = human_default && !output_mode.json;
+    if human && human::render_start(&normalized, stderr).is_err() {
+        let _ = writeln!(stderr, "ASB could not write output");
+        return 4;
+    }
     let mut captured = Vec::new();
     match dispatch(&normalized, &mut captured, stderr, None, None, stdin) {
         Ok(exit_code) => {
             let result = if human {
-                render_human(&captured, stdout)
+                human::render_success(&normalized, &captured, output_mode.details, stdout)
             } else {
                 stdout.write_all(&captured)
             };
@@ -171,7 +183,9 @@ fn run_with_default_mode_and_stdin(
                 error,
             };
             if human {
-                if render_human_error(&envelope, stdout).is_err() {
+                if human::render_error(&normalized, &envelope.error, output_mode.details, stdout)
+                    .is_err()
+                {
                     let _ = writeln!(stderr, "ASB could not write output");
                     return 4;
                 }
@@ -193,8 +207,15 @@ fn run_with_default_mode(
     run_with_default_mode_and_stdin(args, stdout, stderr, human_default, None)
 }
 
-fn parse_output_mode(args: &[OsString]) -> Result<(bool, Vec<OsString>), CliError> {
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct OutputMode {
+    json: bool,
+    details: bool,
+}
+
+fn parse_output_mode(args: &[OsString]) -> Result<(OutputMode, Vec<OsString>), CliError> {
     let mut json = false;
+    let mut details = false;
     let mut normalized = Vec::with_capacity(args.len());
     let mut index = 0;
     while index < args.len() {
@@ -204,6 +225,14 @@ fn parse_output_mode(args: &[OsString]) -> Result<(bool, Vec<OsString>), CliErro
                 return Err(CliError::usage("--json was supplied more than once"));
             }
             json = true;
+            normalized.push(OsString::from("--json"));
+        } else if arg == "--details" || arg == "--verbose" {
+            if details {
+                return Err(CliError::usage(
+                    "--details or --verbose was supplied more than once",
+                ));
+            }
+            details = true;
         } else if arg == "--format=json"
             || (arg == "--format" && args.get(index + 1).is_some_and(|value| value == "json"))
         {
@@ -217,59 +246,17 @@ fn parse_output_mode(args: &[OsString]) -> Result<(bool, Vec<OsString>), CliErro
         }
         index += 1;
     }
-    Ok((json, normalized))
+    if json && details {
+        return Err(CliError::usage(
+            "--details cannot be combined with machine-readable JSON output",
+        ));
+    }
+    Ok((OutputMode { json, details }, normalized))
 }
 
+#[cfg(test)]
 fn render_human(captured: &[u8], output: &mut dyn Write) -> io::Result<()> {
-    match serde_json::from_slice::<Value>(captured) {
-        Ok(value) => render_human_value(&value, output, 0),
-        Err(_) => output.write_all(captured),
-    }
-}
-
-fn render_human_error(envelope: &ErrorEnvelope, output: &mut dyn Write) -> io::Result<()> {
-    writeln!(output, "{} failed", envelope.command)?;
-    writeln!(output, "error: {}", envelope.error.message)?;
-    writeln!(output, "code: {}", envelope.error.code)
-}
-
-fn render_human_value(value: &Value, output: &mut dyn Write, indent: usize) -> io::Result<()> {
-    match value {
-        Value::Object(map) => {
-            for (key, child) in map {
-                if matches!(child, Value::Object(_) | Value::Array(_)) {
-                    writeln!(output, "{}{}:", " ".repeat(indent), key)?;
-                    render_human_value(child, output, indent + 2)?;
-                } else {
-                    writeln!(
-                        output,
-                        "{}{}: {}",
-                        " ".repeat(indent),
-                        key,
-                        human_scalar(child)
-                    )?;
-                }
-            }
-            Ok(())
-        }
-        Value::Array(items) => {
-            for item in items {
-                writeln!(output, "{}- {}", " ".repeat(indent), human_scalar(item))?;
-            }
-            Ok(())
-        }
-        _ => writeln!(output, "{}{}", " ".repeat(indent), human_scalar(value)),
-    }
-}
-
-fn human_scalar(value: &Value) -> String {
-    match value {
-        Value::String(value) => value.clone(),
-        Value::Null => "-".to_owned(),
-        Value::Bool(value) => value.to_string(),
-        Value::Number(value) => value.to_string(),
-        Value::Object(_) | Value::Array(_) => serde_json::to_string(value).unwrap_or_default(),
-    }
+    human::render_success(&[OsString::from("tui")], captured, false, output)
 }
 
 /// Execute a strict-replay CLI request with runtime-issued launch authority.
@@ -697,6 +684,10 @@ fn dispatch(
         .into_iter()
         .filter(|word| word != "--json")
         .collect::<Vec<_>>();
+    let word_refs = words.iter().map(String::as_str).collect::<Vec<_>>();
+    if human::InvocationKind::classify_words(&word_refs) == human::InvocationKind::Cli {
+        return Err(CliError::usage("unsupported arguments; use asb --help"));
+    }
     match words.as_slice() {
         [command, binary, workspace, state_root, model, timeout_ms]
             if command == "internal-opencode-batch" =>
@@ -730,6 +721,9 @@ fn dispatch(
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "capabilities" && explicit_json => {
+            write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
+        }
+        [command] if command == "capabilities" => {
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "provider-catalog" => provider_catalog(stdout, false).map(|()| 0),
@@ -1812,7 +1806,17 @@ fn auth(
 }
 
 fn command_name(args: &[OsString]) -> &'static str {
-    match args.first().and_then(|value| value.to_str()) {
+    let mut words = args.iter().filter_map(|value| value.to_str());
+    let first = loop {
+        match words.next() {
+            Some("--json" | "--details" | "--verbose" | "--format=json") => {}
+            Some("--format") => {
+                let _ = words.next();
+            }
+            value => break value,
+        }
+    };
+    match first {
         Some("doctor") => "doctor",
         Some("setup") => "setup",
         Some("easy") => "easy",
@@ -1820,6 +1824,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("capabilities") => "capabilities",
         Some("project") => "project",
         Some("provider-catalog") => "provider-catalog",
+        Some("adapter-catalog") => "adapter-catalog",
         Some("workload-catalog") => "workload-catalog",
         Some("config") => "config",
         Some("auth") => "auth",
@@ -1834,6 +1839,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("serve") => "serve",
         Some("record") => "record",
         Some("record-live") => "record-live",
+        Some("record-campaign") => "record-campaign",
         Some("replay") => "replay",
         Some("replay-offline") => "replay-offline",
         _ => "cli",
@@ -1843,7 +1849,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb project init [PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
     )
     .map_err(output_error)?;
     writeln!(
@@ -1851,6 +1857,8 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
         "  asb auth setup --provider openrouter [--api-key-stdin]"
     )
     .map_err(output_error)?;
+    writeln!(output, "  asb capabilities --format json").map_err(output_error)?;
+    writeln!(output, "Commands: {}", human::PUBLIC_COMMANDS.join(", ")).map_err(output_error)?;
     writeln!(output, "  asb auth enroll|status|rotate|revoke ...").map_err(output_error)?;
     writeln!(output, "  asb tui [launch|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]")
         .map_err(output_error)?;
@@ -7740,6 +7748,16 @@ struct CliError {
     exit_code: u8,
     #[serde(skip)]
     settings_issue: asb_control::SettingsIssue,
+    #[serde(skip)]
+    human_class: HumanErrorClass,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HumanErrorClass {
+    UserCorrection,
+    HostLimitation,
+    DependencyUnavailable,
+    ProductFailure,
 }
 
 impl CliError {
@@ -7749,6 +7767,7 @@ impl CliError {
             message,
             exit_code: 2,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
+            human_class: HumanErrorClass::UserCorrection,
         }
     }
 
@@ -7758,6 +7777,7 @@ impl CliError {
             message,
             exit_code: 3,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
+            human_class: HumanErrorClass::UserCorrection,
         }
     }
 
@@ -7770,6 +7790,7 @@ impl CliError {
             message,
             exit_code: 3,
             settings_issue,
+            human_class: HumanErrorClass::UserCorrection,
         }
     }
 
@@ -7779,6 +7800,7 @@ impl CliError {
             message,
             exit_code: 4,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
+            human_class: HumanErrorClass::ProductFailure,
         }
     }
 
@@ -7788,15 +7810,25 @@ impl CliError {
             message,
             exit_code: 3,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
+            human_class: HumanErrorClass::UserCorrection,
         }
     }
 
-    const fn operation_code(code: &'static str, message: &'static str) -> Self {
+    fn operation_code(code: &'static str, message: &'static str) -> Self {
         Self {
             code,
             message,
             exit_code: 4,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
+            human_class: match code {
+                "trusted_tool_unavailable" | "host_capability_unavailable" => {
+                    HumanErrorClass::HostLimitation
+                }
+                "provider_credential_unavailable"
+                | "provider_transport_unavailable"
+                | "provider_catalog_unavailable" => HumanErrorClass::DependencyUnavailable,
+                _ => HumanErrorClass::ProductFailure,
+            },
         }
     }
 }
@@ -7813,6 +7845,98 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
+
+    fn os_args(words: &[&str]) -> Vec<OsString> {
+        words.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn json_selectors_preserve_bytes_exit_and_streams_for_safe_corpus() {
+        let corpus: &[&[&str]] = &[
+            &["doctor"],
+            &["setup"],
+            &["provider-catalog"],
+            &["adapter-catalog"],
+            &["workload-catalog"],
+        ];
+        for command in corpus {
+            let mut baseline_out = Vec::new();
+            let mut baseline_err = Vec::new();
+            let baseline_exit = super::run_with_default_mode(
+                &os_args(command),
+                &mut baseline_out,
+                &mut baseline_err,
+                false,
+            );
+            for prefix in [&["--json"][..], &["--format", "json"][..]] {
+                let flagged = prefix
+                    .iter()
+                    .chain(command.iter())
+                    .copied()
+                    .collect::<Vec<_>>();
+                let mut output = Vec::new();
+                let mut error = Vec::new();
+                let exit =
+                    super::run_with_default_mode(&os_args(&flagged), &mut output, &mut error, true);
+                assert_eq!(exit, baseline_exit, "{flagged:?}");
+                assert_eq!(output, baseline_out, "{flagged:?}");
+                assert_eq!(error, baseline_err, "{flagged:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn raw_text_artifacts_are_byte_identical_in_human_mode() {
+        for command in [
+            &["--help"][..],
+            &["--version"][..],
+            &["completion", "bash"][..],
+            &["easy", "--help"][..],
+            &["tui", "--help"][..],
+        ] {
+            let mut raw = Vec::new();
+            let mut raw_err = Vec::new();
+            let raw_exit =
+                super::run_with_default_mode(&os_args(command), &mut raw, &mut raw_err, false);
+            let mut human = Vec::new();
+            let mut human_err = Vec::new();
+            let human_exit =
+                super::run_with_default_mode(&os_args(command), &mut human, &mut human_err, true);
+            assert_eq!((human_exit, &human, &human_err), (raw_exit, &raw, &raw_err));
+        }
+    }
+
+    #[test]
+    fn output_mode_parse_errors_are_human_unless_json_was_requested() {
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        let exit = super::run_with_default_mode(
+            &os_args(&["doctor", "--details", "--verbose"]),
+            &mut output,
+            &mut error,
+            true,
+        );
+        assert_eq!(exit, 2);
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.starts_with("ASB could not complete the doctor:"));
+        assert!(output.ends_with("Next: asb --help\n"));
+        assert!(error.is_empty());
+
+        let mut json = Vec::new();
+        let mut json_err = Vec::new();
+        let json_exit = super::run_with_default_mode(
+            &os_args(&["doctor", "--json", "--json"]),
+            &mut json,
+            &mut json_err,
+            true,
+        );
+        assert_eq!(json_exit, 2);
+        let value: serde_json::Value = serde_json::from_slice(&json).unwrap();
+        assert_eq!(value["error"]["code"], "usage");
+        assert!(json_err.is_empty());
+    }
+
     #[test]
     fn opaque_run_id_normalizes_posix_and_windows_separators() {
         assert_eq!(
@@ -8304,7 +8428,7 @@ mod tests {
         assert!(
             String::from_utf8(human_output)
                 .unwrap()
-                .contains("command: doctor")
+                .starts_with("ASB found this host")
         );
     }
 
@@ -8441,8 +8565,8 @@ mod tests {
             0
         );
         let human = String::from_utf8(human).unwrap();
-        assert!(human.contains("command: provider-catalog"));
-        assert!(human.contains("openrouter"));
+        assert!(human.starts_with("ASB loaded the provider catalog."));
+        assert!(human.contains("Provider profiles: 4."));
         assert!(!human.starts_with('{'));
 
         let mut json = Vec::new();
@@ -8993,6 +9117,13 @@ mod tests {
         ];
         let mut setup_output = Vec::new();
         setup(&setup_args, &mut setup_output).unwrap();
+        let mut setup_human = Vec::new();
+        let mut setup_invocation = vec![OsString::from("setup")];
+        setup_invocation.extend(setup_args.iter().map(OsString::from));
+        human::render_success(&setup_invocation, &setup_output, false, &mut setup_human).unwrap();
+        let setup_human = String::from_utf8(setup_human).unwrap();
+        assert!(setup_human.starts_with("ASB saved the selected agents"));
+        assert!(setup_human.ends_with("Next: asb provider-plan --use-config\n"));
         let config = ConfigStore::new(&config_path).load().unwrap().unwrap();
         let configured = provider_plan_from_configuration(&config, "opencode").unwrap();
 
@@ -9007,6 +9138,21 @@ mod tests {
 
         let mut planned = Vec::new();
         plan_with_config_at(&plan_path, &mut planned, &ConfigStore::new(&config_path)).unwrap();
+        let mut plan_human = Vec::new();
+        human::render_success(
+            &[
+                "plan".into(),
+                plan_path.as_os_str().to_owned(),
+                "--use-config".into(),
+            ],
+            &planned,
+            false,
+            &mut plan_human,
+        )
+        .unwrap();
+        let plan_human = String::from_utf8(plan_human).unwrap();
+        assert!(plan_human.starts_with("ASB validated the benchmark plan."));
+        assert!(plan_human.contains("Next: asb run"));
         let planned: Value = serde_json::from_slice(&planned).unwrap();
         assert_eq!(planned["provider_profile"], "openrouter");
         assert_eq!(
@@ -9027,6 +9173,21 @@ mod tests {
         )
         .unwrap();
         assert_eq!(exit, 0);
+        let mut run_human = Vec::new();
+        human::render_success(
+            &[
+                "run".into(),
+                plan_path.as_os_str().to_owned(),
+                "--use-config".into(),
+            ],
+            &run_output,
+            false,
+            &mut run_human,
+        )
+        .unwrap();
+        let run_human = String::from_utf8(run_human).unwrap();
+        assert!(run_human.starts_with("ASB completed the benchmark run successfully."));
+        assert!(run_human.contains("Run IDs: setup-runtime."));
         let result: Value = serde_json::from_slice(&run_output).unwrap();
         assert_eq!(result["ok"], true);
         assert_eq!(result["points"][0]["decision"], "pass");
@@ -9074,7 +9235,7 @@ mod tests {
             2
         );
         let text = String::from_utf8(human_output).unwrap();
-        assert!(text.contains("benchmark-live failed"));
+        assert!(text.contains("ASB could not complete the live benchmark"));
         assert!(text.contains("unsupported arguments"));
     }
 
@@ -10595,6 +10756,17 @@ mod tests {
             64
         );
         let (_, report) = run_json(&["report".into(), first_run.as_os_str().to_owned()]);
+        let mut report_human = Vec::new();
+        human::render_success(
+            &["report".into(), first_run.as_os_str().to_owned()],
+            &serde_json::to_vec(&report).unwrap(),
+            false,
+            &mut report_human,
+        )
+        .unwrap();
+        let report_human = String::from_utf8(report_human).unwrap();
+        assert!(report_human.starts_with("ASB generated the benchmark report."));
+        assert!(report_human.contains("Run provider-run: completed"));
         assert_eq!(
             report["runs"][0]["provider_selection_sha256"],
             selection["selection_sha256"]
@@ -10638,6 +10810,21 @@ mod tests {
         assert_eq!(comparison["pairs"][0]["left_run_id"], "provider-run");
         assert_eq!(comparison["pairs"][0]["right_run_id"], "provider-alternate");
         assert_eq!(comparison["pairs"][0]["comparable"], false);
+        let mut compare_human = Vec::new();
+        human::render_success(
+            &[
+                "compare".into(),
+                first_run.as_os_str().to_owned(),
+                second_run.as_os_str().to_owned(),
+            ],
+            &serde_json::to_vec(&comparison).unwrap(),
+            false,
+            &mut compare_human,
+        )
+        .unwrap();
+        let compare_human = String::from_utf8(compare_human).unwrap();
+        assert!(compare_human.starts_with("ASB compared the runs, but"));
+        assert!(compare_human.contains("Differences: execution."));
         assert_eq!(comparison["confounders"][0]["kind"], "provenance");
         assert!(
             comparison["unavailable_reasons"]
@@ -10849,9 +11036,14 @@ mod tests {
             0
         );
         let completion = String::from_utf8(output).unwrap();
-        assert!(completion.contains(
-            "provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report"
-        ));
+        for command in human::PUBLIC_COMMANDS {
+            assert!(
+                completion
+                    .split_whitespace()
+                    .any(|word| word.trim_matches(['\'', '-']) == *command),
+                "{command}"
+            );
+        }
         assert!(!completion.contains('\u{1b}'));
         assert_eq!(run_json(&["completion".into(), "zsh".into()]).0, 2);
     }

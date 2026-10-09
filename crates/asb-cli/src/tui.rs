@@ -7072,8 +7072,8 @@ mod tests {
         let mut human = Vec::new();
         crate::render_human(&json, &mut human).unwrap();
         let human = String::from_utf8(human).unwrap();
-        assert!(human.contains("trusted_tool_unavailable"));
-        assert!(human.contains("install_a_supported_rust_toolchain_or_set_ASB_DEV_CARGO"));
+        assert!(human.contains("trusted tool unavailable"));
+        assert!(human.contains("Next: asb tui doctor"));
         assert!(!human.contains('/'));
     }
 
