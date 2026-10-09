@@ -3078,8 +3078,8 @@ fn write_atomic_private(
             transaction
         ))
     });
-    if let Some(backup_name) = &backup {
-        if renameat_with(
+    if let Some(backup_name) = &backup
+        && renameat_with(
             &parent.file,
             &name,
             &parent.file,
@@ -3087,10 +3087,9 @@ fn write_atomic_private(
             RenameFlags::NOREPLACE,
         )
         .is_err()
-        {
-            let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
-            return Err(CliError::operation("workflow output cannot be backed up"));
-        }
+    {
+        let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
+        return Err(CliError::operation("workflow output cannot be backed up"));
     }
     if let Err(error) = renameat(&parent.file, &temporary, &parent.file, &name) {
         if let Some(backup_name) = &backup {
@@ -3880,8 +3879,7 @@ fn tool_install_with_progress(
     let mut created_destination = false;
     match inspect_output_at(&parent.file, &destination_name)? {
         Some(_) => {
-            let current =
-                read_output_at(&parent.file, &destination_name, MAX_EXECUTABLE_BYTES as u64)?;
+            let current = read_output_at(&parent.file, &destination_name, MAX_EXECUTABLE_BYTES)?;
             if Sha256::digest(&current) != Sha256::digest(&bytes) {
                 return Err(CliError::validation(
                     "tool destination already exists with a different digest",
