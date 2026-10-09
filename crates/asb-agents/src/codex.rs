@@ -41,7 +41,6 @@ const MAX_WORKSPACE_ENTRIES: usize = 16_384;
 const MAX_WORKSPACE_FILE_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_WORKSPACE_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 4 * 1024;
-const MAX_GENERATION_BYTES: usize = 256;
 
 /// Content-pinned Codex artifact understood by this adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -207,23 +206,10 @@ impl CodexConfig {
     pub fn with_cli2key_launch(
         mut self,
         launch: Cli2KeyLaunch,
-        generation: impl Into<String>,
+        catalog: &crate::cli2key::Cli2KeyCatalog,
+        expected_generation: &str,
     ) -> Result<Self, AdapterError> {
-        let generation = generation.into();
-        if launch.schema_version != 1
-            || launch.api_mode != "responses"
-            || !matches!(launch.endpoint_host.as_str(), "127.0.0.1" | "::1")
-            || launch.endpoint_port == 0
-            || launch.selection.provider_id != "cli2key"
-            || launch.selection.agent_id != "codex"
-            || launch.selection.model_id.is_empty()
-            || !valid_cli2key_digest(&launch.selection.credential_reference_sha256)
-            || generation.is_empty()
-            || generation.len() > MAX_GENERATION_BYTES
-            || !generation
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-        {
+        if launch.validate_against(catalog).is_err() || launch.generation != expected_generation {
             return Err(AdapterError::InvalidCli2KeyLaunch);
         }
         let endpoint = Url::parse(&format!(
@@ -235,7 +221,7 @@ impl CodexConfig {
         self.model = launch.selection.model_id.clone();
         self.cli2key = Some(Cli2KeyBinding {
             credential_reference_sha256: launch.selection.credential_reference_sha256,
-            generation,
+            generation: launch.generation,
         });
         Ok(self)
     }
@@ -421,13 +407,6 @@ impl CodexConfig {
             .state_root
             .join(format!("attempt-{}-{nonce}", std::process::id())))
     }
-}
-
-fn valid_cli2key_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
 const fn model_component_byte(byte: u8) -> bool {
@@ -1107,13 +1086,34 @@ mod tests {
             api_mode: "responses".into(),
             endpoint_host: "127.0.0.1".into(),
             endpoint_port: 4312,
+            generation: "generation-9".into(),
+        }
+    }
+
+    fn cli2key_catalog() -> crate::cli2key::Cli2KeyCatalog {
+        crate::cli2key::Cli2KeyCatalog {
+            schema_version: 1,
+            provider_id: "cli2key".into(),
+            classification: "development-only-unofficial".into(),
+            catalog_generation: 9,
+            bridge_revision: "bridge-r1".into(),
+            bridge_tree_sha256: "b".repeat(64),
+            executable_sha256: "c".repeat(64),
+            endpoint_sha256: "d".repeat(64),
+            models: vec![crate::cli2key::Cli2KeyModel {
+                model_id: "codex-local".into(),
+                revision: "m1".into(),
+            }],
         }
     }
 
     #[test]
     fn cli2key_binding_replaces_endpoint_and_model_without_fallback() {
+        let catalog = cli2key_catalog();
+        let mut launch = cli2key_launch();
+        launch.selection.catalog_sha256 = catalog.digest().unwrap();
         let bound = config("http://127.0.0.1:1/v1")
-            .with_cli2key_launch(cli2key_launch(), "generation-9")
+            .with_cli2key_launch(launch, &catalog, "generation-9")
             .unwrap();
         assert_eq!(bound.endpoint.as_str(), "http://127.0.0.1:4312/");
         assert_eq!(bound.model, "codex-local");
@@ -1122,10 +1122,32 @@ mod tests {
 
     #[test]
     fn cli2key_binding_rejects_remote_or_stale_launch_shape() {
+        let catalog = cli2key_catalog();
         let mut launch = cli2key_launch();
+        launch.selection.catalog_sha256 = catalog.digest().unwrap();
         launch.endpoint_host = "198.51.100.10".into();
         assert!(matches!(
-            config("http://127.0.0.1:1/v1").with_cli2key_launch(launch, "generation-9"),
+            config("http://127.0.0.1:1/v1").with_cli2key_launch(launch, &catalog, "generation-9"),
+            Err(AdapterError::InvalidCli2KeyLaunch)
+        ));
+    }
+
+    #[test]
+    fn cli2key_binding_rejects_stale_generation_and_wrong_key_reference() {
+        let catalog = cli2key_catalog();
+        let mut launch = cli2key_launch();
+        launch.selection.catalog_sha256 = catalog.digest().unwrap();
+        assert!(matches!(
+            config("http://127.0.0.1:1/v1").with_cli2key_launch(
+                launch.clone(),
+                &catalog,
+                "generation-8"
+            ),
+            Err(AdapterError::InvalidCli2KeyLaunch)
+        ));
+        launch.selection.credential_reference_sha256 = "E".repeat(64);
+        assert!(matches!(
+            config("http://127.0.0.1:1/v1").with_cli2key_launch(launch, &catalog, "generation-9"),
             Err(AdapterError::InvalidCli2KeyLaunch)
         ));
     }

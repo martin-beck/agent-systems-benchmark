@@ -47,6 +47,7 @@ pub struct Cli2KeyLaunch {
     pub api_mode: String,
     pub endpoint_host: String,
     pub endpoint_port: u16,
+    pub generation: String,
 }
 fn digest(bytes: &[u8]) -> String {
     let mut h = Sha256::new();
@@ -115,6 +116,12 @@ impl Cli2KeyLaunch {
             || self.api_mode != "responses"
             || !matches!(self.endpoint_host.as_str(), "127.0.0.1" | "::1")
             || self.endpoint_port == 0
+            || self.generation.is_empty()
+            || self.generation.len() > 256
+            || !self
+                .generation
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
         {
             return Err("cli2key launch is not loopback Responses");
         }
@@ -163,6 +170,7 @@ mod tests {
             api_mode: "responses".into(),
             endpoint_host: "127.0.0.1".into(),
             endpoint_port: 1234,
+            generation: "generation-7".into(),
         };
         assert!(l.validate_against(&c).is_ok());
     }
@@ -192,6 +200,7 @@ mod tests {
             api_mode: "responses".into(),
             endpoint_host: "203.0.113.9".into(),
             endpoint_port: 1234,
+            generation: "generation-6".into(),
         };
         assert!(l.validate_against(&c).is_err());
     }
