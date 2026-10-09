@@ -3911,7 +3911,7 @@ fn prepare_owned_directory(
     path: &Path,
     mode: u32,
     purpose: DirectoryPurpose,
-    mut progress: Option<&mut dyn Write>,
+    progress: Option<&mut dyn Write>,
 ) -> Result<DirectoryPreparation, CliError> {
     if path.as_os_str().is_empty() {
         return Err(CliError::validation("directory path cannot be empty").with_path(path));
@@ -3974,7 +3974,7 @@ fn prepare_owned_directory(
             created: false,
         });
     }
-    if let Some(stream) = progress.as_deref_mut() {
+    if let Some(stream) = progress {
         writeln!(
             stream,
             "ASB will create directory {} for {}.",
