@@ -253,6 +253,49 @@ fn executable_capabilities_accepts_both_json_selector_spellings() {
 }
 
 #[test]
+fn project_init_human_output_distinguishes_initialization_from_recovery() {
+    let scratch = Scratch::new();
+    let project_root = scratch.0.join("private-project-root");
+
+    for (expected_outcome, unexpected_outcome) in [
+        (
+            "ASB initialized the project workspace.",
+            "ASB recovered the existing project workspace.",
+        ),
+        (
+            "ASB recovered the existing project workspace.",
+            "ASB initialized the project workspace.",
+        ),
+    ] {
+        let output = isolated_asb(&scratch.0)
+            .env("COLUMNS", "240")
+            .args(["project", "init"])
+            .arg(&project_root)
+            .output()
+            .expect("ASB executable must run");
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let stdout = assert_private_human_output(&output);
+        assert_eq!(stdout.lines().next(), Some(expected_outcome));
+        assert!(!stdout.contains(unexpected_outcome));
+        assert!(stdout.contains("Configuration: .asb/project.json."));
+        assert!(stdout.contains("Results directory: results."));
+        assert!(stdout.contains("Catalog directory: catalogs."));
+        assert_eq!(
+            stdout
+                .lines()
+                .filter(|line| line.starts_with("Next:"))
+                .collect::<Vec<_>>(),
+            vec!["Next: asb provider-catalog"]
+        );
+        assert!(!stdout.contains(project_root.to_str().unwrap()));
+        assert!(!stdout.contains(scratch.0.to_str().unwrap()));
+        assert!(!stdout.contains("initialized\":"));
+        assert!(!stdout.contains("recovered\":"));
+    }
+}
+
+#[test]
 fn executable_outcome_matrix_covers_product_dependency_host_failed_and_inconclusive() {
     let scratch = Scratch::new();
 
