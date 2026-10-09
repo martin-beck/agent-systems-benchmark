@@ -1,3 +1,5 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
 //! Descriptor-relative preparation for command-owned workload fixtures.
 
 use rustix::fs::{AtFlags, Mode, OFlags, fchmod, mkdirat, openat, unlinkat};
