@@ -98,6 +98,9 @@ Other contributors certify their own authorship; do not forge their sign-offs.
 
 ## Validation commands
 
+The command-route stream and failure acceptance matrix is maintained in
+[CLI route acceptance matrix](CLI_ROUTE_ACCEPTANCE_MATRIX.md).
+
 ```sh
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings

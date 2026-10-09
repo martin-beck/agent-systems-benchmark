@@ -56,7 +56,10 @@ pub(crate) fn prepare_absolute(path: &Path, mode: u32) -> io::Result<OwnedDirect
                 ) {
                     Ok(fd) => {
                         let next = File::from(fd);
-                        fchmod(&next, Mode::from(mode))?;
+                        if let Err(error) = fchmod(&next, Mode::from(mode)) {
+                            rollback(&created);
+                            return Err(error.into());
+                        }
                         next
                     }
                     Err(error) => {
@@ -87,25 +90,43 @@ pub(crate) fn prepare_child(parent: &File, name: &OsStr, mode: u32) -> io::Resul
             "unsafe directory name",
         ));
     }
-    let next = match openat(
+    let (next, created) = match openat(
         parent,
         name,
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         Mode::empty(),
     ) {
-        Ok(fd) => File::from(fd),
+        Ok(fd) => (File::from(fd), false),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            mkdirat(parent, name, Mode::from(mode))?;
-            File::from(openat(
+            let created = match mkdirat(parent, name, Mode::from(mode)) {
+                Ok(()) => true,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
+                Err(error) => return Err(error.into()),
+            };
+            let next = match openat(
                 parent,
                 name,
                 OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
                 Mode::empty(),
-            )?)
+            ) {
+                Ok(fd) => File::from(fd),
+                Err(error) => {
+                    if created {
+                        let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+                    }
+                    return Err(error.into());
+                }
+            };
+            (next, created)
         }
         Err(error) => return Err(error.into()),
     };
-    fchmod(&next, Mode::from(mode))?;
+    if let Err(error) = fchmod(&next, Mode::from(mode)) {
+        if created {
+            let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+        }
+        return Err(error.into());
+    }
     Ok(OwnedDirectory { file: next })
 }
 
@@ -127,5 +148,42 @@ pub(crate) fn write_new(parent: &File, name: &OsStr, bytes: &[u8]) -> io::Result
 fn rollback(created: &[(File, std::ffi::OsString)]) {
     for (parent, name) in created.iter().rev() {
         let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn concurrent_child_creation_reopens_the_winner_without_following_a_link() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let parent = prepare_absolute(&root, 0o700).expect("root directory");
+        let barrier = Arc::new(Barrier::new(8));
+        let mut workers = Vec::new();
+        for _ in 0..8 {
+            let barrier = Arc::clone(&barrier);
+            let descriptor = parent.file.try_clone().expect("parent descriptor");
+            workers.push(thread::spawn(move || {
+                barrier.wait();
+                prepare_child(&descriptor, OsStr::new("child"), 0o700).is_ok()
+            }));
+        }
+        assert!(workers.into_iter().all(|worker| worker.join().unwrap()));
+        let metadata = fs::symlink_metadata(root.join("child")).expect("child");
+        assert!(metadata.is_dir());
+        assert!(!metadata.file_type().is_symlink());
+        fs::remove_dir_all(root).expect("cleanup");
     }
 }
