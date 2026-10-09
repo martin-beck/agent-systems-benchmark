@@ -1818,6 +1818,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("easy") => "easy",
         Some("tui") => "tui",
         Some("capabilities") => "capabilities",
+        Some("project") => "project",
         Some("provider-catalog") => "provider-catalog",
         Some("workload-catalog") => "workload-catalog",
         Some("config") => "config",
