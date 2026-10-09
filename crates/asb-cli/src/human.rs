@@ -60,6 +60,7 @@ pub(super) const PUBLIC_COMMANDS: &[&str] = &[
     "setup",
     "capabilities",
     "project",
+    "tool",
     "provider-catalog",
     "adapter-catalog",
     "workload-catalog",
@@ -94,6 +95,7 @@ enum CommandKind {
     Tui,
     Capabilities,
     Project,
+    Tool,
     ProviderCatalog,
     AdapterCatalog,
     WorkloadCatalog,
@@ -202,6 +204,7 @@ pub(super) enum InvocationKind {
     Tui(TuiKind),
     Capabilities,
     ProjectInit,
+    Tool,
     ProviderCatalog { refresh: bool },
     AdapterCatalog,
     WorkloadCatalog,
@@ -276,6 +279,7 @@ impl InvocationKind {
             }),
             Some("capabilities") => Self::Capabilities,
             Some("project") => Self::ProjectInit,
+            Some("tool") => Self::Tool,
             Some("provider-catalog") => Self::ProviderCatalog {
                 refresh: words.contains(&"--refresh"),
             },
@@ -324,6 +328,7 @@ impl InvocationKind {
             Self::Tui(_) => CommandKind::Tui,
             Self::Capabilities => CommandKind::Capabilities,
             Self::ProjectInit => CommandKind::Project,
+            Self::Tool => CommandKind::Tool,
             Self::ProviderCatalog { .. } | Self::Easy(EasyKind::ProviderCatalog) => {
                 CommandKind::ProviderCatalog
             }
@@ -396,6 +401,7 @@ impl CommandKind {
             Self::Tui => "tui",
             Self::Capabilities => "capabilities",
             Self::Project => "project initialization",
+            Self::Tool => "tool discovery",
             Self::ProviderCatalog => "provider catalog",
             Self::AdapterCatalog => "adapter catalog",
             Self::WorkloadCatalog => "workload catalog",
@@ -1232,6 +1238,7 @@ fn validate_typed_result(
         | InvocationKind::Completion
         | InvocationKind::Serve
         | InvocationKind::InternalOpenCodeBatch => {}
+        InvocationKind::Tool => {}
         InvocationKind::Cli | InvocationKind::Easy(EasyKind::Unknown) => return Err(invalid()),
     }
     let raw: Value = serde_json::from_slice(captured).map_err(|_| invalid())?;
@@ -1351,6 +1358,7 @@ fn project_for_presentation(
         ],
         CommandKind::Capabilities => &["protocol_version", "capabilities"],
         CommandKind::Project => &["initialized", "recovered", "config", "results", "catalogs"],
+        CommandKind::Tool => &["ok", "command", "tools", "warnings"],
         CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
         CommandKind::AdapterCatalog => &["adapters"],
         CommandKind::WorkloadCatalog => &["entries"],
@@ -1535,6 +1543,19 @@ fn present(
             fact_pair(&mut value, object, "Results directory", "results");
             fact_pair(&mut value, object, "Catalog directory", "catalogs");
             value.next = NextAction::new(["asb", "provider-catalog"]);
+            value
+        }
+        CommandKind::Tool => {
+            let mut value = Presentation::new("ASB discovered project and system tools.");
+            fact_count(&mut value, object, "tools", "discovered tools");
+            if let Some(warnings) = object.get("warnings").and_then(Value::as_array)
+                && !warnings.is_empty()
+            {
+                value.warning(format!(
+                    "{} development warning(s) were reported.",
+                    warnings.len()
+                ));
+            }
             value
         }
         CommandKind::ProviderCatalog => present_catalog(
@@ -2549,6 +2570,7 @@ mod tests {
             &["tui", "launch"],
             &["capabilities"],
             &["project", "init", "/tmp/project"],
+            &["tool", "discover"],
             &["provider-catalog"],
             &["adapter-catalog"],
             &["workload-catalog"],
