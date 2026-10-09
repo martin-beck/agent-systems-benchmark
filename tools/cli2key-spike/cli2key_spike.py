@@ -43,7 +43,7 @@ REPORT_FIELDS = {
 MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
 
 
-class SpikeFailure(Exception):
+class SpikeError(Exception):
     """A public typed failure with no provider or operating-system detail."""
 
     def __init__(self, code: str):
@@ -67,36 +67,43 @@ def load_contract() -> dict[str, Any]:
         protocol = value["protocol"]
         evidence = value["evidence"]
     except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
-        raise SpikeFailure("contract_invalid") from error
+        raise SpikeError("contract_invalid") from error
+    validate_contract(value, bridge, protocol, evidence)
+    return cast(dict[str, Any], value)
+
+
+def validate_contract(
+    value: dict[str, Any],
+    bridge: dict[str, Any],
+    protocol: dict[str, Any],
+    evidence: dict[str, Any],
+) -> None:
+    """Validate the immutable identities and public bounds used by the spike."""
     exact = {
         "schema_version": 1,
         "contract_id": "asb.cli2key.development.v1",
         "classification": "development-only-unofficial",
     }
-    if any(value.get(name) != expected for name, expected in exact.items()):
-        raise SpikeFailure("contract_invalid")
-    if bridge.get("version") != "v0.1.10":
-        raise SpikeFailure("contract_invalid")
-    if bridge.get("revision") != "da5d271db08cca1f4666c1b035dbfb6c6f9b8f47":
-        raise SpikeFailure("contract_invalid")
-    if bridge.get("tree") != "682881f6d7fea1fa117bf0899ae0754291bba3c4":
-        raise SpikeFailure("contract_invalid")
-    if (
-        bridge.get("archive_sha256")
-        != "db256f8b8b9392835fb1277cadcff6ded3da99a6831f3ff902d5f7721cc7d5bb"
-    ):
-        raise SpikeFailure("contract_invalid")
-    if protocol.get("maximum_models") != MAX_MODELS:
-        raise SpikeFailure("contract_invalid")
-    if protocol.get("maximum_models_bytes") != MAX_MODELS_BYTES:
-        raise SpikeFailure("contract_invalid")
-    if protocol.get("maximum_response_bytes") != MAX_RESPONSE_BYTES:
-        raise SpikeFailure("contract_invalid")
-    if protocol.get("request_timeout_seconds") != TIMEOUT_SECONDS:
-        raise SpikeFailure("contract_invalid")
-    if set(evidence.get("allowed_fields", [])) != REPORT_FIELDS:
-        raise SpikeFailure("contract_invalid")
-    return cast(dict[str, Any], value)
+    expected_bridge = {
+        "version": "v0.1.10",
+        "revision": "da5d271db08cca1f4666c1b035dbfb6c6f9b8f47",
+        "tree": "682881f6d7fea1fa117bf0899ae0754291bba3c4",
+        "archive_sha256": ("db256f8b8b9392835fb1277cadcff6ded3da99a6831f3ff902d5f7721cc7d5bb"),
+    }
+    expected_protocol = {
+        "maximum_models": MAX_MODELS,
+        "maximum_models_bytes": MAX_MODELS_BYTES,
+        "maximum_response_bytes": MAX_RESPONSE_BYTES,
+        "request_timeout_seconds": TIMEOUT_SECONDS,
+    }
+    invalid = (
+        any(value.get(name) != expected for name, expected in exact.items())
+        or any(bridge.get(name) != expected for name, expected in expected_bridge.items())
+        or any(protocol.get(name) != expected for name, expected in expected_protocol.items())
+        or set(evidence.get("allowed_fields", [])) != REPORT_FIELDS
+    )
+    if invalid:
+        raise SpikeError("contract_invalid")
 
 
 def parse_endpoint(raw: str) -> Endpoint:
@@ -105,7 +112,7 @@ def parse_endpoint(raw: str) -> Endpoint:
         parsed = urlsplit(raw)
         port = parsed.port
     except ValueError as error:
-        raise SpikeFailure("non_loopback_endpoint") from error
+        raise SpikeError("non_loopback_endpoint") from error
     if (
         parsed.scheme != "http"
         or parsed.hostname not in {"127.0.0.1", "::1"}
@@ -116,24 +123,22 @@ def parse_endpoint(raw: str) -> Endpoint:
         or parsed.query
         or parsed.fragment
     ):
-        raise SpikeFailure("non_loopback_endpoint")
+        raise SpikeError("non_loopback_endpoint")
     return Endpoint(parsed.hostname, port)
 
 
-def read_bounded(
-    response: http.client.HTTPResponse, maximum: int, oversized: str
-) -> bytes:
+def read_bounded(response: http.client.HTTPResponse, maximum: int, oversized: str) -> bytes:
     """Read at most one byte beyond a public protocol bound."""
     declared = response.getheader("content-length")
     if declared is not None:
         try:
             if int(declared) > maximum:
-                raise SpikeFailure(oversized)
+                raise SpikeError(oversized)
         except ValueError as error:
-            raise SpikeFailure("response_malformed") from error
+            raise SpikeError("response_malformed") from error
     body = response.read(maximum + 1)
     if len(body) > maximum:
-        raise SpikeFailure(oversized)
+        raise SpikeError(oversized)
     return body
 
 
@@ -147,9 +152,7 @@ def request(
     oversized: str,
 ) -> tuple[int, bytes]:
     """Perform one bounded request without logging request or response content."""
-    connection = http.client.HTTPConnection(
-        endpoint.host, endpoint.port, timeout=TIMEOUT_SECONDS
-    )
+    connection = http.client.HTTPConnection(endpoint.host, endpoint.port, timeout=TIMEOUT_SECONDS)
     headers = {"authorization": f"Bearer {client_key}", "accept": "application/json"}
     encoded = None
     if body is not None:
@@ -160,9 +163,9 @@ def request(
         response = connection.getresponse()
         return response.status, read_bounded(response, maximum, oversized)
     except TimeoutError as error:
-        raise SpikeFailure("deadline_exceeded") from error
+        raise SpikeError("deadline_exceeded") from error
     except (OSError, http.client.HTTPException) as error:
-        raise SpikeFailure("connection_failed") from error
+        raise SpikeError("connection_failed") from error
     finally:
         connection.close()
 
@@ -179,28 +182,27 @@ def discover_models(endpoint: Endpoint, client_key: str) -> list[str]:
         "models_oversized",
     )
     if status in {401, 403}:
-        raise SpikeFailure("authentication_rejected")
+        raise SpikeError("authentication_rejected")
     if status != 200:
-        raise SpikeFailure("models_rejected")
+        raise SpikeError("models_rejected")
     try:
         value = json.loads(body)
         data = value["data"]
         if not isinstance(data, list):
             raise TypeError
         if len(data) > MAX_MODELS:
-            raise SpikeFailure("model_limit_exceeded")
+            raise SpikeError("model_limit_exceeded")
         models = [item["id"] for item in data]
         if not models or any(
-            not isinstance(item, str) or MODEL_ID.fullmatch(item) is None
-            for item in models
+            not isinstance(item, str) or MODEL_ID.fullmatch(item) is None for item in models
         ):
             raise TypeError
         if len(set(models)) != len(models):
             raise TypeError
-    except SpikeFailure:
+    except SpikeError:
         raise
     except (KeyError, TypeError, json.JSONDecodeError) as error:
-        raise SpikeFailure("models_malformed") from error
+        raise SpikeError("models_malformed") from error
     return cast(list[str], models)
 
 
@@ -213,7 +215,7 @@ def run_spike(
     models = discover_models(endpoint, client_key)
     selected = model or models[0]
     if selected not in models:
-        raise SpikeFailure("model_unavailable")
+        raise SpikeError("model_unavailable")
     status, body = request(
         endpoint,
         "POST",
@@ -224,18 +226,16 @@ def run_spike(
         "response_oversized",
     )
     if status in {401, 403}:
-        raise SpikeFailure("authentication_rejected")
+        raise SpikeError("authentication_rejected")
     if status != 200:
-        raise SpikeFailure("responses_rejected")
+        raise SpikeError("responses_rejected")
     try:
         response = json.loads(body)
-        valid_shape = (
-            isinstance(response, dict) and response.get("object") == "response"
-        )
+        valid_shape = isinstance(response, dict) and response.get("object") == "response"
     except json.JSONDecodeError as error:
-        raise SpikeFailure("response_malformed") from error
+        raise SpikeError("response_malformed") from error
     if not valid_shape:
-        raise SpikeFailure("response_malformed")
+        raise SpikeError("response_malformed")
     bridge = contract["bridge"]
     report = {
         "schema_version": 1,
@@ -257,10 +257,10 @@ def run_spike(
         ],
     }
     if set(report) != REPORT_FIELDS:
-        raise SpikeFailure("contract_invalid")
+        raise SpikeError("contract_invalid")
     serialized = json.dumps(report, sort_keys=True)
     if client_key in serialized:
-        raise SpikeFailure("contract_invalid")
+        raise SpikeError("contract_invalid")
     return report
 
 
@@ -331,10 +331,10 @@ def fake_spike(input_text: str = "synthetic-private-input") -> dict[str, Any]:
         report = run_spike(f"http://{host}:{port}", key, "fixture-cli2key", input_text)
         report["evidence_class"] = "synthetic"
         if FakeHandler.observed_requests != 1:
-            raise SpikeFailure("contract_invalid")
+            raise SpikeError("contract_invalid")
         serialized = json.dumps(report, sort_keys=True)
         if key in serialized:
-            raise SpikeFailure("contract_invalid")
+            raise SpikeError("contract_invalid")
         return report
     finally:
         server.shutdown()
@@ -354,17 +354,17 @@ def main() -> int:
     try:
         if args.fake:
             if args.confirm_live or args.endpoint or args.model:
-                raise SpikeFailure("contract_invalid")
+                raise SpikeError("contract_invalid")
             report = fake_spike()
         else:
             if not args.confirm_live or not args.endpoint:
-                raise SpikeFailure("opt_in_required")
+                raise SpikeError("opt_in_required")
             key = os.environ.get(CLIENT_KEY_ENV)
             if not key:
-                raise SpikeFailure("client_key_unavailable")
+                raise SpikeError("client_key_unavailable")
             input_text = os.environ.get(INPUT_ENV)
             if not input_text:
-                raise SpikeFailure("input_unavailable")
+                raise SpikeError("input_unavailable")
             report = run_spike(args.endpoint, key, args.model, input_text)
         encoded = json.dumps(report, indent=2, sort_keys=True) + "\n"
         if args.output:
@@ -372,8 +372,8 @@ def main() -> int:
         else:
             print(encoded, end="")
         return 0
-    except (OSError, SpikeFailure) as error:
-        code = error.code if isinstance(error, SpikeFailure) else "contract_invalid"
+    except (OSError, SpikeError) as error:
+        code = error.code if isinstance(error, SpikeError) else "contract_invalid"
         print(f"cli2key spike failed: {code}", file=os.sys.stderr)
         return 2
 

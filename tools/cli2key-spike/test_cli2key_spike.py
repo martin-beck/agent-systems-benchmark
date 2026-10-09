@@ -9,7 +9,7 @@ import unittest
 
 from cli2key_spike import (
     REPORT_FIELDS,
-    SpikeFailure,
+    SpikeError,
     discover_models,
     fake_spike,
     load_contract,
@@ -27,17 +27,11 @@ class Cli2KeySpikeTests(unittest.TestCase):
         self.assertEqual(64, len(bridge["archive_sha256"]))
         self.assertEqual("GET /v1/models", contract["protocol"]["models"])
         self.assertEqual("POST /v1/responses", contract["protocol"]["responses"])
-        self.assertFalse(
-            contract["credential_workflow"]["local_client_key_is_platform_api_key"]
-        )
+        self.assertFalse(contract["credential_workflow"]["local_client_key_is_platform_api_key"])
         self.assertFalse(contract["credential_workflow"]["asb_reads_codex_auth_files"])
         self.assertFalse(contract["credential_workflow"]["bridge_private_oauth_store"])
-        self.assertTrue(
-            contract["credential_workflow"]["bridge_private_client_key_store"]
-        )
-        self.assertTrue(
-            contract["runtime_requirements"]["fresh_client_key_per_invocation"]
-        )
+        self.assertTrue(contract["credential_workflow"]["bridge_private_client_key_store"])
+        self.assertTrue(contract["runtime_requirements"]["fresh_client_key_per_invocation"])
 
     def test_fake_proves_two_routes_and_omits_sensitive_content(self) -> None:
         private_input = "input-must-not-enter-evidence"
@@ -70,7 +64,7 @@ class Cli2KeySpikeTests(unittest.TestCase):
         ):
             with (
                 self.subTest(endpoint=endpoint),
-                self.assertRaisesRegex(SpikeFailure, "non_loopback_endpoint"),
+                self.assertRaisesRegex(SpikeError, "non_loopback_endpoint"),
             ):
                 parse_endpoint(endpoint)
         self.assertEqual("127.0.0.1", parse_endpoint("http://127.0.0.1:8317").host)
@@ -93,7 +87,7 @@ class Cli2KeySpikeTests(unittest.TestCase):
         thread.start()
         try:
             host, port = server.server_address
-            with self.assertRaisesRegex(SpikeFailure, "models_malformed"):
+            with self.assertRaisesRegex(SpikeError, "models_malformed"):
                 discover_models(Endpoint(host, port), "fixture-key")
         finally:
             server.shutdown()
