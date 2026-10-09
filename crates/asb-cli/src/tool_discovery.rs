@@ -7,12 +7,15 @@
 //! and never changes `.asb/project.json`.
 
 use asb_config::{ProjectConfigV1, ProjectToolKind, ProjectToolRecordV1, ProjectToolStatus};
+use nix::sys::signal::{Signal, killpg};
+use nix::unistd::Pid;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs;
 use std::io::Read;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
@@ -483,15 +486,18 @@ fn probe_version(path: &Path) -> Option<String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .ok()?;
+    let process_group = Pid::from_raw(child.id() as i32);
     let deadline = Instant::now() + PROBE_TIMEOUT;
     let status = loop {
         if let Some(status) = child.try_wait().ok()? {
+            let _ = killpg(process_group, Signal::SIGKILL);
             break status;
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
+            let _ = killpg(process_group, Signal::SIGKILL);
             let _ = child.wait();
             return None;
         }
@@ -552,6 +558,17 @@ mod tests {
             ))
             .unwrap()
         );
+    }
+
+    #[test]
+    fn version_probe_reaps_background_processes_without_pipe_hang() {
+        let dir = tempdir().unwrap();
+        let cargo = dir.path().join("cargo");
+        fs::write(&cargo, b"#!/bin/sh\nsleep 2 &\nprintf 'cargo 1.0\\n'\n").unwrap();
+        fs::set_permissions(&cargo, fs::Permissions::from_mode(0o700)).unwrap();
+        let started = Instant::now();
+        assert_eq!(probe_version(&cargo).as_deref(), Some("cargo 1.0"));
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
