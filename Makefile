@@ -63,9 +63,16 @@ install: check-deps
 	reject_symlink_chain "$$prefix"; \
 	mkdir -p -- "$$prefix"; \
 	reject_symlink_chain "$$prefix/bin"; \
-	[ ! -L "$$prefix/bin/asb" ] || { printf '%s\n' 'ERROR: refusing symlink at PREFIX/bin/asb.' >&2; exit 1; }; \
-	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" install --locked --path crates/asb-cli --root "$$prefix"; \
-	touch -- "$$prefix/.asb-make-staging"; \
+	destination="$$prefix/bin/asb"; marker="$$prefix/.asb-make-staging"; \
+	[ ! -L "$$destination" ] || { printf '%s\n' 'ERROR: refusing symlink at PREFIX/bin/asb.' >&2; exit 1; }; \
+	[ ! -L "$$marker" ] || { printf '%s\n' 'ERROR: refusing symlink at PREFIX ownership marker.' >&2; exit 1; }; \
+	[ ! -e "$$marker" ] || [ -f "$$marker" ] || { printf '%s\n' 'ERROR: refusing non-regular PREFIX ownership marker.' >&2; exit 1; }; \
+	if [ -e "$$destination" ]; then \
+		[ -f "$$destination" ] || { printf '%s\n' 'ERROR: refusing non-regular PREFIX/bin/asb.' >&2; exit 1; }; \
+		[ -f "$$marker" ] || { printf '%s\n' 'ERROR: refusing to replace unmarked PREFIX/bin/asb; remove or relocate it explicitly, then rerun make install.' >&2; exit 1; }; \
+	fi; \
+	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" "$(CARGO)" +"$(RUSTUP_TOOLCHAIN)" install --locked --force --path crates/asb-cli --root "$$prefix"; \
+	touch -- "$$marker"; \
 	printf '%s\n' "Installed ASB at $$prefix/bin/asb"; \
 	case ":$${PATH:-}:" in *:"$$prefix/bin":*) ;; *) printf '%s\n' "Add $$prefix/bin to PATH to run asb." ;; esac
 

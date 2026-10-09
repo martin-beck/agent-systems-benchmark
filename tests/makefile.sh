@@ -6,7 +6,12 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/asb-makefile-test.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT HUP INT TERM
-make -C "$root" help >/dev/null
+make -C "$root" help >"$tmp/help"
+grep -F -- 'make install     Install asb into PREFIX' "$tmp/help" >/dev/null
+if grep -F -- 'make install --force' "$tmp/help" >/dev/null; then
+    printf '%s\n' 'help advertises a Cargo-only option to Make users' >&2
+    exit 1
+fi
 grep -F -- '.DEFAULT_GOAL := lifecycle' "$root/Makefile" >/dev/null
 grep -F -- 'PREFIX ?= $(HOME)/.local' "$root/Makefile" >/dev/null
 grep -F -- 'default: $$HOME/.local/bin/asb' "$root/Makefile" >/dev/null
@@ -49,6 +54,11 @@ if grep -A8 '^refresh-lock:' "$root/Makefile" | grep -F -- 'update --locked' >/d
 fi
 if grep -F 'install --path' "$root/Makefile" | grep -v -- '--locked' >/dev/null; then
     printf '%s\n' 'install target is not locked' >&2
+    exit 1
+fi
+grep -F -- 'install --locked --force --path crates/asb-cli' "$root/Makefile" >/dev/null
+if grep -F -- 'make install --force' "$root/Makefile" "$root/README.md" >/dev/null; then
+    printf '%s\n' 'Cargo overwrite option is incorrectly advertised as a Make option' >&2
     exit 1
 fi
 
@@ -125,13 +135,20 @@ case "$*" in
     *' install '*)
         root=
         previous=
+        force=false
         for arg in "$@"; do
             if test "$previous" = '--root'; then root=$arg; fi
+            if test "$arg" = '--force'; then force=true; fi
             previous=$arg
         done
         test -n "$root"
+        test -n "${FAKE_INSTALL_CONTENT:-}"
         mkdir -p "$root/bin"
-        printf '#!/bin/sh\n' >"$root/bin/asb"
+        if test -e "$root/bin/asb" && test "$force" != true; then
+            printf '%s\n' 'destination exists; pass Cargo --force' >&2
+            exit 1
+        fi
+        printf '#!/bin/sh\n# %s\n' "$FAKE_INSTALL_CONTENT" >"$root/bin/asb"
         chmod 755 "$root/bin/asb"
         ;;
     *) exit 2 ;;
@@ -141,22 +158,96 @@ chmod +x "$tmp/install-cargo"
 install_home="$tmp/home"
 mkdir -p "$install_home"
 : >"$tmp/log"
-HOME="$install_home" FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+HOME="$install_home" FAKE_INSTALL_CONTENT=default-one FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
     make -C "$root" install >"$tmp/install-out"
 test -x "$install_home/.local/bin/asb"
 test -f "$install_home/.local/.asb-make-staging"
+grep -F -- '# default-one' "$install_home/.local/bin/asb" >/dev/null
 grep -F -- "Installed ASB at $install_home/.local/bin/asb" "$tmp/install-out" >/dev/null
 grep -F -- "--root $install_home/.local" "$tmp/log" >/dev/null
+grep -F -- 'install --locked --force --path crates/asb-cli' "$tmp/log" >/dev/null
+printf '%s\n' 'keep-default' >"$install_home/.local/unrelated"
+HOME="$install_home" FAKE_INSTALL_CONTENT=default-two FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null
+grep -F -- '# default-two' "$install_home/.local/bin/asb" >/dev/null
+grep -F -- 'keep-default' "$install_home/.local/unrelated" >/dev/null
 
 explicit="$tmp/package-root"
 : >"$tmp/log"
-FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$explicit" \
+FAKE_INSTALL_CONTENT=explicit-one FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$explicit" \
     make -C "$root" install >/dev/null
 test -x "$explicit/bin/asb"
+grep -F -- '# explicit-one' "$explicit/bin/asb" >/dev/null
+printf '%s\n' 'keep-explicit' >"$explicit/unrelated"
+FAKE_INSTALL_CONTENT=explicit-two FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$explicit" \
+    make -C "$root" install >/dev/null
+grep -F -- '# explicit-two' "$explicit/bin/asb" >/dev/null
+grep -F -- 'keep-explicit' "$explicit/unrelated" >/dev/null
+
+# Prove the fake models the original failure: an existing binary is rejected
+# when Cargo's overwrite option is omitted. The production Make invocation above
+# must therefore include --force for both repeat-install assertions to pass.
+if FAKE_INSTALL_CONTENT=without-force FAKE_LOG="$tmp/log" \
+    "$tmp/install-cargo" +1.93.0 install --locked --path crates/asb-cli --root "$explicit" \
+    >/dev/null 2>&1; then
+    printf '%s\n' 'fake Cargo accepted an existing binary without --force' >&2
+    exit 1
+fi
+
+unmarked="$tmp/unmarked-prefix"
+mkdir -p "$unmarked/bin"
+printf '%s\n' 'unrelated executable' >"$unmarked/bin/asb"
+chmod 755 "$unmarked/bin/asb"
+cp "$unmarked/bin/asb" "$tmp/unmarked-before"
+: >"$tmp/log"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$unmarked" \
+    make -C "$root" install >"$tmp/unmarked-out" 2>&1; then
+    printf '%s\n' 'unmarked existing PREFIX/bin/asb unexpectedly passed' >&2
+    exit 1
+fi
+cmp "$tmp/unmarked-before" "$unmarked/bin/asb"
+test ! -s "$tmp/log"
+grep -F -- 'refusing to replace unmarked PREFIX/bin/asb' "$tmp/unmarked-out" >/dev/null
+test ! -e "$unmarked/.asb-make-staging"
+
+non_regular="$tmp/non-regular-destination"
+mkdir -p "$non_regular/bin/asb"
+touch "$non_regular/.asb-make-staging"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$non_regular" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'non-regular PREFIX/bin/asb unexpectedly passed' >&2
+    exit 1
+fi
+test ! -s "$tmp/log"
+
+marker_symlink="$tmp/marker-symlink-prefix"
+mkdir -p "$marker_symlink/bin"
+printf '%s\n' 'preserve marker target' >"$tmp/marker-target"
+ln -s "$tmp/marker-target" "$marker_symlink/.asb-make-staging"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$marker_symlink" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked ownership marker unexpectedly passed' >&2
+    exit 1
+fi
+test ! -s "$tmp/log"
+grep -F -- 'preserve marker target' "$tmp/marker-target" >/dev/null
+
+marker_directory="$tmp/marker-directory-prefix"
+mkdir -p "$marker_directory/.asb-make-staging"
+find "$marker_directory" -print | sort >"$tmp/marker-directory-before"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$marker_directory" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'non-regular ownership marker unexpectedly passed' >&2
+    exit 1
+fi
+find "$marker_directory" -print | sort >"$tmp/marker-directory-after"
+cmp "$tmp/marker-directory-before" "$tmp/marker-directory-after"
+test ! -s "$tmp/log"
+test ! -e "$marker_directory/bin/asb"
 
 space_home="$tmp/home with space"
 mkdir -p "$space_home"
-HOME="$space_home" FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+HOME="$space_home" FAKE_INSTALL_CONTENT=space FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
     make -C "$root" install >/dev/null
 test -x "$space_home/.local/bin/asb"
 
@@ -188,9 +279,40 @@ if PREFIX=relative-prefix CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$
     printf '%s\n' 'relative PREFIX unexpectedly passed' >&2
     exit 1
 fi
+if PREFIX= CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'empty PREFIX unexpectedly passed' >&2
+    exit 1
+fi
 if PREFIX=/ CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
     make -C "$root" install >/dev/null 2>&1; then
     printf '%s\n' 'root PREFIX unexpectedly passed' >&2
     exit 1
 fi
+if PREFIX="$root" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'repository-root PREFIX unexpectedly passed' >&2
+    exit 1
+fi
+if PREFIX="$tmp/safe/../escape" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'traversing PREFIX unexpectedly passed' >&2
+    exit 1
+fi
+not_directory="$tmp/not-directory"
+printf '%s\n' 'not a directory' >"$not_directory"
+if PREFIX="$not_directory/child" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'non-directory PREFIX component unexpectedly passed' >&2
+    exit 1
+fi
+destination_prefix="$tmp/destination-symlink-prefix"
+mkdir -p "$destination_prefix/bin"
+ln -s "$outside/asb" "$destination_prefix/bin/asb"
+if PREFIX="$destination_prefix" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked PREFIX/bin/asb unexpectedly passed' >&2
+    exit 1
+fi
+grep -F -- 'protected' "$outside/asb" >/dev/null
 printf '%s\n' 'repository Makefile checks passed'
