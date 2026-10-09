@@ -15,13 +15,23 @@ use std::ffi::OsString;
 /// `RouterError::policy("...")` or `RouterError::operation("...")` producer
 /// cannot pass this contract until the reviewed typed catalogue covers it.
 fn routed_tui_codes(source: &'static str) -> BTreeSet<&'static str> {
-    ["RouterError::policy(\"", "RouterError::operation(\""]
+    ["RouterError::policy", "RouterError::operation"]
         .into_iter()
         .flat_map(|prefix| {
-            source
-                .split(prefix)
-                .skip(1)
-                .map(|remainder| remainder.split('"').next().expect("closed Rust literal"))
+            source.match_indices(prefix).filter_map(|(offset, _)| {
+                let remainder = &source[offset + prefix.len()..];
+                let remainder = remainder.trim_start();
+                if !remainder.starts_with('(') {
+                    return None;
+                }
+                let argument = remainder[1..].trim_start();
+                Some(
+                    argument
+                        .strip_prefix('"')
+                        .and_then(|literal| literal.split('"').next())
+                        .unwrap_or("<nonliteral routed producer>"),
+                )
+            })
         })
         .collect()
 }
@@ -94,14 +104,24 @@ fn assert_legacy_call_sites_are_catalogued(
     catalog: &'static str,
 ) -> Result<(), String> {
     let mut missing = Vec::new();
-    for (index, line) in source.lines().enumerate() {
-        if line.contains("CliError::legacy_usage(")
-            || line.contains("CliError::legacy_validation(")
-            || line.contains("CliError::legacy_operation(")
-        {
-            let entry = format!("(\"{file}\", {})", index + 1);
-            if !catalog.contains(&entry) {
-                missing.push(entry);
+    for constructor in [
+        "CliError::legacy_usage",
+        "CliError::legacy_validation",
+        "CliError::legacy_validation_with_remediation",
+        "CliError::legacy_operation",
+    ] {
+        for (offset, _) in source.match_indices(constructor) {
+            let remainder = source[offset + constructor.len()..].trim_start();
+            if remainder.starts_with('(') {
+                let line = source[..offset]
+                    .bytes()
+                    .filter(|byte| *byte == b'\n')
+                    .count()
+                    + 1;
+                let entry = format!("(\"{file}\", {line})");
+                if !catalog.contains(&entry) {
+                    missing.push(entry);
+                }
             }
         }
     }
@@ -258,6 +278,10 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(defect)
         .expect_err("the completeness gate must reject an uncatalogued producer");
     assert!(error.contains("future_uncatalogued_router_error"));
+    let multiline = "RouterError::policy(\n    \"future_multiline_router_error\",\n)";
+    let error = assert_catalogued_routed_codes(multiline)
+        .expect_err("the completeness gate must reject a multiline routed producer");
+    assert!(error.contains("future_multiline_router_error"));
 }
 
 #[test]
@@ -299,6 +323,15 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
         include_str!("../src/diagnostic_legacy_catalog.rs"),
     )
     .expect_err("a dynamic legacy producer must have an exact reviewed call-site identity");
+    assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
+    let multiline_legacy =
+        "let message = dynamic_message();\nCliError::legacy_operation\n(\n    message,\n)";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        multiline_legacy,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("a multiline legacy producer must have an exact reviewed call-site identity");
     assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
 }
 
