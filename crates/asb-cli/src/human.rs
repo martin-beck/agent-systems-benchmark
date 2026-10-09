@@ -7,7 +7,7 @@
 //! recursive JSON fallback: adding a command requires choosing its human
 //! presentation as well.
 
-use super::diagnostic::Remediation;
+use super::diagnostic::{Cause, Remediation};
 use super::{CliError, ErrorRemediation, HumanErrorClass};
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -1427,10 +1427,17 @@ pub(super) fn render_error(
 ) -> io::Result<()> {
     let kind = CommandKind::parse(args).unwrap_or(CommandKind::Cli);
     let diagnostic = error.diagnostic;
+    let reason = if error.human_class == HumanErrorClass::UserCorrection
+        || diagnostic.cause == Cause::UnknownCause
+    {
+        sentence_fragment(error.message).to_owned()
+    } else {
+        diagnostic.cause_explanation().to_owned()
+    };
     let mut presentation = Presentation::new(format!(
         "ASB could not complete the {}: {}.",
         kind.label(),
-        diagnostic.cause_explanation()
+        reason
     ));
     presentation.fact(format!("Affected {}.", diagnostic.subject_label()));
     presentation.fact(format!("Detail: {}.", sentence_fragment(error.message)));
@@ -1483,7 +1490,8 @@ pub(super) fn render_error(
     let next = match diagnostic.context.remediation {
         Remediation::RunDoctor => NextAction::new(["asb", "doctor"]),
         Remediation::AuthenticateProvider
-            if error.remediation == ErrorRemediation::OpenRouterCredential =>
+            if error.remediation == ErrorRemediation::OpenRouterCredential
+                && error.human_class != HumanErrorClass::DependencyUnavailable =>
         {
             NextAction::new([
                 "asb",
