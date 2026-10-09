@@ -446,9 +446,9 @@ fn probe_version(path: &Path) -> Option<String> {
         .spawn()
         .ok()?;
     let deadline = Instant::now() + PROBE_TIMEOUT;
-    loop {
-        if child.try_wait().ok()?.is_some() {
-            break;
+    let status = loop {
+        if let Some(status) = child.try_wait().ok()? {
+            break status;
         }
         if Instant::now() >= deadline {
             let _ = child.kill();
@@ -456,13 +456,15 @@ fn probe_version(path: &Path) -> Option<String> {
             return None;
         }
         thread::sleep(Duration::from_millis(10));
-    }
+    };
     let mut output = Vec::new();
-    if let Some(mut stdout) = child.stdout.take() {
-        let _ = stdout.read_to_end(&mut output);
+    if let Some(stdout) = child.stdout.take() {
+        let _ = stdout
+            .take((MAX_OUTPUT_BYTES + 1) as u64)
+            .read_to_end(&mut output);
     }
-    if output.len() > MAX_OUTPUT_BYTES {
-        output.truncate(MAX_OUTPUT_BYTES);
+    if !status.success() || output.len() > MAX_OUTPUT_BYTES {
+        return None;
     }
     let line = String::from_utf8_lossy(&output)
         .lines()
