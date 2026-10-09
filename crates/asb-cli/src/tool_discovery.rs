@@ -124,6 +124,8 @@ pub enum DiscoverySource {
 /// One discovered agent, harness, benchmark, workload, or support tool.
 #[derive(Debug, Serialize)]
 pub struct DiscoveredTool {
+    /// Stable machine identity composed from inventory kind and name.
+    pub identity: String,
     /// Stable tool name.
     pub name: String,
     /// Inventory class.
@@ -287,6 +289,7 @@ fn all_records(config: &ProjectConfigV1) -> Vec<(String, ProjectToolRecordV1)> {
 fn inspect_record(name: &str, record: &ProjectToolRecordV1, root: &Path) -> DiscoveredTool {
     let Some(relative) = record.path.as_deref() else {
         return DiscoveredTool {
+            identity: tool_identity(name, record.kind),
             name: name.into(),
             kind: record.kind,
             source: DiscoverySource::Configured,
@@ -298,7 +301,7 @@ fn inspect_record(name: &str, record: &ProjectToolRecordV1, root: &Path) -> Disc
             reason: Some("configured_record_has_no_local_path".into()),
         };
     };
-    inspect_candidate_with(
+    let mut item = inspect_candidate_with(
         name,
         record.kind,
         &record.capabilities,
@@ -307,7 +310,12 @@ fn inspect_record(name: &str, record: &ProjectToolRecordV1, root: &Path) -> Disc
         root,
         true,
         Some(record.version.clone()),
-    )
+    );
+    if record.status == ProjectToolStatus::Stale && item.status == ProjectToolStatus::Missing {
+        item.status = ProjectToolStatus::Stale;
+        item.reason = Some("configured_record_stale".into());
+    }
+    item
 }
 
 fn inspect_candidate(
@@ -385,6 +393,7 @@ fn inspect_candidate_with<T: ToString>(
         None
     };
     DiscoveredTool {
+        identity: tool_identity(name, kind),
         name: name.into(),
         kind,
         source,
@@ -405,6 +414,7 @@ fn unavailable(
     reason: &str,
 ) -> DiscoveredTool {
     DiscoveredTool {
+        identity: tool_identity(name, kind),
         name: name.into(),
         kind,
         source,
@@ -419,6 +429,17 @@ fn unavailable(
         },
         reason: Some(reason.into()),
     }
+}
+
+fn tool_identity(name: &str, kind: ProjectToolKind) -> String {
+    let kind = match kind {
+        ProjectToolKind::Agent => "agent",
+        ProjectToolKind::Harness => "harness",
+        ProjectToolKind::Benchmark => "benchmark",
+        ProjectToolKind::Workload => "workload",
+        ProjectToolKind::SupportTool => "support_tool",
+    };
+    format!("{kind}:{name}")
 }
 fn unavailable_with_path(
     name: &str,
@@ -534,6 +555,31 @@ mod tests {
         let report = discover(dir.path(), Some(&config), Some(OsString::new()));
         assert_eq!(report.tools[0].status, ProjectToolStatus::Missing);
         assert!(report.tools[0].selected);
+    }
+
+    #[test]
+    fn stale_configured_record_keeps_typed_stale_status() {
+        let dir = tempdir().unwrap();
+        let mut config = ProjectConfigV1::empty();
+        config.support_tools.insert(
+            "cargo".into(),
+            ProjectToolRecordV1 {
+                kind: ProjectToolKind::SupportTool,
+                source_ref: "https://example.invalid/cargo".into(),
+                version: "old".into(),
+                platform: "linux-x86_64".into(),
+                path: Some(".asb/tools/cargo".into()),
+                digest_sha256: None,
+                capabilities: vec!["build".into()],
+                status: ProjectToolStatus::Stale,
+            },
+        );
+        let report = discover(dir.path(), Some(&config), Some(OsString::new()));
+        assert_eq!(report.tools[0].status, ProjectToolStatus::Stale);
+        assert_eq!(
+            report.tools[0].reason.as_deref(),
+            Some("configured_record_stale")
+        );
     }
 
     #[test]
