@@ -6053,8 +6053,9 @@ fn build_provider_launch(
 }
 
 fn load_and_validate(path: &Path) -> Result<PlanFile, CliError> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|_| CliError::validation("experiment plan is unavailable"))?;
+    let metadata = fs::symlink_metadata(path).map_err(|_| {
+        CliError::validation_code("cached_input_unavailable", "experiment plan is unavailable")
+    })?;
     if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_PLAN_BYTES {
         return Err(CliError::validation(
             "experiment plan is not a bounded regular file",

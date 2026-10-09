@@ -24,6 +24,9 @@ When adding a public diagnostic:
    diagnostic_journey`; also run `cargo test --locked -p asb-cli
    every_public_command_has_a_human_safe_invalid_argument_journey`. Repository
    quality runs all required gates on pull requests and protected main.
+   Keep `ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries`
+   current for concrete filesystem, configuration, tool/catalog, provider-plan,
+   TUI lifecycle, `--details`, and redirected JSON boundaries.
 
 Unknown producer identities are intentionally rendered as unclassified.  They
 are safe fallback behavior for compatibility, not permission to add a new

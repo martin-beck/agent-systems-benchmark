@@ -222,6 +222,91 @@ fn executable_usage_failure_is_human_on_stdout_and_preserves_exit_two() {
 }
 
 #[test]
+fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
+    let scratch = Scratch::new();
+    let scenarios: [(&str, Vec<String>, i32, &str); 5] = [
+        (
+            "filesystem",
+            vec![
+                "--details".into(),
+                "run".into(),
+                "/definitely/missing/asb-plan.toml".into(),
+                "--local-mock".into(),
+            ],
+            3,
+            "required input",
+        ),
+        (
+            "configuration",
+            vec!["--details".into(), "setup".into(), "--not-an-option".into()],
+            2,
+            "arguments were not accepted",
+        ),
+        (
+            "tool-catalog",
+            vec![
+                "--details".into(),
+                "tool".into(),
+                "not-a-tool-command".into(),
+            ],
+            2,
+            "arguments were not accepted",
+        ),
+        (
+            "provider-plan",
+            vec!["--details".into(), "provider-plan".into()],
+            3,
+            "required input",
+        ),
+        (
+            "tui-lifecycle",
+            vec!["--details".into(), "tui".into(), "not-a-tui-command".into()],
+            2,
+            "arguments were not accepted",
+        ),
+    ];
+    for (name, args, exit, expected) in scenarios {
+        let output = isolated_asb(&scratch.0).args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(exit), "{name}");
+        assert!(output.stderr.is_empty(), "{name}");
+        let text = assert_private_human_output(&output);
+        assert!(text.contains(expected), "{name}: {text}");
+        assert!(text.contains("Affected "), "{name}: {text}");
+        assert!(text.contains("Recovery: "), "{name}: {text}");
+        assert!(text.contains("Diagnostic code:"), "{name}: {text}");
+        assert!(text.contains("Diagnostic cause:"), "{name}: {text}");
+    }
+
+    let redirected = isolated_asb(&scratch.0)
+        .args([
+            "--json",
+            "run",
+            "/definitely/missing/asb-plan.toml",
+            "--local-mock",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(redirected.status.code(), Some(3));
+    assert!(redirected.stderr.is_empty());
+    let envelope: serde_json::Value = serde_json::from_slice(&redirected.stdout).unwrap();
+    assert_eq!(envelope["error"]["exit_code"], 3);
+    assert_eq!(
+        envelope["error"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        vec!["code", "exit_code", "message"]
+    );
+    assert!(
+        !redirected
+            .stdout
+            .windows(b"/definitely".len())
+            .any(|part| part == b"/definitely")
+    );
+}
+
+#[test]
 fn executable_json_alias_is_machine_readable_and_not_styled() {
     let output = asb()
         .args(["--format", "json", "doctor"])

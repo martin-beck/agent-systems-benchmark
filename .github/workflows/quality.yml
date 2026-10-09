@@ -117,6 +117,7 @@ jobs:
           cargo test --locked -p asb-cli --test diagnostic_contract
           cargo test --locked -p asb-cli --test diagnostic_journey
           cargo test --locked -p asb-cli every_public_command_has_a_human_safe_invalid_argument_journey
+          cargo test --locked -p asb-cli --test human_cli ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries
       - name: Validate platform manifests and failure fixtures
         run: |
           python3 tools/platforms/validate_manifests.py
