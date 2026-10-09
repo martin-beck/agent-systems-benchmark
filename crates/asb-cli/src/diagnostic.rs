@@ -567,6 +567,18 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
+        "dev_metadata_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Artifact,
+                    "operate",
+                    Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
         "candidate_execution_failed" => {
             return (
                 Cause::UnexpectedProductFailure,
@@ -1542,6 +1554,7 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
         "development_metadata_failed",
         Cause::UnexpectedProductFailure,
     ),
+    ("dev_metadata_failed", Cause::UnexpectedProductFailure),
     (
         "candidate_execution_failed",
         Cause::UnexpectedProductFailure,
