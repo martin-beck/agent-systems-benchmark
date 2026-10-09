@@ -60,6 +60,7 @@ pub(super) const PUBLIC_COMMANDS: &[&str] = &[
     "setup",
     "capabilities",
     "project",
+    "tool",
     "provider-catalog",
     "adapter-catalog",
     "workload-catalog",
@@ -94,6 +95,7 @@ enum CommandKind {
     Tui,
     Capabilities,
     Project,
+    Tool,
     ProviderCatalog,
     AdapterCatalog,
     WorkloadCatalog,
@@ -202,6 +204,7 @@ pub(super) enum InvocationKind {
     Tui(TuiKind),
     Capabilities,
     ProjectInit,
+    Tool,
     ProviderCatalog { refresh: bool },
     AdapterCatalog,
     WorkloadCatalog,
@@ -276,6 +279,7 @@ impl InvocationKind {
             }),
             Some("capabilities") => Self::Capabilities,
             Some("project") => Self::ProjectInit,
+            Some("tool") => Self::Tool,
             Some("provider-catalog") => Self::ProviderCatalog {
                 refresh: words.contains(&"--refresh"),
             },
@@ -324,6 +328,7 @@ impl InvocationKind {
             Self::Tui(_) => CommandKind::Tui,
             Self::Capabilities => CommandKind::Capabilities,
             Self::ProjectInit => CommandKind::Project,
+            Self::Tool => CommandKind::Tool,
             Self::ProviderCatalog { .. } | Self::Easy(EasyKind::ProviderCatalog) => {
                 CommandKind::ProviderCatalog
             }
@@ -367,6 +372,7 @@ impl InvocationKind {
                 | Self::Easy(EasyKind::Help)
                 | Self::Tui(TuiKind::Help | TuiKind::Version)
                 | Self::Serve
+                | Self::Tool
                 | Self::InternalOpenCodeBatch
         )
     }
@@ -396,6 +402,7 @@ impl CommandKind {
             Self::Tui => "tui",
             Self::Capabilities => "capabilities",
             Self::Project => "project initialization",
+            Self::Tool => "tool",
             Self::ProviderCatalog => "provider catalog",
             Self::AdapterCatalog => "adapter catalog",
             Self::WorkloadCatalog => "workload catalog",
@@ -1228,6 +1235,7 @@ fn validate_typed_result(
         }
         InvocationKind::Help
         | InvocationKind::Version
+        | InvocationKind::Tool
         | InvocationKind::Easy(EasyKind::Help)
         | InvocationKind::Completion
         | InvocationKind::Serve
@@ -1390,6 +1398,7 @@ fn project_for_presentation(
         ],
         CommandKind::Record
         | CommandKind::RecordLive
+        | CommandKind::Tool
         | CommandKind::Cli
         | CommandKind::Help
         | CommandKind::Version
@@ -1630,6 +1639,7 @@ fn present(
             value
         }
         CommandKind::Cli
+        | CommandKind::Tool
         | CommandKind::Help
         | CommandKind::Version
         | CommandKind::Completion
