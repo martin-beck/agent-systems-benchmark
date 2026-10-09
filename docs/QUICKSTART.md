@@ -37,6 +37,12 @@ A plan is a bounded TOML file with:
 Validate before launching:
 
 ```sh
+asb setup
+asb provider-catalog
+asb setup --agent AGENT --provider-profile PROVIDER --model MODEL --persist
+asb workload-catalog
+asb plan create --workload WORKLOAD --agent AGENT \
+  --agent-executable /absolute/agent --output /absolute/experiment.toml --use-config
 asb plan /absolute/path/experiment.toml
 asb run /absolute/path/experiment.toml
 asb report /absolute/result/root/runs/RUN_ID
@@ -48,6 +54,9 @@ the default; pass the global `--json` flag (for example, `asb --json plan ...`)
 for the stable machine-readable envelope. Progress is on stderr. A nonzero
 exit and structured error are authoritative.
 Never treat absent measurements as zero or a failed/inconclusive point as pass.
+Catalog commands are user-choice boundaries: substitute only values displayed
+as runnable/setup-supported. Subsequent `Next:` lines are copyable, validated
+commands and lead from plan validation through run/sweep, report, and compare.
 
 ## Complete benchmark workflow
 

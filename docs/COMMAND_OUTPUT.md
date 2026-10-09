@@ -46,9 +46,10 @@ the executable's ordinary terminal mode selects human presentation.
 
 Use `--details` (or its `--verbose` alias) for bounded diagnostic identifiers
 while keeping the human layout. It cannot be combined with JSON mode. Details
-never reveal secrets or recursively dump an unrecognized object. Help,
-version, completion scripts, and command-specific TUI help/version remain
-explicit text artifacts and retain their bytes.
+never reveal secrets or recursively dump an unrecognized object. Version,
+completion scripts, and command-specific TUI help/version remain explicit text
+artifacts and retain their established bytes. Top-level help intentionally
+changes to document human output, JSON selectors, and details mode.
 
 | Outcome | Exit behavior | Human guidance |
 | --- | --- | --- |
@@ -62,3 +63,31 @@ explicit text artifacts and retain their bytes.
 
 Credential values, prompts, responses, authorization headers, and private
 runtime material are forbidden from both human output and suggested commands.
+
+## First-run human progression
+
+The ordinary executable guides a first run without pretending that user
+choices are automatic. `asb setup` ends with `Next: asb provider-catalog`.
+The provider catalog shows each profile-to-model route and labels only routes
+that setup can persist; it then shows this choice form, not a fabricated Next:
+
+```text
+Command form: asb setup --agent AGENT --provider-profile PROVIDER --model MODEL --persist.
+```
+
+After the user substitutes displayed values, setup confirms the actual agent,
+provider, and model and ends with `Next: asb workload-catalog`. The workload
+catalog lists runnable workloads and shows the supported creation form:
+
+```text
+asb plan create --workload WORKLOAD --agent AGENT \
+  --agent-executable AGENT_EXECUTABLE --output PLAN --use-config
+```
+
+The created plan points to `asb plan PLAN --use-config`. Validation chooses
+`run` or `sweep` from the validated plan, preserving the selection option.
+Execution names retained run IDs and, when retained run directories exist,
+ends with an exact `asb report RUN...` command. A report over at least two runs
+ends with the corresponding `asb compare RUN...` command. `asb tui` remains a
+separate explicit launch; installation failures may offer `asb tui install`
+only when that command addresses the reported condition.

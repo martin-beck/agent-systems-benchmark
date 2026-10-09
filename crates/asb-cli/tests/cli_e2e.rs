@@ -226,3 +226,58 @@ fn sigint_cancels_process_group_persists_terminal_state_and_returns_json() {
         }
     }
 }
+
+#[test]
+fn sigint_default_mode_reports_human_cancellation_and_retained_report_action() {
+    let scratch = Scratch::new();
+    let (plan, result_root, executable, _) = cancellation_plan(&scratch.0);
+    let child = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .args(["run", plan.to_str().unwrap()])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while !child_marker_exists(&scratch.0.join("work")) {
+        assert!(Instant::now() < deadline, "agent process did not start");
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        Command::new("/bin/kill")
+            .args(["-INT", &child.id().to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(130));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.starts_with("ASB cancelled the benchmark run"));
+    assert!(stdout.contains("Next: asb report "));
+    assert!(!stdout.starts_with('{'));
+    assert!(!stdout.contains("schema_version"));
+    let retained = fs::canonicalize(result_root.join("runs/cancel-e2e")).unwrap();
+    assert!(stdout.contains(retained.to_str().unwrap()));
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("starting cancel-e2e")
+    );
+
+    let executable_bytes = executable.as_os_str().as_encoded_bytes();
+    for entry in fs::read_dir("/proc").unwrap().flatten() {
+        if entry
+            .file_name()
+            .as_encoded_bytes()
+            .iter()
+            .all(u8::is_ascii_digit)
+            && let Ok(command) = fs::read(entry.path().join("cmdline"))
+        {
+            assert!(
+                !command
+                    .windows(executable_bytes.len())
+                    .any(|part| part == executable_bytes)
+            );
+        }
+    }
+}

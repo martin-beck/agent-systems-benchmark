@@ -60,7 +60,9 @@ asb provider-catalog
 asb provider-plan --use-config  # after saving an OpenRouter configuration
 ```
 
-Those human commands summarize selectable values and a saved OpenRouter selection.
+Those human commands summarize selectable values and validate a dry-run
+provider selection. `provider-plan` does not save or change configuration;
+only setup/configuration commands explicitly documented as persistent do so.
 For scripts that need exact digests and full records, use the JSON route:
 
 ```sh

@@ -166,8 +166,9 @@ fn run_with_default_mode_and_stdin(
     let mut captured = Vec::new();
     let mut presentation_context = human::PresentationContext::default();
     let context = human.then_some(&mut presentation_context);
-    let bare_human_capabilities = human && normalized.len() == 1 && normalized[0] == "capabilities";
-    let dispatched = if bare_human_capabilities {
+    let executable_capabilities =
+        human_default && normalized.len() == 1 && normalized[0] == "capabilities";
+    let dispatched = if executable_capabilities {
         write_json(
             &mut captured,
             &capabilities::CapabilityResponse::control_v1(),
@@ -827,15 +828,17 @@ fn dispatch(
         [command] if command == "capabilities" && explicit_json => {
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
-        [command] if command == "provider-catalog" => provider_catalog(stdout, false).map(|()| 0),
+        [command] if command == "provider-catalog" => {
+            provider_catalog(stdout, false, presentation_context).map(|()| 0)
+        }
         [command, refresh] if command == "provider-catalog" && refresh == "--refresh" => {
-            provider_catalog(stdout, true).map(|()| 0)
+            provider_catalog(stdout, true, presentation_context).map(|()| 0)
         }
         [command] if command == "adapter-catalog" => adapter_catalog(stdout).map(|()| 0),
         [command, format, value]
             if command == "provider-catalog" && format == "--format" && value == "json" =>
         {
-            provider_catalog(stdout, false).map(|()| 0)
+            provider_catalog(stdout, false, presentation_context).map(|()| 0)
         }
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
@@ -1315,7 +1318,7 @@ fn guided_local_with_context(
     if args[0] == "provider-catalog"
         && (args.len() == 1 || (args.len() == 3 && args[1] == "--format" && args[2] == "json"))
     {
-        return provider_catalog(output, false).map(|()| 0);
+        return provider_catalog(output, false, presentation_context).map(|()| 0);
     }
     if args[0] == "adapter-catalog" && args.len() == 1 {
         return adapter_catalog(output).map(|()| 0);
@@ -2029,7 +2032,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     )
     .map_err(output_error)?;
     writeln!(output, "  asb tui --help").map_err(output_error)?;
-    writeln!(output, "  asb plan create --workload WORKLOAD --agent-executable /absolute/agent --output PLAN.toml")
+    writeln!(output, "  asb plan create --workload WORKLOAD --agent AGENT --agent-executable /absolute/agent --output /absolute/PLAN.toml [--use-config] [--sweep-max-concurrency N]")
         .map_err(output_error)?;
     writeln!(output, "  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb record-live CAPTURE.json CASSETTE.json --local-mock --confirm-record\n  asb record-live REQUEST.json CASSETTE.json --openrouter --confirm-record\n  asb record-campaign MANIFEST.json --local-mock\n  asb replay-offline CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT")
         .map_err(output_error)
@@ -2191,14 +2194,15 @@ where
     let mut persisted = false;
     if !agents.is_empty() {
         let provider = provider_profile.as_deref().expect("validated above");
+        if !SETUP_PROVIDER_IDS.contains(&provider) {
+            return Err(CliError::validation(
+                "selected provider has no supported setup runtime",
+            ));
+        }
         let expected_credential_environment = match provider {
             "openrouter" => asb_agents::openrouter::OPENROUTER_API_KEY_ENV,
             "openai" => "OPENAI_API_KEY",
-            _ => {
-                return Err(CliError::validation(
-                    "selected provider has no supported setup runtime",
-                ));
-            }
+            _ => unreachable!("setup provider authority checked above"),
         };
         if credential_environment.as_deref() != Some(expected_credential_environment) {
             return Err(CliError::validation(
@@ -2397,8 +2401,9 @@ fn record_live(
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
     if !confirmed {
-        return Err(CliError::validation(
+        return Err(CliError::validation_with_remediation(
             "record-live requires explicit --confirm-record opt-in",
+            ErrorRemediation::RecordConfirmation,
         ));
     }
     record(input, output, stdout)
@@ -3207,6 +3212,9 @@ const AGENT_IDS: [&str; 9] = [
     "openhands",
 ];
 
+/// Provider profiles with an implemented persistent setup/runtime route.
+const SETUP_PROVIDER_IDS: [&str; 2] = ["openai", "openrouter"];
+
 const GEMINI_MODEL: &str = "gemini-2.5-flash";
 
 fn provider_catalog_digest() -> String {
@@ -3263,7 +3271,14 @@ fn workload_catalog_output(output: &mut dyn Write) -> Result<(), CliError> {
     )
 }
 
-fn provider_catalog(output: &mut dyn Write, refresh: bool) -> Result<(), CliError> {
+fn provider_catalog(
+    output: &mut dyn Write,
+    refresh: bool,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<(), CliError> {
+    if let Some(context) = presentation_context {
+        context.set_provider_catalog(SETUP_PROVIDER_IDS.into_iter().map(str::to_owned).collect());
+    }
     if refresh {
         let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
         return provider_catalog_with_catalog(output, &catalog, "refreshed");
@@ -4134,7 +4149,9 @@ fn plan_with_context(
 /// Create a plan from the canonical workload catalog without requiring a
 /// hand-maintained workload list.  This is deliberately a local operation:
 /// it only hashes the caller-supplied executable and writes the requested
-/// plan file; it never contacts a provider or resolves credentials.
+/// plan file. With `--use-config`, it resolves the already-persisted provider
+/// selection locally and binds that identity into the generated plan; it does
+/// not contact a provider or read credential material.
 fn create_plan(
     args: &[String],
     output: &mut dyn Write,
@@ -4143,6 +4160,8 @@ fn create_plan(
 ) -> Result<(), CliError> {
     let mut workload = None;
     let mut executable = None;
+    let mut agent = None;
+    let mut use_config = false;
     let mut destination = None;
     let mut run_id = None;
     let mut result_root = PathBuf::from("/tmp/asb-results");
@@ -4150,6 +4169,7 @@ fn create_plan(
     let mut measured = 1_u32;
     let mut warmups = 0_u32;
     let mut concurrency = 1_u32;
+    let mut sweep_max_concurrency = None;
     let mut timeout_ms = 300_000_u64;
     let mut index = 0;
     while index < args.len() {
@@ -4163,6 +4183,18 @@ fn create_plan(
         match flag {
             "--workload" => workload = Some(value(&mut index)?),
             "--agent-executable" => executable = Some(PathBuf::from(value(&mut index)?)),
+            "--agent" if agent.is_none() => agent = Some(value(&mut index)?),
+            "--agent" => {
+                return Err(CliError::usage(
+                    "plan create option was supplied more than once",
+                ));
+            }
+            "--use-config" if !use_config => use_config = true,
+            "--use-config" => {
+                return Err(CliError::usage(
+                    "plan create option was supplied more than once",
+                ));
+            }
             "--output" => destination = Some(PathBuf::from(value(&mut index)?)),
             "--run-id" => run_id = Some(value(&mut index)?),
             "--result-root" => result_root = PathBuf::from(value(&mut index)?),
@@ -4181,6 +4213,11 @@ fn create_plan(
                 concurrency = value(&mut index)?
                     .parse()
                     .map_err(|_| CliError::validation("concurrency must be an integer"))?
+            }
+            "--sweep-max-concurrency" => {
+                sweep_max_concurrency = Some(value(&mut index)?.parse().map_err(|_| {
+                    CliError::validation("sweep-max-concurrency must be an integer")
+                })?)
             }
             "--timeout-ms" => {
                 timeout_ms = value(&mut index)?
@@ -4243,6 +4280,9 @@ fn create_plan(
     })?;
     let executable =
         executable.ok_or_else(|| CliError::usage("plan create requires --agent-executable"))?;
+    if use_config && agent.is_none() {
+        return Err(CliError::usage("plan create --use-config requires --agent"));
+    }
     let executable = fs::canonicalize(&executable)
         .map_err(|_| CliError::validation("agent executable is unavailable"))?;
     let executable_sha256 = digest_file(&executable)?;
@@ -4253,6 +4293,10 @@ fn create_plan(
     ))
     .map_err(|_| CliError::operation("built-in experiment template is invalid"))?;
     experiment.agent.binary_sha256 = executable_sha256.clone();
+    if let Some(agent) = &agent {
+        validate_id(agent)?;
+        experiment.agent.implementation.clone_from(agent);
+    }
     experiment.workload.workload = manifest_workload.workload_id.0;
     experiment.workload.workload_revision = manifest_workload.version;
     experiment.workload.workload_sha256 = manifest_workload.content_sha256;
@@ -4274,7 +4318,7 @@ fn create_plan(
         None,
     )
     .map_err(|_| CliError::validation("generated measurement selection is invalid"))?;
-    let plan = PlanFile {
+    let mut plan = PlanFile {
         schema_version: PLAN_SCHEMA_VERSION,
         run_id: run_id.unwrap_or_else(|| format!("asb-{}", selected.id)),
         result_root,
@@ -4295,12 +4339,25 @@ fn create_plan(
             poll_ms: 5,
             seed: 7,
             open_loop_interval_ms: None,
-            sweep_max_concurrency: None,
+            sweep_max_concurrency,
         },
         experiment,
         replay_cassette_path: None,
         measurement_selection: Some(measurement_selection),
     };
+    if use_config {
+        let store = ConfigStore::from_environment()
+            .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+        let selection = selection_for_plan_at(&plan, &store)?;
+        plan.experiment.model.provider = selection.provider_profile.clone();
+        plan.experiment.model.model = selection.model.clone();
+        plan.experiment.model.settings.additional_settings_sha256 =
+            Some(selection.provider_profile_sha256.clone());
+        plan.experiment
+            .refresh_content_address()
+            .map_err(|_| CliError::validation("configured experiment identity is invalid"))?;
+        validate_selection_binding(&plan, &selection)?;
+    }
     validate_plan(&plan)?;
     let destination =
         destination.ok_or_else(|| CliError::usage("plan create requires --output"))?;
@@ -5673,6 +5730,7 @@ fn execute_with_config(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_with_selection_live_provider(
     path: &Path,
     selection_path: &Path,
@@ -5695,6 +5753,7 @@ fn execute_with_selection_live_provider(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_inner(
     path: &Path,
     selection_path: Option<&Path>,
@@ -7963,6 +8022,16 @@ struct CliError {
     settings_issue: asb_control::SettingsIssue,
     #[serde(skip)]
     human_class: HumanErrorClass,
+    #[serde(skip)]
+    remediation: ErrorRemediation,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ErrorRemediation {
+    None,
+    Help,
+    RecordConfirmation,
+    OpenRouterCredential,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -7981,6 +8050,7 @@ impl CliError {
             exit_code: 2,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
+            remediation: ErrorRemediation::Help,
         }
     }
 
@@ -7991,6 +8061,21 @@ impl CliError {
             exit_code: 3,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
+            remediation: ErrorRemediation::None,
+        }
+    }
+
+    const fn validation_with_remediation(
+        message: &'static str,
+        remediation: ErrorRemediation,
+    ) -> Self {
+        Self {
+            code: "validation",
+            message,
+            exit_code: 3,
+            settings_issue: asb_control::SettingsIssue::InvalidFormat,
+            human_class: HumanErrorClass::UserCorrection,
+            remediation,
         }
     }
 
@@ -8004,6 +8089,7 @@ impl CliError {
             exit_code: 3,
             settings_issue,
             human_class: HumanErrorClass::UserCorrection,
+            remediation: ErrorRemediation::None,
         }
     }
 
@@ -8014,6 +8100,7 @@ impl CliError {
             exit_code: 4,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::ProductFailure,
+            remediation: ErrorRemediation::None,
         }
     }
 
@@ -8024,6 +8111,7 @@ impl CliError {
             exit_code: 3,
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
+            remediation: ErrorRemediation::None,
         }
     }
 
@@ -8046,6 +8134,10 @@ impl CliError {
                 | "provider_http_error"
                 | "provider_catalog_http_error" => HumanErrorClass::DependencyUnavailable,
                 _ => HumanErrorClass::ProductFailure,
+            },
+            remediation: match code {
+                "provider_credential_unavailable" => ErrorRemediation::OpenRouterCredential,
+                _ => ErrorRemediation::None,
             },
         }
     }
@@ -8666,6 +8758,20 @@ mod tests {
                 .unwrap()
                 .starts_with("ASB found this host")
         );
+    }
+
+    #[test]
+    fn library_machine_seam_rejects_selector_free_capabilities() {
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run(&["capabilities".into()], &mut output, &mut diagnostic),
+            2
+        );
+        assert!(diagnostic.is_empty());
+        let error: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(error["command"], "capabilities");
+        assert_eq!(error["error"]["code"], "usage");
     }
 
     #[test]
@@ -12219,7 +12325,12 @@ mod tests {
             ),
             3
         );
+        assert_eq!(
+            String::from_utf8(denied_live.clone()).unwrap(),
+            "{\"schema_version\":1,\"ok\":false,\"command\":\"record-live\",\"error\":{\"code\":\"validation\",\"message\":\"record-live requires explicit --confirm-record opt-in\",\"exit_code\":3}}\n"
+        );
         let denied_live: Value = serde_json::from_slice(&denied_live).unwrap();
+        assert_eq!(denied_live["error"]["code"], "validation");
         assert_eq!(
             denied_live["error"]["message"],
             "record-live requires explicit --confirm-record opt-in"

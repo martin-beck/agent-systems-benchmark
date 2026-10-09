@@ -302,7 +302,6 @@ fn every_advertised_boolean_has_an_authoritative_control_v1_method() {
 #[test]
 fn command_rejects_every_noncanonical_invocation_without_side_effects() {
     for arguments in [
-        Vec::<&str>::new(),
         vec!["--format"],
         vec!["--format", "yaml"],
         vec!["json"],
@@ -498,7 +497,6 @@ fn canonical_and_failing_children_are_parallel_safe_and_leave_checkout_clean() {
     assert_checkout_has_no_default_profiles();
     let invocations = [
         vec!["--format", "json"],
-        Vec::new(),
         vec!["--format"],
         vec!["--format", "yaml"],
         vec!["json"],

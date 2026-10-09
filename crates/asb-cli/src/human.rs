@@ -7,7 +7,7 @@
 //! recursive JSON fallback: adding a command requires choosing its human
 //! presentation as well.
 
-use super::{CliError, HumanErrorClass};
+use super::{CliError, ErrorRemediation, HumanErrorClass};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::ffi::OsString;
@@ -33,6 +33,9 @@ pub(super) enum PresentationContext {
     Execution {
         run_refs: Vec<String>,
     },
+    ProviderCatalog {
+        setup_profiles: Vec<String>,
+    },
 }
 
 impl PresentationContext {
@@ -43,11 +46,15 @@ impl PresentationContext {
     pub(super) fn set_execution(&mut self, run_refs: Vec<String>) {
         *self = Self::Execution { run_refs };
     }
+
+    pub(super) fn set_provider_catalog(&mut self, setup_profiles: Vec<String>) {
+        *self = Self::ProviderCatalog { setup_profiles };
+    }
 }
 
-/// Authoritative public top-level command inventory. Dispatch rejects any
-/// command that is not classified below; doctor and shell completion consume
-/// this same registry so those discovery surfaces cannot silently drift.
+/// Authoritative public top-level command inventory for dispatch, help, and
+/// human-presentation exhaustiveness. Legacy doctor/completion projections are
+/// independently pinned to their compatibility fixtures.
 pub(super) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
     "setup",
@@ -484,6 +491,8 @@ struct SetupView {
     persistent_change: bool,
     persisted: bool,
     selected_agents: Vec<String>,
+    provider_profile: Option<String>,
+    model: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -509,6 +518,21 @@ struct TuiView {
     classification: Option<String>,
     #[serde(default)]
     code: Option<String>,
+    channel: Option<String>,
+    #[serde(default)]
+    warnings: Vec<TuiWarningView>,
+}
+
+#[derive(Deserialize)]
+enum TuiWarningView {
+    #[serde(rename = "development_missing_authentication_allowed")]
+    AuthenticationMissing,
+    #[serde(rename = "development_missing_signatures_allowed")]
+    UnsignedArtifacts,
+    #[serde(rename = "development_missing_key_management_allowed")]
+    KeyManagementMissing,
+    #[serde(rename = "development_rustup_permission_or_ownership_findings_allowed")]
+    RustupPermissions,
 }
 
 #[derive(Deserialize)]
@@ -533,6 +557,7 @@ struct ProviderCatalogEntryView {
     id: String,
     model: String,
     selectable: bool,
+    unavailable_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -560,7 +585,15 @@ struct WorkloadCatalogView {
 struct WorkloadCatalogEntryView {
     id: String,
     kind: String,
-    availability: String,
+    availability: WorkloadAvailabilityView,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum WorkloadAvailabilityView {
+    Available,
+    FixtureOnly,
+    Unavailable,
 }
 
 #[derive(Deserialize)]
@@ -622,6 +655,7 @@ struct ProviderPlanView {
     _schema_version: u16,
     ok: bool,
     command: String,
+    dry_run: bool,
     provider_profile: String,
     model: String,
     effective: Vec<EffectiveAgentView>,
@@ -685,6 +719,7 @@ struct ExecutionView {
     run_ids: Vec<String>,
     points: Vec<PointView>,
     cancelled: bool,
+    highest_confirmed_capacity: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -746,6 +781,13 @@ struct CampaignView {
     tuple_count: u16,
     complete_coverage: bool,
     offline_ready: bool,
+    unavailable_reason: Option<CampaignUnavailableReasonView>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum CampaignUnavailableReasonView {
+    RecordingCoverageIncomplete,
 }
 
 #[derive(Deserialize)]
@@ -780,11 +822,15 @@ fn decode<T: for<'de> Deserialize<'de>>(captured: &[u8]) -> io::Result<T> {
     })
 }
 
+struct ValidatedOutcome {
+    fields: Map<String, Value>,
+}
+
 fn validate_typed_result(
     invocation: InvocationKind,
     args: &[OsString],
     captured: &[u8],
-) -> io::Result<()> {
+) -> io::Result<ValidatedOutcome> {
     let invalid = || {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -796,9 +842,7 @@ fn validate_typed_result(
     {
         let expected = if matches!(
             invocation,
-            InvocationKind::Setup
-                | InvocationKind::Easy(EasyKind::Setup)
-                | InvocationKind::ConfigOpenrouter
+            InvocationKind::Setup | InvocationKind::Easy(EasyKind::Setup)
         ) {
             2
         } else {
@@ -823,9 +867,21 @@ fn validate_typed_result(
                 || value.command != "setup"
                 || !matches!(value.mode.as_str(), "preflight" | "commit")
                 || value.persisted && !value.persistent_change
+                || value.mode == "preflight" && value.persistent_change
+                || value.mode == "commit" && !value.persistent_change
                 || value.selected_agents.len() > 9
                 || value.selected_agents.iter().any(|agent| !safe_id(agent))
                 || value.persisted && value.selected_agents.is_empty()
+                || value.persisted
+                    && value
+                        .provider_profile
+                        .as_deref()
+                        .is_none_or(|provider| !safe_id(provider))
+                || value.persisted
+                    && value
+                        .model
+                        .as_deref()
+                        .is_none_or(|model| model.is_empty() || model.chars().any(char::is_control))
             {
                 return Err(invalid());
             }
@@ -852,9 +908,14 @@ fn validate_typed_result(
                 || Some(value.operation.as_str()) != tui_kind.result_operation()
                 || (!value.ok && value.classification.as_deref().is_none_or(str::is_empty))
                 || (!value.ok && value.code.as_deref().is_none_or(str::is_empty))
+                || value
+                    .channel
+                    .as_deref()
+                    .is_some_and(|channel| !safe_id(channel))
             {
                 return Err(invalid());
             }
+            let _warnings = &value.warnings;
         }
         InvocationKind::Capabilities => {
             super::capabilities::CapabilityResponse::parse(captured).map_err(|_| invalid())?;
@@ -870,10 +931,15 @@ fn validate_typed_result(
                     .openrouter_free_models
                     .iter()
                     .any(|model| model.is_empty() || model.chars().any(char::is_control))
-                || value
-                    .profiles
-                    .iter()
-                    .any(|item| !safe_id(&item.id) || item.model.is_empty())
+                || value.profiles.iter().any(|item| {
+                    !safe_id(&item.id)
+                        || item.model.is_empty()
+                        || item.model.chars().any(char::is_control)
+                        || item
+                            .unavailable_reason
+                            .as_deref()
+                            .is_some_and(|reason| reason.chars().any(char::is_control))
+                })
                 || !value.profiles.iter().any(|item| item.selectable)
             {
                 return Err(invalid());
@@ -898,7 +964,13 @@ fn validate_typed_result(
             validate_catalog_envelope(&value.envelope, "workload-catalog")?;
             if value.entries.is_empty()
                 || value.entries.iter().any(|item| {
-                    !safe_id(&item.id) || item.kind.is_empty() || item.availability.is_empty()
+                    let valid_availability = matches!(
+                        item.availability,
+                        WorkloadAvailabilityView::Available
+                            | WorkloadAvailabilityView::FixtureOnly
+                            | WorkloadAvailabilityView::Unavailable
+                    );
+                    !safe_id(&item.id) || item.kind.is_empty() || !valid_availability
                 })
             {
                 return Err(invalid());
@@ -963,6 +1035,7 @@ fn validate_typed_result(
             let value: ProviderPlanView = decode(captured)?;
             if !value.ok
                 || value.command != "provider-plan"
+                || !value.dry_run
                 || value.provider_profile.is_empty()
                 || value.model.is_empty()
                 || value.effective.is_empty()
@@ -1021,9 +1094,14 @@ fn validate_typed_result(
             {
                 return Err(invalid());
             }
+            let _highest_confirmed_capacity = value.highest_confirmed_capacity;
         }
         InvocationKind::Compare | InvocationKind::Easy(EasyKind::Compare) => {
             let value: CompareView = decode(captured)?;
+            let every_pair_comparable = value.pairs.iter().all(|pair| pair.comparable);
+            let coherent_comparable = every_pair_comparable
+                && value.differences.is_empty()
+                && value.unavailable_reasons.is_empty();
             if !value.ok
                 || value.command != "compare"
                 || value.pairs.is_empty()
@@ -1033,9 +1111,23 @@ fn validate_typed_result(
                         || !safe_id(&pair.left_agent)
                         || !safe_id(&pair.right_agent)
                         || pair.comparable && !pair.differences.is_empty()
+                        || !pair.comparable
+                            && pair.differences.is_empty()
+                            && value.unavailable_reasons.is_empty()
+                        || pair
+                            .differences
+                            .iter()
+                            .any(|difference| !safe_id(difference))
+                        || pair
+                            .differences
+                            .iter()
+                            .any(|difference| !value.differences.contains(difference))
                 })
-                || value.comparable
-                    && (!value.differences.is_empty() || !value.unavailable_reasons.is_empty())
+                || value
+                    .differences
+                    .iter()
+                    .any(|difference| !safe_id(difference))
+                || value.comparable != coherent_comparable
             {
                 return Err(invalid());
             }
@@ -1076,6 +1168,7 @@ fn validate_typed_result(
             if value.command != "record-campaign"
                 || value.tuple_count == 0
                 || value.ok != (value.complete_coverage && value.offline_ready)
+                || value.complete_coverage == value.unavailable_reason.is_some()
             {
                 return Err(invalid());
             }
@@ -1110,7 +1203,11 @@ fn validate_typed_result(
         | InvocationKind::InternalOpenCodeBatch => {}
         InvocationKind::Cli | InvocationKind::Easy(EasyKind::Unknown) => return Err(invalid()),
     }
-    Ok(())
+    let raw: Value = serde_json::from_slice(captured).map_err(|_| invalid())?;
+    let object = raw.as_object().ok_or_else(invalid)?;
+    Ok(ValidatedOutcome {
+        fields: project_for_presentation(invocation, object),
+    })
 }
 
 fn validate_catalog_envelope(value: &CatalogEnvelope, expected: &str) -> io::Result<()> {
@@ -1195,24 +1292,96 @@ pub(super) fn render_success_with_context(
         return output.write_all(captured);
     }
     let invocation = InvocationKind::classify_args(args);
-    validate_typed_result(invocation, args, captured)?;
-    let value: Value = serde_json::from_slice(captured).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} returned no structured human result", kind.label()),
-        )
-    })?;
-    let object = value.as_object().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} returned an invalid result shape", kind.label()),
-        )
-    })?;
-    let mut presentation = present(invocation, args, object, context);
+    let validated = validate_typed_result(invocation, args, captured)?;
+    let mut presentation = present(invocation, args, &validated.fields, context);
     if details {
-        add_details(&mut presentation, object);
+        add_details(&mut presentation, &validated.fields);
     }
     write_presentation(&presentation, output, terminal_width())
+}
+
+/// Project only fields covered by the invocation's typed validator. Unknown
+/// JSON remains machine-visible but cannot silently become a human claim.
+fn project_for_presentation(
+    invocation: InvocationKind,
+    object: &Map<String, Value>,
+) -> Map<String, Value> {
+    let fields: &[&str] = match invocation.family() {
+        CommandKind::Doctor => &["ok", "linux", "architecture", "procfs", "cgroup_v2"],
+        CommandKind::Setup => &["persisted", "provider_profile", "model", "selected_agents"],
+        CommandKind::Easy => &["operation", "dry_run", "message", "channel"],
+        CommandKind::Tui => &[
+            "ok",
+            "operation",
+            "classification",
+            "code",
+            "channel",
+            "warnings",
+        ],
+        CommandKind::Capabilities => &["protocol_version", "capabilities"],
+        CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
+        CommandKind::AdapterCatalog => &["adapters"],
+        CommandKind::WorkloadCatalog => &["entries"],
+        CommandKind::Config => &["provider", "model"],
+        CommandKind::Auth => &[
+            "command",
+            "configured",
+            "jsonrpc",
+            "id",
+            "method",
+            "result",
+            "error",
+        ],
+        CommandKind::ProviderPlan => &["provider_profile", "model", "effective"],
+        CommandKind::Plan => &["plan", "run_id", "workload", "agent_implementation"],
+        CommandKind::Run | CommandKind::Sweep | CommandKind::BenchmarkLive => &[
+            "ok",
+            "run_ids",
+            "points",
+            "cancelled",
+            "highest_confirmed_capacity",
+        ],
+        CommandKind::Compare => &["comparable", "pairs", "differences", "unavailable_reasons"],
+        CommandKind::Report => &["runs"],
+        CommandKind::Replay | CommandKind::ReplayOffline => &[
+            "network",
+            "agent_id",
+            "response_status",
+            "result_digest",
+            "output_bytes",
+        ],
+        CommandKind::RecordCampaign => &[
+            "complete_coverage",
+            "offline_ready",
+            "tuple_count",
+            "unavailable_reason",
+        ],
+        CommandKind::Record
+        | CommandKind::RecordLive
+        | CommandKind::Cli
+        | CommandKind::Help
+        | CommandKind::Version
+        | CommandKind::Completion
+        | CommandKind::Serve
+        | CommandKind::InternalOpenCodeBatch => &[],
+    };
+    let mut projected = fields
+        .iter()
+        .filter_map(|field| {
+            object
+                .get(*field)
+                .cloned()
+                .map(|value| ((*field).to_owned(), value))
+        })
+        .collect::<Map<_, _>>();
+    for field in ["schema_version", "classification", "code"] {
+        if let Some(value) = object.get(field)
+            && matches!(value, Value::String(_) | Value::Number(_))
+        {
+            projected.insert(field.to_owned(), value.clone());
+        }
+    }
+    projected
 }
 
 pub(super) fn render_error(
@@ -1232,7 +1401,9 @@ pub(super) fn render_error(
             presentation.kind = OutcomeKind::UserError;
             presentation.fact("The command arguments were not accepted.");
             presentation.fact("No successful state change was reported.");
-            presentation.next = NextAction::new(["asb", "--help"]);
+            if error.remediation == ErrorRemediation::Help {
+                presentation.next = NextAction::new(["asb", "--help"]);
+            }
         }
         _ if error.human_class == HumanErrorClass::UserCorrection => {
             presentation.kind = OutcomeKind::UserError;
@@ -1248,18 +1419,10 @@ pub(super) fn render_error(
         _ if error.human_class == HumanErrorClass::DependencyUnavailable => {
             presentation.kind = OutcomeKind::Warning;
             presentation.fact("A required external provider or network dependency is unavailable.");
-            if error.code == "provider_credential_unavailable" {
+            if error.remediation == ErrorRemediation::OpenRouterCredential {
                 presentation.fact(
-                    "Provide the OpenRouter credential through standard input; it is not stored.",
+                    "Set OPENROUTER_API_KEY in the current shell before retrying this provider command; ASB does not store the key.",
                 );
-                presentation.next = NextAction::new([
-                    "asb",
-                    "auth",
-                    "setup",
-                    "--provider",
-                    "openrouter",
-                    "--api-key-stdin",
-                ]);
             } else {
                 presentation.fact(
                     "Check provider reachability and the selected provider response before trying again.",
@@ -1343,6 +1506,7 @@ fn present(
             "profiles",
             "provider profiles",
             "id",
+            context,
         ),
         CommandKind::AdapterCatalog => present_catalog(
             "ASB loaded the coding-agent adapter catalog.",
@@ -1350,6 +1514,7 @@ fn present(
             "adapters",
             "adapters",
             "id",
+            context,
         ),
         CommandKind::WorkloadCatalog => present_catalog(
             "ASB loaded the benchmark workload catalog.",
@@ -1357,17 +1522,23 @@ fn present(
             "entries",
             "workloads",
             "id",
+            context,
         ),
         CommandKind::Config => {
             let mut value = Presentation::new("ASB saved the OpenRouter configuration.");
             fact_pair(&mut value, object, "Provider", "provider");
             fact_pair(&mut value, object, "Model", "model");
-            value.next = NextAction::new(["asb", "provider-plan", "--use-config"]);
+            value.next = NextAction::new(["asb", "provider-catalog"]);
             value
         }
         CommandKind::Auth => present_auth(args, object),
         CommandKind::ProviderPlan => {
-            let mut value = Presentation::new("ASB prepared the provider selection.");
+            let configured = args.iter().any(|arg| arg == "--use-config");
+            let mut value = Presentation::new(if configured {
+                "ASB validated the configured provider selection for this command; no configuration was changed."
+            } else {
+                "ASB validated a provider selection preview; no configuration was changed."
+            });
             fact_pair(&mut value, object, "Provider", "provider_profile");
             fact_pair(&mut value, object, "Model", "model");
             fact_count(&mut value, object, "effective", "selected agents");
@@ -1385,7 +1556,9 @@ fn present(
                     .collect::<Vec<_>>();
                 value.fact(format!("Selected agents: {}.", selected.join(", ")));
             }
-            value.next = NextAction::new(["asb", "workload-catalog"]);
+            if configured {
+                value.next = NextAction::new(["asb", "workload-catalog"]);
+            }
             value
         }
         CommandKind::Plan => present_plan(invocation, args, object, context),
@@ -1473,7 +1646,6 @@ fn present_setup(args: &[OsString], object: &Map<String, Value>) -> Presentation
     }
     fact_pair(&mut value, object, "Provider", "provider_profile");
     fact_pair(&mut value, object, "Model", "model");
-    fact_count(&mut value, object, "selected_agents", "selected agents");
     if let Some(agents) = object.get("selected_agents").and_then(Value::as_array) {
         let agents = agents
             .iter()
@@ -1481,6 +1653,7 @@ fn present_setup(args: &[OsString], object: &Map<String, Value>) -> Presentation
             .map(display_value)
             .collect::<Vec<_>>();
         if !agents.is_empty() {
+            value.fact(format!("Selected agent count: {}.", agents.len()));
             value.fact(format!("Selected agents: {}.", agents.join(", ")));
         }
     }
@@ -1597,10 +1770,13 @@ fn present_catalog(
     field: &str,
     label: &str,
     id_field: &str,
+    context: &PresentationContext,
 ) -> Presentation {
     let mut value = Presentation::new(outcome);
     fact_count(&mut value, object, field, label);
-    if let Some(items) = object.get(field).and_then(Value::as_array) {
+    if field != "entries"
+        && let Some(items) = object.get(field).and_then(Value::as_array)
+    {
         let ids = items
             .iter()
             .filter_map(|item| string_value(item, id_field))
@@ -1610,25 +1786,51 @@ fn present_catalog(
         if !ids.is_empty() {
             value.fact(format!("Catalog {label}: {}.", ids.join(", ")));
         }
+        if items.len() > ids.len() {
+            value.fact(format!(
+                "Showing {} of {} {label}; use asb --json {} for the complete catalog.",
+                ids.len(),
+                items.len(),
+                if field == "profiles" {
+                    "provider-catalog"
+                } else {
+                    "adapter-catalog"
+                }
+            ));
+        }
     }
     if field == "profiles" {
-        let selectable = object
+        let profiles = object
             .get("profiles")
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
-            .filter(|profile| profile.get("selectable").and_then(Value::as_bool) == Some(true))
-            .filter_map(|profile| string_value(profile, "id"))
-            .take(12)
-            .map(display_value)
+            .filter_map(|profile| {
+                let id = string_value(profile, "id")?;
+                let model = string_value(profile, "model")?;
+                let setup_supported = matches!(context, PresentationContext::ProviderCatalog { setup_profiles } if setup_profiles.iter().any(|candidate| candidate == id));
+                let route = if setup_supported
+                    && profile.get("selectable").and_then(Value::as_bool) == Some(true)
+                {
+                    "setup supported"
+                } else {
+                    "setup persistence unavailable"
+                };
+                Some(format!(
+                    "{} -> {} ({route})",
+                    display_value(id),
+                    display_value(model)
+                ))
+            })
             .collect::<Vec<_>>();
-        if !selectable.is_empty() {
-            value.fact(format!("Selectable providers: {}.", selectable.join(", ")));
+        if !profiles.is_empty() {
+            value.fact(format!("Provider routes: {}.", profiles.join(", ")));
         }
         if let Some(models) = object
             .get("openrouter_free_models")
             .and_then(Value::as_array)
         {
+            let total = models.len();
             let models = models
                 .iter()
                 .filter_map(Value::as_str)
@@ -1637,6 +1839,12 @@ fn present_catalog(
                 .collect::<Vec<_>>();
             if !models.is_empty() {
                 value.fact(format!("OpenRouter free models: {}.", models.join(", ")));
+                if total > models.len() {
+                    value.fact(format!(
+                        "Showing {} of {total} OpenRouter free models; use asb --json provider-catalog for the complete list.",
+                        models.len()
+                    ));
+                }
             } else {
                 value.fact("OpenRouter free models: none discovered.");
             }
@@ -1653,10 +1861,33 @@ fn present_catalog(
             }
         }
         value.fact(
-            "Choose a supported agent, selectable provider, and listed model; pass those exact values to asb setup.",
+            "Choose a supported agent and a provider/model route marked setup supported; pass those exact values to asb setup.",
         );
         value.fact(
             "Command form: asb setup --agent AGENT --provider-profile PROVIDER --model MODEL --persist.",
+        );
+    } else if field == "entries" {
+        if let Some(items) = object.get(field).and_then(Value::as_array) {
+            let available = items
+                .iter()
+                .filter(|item| string_value(item, "availability") == Some("available"))
+                .filter_map(|item| string_value(item, id_field))
+                .map(display_value)
+                .collect::<Vec<_>>();
+            let unavailable = items.len().saturating_sub(available.len());
+            if available.is_empty() {
+                value.fact("Runnable workloads: none on this host.");
+            } else {
+                value.fact(format!("Runnable workloads: {}.", available.join(", ")));
+            }
+            if unavailable > 0 {
+                value.fact(format!(
+                    "{unavailable} additional workloads are fixture-only or unavailable; use asb --json workload-catalog for their status."
+                ));
+            }
+        }
+        value.fact(
+            "Choose a listed workload and create a configured plan with: asb plan create --workload WORKLOAD --agent AGENT --agent-executable AGENT_EXECUTABLE --output PLAN --use-config.",
         );
     }
     value
@@ -1847,6 +2078,18 @@ fn present_compare(object: &Map<String, Value>) -> Presentation {
                         "not comparable"
                     }
                 ));
+                if !pair_comparable
+                    && let Some(differences) = pair.get("differences").and_then(Value::as_array)
+                {
+                    let reasons = differences
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(human_code)
+                        .collect::<Vec<_>>();
+                    if !reasons.is_empty() {
+                        value.fact(format!("Pair differences: {}.", reasons.join(", ")));
+                    }
+                }
             }
         }
     }
@@ -1988,7 +2231,11 @@ fn plan_next(
             .windows(2)
             .find(|pair| pair[0] == "--output")
             .map(|pair| pair[1])?;
-        return NextAction::new(["asb", "plan", path]);
+        let mut next = vec!["asb".to_owned(), "plan".to_owned(), path.to_owned()];
+        if words.contains(&"--use-config") {
+            next.push("--use-config".to_owned());
+        }
+        return NextAction::new(next);
     }
     let path = words.get(
         if matches!(invocation, InvocationKind::Easy(EasyKind::Plan)) {
@@ -2023,7 +2270,7 @@ fn plan_next(
 
 fn validation_next(args: &[OsString], error: &CliError) -> Option<NextAction> {
     if args.first().and_then(|arg| arg.to_str()) == Some("record-live")
-        && error.message.contains("--confirm-record")
+        && error.remediation == ErrorRemediation::RecordConfirmation
     {
         let mut words = args
             .iter()
@@ -2036,7 +2283,7 @@ fn validation_next(args: &[OsString], error: &CliError) -> Option<NextAction> {
         }
         return NextAction::new(words);
     }
-    NextAction::new(["asb", "--help"])
+    None
 }
 
 fn add_details(presentation: &mut Presentation, object: &Map<String, Value>) {
@@ -2168,11 +2415,7 @@ fn scalar(value: &Value) -> Option<String> {
 
 fn sentence_fragment(value: &str) -> String {
     let sanitized = display_value(value);
-    let mut value = sanitized.trim().trim_end_matches('.').to_owned();
-    if let Some(first) = value.get_mut(0..1) {
-        first.make_ascii_lowercase();
-    }
-    value
+    sanitized.trim().trim_end_matches('.').to_owned()
 }
 
 fn title_case(value: &str) -> String {
@@ -2362,7 +2605,7 @@ mod tests {
             ),
             (
                 vec!["config", "openrouter"],
-                serde_json::json!({"schema_version":2,"ok":true,"command":"config-openrouter","provider":"openrouter","model":"free/model"}),
+                serde_json::json!({"schema_version":1,"ok":true,"command":"config-openrouter","provider":"openrouter","model":"free/model"}),
             ),
             (
                 vec!["auth", "setup"],
@@ -2370,7 +2613,7 @@ mod tests {
             ),
             (
                 vec!["provider-plan"],
-                serde_json::json!({"schema_version":1,"ok":true,"command":"provider-plan","provider_profile":"openrouter","model":"free/model","effective":[{"agent":"codex","profile_sha256":"a".repeat(64),"api_mode":"responses"}]}),
+                serde_json::json!({"schema_version":1,"ok":true,"command":"provider-plan","dry_run":true,"provider_profile":"openrouter","model":"free/model","effective":[{"agent":"codex","profile_sha256":"a".repeat(64),"api_mode":"responses"}]}),
             ),
             (
                 vec!["plan", "plan.toml"],
@@ -2597,7 +2840,7 @@ mod tests {
         assert!(compare.contains("not directly comparable"));
         let campaign = render(
             &["record-campaign", "campaign.json", "--local-mock"],
-            serde_json::json!({"schema_version":1,"ok":false,"command":"record-campaign","complete_coverage":false,"offline_ready":false,"tuple_count":1,"unavailable_reason":"missing_tuple"}),
+            serde_json::json!({"schema_version":1,"ok":false,"command":"record-campaign","complete_coverage":false,"offline_ready":false,"tuple_count":1,"unavailable_reason":"recording-coverage-incomplete"}),
             false,
         );
         assert!(campaign.starts_with("ASB completed part"));
@@ -2635,12 +2878,13 @@ mod tests {
                 serde_json::json!({
                     "schema_version":1,"ok":true,"command":"tui",
                     "operation":operation,"classification":null,"code":"ready",
-                    "channel":"dev","warnings":["one warning"]
+                    "channel":"dev","warnings":["development_rustup_permission_or_ownership_findings_allowed"]
                 }),
                 false,
             );
             assert!(output.contains(expected), "{operation}: {output}");
-            assert_eq!(output.matches("one warning").count(), 1, "{operation}");
+            assert_eq!(output.matches("group-writable").count(), 1, "{operation}");
+            assert!(!output.contains("development_rustup_permission"));
         }
     }
 
@@ -2756,6 +3000,20 @@ mod tests {
         let product = String::from_utf8(product).unwrap();
         assert!(product.contains("ASB did not report a completed result"));
         assert!(product.contains("Diagnostic code: operation (exit 4)."));
+        for message in [
+            "ASB state is unavailable",
+            "OpenRouter credential unavailable",
+        ] {
+            let mut output = Vec::new();
+            render_error(
+                &args(&["run"]),
+                &CliError::operation(message),
+                false,
+                &mut output,
+            )
+            .unwrap();
+            assert!(String::from_utf8(output).unwrap().contains(message));
+        }
     }
 
     #[test]
@@ -2768,7 +3026,7 @@ mod tests {
         assert!(!output.contains("\u{1b}["));
         assert_eq!(
             output,
-            "ASB loaded the benchmark workload catalog.\n  Workloads: 1.\n  Catalog workloads: original.bug-fix.\n"
+            "ASB loaded the benchmark workload catalog.\n  Workloads: 1.\n  Runnable workloads: original.bug-fix.\n  Choose a listed workload and create a configured plan with: asb plan create\n  --workload WORKLOAD --agent AGENT --agent-executable AGENT_EXECUTABLE --output\n  PLAN --use-config.\n"
         );
     }
 
@@ -3006,7 +3264,7 @@ mod tests {
     #[test]
     fn provider_plan_lists_typed_agents_and_rejects_malformed_entries() {
         let value = serde_json::json!({
-            "schema_version":1,"ok":true,"command":"provider-plan",
+            "schema_version":1,"ok":true,"command":"provider-plan","dry_run":true,
             "provider_profile":"openrouter","model":"free/model",
             "effective":[
                 {"agent":"codex","profile_sha256":"a".repeat(64),"api_mode":"responses"},
@@ -3018,7 +3276,7 @@ mod tests {
         assert!(output.contains("opendesk (chat completions)"));
         rejects(
             &["provider-plan"],
-            serde_json::json!({"schema_version":1,"ok":true,"command":"provider-plan","provider_profile":"openrouter","model":"free/model","effective":[{}]}),
+            serde_json::json!({"schema_version":1,"ok":true,"command":"provider-plan","dry_run":true,"provider_profile":"openrouter","model":"free/model","effective":[{}]}),
         );
     }
 
@@ -3041,5 +3299,70 @@ mod tests {
             &["setup"],
             serde_json::json!({"schema_version":1,"ok":true,"command":"setup","mode":"preflight","persistent_change":false,"persisted":false,"selected_agents":[]}),
         );
+        for invalid in [
+            serde_json::json!({"schema_version":2,"ok":true,"command":"setup","mode":"preflight","persistent_change":true,"persisted":false,"selected_agents":[],"provider_profile":null,"model":null}),
+            serde_json::json!({"schema_version":2,"ok":true,"command":"setup","mode":"commit","persistent_change":false,"persisted":false,"selected_agents":[],"provider_profile":null,"model":null}),
+            serde_json::json!({"schema_version":2,"ok":true,"command":"setup","mode":"commit","persistent_change":true,"persisted":true,"selected_agents":["codex"],"provider_profile":null,"model":"free/model"}),
+            serde_json::json!({"schema_version":2,"ok":true,"command":"setup","mode":"commit","persistent_change":true,"persisted":true,"selected_agents":["codex"],"provider_profile":"openrouter","model":null}),
+        ] {
+            rejects(&["setup"], invalid);
+        }
+    }
+
+    #[test]
+    fn compare_global_and_pair_outcomes_are_consistent() {
+        let pair = serde_json::json!({
+            "left_run_id":"one","right_run_id":"two",
+            "left_agent":"codex","right_agent":"codex",
+            "comparable":false,"differences":[]
+        });
+        rejects(
+            &["compare", "/one", "/two"],
+            serde_json::json!({"schema_version":1,"ok":true,"command":"compare","comparable":true,"pairs":[pair.clone()],"differences":[],"unavailable_reasons":[]}),
+        );
+        rejects(
+            &["compare", "/one", "/two"],
+            serde_json::json!({"schema_version":1,"ok":true,"command":"compare","comparable":false,"pairs":[pair],"differences":[],"unavailable_reasons":[]}),
+        );
+    }
+
+    #[test]
+    fn typed_presentation_boundary_rejects_injectable_display_fields() {
+        rejects(
+            &["tui", "status"],
+            serde_json::json!({
+                "schema_version":1,"ok":true,"command":"tui","operation":"status",
+                "classification":null,"code":"ready","channel":"dev",
+                "warnings":["attacker_defined_claim"]
+            }),
+        );
+        rejects(
+            &["record-campaign", "campaign.json", "--local-mock"],
+            serde_json::json!({
+                "schema_version":1,"ok":false,"command":"record-campaign",
+                "tuple_count":1,"complete_coverage":false,"offline_ready":false,
+                "unavailable_reason":"attacker-defined-claim"
+            }),
+        );
+        rejects(
+            &["run", "plan.toml"],
+            serde_json::json!({
+                "schema_version":1,"ok":true,"command":"run","run_ids":["run-1"],
+                "points":[{"decision":"pass"}],"cancelled":false,
+                "highest_confirmed_capacity":"unbounded"
+            }),
+        );
+        let output = render(
+            &["run", "plan.toml"],
+            serde_json::json!({
+                "schema_version":1,"ok":true,"command":"run","run_ids":["run-1"],
+                "points":[{"decision":"pass"}],"cancelled":false,
+                "highest_confirmed_capacity":1,"attacker_claim":"trusted"
+            }),
+            false,
+        );
+        assert!(output.contains("Highest confirmed concurrency: 1."));
+        assert!(!output.contains("attacker"));
+        assert!(!output.contains("trusted"));
     }
 }
