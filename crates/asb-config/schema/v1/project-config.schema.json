@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-systems-benchmark.dev/schema/project-config-v1.json",
+  "title": "ASB project and external-tool configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "roots", "agents", "harnesses", "benchmarks", "workloads", "support_tools", "selections", "catalogs"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "roots": {
+      "type": "object", "additionalProperties": false,
+      "required": ["project", "results", "catalogs"],
+      "properties": {"project": {"type": "string"}, "results": {"type": "string"}, "catalogs": {"type": "string"}}
+    },
+    "agents": {"$ref": "#/$defs/inventory"},
+    "harnesses": {"$ref": "#/$defs/inventory"},
+    "benchmarks": {"$ref": "#/$defs/inventory"},
+    "workloads": {"$ref": "#/$defs/inventory"},
+    "support_tools": {"$ref": "#/$defs/inventory"},
+    "selections": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "agent": {"type": ["string", "null"]}, "harness": {"type": ["string", "null"]},
+        "benchmark": {"type": ["string", "null"]}, "workload": {"type": ["string", "null"]},
+        "support_tools": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "catalogs": {"$ref": "#/$defs/catalogs"}
+  },
+  "$defs": {
+    "inventory": {
+      "type": "object", "additionalProperties": {"$ref": "#/$defs/record"}
+    },
+    "record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "source_ref", "version", "platform", "capabilities", "status"],
+      "properties": {
+        "kind": {"enum": ["agent", "harness", "benchmark", "workload", "support_tool"]},
+        "source_ref": {"type": "string"}, "version": {"type": "string"}, "platform": {"type": "string"},
+        "path": {"type": ["string", "null"]}, "digest_sha256": {"type": ["string", "null"]},
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "status": {"enum": ["available", "missing", "stale", "unsupported", "error"]}
+      }
+    },
+    "catalogs": {
+      "type": "object", "additionalProperties": {"$ref": "#/$defs/catalog"}
+    },
+    "catalog": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "schema", "source_ref", "digest_sha256", "generated_at"],
+      "properties": {
+        "id": {"type": "string"}, "schema": {"type": "string"}, "source_ref": {"type": "string"},
+        "digest_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "generated_at": {"type": "string"}
+      }
+    }
+  }
+}
