@@ -72,6 +72,45 @@ and fixed warnings. OAuth tokens, local keys, authorization headers, prompts,
 provider bodies, private paths, and raw exception text are neither retained nor
 hashed.
 
+Run the complete credential-free qualification with
+`python3 tools/cli2key-spike/qualification.py`. It exercises setup, discovery,
+one normal run, a three-point sweep with one supervised sidecar and at most two
+concurrent attempts, results/comparison, cancellation, key reset, stale-key
+rejection, report redaction, and deterministic teardown. This fake journey is
+reproducible development evidence, not a live entitlement or model-quality
+claim; an authorized live probe is optional and never a CI requirement.
+The qualification's typed fault matrix covers listener and endpoint checks,
+substitution and symlink/mode rejection, malformed and oversized responses,
+deadlines, crash/orphan cleanup, restart and stale-key behavior, bounded
+concurrency, and redaction; failures never fall back to another provider.
+
+The local client key authenticates only the ASB child-sidecar connection. It is
+not an OpenAI Platform API key. Live use consumes the user's Codex entitlement
+under upstream policy and may incur quota or cost; ASB does not estimate or
+override that policy. Stop the bridge, revoke/reset the user-approved login,
+and remove private staging when access is no longer wanted. Troubleshooting
+preserves stable failure codes (authentication, non-loopback bind, model or
+response shape, timeout, crash, cancellation, or cleanup) without recording
+provider responses or secrets.
+
+## User journey
+
+1. Install the pinned bridge and complete login yourself in the selected
+   `CODEX_HOME`; ASB never performs login or reads that authentication file.
+2. Run `key refresh` in the bridge's private invocation home, then use the
+   provider catalog/model discovery to select an advertised model. `status`
+   reports only bounded availability and generation metadata.
+3. Start an explicit development `run` or bounded `sweep`; inspect `results`,
+   `compare`, and `report` for provider/model/runtime provenance.
+4. Reset or revoke the user-controlled login when finished. A reset rotates
+   the local child key and rejects stale attempts; it does not revoke upstream
+   entitlement. Remove private staging after teardown.
+
+Missing login, expired authentication, quota/rate limits, model drift, bridge
+crash, timeout, cancellation, and cleanup failures remain visible typed
+failures. They do not retry an uncertain request, switch providers, or silently
+use replay/mock output.
+
 Failures use the closed taxonomy in the machine contract: invalid contract or
 opt-in, non-loopback endpoint, missing private inputs, connection/deadline,
 authentication, discovery limit/shape/model selection, and Responses

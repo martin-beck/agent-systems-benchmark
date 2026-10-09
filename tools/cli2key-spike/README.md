@@ -10,6 +10,18 @@ python3 tools/cli2key-spike/cli2key_spike.py --fake
 python3 -m unittest discover -s tools/cli2key-spike -p 'test_*.py'
 ```
 
+Run the complete credential-free qualification (setup, discovery, one run,
+bounded sweep, results/comparison, cancellation, reset, redaction, and
+sidecar cleanup) with:
+
+```sh
+python3 tools/cli2key-spike/qualification.py
+```
+
+It uses one supervised fake-sidecar lifetime and at most two concurrent
+attempts. The JSON is synthetic development evidence only and contains no
+generated key, OAuth material, input, provider body, or private path.
+
 The live spike is deliberately opt-in. Start the exact pinned bridge on an
 ephemeral numeric loopback address against an existing user-approved Codex login,
 then supply the freshly rotated invocation key and input through inherited

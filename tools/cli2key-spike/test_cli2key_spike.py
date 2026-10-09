@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import threading
 import time
 import unittest
@@ -21,10 +23,116 @@ from cli2key_spike import (
     load_contract,
     parse_endpoint,
     request,
+    run_spike,
+)
+from qualification import (
+    QualificationError,
+    validate_endpoint_binding,
+    validate_private_staging,
+    run_qualification,
 )
 
 
 class Cli2KeySpikeTests(unittest.TestCase):
+    def test_fake_qualification_covers_journey_bounded_sweep_and_cleanup(self) -> None:
+        report = run_qualification()
+        self.assertEqual("synthetic", report["evidence_class"])
+        self.assertEqual("passed", report["journey"]["comparison"])
+        self.assertEqual(1, report["sweep"]["sidecar_lifetimes"])
+        self.assertEqual(2, report["sweep"]["max_concurrency"])
+        self.assertEqual("authentication_rejected", report["faults"]["wrong_key"])
+        self.assertEqual("verified", report["cleanup"]["listener_closed"])
+
+    def test_qualification_report_is_redacted_and_closed_shape(self) -> None:
+        report = run_qualification()
+        encoded = json.dumps(report, sort_keys=True)
+        for marker in (SYNTHETIC_AUTH_MARKER, "qualification-input", "Authorization"):
+            self.assertNotIn(marker, encoded)
+        self.assertNotIn("private", encoded)
+
+    def test_qualification_fault_matrix_has_stable_typed_codes(self) -> None:
+        faults = run_qualification()["faults"]
+        self.assertEqual(
+            {
+                "listener",
+                "substitution",
+                "symlink_or_mode",
+                "malformed_response",
+                "oversized_response",
+                "timeout",
+                "crash_or_orphan",
+                "restart",
+                "concurrent_sweep",
+                "redaction",
+                "wrong_key",
+                "stale_key_after_reset",
+                "fallback",
+            },
+            set(faults),
+        )
+        self.assertEqual("bounded", faults["concurrent_sweep"])
+        self.assertEqual("none", faults["fallback"])
+
+    def test_staging_substitution_and_mode_faults_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            path = __import__("pathlib").Path(root) / "stage"
+            path.mkdir()
+            with self.subTest("mode"):
+                os.chmod(path, 0o755)
+                with self.assertRaisesRegex(QualificationError, "staging_substitution_rejected"):
+                    validate_private_staging(path)
+            os.chmod(path, 0o700)
+            link = __import__("pathlib").Path(root) / "link"
+            link.symlink_to(path, target_is_directory=True)
+            with self.assertRaisesRegex(QualificationError, "staging_substitution_rejected"):
+                validate_private_staging(link)
+
+    def test_restarted_sidecar_identity_drift_is_typed(self) -> None:
+        with self.assertRaisesRegex(QualificationError, "sidecar_identity_drift"):
+            validate_endpoint_binding("http://127.0.0.1:1", "http://127.0.0.1:2")
+
+    def test_oversized_and_malformed_responses_are_typed(self) -> None:
+        from cli2key_spike import FakeHandler, MAX_MODELS_BYTES
+
+        original_get = FakeHandler.do_GET
+        original_post = FakeHandler.do_POST
+
+        def oversized(handler: FakeHandler) -> None:
+            payload = b"x" * (MAX_MODELS_BYTES + 1)
+            handler.send_response(200)
+            handler.send_header("content-length", str(len(payload)))
+            handler.end_headers()
+            handler.wfile.write(payload)
+
+        def malformed(handler: FakeHandler) -> None:
+            if handler.path == "/v1/models":
+                original_get(handler)
+                return
+            payload = b"not-json"
+            handler.send_response(200)
+            handler.send_header("content-length", str(len(payload)))
+            handler.end_headers()
+            handler.wfile.write(payload)
+
+        try:
+            for method, code in ((oversized, "models_oversized"), (malformed, "response_malformed")):
+                FakeHandler.client_key = SYNTHETIC_AUTH_MARKER
+                server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                FakeHandler.do_GET = method
+                FakeHandler.do_POST = method
+                try:
+                    host, port = server.server_address
+                    with self.assertRaisesRegex(SpikeError, code):
+                        run_spike(f"http://{host}:{port}", SYNTHETIC_AUTH_MARKER, None, "fixture")
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    thread.join()
+        finally:
+            FakeHandler.do_GET = original_get
+            FakeHandler.do_POST = original_post
     def test_contract_pins_source_license_protocol_and_key_distinction(self) -> None:
         contract = load_contract()
         bridge = contract["bridge"]
