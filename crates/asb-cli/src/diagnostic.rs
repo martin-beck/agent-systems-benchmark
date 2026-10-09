@@ -9,8 +9,7 @@
 //! so human presentation can explain the affected kind of thing and the safe
 //! next action without parsing free-form prose.
 
-#![allow(missing_docs)]
-
+/// Diagnostic severity at the public command boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Severity {
     /// The request was rejected before the operation could begin.
@@ -21,106 +20,189 @@ pub enum Severity {
     Warning,
 }
 
+/// Fine-grained stable cause at the public command boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Cause {
+    /// A required parent directory does not exist.
     MissingParent,
+    /// A required input is absent.
     MissingInput,
+    /// The destination already exists and cannot be replaced.
     AlreadyExists,
+    /// A directory was required but another object was found.
     NotDirectory,
+    /// A regular file was required but another object was found.
     NotRegularFile,
+    /// Access was denied by the storage boundary.
     PermissionDenied,
+    /// Storage refused mutation because it is read-only or full.
     ReadOnlyStorage,
+    /// A symlink or overlapping root makes the topology unsafe.
     UnsafeTopology,
+    /// A supplied path is empty or otherwise invalid.
     InvalidPath,
+    /// Input bytes or shape are malformed.
     MalformedInput,
+    /// Input is valid but incompatible with the selected contract.
     IncompatibleInput,
+    /// An identity was valid previously but is now stale.
     StaleIdentity,
+    /// A required host or product capability is unavailable.
     UnavailableCapability,
+    /// A required executable or registered tool is missing.
     MissingTool,
+    /// Provider authentication could not be established.
     ProviderAuthentication,
+    /// A provider rejected an otherwise bounded request.
     ProviderRejection,
+    /// Transport could not complete a bounded exchange.
     TransportFailure,
+    /// A bounded deadline expired.
     Timeout,
+    /// The operation was cancelled before completion.
     Cancellation,
+    /// The operation completed only part of its requested work.
     PartialCompletion,
+    /// Durable state must be inspected before retrying.
     ReconciliationRequired,
+    /// The product could not complete an attempted operation.
     UnexpectedProductFailure,
+    /// No reviewed mapping can determine a narrower cause.
     UnknownCause,
 }
 
+/// Safe role of the subject named by a diagnostic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Subject {
+    /// Parent directory of a destination.
     Parent,
+    /// User or fixture input.
     Input,
+    /// Destination or selected target.
     Target,
+    /// User-supplied option.
     Option,
+    /// Configuration document or selection.
     Configuration,
+    /// Installed or required tool.
     Tool,
+    /// External model provider.
     Provider,
+    /// Host or product capability.
     Capability,
+    /// Network or local transport.
     Transport,
+    /// Durable benchmark run.
     Run,
+    /// Individual execution attempt.
     Attempt,
+    /// Result store or journal.
     Store,
+    /// Versioned catalog.
     Catalog,
+    /// Private execution workspace.
     Workspace,
+    /// TUI or release channel.
     Channel,
+    /// Checked-in or transferred artifact.
     Artifact,
+    /// Opaque credential reference.
     CredentialReference,
+    /// Command output destination.
     Output,
+    /// Durable lifecycle state.
     State,
+    /// No safe subject could be identified.
     Unknown,
 }
 
+/// Bounded phase at which a diagnostic was produced.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Phase {
+    /// Parse command arguments or framing.
     Parse,
+    /// Validate user input or compatibility.
     Validate,
+    /// Inspect existing state or topology.
     Inspect,
+    /// Prepare a bounded operation.
     Prepare,
+    /// Stage a candidate before publication.
     Stage,
+    /// Commit a durable state change.
     Commit,
+    /// Execute the requested operation.
     Execute,
+    /// Collect result or measurement evidence.
     Collect,
+    /// Reconcile uncertain durable state.
     Reconcile,
+    /// Remove temporary or owned state.
     Cleanup,
+    /// Render a public response.
     Render,
+    /// Discover an installed capability or tool.
     Discover,
+    /// Establish provider authentication.
     Authenticate,
+    /// Exchange bounded transport data.
     Transport,
+    /// Consume a strict offline replay.
     Replay,
 }
 
+/// State-change result associated with a diagnostic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum StateChange {
+    /// No external operation was started.
     NotStarted,
+    /// The operation left state unchanged.
     Unchanged,
+    /// A new state or artifact was created.
     Created,
+    /// Existing state was updated.
     Updated,
+    /// Only part of the requested work completed.
     PartiallyCompleted,
+    /// The requested state change completed.
     Completed,
+    /// A staged change was rolled back.
     RolledBack,
+    /// The state could not be determined safely.
     Unknown,
 }
 
+/// Bounded operator action appropriate to the diagnostic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Remediation {
+    /// No safe automatic next action is known.
     None,
+    /// Correct the supplied input or option.
     CorrectInput,
+    /// Create or select the required parent.
     CreateParent,
+    /// Inspect the destination before retrying.
     CheckDestination,
+    /// Check access rights without exposing private error text.
     CheckPermissions,
+    /// Install or register the missing tool.
     InstallTool,
+    /// Establish provider authentication through the supported flow.
     AuthenticateProvider,
+    /// Check bounded provider reachability or response.
     CheckProvider,
+    /// Retry the bounded operation.
     Retry,
+    /// Reconcile durable state before retrying.
     Reconcile,
+    /// Run the bounded diagnostic command.
     RunDoctor,
+    /// Select an already sealed offline replay.
     UseOfflineReplay,
 }
 
@@ -133,10 +215,15 @@ pub enum Remediation {
 /// machine envelope.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Context {
+    /// Safe resource role, never a raw path or OS error.
     pub subject: Subject,
+    /// Stable operation label from the catalog.
     pub operation: &'static str,
+    /// Bounded operation phase.
     pub phase: Phase,
+    /// Durable state-change result.
     pub state_change: StateChange,
+    /// Validated operator remediation.
     pub remediation: Remediation,
 }
 
@@ -161,9 +248,13 @@ impl Context {
 /// Typed public diagnostic identity and safe rendering context.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Diagnostic {
+    /// Stable producer code retained for detail presentation.
     pub code: &'static str,
+    /// Error, failure, or warning semantics.
     pub severity: Severity,
+    /// Fine-grained reviewed cause.
     pub cause: Cause,
+    /// Safe context needed by human presentation.
     pub context: Context,
 }
 
@@ -183,6 +274,7 @@ impl Diagnostic {
         }
     }
 
+    /// Return whether this code resolved to a reviewed non-fallback cause.
     pub fn is_catalogued(self) -> bool {
         self.cause != Cause::UnknownCause
     }
