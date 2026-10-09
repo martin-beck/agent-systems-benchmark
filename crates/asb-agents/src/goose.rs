@@ -1644,7 +1644,10 @@ mod tests {
         let binary = root.join("goose");
         let digest = executable(
             &binary,
-            "#!/bin/sh\nprintf '%s\\n' '{\"type\":\"message\",\"message\":{\"id\":\"m\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}' '{\"type\":\"complete\"}'\nprintf '%s\\n' extension-warning >&2\n",
+            // Publish the diagnostic before any terminal-looking structured output. This makes
+            // the fixture's required-extension observation causal instead of racing process exit
+            // under emulation; the adapter still applies its unchanged stderr-first policy.
+            "#!/bin/sh\nprintf '%s\\n' extension-warning >&2\nprintf '%s\\n' '{\"type\":\"message\",\"message\":{\"id\":\"m\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}' '{\"type\":\"complete\"}'\n",
         );
         let mut cfg = config(&binary, &workspace, &state);
         cfg.verification_digest_override = Some(digest.clone());
