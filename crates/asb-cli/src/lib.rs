@@ -3304,6 +3304,28 @@ fn write_new_output_at(
     fsync(parent).map_err(|_| CliError::operation("output directory cannot be synchronized"))
 }
 
+fn create_private_prompt(parent: &File, bytes: &[u8]) -> Result<File, CliError> {
+    let name = OsString::from("prompt");
+    let fd = openat(
+        parent,
+        &name,
+        OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        RustixMode::from(0o600),
+    )
+    .map_err(|_| CliError::operation("prompt descriptor cannot be created"))?;
+    let mut prompt = File::from(fd);
+    if prompt.write_all(bytes).is_err()
+        || prompt.flush().is_err()
+        || prompt.seek(SeekFrom::Start(0)).is_err()
+        || fsync(&prompt).is_err()
+        || unlinkat(parent, &name, AtFlags::empty()).is_err()
+    {
+        let _ = unlinkat(parent, &name, AtFlags::empty());
+        return Err(CliError::operation("prompt descriptor cannot be prepared"));
+    }
+    Ok(prompt)
+}
+
 fn output_name(path: &Path) -> Result<OsString, CliError> {
     path.file_name()
         .filter(|name| !name.is_empty() && *name != "." && *name != "..")
@@ -7623,37 +7645,20 @@ fn run_attempt(
         prepare_workload(&plan.workload, &attempt_root)
             .map_err(|_| CliError::operation("workload preparation failed"))?,
     );
-    let private = attempt_root.join(".asb-private");
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&private)
-        .map_err(|_| CliError::operation("private attempt state cannot be created"))?;
-    let prompt_path = private.join("prompt");
-    let mut prompt = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&prompt_path)
-        .map_err(|_| CliError::operation("prompt descriptor cannot be created"))?;
-    fs::remove_file(&prompt_path)
-        .map_err(|_| CliError::operation("prompt descriptor cannot be unlinked"))?;
-    prompt
-        .write_all(prepared.prompt().as_bytes())
-        .and_then(|()| prompt.flush())
-        .and_then(|()| prompt.seek(SeekFrom::Start(0)).map(|_| ()))
-        .map_err(|_| CliError::operation("prompt descriptor cannot be prepared"))?;
-    let home = private.join("home");
-    let temporary = private.join("tmp");
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&home)
-        .and_then(|()| fs::DirBuilder::new().mode(0o700).create(&temporary))
-        .map_err(|_| CliError::operation("private agent directories cannot be created"))?;
+    let private_path = attempt_root.join(".asb-private");
+    let private =
+        prepare_owned_directory(&private_path, 0o700, DirectoryPurpose::RunWorkspace, None)?;
+    let prompt = create_private_prompt(&private.file, prepared.prompt().as_bytes())?;
+    let home = private_path.join("home");
+    let temporary = private_path.join("tmp");
+    let _home_directory =
+        prepare_owned_directory(&home, 0o700, DirectoryPurpose::RunWorkspace, None)?;
+    let _temporary_directory =
+        prepare_owned_directory(&temporary, 0o700, DirectoryPurpose::RunWorkspace, None)?;
     if cancelled.load(Ordering::SeqCst) {
         return Ok(None);
     }
-    let agent_snapshot = snapshot_agent(&plan.agent, &private)?;
+    let agent_snapshot = snapshot_agent(&plan.agent, &private_path)?;
     if cancelled.load(Ordering::SeqCst) {
         return Ok(None);
     }
