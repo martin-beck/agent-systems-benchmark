@@ -49,6 +49,49 @@ fn skip_rust_trivia(mut source: &str) -> &str {
     }
 }
 
+fn assert_constructor_paths_are_direct_calls(
+    source: &'static str,
+    constructors: &[&str],
+) -> Result<(), String> {
+    for constructor in constructors {
+        for (offset, _) in source.match_indices(constructor) {
+            let remainder = &source[offset + constructor.len()..];
+            if remainder
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_alphanumeric() || character == '_')
+            {
+                continue;
+            }
+            if !skip_rust_trivia(remainder).starts_with('(') {
+                return Err(format!(
+                    "diagnostic constructor is used as a function item rather than a direct call: {constructor}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn assert_no_error_type_aliases(source: &'static str) -> Result<(), String> {
+    for error_type in ["CliError", "RouterError"] {
+        for (offset, _) in source.match_indices(error_type) {
+            let remainder = skip_rust_trivia(&source[offset + error_type.len()..]);
+            if remainder.starts_with("as")
+                && remainder[2..]
+                    .chars()
+                    .next()
+                    .is_none_or(|character| !character.is_alphanumeric() && character != '_')
+            {
+                return Err(format!(
+                    "diagnostic error type aliases are forbidden by the closed inventory: {error_type} as"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Extract the only two constructors used by the routed TUI boundary.  The
 /// source is a checked-in, closed Rust implementation, so this is a
 /// deterministic inventory rather than a snapshot of a test run.  A new
@@ -76,6 +119,11 @@ fn routed_tui_codes(source: &'static str) -> BTreeSet<&'static str> {
 }
 
 fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
+    assert_constructor_paths_are_direct_calls(
+        source,
+        &["RouterError::policy", "RouterError::operation"],
+    )?;
+    assert_no_error_type_aliases(source)?;
     let catalogued = CATALOGUED_CODES
         .iter()
         .map(|(code, _)| *code)
@@ -139,13 +187,16 @@ fn assert_legacy_call_sites_are_catalogued(
     source: &'static str,
     catalog: &'static str,
 ) -> Result<(), String> {
-    let mut missing = Vec::new();
-    for constructor in [
+    let constructors = [
         "CliError::legacy_usage",
         "CliError::legacy_validation",
         "CliError::legacy_validation_with_remediation",
         "CliError::legacy_operation",
-    ] {
+    ];
+    assert_constructor_paths_are_direct_calls(source, &constructors)?;
+    assert_no_error_type_aliases(source)?;
+    let mut missing = Vec::new();
+    for constructor in constructors {
         for (offset, _) in source.match_indices(constructor) {
             let remainder = skip_rust_trivia(&source[offset + constructor.len()..]);
             if remainder.starts_with('(') {
@@ -327,6 +378,14 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(nested)
         .expect_err("the completeness gate must reject a nested-comment routed producer");
     assert!(error.contains("future_nested_router_error"));
+    let function_item = "let produce = RouterError::policy;\nproduce(\"future_item_router_error\")";
+    let error = assert_catalogued_routed_codes(function_item)
+        .expect_err("the completeness gate must reject a routed function item");
+    assert!(error.contains("function item"));
+    let alias = "use crate::RouterError as Error;\nError::policy(\"future_alias_router_error\")";
+    let error = assert_catalogued_routed_codes(alias)
+        .expect_err("the completeness gate must reject a routed error-type alias");
+    assert!(error.contains("aliases are forbidden"));
 }
 
 #[test]
@@ -395,6 +454,24 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
     )
     .expect_err("a nested-comment legacy producer must have an exact reviewed identity");
     assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
+    let function_item =
+        "let produce = CliError::legacy_operation;\nproduce(\"future_item_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        function_item,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject a legacy function item");
+    assert!(error.contains("function item"));
+    let alias =
+        "use crate::CliError as Error;\nError::legacy_operation(\"future_alias_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        alias,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject a legacy error-type alias");
+    assert!(error.contains("aliases are forbidden"));
 }
 
 #[test]
