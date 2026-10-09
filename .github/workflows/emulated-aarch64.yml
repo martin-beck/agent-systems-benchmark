@@ -90,6 +90,7 @@ jobs:
             --target aarch64-unknown-linux-gnu -p asb-agents --lib -- \
             --skip mini_swe::tests::trajectory_file_and_spawn_failures_are_bounded_and_cleaned
           for repetition in {1..32}; do
+            printf 'Goose diagnostic fixture repetition %s/32\n' "$repetition"
             cargo +1.93.0 test --offline --locked -q \
               --target aarch64-unknown-linux-gnu -p asb-agents --lib \
               goose::tests::diagnostic_and_symlink_fail_closed -- \

@@ -53,6 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           for repetition in {1..32}; do
+            printf 'Goose diagnostic fixture repetition %s/32\n' "$repetition"
             cargo test --locked -q -p asb-agents --lib \
               goose::tests::diagnostic_and_symlink_fail_closed -- \
               --exact --test-threads=1
