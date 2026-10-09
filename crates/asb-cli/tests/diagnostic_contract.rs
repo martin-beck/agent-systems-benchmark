@@ -88,14 +88,11 @@ fn assert_no_error_type_aliases(source: &'static str) -> Result<(), String> {
                 ));
             }
             let declaration = source[..offset]
-                .rsplit_once(';')
-                .map_or(&source[..offset], |(statement, _)| statement)
+                .rsplit('\n')
+                .next()
+                .unwrap_or_default()
                 .trim_end();
-            if declaration.contains("type ")
-                && declaration
-                    .rsplit_once('=')
-                    .is_some_and(|(_, after_equals)| skip_rust_trivia(after_equals).is_empty())
-            {
+            if declaration.contains("type ") && declaration.contains('=') {
                 return Err(format!(
                     "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
                 ));
@@ -109,13 +106,13 @@ fn assert_no_qualified_error_paths(source: &'static str) -> Result<(), String> {
     for error_type in ["CliError", "RouterError"] {
         for (offset, _) in source.match_indices('<') {
             let after_open = skip_rust_trivia(&source[offset + 1..]);
-            if let Some(after_type) = after_open.strip_prefix(error_type) {
-                let after_close = skip_rust_trivia(after_type);
-                if after_close.starts_with(">::") {
-                    return Err(format!(
-                        "qualified diagnostic error paths are forbidden by the closed inventory: <{error_type}>::"
-                    ));
-                }
+            if after_open
+                .split_once(">::")
+                .is_some_and(|(path, _)| path.contains(error_type) && !path.contains(','))
+            {
+                return Err(format!(
+                    "qualified diagnostic error paths are forbidden by the closed inventory: <{error_type}>::"
+                ));
             }
         }
     }
@@ -426,6 +423,10 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(commented_type_alias)
         .expect_err("the completeness gate must reject a comment-separated routed type alias");
     assert!(error.contains("aliases are forbidden"));
+    let namespaced_type_alias = "type Error = crate /* namespace */ ::RouterError;\nError::policy(\"future_namespaced_type_alias_router_error\")";
+    let error = assert_catalogued_routed_codes(namespaced_type_alias)
+        .expect_err("the completeness gate must reject a namespaced routed type alias");
+    assert!(error.contains("aliases are forbidden"));
     let qualified = "<RouterError>::policy(\"future_qualified_router_error\")";
     let error = assert_catalogued_routed_codes(qualified)
         .expect_err("the completeness gate must reject a qualified routed path");
@@ -433,6 +434,10 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let commented_qualified = "< /* path boundary */ RouterError /* path boundary */ >::policy(\"future_commented_qualified_router_error\")";
     let error = assert_catalogued_routed_codes(commented_qualified)
         .expect_err("the completeness gate must reject a comment-separated qualified routed path");
+    assert!(error.contains("qualified diagnostic error paths"));
+    let namespaced_qualified = "<crate /* namespace */ ::RouterError>::policy(\"future_namespaced_qualified_router_error\")";
+    let error = assert_catalogued_routed_codes(namespaced_qualified)
+        .expect_err("the completeness gate must reject a namespaced qualified routed path");
     assert!(error.contains("qualified diagnostic error paths"));
 }
 
@@ -537,6 +542,14 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
     )
     .expect_err("the completeness gate must reject a comment-separated legacy type alias");
     assert!(error.contains("aliases are forbidden"));
+    let namespaced_type_alias = "type Error = super /* namespace */ ::CliError;\nError::legacy_operation(\"future_namespaced_type_alias_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        namespaced_type_alias,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject a namespaced legacy type alias");
+    assert!(error.contains("aliases are forbidden"));
     let qualified = "<CliError>::legacy_operation(\"future_qualified_legacy_error\")";
     let error = assert_legacy_call_sites_are_catalogued(
         "crates/asb-cli/src/lib.rs",
@@ -552,6 +565,14 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
         include_str!("../src/diagnostic_legacy_catalog.rs"),
     )
     .expect_err("the completeness gate must reject a comment-separated qualified legacy path");
+    assert!(error.contains("qualified diagnostic error paths"));
+    let namespaced_qualified = "<self /* namespace */ ::CliError>::legacy_operation(\"future_namespaced_qualified_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        namespaced_qualified,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject a namespaced qualified legacy path");
     assert!(error.contains("qualified diagnostic error paths"));
 }
 
