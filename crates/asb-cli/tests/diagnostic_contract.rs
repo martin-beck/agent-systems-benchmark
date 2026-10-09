@@ -20,9 +20,29 @@ fn skip_rust_trivia(mut source: &str) -> &str {
             continue;
         }
         if let Some(block) = source.strip_prefix("/*") {
-            source = block
-                .split_once("*/")
-                .map_or("", |(_, remainder)| remainder);
+            let bytes = block.as_bytes();
+            let mut offset = 0;
+            let mut depth = 1_u32;
+            while offset + 1 < bytes.len() {
+                match &bytes[offset..offset + 2] {
+                    b"/*" => {
+                        depth = depth.saturating_add(1);
+                        offset += 2;
+                    }
+                    b"*/" => {
+                        depth -= 1;
+                        offset += 2;
+                        if depth == 0 {
+                            source = &block[offset..];
+                            break;
+                        }
+                    }
+                    _ => offset += 1,
+                }
+            }
+            if depth != 0 {
+                return "";
+            }
             continue;
         }
         return source;
@@ -303,6 +323,10 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(commented)
         .expect_err("the completeness gate must reject a comment-separated routed producer");
     assert!(error.contains("future_commented_router_error"));
+    let nested = "RouterError::policy /* outer /* inner */ outer */ (\n    \"future_nested_router_error\",\n)";
+    let error = assert_catalogued_routed_codes(nested)
+        .expect_err("the completeness gate must reject a nested-comment routed producer");
+    assert!(error.contains("future_nested_router_error"));
 }
 
 #[test]
@@ -362,6 +386,14 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
         include_str!("../src/diagnostic_legacy_catalog.rs"),
     )
     .expect_err("a comment-separated legacy producer must have an exact reviewed identity");
+    assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
+    let nested_legacy = "let message = dynamic_message();\nCliError::legacy_operation /* outer /* inner */ outer */ (message)";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        nested_legacy,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("a nested-comment legacy producer must have an exact reviewed identity");
     assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
 }
 
