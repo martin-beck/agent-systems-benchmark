@@ -94,15 +94,14 @@ fn assert_no_error_type_aliases(source: &'static str) -> Result<(), String> {
                 continue;
             }
             let after_alias = skip_rust_trivia(&alias[alias_end..]);
-            if let Some(right_hand_side) = after_alias.strip_prefix('=') {
-                if right_hand_side
+            if let Some(right_hand_side) = after_alias.strip_prefix('=')
+                && right_hand_side
                     .split_once(';')
                     .is_some_and(|(target, _)| target.contains(error_type))
-                {
-                    return Err(format!(
-                        "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
-                    ));
-                }
+            {
+                return Err(format!(
+                    "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
+                ));
             }
         }
         for (offset, _) in source.match_indices(error_type) {
