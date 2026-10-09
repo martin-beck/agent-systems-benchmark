@@ -49,6 +49,14 @@ jobs:
           chmod 755 "$ASB_TUI_BINARY"
           ASB_TUI_EXPECTED_SHA256="$(sha256sum "$ASB_TUI_BINARY" | cut -d' ' -f1)" \
             cargo test --locked --workspace -- --test-threads=1
+      - name: Repeat Goose diagnostic fixture
+        run: |
+          set -euo pipefail
+          for repetition in {1..32}; do
+            cargo test --locked -q -p asb-agents --lib \
+              goose::tests::diagnostic_and_symlink_fail_closed -- \
+              --exact --test-threads=1
+          done
       - name: Native pinned Goose journey
         run: |
           case "$(uname -m)" in
