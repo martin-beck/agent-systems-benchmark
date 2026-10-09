@@ -194,6 +194,57 @@ if FAKE_INSTALL_CONTENT=without-force FAKE_LOG="$tmp/log" \
     exit 1
 fi
 
+unmarked="$tmp/unmarked-prefix"
+mkdir -p "$unmarked/bin"
+printf '%s\n' 'unrelated executable' >"$unmarked/bin/asb"
+chmod 755 "$unmarked/bin/asb"
+cp "$unmarked/bin/asb" "$tmp/unmarked-before"
+: >"$tmp/log"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$unmarked" \
+    make -C "$root" install >"$tmp/unmarked-out" 2>&1; then
+    printf '%s\n' 'unmarked existing PREFIX/bin/asb unexpectedly passed' >&2
+    exit 1
+fi
+cmp "$tmp/unmarked-before" "$unmarked/bin/asb"
+test ! -s "$tmp/log"
+grep -F -- 'refusing to replace unmarked PREFIX/bin/asb' "$tmp/unmarked-out" >/dev/null
+test ! -e "$unmarked/.asb-make-staging"
+
+non_regular="$tmp/non-regular-destination"
+mkdir -p "$non_regular/bin/asb"
+touch "$non_regular/.asb-make-staging"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$non_regular" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'non-regular PREFIX/bin/asb unexpectedly passed' >&2
+    exit 1
+fi
+test ! -s "$tmp/log"
+
+marker_symlink="$tmp/marker-symlink-prefix"
+mkdir -p "$marker_symlink/bin"
+printf '%s\n' 'preserve marker target' >"$tmp/marker-target"
+ln -s "$tmp/marker-target" "$marker_symlink/.asb-make-staging"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$marker_symlink" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'symlinked ownership marker unexpectedly passed' >&2
+    exit 1
+fi
+test ! -s "$tmp/log"
+grep -F -- 'preserve marker target' "$tmp/marker-target" >/dev/null
+
+marker_directory="$tmp/marker-directory-prefix"
+mkdir -p "$marker_directory/.asb-make-staging"
+find "$marker_directory" -printf '%P %y\n' | sort >"$tmp/marker-directory-before"
+if FAKE_INSTALL_CONTENT=must-not-run FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" PREFIX="$marker_directory" \
+    make -C "$root" install >/dev/null 2>&1; then
+    printf '%s\n' 'non-regular ownership marker unexpectedly passed' >&2
+    exit 1
+fi
+find "$marker_directory" -printf '%P %y\n' | sort >"$tmp/marker-directory-after"
+cmp "$tmp/marker-directory-before" "$tmp/marker-directory-after"
+test ! -s "$tmp/log"
+test ! -e "$marker_directory/bin/asb"
+
 space_home="$tmp/home with space"
 mkdir -p "$space_home"
 HOME="$space_home" FAKE_INSTALL_CONTENT=space FAKE_LOG="$tmp/log" CARGO="$tmp/install-cargo" RUSTUP="$tmp/rustup" GIT="$tmp/git" \
