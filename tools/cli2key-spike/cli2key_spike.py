@@ -5,11 +5,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import http.client
 import json
 import os
 import re
+import socket
 import threading
+import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +28,10 @@ MAX_MODELS = 128
 MAX_MODELS_BYTES = 256 * 1024
 MAX_RESPONSE_BYTES = 1024 * 1024
 TIMEOUT_SECONDS = 60
+UPSTREAM_AUTHENTICATION = (
+    "user-approved Codex OAuth remains in the user-selected CODEX_HOME and is read-only; "
+    "only the separate local client key is stored under ~/.cb"
+)
 REPORT_FIELDS = {
     "schema_version",
     "evidence_class",
@@ -91,6 +98,7 @@ def validate_contract(
         "archive_sha256": ("db256f8b8b9392835fb1277cadcff6ded3da99a6831f3ff902d5f7721cc7d5bb"),
     }
     expected_protocol = {
+        "upstream_authentication": UPSTREAM_AUTHENTICATION,
         "maximum_models": MAX_MODELS,
         "maximum_models_bytes": MAX_MODELS_BYTES,
         "maximum_response_bytes": MAX_RESPONSE_BYTES,
@@ -142,6 +150,22 @@ def read_bounded(response: http.client.HTTPResponse, maximum: int, oversized: st
     return body
 
 
+def remaining_timeout(deadline: float) -> float:
+    """Return the remaining wall-clock budget or fail at the absolute deadline."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise SpikeError("deadline_exceeded")
+    return remaining
+
+
+def set_socket_timeout(connection: http.client.HTTPConnection, deadline: float) -> None:
+    """Apply only the remaining absolute budget to the connected socket."""
+    remaining = remaining_timeout(deadline)
+    connection.timeout = remaining
+    if connection.sock is not None:
+        connection.sock.settimeout(remaining)
+
+
 def request(
     endpoint: Endpoint,
     method: str,
@@ -151,23 +175,50 @@ def request(
     maximum: int,
     oversized: str,
 ) -> tuple[int, bytes]:
-    """Perform one bounded request without logging request or response content."""
-    connection = http.client.HTTPConnection(endpoint.host, endpoint.port, timeout=TIMEOUT_SECONDS)
+    """Perform one request under an absolute deadline without logging content."""
+    deadline = time.monotonic() + TIMEOUT_SECONDS
+    connection = http.client.HTTPConnection(
+        endpoint.host,
+        endpoint.port,
+        timeout=remaining_timeout(deadline),
+    )
+    deadline_reached = threading.Event()
+
+    def abort_at_deadline() -> None:
+        deadline_reached.set()
+        connected_socket = connection.sock
+        if connected_socket is not None:
+            with contextlib.suppress(OSError):
+                connected_socket.shutdown(socket.SHUT_RDWR)
+        connection.close()
+
     headers = {"authorization": f"Bearer {client_key}", "accept": "application/json"}
     encoded = None
     if body is not None:
         encoded = json.dumps(body, separators=(",", ":")).encode()
         headers["content-type"] = "application/json"
+    deadline_timer = threading.Timer(remaining_timeout(deadline), abort_at_deadline)
+    deadline_timer.daemon = True
+    deadline_timer.start()
     try:
+        set_socket_timeout(connection, deadline)
         connection.request(method, path, body=encoded, headers=headers)
+        set_socket_timeout(connection, deadline)
         response = connection.getresponse()
-        return response.status, read_bounded(response, maximum, oversized)
+        set_socket_timeout(connection, deadline)
+        response_body = read_bounded(response, maximum, oversized)
+        remaining_timeout(deadline)
+        return response.status, response_body
     except TimeoutError as error:
         raise SpikeError("deadline_exceeded") from error
-    except (OSError, http.client.HTTPException) as error:
+    except (OSError, ValueError, http.client.HTTPException) as error:
+        if deadline_reached.is_set() or time.monotonic() >= deadline:
+            raise SpikeError("deadline_exceeded") from error
         raise SpikeError("connection_failed") from error
     finally:
+        deadline_timer.cancel()
         connection.close()
+        deadline_timer.join()
 
 
 def discover_models(endpoint: Endpoint, client_key: str) -> list[str]:

@@ -5,16 +5,22 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest import mock
 
 from cli2key_spike import (
     REPORT_FIELDS,
     SYNTHETIC_AUTH_MARKER,
+    Endpoint,
     SpikeError,
     discover_models,
     fake_spike,
     load_contract,
     parse_endpoint,
+    request,
 )
 
 
@@ -33,6 +39,12 @@ class Cli2KeySpikeTests(unittest.TestCase):
         self.assertFalse(contract["credential_workflow"]["bridge_private_oauth_store"])
         self.assertTrue(contract["credential_workflow"]["bridge_private_client_key_store"])
         self.assertTrue(contract["runtime_requirements"]["fresh_client_key_per_invocation"])
+        upstream = contract["protocol"]["upstream_authentication"]
+        self.assertIn("user-selected CODEX_HOME", upstream)
+        self.assertIn("read-only", upstream)
+        self.assertIn("separate local client key", upstream)
+        self.assertIn("~/.cb", upstream)
+        self.assertNotIn("OAuth stored by the bridge", upstream)
 
     def test_fake_proves_two_routes_and_omits_sensitive_content(self) -> None:
         private_input = "input-must-not-enter-evidence"
@@ -108,6 +120,50 @@ class Cli2KeySpikeTests(unittest.TestCase):
                 "deadline_exceeded",
             }.issubset(failures)
         )
+
+    def test_slow_drip_is_aborted_at_absolute_deadline(self) -> None:
+        class SlowDripHandler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, _format: str, *_args: object) -> None:
+                return
+
+            def do_GET(self) -> None:
+                self.send_response(200)
+                self.send_header("content-length", "64")
+                self.end_headers()
+                try:
+                    for _ in range(64):
+                        self.wfile.write(b"x")
+                        self.wfile.flush()
+                        time.sleep(0.02)
+                except OSError:
+                    pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), SlowDripHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        started = time.monotonic()
+        try:
+            host, port = server.server_address
+            with (
+                mock.patch("cli2key_spike.TIMEOUT_SECONDS", 0.15),
+                self.assertRaisesRegex(SpikeError, "deadline_exceeded"),
+            ):
+                request(
+                    Endpoint(host, port),
+                    "GET",
+                    "/slow",
+                    SYNTHETIC_AUTH_MARKER,
+                    None,
+                    128,
+                    "response_oversized",
+                )
+            self.assertLess(time.monotonic() - started, 1.0)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 if __name__ == "__main__":

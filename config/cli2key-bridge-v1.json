@@ -19,7 +19,7 @@
     "models": "GET /v1/models",
     "responses": "POST /v1/responses",
     "client_authentication": "Authorization: Bearer <fresh-random-local-client-key>",
-    "upstream_authentication": "user-approved Codex OAuth stored by the bridge",
+    "upstream_authentication": "user-approved Codex OAuth remains in the user-selected CODEX_HOME and is read-only; only the separate local client key is stored under ~/.cb",
     "maximum_models": 128,
     "maximum_models_bytes": 262144,
     "maximum_response_bytes": 1048576,
