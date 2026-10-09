@@ -5595,7 +5595,11 @@ fn run_point_with_selection_with_owner(
     let summaries = Arc::new(Mutex::new(Vec::<AttemptSummary>::new()));
     let attempt_failures = Arc::new(Mutex::new(Vec::<AttemptFailureEvidence>::new()));
     let plan_owned = plan.clone();
-    let launch_owned = launch.clone();
+    // The manifest binds the run-level selection, while each scheduler
+    // admission receives a fresh launch record below.  In particular, a
+    // sweep must never reuse an attempt id (or a stale generation binding)
+    // across points or retries.
+    let selection_owned = selection.cloned();
     let measurement_selection_owned = measurement_selection.clone();
     let work_root = plan.work_root.clone();
     let run_for_attempt = run_id.clone();
@@ -5614,7 +5618,25 @@ fn run_point_with_selection_with_owner(
                     Some(factory) => match factory.acquire(context.input_id(), context.is_warmup())
                     {
                         Ok(attempt) => Some(attempt),
-                        Err(_) => return AttemptOutcome::InfrastructureFailure,
+                        Err(_) => {
+                            // Preserve a bounded typed observation for an
+                            // unavailable/crashed sidecar or stale runtime
+                            // capability. Never retry or switch providers.
+                            failures_for_attempt
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                .push(AttemptFailureEvidence {
+                                    input_id: context.input_id(),
+                                    phase: if context.is_warmup() {
+                                        "warmup"
+                                    } else {
+                                        "measured"
+                                    },
+                                    code: "live_provider_attempt_unavailable",
+                                    message: "runtime live-provider attempt unavailable",
+                                });
+                            return AttemptOutcome::InfrastructureFailure;
+                        }
                     },
                     // Direct CLI development-live mode uses the selected
                     // adapter process with its one-shot environment key.
@@ -5623,6 +5645,36 @@ fn run_point_with_selection_with_owner(
                 }
             } else {
                 None
+            };
+            let attempt_launch = selection_owned
+                .as_ref()
+                .map(|value| {
+                    build_provider_launch(
+                        &plan_owned,
+                        value,
+                        &run_for_attempt,
+                        &format!("{run_for_attempt}-attempt-{}", context.input_id()),
+                    )
+                })
+                .transpose();
+            let attempt_launch = match attempt_launch {
+                Ok(value) => value,
+                Err(error) => {
+                    failures_for_attempt
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .push(AttemptFailureEvidence {
+                            input_id: context.input_id(),
+                            phase: if context.is_warmup() {
+                                "warmup"
+                            } else {
+                                "measured"
+                            },
+                            code: error.code,
+                            message: error.message,
+                        });
+                    return AttemptOutcome::InfrastructureFailure;
+                }
             };
             let summary = if local_mock {
                 let mock_attempt_id = context.input_id().saturating_add(1);
@@ -5680,7 +5732,7 @@ fn run_point_with_selection_with_owner(
                     &run_for_attempt,
                     context.input_id(),
                     context.is_warmup(),
-                    launch_owned.as_ref(),
+                    attempt_launch.as_ref(),
                     &measurement_selection_owned,
                     Arc::clone(&cancelled_for_attempt),
                     live_provider,
@@ -9104,6 +9156,12 @@ mod tests {
             serde_json::from_slice::<Value>(&output).unwrap()["ok"],
             false
         );
+        let failure = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(failure["points"][0]["infrastructure_failures"], 1);
+        assert_eq!(
+            failure["points"][0]["attempt_failures"][0]["code"],
+            "live_provider_attempt_unavailable"
+        );
 
         let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
             Err(LaunchAuthorityError::InvalidLaunchInput)
@@ -9172,6 +9230,28 @@ mod tests {
         assert!(calls.contains(&(0, true)));
         assert!(calls.contains(&(0, false)));
         assert!(calls.contains(&(1, false)));
+    }
+
+    #[test]
+    fn provider_launch_binding_is_fresh_for_each_attempt() {
+        let scratch = Scratch::new("per-attempt-provider-binding");
+        let (_, selection_value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        let selection: ProviderPlanOutput = serde_json::from_value(selection_value).unwrap();
+        let (_, mut plan) = plan_fixture(&scratch.0, "per-attempt");
+        bind_provider_selection(
+            &mut plan,
+            &serde_json::to_value(&selection).unwrap(),
+            "codex",
+            "openrouter",
+        );
+        let first = build_provider_launch(&plan, &selection, "run-c1", "run-c1-attempt-0").unwrap();
+        let second =
+            build_provider_launch(&plan, &selection, "run-c1", "run-c1-attempt-1").unwrap();
+        assert_ne!(first.input.attempt_id, second.input.attempt_id);
+        assert_ne!(first.launch_sha256, second.launch_sha256);
+        assert!(first.validate().is_ok());
+        assert!(second.validate().is_ok());
     }
 
     #[test]
