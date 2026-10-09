@@ -518,8 +518,14 @@ const fn legacy_cli_context(cause: Cause) -> Context {
             StateChange::NotStarted,
             Remediation::CorrectInput,
         ),
+        Cause::MissingParent => Context::new(
+            Subject::Parent,
+            "inspect_cli_parent",
+            Phase::Inspect,
+            StateChange::NotStarted,
+            Remediation::CreateParent,
+        ),
         Cause::InvalidPath
-        | Cause::MissingParent
         | Cause::AlreadyExists
         | Cause::NotDirectory
         | Cause::NotRegularFile
