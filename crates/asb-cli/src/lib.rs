@@ -2981,10 +2981,10 @@ fn tool_kind(value: &str) -> Result<ProjectToolKind, CliError> {
     }
 }
 
-fn tool_kind_map<'a>(
-    config: &'a ProjectConfigV1,
+fn tool_kind_map(
+    config: &ProjectConfigV1,
     kind: ProjectToolKind,
-) -> &'a BTreeMap<String, ProjectToolRecordV1> {
+) -> &BTreeMap<String, ProjectToolRecordV1> {
     match kind {
         ProjectToolKind::Agent => &config.agents,
         ProjectToolKind::Harness => &config.harnesses,
@@ -3231,12 +3231,12 @@ fn tool_install(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
         status: ProjectToolStatus::Available,
     };
     let inventory = tool_kind_map(&config, kind);
-    if let Some(existing) = inventory.get(id) {
-        if existing != &record {
-            return Err(CliError::validation(
-                "tool ID is already installed with different metadata; remove it before reinstalling",
-            ));
-        }
+    if let Some(existing) = inventory.get(id)
+        && existing != &record
+    {
+        return Err(CliError::validation(
+            "tool ID is already installed with different metadata; remove it before reinstalling",
+        ));
     }
     let destination = root.join(&path);
     if dry_run {
