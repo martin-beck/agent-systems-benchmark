@@ -8,138 +8,162 @@ use asb_cli::diagnostic::{
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
+use syn::spanned::Spanned;
+use syn::visit::Visit;
+use syn::{Expr, ExprCall, ExprPath, File, ItemType, Lit, Path, TypePath, UseRename};
 
-/// Consume Rust trivia between a constructor path and its call syntax.  The
-/// source inventory is intentionally lexical (not a snapshot), so comments
-/// must not create a second spelling that bypasses the public boundary.
-fn skip_rust_trivia(mut source: &str) -> &str {
-    loop {
-        source = source.trim_start();
-        if let Some(line) = source.strip_prefix("//") {
-            source = line.split_once('\n').map_or("", |(_, remainder)| remainder);
-            continue;
+#[derive(Default)]
+struct DiagnosticAstGate {
+    aliases: Vec<String>,
+    qualified_paths: Vec<String>,
+    constructor_paths: BTreeSet<String>,
+    constructor_calls: Vec<(String, usize, Option<String>)>,
+}
+
+impl<'ast> Visit<'ast> for DiagnosticAstGate {
+    fn visit_item_type(&mut self, item: &'ast ItemType) {
+        if let syn::Type::Path(TypePath { path, .. }) = item.ty.as_ref()
+            && path.segments.last().is_some_and(|segment| {
+                matches!(
+                    segment.ident.to_string().as_str(),
+                    "CliError" | "RouterError"
+                )
+            })
+        {
+            self.aliases.push(item.ident.to_string());
         }
-        if let Some(block) = source.strip_prefix("/*") {
-            let bytes = block.as_bytes();
-            let mut offset = 0;
-            let mut depth = 1_u32;
-            while offset + 1 < bytes.len() {
-                match &bytes[offset..offset + 2] {
-                    b"/*" => {
-                        depth = depth.saturating_add(1);
-                        offset += 2;
-                    }
-                    b"*/" => {
-                        depth -= 1;
-                        offset += 2;
-                        if depth == 0 {
-                            source = &block[offset..];
-                            break;
-                        }
-                    }
-                    _ => offset += 1,
-                }
-            }
-            if depth != 0 {
-                return "";
-            }
-            continue;
+        syn::visit::visit_item_type(self, item);
+    }
+
+    fn visit_use_rename(&mut self, rename: &'ast UseRename) {
+        // A renamed import can hide a public error type from the closed
+        // inventory, regardless of the chosen replacement name.
+        if matches!(
+            rename.ident.to_string().as_str(),
+            "CliError" | "RouterError"
+        ) {
+            self.aliases.push(rename.rename.to_string());
         }
-        return source;
+        syn::visit::visit_use_rename(self, rename);
+    }
+
+    fn visit_expr_path(&mut self, expression: &'ast ExprPath) {
+        if expression.qself.is_some()
+            && expression
+                .qself
+                .as_ref()
+                .is_some_and(|qself| is_diagnostic_type(qself.ty.as_ref()))
+        {
+            self.qualified_paths
+                .push("qualified diagnostic path".into());
+        }
+        if expression.qself.is_none()
+            && let Some(constructor) = diagnostic_constructor(&expression.path)
+        {
+            self.constructor_paths.insert(constructor.to_owned());
+        }
+        syn::visit::visit_expr_path(self, expression);
+    }
+
+    fn visit_expr_call(&mut self, call: &'ast ExprCall) {
+        if let Expr::Path(expression) = call.func.as_ref()
+            && expression.qself.is_none()
+            && let Some(constructor) = diagnostic_constructor(&expression.path)
+        {
+            let literal = call.args.first().and_then(|argument| match argument {
+                Expr::Lit(literal) => match &literal.lit {
+                    Lit::Str(value) => Some(value.value()),
+                    _ => None,
+                },
+                _ => None,
+            });
+            self.constructor_calls.push((
+                constructor.to_owned(),
+                call.span().start().line,
+                literal,
+            ));
+        }
+        syn::visit::visit_expr_call(self, call);
     }
 }
 
-fn assert_constructor_paths_are_direct_calls(
-    source: &'static str,
-    constructors: &[&str],
-) -> Result<(), String> {
-    for constructor in constructors {
-        for (offset, _) in source.match_indices(constructor) {
-            let remainder = &source[offset + constructor.len()..];
-            if remainder
-                .chars()
-                .next()
-                .is_some_and(|character| character.is_alphanumeric() || character == '_')
-            {
-                continue;
-            }
-            if !skip_rust_trivia(remainder).starts_with('(') {
-                return Err(format!(
-                    "diagnostic constructor is used as a function item rather than a direct call: {constructor}"
-                ));
-            }
-        }
-    }
-    Ok(())
+fn is_diagnostic_type(ty: &syn::Type) -> bool {
+    matches!(ty, syn::Type::Path(TypePath { path, .. }) if path.segments.last().is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "CliError" | "RouterError")))
 }
 
-fn assert_no_error_type_aliases(source: &'static str) -> Result<(), String> {
-    for error_type in ["CliError", "RouterError"] {
-        for (offset, _) in source.match_indices("type") {
-            let before = source[..offset].chars().next_back();
-            let after = &source[offset + "type".len()..];
-            if before.is_some_and(|character| character.is_alphanumeric() || character == '_')
-                || after
-                    .chars()
-                    .next()
-                    .is_some_and(|character| character.is_alphanumeric() || character == '_')
-            {
-                continue;
-            }
-            let alias = skip_rust_trivia(after);
-            let alias_end = alias
-                .find(|character: char| !(character.is_alphanumeric() || character == '_'))
-                .unwrap_or(alias.len());
-            if alias_end == 0 {
-                continue;
-            }
-            let after_alias = skip_rust_trivia(&alias[alias_end..]);
-            if let Some(right_hand_side) = after_alias.strip_prefix('=')
-                && right_hand_side
-                    .split_once(';')
-                    .is_some_and(|(target, _)| target.contains(error_type))
-            {
-                return Err(format!(
-                    "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
-                ));
-            }
+fn diagnostic_constructor(path: &Path) -> Option<&'static str> {
+    let segments = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+    match segments.as_slice() {
+        [error, constructor]
+            if error == "RouterError" && matches!(constructor.as_str(), "policy" | "operation") =>
+        {
+            Some(if constructor == "policy" {
+                "RouterError::policy"
+            } else {
+                "RouterError::operation"
+            })
         }
-        for (offset, _) in source.match_indices(error_type) {
-            let remainder = skip_rust_trivia(&source[offset + error_type.len()..]);
-            if remainder.starts_with("as")
-                && remainder[2..]
-                    .chars()
-                    .next()
-                    .is_none_or(|character| !character.is_alphanumeric() && character != '_')
-            {
-                return Err(format!(
-                    "diagnostic error type aliases are forbidden by the closed inventory: {error_type} as"
-                ));
+        [error, constructor] if error == "CliError" => match constructor.as_str() {
+            "usage" => Some("CliError::usage"),
+            "validation" => Some("CliError::validation"),
+            "operation" => Some("CliError::operation"),
+            "validation_with_remediation" => Some("CliError::validation_with_remediation"),
+            "legacy_usage" => Some("CliError::legacy_usage"),
+            "legacy_validation" => Some("CliError::legacy_validation"),
+            "legacy_validation_with_remediation" => {
+                Some("CliError::legacy_validation_with_remediation")
             }
-        }
+            "legacy_operation" => Some("CliError::legacy_operation"),
+            _ => None,
+        },
+        _ => None,
     }
-    Ok(())
 }
 
-fn assert_no_qualified_error_paths(source: &'static str) -> Result<(), String> {
-    for error_type in ["CliError", "RouterError"] {
-        for (offset, _) in source.match_indices('<') {
-            let after_open = skip_rust_trivia(&source[offset + 1..]);
-            if after_open
-                .split_once('>')
-                .is_some_and(|(path, after_close)| {
-                    path.contains(error_type)
-                        && !path.contains(',')
-                        && skip_rust_trivia(after_close).starts_with("::")
-                })
-            {
-                return Err(format!(
-                    "qualified diagnostic error paths are forbidden by the closed inventory: <{error_type}>::"
-                ));
-            }
-        }
+fn diagnostic_ast(source: &str) -> Result<DiagnosticAstGate, String> {
+    // Production inputs are modules.  Controlled defects include expression
+    // fragments, so parse those in a function body without falling back to a
+    // text scanner.
+    let parsed: File = syn::parse_file(source)
+        .or_else(|_| syn::parse_file(&format!("fn diagnostic_ast_fixture() {{ {source}; }}")))
+        .map_err(|error| error.to_string())?;
+    let mut gate = DiagnosticAstGate::default();
+    gate.visit_file(&parsed);
+    Ok(gate)
+}
+
+fn assert_ast_is_direct_and_unaliased(source: &str) -> Result<DiagnosticAstGate, String> {
+    let gate = diagnostic_ast(source)?;
+    if !gate.aliases.is_empty() {
+        return Err(format!(
+            "diagnostic error type aliases are forbidden by the closed inventory: {}",
+            gate.aliases.join(", ")
+        ));
     }
-    Ok(())
+    if !gate.qualified_paths.is_empty() {
+        return Err(
+            "qualified diagnostic error paths are forbidden by the closed inventory".into(),
+        );
+    }
+    let called = gate
+        .constructor_calls
+        .iter()
+        .map(|(constructor, _, _)| constructor)
+        .collect::<BTreeSet<_>>();
+    if let Some(function_item) = gate
+        .constructor_paths
+        .iter()
+        .find(|constructor| !called.contains(constructor))
+    {
+        return Err(format!(
+            "diagnostic constructor is used as a function item rather than a direct call: {function_item}"
+        ));
+    }
+    Ok(gate)
 }
 
 /// Extract the only two constructors used by the routed TUI boundary.  The
@@ -147,42 +171,19 @@ fn assert_no_qualified_error_paths(source: &'static str) -> Result<(), String> {
 /// deterministic inventory rather than a snapshot of a test run.  A new
 /// `RouterError::policy("...")` or `RouterError::operation("...")` producer
 /// cannot pass this contract until the reviewed typed catalogue covers it.
-fn routed_tui_codes(source: &'static str) -> BTreeSet<&'static str> {
-    ["RouterError::policy", "RouterError::operation"]
-        .into_iter()
-        .flat_map(|prefix| {
-            source.match_indices(prefix).filter_map(|(offset, _)| {
-                let remainder = skip_rust_trivia(&source[offset + prefix.len()..]);
-                if !remainder.starts_with('(') {
-                    return None;
-                }
-                let argument = skip_rust_trivia(&remainder[1..]);
-                Some(
-                    argument
-                        .strip_prefix('"')
-                        .and_then(|literal| literal.split('"').next())
-                        .unwrap_or("<nonliteral routed producer>"),
-                )
-            })
-        })
-        .collect()
-}
-
 fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
-    assert_constructor_paths_are_direct_calls(
-        source,
-        &["RouterError::policy", "RouterError::operation"],
-    )?;
-    assert_no_error_type_aliases(source)?;
-    assert_no_qualified_error_paths(source)?;
+    let gate = assert_ast_is_direct_and_unaliased(source)?;
     let catalogued = CATALOGUED_CODES
         .iter()
         .map(|(code, _)| *code)
         .collect::<BTreeSet<_>>();
-    let missing = routed_tui_codes(source)
-        .difference(&catalogued)
-        .copied()
-        .collect::<Vec<_>>();
+    let routed = gate
+        .constructor_calls
+        .iter()
+        .filter(|(constructor, _, _)| constructor.starts_with("RouterError::"))
+        .map(|(_, _, literal)| literal.as_deref().unwrap_or("<nonliteral routed producer>"))
+        .collect::<BTreeSet<_>>();
+    let missing = routed.difference(&catalogued).copied().collect::<Vec<_>>();
     if missing.is_empty() {
         Ok(())
     } else {
@@ -199,28 +200,29 @@ fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
 /// inherit a prose-based fallback silently.  Keeping this source inventory
 /// executable makes every literal producer either receive a reviewed cause or
 /// fail this contract.
-fn bare_cli_error_producers(source: &'static str) -> BTreeSet<&'static str> {
+fn bare_cli_error_producers(source: &'static str) -> Result<BTreeSet<String>, String> {
     // Deliberately match the constructor token rather than its argument
     // spelling: a producer may place `(` and a literal on later lines, or
     // pass an identifier.  Both shapes must fail before a new diagnostic can
     // inherit a prose-derived identity.
-    [
-        "CliError::usage",
-        "CliError::validation",
-        "CliError::operation",
-        "CliError::validation_with_remediation",
-    ]
-    .into_iter()
-    .filter(|constructor| {
-        source.match_indices(constructor).any(|(offset, _)| {
-            skip_rust_trivia(&source[offset + constructor.len()..]).starts_with('(')
+    Ok(assert_ast_is_direct_and_unaliased(source)?
+        .constructor_calls
+        .into_iter()
+        .filter_map(|(constructor, _, _)| {
+            matches!(
+                constructor.as_str(),
+                "CliError::usage"
+                    | "CliError::validation"
+                    | "CliError::operation"
+                    | "CliError::validation_with_remediation"
+            )
+            .then_some(constructor)
         })
-    })
-    .collect()
+        .collect())
 }
 
 fn assert_no_bare_cli_producers(source: &'static str) -> Result<(), String> {
-    let bare = bare_cli_error_producers(source)
+    let bare = bare_cli_error_producers(source)?
         .into_iter()
         .collect::<Vec<_>>();
     if bare.is_empty() {
@@ -244,23 +246,13 @@ fn assert_legacy_call_sites_are_catalogued(
         "CliError::legacy_validation_with_remediation",
         "CliError::legacy_operation",
     ];
-    assert_constructor_paths_are_direct_calls(source, &constructors)?;
-    assert_no_error_type_aliases(source)?;
-    assert_no_qualified_error_paths(source)?;
+    let gate = assert_ast_is_direct_and_unaliased(source)?;
     let mut missing = Vec::new();
-    for constructor in constructors {
-        for (offset, _) in source.match_indices(constructor) {
-            let remainder = skip_rust_trivia(&source[offset + constructor.len()..]);
-            if remainder.starts_with('(') {
-                let line = source[..offset]
-                    .bytes()
-                    .filter(|byte| *byte == b'\n')
-                    .count()
-                    + 1;
-                let entry = format!("(\"{file}\", {line})");
-                if !catalog.contains(&entry) {
-                    missing.push(entry);
-                }
+    for (constructor, line, _) in gate.constructor_calls {
+        if constructors.contains(&constructor.as_str()) {
+            let entry = format!("(\"{file}\", {line})");
+            if !catalog.contains(&entry) {
+                missing.push(entry);
             }
         }
     }
@@ -430,6 +422,10 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(nested)
         .expect_err("the completeness gate must reject a nested-comment routed producer");
     assert!(error.contains("future_nested_router_error"));
+    assert_catalogued_routed_codes(
+        "// RouterError::policy(\"comment_only_uncatalogued_router_error\")\n/* RouterError::operation(\"comment_only_uncatalogued_router_error\") */",
+    )
+    .expect("comments are not public diagnostic producers");
     let function_item = "let produce = RouterError::policy;\nproduce(\"future_item_router_error\")";
     let error = assert_catalogued_routed_codes(function_item)
         .expect_err("the completeness gate must reject a routed function item");
@@ -437,11 +433,11 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let alias = "use crate::RouterError as Error;\nError::policy(\"future_alias_router_error\")";
     let error = assert_catalogued_routed_codes(alias)
         .expect_err("the completeness gate must reject a routed error-type alias");
-    assert!(error.contains("aliases are forbidden"));
+    assert!(error.contains("aliases are forbidden"), "{error}");
     let multiline_type_alias = "type Error =\n crate::RouterError;\nError::policy(\"future_multiline_alias_router_error\")";
     let error = assert_catalogued_routed_codes(multiline_type_alias)
         .expect_err("the completeness gate must reject a multiline routed type alias");
-    assert!(error.contains("aliases are forbidden"));
+    assert!(error.contains("aliases are forbidden"), "{error}");
     let trivia_after_type = "type /* boundary */ Error = crate::RouterError;\nError::policy(\"future_type_trivia_router_error\")";
     let error = assert_catalogued_routed_codes(trivia_after_type)
         .expect_err("the completeness gate must reject routed type-token trivia");

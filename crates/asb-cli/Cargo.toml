@@ -39,6 +39,8 @@ rustix = { version = "=1.1.4", features = ["fs", "process", "pty", "termios"] }
 
 [dev-dependencies]
 jsonschema = { version = "=0.33.0", default-features = false }
+proc-macro2 = { version = "=1.0.107", features = ["span-locations"] }
+syn = { version = "=2.0.119", features = ["full", "visit"] }
 tempfile = "=3.27.0"
 
 [[bin]]
