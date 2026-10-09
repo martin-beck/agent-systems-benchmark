@@ -9012,6 +9012,145 @@ mod tests {
         assert!(config.support_tools.is_empty());
     }
 
+    #[test]
+    fn tool_parser_and_install_error_matrix_is_bounded_and_actionable() {
+        assert!(tool_kind("unknown").is_err());
+        assert!(tool(&[], &mut Vec::new()).is_err());
+        assert!(tool(&["unknown".into()], &mut Vec::new()).is_err());
+        assert!(tool_project_path(&[], 1).is_err());
+        assert!(
+            tool_project_path(
+                &[
+                    "--project".into(),
+                    "one".into(),
+                    "--project".into(),
+                    "two".into()
+                ],
+                0
+            )
+            .is_err()
+        );
+        assert!(parse_tool_project_only(&["--unknown".into()]).is_err());
+        assert!(!valid_tool_id("UpperCase"));
+        assert!(!valid_tool_id("../escape"));
+
+        let scratch = Scratch::new("tool-install-matrix");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let install = |extra: &[&str]| {
+            let mut args = vec!["tool".into(), "install".into(), "matrix".into()];
+            args.extend(extra.iter().map(|value| OsString::from(*value)));
+            args.push("--project".into());
+            args.push(project.clone().into_os_string());
+            run_with_default_mode(&args, &mut Vec::new(), &mut Vec::new(), false)
+        };
+        assert_ne!(install(&[]), 0);
+        assert_ne!(install(&["--kind"]), 0);
+        assert_ne!(
+            install(&["--kind", "agent", "--source", "fixture://matrix"]),
+            0
+        );
+        assert_ne!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "fixture://matrix",
+                "--version",
+                "../bad"
+            ]),
+            0
+        );
+        assert_ne!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "fixture://bad/id",
+                "--version",
+                "1"
+            ]),
+            0
+        );
+        assert_ne!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "https://example.invalid/t",
+                "--version",
+                "1"
+            ]),
+            0
+        );
+        assert_eq!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "fixture://matrix",
+                "--version",
+                "1",
+                "--dry-run"
+            ]),
+            0
+        );
+        assert!(!project.join(".asb/tools/matrix").exists());
+
+        let source = scratch.0.join("local-tool");
+        fs::write(&source, b"local tool bytes").unwrap();
+        let source_string = source.to_string_lossy().into_owned();
+        let local = [
+            "--kind",
+            "support",
+            "--source",
+            source_string.as_str(),
+            "--version",
+            "1",
+        ];
+        assert_eq!(install(&local), 0);
+        assert_ne!(
+            install(&[
+                "--kind",
+                "support",
+                "--source",
+                "fixture://other",
+                "--version",
+                "2"
+            ]),
+            0
+        );
+        let project_arg = project.to_string_lossy().into_owned();
+        let mut list = Vec::new();
+        assert!(tool_inventory(&["--project".into(), project_arg.clone()], &mut list).is_ok());
+        assert!(String::from_utf8_lossy(&list).contains("matrix"));
+        assert!(
+            tool_status(
+                &["missing".into(), "--project".into(), project_arg.clone()],
+                &mut Vec::new()
+            )
+            .is_err()
+        );
+        assert!(
+            tool_remove(
+                &["missing".into(), "--project".into(), project_arg.clone()],
+                &mut Vec::new()
+            )
+            .is_err()
+        );
+
+        fs::write(project.join(PROJECT_INIT_CONFIG), b"not json").unwrap();
+        assert!(tool_inventory(&["--project".into(), project_arg], &mut Vec::new()).is_err());
+    }
+
     use super::*;
     use asb_runtime::process_owner_material::OwnerToolProvenance;
     use std::os::unix::fs::PermissionsExt;
