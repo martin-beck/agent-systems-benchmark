@@ -1440,6 +1440,7 @@ pub(super) fn render_error(
         reason
     ));
     presentation.fact(format!("Affected {}.", diagnostic.subject_label()));
+    presentation.fact(format!("Cause: {}.", diagnostic.cause_explanation()));
     presentation.fact(format!("Detail: {}.", sentence_fragment(error.message)));
     presentation.fact(diagnostic.state_change_explanation());
     presentation.fact(format!(
