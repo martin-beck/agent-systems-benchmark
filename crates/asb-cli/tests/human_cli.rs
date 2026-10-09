@@ -331,7 +331,18 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
         .unwrap();
     assert_ne!(timeout.status.code(), Some(0));
     let timeout_text = assert_private_human_output(&timeout);
-    assert!(timeout_text.contains("timeout") || timeout_text.contains("failed"));
+    let timeout_normalized = timeout_text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        timeout_normalized.contains("The bounded deadline expired"),
+        "{timeout_normalized}"
+    );
+    assert!(
+        timeout_normalized.contains("Recovery:"),
+        "{timeout_normalized}"
+    );
 
     let marker = scratch.0.join("cancellation-started");
     let cancellable = scratch.0.join("cancellable-agent");

@@ -2154,6 +2154,18 @@ fn present_execution(
         }
     }
     if let Some(points) = object.get("points").and_then(Value::as_array) {
+        let timed_out = points
+            .iter()
+            .filter_map(Value::as_object)
+            .filter_map(|point| number(point, "timed_out"))
+            .sum::<u64>();
+        if timed_out > 0 {
+            value.fact(format!("Timed-out attempts: {timed_out}."));
+            value.warning("The bounded deadline expired for one or more benchmark attempts.");
+            value.fact(
+                "Recovery: Inspect the retained run report before retrying the timed-out benchmark.",
+            );
+        }
         let decisions = points
             .iter()
             .filter_map(|point| string_value(point, "decision"))

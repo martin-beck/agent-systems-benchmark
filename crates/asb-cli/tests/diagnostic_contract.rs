@@ -45,6 +45,46 @@ fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
     }
 }
 
+/// Extract literal producers that cross the ordinary public CLI error
+/// boundary.  These used to share only the broad `usage`, `validation`, and
+/// `operation` identities, which allowed a newly-added public failure to
+/// inherit a prose-based fallback silently.  Keeping this source inventory
+/// executable makes every literal producer either receive a reviewed cause or
+/// fail this contract.
+fn literal_cli_error_messages(source: &'static str) -> BTreeSet<&'static str> {
+    [
+        "CliError::usage(\"",
+        "CliError::validation(\"",
+        "CliError::operation(\"",
+        "CliError::validation_with_remediation(\"",
+    ]
+    .into_iter()
+    .flat_map(|prefix| {
+        source
+            .split(prefix)
+            .skip(1)
+            .map(|remainder| remainder.split('\"').next().expect("closed Rust literal"))
+    })
+    .collect()
+}
+
+fn assert_literal_cli_producers_are_specific(source: &'static str) -> Result<(), String> {
+    let fallback = literal_cli_error_messages(source)
+        .into_iter()
+        .filter(|message| {
+            Diagnostic::for_cli_literal(message, Severity::Failure).cause == Cause::UnknownCause
+        })
+        .collect::<Vec<_>>();
+    if fallback.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "ordinary CLI producers need reviewed typed causes: {}",
+            fallback.join(" | ")
+        ))
+    }
+}
+
 /// Validate the semantic obligations that must accompany a public diagnostic.
 /// The inputs deliberately model the human line, stream and exit separately
 /// from the stable machine envelope: changing any one of them must not hide a
@@ -188,6 +228,20 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(defect)
         .expect_err("the completeness gate must reject an uncatalogued producer");
     assert!(error.contains("future_uncatalogued_router_error"));
+}
+
+#[test]
+fn ordinary_cli_producers_are_mechanically_specific() {
+    assert_literal_cli_producers_are_specific(include_str!("../src/lib.rs"))
+        .expect("every ordinary CLI producer must have a specific reviewed cause");
+}
+
+#[test]
+fn controlled_generic_cli_producer_is_rejected() {
+    let defect = r#"CliError::operation("future unclassified public condition")"#;
+    let error = assert_literal_cli_producers_are_specific(defect)
+        .expect_err("the completeness gate must reject a generic CLI producer");
+    assert!(error.contains("future unclassified public condition"));
 }
 
 #[test]

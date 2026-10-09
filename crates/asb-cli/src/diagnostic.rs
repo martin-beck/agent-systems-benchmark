@@ -278,6 +278,22 @@ impl Diagnostic {
         }
     }
 
+    /// Classify an ordinary CLI literal at its public boundary.  The CLI has a
+    /// large established producer surface, so constructors must not reuse the
+    /// broad machine-envelope families (`usage`, `validation`, `operation`) as
+    /// their human diagnostic identity.  This resolver returns a closed
+    /// semantic identity and deliberately leaves an unrecognised future
+    /// literal uncatalogued for the mechanical contract test to reject.
+    pub fn for_cli_literal(message: &'static str, severity: Severity) -> Self {
+        let (cause, context) = classify_cli_literal(message);
+        Self {
+            code: cli_cause_code(cause),
+            severity,
+            cause,
+            context,
+        }
+    }
+
     /// Return whether this code resolved to a reviewed non-fallback cause.
     pub fn is_catalogued(self) -> bool {
         self.cause != Cause::UnknownCause
@@ -442,6 +458,36 @@ impl Diagnostic {
                 "Select an already sealed offline replay instead of contacting the provider."
             }
         }
+    }
+}
+
+const fn cli_cause_code(cause: Cause) -> &'static str {
+    match cause {
+        Cause::MissingParent => "cli_missing_parent",
+        Cause::MissingInput => "cli_missing_input",
+        Cause::AlreadyExists => "cli_already_exists",
+        Cause::NotDirectory => "cli_not_directory",
+        Cause::NotRegularFile => "cli_not_regular_file",
+        Cause::PermissionDenied => "cli_permission_denied",
+        Cause::ReadOnlyStorage => "cli_read_only_storage",
+        Cause::ResourceExhausted => "cli_resource_exhausted",
+        Cause::UnsafeTopology => "cli_unsafe_topology",
+        Cause::InvalidPath => "cli_invalid_path",
+        Cause::MalformedInput => "cli_malformed_input",
+        Cause::IncompatibleInput => "cli_incompatible_input",
+        Cause::StaleIdentity => "cli_stale_identity",
+        Cause::UnavailableCapability => "cli_unavailable_capability",
+        Cause::MissingTool => "cli_missing_tool",
+        Cause::ProviderAuthentication => "cli_provider_authentication",
+        Cause::ProviderRejection => "cli_provider_rejection",
+        Cause::LifecycleRejected => "cli_lifecycle_rejected",
+        Cause::TransportFailure => "cli_transport_failure",
+        Cause::Timeout => "cli_timeout",
+        Cause::Cancellation => "cli_cancellation",
+        Cause::PartialCompletion => "cli_partial_completion",
+        Cause::ReconciliationRequired => "cli_reconciliation_required",
+        Cause::UnexpectedProductFailure => "cli_product_failure",
+        Cause::UnknownCause => "cli_unclassified",
     }
 }
 
@@ -1491,6 +1537,297 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 Phase::Execute,
                 StateChange::Unknown,
                 Remediation::Retry,
+            ),
+        );
+    }
+    (
+        Cause::UnknownCause,
+        Context::new(
+            Subject::Unknown,
+            "unknown",
+            Phase::Validate,
+            StateChange::Unknown,
+            Remediation::None,
+        ),
+    )
+}
+
+fn classify_cli_literal(message: &'static str) -> (Cause, Context) {
+    let classified = classify("cli_literal", message);
+    if classified.0 != Cause::UnknownCause
+        && !(classified.0 == Cause::UnexpectedProductFailure
+            && classified.1.subject == Subject::Unknown)
+    {
+        return classified;
+    }
+
+    let context = |subject, operation, phase, remediation| {
+        Context::new(
+            subject,
+            operation,
+            phase,
+            StateChange::NotStarted,
+            remediation,
+        )
+    };
+    if message_contains(message, "requires")
+        || message_contains(message, "is missing")
+        || message_contains(message, "has no ")
+        || message_contains(message, "lacks ")
+    {
+        return (
+            Cause::MissingInput,
+            context(
+                Subject::Input,
+                "validate_input",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "must be")
+        || message_contains(message, "option")
+        || message_contains(message, "arguments")
+        || message_contains(message, "supplied twice")
+        || message_contains(message, "out of range")
+    {
+        return (
+            Cause::MalformedInput,
+            context(
+                Subject::Option,
+                "validate_option",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "overflow") || message_contains(message, "exceeds its bound") {
+        return (
+            Cause::ResourceExhausted,
+            context(
+                Subject::Input,
+                "bound_input",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "stale") || message_contains(message, "changed before") {
+        return (
+            Cause::StaleIdentity,
+            context(
+                Subject::State,
+                "verify_identity",
+                Phase::Validate,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "provider") || message_contains(message, "OpenRouter") {
+        return (
+            Cause::TransportFailure,
+            context(
+                Subject::Provider,
+                "communicate",
+                Phase::Transport,
+                Remediation::CheckProvider,
+            ),
+        );
+    }
+    if message_contains(message, "configuration") || message_contains(message, "selection") {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Configuration,
+                "configure",
+                Phase::Commit,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "recording")
+        || message_contains(message, "replay")
+        || message_contains(message, "cassette")
+        || message_contains(message, "experiment")
+        || message_contains(message, "plan")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Artifact,
+                "validate_artifact",
+                Phase::Validate,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "workload") || message_contains(message, "evaluation") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Capability,
+                "prepare_workload",
+                Phase::Prepare,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "auth") || message_contains(message, "relay") {
+        return (
+            Cause::TransportFailure,
+            context(
+                Subject::Transport,
+                "communicate",
+                Phase::Transport,
+                Remediation::CheckProvider,
+            ),
+        );
+    }
+    if message_contains(message, "signal")
+        || message_contains(message, "SIGINT")
+        || message_contains(message, "SIGTERM")
+        || message_contains(message, "clock")
+        || message_contains(message, "adapter")
+        || message_contains(message, "rust")
+    {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Capability,
+                "probe_capability",
+                Phase::Inspect,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "API key")
+        || message_contains(message, "api-key")
+        || message_contains(message, "--json")
+    {
+        return (
+            Cause::MalformedInput,
+            context(
+                Subject::Option,
+                "validate_option",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "workspace") {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Workspace,
+                "prepare_workspace",
+                Phase::Cleanup,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "result store") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Store,
+                "open_store",
+                Phase::Inspect,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "rollback target") {
+        return (
+            Cause::MissingInput,
+            context(
+                Subject::State,
+                "select_rollback",
+                Phase::Inspect,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "completion") || message_contains(message, "project init") {
+        return (
+            Cause::IncompatibleInput,
+            context(
+                Subject::Option,
+                "validate_command",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "redaction") || message_contains(message, "local/mock owner") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Capability,
+                "probe_capability",
+                Phase::Inspect,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "easy build") || message_contains(message, "execution definition")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Artifact,
+                "prepare_artifact",
+                Phase::Prepare,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "tool") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Tool,
+                "inspect_tool",
+                Phase::Inspect,
+                Remediation::InstallTool,
+            ),
+        );
+    }
+    if message_contains(message, "output") || message_contains(message, "directory") {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Output,
+                "write_output",
+                Phase::Commit,
+                Remediation::CheckDestination,
+            ),
+        );
+    }
+    if message_contains(message, "agent")
+        || message_contains(message, "process")
+        || message_contains(message, "prompt")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Attempt,
+                "execute",
+                Phase::Execute,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "state")
+        || message_contains(message, "journal")
+        || message_contains(message, "run ")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::State,
+                "operate",
+                Phase::Commit,
+                Remediation::Reconcile,
             ),
         );
     }

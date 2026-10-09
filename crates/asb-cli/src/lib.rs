@@ -9227,8 +9227,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::Help,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "usage",
+            diagnostic: diagnostic::Diagnostic::for_cli_literal(
                 message,
                 diagnostic::Severity::Error,
             ),
@@ -9244,8 +9243,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "validation",
+            diagnostic: diagnostic::Diagnostic::for_cli_literal(
                 message,
                 diagnostic::Severity::Error,
             ),
@@ -9261,8 +9259,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "validation",
+            diagnostic: diagnostic::Diagnostic::for_cli_literal(
                 message,
                 diagnostic::Severity::Error,
             ),
@@ -9278,8 +9275,7 @@ impl CliError {
             settings_issue,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "validation",
+            diagnostic: diagnostic::Diagnostic::for_cli_literal(
                 message,
                 diagnostic::Severity::Error,
             ),
@@ -9295,8 +9291,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::ProductFailure,
             remediation: ErrorRemediation::None,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "operation",
+            diagnostic: diagnostic::Diagnostic::for_cli_literal(
                 message,
                 diagnostic::Severity::Failure,
             ),
