@@ -562,7 +562,7 @@ fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
     assert!(
         String::from_utf8(completion.stdout)
             .unwrap()
-            .contains("doctor setup capabilities project provider-catalog")
+            .contains("doctor setup capabilities project tool provider-catalog")
     );
 }
 

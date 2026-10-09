@@ -29,7 +29,8 @@ use asb_analysis::{ComparisonField, compare_experiments};
 use asb_config::{
     Agent as ConfigAgent, ConfigStore, Configuration, Connection as ConfigConnection,
     CredentialReference, CredentialReferenceKind, MAX_CONFIG_BYTES, ModelProfile,
-    OpenRouterFreeModelConfig, ProjectConfigV1, ProviderSelection, decode_project_config,
+    OpenRouterFreeModelConfig, ProjectConfigV1, ProjectToolKind, ProjectToolRecordV1,
+    ProjectToolStatus, ProviderSelection, decode_project_config,
 };
 use asb_metrics::LinuxCollector;
 use asb_protocol::{
@@ -847,6 +848,7 @@ fn dispatch(
         [command, subcommand, init_args @ ..] if command == "project" && subcommand == "init" => {
             project_init(init_args, stdout).map(|()| 0)
         }
+        [command, tool_args @ ..] if command == "tool" => tool(tool_args, stdout).map(|()| 0),
         [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout, stdin),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
@@ -1992,6 +1994,7 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("provider-catalog") => "provider-catalog",
         Some("workload-catalog") => "workload-catalog",
         Some("config") => "config",
+        Some("tool") => "tool",
         Some("auth") => "auth",
         Some("provider-plan") => "provider-plan",
         Some("completion") => "completion",
@@ -2014,6 +2017,11 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
         "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
+    )
+    .map_err(output_error)?;
+    writeln!(
+        output,
+        "  asb tool install ID --kind agent|harness|benchmark|workload|support --source SOURCE --version VERSION [--project PATH] [--dry-run]\n  asb tool list|status|remove ID [--project PATH]"
     )
     .map_err(output_error)?;
     writeln!(
@@ -2803,6 +2811,30 @@ fn read_bounded_json(
     Ok(bytes)
 }
 
+fn read_bounded_file(path: &Path, maximum: u64) -> Result<Vec<u8>, CliError> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .map_err(|_| CliError::validation("tool source file cannot be inspected"))?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| CliError::validation("tool source file cannot be inspected"))?;
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > maximum {
+        return Err(CliError::validation(
+            "tool source must be a bounded non-empty regular file",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|_| CliError::validation("tool source file cannot be read"))?;
+    if bytes.len() as u64 > maximum {
+        return Err(CliError::validation("tool source exceeds its bound"));
+    }
+    Ok(bytes)
+}
+
 fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
     if let Ok(metadata) = fs::symlink_metadata(path)
         && metadata.file_type().is_symlink()
@@ -3091,6 +3123,414 @@ fn project_init(args: &[String], output: &mut dyn Write) -> Result<(), CliError>
                 "asb run PLAN.toml",
             ],
         },
+    )
+}
+
+/// Manage the bounded, project-local external tool registry.
+///
+/// Install accepts only a local regular file or a deterministic `fixture://`
+/// source.  It never invokes a shell, package manager, downloader, or tool.
+fn tool(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let operation = args
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| CliError::usage("tool requires install|list|status|remove"))?;
+    match operation {
+        "install" => tool_install(&args[1..], output),
+        "list" => tool_inventory(&args[1..], output),
+        "status" => tool_status(&args[1..], output),
+        "remove" => tool_remove(&args[1..], output),
+        _ => Err(CliError::usage("tool requires install|list|status|remove")),
+    }
+}
+
+fn tool_kind(value: &str) -> Result<ProjectToolKind, CliError> {
+    match value {
+        "agent" => Ok(ProjectToolKind::Agent),
+        "harness" => Ok(ProjectToolKind::Harness),
+        "benchmark" => Ok(ProjectToolKind::Benchmark),
+        "workload" => Ok(ProjectToolKind::Workload),
+        "support" | "support_tool" => Ok(ProjectToolKind::SupportTool),
+        _ => Err(CliError::validation(
+            "tool kind must be agent, harness, benchmark, workload, or support",
+        )),
+    }
+}
+
+fn tool_kind_map(
+    config: &ProjectConfigV1,
+    kind: ProjectToolKind,
+) -> &BTreeMap<String, ProjectToolRecordV1> {
+    match kind {
+        ProjectToolKind::Agent => &config.agents,
+        ProjectToolKind::Harness => &config.harnesses,
+        ProjectToolKind::Benchmark => &config.benchmarks,
+        ProjectToolKind::Workload => &config.workloads,
+        ProjectToolKind::SupportTool => &config.support_tools,
+    }
+}
+
+fn tool_kind_map_mut(
+    config: &mut ProjectConfigV1,
+    kind: ProjectToolKind,
+) -> &mut BTreeMap<String, ProjectToolRecordV1> {
+    match kind {
+        ProjectToolKind::Agent => &mut config.agents,
+        ProjectToolKind::Harness => &mut config.harnesses,
+        ProjectToolKind::Benchmark => &mut config.benchmarks,
+        ProjectToolKind::Workload => &mut config.workloads,
+        ProjectToolKind::SupportTool => &mut config.support_tools,
+    }
+}
+
+fn tool_project_path(args: &[String], start: usize) -> Result<PathBuf, CliError> {
+    let path = args
+        .windows(2)
+        .find(|pair| pair[0] == "--project")
+        .map(|pair| pair[1].clone())
+        .unwrap_or_else(|| ".".into());
+    if args
+        .iter()
+        .filter(|value| value.as_str() == "--project")
+        .count()
+        > 1
+    {
+        return Err(CliError::usage(
+            "tool --project was supplied more than once",
+        ));
+    }
+    if path.is_empty() || start > args.len() {
+        return Err(CliError::usage("tool project path is invalid"));
+    }
+    Ok(PathBuf::from(path))
+}
+
+fn load_tool_project(root: &Path) -> Result<ProjectConfigV1, CliError> {
+    ensure_project_root(root)?;
+    let config_path = root.join(PROJECT_INIT_CONFIG);
+    let bytes = read_bounded_json(
+        &config_path,
+        MAX_CONFIG_BYTES,
+        "ASB project configuration is missing or unreadable; run `asb project init` first",
+    )?;
+    decode_project_config(&bytes).map_err(|_| {
+        CliError::validation(
+            "ASB project configuration is invalid; run project recovery before installing tools",
+        )
+    })
+}
+
+fn save_tool_project(root: &Path, config: &ProjectConfigV1) -> Result<(), CliError> {
+    config
+        .validate()
+        .map_err(|_| CliError::validation("tool registry update is invalid"))?;
+    let bytes = serde_json::to_vec_pretty(config)
+        .map_err(|_| CliError::operation("tool registry cannot be encoded"))?;
+    write_atomic_private(&root.join(PROJECT_INIT_CONFIG), &bytes)
+}
+
+fn parse_tool_project_only(args: &[String]) -> Result<PathBuf, CliError> {
+    let root = tool_project_path(args, 0)?;
+    for value in args {
+        if value != "--project"
+            && !args
+                .windows(2)
+                .any(|pair| pair[1] == *value && pair[0] == "--project")
+        {
+            return Err(CliError::usage(
+                "tool operation received an unsupported option",
+            ));
+        }
+    }
+    Ok(root)
+}
+
+fn tool_inventory(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let root = parse_tool_project_only(args)?;
+    let config = load_tool_project(&root)?;
+    let mut records = Vec::new();
+    for (kind, inventory) in [
+        (ProjectToolKind::Agent, &config.agents),
+        (ProjectToolKind::Harness, &config.harnesses),
+        (ProjectToolKind::Benchmark, &config.benchmarks),
+        (ProjectToolKind::Workload, &config.workloads),
+        (ProjectToolKind::SupportTool, &config.support_tools),
+    ] {
+        for (id, record) in inventory {
+            records.push(serde_json::json!({"id": id, "kind": kind, "record": record}));
+        }
+    }
+    write_json(
+        output,
+        &serde_json::json!({
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "ok": true,
+            "command": "tool list",
+            "project": ".",
+            "tools": records,
+        }),
+    )
+}
+
+fn tool_status(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let (id, rest) = args
+        .split_first()
+        .ok_or_else(|| CliError::usage("tool status requires an ID"))?;
+    let root = parse_tool_project_only(rest)?;
+    let config = load_tool_project(&root)?;
+    let found = [
+        (&config.agents, ProjectToolKind::Agent),
+        (&config.harnesses, ProjectToolKind::Harness),
+        (&config.benchmarks, ProjectToolKind::Benchmark),
+        (&config.workloads, ProjectToolKind::Workload),
+        (&config.support_tools, ProjectToolKind::SupportTool),
+    ]
+    .iter()
+    .find_map(|(inventory, kind)| inventory.get(id).map(|record| (*kind, record)));
+    let (kind, record) = found.ok_or_else(|| CliError::validation("tool ID is not installed"))?;
+    write_json(
+        output,
+        &serde_json::json!({
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "ok": true,
+            "command": "tool status",
+            "id": id,
+            "kind": kind,
+            "record": record,
+        }),
+    )
+}
+
+fn valid_tool_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_ID_BYTES
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
+        })
+}
+
+fn platform_label() -> String {
+    format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn tool_install(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let (id, options) = args
+        .split_first()
+        .ok_or_else(|| CliError::usage("tool install requires an ID"))?;
+    if !valid_tool_id(id) {
+        return Err(CliError::validation(
+            "tool ID must contain only lowercase letters, digits, '-' or '_'",
+        ));
+    }
+    let mut kind = None;
+    let mut source = None;
+    let mut version = None;
+    let mut project = ".".to_owned();
+    let mut dry_run = false;
+    let mut index = 0;
+    while index < options.len() {
+        match options[index].as_str() {
+            "--kind" | "--source" | "--version" | "--project" => {
+                let value = options
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::usage("tool install option is missing a value"))?;
+                if value.is_empty() || value.len() > MAX_ID_BYTES * 32 {
+                    return Err(CliError::validation(
+                        "tool install option value is empty or too long",
+                    ));
+                }
+                match options[index].as_str() {
+                    "--kind" => kind = Some(tool_kind(value)?),
+                    "--source" => source = Some(value.clone()),
+                    "--version" => version = Some(value.clone()),
+                    "--project" => project = value.clone(),
+                    _ => unreachable!(),
+                }
+                index += 2;
+            }
+            "--dry-run" => {
+                dry_run = true;
+                index += 1;
+            }
+            _ => {
+                return Err(CliError::usage(
+                    "tool install accepts --kind, --source, --version, --project, and --dry-run",
+                ));
+            }
+        }
+    }
+    let kind = kind.ok_or_else(|| CliError::usage("tool install requires --kind"))?;
+    let source = source.ok_or_else(|| CliError::usage("tool install requires --source"))?;
+    let version = version.ok_or_else(|| CliError::usage("tool install requires --version"))?;
+    if version.contains('/')
+        || version.contains('\\')
+        || version.contains("secret")
+        || version.contains("token")
+    {
+        return Err(CliError::validation(
+            "tool version is not a public bounded identifier",
+        ));
+    }
+    let root = PathBuf::from(project);
+    let mut config = load_tool_project(&root)?;
+    let (source_ref, bytes) = if let Some(fixture) = source.strip_prefix("fixture://") {
+        if !valid_tool_id(fixture) {
+            return Err(CliError::validation("fixture source ID is invalid"));
+        }
+        (
+            source.clone(),
+            format!("ASB deterministic tool fixture {fixture}\n").into_bytes(),
+        )
+    } else {
+        if source.contains("://") {
+            return Err(CliError::validation(
+                "tool source is unsupported; only local files and fixture:// sources are allowed",
+            ));
+        }
+        let source_path = Path::new(&source);
+        let bytes = read_bounded_file(source_path, MAX_EXECUTABLE_BYTES)?;
+        ("local-file".to_owned(), bytes)
+    };
+    if bytes.is_empty() {
+        return Err(CliError::validation("tool source is empty"));
+    }
+    let digest = format!("{:x}", Sha256::digest(&bytes));
+    let path = format!(".asb/tools/{id}/tool");
+    let record = ProjectToolRecordV1 {
+        kind,
+        source_ref,
+        version,
+        platform: platform_label(),
+        path: Some(path.clone()),
+        digest_sha256: Some(digest.clone()),
+        capabilities: vec!["execute".into(), format!("kind:{kind:?}").to_lowercase()],
+        status: ProjectToolStatus::Available,
+    };
+    let inventory = tool_kind_map(&config, kind);
+    if let Some(existing) = inventory.get(id)
+        && existing != &record
+    {
+        return Err(CliError::validation(
+            "tool ID is already installed with different metadata; remove it before reinstalling",
+        ));
+    }
+    let destination = root.join(&path);
+    if dry_run {
+        return write_json(
+            output,
+            &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": true}),
+        );
+    }
+    ensure_project_directory(&root.join(".asb/tools"), 0o700)?;
+    ensure_project_directory(&root.join(format!(".asb/tools/{id}")), 0o700)?;
+    let mut created_destination = false;
+    match fs::symlink_metadata(&destination) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                return Err(CliError::validation(
+                    "tool destination must be a regular file, not a symlink",
+                ));
+            }
+            if !metadata.file_type().is_file() {
+                return Err(CliError::validation(
+                    "tool destination must be a regular file",
+                ));
+            }
+            let current = fs::read(&destination)
+                .map_err(|_| CliError::validation("existing tool cannot be read"))?;
+            if Sha256::digest(&current) != Sha256::digest(&bytes) {
+                return Err(CliError::validation(
+                    "tool destination already exists with a different digest",
+                ));
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let temporary = root.join(format!(".asb/tools/{id}/.tool-{}.tmp", std::process::id()));
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o700)
+                .open(&temporary)
+                .map_err(|_| CliError::operation("tool source cannot be staged"))?;
+            if file.write_all(&bytes).is_err()
+                || file.sync_all().is_err()
+                || fs::rename(&temporary, &destination).is_err()
+            {
+                let _ = fs::remove_file(&temporary);
+                return Err(CliError::operation(
+                    "tool installation failed and was rolled back",
+                ));
+            }
+            created_destination = true;
+        }
+        Err(_) => {
+            return Err(CliError::validation(
+                "tool destination cannot be inspected safely",
+            ));
+        }
+    }
+    tool_kind_map_mut(&mut config, kind).insert(id.to_owned(), record);
+    if let Err(error) = save_tool_project(&root, &config) {
+        if created_destination {
+            let _ = fs::remove_file(&destination);
+        }
+        return Err(error);
+    }
+    write_json(
+        output,
+        &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": false}),
+    )
+}
+
+fn tool_remove(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let (id, rest) = args
+        .split_first()
+        .ok_or_else(|| CliError::usage("tool remove requires an ID"))?;
+    if !valid_tool_id(id) {
+        return Err(CliError::validation("tool ID is invalid"));
+    }
+    let root = parse_tool_project_only(rest)?;
+    let mut config = load_tool_project(&root)?;
+    let mut removed_kind = None;
+    for kind in [
+        ProjectToolKind::Agent,
+        ProjectToolKind::Harness,
+        ProjectToolKind::Benchmark,
+        ProjectToolKind::Workload,
+        ProjectToolKind::SupportTool,
+    ] {
+        if tool_kind_map(&config, kind).contains_key(id) {
+            tool_kind_map_mut(&mut config, kind).remove(id);
+            removed_kind = Some(kind);
+            break;
+        }
+    }
+    let kind = removed_kind.ok_or_else(|| CliError::validation("tool ID is not installed"))?;
+    config.selections.support_tools.retain(|name| name != id);
+    if config.selections.agent.as_deref() == Some(id) {
+        config.selections.agent = None;
+    }
+    if config.selections.harness.as_deref() == Some(id) {
+        config.selections.harness = None;
+    }
+    if config.selections.benchmark.as_deref() == Some(id) {
+        config.selections.benchmark = None;
+    }
+    if config.selections.workload.as_deref() == Some(id) {
+        config.selections.workload = None;
+    }
+    let path = root.join(format!(".asb/tools/{id}"));
+    if let Ok(metadata) = fs::symlink_metadata(&path) {
+        if metadata.file_type().is_symlink() {
+            return Err(CliError::validation("tool installation path is a symlink"));
+        }
+        fs::remove_dir_all(&path)
+            .map_err(|_| CliError::operation("tool installation cannot be removed"))?;
+    }
+    save_tool_project(&root, &config)?;
+    write_json(
+        output,
+        &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool remove", "id": id, "kind": kind}),
     )
 }
 
@@ -8420,6 +8860,363 @@ mod tests {
             run_with_default_mode(&args, &mut output, &mut Vec::new(), false),
             0
         );
+    }
+
+    #[test]
+    fn tool_install_supports_each_kind_and_is_idempotent() {
+        let scratch = Scratch::new("tool-install");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        for (id, kind) in [
+            ("agent-fixture", "agent"),
+            ("harness-fixture", "harness"),
+            ("benchmark-fixture", "benchmark"),
+            ("workload-fixture", "workload"),
+            ("support-fixture", "support"),
+        ] {
+            let args = vec![
+                OsString::from("tool"),
+                OsString::from("install"),
+                OsString::from(id),
+                OsString::from("--kind"),
+                OsString::from(kind),
+                OsString::from("--source"),
+                OsString::from(format!("fixture://{id}")),
+                OsString::from("--version"),
+                OsString::from("1.0.0"),
+                OsString::from("--project"),
+                project.clone().into_os_string(),
+            ];
+            assert_eq!(
+                run_with_default_mode(&args, &mut Vec::new(), &mut Vec::new(), false),
+                0
+            );
+            assert_eq!(
+                run_with_default_mode(&args, &mut Vec::new(), &mut Vec::new(), false),
+                0
+            );
+            assert!(project.join(format!(".asb/tools/{id}/tool")).is_file());
+        }
+        let config =
+            decode_project_config(&fs::read(project.join(PROJECT_INIT_CONFIG)).unwrap()).unwrap();
+        assert_eq!(config.agents.len(), 1);
+        assert_eq!(config.support_tools.len(), 1);
+    }
+
+    #[test]
+    fn tool_install_rejects_unsupported_sources_and_symlinks_without_partial_state() {
+        let scratch = Scratch::new("tool-install-negative");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let unsupported = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("bad"),
+            OsString::from("--kind"),
+            OsString::from("agent"),
+            OsString::from("--source"),
+            OsString::from("https://example.invalid/tool"),
+            OsString::from("--version"),
+            OsString::from("1.0.0"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_ne!(
+            run_with_default_mode(&unsupported, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        assert!(!project.join(".asb/tools/bad").exists());
+        let source = scratch.0.join("source");
+        fs::write(&source, b"fixture executable").unwrap();
+        let symlink = scratch.0.join("source-link");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&source, &symlink).unwrap();
+        let symlink_args = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("linked"),
+            OsString::from("--kind"),
+            OsString::from("support"),
+            OsString::from("--source"),
+            symlink.into_os_string(),
+            OsString::from("--version"),
+            OsString::from("1.0.0"),
+            OsString::from("--project"),
+            project.into_os_string(),
+        ];
+        #[cfg(unix)]
+        assert_ne!(
+            run_with_default_mode(&symlink_args, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tool_install_rejects_matching_destination_symlink_before_reading_target() {
+        let scratch = Scratch::new("tool-install-destination-symlink");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let install = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("symlink-destination"),
+            OsString::from("--kind"),
+            OsString::from("support"),
+            OsString::from("--source"),
+            OsString::from("fixture://symlink-destination"),
+            OsString::from("--version"),
+            OsString::from("1.0.0"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&install, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let destination = project.join(".asb/tools/symlink-destination/tool");
+        let target = scratch.0.join("matching-target");
+        let bytes = b"ASB deterministic tool fixture symlink-destination\n";
+        fs::write(&target, bytes).unwrap();
+        fs::remove_file(&destination).unwrap();
+        std::os::unix::fs::symlink(&target, &destination).unwrap();
+        assert_ne!(
+            run_with_default_mode(&install, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        assert_eq!(fs::read(&target).unwrap(), bytes);
+        assert!(
+            fs::symlink_metadata(&destination)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[test]
+    fn tool_list_status_and_remove_update_registry_and_path() {
+        let scratch = Scratch::new("tool-lifecycle");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let install = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("cargo"),
+            OsString::from("--kind"),
+            OsString::from("support"),
+            OsString::from("--source"),
+            OsString::from("fixture://cargo"),
+            OsString::from("--version"),
+            OsString::from("1.0.0"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&install, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let mut status = Vec::new();
+        let status_args = vec![
+            OsString::from("tool"),
+            OsString::from("status"),
+            OsString::from("cargo"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&status_args, &mut status, &mut Vec::new(), false),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&status).unwrap()["id"],
+            "cargo"
+        );
+        let remove_args = vec![
+            OsString::from("tool"),
+            OsString::from("remove"),
+            OsString::from("cargo"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&remove_args, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        assert!(!project.join(".asb/tools/cargo").exists());
+        let config =
+            decode_project_config(&fs::read(project.join(PROJECT_INIT_CONFIG)).unwrap()).unwrap();
+        assert!(config.support_tools.is_empty());
+    }
+
+    #[test]
+    fn tool_parser_and_install_error_matrix_is_bounded_and_actionable() {
+        assert!(tool_kind("unknown").is_err());
+        assert!(tool(&[], &mut Vec::new()).is_err());
+        assert!(tool(&["unknown".into()], &mut Vec::new()).is_err());
+        assert!(tool_project_path(&[], 1).is_err());
+        assert!(
+            tool_project_path(
+                &[
+                    "--project".into(),
+                    "one".into(),
+                    "--project".into(),
+                    "two".into()
+                ],
+                0
+            )
+            .is_err()
+        );
+        assert!(parse_tool_project_only(&["--unknown".into()]).is_err());
+        assert!(!valid_tool_id("UpperCase"));
+        assert!(!valid_tool_id("../escape"));
+
+        let scratch = Scratch::new("tool-install-matrix");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let install = |extra: &[&str]| {
+            let mut args = vec!["tool".into(), "install".into(), "matrix".into()];
+            args.extend(extra.iter().map(|value| OsString::from(*value)));
+            args.push("--project".into());
+            args.push(project.clone().into_os_string());
+            run_with_default_mode(&args, &mut Vec::new(), &mut Vec::new(), false)
+        };
+        assert_ne!(install(&[]), 0);
+        assert_ne!(install(&["--kind"]), 0);
+        assert_ne!(
+            install(&["--kind", "agent", "--source", "fixture://matrix"]),
+            0
+        );
+        assert_ne!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "fixture://matrix",
+                "--version",
+                "../bad"
+            ]),
+            0
+        );
+        assert_ne!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "fixture://bad/id",
+                "--version",
+                "1"
+            ]),
+            0
+        );
+        assert_ne!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "https://example.invalid/t",
+                "--version",
+                "1"
+            ]),
+            0
+        );
+        assert_eq!(
+            install(&[
+                "--kind",
+                "agent",
+                "--source",
+                "fixture://matrix",
+                "--version",
+                "1",
+                "--dry-run"
+            ]),
+            0
+        );
+        assert!(!project.join(".asb/tools/matrix").exists());
+
+        let source = scratch.0.join("local-tool");
+        fs::write(&source, b"local tool bytes").unwrap();
+        let source_string = source.to_string_lossy().into_owned();
+        let local = [
+            "--kind",
+            "support",
+            "--source",
+            source_string.as_str(),
+            "--version",
+            "1",
+        ];
+        assert_eq!(install(&local), 0);
+        assert_ne!(
+            install(&[
+                "--kind",
+                "support",
+                "--source",
+                "fixture://other",
+                "--version",
+                "2"
+            ]),
+            0
+        );
+        let project_arg = project.to_string_lossy().into_owned();
+        let mut list = Vec::new();
+        assert!(tool_inventory(&["--project".into(), project_arg.clone()], &mut list).is_ok());
+        assert!(String::from_utf8_lossy(&list).contains("matrix"));
+        assert!(
+            tool_status(
+                &["missing".into(), "--project".into(), project_arg.clone()],
+                &mut Vec::new()
+            )
+            .is_err()
+        );
+        assert!(
+            tool_remove(
+                &["missing".into(), "--project".into(), project_arg.clone()],
+                &mut Vec::new()
+            )
+            .is_err()
+        );
+
+        fs::write(project.join(PROJECT_INIT_CONFIG), b"not json").unwrap();
+        assert!(tool_inventory(&["--project".into(), project_arg], &mut Vec::new()).is_err());
     }
 
     use super::*;
