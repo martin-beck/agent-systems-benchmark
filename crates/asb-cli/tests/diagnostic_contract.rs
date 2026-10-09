@@ -45,6 +45,61 @@ fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
     }
 }
 
+/// Validate the semantic obligations that must accompany a public diagnostic.
+/// The inputs deliberately model the human line, stream and exit separately
+/// from the stable machine envelope: changing any one of them must not hide a
+/// generic, unsafe, or privacy-bearing presentation behind a green snapshot.
+fn validate_public_diagnostic(
+    diagnostic: Diagnostic,
+    human: &str,
+    warning: bool,
+    stream: &str,
+    exit: u8,
+) -> Result<(), String> {
+    if !diagnostic.is_catalogued() {
+        return Err("uncatalogued public producer".into());
+    }
+    if diagnostic.context.subject == Subject::Unknown
+        || diagnostic.context.operation == "unknown"
+        || diagnostic.context.remediation == Remediation::None
+    {
+        return Err("diagnostic lacks safe subject, operation, or recovery".into());
+    }
+    if human.trim().is_empty()
+        || ["failed", "unavailable", "invalid"]
+            .iter()
+            .any(|placeholder| human.trim().eq_ignore_ascii_case(placeholder))
+    {
+        return Err("generic human explanation".into());
+    }
+    if warning && !human.contains("not") {
+        return Err("warning has no operator-visible consequence".into());
+    }
+    if human.contains("curl ") || human.contains("sh -c") || human.contains("; rm ") {
+        return Err("unsafe suggested command".into());
+    }
+    if [
+        "/home/",
+        "/srv/",
+        "credential payload",
+        "private provider diagnostic",
+    ]
+    .iter()
+    .any(|private| human.contains(private))
+    {
+        return Err("private material in human diagnostic".into());
+    }
+    let expected_exit = match diagnostic.severity {
+        Severity::Error => 3,
+        Severity::Failure => 4,
+        Severity::Warning => 0,
+    };
+    if stream != "stdout" || exit != expected_exit {
+        return Err("wrong public stream or exit meaning".into());
+    }
+    Ok(())
+}
+
 #[test]
 fn known_causes_do_not_collapse_at_the_public_boundary() {
     let cases = [
@@ -165,5 +220,78 @@ fn catalogued_diagnostics_are_actionable_and_privacy_safe() {
             !rendered.contains("private provider diagnostic"),
             "{code}: {rendered}"
         );
+        validate_public_diagnostic(diagnostic, &rendered, false, "stdout", 4)
+            .unwrap_or_else(|error| panic!("{code}: {error}"));
     }
+}
+
+#[test]
+fn controlled_diagnostic_quality_defects_are_rejected() {
+    let valid = Diagnostic::for_code(
+        "provider_transport_failed",
+        "provider_transport_failed",
+        Severity::Failure,
+    );
+    let rendered = format!(
+        "{} {} {}",
+        valid.cause_explanation(),
+        valid.state_change_explanation(),
+        valid.remediation_explanation(),
+    );
+    assert!(validate_public_diagnostic(valid, &rendered, false, "stdout", 4).is_ok());
+
+    let uncatalogued = Diagnostic::for_code(
+        "future_public_code",
+        "future_public_code",
+        Severity::Failure,
+    );
+    assert!(
+        validate_public_diagnostic(uncatalogued, &rendered, false, "stdout", 4)
+            .unwrap_err()
+            .contains("uncatalogued")
+    );
+    assert!(
+        validate_public_diagnostic(valid, "failed", false, "stdout", 4)
+            .unwrap_err()
+            .contains("generic")
+    );
+    assert!(
+        validate_public_diagnostic(
+            valid,
+            "/home/private credential payload",
+            false,
+            "stdout",
+            4
+        )
+        .unwrap_err()
+        .contains("private")
+    );
+    assert!(
+        validate_public_diagnostic(
+            valid,
+            "Run curl https://example.invalid",
+            false,
+            "stdout",
+            4
+        )
+        .unwrap_err()
+        .contains("unsafe")
+    );
+    assert!(
+        validate_public_diagnostic(valid, &rendered, false, "stderr", 4)
+            .unwrap_err()
+            .contains("stream")
+    );
+    assert!(
+        validate_public_diagnostic(valid, &rendered, false, "stdout", 3)
+            .unwrap_err()
+            .contains("exit")
+    );
+    let warning =
+        Diagnostic::unavailable_warning("capability_unavailable", Subject::Capability, "doctor");
+    assert!(
+        validate_public_diagnostic(warning, "Capability unavailable.", true, "stdout", 0)
+            .unwrap_err()
+            .contains("consequence")
+    );
 }
