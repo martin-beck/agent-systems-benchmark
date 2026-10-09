@@ -2651,6 +2651,11 @@ fn tui_failure_text(code: &str) -> &'static str {
         "candidate_response_invalid" => {
             "the lifecycle candidate response was malformed or incompatible"
         }
+        "candidate_timeout" => "the lifecycle candidate exceeded its bounded deadline",
+        "dev_command_timeout" => "the development command exceeded its bounded deadline",
+        "manifest_digest_mismatch" => {
+            "the artifact manifest digest does not match the expected content"
+        }
         "development_operation_invalid" => "the requested terminal interface operation is invalid",
         "development_remove_failed" => {
             "the development installation could not be removed completely"
@@ -2679,6 +2684,8 @@ fn tui_failure_text(code: &str) -> &'static str {
         }
         "transfer_too_large" => "the transferred artifact exceeded the bounded size limit",
         "artifact_transfer_failed" => "the artifact transfer did not complete",
+        "transfer_failed" => "the bounded artifact transfer failed",
+        "transfer_unavailable" => "the artifact transfer capability is unavailable",
         "rollback_state_invalid" => "the persisted rollback state is malformed or incompatible",
         "rollback_state_failed" => "the rollback state could not be durably written",
         "artifact_digest_mismatch" => "the artifact digest does not match the reviewed content",
@@ -3210,6 +3217,17 @@ mod tests {
                 "rollback_state_failed",
                 "rollback state could not be durably written",
             ),
+            (
+                "candidate_timeout",
+                "candidate exceeded its bounded deadline",
+            ),
+            (
+                "dev_command_timeout",
+                "development command exceeded its bounded deadline",
+            ),
+            ("manifest_digest_mismatch", "manifest digest does not match"),
+            ("transfer_failed", "bounded artifact transfer failed"),
+            ("transfer_unavailable", "transfer capability is unavailable"),
             ("candidate_rejected_lifecycle", "requested transition"),
             ("rollback_rejected", "accepted lifecycle state"),
             ("dev_workspace_quota_exceeded", "quota was exhausted"),
