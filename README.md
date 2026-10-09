@@ -94,7 +94,8 @@ asb sweep EXPERIMENT.toml
 asb compare RUN...
 asb report RUN...
 asb serve CONTROL.toml
-asb provider-catalog
+asb --json provider-catalog > catalog.json
+# Read CATALOG_SHA256 from catalog.json before creating a digest-bound selection.
 asb provider-plan --catalog-sha256 CATALOG_SHA256 --provider-profile openai --agent codex \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256
 # OpenRouter refreshed-model selection adds --model MODEL.

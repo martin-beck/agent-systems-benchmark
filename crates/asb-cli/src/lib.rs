@@ -135,12 +135,15 @@ fn run_with_default_mode_and_stdin(
     human_default: bool,
     stdin: Option<&mut dyn Read>,
 ) -> u8 {
-    let (output_mode, normalized) = match parse_output_mode(args) {
+    let (output_mode, normalized) = match parse_output_mode(args, human_default) {
         Ok(value) => value,
         Err(error) => {
             let explicit_json = args
                 .iter()
-                .any(|arg| arg == "--json" || arg == "--format=json" || arg == "--format");
+                .any(|arg| arg == "--json" || arg == "--format=json")
+                || args
+                    .windows(2)
+                    .any(|pair| pair[0] == "--format" && pair[1] == "json");
             let envelope = ErrorEnvelope {
                 schema_version: OUTPUT_SCHEMA_VERSION,
                 ok: false,
@@ -161,10 +164,36 @@ fn run_with_default_mode_and_stdin(
         return 4;
     }
     let mut captured = Vec::new();
-    match dispatch(&normalized, &mut captured, stderr, None, None, stdin) {
+    let mut presentation_context = human::PresentationContext::default();
+    let context = human.then_some(&mut presentation_context);
+    let bare_human_capabilities = human && normalized.len() == 1 && normalized[0] == "capabilities";
+    let dispatched = if bare_human_capabilities {
+        write_json(
+            &mut captured,
+            &capabilities::CapabilityResponse::control_v1(),
+        )
+        .map(|()| 0)
+    } else {
+        dispatch(
+            &normalized,
+            &mut captured,
+            stderr,
+            None,
+            None,
+            stdin,
+            context,
+        )
+    };
+    match dispatched {
         Ok(exit_code) => {
             let result = if human {
-                human::render_success(&normalized, &captured, output_mode.details, stdout)
+                human::render_success_with_context(
+                    &normalized,
+                    &captured,
+                    output_mode.details,
+                    &presentation_context,
+                    stdout,
+                )
             } else {
                 stdout.write_all(&captured)
             };
@@ -213,7 +242,10 @@ struct OutputMode {
     details: bool,
 }
 
-fn parse_output_mode(args: &[OsString]) -> Result<(OutputMode, Vec<OsString>), CliError> {
+fn parse_output_mode(
+    args: &[OsString],
+    human_default: bool,
+) -> Result<(OutputMode, Vec<OsString>), CliError> {
     let mut json = false;
     let mut details = false;
     let mut normalized = Vec::with_capacity(args.len());
@@ -225,8 +257,7 @@ fn parse_output_mode(args: &[OsString]) -> Result<(OutputMode, Vec<OsString>), C
                 return Err(CliError::usage("--json was supplied more than once"));
             }
             json = true;
-            normalized.push(OsString::from("--json"));
-        } else if arg == "--details" || arg == "--verbose" {
+        } else if human_default && (arg == "--details" || arg == "--verbose") {
             if details {
                 return Err(CliError::usage(
                     "--details or --verbose was supplied more than once",
@@ -255,8 +286,8 @@ fn parse_output_mode(args: &[OsString]) -> Result<(OutputMode, Vec<OsString>), C
 }
 
 #[cfg(test)]
-fn render_human(captured: &[u8], output: &mut dyn Write) -> io::Result<()> {
-    human::render_success(&[OsString::from("tui")], captured, false, output)
+fn render_human(args: &[OsString], captured: &[u8], output: &mut dyn Write) -> io::Result<()> {
+    human::render_success(args, captured, false, output)
 }
 
 /// Execute a strict-replay CLI request with runtime-issued launch authority.
@@ -269,7 +300,7 @@ pub fn run_with_replay_authority(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    match dispatch(args, stdout, stderr, Some(authority), None, None) {
+    match dispatch(args, stdout, stderr, Some(authority), None, None, None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -302,7 +333,7 @@ pub fn run_with_live_provider_attempt(
             .take()
             .ok_or(LaunchAuthorityError::InvalidLaunchInput)
     });
-    match dispatch(args, stdout, stderr, None, Some(factory), None) {
+    match dispatch(args, stdout, stderr, None, Some(factory), None, None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -325,7 +356,7 @@ pub fn run_with_live_provider_factory(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    match dispatch(args, stdout, stderr, None, Some(factory), None) {
+    match dispatch(args, stdout, stderr, None, Some(factory), None, None) {
         Ok(exit_code) => exit_code,
         Err(error) => {
             let envelope = ErrorEnvelope {
@@ -507,6 +538,16 @@ pub fn run_with_runtime_control_local_mock_owner(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
+    run_with_runtime_control_local_mock_owner_with_context(args, owner, stdout, stderr, None)
+}
+
+fn run_with_runtime_control_local_mock_owner_with_context(
+    args: &[OsString],
+    owner: LocalMockRuntimeControlOwner,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> u8 {
     let owner = Arc::new(Mutex::new(owner));
     if owner
         .lock()
@@ -517,7 +558,13 @@ pub fn run_with_runtime_control_local_mock_owner(
         let _ = writeln!(stderr, "runtime-owned local/mock owner unavailable");
         return 2;
     }
-    let result = run_local_mock_entry(args, Arc::clone(&owner), stdout, stderr);
+    let result = run_local_mock_entry(
+        args,
+        Arc::clone(&owner),
+        stdout,
+        stderr,
+        presentation_context,
+    );
     if owner
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -535,30 +582,9 @@ fn run_local_mock_entry(
     owner: Arc<Mutex<LocalMockRuntimeControlOwner>>,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> u8 {
-    let result = (|| -> Result<u8, CliError> {
-        let words = unicode_args(args)?;
-        let (path, sweep) = match words.as_slice() {
-            [command, path] if command == "run" => (path.as_str(), false),
-            [command, path] if command == "sweep" => (path.as_str(), true),
-            _ => {
-                return Err(CliError::validation(
-                    "runtime local/mock entry expects run or sweep",
-                ));
-            }
-        };
-        execute_inner_from_source_with_owner(
-            Path::new(path),
-            SelectionSource::Path(None),
-            sweep,
-            false,
-            None,
-            true,
-            Some(owner),
-            stdout,
-            stderr,
-        )
-    })();
+    let result = run_local_mock_entry_result(args, owner, stdout, stderr, presentation_context);
     match result {
         Ok(exit_code) => exit_code,
         Err(error) => {
@@ -576,7 +602,80 @@ fn run_local_mock_entry(
     }
 }
 
+fn run_local_mock_entry_result(
+    args: &[OsString],
+    owner: Arc<Mutex<LocalMockRuntimeControlOwner>>,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<u8, CliError> {
+    let words = unicode_args(args)?;
+    let (path, sweep) = match words.as_slice() {
+        [command, path] if command == "run" => (path.as_str(), false),
+        [command, path] if command == "sweep" => (path.as_str(), true),
+        _ => {
+            return Err(CliError::validation(
+                "runtime local/mock entry expects run or sweep",
+            ));
+        }
+    };
+    execute_inner_from_source_with_owner(
+        Path::new(path),
+        SelectionSource::Path(None),
+        sweep,
+        false,
+        None,
+        true,
+        Some(owner),
+        stdout,
+        stderr,
+        presentation_context,
+    )
+}
+
 fn run_local_mock_dispatch(
+    args: &[OsString],
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<u8, CliError> {
+    if args.len() != 3 {
+        return Err(CliError::usage(
+            "runtime local/mock entry expects run or sweep",
+        ));
+    }
+    let owner = LocalMockRuntimeControlOwner::provision(
+        "cli-local-mock".into(),
+        1,
+        "a".repeat(64),
+        "b".repeat(64),
+    )
+    .map_err(|_| CliError::operation("runtime-owned local/mock owner unavailable"))?;
+    let owner = Arc::new(Mutex::new(owner));
+    owner
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .enroll()
+        .map_err(|_| CliError::operation("runtime-owned local/mock owner unavailable"))?;
+    let result = run_local_mock_entry_result(
+        &args[..2],
+        Arc::clone(&owner),
+        stdout,
+        stderr,
+        presentation_context,
+    );
+    let teardown = owner
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .teardown()
+        .map_err(|_| CliError::operation("runtime-owned local/mock owner teardown failed"));
+    match (result, teardown) {
+        (Err(error), _) | (Ok(_), Err(error)) => Err(error),
+        (Ok(exit_code), Ok(())) => Ok(exit_code),
+    }
+}
+
+fn run_local_mock_dispatch_machine(
     args: &[OsString],
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -673,6 +772,7 @@ fn dispatch(
     mut replay_authority: Option<ReplayLaunchAuthority>,
     live_factory: Option<LiveProviderAttemptFactory>,
     stdin: Option<&mut dyn Read>,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     // All ASB command results are already versioned JSON.  Accept the global
     // selector explicitly so scripts can use one spelling across commands;
@@ -711,9 +811,13 @@ fn dispatch(
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
         [command] if command == "setup" => setup(&[], stdout).map(|()| 0),
         [command, setup_args @ ..] if command == "setup" => setup(setup_args, stdout).map(|()| 0),
-        [command, easy_args @ ..] if command == "easy" => {
-            guided_local(easy_args, replay_authority.take(), stdout, stderr)
-        }
+        [command, easy_args @ ..] if command == "easy" => guided_local_with_context(
+            easy_args,
+            replay_authority.take(),
+            stdout,
+            stderr,
+            presentation_context,
+        ),
         [command, tui_args @ ..] if command == "tui" => tui::dispatch(tui_args, stdout),
         [command, format, value]
             if command == "capabilities" && format == "--format" && value == "json" =>
@@ -721,9 +825,6 @@ fn dispatch(
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "capabilities" && explicit_json => {
-            write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
-        }
-        [command] if command == "capabilities" => {
             write_json(stdout, &capabilities::CapabilityResponse::control_v1()).map(|()| 0)
         }
         [command] if command == "provider-catalog" => provider_catalog(stdout, false).map(|()| 0),
@@ -748,22 +849,40 @@ fn dispatch(
             provider_plan(selection, stdout).map(|()| 0)
         }
         [command, shell] if command == "completion" => completion(shell, stdout).map(|()| 0),
-        [command, path] if command == "plan" => plan(Path::new(path), stdout).map(|()| 0),
+        [command, path] if command == "plan" => {
+            plan_with_context(Path::new(path), stdout, presentation_context).map(|()| 0)
+        }
         [command, path, flag] if command == "plan" && flag == "--use-config" => {
-            plan_with_config(Path::new(path), stdout).map(|()| 0)
+            plan_with_config_with_context(Path::new(path), stdout, presentation_context).map(|()| 0)
         }
         [command, path, flag, selection] if command == "plan" && flag == "--provider-selection" => {
-            plan_with_selection(Path::new(path), Path::new(selection), stdout).map(|()| 0)
+            plan_with_selection_with_context(
+                Path::new(path),
+                Path::new(selection),
+                stdout,
+                presentation_context,
+            )
+            .map(|()| 0)
         }
         [command, subcommand, create_args @ ..] if command == "plan" && subcommand == "create" => {
             create_plan(create_args, stdout, stderr, stdin).map(|()| 0)
         }
         [command, _path, flag] if command == "run" && flag == "--local-mock" => {
-            Ok(run_local_mock_dispatch(args, stdout, stderr))
+            if presentation_context.is_some() {
+                run_local_mock_dispatch(args, stdout, stderr, presentation_context)
+            } else {
+                Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
+            }
         }
-        [command, path] if command == "run" => {
-            execute(Path::new(path), false, false, None, stdout, stderr)
-        }
+        [command, path] if command == "run" => execute(
+            Path::new(path),
+            false,
+            false,
+            None,
+            stdout,
+            stderr,
+            presentation_context,
+        ),
         [command, path, flag, selection] if command == "run" && flag == "--provider-selection" => {
             execute_with_selection(
                 Path::new(path),
@@ -772,11 +891,17 @@ fn dispatch(
                 false,
                 stdout,
                 stderr,
+                presentation_context,
             )
         }
-        [command, path, flag] if command == "run" && flag == "--use-config" => {
-            execute_with_config(Path::new(path), false, false, stdout, stderr)
-        }
+        [command, path, flag] if command == "run" && flag == "--use-config" => execute_with_config(
+            Path::new(path),
+            false,
+            false,
+            stdout,
+            stderr,
+            presentation_context,
+        ),
         [command, path, selection, selection_path, live]
             if command == "run"
                 && selection == "--provider-selection"
@@ -790,11 +915,18 @@ fn dispatch(
                 live_factory,
                 stdout,
                 stderr,
+                presentation_context,
             )
         }
-        [command, path, flag] if command == "run" && flag == "--live-provider" => {
-            execute(Path::new(path), false, true, live_factory, stdout, stderr)
-        }
+        [command, path, flag] if command == "run" && flag == "--live-provider" => execute(
+            Path::new(path),
+            false,
+            true,
+            live_factory,
+            stdout,
+            stderr,
+            presentation_context,
+        ),
         [command, path, selection, selection_path, online]
             if command == "benchmark-live"
                 && selection == "--provider-selection"
@@ -808,6 +940,7 @@ fn dispatch(
                 live_factory,
                 stdout,
                 stderr,
+                presentation_context,
             )
         }
         [command, path, selection, selection_path, online, sweep]
@@ -824,14 +957,25 @@ fn dispatch(
                 live_factory,
                 stdout,
                 stderr,
+                presentation_context,
             )
         }
         [command, _path, flag] if command == "sweep" && flag == "--local-mock" => {
-            Ok(run_local_mock_dispatch(args, stdout, stderr))
+            if presentation_context.is_some() {
+                run_local_mock_dispatch(args, stdout, stderr, presentation_context)
+            } else {
+                Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
+            }
         }
-        [command, path] if command == "sweep" => {
-            execute(Path::new(path), true, false, None, stdout, stderr)
-        }
+        [command, path] if command == "sweep" => execute(
+            Path::new(path),
+            true,
+            false,
+            None,
+            stdout,
+            stderr,
+            presentation_context,
+        ),
         [command, path, flag, selection]
             if command == "sweep" && flag == "--provider-selection" =>
         {
@@ -842,10 +986,18 @@ fn dispatch(
                 false,
                 stdout,
                 stderr,
+                presentation_context,
             )
         }
         [command, path, flag] if command == "sweep" && flag == "--use-config" => {
-            execute_with_config(Path::new(path), true, false, stdout, stderr)
+            execute_with_config(
+                Path::new(path),
+                true,
+                false,
+                stdout,
+                stderr,
+                presentation_context,
+            )
         }
         [command, path, selection, selection_path, live]
             if command == "sweep"
@@ -860,11 +1012,18 @@ fn dispatch(
                 live_factory,
                 stdout,
                 stderr,
+                presentation_context,
             )
         }
-        [command, path, flag] if command == "sweep" && flag == "--live-provider" => {
-            execute(Path::new(path), true, true, live_factory, stdout, stderr)
-        }
+        [command, path, flag] if command == "sweep" && flag == "--live-provider" => execute(
+            Path::new(path),
+            true,
+            true,
+            live_factory,
+            stdout,
+            stderr,
+            presentation_context,
+        ),
         [command, path] if command == "serve" => control::serve(Path::new(path)).map(|()| 0),
         [command, path, flag] if command == "serve" && flag == "--local-mock" => {
             control::serve_local_mock(Path::new(path)).map(|()| 0)
@@ -1124,11 +1283,22 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
 /// ordinary run/sweep dispatcher. This command deliberately has no live or
 /// endpoint option: the explicit `--local-mock --use-config` pair is the
 /// complete authority surface.
+#[cfg(test)]
 fn guided_local(
     args: &[String],
     _replay_authority: Option<ReplayLaunchAuthority>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+) -> Result<u8, CliError> {
+    guided_local_with_context(args, _replay_authority, output, progress, None)
+}
+
+fn guided_local_with_context(
+    args: &[String],
+    _replay_authority: Option<ReplayLaunchAuthority>,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     if args.is_empty() || args[0] == "--help" || args[0] == "-h" {
         return write_easy_help(output).map(|()| 0);
@@ -1151,7 +1321,8 @@ fn guided_local(
         return adapter_catalog(output).map(|()| 0);
     }
     if args[0] == "plan" && args.len() == 3 && args[2] == "--use-config" {
-        return plan_with_config(Path::new(&args[1]), output).map(|()| 0);
+        return plan_with_config_with_context(Path::new(&args[1]), output, presentation_context)
+            .map(|()| 0);
     }
     if args[0] == "report" && args.len() >= 2 {
         return report(&args[1..], output).map(|()| 0);
@@ -1212,7 +1383,7 @@ fn guided_local(
     }
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
-    guided_local_at(args, &store, output, progress)
+    guided_local_at(args, &store, output, progress, presentation_context)
 }
 
 fn guided_path(value: &str, label: &'static str) -> Result<PathBuf, CliError> {
@@ -1586,6 +1757,7 @@ fn guided_local_at(
     store: &ConfigStore,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     let sweep = match args[0].as_str() {
         "run" => false,
@@ -1601,6 +1773,7 @@ fn guided_local_at(
         true,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -1806,17 +1979,7 @@ fn auth(
 }
 
 fn command_name(args: &[OsString]) -> &'static str {
-    let mut words = args.iter().filter_map(|value| value.to_str());
-    let first = loop {
-        match words.next() {
-            Some("--json" | "--details" | "--verbose" | "--format=json") => {}
-            Some("--format") => {
-                let _ = words.next();
-            }
-            value => break value,
-        }
-    };
-    match first {
+    match args.first().and_then(|value| value.to_str()) {
         Some("doctor") => "doctor",
         Some("setup") => "setup",
         Some("easy") => "easy",
@@ -1824,7 +1987,6 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("capabilities") => "capabilities",
         Some("project") => "project",
         Some("provider-catalog") => "provider-catalog",
-        Some("adapter-catalog") => "adapter-catalog",
         Some("workload-catalog") => "workload-catalog",
         Some("config") => "config",
         Some("auth") => "auth",
@@ -1839,7 +2001,6 @@ fn command_name(args: &[OsString]) -> &'static str {
         Some("serve") => "serve",
         Some("record") => "record",
         Some("record-live") => "record-live",
-        Some("record-campaign") => "record-campaign",
         Some("replay") => "replay",
         Some("replay-offline") => "replay-offline",
         _ => "cli",
@@ -2185,11 +2346,9 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     if shell != "bash" {
         return Err(CliError::usage("only bash completion is supported"));
     }
-    writeln!(
-        output,
-        "complete -W 'doctor setup capabilities project provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy build install update test status rollback remove --help --version' asb"
-    )
-    .map_err(output_error)
+    output
+        .write_all(include_bytes!("../fixtures/legacy/completion-bash-v1.txt"))
+        .map_err(output_error)
 }
 
 #[derive(Serialize)]
@@ -2547,17 +2706,20 @@ fn replay_offline_development_fixture(
             ));
         }
     };
-    Ok(run_with_replay_authority(
+    dispatch(
         &[
             OsString::from("replay-offline"),
             cassette_path.as_os_str().to_owned(),
             OsString::from(provider_profile_sha256),
             OsString::from(agent_id),
         ],
-        authority,
         stdout,
         stderr,
-    ))
+        Some(authority),
+        None,
+        None,
+        None,
+    )
 }
 
 fn replay_local_mock(
@@ -2795,6 +2957,23 @@ struct DoctorOutput<'a> {
 }
 
 fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
+    const LEGACY_COMMANDS: &[&str] = &[
+        "doctor",
+        "setup",
+        "capabilities",
+        "provider-catalog",
+        "provider-plan",
+        "plan",
+        "run",
+        "sweep",
+        "benchmark-live",
+        "compare",
+        "report",
+        "record",
+        "replay",
+        "completion",
+        "serve",
+    ];
     write_json(
         output,
         &DoctorOutput {
@@ -2806,24 +2985,7 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
             procfs: Path::new("/proc/self/stat").is_file(),
             cgroup_v2: Path::new("/sys/fs/cgroup/cgroup.controllers").is_file(),
             interactive_stderr: io::stderr().is_terminal(),
-            commands: &[
-                "doctor",
-                "setup",
-                "capabilities",
-                "project init",
-                "provider-catalog",
-                "provider-plan",
-                "plan",
-                "run",
-                "sweep",
-                "benchmark-live",
-                "compare",
-                "report",
-                "record",
-                "replay",
-                "completion",
-                "serve",
-            ],
+            commands: LEGACY_COMMANDS,
             batch_agent_boundary: "batch-stdio-v1",
             workloads: OriginalWorkloads::fixture_ids(),
         },
@@ -3961,8 +4123,12 @@ struct PlanOutput<'a> {
     effective_agents: Option<&'a [EffectiveCliAgent]>,
 }
 
-fn plan(path: &Path, output: &mut dyn Write) -> Result<(), CliError> {
-    render_plan(path, None, output)
+fn plan_with_context(
+    path: &Path,
+    output: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<(), CliError> {
+    render_plan_with_context(path, None, output, presentation_context)
 }
 
 /// Create a plan from the canonical workload catalog without requiring a
@@ -4165,44 +4331,61 @@ fn create_plan(
     )
 }
 
-fn plan_with_selection(
+fn plan_with_selection_with_context(
     path: &Path,
     selection_path: &Path,
     output: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<(), CliError> {
-    render_plan(path, Some(selection_path), output)
+    render_plan_with_context(path, Some(selection_path), output, presentation_context)
 }
 
-fn plan_with_config(path: &Path, output: &mut dyn Write) -> Result<(), CliError> {
+fn plan_with_config_with_context(
+    path: &Path,
+    output: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<(), CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
-    plan_with_config_at(path, output, &store)
+    plan_with_config_at_with_context(path, output, &store, presentation_context)
 }
 
+#[cfg(test)]
 fn plan_with_config_at(
     path: &Path,
     output: &mut dyn Write,
     store: &ConfigStore,
 ) -> Result<(), CliError> {
+    plan_with_config_at_with_context(path, output, store, None)
+}
+
+fn plan_with_config_at_with_context(
+    path: &Path,
+    output: &mut dyn Write,
+    store: &ConfigStore,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<(), CliError> {
     let plan = load_and_validate(path)?;
     let selection = selection_for_plan_at(&plan, store)?;
     validate_selection_binding(&plan, &selection)?;
-    render_plan_values(&plan, Some(&selection), output)
+    render_plan_values_with_context(&plan, Some(&selection), output, presentation_context)
 }
 
-fn render_plan(
+fn render_plan_with_context(
     path: &Path,
     selection_path: Option<&Path>,
     output: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<(), CliError> {
     let (plan, selection) = load_plan_and_selection(path, selection_path)?;
-    render_plan_values(&plan, selection.as_ref(), output)
+    render_plan_values_with_context(&plan, selection.as_ref(), output, presentation_context)
 }
 
-fn render_plan_values(
+fn render_plan_values_with_context(
     plan: &PlanFile,
     selection: Option<&ProviderPlanOutput>,
     output: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<(), CliError> {
     let measurement_selection = effective_measurement_selection(plan)?;
     write_json(
@@ -4240,7 +4423,11 @@ fn render_plan_values(
             credential_source: selection.map(|value| value.credential_source.as_str()),
             effective_agents: selection.map(|value| value.effective.as_slice()),
         },
-    )
+    )?;
+    if let Some(context) = presentation_context {
+        context.set_plan(plan.point.sweep_max_concurrency.is_some());
+    }
+    Ok(())
 }
 
 fn selection_for_plan_at(
@@ -5428,6 +5615,7 @@ fn execute(
     live_factory: Option<LiveProviderAttemptFactory>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     execute_inner(
         path,
@@ -5437,6 +5625,7 @@ fn execute(
         live_factory,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -5447,6 +5636,7 @@ fn execute_with_selection(
     live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     execute_inner(
         path,
@@ -5456,6 +5646,7 @@ fn execute_with_selection(
         None,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -5465,6 +5656,7 @@ fn execute_with_config(
     live_provider: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
@@ -5477,6 +5669,7 @@ fn execute_with_config(
         true,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -5488,6 +5681,7 @@ fn execute_with_selection_live_provider(
     live_factory: Option<LiveProviderAttemptFactory>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     execute_inner(
         path,
@@ -5497,6 +5691,7 @@ fn execute_with_selection_live_provider(
         live_factory,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -5508,6 +5703,7 @@ fn execute_inner(
     live_factory: Option<LiveProviderAttemptFactory>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     execute_inner_from_source(
         path,
@@ -5518,6 +5714,7 @@ fn execute_inner(
         false,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -5536,6 +5733,7 @@ fn execute_inner_from_source(
     local_mock: bool,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     execute_inner_from_source_with_owner(
         path,
@@ -5547,6 +5745,7 @@ fn execute_inner_from_source(
         None,
         output,
         progress,
+        presentation_context,
     )
 }
 
@@ -5561,6 +5760,7 @@ fn execute_inner_from_source_with_owner(
     local_mock_owner: Option<Arc<Mutex<LocalMockRuntimeControlOwner>>>,
     output: &mut dyn Write,
     progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     let (plan, selection) = match source {
         SelectionSource::Path(selection_path) => load_plan_and_selection(path, selection_path)?,
@@ -5685,6 +5885,16 @@ fn execute_inner_from_source_with_owner(
         cancelled.load(Ordering::SeqCst),
         points.iter().map(|point| point.decision),
     );
+    let retained_run_refs = run_ids
+        .iter()
+        .map(|run_id| {
+            plan.result_root
+                .join("runs")
+                .join(run_id)
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect::<Vec<_>>();
     write_json(
         output,
         &ExecuteOutput {
@@ -5708,6 +5918,9 @@ fn execute_inner_from_source_with_owner(
             provider_launch_sha256,
         },
     )?;
+    if let Some(context) = presentation_context {
+        context.set_execution(retained_run_refs);
+    }
     Ok(exit_code)
 }
 
@@ -7826,7 +8039,12 @@ impl CliError {
                 }
                 "provider_credential_unavailable"
                 | "provider_transport_unavailable"
-                | "provider_catalog_unavailable" => HumanErrorClass::DependencyUnavailable,
+                | "provider_catalog_unavailable"
+                | "provider_transport_failed"
+                | "provider_response_too_large"
+                | "provider_invalid_status"
+                | "provider_http_error"
+                | "provider_catalog_http_error" => HumanErrorClass::DependencyUnavailable,
                 _ => HumanErrorClass::ProductFailure,
             },
         }
@@ -7935,6 +8153,24 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&json).unwrap();
         assert_eq!(value["error"]["code"], "usage");
         assert!(json_err.is_empty());
+
+        for malformed in [
+            &["doctor", "--format"][..],
+            &["doctor", "--format", "yaml"][..],
+        ] {
+            let mut output = Vec::new();
+            let mut error = Vec::new();
+            let exit =
+                super::run_with_default_mode(&os_args(malformed), &mut output, &mut error, true);
+            assert_eq!(exit, 2, "{malformed:?}");
+            assert!(
+                String::from_utf8(output)
+                    .unwrap()
+                    .starts_with("ASB could not complete the doctor:"),
+                "{malformed:?}"
+            );
+            assert!(error.is_empty());
+        }
     }
 
     #[test]
@@ -8645,7 +8881,7 @@ mod tests {
         ];
         let mut output = Vec::new();
         assert_eq!(
-            guided_local_at(&args, &store, &mut output, &mut Vec::new()).unwrap(),
+            guided_local_at(&args, &store, &mut output, &mut Vec::new(), None).unwrap(),
             0
         );
         let result: Value = serde_json::from_slice(&output).unwrap();
@@ -9048,6 +9284,7 @@ mod tests {
             true,
             &mut local_run,
             &mut Vec::new(),
+            None,
         )
         .unwrap();
         assert_eq!(local_exit, 0);
@@ -9072,6 +9309,7 @@ mod tests {
             true,
             &mut local_sweep,
             &mut Vec::new(),
+            None,
         )
         .unwrap();
         assert_eq!(sweep_exit, 0);
@@ -9094,6 +9332,7 @@ mod tests {
                 false,
                 &mut Vec::new(),
                 &mut Vec::new(),
+                None,
             )
             .is_err()
         );
@@ -9123,7 +9362,7 @@ mod tests {
         human::render_success(&setup_invocation, &setup_output, false, &mut setup_human).unwrap();
         let setup_human = String::from_utf8(setup_human).unwrap();
         assert!(setup_human.starts_with("ASB saved the selected agents"));
-        assert!(setup_human.ends_with("Next: asb provider-plan --use-config\n"));
+        assert!(setup_human.ends_with("Next: asb workload-catalog\n"));
         let config = ConfigStore::new(&config_path).load().unwrap().unwrap();
         let configured = provider_plan_from_configuration(&config, "opencode").unwrap();
 
@@ -9170,6 +9409,7 @@ mod tests {
             true,
             &mut run_output,
             &mut Vec::new(),
+            None,
         )
         .unwrap();
         assert_eq!(exit, 0);
@@ -9206,6 +9446,7 @@ mod tests {
             false,
             &mut Vec::new(),
             &mut Vec::new(),
+            None,
         )
         .unwrap_err();
         assert_eq!(
@@ -9603,6 +9844,7 @@ mod tests {
             false,
             &mut Vec::new(),
             &mut Vec::new(),
+            None,
         )
         .unwrap_err();
         assert_eq!(
@@ -11035,17 +11277,33 @@ mod tests {
             ),
             0
         );
+        assert_eq!(
+            output,
+            include_bytes!("../fixtures/legacy/completion-bash-v1.txt")
+        );
         let completion = String::from_utf8(output).unwrap();
-        for command in human::PUBLIC_COMMANDS {
+        for lifecycle in [
+            "build", "install", "update", "test", "status", "rollback", "remove",
+        ] {
             assert!(
                 completion
                     .split_whitespace()
-                    .any(|word| word.trim_matches(['\'', '-']) == *command),
-                "{command}"
+                    .any(|word| { word.trim_matches(['\'', '-']) == lifecycle })
             );
         }
         assert!(!completion.contains('\u{1b}'));
         assert_eq!(run_json(&["completion".into(), "zsh".into()]).0, 2);
+    }
+
+    #[test]
+    fn doctor_machine_inventory_matches_the_origin_main_golden_projection() {
+        let (exit, output) = run_json(&["doctor".into()]);
+        assert_eq!(exit, 0);
+        let actual = output;
+        let expected: Value =
+            serde_json::from_slice(include_bytes!("../fixtures/legacy/doctor-commands-v1.json"))
+                .unwrap();
+        assert_eq!(actual["commands"], expected);
     }
 
     #[test]

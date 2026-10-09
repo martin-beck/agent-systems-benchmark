@@ -55,7 +55,7 @@ The production-shaped workflow is deliberately explicit:
 
 1. Enroll a logical credential reference through the runtime-owned control
    service; the secret value never enters the CLI arguments or evidence.
-2. Run `asb provider-catalog`, retain its `catalog_sha256`, and create a
+2. Run `asb --json provider-catalog`, retain its `catalog_sha256`, and create a
    digest-bound selection with `asb provider-plan`.
 3. Validate the experiment with `asb plan`, then run one point with `asb run`
    or a bounded matrix with `asb sweep`.
@@ -88,8 +88,9 @@ Provider selection is noninteractive and fail-closed. First save the advertised
 catalog identity, then use that exact identity to export a selection manifest:
 
 ```sh
-asb provider-catalog
-asb provider-plan --catalog-sha256 CATALOG_SHA256 \
+asb --json provider-catalog > catalog.json
+# Read CATALOG_SHA256 from catalog.json.
+asb --json provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai --agent codex --agent opendesk \
   --credential-reference-sha256 CREDENTIAL_REFERENCE_SHA256 > selection.json
 asb plan /absolute/path/experiment.toml --provider-selection selection.json
@@ -168,6 +169,12 @@ This table is checked against live `doctor` output and
 | `capabilities` | supported |
 | `project init` | supported |
 | `provider-catalog` | supported |
+| `adapter-catalog` | supported |
+| `workload-catalog` | supported |
+| `easy` | supported |
+| `tui` | supported |
+| `config` | supported |
+| `auth` | supported |
 | `provider-plan` | supported |
 | `plan` | supported |
 | `run` | supported |
@@ -176,6 +183,7 @@ This table is checked against live `doctor` output and
 | `compare` | supported |
 | `report` | supported |
 | `record-live` | supported (local mock) |
+| `record-campaign` | supported (local mock) |
 | `replay-offline` | supported (runtime authority) |
 | `record` | supported |
 | `replay` | supported |

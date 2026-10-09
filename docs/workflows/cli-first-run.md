@@ -56,6 +56,14 @@ For a live provider, first bind a catalog and a logical credential reference;
 the reference digest is not a credential value:
 
 ```sh
+asb provider-catalog
+asb provider-plan --use-config  # after saving an OpenRouter configuration
+```
+
+Those human commands summarize selectable values and a saved OpenRouter selection.
+For scripts that need exact digests and full records, use the JSON route:
+
+```sh
 asb --json provider-catalog > catalog.json
 asb --json provider-plan --catalog-sha256 CATALOG_SHA256 \
   --provider-profile openai --agent codex --agent opendesk \
@@ -95,8 +103,9 @@ asb compare /absolute/RESULT_ROOT/runs/RUN_A \
 
 Expected terminal states are `completed`, `failed`, `cancelled`, or
 `needs_reconciliation`; `report` validates the journal and manifest rather
-than inferring success. `compare` must say `comparable: true` before its
-differences are meaningful.
+than inferring success. Human `compare` output states whether evidence is
+directly comparable; use `asb --json compare ...` when automation needs the
+stable `comparable` boolean and exact difference list.
 
 ## What can cost money or require access?
 

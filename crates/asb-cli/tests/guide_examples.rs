@@ -45,6 +45,62 @@ fn asb(arguments: &[&str]) -> Output {
         .unwrap()
 }
 
+fn human_asb(root: &Path, arguments: &[String]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_asb"))
+        .args(arguments)
+        .env("HOME", root)
+        .env("XDG_CONFIG_HOME", root.join("config"))
+        .env("XDG_STATE_HOME", root.join("state"))
+        .env("XDG_DATA_HOME", root.join("data"))
+        .env("COLUMNS", "80")
+        .output()
+        .unwrap()
+}
+
+fn json_asb_at(root: &Path, arguments: &[String]) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .arg("--json")
+        .args(arguments)
+        .env("HOME", root)
+        .env("XDG_CONFIG_HOME", root.join("config"))
+        .env("XDG_STATE_HOME", root.join("state"))
+        .env("XDG_DATA_HOME", root.join("data"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+fn displayed_next_shell(output: &Output) -> String {
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    let line = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("Next: "))
+        .unwrap_or_else(|| panic!("missing displayed Next command: {stdout}"));
+    assert!(!line.chars().any(char::is_control));
+    line.to_owned()
+}
+
+fn execute_displayed_next(root: &Path, output: &Output) -> Output {
+    let command = displayed_next_shell(output);
+    let binary = Path::new(env!("CARGO_BIN_EXE_asb"));
+    Command::new("/bin/sh")
+        .args(["-c", &command])
+        .env_clear()
+        .env("PATH", binary.parent().unwrap())
+        .env("HOME", root)
+        .env("XDG_CONFIG_HOME", root.join("config"))
+        .env("XDG_STATE_HOME", root.join("state"))
+        .env("XDG_DATA_HOME", root.join("data"))
+        .env("COLUMNS", "80")
+        .output()
+        .unwrap()
+}
+
 fn write_plan(parent: &Path, run_id: &str, sweep: bool) -> (PathBuf, PathBuf, PathBuf) {
     fs::DirBuilder::new().mode(0o700).create(parent).unwrap();
     let executable = parent.join("offline-agent");
@@ -84,6 +140,24 @@ fn write_plan(parent: &Path, run_id: &str, sweep: bool) -> (PathBuf, PathBuf, Pa
         fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
     }
     (plan_path, result_root, work_root)
+}
+
+fn bind_plan_to_persisted_selection(plan_path: &Path, selection: &Value) {
+    let mut plan: toml::Value = toml::from_str(&fs::read_to_string(plan_path).unwrap()).unwrap();
+    let mut experiment: asb_protocol::ExperimentManifestV1 =
+        plan["experiment"].clone().try_into().unwrap();
+    experiment.agent.implementation = "codex".to_owned();
+    experiment.model.provider = "openrouter".to_owned();
+    experiment.model.model = "cohere/north-mini-code:free".to_owned();
+    experiment.model.settings.additional_settings_sha256 = Some(
+        selection["provider_profile_sha256"]
+            .as_str()
+            .unwrap()
+            .to_owned(),
+    );
+    experiment.refresh_content_address().unwrap();
+    plan["experiment"] = toml::Value::try_from(experiment).unwrap();
+    fs::write(plan_path, toml::to_string(&plan).unwrap()).unwrap();
 }
 
 fn successful_json(arguments: &[&str]) -> Value {
@@ -158,6 +232,138 @@ fn documented_offline_workflow_produces_validated_artifacts() {
 }
 
 #[test]
+fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
+    let scratch = Scratch::new();
+    let journey = scratch.0.join("human journey's space");
+    fs::DirBuilder::new().mode(0o700).create(&journey).unwrap();
+
+    let preflight = human_asb(&journey, &["setup".to_owned()]);
+    assert!(preflight.status.success());
+    assert_eq!(displayed_next_shell(&preflight), "asb provider-catalog");
+    let catalog = execute_displayed_next(&journey, &preflight);
+    assert!(catalog.status.success());
+    let catalog_text = String::from_utf8(catalog.stdout).unwrap();
+    assert!(catalog_text.contains("Selectable providers:"));
+    assert!(catalog_text.contains("Supported agents:"));
+    assert!(catalog_text.contains("codex"));
+    assert!(catalog_text.contains("openrouter"));
+    assert!(catalog_text.contains("cohere/north-mini-code:free"));
+    assert!(catalog_text.contains("--agent AGENT"));
+    assert!(!catalog_text.contains("Next:"));
+
+    let setup_args = [
+        "setup",
+        "--agent",
+        "codex",
+        "--provider-profile",
+        "openrouter",
+        "--model",
+        "cohere/north-mini-code:free",
+        "--persist",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<Vec<_>>();
+    let selected = human_asb(&journey, &setup_args);
+    assert!(
+        selected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&selected.stdout)
+    );
+    assert_eq!(displayed_next_shell(&selected), "asb workload-catalog");
+    assert!(execute_displayed_next(&journey, &selected).status.success());
+
+    let (plan, result_root, _) = write_plan(&journey.join("human-sweep"), "human-sweep", true);
+    let catalog = json_asb_at(&journey, &["provider-catalog".to_owned()]);
+    let config: Value =
+        serde_json::from_slice(&fs::read(journey.join("config/asb/config.json")).unwrap()).unwrap();
+    let selection_args = vec![
+        "provider-plan".to_owned(),
+        "--catalog-sha256".to_owned(),
+        catalog["catalog_sha256"].as_str().unwrap().to_owned(),
+        "--provider-profile".to_owned(),
+        "openrouter".to_owned(),
+        "--credential-reference-sha256".to_owned(),
+        config["profiles"]["openrouter-cohere/north-mini-code:free"]["credential"]
+            ["locator_sha256"]
+            .as_str()
+            .unwrap()
+            .to_owned(),
+        "--agent".to_owned(),
+        "codex".to_owned(),
+    ];
+    let selection = json_asb_at(&journey, &selection_args);
+    bind_plan_to_persisted_selection(&plan, &selection);
+    let plan_args = vec![
+        "plan".to_owned(),
+        plan.to_string_lossy().into_owned(),
+        "--use-config".to_owned(),
+    ];
+    let planned = human_asb(&journey, &plan_args);
+    assert!(
+        planned.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&planned.stdout),
+        String::from_utf8_lossy(&planned.stderr)
+    );
+
+    let sweep_command = displayed_next_shell(&planned);
+    assert!(sweep_command.starts_with("asb sweep "));
+    assert!(sweep_command.ends_with(" --use-config"));
+    assert!(sweep_command.contains("'\\''"));
+    let swept = execute_displayed_next(&journey, &planned);
+    assert!(
+        swept.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&swept.stdout),
+        String::from_utf8_lossy(&swept.stderr)
+    );
+    let report_command = displayed_next_shell(&swept);
+    assert!(report_command.starts_with("asb report "));
+    let run_refs = fs::read_dir(result_root.join("runs"))
+        .unwrap()
+        .map(|entry| fs::canonicalize(entry.unwrap().path()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(run_refs.len(), 2);
+    for path in &run_refs {
+        assert!(!path.to_string_lossy().chars().any(char::is_control));
+        assert!(
+            path.is_dir(),
+            "retained run reference does not exist: {}",
+            path.display()
+        );
+        assert_eq!(fs::canonicalize(path).unwrap(), path.as_path());
+        assert!(report_command.contains(&path.to_string_lossy().replace('\'', "'\\''")));
+    }
+
+    let report = execute_displayed_next(&journey, &swept);
+    assert!(
+        report.status.success(),
+        "{}",
+        String::from_utf8_lossy(&report.stdout)
+    );
+    let compare_command = displayed_next_shell(&report);
+    assert!(compare_command.starts_with("asb compare "));
+    let compared = execute_displayed_next(&journey, &report);
+    assert!(compared.status.success());
+    let compared_text = String::from_utf8(compared.stdout).unwrap();
+    assert!(compared_text.starts_with("ASB compared the runs"));
+
+    let tui = human_asb(
+        &journey,
+        &[
+            "tui".to_owned(),
+            "status".to_owned(),
+            "--channel".to_owned(),
+            "dev".to_owned(),
+        ],
+    );
+    let tui_text = String::from_utf8(tui.stdout).unwrap();
+    assert!(!tui_text.starts_with('{'));
+    assert!(tui_text.starts_with("ASB "));
+}
+
+#[test]
 fn guide_inventory_matches_doctor_and_stale_claims_fail_closed() {
     let contract: Value =
         serde_json::from_str(include_str!("../../../docs/examples/guide-contract.json")).unwrap();
@@ -202,7 +408,7 @@ fn public_guides_reference_the_executable_contract() {
     assert!(quickstart.contains("asb record CAPTURE.json CASSETTE.json"));
     assert!(quickstart.contains("asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT"));
     for command in contract["commands"].as_array().unwrap() {
-        let row = format!("| `{}` | supported |", command.as_str().unwrap());
+        let row = format!("| `{}` | supported", command.as_str().unwrap());
         assert!(quickstart.contains(&row));
     }
     for command in contract["unsupported_commands"].as_array().unwrap() {

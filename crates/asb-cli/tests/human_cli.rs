@@ -3,6 +3,7 @@
 //! Executable-level human-output contract tests.
 
 use std::process::Command;
+use unicode_width::UnicodeWidthStr;
 
 fn asb() -> Command {
     Command::new(env!("CARGO_BIN_EXE_asb"))
@@ -21,10 +22,74 @@ fn redirected_output_honors_40_80_and_120_column_widths_and_stream_boundaries() 
         let stdout = String::from_utf8(output.stdout).unwrap();
         assert!(stdout.starts_with("ASB loaded the provider catalog."));
         assert!(
-            stdout.lines().all(|line| line.chars().count() <= width),
+            stdout
+                .lines()
+                .all(|line| UnicodeWidthStr::width(line) <= width),
             "width={width}: {stdout}"
         );
     }
+}
+
+#[test]
+fn unicode_and_combining_output_obeys_terminal_display_columns() {
+    for width in [40, 80, 120] {
+        let path = std::env::temp_dir().join(format!(
+            "asb-\u{6e2c}\u{8a66}-e\u{301}-{}-{}.json",
+            std::process::id(),
+            width
+        ));
+        let output = asb()
+            .args(["setup", "--output"])
+            .arg(&path)
+            .env("COLUMNS", width.to_string())
+            .output()
+            .expect("ASB executable must run");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(stdout.contains("\u{6e2c}\u{8a66}"));
+        assert!(
+            stdout
+                .lines()
+                .filter(|line| !line.starts_with("Next:"))
+                .all(|line| UnicodeWidthStr::width(line) <= width)
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[test]
+fn local_mock_validation_failure_is_human_and_preserves_exit_three() {
+    let output = asb()
+        .args(["run", "/definitely/missing/asb-plan.toml", "--local-mock"])
+        .output()
+        .expect("ASB executable must run");
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.starts_with("ASB could not complete the benchmark run:"));
+    assert!(!stdout.starts_with('{'));
+    assert!(!stdout.contains("could not write"));
+}
+
+#[test]
+fn serve_progress_is_neutral_and_does_not_leak_or_inject_the_path() {
+    let private = "/tmp/private\n\u{1b}[31m-control.toml";
+    let output = asb()
+        .args(["serve", private])
+        .output()
+        .expect("ASB executable must run");
+    assert_eq!(output.status.code(), Some(3));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(
+        stderr,
+        "ASB is attempting to start the control service from the supplied configuration.\n"
+    );
+    assert!(!stderr.contains("private"));
+    assert!(!stderr.contains('\u{1b}'));
 }
 
 #[test]
