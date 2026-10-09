@@ -1476,6 +1476,13 @@ pub(super) fn render_error(
             "Diagnostic code: {} (exit {}).",
             error.code, error.exit_code
         ));
+        presentation.fact(format!(
+            "Diagnostic cause: {:?}; subject {:?}; phase {:?}; state {:?}.",
+            error.diagnostic.cause,
+            error.diagnostic.context.subject,
+            error.diagnostic.context.phase,
+            error.diagnostic.context.state_change
+        ));
     }
     write_presentation(&presentation, output, terminal_width())
 }

@@ -3,6 +3,7 @@
 //! Trusted router for the independently installed optional terminal frontend.
 
 use crate::control::open_development_backend;
+use crate::diagnostic;
 use crate::{CliError, output_error, write_json};
 use asb_control::{
     AuthenticatedGenerationProducer, BrokerConnection, BrokerState, ControlBackend, ControlLimits,
@@ -384,6 +385,19 @@ impl RouterError {
     const fn operation(code: &'static str) -> Self {
         Self { code, exit_code: 4 }
     }
+
+    /// Resolve routed lifecycle failures through the same closed catalog as
+    /// ordinary CLI failures. The existing JSON response intentionally keeps
+    /// its stable `classification` and `remediation` fields; this typed value
+    /// is the authority used by human/detail presentation and contract tests.
+    fn diagnostic(&self) -> diagnostic::Diagnostic {
+        let severity = if self.exit_code == 3 {
+            diagnostic::Severity::Error
+        } else {
+            diagnostic::Severity::Failure
+        };
+        diagnostic::Diagnostic::for_code(self.code, self.code, severity)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -742,6 +756,8 @@ pub(crate) fn dispatch(args: &[String], output: &mut dyn Write) -> Result<u8, Cl
     }) {
         Ok(response) => response,
         Err(error) => {
+            let typed_diagnostic = error.diagnostic();
+            debug_assert_eq!(typed_diagnostic.code, error.code);
             let network = if matches!(operation, Operation::Install | Operation::Upgrade)
                 && !options.offline
             {

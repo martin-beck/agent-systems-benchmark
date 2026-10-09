@@ -4,6 +4,7 @@
 
 pub mod capabilities;
 mod control;
+pub mod diagnostic;
 mod human;
 mod provider_launch;
 pub mod tool_discovery;
@@ -8521,6 +8522,8 @@ struct CliError {
     human_class: HumanErrorClass,
     #[serde(skip)]
     remediation: ErrorRemediation,
+    #[serde(skip)]
+    diagnostic: diagnostic::Diagnostic,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -8540,7 +8543,7 @@ enum HumanErrorClass {
 }
 
 impl CliError {
-    const fn usage(message: &'static str) -> Self {
+    fn usage(message: &'static str) -> Self {
         Self {
             code: "usage",
             message,
@@ -8548,10 +8551,15 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::Help,
+            diagnostic: diagnostic::Diagnostic::for_code(
+                "usage",
+                message,
+                diagnostic::Severity::Error,
+            ),
         }
     }
 
-    const fn validation(message: &'static str) -> Self {
+    fn validation(message: &'static str) -> Self {
         Self {
             code: "validation",
             message,
@@ -8559,13 +8567,15 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
+            diagnostic: diagnostic::Diagnostic::for_code(
+                "validation",
+                message,
+                diagnostic::Severity::Error,
+            ),
         }
     }
 
-    const fn validation_with_remediation(
-        message: &'static str,
-        remediation: ErrorRemediation,
-    ) -> Self {
+    fn validation_with_remediation(message: &'static str, remediation: ErrorRemediation) -> Self {
         Self {
             code: "validation",
             message,
@@ -8573,13 +8583,15 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation,
+            diagnostic: diagnostic::Diagnostic::for_code(
+                "validation",
+                message,
+                diagnostic::Severity::Error,
+            ),
         }
     }
 
-    const fn validation_issue(
-        message: &'static str,
-        settings_issue: asb_control::SettingsIssue,
-    ) -> Self {
+    fn validation_issue(message: &'static str, settings_issue: asb_control::SettingsIssue) -> Self {
         Self {
             code: "validation",
             message,
@@ -8587,10 +8599,15 @@ impl CliError {
             settings_issue,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
+            diagnostic: diagnostic::Diagnostic::for_code(
+                "validation",
+                message,
+                diagnostic::Severity::Error,
+            ),
         }
     }
 
-    const fn operation(message: &'static str) -> Self {
+    fn operation(message: &'static str) -> Self {
         Self {
             code: "operation",
             message,
@@ -8598,10 +8615,15 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::ProductFailure,
             remediation: ErrorRemediation::None,
+            diagnostic: diagnostic::Diagnostic::for_code(
+                "operation",
+                message,
+                diagnostic::Severity::Failure,
+            ),
         }
     }
 
-    const fn validation_code(code: &'static str, message: &'static str) -> Self {
+    fn validation_code(code: &'static str, message: &'static str) -> Self {
         Self {
             code,
             message,
@@ -8609,6 +8631,11 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
+            diagnostic: diagnostic::Diagnostic::for_code(
+                code,
+                message,
+                diagnostic::Severity::Error,
+            ),
         }
     }
 
@@ -8636,6 +8663,11 @@ impl CliError {
                 "provider_credential_unavailable" => ErrorRemediation::OpenRouterCredential,
                 _ => ErrorRemediation::None,
             },
+            diagnostic: diagnostic::Diagnostic::for_code(
+                code,
+                message,
+                diagnostic::Severity::Failure,
+            ),
         }
     }
 }
