@@ -12,6 +12,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::ffi::OsString;
 use std::io::{self, Write};
+use std::path::Path;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const DEFAULT_WIDTH: usize = 80;
@@ -1471,6 +1472,12 @@ pub(super) fn render_error(
         }
         _ => presentation.fact("ASB did not report a completed result."),
     }
+    if let Some(path) = &error.path {
+        presentation.fact(format!(
+            "Affected destination: `{}`.",
+            safe_local_path(path)
+        ));
+    }
     if details {
         presentation.fact(format!(
             "Diagnostic code: {} (exit {}).",
@@ -1485,6 +1492,19 @@ pub(super) fn render_error(
         ));
     }
     write_presentation(&presentation, output, terminal_width())
+}
+
+fn safe_local_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    let mut output = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character.is_control() {
+            output.push('?');
+        } else {
+            output.push(character);
+        }
+    }
+    output
 }
 
 pub(super) fn render_start(args: &[OsString], output: &mut dyn Write) -> io::Result<()> {

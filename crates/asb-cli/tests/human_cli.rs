@@ -274,7 +274,13 @@ fn project_init_human_output_distinguishes_initialization_from_recovery() {
             .output()
             .expect("ASB executable must run");
         assert!(output.status.success());
-        assert!(output.stderr.is_empty());
+        if expected_outcome.starts_with("ASB initialized") {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains("ASB will create directory"));
+            assert!(stderr.contains("for the ASB project workspace."));
+        } else {
+            assert!(output.stderr.is_empty());
+        }
         let stdout = assert_private_human_output(&output);
         assert_eq!(stdout.lines().next(), Some(expected_outcome));
         assert!(!stdout.contains(unexpected_outcome));

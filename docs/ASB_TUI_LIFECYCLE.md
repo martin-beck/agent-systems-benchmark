@@ -143,6 +143,12 @@ directory descriptors for each atomic operation, reject symlink traversal, use
 unique exclusive temporary files, sync file contents, rename atomically, and
 sync the parent.
 
+When an install, upgrade, development lifecycle operation, or active removal
+needs a missing TUI-owned state or cache directory, human mode announces the
+destination on stderr before creation. JSON responses remain on stdout and do
+not contain those local path notices; dry-run operations do not create the
+directories.
+
 These rootless controls protect against accidental corruption, cache clearing,
 path substitution outside the retained operation, and interrupted concurrent
 lifecycle commands. They do not claim a monotonic hardware trust anchor against

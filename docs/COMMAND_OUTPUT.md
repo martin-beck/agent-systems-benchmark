@@ -28,6 +28,13 @@ belong on stdout. Plain output contains no terminal escape sequences, so
 wraps to the bounded terminal width; a `Next:` command stays on one line so it
 can be copied safely.
 
+Before mutating a command-owned destination, human mode may emit one bounded
+stderr notice in the form `ASB will create directory PATH for PURPOSE.`
+Notices are emitted only for directories that are actually missing; existing
+directories are reused silently. JSON mode keeps stdout byte-stable and does
+not include local path notices. Unsafe, symlink, non-directory, read-only, and
+permission-conflicting destinations fail closed with an actionable error.
+
 ## Machine and diagnostic modes
 
 Use the global `--json` option for the complete, versioned machine response:
