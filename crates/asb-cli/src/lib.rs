@@ -813,20 +813,13 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
-        [command] if command == "setup" => setup_with_progress(
-            &[],
-            stdout,
-            stderr,
-            presentation_context.is_some(),
-        )
-        .map(|()| 0),
-        [command, setup_args @ ..] if command == "setup" => setup_with_progress(
-            setup_args,
-            stdout,
-            stderr,
-            presentation_context.is_some(),
-        )
-        .map(|()| 0),
+        [command] if command == "setup" => {
+            setup_with_progress(&[], stdout, stderr, presentation_context.is_some()).map(|()| 0)
+        }
+        [command, setup_args @ ..] if command == "setup" => {
+            setup_with_progress(setup_args, stdout, stderr, presentation_context.is_some())
+                .map(|()| 0)
+        }
         [command, easy_args @ ..] if command == "easy" => guided_local_with_context(
             easy_args,
             replay_authority.take(),
@@ -871,21 +864,13 @@ fn dispatch(
             .map(|()| 0)
         }
         [command, subcommand, init_args @ ..] if command == "project" && subcommand == "init" => {
-            project_init_with_progress(
-                init_args,
-                stdout,
-                stderr,
-                presentation_context.is_some(),
-            )
-            .map(|()| 0)
+            project_init_with_progress(init_args, stdout, stderr, presentation_context.is_some())
+                .map(|()| 0)
         }
-        [command, tool_args @ ..] if command == "tool" => tool_with_progress(
-            tool_args,
-            stdout,
-            stderr,
-            presentation_context.is_some(),
-        )
-        .map(|()| 0),
+        [command, tool_args @ ..] if command == "tool" => {
+            tool_with_progress(tool_args, stdout, stderr, presentation_context.is_some())
+                .map(|()| 0)
+        }
         [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout, stdin),
         [command, selection @ ..] if command == "provider-plan" => {
             provider_plan(selection, stdout).map(|()| 0)
@@ -1083,15 +1068,13 @@ fn dispatch(
         [command, runs @ ..] if command == "report" && !runs.is_empty() => {
             report(runs, stdout).map(|()| 0)
         }
-        [command, input, output] if command == "record" => {
-            record_with_progress(
-                Path::new(input),
-                Path::new(output),
-                stdout,
-                presentation_context.is_some().then_some(stderr),
-            )
-            .map(|()| 0)
-        }
+        [command, input, output] if command == "record" => record_with_progress(
+            Path::new(input),
+            Path::new(output),
+            stdout,
+            presentation_context.is_some().then_some(stderr),
+        )
+        .map(|()| 0),
         [command, input, output, flag] if command == "record-live" && flag == "--local-mock" => {
             record_live_with_progress(
                 Path::new(input),
@@ -1788,7 +1771,10 @@ fn guided_lifecycle_at_with_progress(
         )
         .map(|()| 0);
     }
-    if matches!(operation, "build" | "install" | "update" | "rollback" | "remove") {
+    if matches!(
+        operation,
+        "build" | "install" | "update" | "rollback" | "remove"
+    ) {
         let _ = prepare_owned_directory(
             root,
             0o700,
@@ -2775,7 +2761,9 @@ fn record_campaign_with_progress(
     // reports the unavailable campaign for human and JSON callers.
     if complete {
         for (path, _) in &pending_writes {
-            let notice = progress.as_mut().map(|stream| &mut **stream as &mut dyn Write);
+            let notice = progress
+                .as_mut()
+                .map(|stream| &mut **stream as &mut dyn Write);
             prepare_output_parent(path, DirectoryPurpose::Recording, notice)?;
         }
         publish_recording_campaign(&pending_writes)?;
@@ -3952,16 +3940,16 @@ fn prepare_owned_directory(
                 }
                 match fs::symlink_metadata(&current) {
                     Ok(metadata) if metadata.file_type().is_symlink() => {
-                        return Err(
-                            CliError::validation("directory destination is unsafe or a symlink")
-                                .with_path(path),
-                        );
+                        return Err(CliError::validation(
+                            "directory destination is unsafe or a symlink",
+                        )
+                        .with_path(path));
                     }
                     Ok(metadata) if !metadata.is_dir() => {
-                        return Err(
-                            CliError::validation("directory destination is not a directory")
-                                .with_path(path),
-                        );
+                        return Err(CliError::validation(
+                            "directory destination is not a directory",
+                        )
+                        .with_path(path));
                     }
                     Ok(_) => {}
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -4017,17 +4005,17 @@ fn prepare_owned_directory(
         match fs::symlink_metadata(component) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 rollback_created_directories(&created);
-                return Err(
-                    CliError::validation("directory destination was replaced by a symlink")
-                        .with_path(path),
-                );
+                return Err(CliError::validation(
+                    "directory destination was replaced by a symlink",
+                )
+                .with_path(path));
             }
             Ok(metadata) if !metadata.is_dir() => {
                 rollback_created_directories(&created);
-                return Err(
-                    CliError::validation("directory destination was replaced by a non-directory")
-                        .with_path(path),
-                );
+                return Err(CliError::validation(
+                    "directory destination was replaced by a non-directory",
+                )
+                .with_path(path));
             }
             Ok(_) => {}
             Err(error) => {
@@ -4060,7 +4048,13 @@ fn directory_io_error(error: io::Error, path: &Path) -> CliError {
 fn display_local_path(path: &Path) -> String {
     path.to_string_lossy()
         .chars()
-        .map(|character| if character.is_control() { '?' } else { character })
+        .map(|character| {
+            if character.is_control() {
+                '?'
+            } else {
+                character
+            }
+        })
         .collect()
 }
 
@@ -9506,13 +9500,9 @@ mod tests {
 
         let file = scratch.0.join("not-a-directory");
         fs::write(&file, b"fixture").unwrap();
-        let file_error = super::prepare_owned_directory(
-            &file,
-            0o700,
-            super::DirectoryPurpose::Results,
-            None,
-        )
-        .expect_err("a regular file cannot become an output directory");
+        let file_error =
+            super::prepare_owned_directory(&file, 0o700, super::DirectoryPurpose::Results, None)
+                .expect_err("a regular file cannot become an output directory");
         assert_eq!(file_error.path.as_deref(), Some(file.as_path()));
         let encoded = serde_json::to_string(&file_error).unwrap();
         assert!(!encoded.contains(file.to_string_lossy().as_ref()));
