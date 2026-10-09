@@ -876,23 +876,12 @@ pub(crate) struct DevelopmentBackend {
     inner: RunnerBackend,
 }
 
-impl ControlBackend for DevelopmentBackend {
-    fn runner_instance_id(&self) -> &str {
-        self.inner.runner_instance_id()
-    }
-
-    fn oldest_revision(&self) -> Revision {
-        self.inner.oldest_revision()
-    }
-
-    fn latest_revision(&self) -> Revision {
-        self.inner.latest_revision()
-    }
-
-    fn execute(
+impl DevelopmentBackend {
+    fn execute_admitted(
         &self,
         call: &ControlCall,
         deadline: RequestDeadline,
+        version: Option<ControlVersion>,
     ) -> Result<BoundControlResult, BackendFailure> {
         if matches!(call, ControlCall::Capabilities) {
             return BoundControlResult::new(
@@ -936,11 +925,44 @@ impl ControlBackend for DevelopmentBackend {
                 | ControlCall::History(_)
                 | ControlCall::ArtifactMetadata { .. }
         );
-        if read_only {
-            self.inner.execute(call, deadline)
-        } else {
-            Err(BackendFailure::CapabilityUnavailable)
+        if !read_only {
+            return Err(BackendFailure::CapabilityUnavailable);
         }
+        match version {
+            Some(version) => self.inner.execute_versioned(call, deadline, version),
+            None => self.inner.execute(call, deadline),
+        }
+    }
+}
+
+impl ControlBackend for DevelopmentBackend {
+    fn runner_instance_id(&self) -> &str {
+        self.inner.runner_instance_id()
+    }
+
+    fn oldest_revision(&self) -> Revision {
+        self.inner.oldest_revision()
+    }
+
+    fn latest_revision(&self) -> Revision {
+        self.inner.latest_revision()
+    }
+
+    fn execute(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        self.execute_admitted(call, deadline, None)
+    }
+
+    fn execute_versioned(
+        &self,
+        call: &ControlCall,
+        deadline: RequestDeadline,
+        version: ControlVersion,
+    ) -> Result<BoundControlResult, BackendFailure> {
+        self.execute_admitted(call, deadline, Some(version))
     }
 }
 

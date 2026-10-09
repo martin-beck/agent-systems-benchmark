@@ -5014,8 +5014,9 @@ mod tests {
         assert_eq!(failure.remediation(), None);
     }
     use asb_control::{
-        BROKER_PACKET_BYTES, BrokerPacket, ControlBackend, ControlCall, ControlClient,
-        ControlResult, HandoffStatus, RequestDeadline, SUPPORTED_CONTROL_VERSIONS_LEGACY,
+        BROKER_PACKET_BYTES, BrokerPacket, CONTROL_DYNAMIC_PROVIDER_CATALOG_V1, CONTROL_FANOUT_V1,
+        ControlBackend, ControlCall, ControlClient, ControlResult, HandoffStatus, RequestDeadline,
+        SUPPORTED_CONTROL_VERSIONS_LEGACY,
     };
     use rustix::net::{RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags, ReturnFlags, recvmsg};
     #[cfg(feature = "cross-repo-qualification")]
@@ -5303,6 +5304,187 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn development_backend_preserves_negotiated_catalog_and_mutation_denials() {
+        let scratch = Scratch::new("development-versioned-backend");
+        let backend = open_development_backend(scratch.0.clone()).expect("development backend");
+        let identity = backend.runner_instance_id().to_owned();
+        let catalog = |action, runner_instance_id, known_generation| {
+            ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                action,
+                runner_instance_id,
+                known_generation,
+            })
+        };
+
+        for action in [
+            asb_control::ProviderCatalogAction::Status,
+            asb_control::ProviderCatalogAction::Refresh,
+        ] {
+            let call = catalog(action, identity.clone(), None);
+            let legacy = backend
+                .execute_versioned(
+                    &call,
+                    RequestDeadline::start(100).unwrap(),
+                    CONTROL_FANOUT_V1,
+                )
+                .expect("legacy development catalog");
+            assert!(matches!(legacy.result, ControlResult::ProviderCatalog(_)));
+            legacy
+                .validate_for_call_and_version(
+                    &call,
+                    asb_control::ControlLimits::default(),
+                    CONTROL_FANOUT_V1,
+                )
+                .unwrap();
+
+            let dynamic = backend
+                .execute_versioned(
+                    &call,
+                    RequestDeadline::start(100).unwrap(),
+                    CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
+                )
+                .expect("v1.15 development catalog");
+            assert!(matches!(
+                dynamic.result,
+                ControlResult::DynamicProviderCatalog(_)
+            ));
+            dynamic
+                .validate_for_call_and_version(
+                    &call,
+                    asb_control::ControlLimits::default(),
+                    CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
+                )
+                .unwrap();
+        }
+
+        for rejected in [
+            catalog(
+                asb_control::ProviderCatalogAction::Status,
+                "stale-development-runner".into(),
+                None,
+            ),
+            catalog(
+                asb_control::ProviderCatalogAction::Status,
+                identity.clone(),
+                Some(asb_control::Revision(u64::MAX)),
+            ),
+        ] {
+            assert!(matches!(
+                backend.execute_versioned(
+                    &rejected,
+                    RequestDeadline::start(100).unwrap(),
+                    CONTROL_DYNAMIC_PROVIDER_CATALOG_V1,
+                ),
+                Err(asb_control::BackendFailure::StaleIdentity)
+            ));
+        }
+
+        let mutations = [
+            ControlCall::AuthEnroll(asb_control::AuthEnrollParams {
+                provider: "development".into(),
+                endpoint_identity_sha256: "identity".into(),
+                credential_locator_sha256: "locator".into(),
+                idempotency_key: "versioned-auth".into(),
+            }),
+            ControlCall::ConfigurationApply(asb_control::ConfigurationApplyParams {
+                idempotency_key: "versioned-configuration".into(),
+                expected_generation: asb_control::Revision(0),
+                selection: asb_control::ConfigurationSelection {
+                    agent_ids: Vec::new(),
+                    provider_id: "development".into(),
+                    model_id: "development".into(),
+                    auth_method: asb_control::ProviderAuthMethod::None,
+                    credential_reference_sha256: None,
+                },
+            }),
+            ControlCall::ProviderProfileUpsert(asb_control::ProviderProfileUpsertParams {
+                idempotency_key: "versioned-profile".into(),
+                expected_generation: asb_control::Revision(0),
+                runner_instance_id: identity.clone(),
+                entry: asb_control::ProviderCatalogEntry {
+                    provider_id: "development-profile".into(),
+                    display_name: "Development profile".into(),
+                    availability: asb_control::ProviderAvailability::Unavailable(
+                        "development".into(),
+                    ),
+                    models: Vec::new(),
+                    auth_methods: Vec::new(),
+                },
+                credential_reference_sha256: None,
+            }),
+            ControlCall::Launch(asb_control::LaunchParams {
+                idempotency_key: "versioned-launch".into(),
+                plan_id: "development".into(),
+            }),
+            ControlCall::RecordingCampaignExecute(asb_control::RecordingCampaignExecuteParams {
+                idempotency_key: "versioned-recording".into(),
+                expected_generation: asb_control::Revision(0),
+                runner_instance_id: identity,
+                campaign_id: "development".into(),
+            }),
+        ];
+        for mutation in mutations {
+            for version in [CONTROL_FANOUT_V1, CONTROL_DYNAMIC_PROVIDER_CATALOG_V1] {
+                assert!(matches!(
+                    backend.execute_versioned(
+                        &mutation,
+                        RequestDeadline::start(100).unwrap(),
+                        version,
+                    ),
+                    Err(asb_control::BackendFailure::CapabilityUnavailable)
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn development_bridge_serves_v115_dynamic_catalog_over_private_socket() {
+        let scratch = Scratch::new("development-v115-bridge");
+        let control_dir = scratch.0.join("control");
+        let provisioning_dir = scratch.0.join("provisioning");
+        prepare_private_directory(&control_dir).unwrap();
+        prepare_private_directory(&provisioning_dir).unwrap();
+        let control_path = control_dir.join("control.sock");
+        let provisioning_path = provisioning_dir.join("provision.sock");
+        let backend = open_development_backend(scratch.0.clone()).unwrap();
+        let server = ProvisionedControlServer::bind(
+            &control_path,
+            &provisioning_path,
+            ControlLimits::default(),
+            backend,
+        )
+        .unwrap();
+        let worker = thread::spawn(move || server.serve_connections(1, 0));
+        let mut client = ControlClient::connect_with_versions(
+            &control_path,
+            ControlLimits::default(),
+            [CONTROL_DYNAMIC_PROVIDER_CATALOG_V1],
+        )
+        .unwrap();
+        let response = client
+            .call(
+                ControlCall::ProviderCatalog(asb_control::ProviderCatalogRequest {
+                    action: asb_control::ProviderCatalogAction::Refresh,
+                    runner_instance_id: client.negotiated().runner_instance_id.clone(),
+                    known_generation: None,
+                }),
+                client.negotiated().limits.max_timeout_ms,
+            )
+            .unwrap()
+            .into_result()
+            .unwrap();
+        assert!(matches!(
+            response,
+            asb_control::ControlSuccess::Operation(operation)
+                if matches!(operation.result, ControlResult::DynamicProviderCatalog(_))
+        ));
+        drop(client);
+        worker.join().unwrap().unwrap();
+        assert!(!control_path.exists());
+        assert!(!provisioning_path.exists());
     }
 
     #[test]
