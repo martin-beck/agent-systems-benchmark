@@ -1,3 +1,5 @@
+// Copyright (C) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+// SPDX-License-Identifier: MIT
 //! Deterministic, read-only discovery of ASB tools.
 //!
 //! Discovery is deliberately kept separate from installation and project
