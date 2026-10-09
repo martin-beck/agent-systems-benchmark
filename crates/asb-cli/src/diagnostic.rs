@@ -321,11 +321,234 @@ impl Diagnostic {
             ),
         }
     }
+
+    /// Return a concise, cause-specific explanation suitable for human output.
+    ///
+    /// These phrases are deliberately stable and do not include operating
+    /// system text.  The producer message remains available as bounded detail,
+    /// while this explanation prevents a known cause from collapsing into a
+    /// generic "failed" or "unavailable" sentence.
+    pub const fn cause_explanation(self) -> &'static str {
+        match self.cause {
+            Cause::MissingParent => "the required parent directory does not exist",
+            Cause::MissingInput => "the required input is missing",
+            Cause::AlreadyExists => "the destination already exists and was not replaced",
+            Cause::NotDirectory => "the selected path is not a directory",
+            Cause::NotRegularFile => "the selected path is not a regular file",
+            Cause::PermissionDenied => "access to the affected resource was denied",
+            Cause::ReadOnlyStorage => "the destination storage refused the requested change",
+            Cause::UnsafeTopology => "the path topology is unsafe for this operation",
+            Cause::InvalidPath => "the supplied path is invalid",
+            Cause::MalformedInput => "the input is malformed",
+            Cause::IncompatibleInput => "the input is incompatible with this command",
+            Cause::StaleIdentity => "the selected identity is stale",
+            Cause::UnavailableCapability => "a required host or product capability is unavailable",
+            Cause::MissingTool => "the required tool is not installed or registered",
+            Cause::ProviderAuthentication => "provider authentication could not be established",
+            Cause::ProviderRejection => "the provider rejected the bounded request",
+            Cause::TransportFailure => "the bounded transport exchange did not complete",
+            Cause::Timeout => "the bounded deadline expired",
+            Cause::Cancellation => "the operation was cancelled before completion",
+            Cause::PartialCompletion => "only part of the requested work completed",
+            Cause::ReconciliationRequired => "durable state must be reconciled before retrying",
+            Cause::UnexpectedProductFailure => "ASB could not complete the attempted operation",
+            Cause::UnknownCause => {
+                "the cause is not yet classified by the reviewed diagnostic catalog"
+            }
+        }
+    }
+
+    /// Return a safe subject label for human output.
+    pub const fn subject_label(self) -> &'static str {
+        match self.context.subject {
+            Subject::Parent => "parent directory",
+            Subject::Input => "input",
+            Subject::Target => "target",
+            Subject::Option => "option",
+            Subject::Configuration => "configuration",
+            Subject::Tool => "tool",
+            Subject::Provider => "provider",
+            Subject::Capability => "capability",
+            Subject::Transport => "transport",
+            Subject::Run => "run",
+            Subject::Attempt => "attempt",
+            Subject::Store => "result store",
+            Subject::Catalog => "catalog",
+            Subject::Workspace => "workspace",
+            Subject::Channel => "channel",
+            Subject::Artifact => "artifact",
+            Subject::CredentialReference => "credential reference",
+            Subject::Output => "output",
+            Subject::State => "durable state",
+            Subject::Unknown => "affected resource",
+        }
+    }
+
+    /// Return a safe statement of what changed, if anything.
+    pub const fn state_change_explanation(self) -> &'static str {
+        match self.context.state_change {
+            StateChange::NotStarted => "No external operation was started.",
+            StateChange::Unchanged => "No relevant state was changed.",
+            StateChange::Created => "The requested state was created.",
+            StateChange::Updated => "Existing state was updated.",
+            StateChange::PartiallyCompleted => "Only part of the requested state was produced.",
+            StateChange::Completed => "The requested state change completed.",
+            StateChange::RolledBack => "The staged state change was rolled back.",
+            StateChange::Unknown => "The resulting durable state is not safe to assume.",
+        }
+    }
+
+    /// Return the concrete correction associated with the reviewed class.
+    pub const fn remediation_explanation(self) -> &'static str {
+        match self.context.remediation {
+            Remediation::None => {
+                "Do not retry automatically; inspect the reported operation and correct the underlying condition."
+            }
+            Remediation::CorrectInput => "Correct the named input or option and rerun the command.",
+            Remediation::CreateParent => {
+                "Create or select the named parent directory, then rerun the command."
+            }
+            Remediation::CheckDestination => {
+                "Inspect the named destination and correct its type or unsafe topology before retrying."
+            }
+            Remediation::CheckPermissions => {
+                "Check access to the named destination without exposing private operating-system details."
+            }
+            Remediation::InstallTool => {
+                "Install or register the named tool through the supported ASB tool workflow."
+            }
+            Remediation::AuthenticateProvider => {
+                "Establish the provider credential through the supported ASB authentication flow."
+            }
+            Remediation::CheckProvider => {
+                "Check the selected provider and bounded transport availability; no request was retried automatically."
+            }
+            Remediation::Retry => {
+                "Retry only after confirming that the bounded operation is safe and the condition has cleared."
+            }
+            Remediation::Reconcile => {
+                "Inspect durable state with the supported doctor/reconciliation workflow before retrying."
+            }
+            Remediation::RunDoctor => {
+                "Run `asb doctor` to inspect the required capability before retrying."
+            }
+            Remediation::UseOfflineReplay => {
+                "Select an already sealed offline replay instead of contacting the provider."
+            }
+        }
+    }
 }
 
 fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     // Stable operation codes from the provider and routed-TUI boundaries.
     match code {
+        "development_filesystem_invalid" | "development_installation_invalid" => {
+            return (
+                Cause::UnsafeTopology,
+                Context::new(
+                    Subject::Workspace,
+                    "inspect_workspace",
+                    Phase::Inspect,
+                    StateChange::Unchanged,
+                    Remediation::CheckDestination,
+                ),
+            );
+        }
+        "development_source_identity_invalid"
+        | "development_source_identity_mismatch"
+        | "development_bundle_invalid"
+        | "development_channel_rejected" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_development_artifact",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "development_source_unavailable_offline"
+        | "development_control_unavailable"
+        | "development_channel_unavailable"
+        | "development_control_failed" => {
+            return (
+                Cause::TransportFailure,
+                Context::new(
+                    Subject::Transport,
+                    "communicate",
+                    Phase::Transport,
+                    StateChange::Unchanged,
+                    Remediation::CheckProvider,
+                ),
+            );
+        }
+        "development_terminal_unavailable"
+        | "development_compiler_unsupported"
+        | "development_host_unavailable" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::Capability,
+                    "probe_capability",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::RunDoctor,
+                ),
+            );
+        }
+        "development_launch_timeout" => {
+            return (
+                Cause::Timeout,
+                Context::new(
+                    Subject::Attempt,
+                    "launch",
+                    Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "development_descriptor_oversized" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_descriptor",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "development_operation_invalid" => {
+            return (
+                Cause::InvalidPath,
+                Context::new(
+                    Subject::Option,
+                    "validate_operation",
+                    Phase::Validate,
+                    StateChange::NotStarted,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "development_launch_failed"
+        | "development_remove_failed"
+        | "development_descriptor_failed"
+        | "development_metadata_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Artifact,
+                    "operate",
+                    Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
         "provider_credential_unavailable" => {
             return (
                 Cause::ProviderAuthentication,
@@ -341,9 +564,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
         "provider_transport_unavailable"
         | "provider_transport_failed"
         | "transfer_unavailable"
-        | "transfer_failed"
-        | "development_control_unavailable"
-        | "development_channel_unavailable" => {
+        | "transfer_failed" => {
             return (
                 Cause::TransportFailure,
                 Context::new(
@@ -393,7 +614,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
-        "candidate_timeout" | "dev_command_timeout" | "development_launch_timeout" => {
+        "candidate_timeout" | "dev_command_timeout" => {
             return (
                 Cause::Timeout,
                 Context::new(
@@ -405,7 +626,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
-        "candidate_rejected_lifecycle" | "development_channel_rejected" | "rollback_rejected" => {
+        "candidate_rejected_lifecycle" | "rollback_rejected" => {
             return (
                 Cause::ProviderRejection,
                 Context::new(
@@ -476,6 +697,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     if message_contains(message, "is absent")
         || message_contains(message, "is missing")
         || message_contains(message, "missing ")
+        || message_contains(message, "not found")
         || message_contains(message, "not installed")
         || message_contains(message, "no exact")
     {
@@ -592,7 +814,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
             ),
         );
     }
-    if message_contains(message, "timeout") {
+    if message_contains(message, "timeout") || message_contains(message, "timed out") {
         return (
             Cause::Timeout,
             Context::new(
@@ -630,6 +852,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     }
     if message_contains(message, "invalid")
         || message_contains(message, "malformed")
+        || message_contains(message, "corrupt")
         || message_contains(message, "syntax")
         || message_contains(message, "shape")
         || message_contains(message, "UTF-8")
@@ -649,6 +872,7 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     if message_contains(message, "incompatible")
         || message_contains(message, "unsupported")
         || message_contains(message, "mismatch")
+        || message_contains(message, "rejected")
     {
         return (
             Cause::IncompatibleInput,
@@ -658,6 +882,18 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 Phase::Validate,
                 StateChange::NotStarted,
                 Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "deadline") {
+        return (
+            Cause::Timeout,
+            Context::new(
+                Subject::Attempt,
+                "execute",
+                Phase::Execute,
+                StateChange::Unknown,
+                Remediation::Reconcile,
             ),
         );
     }
@@ -697,7 +933,7 @@ fn message_contains(message: &str, needle: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cause, Diagnostic, Remediation, Severity, StateChange, Subject};
+    use super::{Cause, Context, Diagnostic, Remediation, Severity, StateChange, Subject};
 
     #[test]
     fn required_fine_grained_causes_remain_distinct() {
@@ -779,5 +1015,70 @@ mod tests {
         assert_eq!(unavailable.severity, Severity::Warning);
         assert_eq!(unavailable.cause, Cause::UnavailableCapability);
         assert_eq!(unavailable.context.state_change, StateChange::Completed);
+    }
+
+    #[test]
+    fn every_catalogue_cause_has_specific_subject_state_and_recovery_text() {
+        let causes = [
+            Cause::MissingParent,
+            Cause::MissingInput,
+            Cause::AlreadyExists,
+            Cause::NotDirectory,
+            Cause::NotRegularFile,
+            Cause::PermissionDenied,
+            Cause::ReadOnlyStorage,
+            Cause::UnsafeTopology,
+            Cause::InvalidPath,
+            Cause::MalformedInput,
+            Cause::IncompatibleInput,
+            Cause::StaleIdentity,
+            Cause::UnavailableCapability,
+            Cause::MissingTool,
+            Cause::ProviderAuthentication,
+            Cause::ProviderRejection,
+            Cause::TransportFailure,
+            Cause::Timeout,
+            Cause::Cancellation,
+            Cause::PartialCompletion,
+            Cause::ReconciliationRequired,
+            Cause::UnexpectedProductFailure,
+            Cause::UnknownCause,
+        ];
+        for cause in causes {
+            let diagnostic = Diagnostic {
+                code: "catalog-test",
+                severity: Severity::Failure,
+                cause,
+                context: Context::new(
+                    Subject::Target,
+                    "test",
+                    super::Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::None,
+                ),
+            };
+            assert!(!diagnostic.cause_explanation().is_empty());
+            assert!(!diagnostic.subject_label().is_empty());
+            assert!(!diagnostic.state_change_explanation().is_empty());
+            assert!(!diagnostic.remediation_explanation().is_empty());
+        }
+    }
+
+    #[test]
+    fn routed_development_codes_do_not_collapse_to_unknown_cause() {
+        for code in [
+            "development_filesystem_invalid",
+            "development_installation_invalid",
+            "development_bundle_invalid",
+            "development_channel_rejected",
+            "development_control_unavailable",
+            "development_launch_timeout",
+            "development_descriptor_oversized",
+            "development_launch_failed",
+            "development_remove_failed",
+        ] {
+            let diagnostic = Diagnostic::for_code(code, code, Severity::Failure);
+            assert!(diagnostic.is_catalogued(), "{code}");
+        }
     }
 }

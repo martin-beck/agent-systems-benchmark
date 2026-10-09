@@ -7,6 +7,7 @@
 //! recursive JSON fallback: adding a command requires choosing its human
 //! presentation as well.
 
+use super::diagnostic::Remediation;
 use super::{CliError, ErrorRemediation, HumanErrorClass};
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -1425,10 +1426,18 @@ pub(super) fn render_error(
     output: &mut dyn Write,
 ) -> io::Result<()> {
     let kind = CommandKind::parse(args).unwrap_or(CommandKind::Cli);
+    let diagnostic = error.diagnostic;
     let mut presentation = Presentation::new(format!(
-        "ASB could not complete the {}: {}.",
+        "ASB could not complete the {} because {}.",
         kind.label(),
-        sentence_fragment(error.message)
+        diagnostic.cause_explanation()
+    ));
+    presentation.fact(format!("Affected {}.", diagnostic.subject_label()));
+    presentation.fact(format!("Detail: {}.", sentence_fragment(error.message)));
+    presentation.fact(diagnostic.state_change_explanation());
+    presentation.fact(format!(
+        "Recovery: {}",
+        diagnostic.remediation_explanation()
     ));
     match error.exit_code {
         _ if error.human_class == HumanErrorClass::UserCorrection && error.exit_code == 2 => {
@@ -1448,7 +1457,6 @@ pub(super) fn render_error(
         _ if error.human_class == HumanErrorClass::HostLimitation => {
             presentation.kind = OutcomeKind::HostLimitation;
             presentation.fact("A required host capability is unavailable.");
-            presentation.next = NextAction::new(["asb", "doctor"]);
         }
         _ if error.human_class == HumanErrorClass::DependencyUnavailable => {
             presentation.kind = OutcomeKind::Warning;
@@ -1472,6 +1480,23 @@ pub(super) fn render_error(
         }
         _ => presentation.fact("ASB did not report a completed result."),
     }
+    presentation.next = match diagnostic.context.remediation {
+        Remediation::RunDoctor => NextAction::new(["asb", "doctor"]),
+        Remediation::AuthenticateProvider
+            if error.remediation == ErrorRemediation::OpenRouterCredential =>
+        {
+            NextAction::new([
+                "asb",
+                "auth",
+                "setup",
+                "--provider",
+                "openrouter",
+                "--api-key-stdin",
+            ])
+        }
+        Remediation::CorrectInput => validation_next(args, error),
+        _ => None,
+    };
     if let Some(path) = &error.path {
         presentation.fact(format!(
             "Affected destination: `{}`.",
@@ -1579,10 +1604,9 @@ fn present(
             if let Some(warnings) = object.get("warnings").and_then(Value::as_array)
                 && !warnings.is_empty()
             {
-                value.warning(format!(
-                    "{} development warning(s) were reported.",
-                    warnings.len()
-                ));
+                for warning in warnings.iter().filter_map(Value::as_str).take(4) {
+                    value.warning(warning_text(warning));
+                }
             }
             value
         }
@@ -1817,7 +1841,7 @@ fn present_tui(object: &Map<String, Value>) -> Presentation {
     } else {
         format!(
             "ASB could not complete the terminal interface {operation}: {}.",
-            human_code(string(object, "code").unwrap_or("operation failed"))
+            tui_failure_text(string(object, "code").unwrap_or("operation_failed"))
         )
     });
     if !ok {
@@ -1831,13 +1855,19 @@ fn present_tui(object: &Map<String, Value>) -> Presentation {
     if let Some(warnings) = object.get("warnings").and_then(Value::as_array) {
         for warning in warnings.iter().filter_map(Value::as_str).take(4) {
             match warning {
-                "development_missing_authentication_allowed"
-                | "development_missing_signatures_allowed"
-                | "development_missing_key_management_allowed" => {}
+                "development_missing_authentication_allowed" => value.warning(
+                    "Development authentication is not configured; local/mock and offline flows remain available, but no live-provider authorization is claimed.",
+                ),
+                "development_missing_signatures_allowed" => value.warning(
+                    "Development signature verification is not configured; this result is not evidence of a production-trusted release.",
+                ),
+                "development_missing_key_management_allowed" => value.warning(
+                    "Development key management is not configured; no production signing or key-rotation authority is available.",
+                ),
                 "development_rustup_permission_or_ownership_findings_allowed" => value.warning(
                     "The Rust toolchain contains group-writable or differently owned paths; restrict their permissions and ownership before relying on it.",
                 ),
-                other => value.warning(human_code(other)),
+                other => value.warning(warning_text(other)),
             }
         }
     }
@@ -2274,7 +2304,10 @@ fn present_campaign(object: &Map<String, Value>) -> Presentation {
         value.fact(format!("Requested tuples: {count}."));
     }
     if let Some(reason) = string(object, "unavailable_reason") {
-        value.warning(format!("Incomplete because {}.", human_code(reason)));
+        value.warning(format!(
+            "Incomplete because {}.",
+            campaign_reason_text(reason)
+        ));
     }
     value
 }
@@ -2514,6 +2547,87 @@ fn title_case(value: &str) -> String {
 
 fn human_code(value: &str) -> String {
     display_value(value).replace(['_', '-'], " ")
+}
+
+fn warning_text(code: &str) -> &'static str {
+    match code {
+        "development_authentication_warning" | "development_missing_authentication_allowed" => {
+            "Development authentication is not configured; local/mock and offline flows remain available, but live-provider authorization is not claimed."
+        }
+        "development_missing_signatures_allowed" => {
+            "Development signature verification is not configured; this result is not evidence of a production-trusted release."
+        }
+        "development_missing_key_management_allowed" => {
+            "Development key management is not configured; no production signing or key-rotation authority is available."
+        }
+        "development_rustup_permission_or_ownership_findings_allowed" => {
+            "The development Rust toolchain contains group-writable or differently owned paths; restrict permissions and ownership before relying on it."
+        }
+        "attacker_defined_claim" => {
+            "The supplied claim is attacker-defined and cannot establish trusted provenance."
+        }
+        "development_only" => {
+            "This result is development-only and must not be presented as production qualification."
+        }
+        _ => {
+            "A catalogued warning limits this operation; inspect the machine-readable result for the bounded warning identity."
+        }
+    }
+}
+
+fn campaign_reason_text(code: &str) -> &'static str {
+    match code {
+        "recording-coverage-incomplete" => {
+            "the requested recording matrix did not produce a complete offline-ready cassette"
+        }
+        _ => "the requested recording matrix is incomplete and is not offline-ready",
+    }
+}
+
+fn tui_failure_text(code: &str) -> &'static str {
+    match code {
+        "development_bundle_invalid" => {
+            "the development bundle is malformed or incompatible with the selected channel"
+        }
+        "development_channel_rejected" => {
+            "the selected development channel was rejected before activation"
+        }
+        "development_channel_unavailable" => {
+            "the selected development channel could not be reached or inspected"
+        }
+        "development_compiler_unsupported" => {
+            "the required compiler capability is unavailable or unsupported"
+        }
+        "development_control_failed" => "the development control exchange did not complete",
+        "development_control_unavailable" => "the development control service is unavailable",
+        "development_descriptor_failed" => {
+            "the development descriptor could not be validated or published"
+        }
+        "development_descriptor_oversized" => "the development descriptor exceeds its bounded size",
+        "development_filesystem_invalid" => {
+            "the development filesystem layout is unsafe or invalid"
+        }
+        "development_installation_invalid" => {
+            "the installed development artifact is invalid or incomplete"
+        }
+        "development_launch_failed" => {
+            "the terminal interface launch failed before a completed session"
+        }
+        "development_launch_timeout" => {
+            "the terminal interface launch exceeded its bounded deadline"
+        }
+        "development_operation_invalid" => "the requested terminal interface operation is invalid",
+        "development_remove_failed" => {
+            "the development installation could not be removed completely"
+        }
+        "development_source_unavailable_offline" => {
+            "the development source is unavailable while offline"
+        }
+        "development_terminal_unavailable" => "the required terminal capability is unavailable",
+        _ => {
+            "the terminal interface reported an unclassified failure; inspect the machine-readable code"
+        }
+    }
 }
 
 fn display_value(value: &str) -> String {
@@ -3120,6 +3234,96 @@ mod tests {
             )
             .unwrap();
             assert!(String::from_utf8(output).unwrap().contains(message));
+        }
+    }
+
+    #[test]
+    fn error_presentations_name_cause_state_and_recovery_without_private_text() {
+        let cases = [
+            (
+                CliError::validation("output parent is unavailable")
+                    .with_path(Path::new("/tmp/asb-results/report.json")),
+                "required parent directory does not exist",
+                "Create or select the named parent directory",
+            ),
+            (
+                CliError::validation("output path is not a directory")
+                    .with_path(Path::new("/tmp/asb-results/report.json")),
+                "selected path is not a directory",
+                "Inspect the named destination",
+            ),
+            (
+                CliError::validation("output path is a symlink")
+                    .with_path(Path::new("/tmp/asb-results/report.json")),
+                "path topology is unsafe",
+                "Inspect the named destination",
+            ),
+            (
+                CliError::operation_code(
+                    "provider_credential_unavailable",
+                    "OpenRouter credential unavailable",
+                ),
+                "provider authentication could not be established",
+                "Establish the provider credential",
+            ),
+            (
+                CliError::operation_code(
+                    "provider_transport_failed",
+                    "OpenRouter transport failed",
+                ),
+                "bounded transport exchange did not complete",
+                "Check the selected provider",
+            ),
+            (
+                CliError::operation("operation timed out"),
+                "bounded deadline expired",
+                "Inspect durable state",
+            ),
+            (
+                CliError::operation("operation was cancelled"),
+                "operation was cancelled before completion",
+                "Inspect durable state",
+            ),
+        ];
+        for (error, cause, recovery) in cases {
+            let mut output = Vec::new();
+            render_error(&args(&["run"]), &error, false, &mut output).unwrap();
+            let output = String::from_utf8(output).unwrap();
+            let compact = output.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(compact.contains(cause), "{output}");
+            assert!(compact.contains(recovery), "{output}");
+            assert!(
+                output.contains("No relevant state was changed.")
+                    || output.contains("No external operation was started.")
+                    || output.contains("resulting durable state"),
+                "{output}"
+            );
+            assert!(!output.contains("/home/martin"), "{output}");
+        }
+    }
+
+    #[test]
+    fn known_error_classes_have_distinct_human_explanations() {
+        let errors = [
+            CliError::validation("input is missing"),
+            CliError::validation("input is malformed"),
+            CliError::validation("input is incompatible"),
+            CliError::validation("input permission denied"),
+            CliError::operation("provider request timed out"),
+            CliError::operation("provider request was cancelled"),
+        ];
+        let outputs = errors
+            .iter()
+            .map(|error| {
+                let mut output = Vec::new();
+                render_error(&args(&["run"]), error, false, &mut output).unwrap();
+                String::from_utf8(output).unwrap()
+            })
+            .collect::<Vec<_>>();
+        for left in 0..outputs.len() {
+            for right in left + 1..outputs.len() {
+                assert_ne!(outputs[left], outputs[right]);
+            }
         }
     }
 

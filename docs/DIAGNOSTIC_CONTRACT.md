@@ -45,6 +45,39 @@ The routed TUI response retains its existing `classification` and
 `remediation` fields for machine compatibility. Its internal error is resolved
 through the same catalog before the response is rendered.
 
+## Human rendering and recovery
+
+Human failures always contain four bounded facts after the outcome sentence:
+the cause-specific explanation, the safe subject (`parent directory`, `tool`,
+`provider`, `run`, and so on), the state-change result, and the reviewed
+recovery. The original producer detail is retained as a short `Detail:` line,
+but it is never the sole explanation. For example, a missing output parent is
+rendered as:
+
+```text
+ASB could not complete the benchmark report because the required parent directory does not exist.
+  Affected parent directory.
+  Detail: output parent is unavailable.
+  No external operation was started.
+  Recovery: Create or select the named parent directory, then rerun the command.
+```
+
+Permission denial, a non-directory target, an unsafe symlink topology, provider
+authentication, provider rejection, transport failure, timeout, cancellation,
+partial completion, and reconciliation-required state each use different cause
+sentences. A bounded copyable `Next:` command is emitted only when the parsed
+invocation proves it is safe: `asb doctor` for a missing host capability, the
+supported OpenRouter authentication command for a missing OpenRouter
+credential, or the existing confirmation/correction action for a validated
+invocation. No non-idempotent operation is blindly retried.
+
+Development warnings are not rendered as failures. Authentication, signatures,
+and key-management warnings state their development-only consequence; the
+Rust-toolchain permission warning names the risk and correction; unknown future
+warning identities use a bounded review instruction rather than exposing a
+code-to-words fallback. Partial recording coverage identifies that the cassette
+is not offline-ready and does not claim complete replay evidence.
+
 ## Privacy boundary
 
 Catalog context contains only static safe labels. It never stores or emits

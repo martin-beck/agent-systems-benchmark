@@ -22,6 +22,15 @@ external dependencies, and ASB product failures. Suggested argv is structured
 internally, rejects control characters, is shell-quoted only for display, and
 never includes credential values.
 
+Every failure also names its catalogued cause, safe affected subject, state
+change (including when durable state is unknown), and the reviewed recovery.
+For example, `permission denied`, `not a directory`, and `unsafe symlink`
+remain visibly different; provider authentication is not presented as a
+transport failure; timeout is not presented as cancellation. A `Next:` command
+is printed only where the invocation and diagnostic make that exact command
+safe; otherwise the output gives a concrete correction and explicitly avoids a
+blind retry.
+
 Progress and long-running service startup messages belong on stderr. Results
 belong on stdout. Plain output contains no terminal escape sequences, so
 `NO_COLOR`, redirected output, and narrow terminals remain readable. Prose
