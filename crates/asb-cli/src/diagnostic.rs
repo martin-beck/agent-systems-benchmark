@@ -790,6 +790,462 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
+        "artifact_digest_mismatch" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_digest",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "artifact_invalid" | "artifact_set_incomplete" | "artifact_size_mismatch" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_artifact",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "artifact_too_large" => {
+            return (
+                Cause::ResourceExhausted,
+                Context::new(
+                    Subject::Artifact,
+                    "receive_artifact",
+                    Phase::Transport,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "cached_input_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Input,
+                    "validate_cached_input",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "cached_input_unavailable" => {
+            return (
+                Cause::MissingInput,
+                Context::new(
+                    Subject::Input,
+                    "load_cached_input",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "channel_invalid" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Channel,
+                    "validate_channel",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "channel_unavailable" | "compatible_release_unavailable" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::Channel,
+                    "inspect_channel",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::RunDoctor,
+                ),
+            );
+        }
+        "component_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Configuration,
+                    "validate_component",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "dev_artifact_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_development_artifact",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "dev_cleanup_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Artifact,
+                    "cleanup_development_artifact",
+                    Phase::Commit,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "dev_command_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Attempt,
+                    "execute_command",
+                    Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "dev_command_unavailable" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::Tool,
+                    "execute_command",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::RunDoctor,
+                ),
+            );
+        }
+        "dev_workspace_unavailable" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::Workspace,
+                    "inspect_workspace",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::RunDoctor,
+                ),
+            );
+        }
+        "dev_workspace_unsafe" => {
+            return (
+                Cause::UnsafeTopology,
+                Context::new(
+                    Subject::Workspace,
+                    "inspect_workspace",
+                    Phase::Inspect,
+                    StateChange::Unchanged,
+                    Remediation::CheckDestination,
+                ),
+            );
+        }
+        "environment_path_invalid" => {
+            return (
+                Cause::InvalidPath,
+                Context::new(
+                    Subject::Input,
+                    "validate_environment_path",
+                    Phase::Validate,
+                    StateChange::NotStarted,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "environment_terminal_invalid" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Capability,
+                    "validate_terminal",
+                    Phase::Validate,
+                    StateChange::NotStarted,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "extension_not_installed" => {
+            return (
+                Cause::MissingTool,
+                Context::new(
+                    Subject::Tool,
+                    "install_extension",
+                    Phase::Prepare,
+                    StateChange::NotStarted,
+                    Remediation::InstallTool,
+                ),
+            );
+        }
+        "installation_verification_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Artifact,
+                    "verify_installation",
+                    Phase::Validate,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "license_policy_rejected" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Artifact,
+                    "evaluate_license",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "license_report_incomplete" | "license_report_invalid" | "license_report_missing" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_license_report",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "lifecycle_busy" => {
+            return (
+                Cause::LifecycleRejected,
+                Context::new(
+                    Subject::State,
+                    "coordinate_lifecycle",
+                    Phase::Prepare,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "manifest_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_manifest",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "offline_artifact_unavailable" => {
+            return (
+                Cause::MissingInput,
+                Context::new(
+                    Subject::Artifact,
+                    "load_offline_artifact",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::UseOfflineReplay,
+                ),
+            );
+        }
+        "output_unavailable" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::Target,
+                    "write_output",
+                    Phase::Commit,
+                    StateChange::NotStarted,
+                    Remediation::CheckDestination,
+                ),
+            );
+        }
+        "provenance_invalid" | "provenance_missing" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_provenance",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "redirect_rejected" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Transport,
+                    "validate_redirect",
+                    Phase::Validate,
+                    StateChange::NotStarted,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "release_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Channel,
+                    "validate_release",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "sbom_invalid" | "sbom_missing" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_sbom",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "signature_invalid" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Artifact,
+                    "verify_signature",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "state_path_invalid" => {
+            return (
+                Cause::InvalidPath,
+                Context::new(
+                    Subject::State,
+                    "validate_state_path",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "state_unavailable" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::State,
+                    "inspect_state",
+                    Phase::Inspect,
+                    StateChange::Unknown,
+                    Remediation::RunDoctor,
+                ),
+            );
+        }
+        "state_write_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::State,
+                    "write_state",
+                    Phase::Commit,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "synthetic_interruption" => {
+            return (
+                Cause::Cancellation,
+                Context::new(
+                    Subject::Attempt,
+                    "execute",
+                    Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "system_clock_invalid" => {
+            return (
+                Cause::UnavailableCapability,
+                Context::new(
+                    Subject::Capability,
+                    "inspect_clock",
+                    Phase::Inspect,
+                    StateChange::NotStarted,
+                    Remediation::RunDoctor,
+                ),
+            );
+        }
+        "trust_anchor_invalid" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::CredentialReference,
+                    "validate_trust_anchor",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "unexpected_document" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "parse_document",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "unexpected_range" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Option,
+                    "validate_range",
+                    Phase::Validate,
+                    StateChange::NotStarted,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "xdg_root_invalid" => {
+            return (
+                Cause::InvalidPath,
+                Context::new(
+                    Subject::Workspace,
+                    "validate_xdg_root",
+                    Phase::Validate,
+                    StateChange::NotStarted,
+                    Remediation::CheckDestination,
+                ),
+            );
+        }
         _ => {}
     }
 
@@ -1126,6 +1582,57 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
     ("dev_workspace_quota_exceeded", Cause::ResourceExhausted),
     ("rollback_state_invalid", Cause::MalformedInput),
     ("rollback_state_failed", Cause::UnexpectedProductFailure),
+    ("artifact_digest_mismatch", Cause::IncompatibleInput),
+    ("artifact_invalid", Cause::MalformedInput),
+    ("artifact_set_incomplete", Cause::MalformedInput),
+    ("artifact_size_mismatch", Cause::MalformedInput),
+    ("artifact_too_large", Cause::ResourceExhausted),
+    ("cached_input_invalid", Cause::MalformedInput),
+    ("cached_input_unavailable", Cause::MissingInput),
+    ("channel_invalid", Cause::IncompatibleInput),
+    ("channel_unavailable", Cause::UnavailableCapability),
+    (
+        "compatible_release_unavailable",
+        Cause::UnavailableCapability,
+    ),
+    ("component_invalid", Cause::MalformedInput),
+    ("dev_artifact_invalid", Cause::MalformedInput),
+    ("dev_cleanup_failed", Cause::UnexpectedProductFailure),
+    ("dev_command_failed", Cause::UnexpectedProductFailure),
+    ("dev_command_unavailable", Cause::UnavailableCapability),
+    ("dev_workspace_unavailable", Cause::UnavailableCapability),
+    ("dev_workspace_unsafe", Cause::UnsafeTopology),
+    ("environment_path_invalid", Cause::InvalidPath),
+    ("environment_terminal_invalid", Cause::IncompatibleInput),
+    ("extension_not_installed", Cause::MissingTool),
+    (
+        "installation_verification_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    ("license_policy_rejected", Cause::IncompatibleInput),
+    ("license_report_incomplete", Cause::MalformedInput),
+    ("license_report_invalid", Cause::MalformedInput),
+    ("license_report_missing", Cause::MalformedInput),
+    ("lifecycle_busy", Cause::LifecycleRejected),
+    ("manifest_invalid", Cause::MalformedInput),
+    ("offline_artifact_unavailable", Cause::MissingInput),
+    ("output_unavailable", Cause::UnavailableCapability),
+    ("provenance_invalid", Cause::MalformedInput),
+    ("provenance_missing", Cause::MalformedInput),
+    ("redirect_rejected", Cause::IncompatibleInput),
+    ("release_invalid", Cause::MalformedInput),
+    ("sbom_invalid", Cause::MalformedInput),
+    ("sbom_missing", Cause::MalformedInput),
+    ("signature_invalid", Cause::IncompatibleInput),
+    ("state_path_invalid", Cause::InvalidPath),
+    ("state_unavailable", Cause::UnavailableCapability),
+    ("state_write_failed", Cause::UnexpectedProductFailure),
+    ("synthetic_interruption", Cause::Cancellation),
+    ("system_clock_invalid", Cause::UnavailableCapability),
+    ("trust_anchor_invalid", Cause::IncompatibleInput),
+    ("unexpected_document", Cause::MalformedInput),
+    ("unexpected_range", Cause::MalformedInput),
+    ("xdg_root_invalid", Cause::InvalidPath),
 ];
 
 fn message_contains(message: &str, needle: &str) -> bool {

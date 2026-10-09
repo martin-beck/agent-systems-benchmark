@@ -1480,7 +1480,7 @@ pub(super) fn render_error(
         }
         _ => presentation.fact("ASB did not report a completed result."),
     }
-    presentation.next = match diagnostic.context.remediation {
+    let next = match diagnostic.context.remediation {
         Remediation::RunDoctor => NextAction::new(["asb", "doctor"]),
         Remediation::AuthenticateProvider
             if error.remediation == ErrorRemediation::OpenRouterCredential =>
@@ -1497,6 +1497,9 @@ pub(super) fn render_error(
         Remediation::CorrectInput => validation_next(args, error),
         _ => None,
     };
+    if next.is_some() {
+        presentation.next = next;
+    }
     if let Some(path) = &error.path {
         presentation.fact(format!(
             "Affected destination: `{}`.",
@@ -2659,7 +2662,7 @@ fn tui_failure_text(code: &str) -> &'static str {
             "the bounded development workspace quota was exhausted before completion"
         }
         "trusted_tool_unavailable" | "host_capability_unavailable" => {
-            "the trusted tool unavailable state prevents use of the required host capability"
+            "trusted tool unavailable; the required host capability is unavailable"
         }
         "signature_verifier_unavailable" => "the signature-verifier capability is unavailable",
         "trusted_tool_invalid" => {
@@ -2669,6 +2672,53 @@ fn tui_failure_text(code: &str) -> &'static str {
         "artifact_transfer_failed" => "the artifact transfer did not complete",
         "rollback_state_invalid" => "the persisted rollback state is malformed or incompatible",
         "rollback_state_failed" => "the rollback state could not be durably written",
+        "artifact_digest_mismatch" => "the artifact digest does not match the reviewed content",
+        "artifact_invalid" => "the artifact is malformed or incompatible",
+        "artifact_set_incomplete" => "the artifact set is incomplete",
+        "artifact_size_mismatch" => "the artifact size does not match its metadata",
+        "artifact_too_large" => "the artifact exceeds the bounded size limit",
+        "cached_input_invalid" => "the cached input is malformed or incompatible",
+        "cached_input_unavailable" => "the required cached input is unavailable",
+        "channel_invalid" => "the selected channel is malformed or unsupported",
+        "channel_unavailable" => "the selected channel is unavailable",
+        "compatible_release_unavailable" => {
+            "no compatible release is available for the selected channel"
+        }
+        "component_invalid" => "the selected component is malformed or unsupported",
+        "dev_artifact_invalid" => "the development artifact is malformed or unsafe",
+        "dev_cleanup_failed" => "the development cleanup did not complete",
+        "dev_command_failed" => "the development command failed before completion",
+        "dev_command_unavailable" => "the development command capability is unavailable",
+        "dev_workspace_unavailable" => "the development workspace is unavailable",
+        "dev_workspace_unsafe" => "the development workspace has an unsafe topology",
+        "environment_path_invalid" => "the configured environment path is invalid",
+        "environment_terminal_invalid" => "the configured terminal environment is invalid",
+        "extension_not_installed" => "the required development extension is not installed",
+        "installation_verification_failed" => "the installed artifact could not be verified",
+        "license_policy_rejected" => "the artifact was rejected by the license policy",
+        "license_report_incomplete" => "the license report is incomplete",
+        "license_report_invalid" => "the license report is malformed",
+        "license_report_missing" => "the required license report is missing",
+        "lifecycle_busy" => "the lifecycle is busy with another transition",
+        "manifest_invalid" => "the artifact manifest is malformed or incompatible",
+        "offline_artifact_unavailable" => "the required offline artifact is unavailable",
+        "output_unavailable" => "the requested output destination is unavailable",
+        "provenance_invalid" => "the provenance record is malformed or incompatible",
+        "provenance_missing" => "the required provenance record is missing",
+        "redirect_rejected" => "the requested redirect violates the transport policy",
+        "release_invalid" => "the selected release is malformed or incompatible",
+        "sbom_invalid" => "the software bill of materials is malformed or incompatible",
+        "sbom_missing" => "the required software bill of materials is missing",
+        "signature_invalid" => "the artifact signature is invalid for the selected content",
+        "state_path_invalid" => "the durable state path is invalid",
+        "state_unavailable" => "the durable state is unavailable",
+        "state_write_failed" => "the durable state could not be written",
+        "synthetic_interruption" => "the bounded operation was interrupted before completion",
+        "system_clock_invalid" => "the system clock capability is invalid",
+        "trust_anchor_invalid" => "the configured trust anchor is invalid",
+        "unexpected_document" => "the received document has an unexpected shape",
+        "unexpected_range" => "the requested range has an unexpected shape",
+        "xdg_root_invalid" => "the configured XDG root is invalid",
         _ => {
             "the terminal interface reported an unclassified failure; inspect the machine-readable code"
         }
