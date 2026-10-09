@@ -5395,6 +5395,11 @@ fn execute_inner_from_source_with_owner(
         let selection = selection
             .as_ref()
             .ok_or_else(|| CliError::validation("live provider requires an explicit selection"))?;
+        if selection.provider_profile == "cli2key" {
+            return Err(CliError::validation(
+                "cli2key live execution requires a runtime-issued sidecar launch",
+            ));
+        }
         if selection.provider_profile != "openrouter" {
             return Err(CliError::validation(
                 "development live execution currently supports only openrouter",
