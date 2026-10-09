@@ -9,6 +9,26 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 
+/// Consume Rust trivia between a constructor path and its call syntax.  The
+/// source inventory is intentionally lexical (not a snapshot), so comments
+/// must not create a second spelling that bypasses the public boundary.
+fn skip_rust_trivia(mut source: &str) -> &str {
+    loop {
+        source = source.trim_start();
+        if let Some(line) = source.strip_prefix("//") {
+            source = line.split_once('\n').map_or("", |(_, remainder)| remainder);
+            continue;
+        }
+        if let Some(block) = source.strip_prefix("/*") {
+            source = block
+                .split_once("*/")
+                .map_or("", |(_, remainder)| remainder);
+            continue;
+        }
+        return source;
+    }
+}
+
 /// Extract the only two constructors used by the routed TUI boundary.  The
 /// source is a checked-in, closed Rust implementation, so this is a
 /// deterministic inventory rather than a snapshot of a test run.  A new
@@ -19,12 +39,11 @@ fn routed_tui_codes(source: &'static str) -> BTreeSet<&'static str> {
         .into_iter()
         .flat_map(|prefix| {
             source.match_indices(prefix).filter_map(|(offset, _)| {
-                let remainder = &source[offset + prefix.len()..];
-                let remainder = remainder.trim_start();
+                let remainder = skip_rust_trivia(&source[offset + prefix.len()..]);
                 if !remainder.starts_with('(') {
                     return None;
                 }
-                let argument = remainder[1..].trim_start();
+                let argument = skip_rust_trivia(&remainder[1..]);
                 Some(
                     argument
                         .strip_prefix('"')
@@ -75,10 +94,7 @@ fn bare_cli_error_producers(source: &'static str) -> BTreeSet<&'static str> {
     .into_iter()
     .filter(|constructor| {
         source.match_indices(constructor).any(|(offset, _)| {
-            source[offset + constructor.len()..]
-                .chars()
-                .find(|character| !character.is_whitespace())
-                == Some('(')
+            skip_rust_trivia(&source[offset + constructor.len()..]).starts_with('(')
         })
     })
     .collect()
@@ -111,7 +127,7 @@ fn assert_legacy_call_sites_are_catalogued(
         "CliError::legacy_operation",
     ] {
         for (offset, _) in source.match_indices(constructor) {
-            let remainder = source[offset + constructor.len()..].trim_start();
+            let remainder = skip_rust_trivia(&source[offset + constructor.len()..]);
             if remainder.starts_with('(') {
                 let line = source[..offset]
                     .bytes()
@@ -282,6 +298,11 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(multiline)
         .expect_err("the completeness gate must reject a multiline routed producer");
     assert!(error.contains("future_multiline_router_error"));
+    let commented =
+        "RouterError::policy /* inventory bypass */ (\n    \"future_commented_router_error\",\n)";
+    let error = assert_catalogued_routed_codes(commented)
+        .expect_err("the completeness gate must reject a comment-separated routed producer");
+    assert!(error.contains("future_commented_router_error"));
 }
 
 #[test]
@@ -332,6 +353,15 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
         include_str!("../src/diagnostic_legacy_catalog.rs"),
     )
     .expect_err("a multiline legacy producer must have an exact reviewed call-site identity");
+    assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
+    let commented_legacy =
+        "let message = dynamic_message();\nCliError::legacy_operation /* bypass */ (message)";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        commented_legacy,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("a comment-separated legacy producer must have an exact reviewed identity");
     assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
 }
 
