@@ -2,8 +2,9 @@
 
 This record preserves the PR #505 publication-integrity failure as immutable
 evidence. The reviewed topic `e424c392d7bcd99199ed8f194918656a27d4b65b`
-was based on `2f7387e5c269449f2337ece3bf702e2a76ee67c3` and had tree
-`1aa96736bbbc6d94b8555ebe0da237c3dd7ab7d2`. Published merge
+had tree `1aa96736bbbc6d94b8555ebe0da237c3dd7ab7d2` and merge base
+`1a5888ce1c96414015bbaf223ac42302871d47fe` with the protected target
+`2f7387e5c269449f2337ece3bf702e2a76ee67c3`. Published merge
 `a9abcf2e63f761e314593e9abc6bf074b7418e5e` instead had tree
 `befcb782d6ce260d1d4dd0e4fe25c2fb0b1b900f`. Repository Quality run
 `37758191633` and Rust verification run `37758191874` rejected that exact
