@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "contract_id": "asb.cli2key.development.v1",
+  "classification": "development-only-unofficial",
+  "bridge": {
+    "name": "codex-bridge",
+    "source": "https://github.com/CodingForMoney/codex-bridge",
+    "version": "v0.1.10",
+    "revision": "da5d271db08cca1f4666c1b035dbfb6c6f9b8f47",
+    "tree": "682881f6d7fea1fa117bf0899ae0754291bba3c4",
+    "archive": "https://api.github.com/repos/CodingForMoney/codex-bridge/tarball/refs/tags/v0.1.10",
+    "archive_sha256": "db256f8b8b9392835fb1277cadcff6ded3da99a6831f3ff902d5f7721cc7d5bb",
+    "archive_bytes": 54114,
+    "license": "MIT",
+    "binary": "codex-bridge"
+  },
+  "protocol": {
+    "base_url": "http://127.0.0.1:<ephemeral-port>",
+    "models": "GET /v1/models",
+    "responses": "POST /v1/responses",
+    "client_authentication": "Authorization: Bearer <fresh-random-local-client-key>",
+    "upstream_authentication": "user-approved Codex OAuth stored by the bridge",
+    "maximum_models": 128,
+    "maximum_models_bytes": 262144,
+    "maximum_response_bytes": 1048576,
+    "request_timeout_seconds": 60
+  },
+  "credential_workflow": {
+    "command": "codex-bridge key refresh",
+    "interactive_authorization_required": false,
+    "supported_upstream_interface": "CODEX_HOME selects an existing file-backed Codex login; the bridge reads a fresh snapshot per request and never writes or refreshes it",
+    "bridge_private_oauth_store": false,
+    "bridge_private_client_key_store": true,
+    "asb_reads_codex_auth_files": false,
+    "asb_copies_oauth_material": false,
+    "local_client_key_is_platform_api_key": false
+  },
+  "runtime_requirements": {
+    "bind_hosts": ["127.0.0.1", "::1"],
+    "fresh_client_key_per_invocation": true,
+    "private_staging": true,
+    "no_client_key_in_argv": true,
+    "bounded_shutdown_and_cleanup": true,
+    "no_provider_fallback": true
+  },
+  "evidence": {
+    "allowed_fields": [
+      "schema_version",
+      "evidence_class",
+      "classification",
+      "contract_id",
+      "bridge_revision",
+      "bridge_tree",
+      "bridge_archive_sha256",
+      "models_status",
+      "models_count",
+      "selected_model",
+      "responses_status",
+      "response_shape_valid",
+      "warnings"
+    ],
+    "forbidden_content": [
+      "oauth tokens",
+      "local client key values",
+      "authorization headers",
+      "prompts or inputs",
+      "provider response bodies",
+      "private filesystem paths",
+      "raw exception text"
+    ]
+  },
+  "failure_taxonomy": [
+    "contract_invalid",
+    "opt_in_required",
+    "non_loopback_endpoint",
+    "client_key_unavailable",
+    "input_unavailable",
+    "connection_failed",
+    "deadline_exceeded",
+    "authentication_rejected",
+    "models_rejected",
+    "models_oversized",
+    "models_malformed",
+    "model_limit_exceeded",
+    "model_unavailable",
+    "responses_rejected",
+    "response_oversized",
+    "response_malformed"
+  ],
+  "prohibitions": [
+    "Do not call the local client key an OpenAI Platform API key.",
+    "Do not claim official OpenAI support, provider authority, production readiness, or release qualification.",
+    "Do not parse or copy Codex CLI authentication files from ASB.",
+    "Do not use Codex app-server as a raw model provider for another agent; nested-agent execution is not comparable.",
+    "Do not persist secrets, prompts, provider bodies, or private paths in ASB evidence."
+  ]
+}
