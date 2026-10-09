@@ -59,6 +59,7 @@ pub(super) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
     "setup",
     "capabilities",
+    "project",
     "provider-catalog",
     "adapter-catalog",
     "workload-catalog",
@@ -92,6 +93,7 @@ enum CommandKind {
     Easy,
     Tui,
     Capabilities,
+    Project,
     ProviderCatalog,
     AdapterCatalog,
     WorkloadCatalog,
@@ -199,6 +201,7 @@ pub(super) enum InvocationKind {
     Easy(EasyKind),
     Tui(TuiKind),
     Capabilities,
+    ProjectInit,
     ProviderCatalog { refresh: bool },
     AdapterCatalog,
     WorkloadCatalog,
@@ -272,6 +275,7 @@ impl InvocationKind {
                 Some(_) => TuiKind::Unknown,
             }),
             Some("capabilities") => Self::Capabilities,
+            Some("project") => Self::ProjectInit,
             Some("provider-catalog") => Self::ProviderCatalog {
                 refresh: words.contains(&"--refresh"),
             },
@@ -319,6 +323,7 @@ impl InvocationKind {
             Self::Setup | Self::Easy(EasyKind::Setup) => CommandKind::Setup,
             Self::Tui(_) => CommandKind::Tui,
             Self::Capabilities => CommandKind::Capabilities,
+            Self::ProjectInit => CommandKind::Project,
             Self::ProviderCatalog { .. } | Self::Easy(EasyKind::ProviderCatalog) => {
                 CommandKind::ProviderCatalog
             }
@@ -390,6 +395,7 @@ impl CommandKind {
             Self::Easy => "easy",
             Self::Tui => "tui",
             Self::Capabilities => "capabilities",
+            Self::Project => "project initialization",
             Self::ProviderCatalog => "provider catalog",
             Self::AdapterCatalog => "adapter catalog",
             Self::WorkloadCatalog => "workload catalog",
@@ -493,6 +499,19 @@ struct SetupView {
     selected_agents: Vec<String>,
     provider_profile: Option<String>,
     model: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ProjectInitView {
+    #[serde(rename = "schema_version")]
+    _schema_version: u16,
+    ok: bool,
+    command: String,
+    initialized: bool,
+    recovered: bool,
+    config: String,
+    results: String,
+    catalogs: String,
 }
 
 #[derive(Deserialize)]
@@ -920,6 +939,18 @@ fn validate_typed_result(
         InvocationKind::Capabilities => {
             super::capabilities::CapabilityResponse::parse(captured).map_err(|_| invalid())?;
         }
+        InvocationKind::ProjectInit => {
+            let value: ProjectInitView = decode(captured)?;
+            if !value.ok
+                || value.command != "project init"
+                || value.initialized == value.recovered
+                || value.config != ".asb/project.json"
+                || value.results != "results"
+                || value.catalogs != "catalogs"
+            {
+                return Err(invalid());
+            }
+        }
         InvocationKind::ProviderCatalog { .. }
         | InvocationKind::Easy(EasyKind::ProviderCatalog) => {
             let value: ProviderCatalogView = decode(captured)?;
@@ -1319,6 +1350,7 @@ fn project_for_presentation(
             "warnings",
         ],
         CommandKind::Capabilities => &["protocol_version", "capabilities"],
+        CommandKind::Project => &["initialized", "recovered", "config", "results", "catalogs"],
         CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
         CommandKind::AdapterCatalog => &["adapters"],
         CommandKind::WorkloadCatalog => &["entries"],
@@ -1490,6 +1522,19 @@ fn present(
                     value.fact(format!("Available operations: {}.", available.join(", ")));
                 }
             }
+            value
+        }
+        CommandKind::Project => {
+            let initialized = boolean(object, "initialized").unwrap_or(false);
+            let mut value = Presentation::new(if initialized {
+                "ASB initialized the project workspace."
+            } else {
+                "ASB recovered the existing project workspace."
+            });
+            fact_pair(&mut value, object, "Configuration", "config");
+            fact_pair(&mut value, object, "Results directory", "results");
+            fact_pair(&mut value, object, "Catalog directory", "catalogs");
+            value.next = NextAction::new(["asb", "provider-catalog"]);
             value
         }
         CommandKind::ProviderCatalog => present_catalog(
@@ -2503,6 +2548,7 @@ mod tests {
             &["easy", "run"],
             &["tui", "launch"],
             &["capabilities"],
+            &["project", "init", "/tmp/project"],
             &["provider-catalog"],
             &["adapter-catalog"],
             &["workload-catalog"],
@@ -2589,6 +2635,10 @@ mod tests {
             (
                 vec!["capabilities"],
                 serde_json::json!({"protocol":"asb-cli-capabilities","protocol_version":1,"asb_version":"0.1.0","capabilities":{"analysis":true,"artifacts":true,"cancel":true,"events":true,"history":true,"launch":true,"planning":true,"repeat":true}}),
+            ),
+            (
+                vec!["project", "init", "/tmp/project"],
+                serde_json::json!({"schema_version":1,"ok":true,"command":"project init","initialized":true,"recovered":false,"config":".asb/project.json","results":"results","catalogs":"catalogs","next":["asb provider-catalog","asb project init .","asb run PLAN.toml"]}),
             ),
             (
                 vec!["provider-catalog"],
@@ -2700,6 +2750,13 @@ mod tests {
         rejects(&["sweep", "plan.toml"], execution("run"));
         rejects(&["easy", "run", "plan.toml"], execution("sweep"));
         rejects(&["easy", "sweep", "plan.toml"], execution("run"));
+        for malformed in [
+            serde_json::json!({"schema_version":1,"ok":true,"command":"project","initialized":true,"recovered":false,"config":".asb/project.json","results":"results","catalogs":"catalogs"}),
+            serde_json::json!({"schema_version":1,"ok":true,"command":"project init","initialized":true,"recovered":true,"config":".asb/project.json","results":"results","catalogs":"catalogs"}),
+            serde_json::json!({"schema_version":1,"ok":true,"command":"project init","initialized":true,"recovered":false,"config":"/private/project.json","results":"results","catalogs":"catalogs"}),
+        ] {
+            rejects(&["project", "init", "/tmp/project"], malformed);
+        }
         rejects(&["benchmark-live", "plan.toml"], execution("sweep"));
         rejects(
             &["benchmark-live", "plan.toml", "--sweep"],

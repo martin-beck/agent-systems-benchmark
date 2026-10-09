@@ -2966,6 +2966,7 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
         "doctor",
         "setup",
         "capabilities",
+        "project init",
         "provider-catalog",
         "provider-plan",
         "plan",
@@ -8192,6 +8193,36 @@ mod tests {
                 assert_eq!(exit, baseline_exit, "{flagged:?}");
                 assert_eq!(output, baseline_out, "{flagged:?}");
                 assert_eq!(error, baseline_err, "{flagged:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn project_init_json_selectors_preserve_machine_bytes_and_streams() {
+        let scratch = Scratch::new("project-init-json-selectors");
+        let mut baseline = None;
+        for (index, prefix) in [&[][..], &["--json"][..], &["--format", "json"][..]]
+            .into_iter()
+            .enumerate()
+        {
+            let project = scratch.0.join(format!("workspace-{index}"));
+            let mut args = prefix.iter().map(OsString::from).collect::<Vec<_>>();
+            args.extend([
+                OsString::from("project"),
+                OsString::from("init"),
+                project.into_os_string(),
+            ]);
+            let mut output = Vec::new();
+            let mut error = Vec::new();
+            let exit =
+                super::run_with_default_mode(&args, &mut output, &mut error, !prefix.is_empty());
+            assert_eq!(exit, 0);
+            assert!(error.is_empty());
+            if let Some((expected_output, expected_error)) = &baseline {
+                assert_eq!(&output, expected_output);
+                assert_eq!(&error, expected_error);
+            } else {
+                baseline = Some((output, error));
             }
         }
     }

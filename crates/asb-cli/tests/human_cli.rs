@@ -393,7 +393,9 @@ fn executable_public_family_golden_is_inventory_complete_and_privacy_safe() {
             .arg(command_name)
             .env("COLUMNS", "240")
             .env("OPENROUTER_API_KEY", secret);
-        if fields[1] != "-" {
+        if fields[1] == "{scratch}/project" {
+            command.arg("init").arg(scratch.0.join("project"));
+        } else if fields[1] != "-" {
             command.args(fields[1].split_ascii_whitespace());
         }
         let output = command.output().unwrap();
@@ -419,7 +421,7 @@ fn executable_public_family_golden_is_inventory_complete_and_privacy_safe() {
     }
     observed.sort_unstable();
     observed.dedup();
-    assert_eq!(observed.len(), 24);
+    assert_eq!(observed.len(), 25);
 }
 
 #[test]
