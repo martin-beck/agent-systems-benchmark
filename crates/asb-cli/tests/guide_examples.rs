@@ -45,6 +45,44 @@ fn asb(arguments: &[&str]) -> Output {
         .unwrap()
 }
 
+fn human_asb(root: &Path, arguments: &[String]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_asb"))
+        .args(arguments)
+        .env("HOME", root)
+        .env("XDG_CONFIG_HOME", root.join("config"))
+        .env("XDG_STATE_HOME", root.join("state"))
+        .env("XDG_DATA_HOME", root.join("data"))
+        .env("COLUMNS", "80")
+        .output()
+        .unwrap()
+}
+
+fn displayed_next_shell(output: &Output) -> String {
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    let line = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("Next: "))
+        .unwrap_or_else(|| panic!("missing displayed Next command: {stdout}"));
+    assert!(!line.chars().any(char::is_control));
+    line.to_owned()
+}
+
+fn execute_displayed_next(root: &Path, output: &Output) -> Output {
+    let command = displayed_next_shell(output);
+    let binary = Path::new(env!("CARGO_BIN_EXE_asb"));
+    Command::new("/bin/sh")
+        .args(["-c", &command])
+        .env_clear()
+        .env("PATH", binary.parent().unwrap())
+        .env("HOME", root)
+        .env("XDG_CONFIG_HOME", root.join("config"))
+        .env("XDG_STATE_HOME", root.join("state"))
+        .env("XDG_DATA_HOME", root.join("data"))
+        .env("COLUMNS", "80")
+        .output()
+        .unwrap()
+}
+
 fn write_plan(parent: &Path, run_id: &str, sweep: bool) -> (PathBuf, PathBuf, PathBuf) {
     fs::DirBuilder::new().mode(0o700).create(parent).unwrap();
     let executable = parent.join("offline-agent");
@@ -158,6 +196,198 @@ fn documented_offline_workflow_produces_validated_artifacts() {
 }
 
 #[test]
+fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
+    let quickstart = include_str!("../../../docs/QUICKSTART.md")
+        .replace("\\\n", " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for configured_form in [
+        "asb plan create --workload WORKLOAD --agent AGENT --agent-executable /absolute/agent --output /absolute/experiment.toml --sweep-max-concurrency 2 --use-config",
+        "asb plan /absolute/experiment.toml --use-config",
+        "asb sweep /absolute/experiment.toml --use-config",
+    ] {
+        assert!(
+            quickstart.contains(configured_form),
+            "QUICKSTART drops persisted provider selection: {configured_form}"
+        );
+    }
+    let scratch = Scratch::new();
+    let journey = scratch.0.join("human journey's space");
+    fs::DirBuilder::new().mode(0o700).create(&journey).unwrap();
+
+    let configured = human_asb(&journey, &["config".to_owned(), "openrouter".to_owned()]);
+    assert!(configured.status.success());
+    assert_eq!(displayed_next_shell(&configured), "asb provider-catalog");
+    let configured_catalog = execute_displayed_next(&journey, &configured);
+    assert!(configured_catalog.status.success());
+    assert!(String::from_utf8_lossy(&configured_catalog.stdout).contains("setup supported"));
+
+    let preflight = human_asb(&journey, &["setup".to_owned()]);
+    assert!(preflight.status.success());
+    assert_eq!(displayed_next_shell(&preflight), "asb provider-catalog");
+    let catalog = execute_displayed_next(&journey, &preflight);
+    assert!(catalog.status.success());
+    let catalog_text = String::from_utf8(catalog.stdout).unwrap();
+    assert!(catalog_text.contains("Provider routes:"));
+    let catalog_words = catalog_text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(catalog_words.contains("openrouter -> cohere/north-mini-code:free (setup supported)"));
+    assert!(catalog_words.contains("gemini-2.5-flash (setup persistence unavailable)"));
+    assert!(catalog_text.contains("Supported agents:"));
+    assert!(catalog_text.contains("codex"));
+    assert!(catalog_text.contains("openrouter"));
+    assert!(catalog_text.contains("cohere/north-mini-code:free"));
+    assert!(catalog_text.contains("--agent AGENT"));
+    assert!(!catalog_text.contains("Next:"));
+
+    let setup_args = [
+        "setup",
+        "--agent",
+        "codex",
+        "--provider-profile",
+        "openrouter",
+        "--model",
+        "cohere/north-mini-code:free",
+        "--persist",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<Vec<_>>();
+    let selected = human_asb(&journey, &setup_args);
+    assert!(
+        selected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&selected.stdout)
+    );
+    assert_eq!(displayed_next_shell(&selected), "asb workload-catalog");
+    let workloads = execute_displayed_next(&journey, &selected);
+    assert!(workloads.status.success());
+    let workload_text = String::from_utf8(workloads.stdout).unwrap();
+    assert!(workload_text.contains("original.bug-fix"));
+    assert!(
+        workload_text
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .contains("asb plan create --workload WORKLOAD")
+    );
+
+    let plan_root = journey.join("human-sweep");
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&plan_root)
+        .unwrap();
+    let executable = plan_root.join("offline agent's executable");
+    fs::write(
+        &executable,
+        [
+            "#!/bin/sh",
+            "printf '%s\\n' 'def parse_line(line):' '    return line' > parser.py",
+            "",
+        ]
+        .join("\n"),
+    )
+    .unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+    let executable = fs::canonicalize(executable).unwrap();
+    let plan = plan_root.join("experiment.toml");
+    let result_root = plan_root.join("results");
+    let create_args = vec![
+        "plan".to_owned(),
+        "create".to_owned(),
+        "--workload".to_owned(),
+        "original.bug-fix".to_owned(),
+        "--agent".to_owned(),
+        "codex".to_owned(),
+        "--agent-executable".to_owned(),
+        executable.to_string_lossy().into_owned(),
+        "--run-id".to_owned(),
+        "human-sweep".to_owned(),
+        "--result-root".to_owned(),
+        result_root.to_string_lossy().into_owned(),
+        "--work-root".to_owned(),
+        plan_root.join("work").to_string_lossy().into_owned(),
+        "--output".to_owned(),
+        plan.to_string_lossy().into_owned(),
+        "--sweep-max-concurrency".to_owned(),
+        "2".to_owned(),
+        "--use-config".to_owned(),
+    ];
+    let created = human_asb(&journey, &create_args);
+    assert!(
+        created.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&created.stdout),
+        String::from_utf8_lossy(&created.stderr)
+    );
+    assert!(displayed_next_shell(&created).ends_with(" --use-config"));
+    let planned = execute_displayed_next(&journey, &created);
+    assert!(
+        planned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&planned.stdout)
+    );
+
+    let sweep_command = displayed_next_shell(&planned);
+    assert!(sweep_command.starts_with("asb sweep "));
+    assert!(sweep_command.ends_with(" --use-config"));
+    assert!(sweep_command.contains("'\\''"));
+    let swept = execute_displayed_next(&journey, &planned);
+    assert!(
+        swept.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&swept.stdout),
+        String::from_utf8_lossy(&swept.stderr)
+    );
+    let report_command = displayed_next_shell(&swept);
+    assert!(report_command.starts_with("asb report "));
+    let run_refs = fs::read_dir(result_root.join("runs"))
+        .unwrap()
+        .map(|entry| fs::canonicalize(entry.unwrap().path()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(run_refs.len(), 2);
+    for path in &run_refs {
+        assert!(!path.to_string_lossy().chars().any(char::is_control));
+        assert!(
+            path.is_dir(),
+            "retained run reference does not exist: {}",
+            path.display()
+        );
+        assert_eq!(fs::canonicalize(path).unwrap(), path.as_path());
+        assert!(report_command.contains(&path.to_string_lossy().replace('\'', "'\\''")));
+    }
+
+    let report = execute_displayed_next(&journey, &swept);
+    assert!(
+        report.status.success(),
+        "{}",
+        String::from_utf8_lossy(&report.stdout)
+    );
+    let compare_command = displayed_next_shell(&report);
+    assert!(compare_command.starts_with("asb compare "));
+    let compared = execute_displayed_next(&journey, &report);
+    assert!(compared.status.success());
+    let compared_text = String::from_utf8(compared.stdout).unwrap();
+    assert!(compared_text.starts_with("ASB compared the runs"));
+
+    let tui = human_asb(
+        &journey,
+        &[
+            "tui".to_owned(),
+            "status".to_owned(),
+            "--channel".to_owned(),
+            "dev".to_owned(),
+        ],
+    );
+    let tui_text = String::from_utf8(tui.stdout).unwrap();
+    assert!(!tui_text.starts_with('{'));
+    assert!(tui_text.starts_with("ASB "));
+}
+
+#[test]
 fn guide_inventory_matches_doctor_and_stale_claims_fail_closed() {
     let contract: Value =
         serde_json::from_str(include_str!("../../../docs/examples/guide-contract.json")).unwrap();
@@ -202,7 +432,7 @@ fn public_guides_reference_the_executable_contract() {
     assert!(quickstart.contains("asb record CAPTURE.json CASSETTE.json"));
     assert!(quickstart.contains("asb replay CASSETTE.json PROVIDER_PROFILE_SHA256 AGENT"));
     for command in contract["commands"].as_array().unwrap() {
-        let row = format!("| `{}` | supported |", command.as_str().unwrap());
+        let row = format!("| `{}` | supported", command.as_str().unwrap());
         assert!(quickstart.contains(&row));
     }
     for command in contract["unsupported_commands"].as_array().unwrap() {

@@ -302,7 +302,6 @@ fn every_advertised_boolean_has_an_authoritative_control_v1_method() {
 #[test]
 fn command_rejects_every_noncanonical_invocation_without_side_effects() {
     for arguments in [
-        Vec::<&str>::new(),
         vec!["--format"],
         vec!["--format", "yaml"],
         vec!["json"],
@@ -443,7 +442,6 @@ fn instrumented_canonical_and_failing_children_use_distinct_nondefault_profiles(
     let sink = directory.0.join("child-%p.profraw");
     let invocations = [
         vec!["--format", "json"],
-        Vec::new(),
         vec!["--format"],
         vec!["--format", "yaml"],
         vec!["json"],
@@ -499,7 +497,6 @@ fn canonical_and_failing_children_are_parallel_safe_and_leave_checkout_clean() {
     assert_checkout_has_no_default_profiles();
     let invocations = [
         vec!["--format", "json"],
-        Vec::new(),
         vec!["--format"],
         vec!["--format", "yaml"],
         vec!["json"],
@@ -525,6 +522,16 @@ fn canonical_and_failing_children_are_parallel_safe_and_leave_checkout_clean() {
 
 #[test]
 fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
+    let human = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .arg("capabilities")
+        .output()
+        .unwrap();
+    assert!(human.status.success());
+    assert!(
+        String::from_utf8(human.stdout)
+            .unwrap()
+            .starts_with("ASB reported its supported frontend capabilities.")
+    );
     let profile = workspace_root().join("target/asb-capability-%p-%m.profraw");
     let output = Command::new(env!("CARGO_BIN_EXE_asb"))
         .args(["--json", "capabilities", "--format", "json"])
