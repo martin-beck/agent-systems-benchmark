@@ -87,6 +87,26 @@ fn assert_no_error_type_aliases(source: &'static str) -> Result<(), String> {
                     "diagnostic error type aliases are forbidden by the closed inventory: {error_type} as"
                 ));
             }
+            let declaration = source[..offset]
+                .rsplit_once(';')
+                .map_or(&source[..offset], |(statement, _)| statement)
+                .trim_end();
+            if declaration.ends_with('=') && declaration.contains("type ") {
+                return Err(format!(
+                    "diagnostic error type aliases are forbidden by the closed inventory: type = {error_type}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn assert_no_qualified_error_paths(source: &'static str) -> Result<(), String> {
+    for error_type in ["CliError", "RouterError"] {
+        if source.contains(&format!("<{error_type}>::")) {
+            return Err(format!(
+                "qualified diagnostic error paths are forbidden by the closed inventory: <{error_type}>::"
+            ));
         }
     }
     Ok(())
@@ -124,6 +144,7 @@ fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
         &["RouterError::policy", "RouterError::operation"],
     )?;
     assert_no_error_type_aliases(source)?;
+    assert_no_qualified_error_paths(source)?;
     let catalogued = CATALOGUED_CODES
         .iter()
         .map(|(code, _)| *code)
@@ -195,6 +216,7 @@ fn assert_legacy_call_sites_are_catalogued(
     ];
     assert_constructor_paths_are_direct_calls(source, &constructors)?;
     assert_no_error_type_aliases(source)?;
+    assert_no_qualified_error_paths(source)?;
     let mut missing = Vec::new();
     for constructor in constructors {
         for (offset, _) in source.match_indices(constructor) {
@@ -386,6 +408,14 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(alias)
         .expect_err("the completeness gate must reject a routed error-type alias");
     assert!(error.contains("aliases are forbidden"));
+    let type_alias = "type Error = RouterError;\nError::policy(\"future_type_alias_router_error\")";
+    let error = assert_catalogued_routed_codes(type_alias)
+        .expect_err("the completeness gate must reject a routed type alias");
+    assert!(error.contains("aliases are forbidden"));
+    let qualified = "<RouterError>::policy(\"future_qualified_router_error\")";
+    let error = assert_catalogued_routed_codes(qualified)
+        .expect_err("the completeness gate must reject a qualified routed path");
+    assert!(error.contains("qualified diagnostic error paths"));
 }
 
 #[test]
@@ -472,6 +502,23 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
     )
     .expect_err("the completeness gate must reject a legacy error-type alias");
     assert!(error.contains("aliases are forbidden"));
+    let type_alias =
+        "type Error = CliError;\nError::legacy_operation(\"future_type_alias_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        type_alias,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject a legacy type alias");
+    assert!(error.contains("aliases are forbidden"));
+    let qualified = "<CliError>::legacy_operation(\"future_qualified_legacy_error\")";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        qualified,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("the completeness gate must reject a qualified legacy path");
+    assert!(error.contains("qualified diagnostic error paths"));
 }
 
 #[test]
