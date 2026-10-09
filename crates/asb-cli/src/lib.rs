@@ -9363,6 +9363,65 @@ mod tests {
     }
 
     #[test]
+    fn cli2key_run_dispatch_reaches_runtime_factory_without_fallback() {
+        let scratch = Scratch::new("cli2key-run-dispatch");
+        let (selection_path, mut value) =
+            provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+        value["provider_profile"] = json!("cli2key");
+        value["model"] = json!("codex-local");
+        value["provider_profile_sha256"] = json!("a".repeat(64));
+        value["credential_reference_sha256"] = json!("b".repeat(64));
+        value["catalog_sha256"] = json!("c".repeat(64));
+        value["selection_sha256"] = json!("d".repeat(64));
+        value["effective"][0]["api_mode"] = json!("responses");
+        value["cli2key_launch"] = json!({
+            "schema_version": 1,
+            "selection": {
+                "schema_version": 1,
+                "provider_id": "cli2key",
+                "catalog_generation": 1,
+                "catalog_sha256": "c".repeat(64),
+                "model_id": "codex-local",
+                "bridge_revision": "fixture",
+                "bridge_tree_sha256": "e".repeat(64),
+                "executable_sha256": "f".repeat(64),
+                "endpoint_sha256": "1".repeat(64),
+                "credential_reference_sha256": "b".repeat(64),
+                "agent_id": "codex"
+            },
+            "api_mode": "responses",
+            "endpoint_host": "127.0.0.1",
+            "endpoint_port": 43123,
+            "generation": "fixture-generation"
+        });
+        fs::write(&selection_path, serde_json::to_vec(&value).unwrap()).unwrap();
+        let (plan_path, mut plan) = plan_fixture(&scratch.0, "cli2key-dispatch");
+        plan.experiment.agent.implementation = "codex".into();
+        plan.experiment.model.provider = "cli2key".into();
+        plan.experiment.model.model = "codex-local".into();
+        plan.experiment.model.settings.additional_settings_sha256 = Some("a".repeat(64));
+        plan.point.measured = 1;
+        plan.point.warmups = 0;
+        plan.experiment.refresh_content_address().unwrap();
+        fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+        let code = run_with_live_provider_factory(
+            &[
+                "run".into(),
+                plan_path.as_os_str().to_owned(),
+                "--provider-selection".into(),
+                selection_path.as_os_str().to_owned(),
+                "--live-provider".into(),
+            ],
+            LiveProviderAttemptFactory::from_fn(|_, _| {
+                Err(LaunchAuthorityError::InvalidLaunchInput)
+            }),
+            &mut Vec::new(),
+            &mut Vec::new(),
+        );
+        assert_eq!(code, 6);
+    }
+
+    #[test]
     fn internal_opencode_batch_rejects_invalid_timeout_before_reading_prompt() {
         let error = run_opencode_batch(
             Path::new("/tmp/opencode"),
