@@ -154,7 +154,11 @@ pub(crate) fn prepare_child(parent: &File, name: &OsStr, mode: u32) -> io::Resul
     })
 }
 
-pub(crate) fn write_new(parent: &File, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+pub(crate) fn write_new_tracked(
+    parent: &File,
+    name: &OsStr,
+    bytes: &[u8],
+) -> io::Result<(File, std::ffi::OsString)> {
     let fd = openat(
         parent,
         name,
@@ -162,11 +166,26 @@ pub(crate) fn write_new(parent: &File, name: &OsStr, bytes: &[u8]) -> io::Result
         Mode::from(0o600),
     )?;
     let mut file = File::from(fd);
-    if file.write_all(bytes).is_err() || file.sync_all().is_err() {
+    if let Err(error) = file.write_all(bytes).and_then(|()| file.sync_all()) {
         let _ = unlinkat(parent, name, AtFlags::empty());
-        return Err(io::Error::other("workload output cannot be written"));
+        return Err(error);
     }
-    parent.sync_all()
+    if let Err(error) = parent.sync_all() {
+        let _ = unlinkat(parent, name, AtFlags::empty());
+        return Err(error);
+    }
+    let parent_clone = match parent.try_clone() {
+        Ok(parent_clone) => parent_clone,
+        Err(error) => {
+            let _ = unlinkat(parent, name, AtFlags::empty());
+            return Err(error);
+        }
+    };
+    Ok((parent_clone, name.to_owned()))
+}
+
+pub(crate) fn write_new(parent: &File, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+    write_new_tracked(parent, name, bytes).map(|_| ())
 }
 
 fn rollback(created: &[(File, std::ffi::OsString)]) {
@@ -175,8 +194,14 @@ fn rollback(created: &[(File, std::ffi::OsString)]) {
     }
 }
 
-pub(crate) fn rollback_created(created: &[(File, std::ffi::OsString)]) {
-    rollback(created);
+pub(crate) fn rollback_transaction(
+    files: &[(File, std::ffi::OsString)],
+    directories: &[(File, std::ffi::OsString)],
+) {
+    for (parent, name) in files.iter().rev() {
+        let _ = unlinkat(parent, name, AtFlags::empty());
+    }
+    rollback(directories);
 }
 
 #[cfg(test)]
@@ -251,9 +276,42 @@ mod tests {
         created.push(nested.created.expect("new nested directory"));
         write_new(&workspace.file, OsStr::new("blocked"), b"file").expect("blocking file");
         assert!(prepare_child(&workspace.file, OsStr::new("blocked"), 0o700).is_err());
-        rollback_created(&created);
+        rollback(&created);
         assert!(!root.join("workspace/nested").exists());
         assert!(root.join("workspace/blocked").is_file());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn transaction_rollback_removes_created_files_before_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-file-rollback-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let workspace_path = root.join("workspace");
+        fs::create_dir_all(&workspace_path).expect("pre-existing workspace");
+        fs::write(workspace_path.join("keep"), b"keep").expect("pre-existing file");
+        let workspace = prepare_absolute(&workspace_path, 0o700).expect("workspace");
+        let nested =
+            prepare_child(&workspace.file, OsStr::new("nested"), 0o700).expect("nested directory");
+        let mut directories = Vec::new();
+        directories.push(nested.created.expect("created nested directory"));
+        let mut files = Vec::new();
+        files.push(
+            write_new_tracked(&nested.file, OsStr::new("first"), b"first").expect("created file"),
+        );
+
+        let later_error = write_new_tracked(&workspace.file, OsStr::new("nested"), b"conflict")
+            .expect_err("directory collision must fail");
+        assert_eq!(later_error.kind(), io::ErrorKind::AlreadyExists);
+        rollback_transaction(&files, &directories);
+
+        assert!(workspace_path.join("keep").is_file());
+        assert!(!workspace_path.join("nested").exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
 }

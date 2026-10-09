@@ -576,31 +576,48 @@ fn verify_owner(root: &Path, id: &str) -> Result<(), WorkloadError> {
 }
 
 fn write_initial(workspace: &std::fs::File, fixture: &Fixture) -> Result<(), WorkloadError> {
-    let mut created = Vec::<(std::fs::File, std::ffi::OsString)>::new();
+    let mut created_files = Vec::<(std::fs::File, std::ffi::OsString)>::new();
+    let mut created_directories = Vec::<(std::fs::File, std::ffi::OsString)>::new();
     for (relative, contents) in fixture.initial {
         let path = Path::new(relative);
-        let name = path.file_name().ok_or(WorkloadError::UnsafePath)?;
-        let mut parent = workspace.try_clone()?;
+        let name = match path.file_name() {
+            Some(name) => name,
+            None => {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(WorkloadError::UnsafePath);
+            }
+        };
+        let mut parent = match workspace.try_clone() {
+            Ok(parent) => parent,
+            Err(error) => {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(error.into());
+            }
+        };
         for component in path.parent().into_iter().flat_map(Path::components) {
             let Component::Normal(component) = component else {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
                 return Err(WorkloadError::UnsafePath);
             };
             let prepared = match safe_fs::prepare_child(&parent, component, 0o700) {
                 Ok(prepared) => prepared,
                 Err(error) => {
-                    safe_fs::rollback_created(&created);
+                    safe_fs::rollback_transaction(&created_files, &created_directories);
                     return Err(error.into());
                 }
             };
             if let Some(entry) = prepared.created {
-                created.push(entry);
+                created_directories.push(entry);
             }
             parent = prepared.file;
         }
-        if let Err(error) = safe_fs::write_new(&parent, name, contents.as_bytes()) {
-            safe_fs::rollback_created(&created);
-            return Err(error.into());
-        }
+        match safe_fs::write_new_tracked(&parent, name, contents.as_bytes()) {
+            Ok(entry) => created_files.push(entry),
+            Err(error) => {
+                safe_fs::rollback_transaction(&created_files, &created_directories);
+                return Err(error.into());
+            }
+        };
     }
     Ok(())
 }
