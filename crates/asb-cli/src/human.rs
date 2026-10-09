@@ -372,6 +372,7 @@ impl InvocationKind {
                 | Self::Easy(EasyKind::Help)
                 | Self::Tui(TuiKind::Help | TuiKind::Version)
                 | Self::Serve
+                | Self::Tool
                 | Self::InternalOpenCodeBatch
         )
     }
@@ -401,7 +402,7 @@ impl CommandKind {
             Self::Tui => "tui",
             Self::Capabilities => "capabilities",
             Self::Project => "project initialization",
-            Self::Tool => "tool discovery",
+            Self::Tool => "tool",
             Self::ProviderCatalog => "provider catalog",
             Self::AdapterCatalog => "adapter catalog",
             Self::WorkloadCatalog => "workload catalog",
@@ -1234,11 +1235,11 @@ fn validate_typed_result(
         }
         InvocationKind::Help
         | InvocationKind::Version
+        | InvocationKind::Tool
         | InvocationKind::Easy(EasyKind::Help)
         | InvocationKind::Completion
         | InvocationKind::Serve
         | InvocationKind::InternalOpenCodeBatch => {}
-        InvocationKind::Tool => {}
         InvocationKind::Cli | InvocationKind::Easy(EasyKind::Unknown) => return Err(invalid()),
     }
     let raw: Value = serde_json::from_slice(captured).map_err(|_| invalid())?;
