@@ -40,6 +40,7 @@ fail as a whole; per-agent overrides are deliberately a separate choice.
 - [Formal assurance roadmap](docs/FORMAL_ASSURANCE.md)
 - [Worker process](docs/DEVELOPMENT.md)
 - [Offline quickstart](docs/QUICKSTART.md)
+- [Project workspace initialization](docs/PROJECT_WORKSPACES.md)
 - [Operator quickstart](docs/OPERATOR_QUICKSTART.md)
 - [Agent and workload extensions](docs/EXTENSIONS.md)
 - [Authenticated process-owner material](docs/PROCESS_OWNER_MATERIAL.md)
@@ -57,6 +58,7 @@ cargo test --locked --workspace
 cargo run --locked -p asb-cli -- --help
 cargo run --locked -p asb-cli -- doctor
 cargo run --locked -p asb-cli -- capabilities --format json
+cargo run --locked -p asb-cli -- project init [PATH]
 ```
 
 For an optional developer convenience wrapper around these same pinned commands,
@@ -84,6 +86,7 @@ The implemented command forms are:
 ```text
 asb doctor
 asb capabilities --format json
+asb project init [PATH]
 asb plan EXPERIMENT.toml
 asb run EXPERIMENT.toml
 asb run EXPERIMENT.toml --provider-selection SELECTION.json --live-provider

@@ -8,6 +8,7 @@ from the repository root:
 cargo build --locked --workspace
 cargo run --locked -p asb-cli -- doctor
 cargo run --locked -p asb-cli -- capabilities --format json
+cargo run --locked -p asb-cli -- project init .
 cargo test --locked -p asb-cli --test guide_examples -- --nocapture
 ```
 
@@ -165,6 +166,7 @@ This table is checked against live `doctor` output and
 | `doctor` | supported |
 | `setup` | supported |
 | `capabilities` | supported |
+| `project init` | supported |
 | `provider-catalog` | supported |
 | `provider-plan` | supported |
 | `plan` | supported |
