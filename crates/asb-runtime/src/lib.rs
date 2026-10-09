@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Bounded Linux subprocess execution and process-tree cancellation.
 
+/// Runtime-owned development-only cli2key sidecar lifecycle.
+pub mod cli2key_sidecar;
 /// Stable, secret-free runtime/control process-owner lifecycle contract.
 pub mod control_owner_contract;
 /// Opaque cross-crate credential injection at the final launch boundary.
