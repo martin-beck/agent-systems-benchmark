@@ -475,6 +475,18 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
+        "dev_source_identity_unknown" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Artifact,
+                    "verify_identity",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
         "development_source_unavailable_offline"
         | "development_control_unavailable"
         | "development_channel_unavailable"
@@ -555,6 +567,42 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                 ),
             );
         }
+        "candidate_execution_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::Attempt,
+                    "execute_candidate",
+                    Phase::Execute,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "candidate_request_failed" | "artifact_transfer_failed" => {
+            return (
+                Cause::TransportFailure,
+                Context::new(
+                    Subject::Transport,
+                    "communicate",
+                    Phase::Transport,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
+                ),
+            );
+        }
+        "candidate_response_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "validate_response",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
         "provider_credential_unavailable" => {
             return (
                 Cause::ProviderAuthentication,
@@ -603,6 +651,30 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                     Phase::Execute,
                     StateChange::Unchanged,
                     Remediation::CheckProvider,
+                ),
+            );
+        }
+        "trusted_tool_invalid" => {
+            return (
+                Cause::IncompatibleInput,
+                Context::new(
+                    Subject::Tool,
+                    "validate_tool",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "transfer_too_large" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::Artifact,
+                    "receive_transfer",
+                    Phase::Transport,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
                 ),
             );
         }
@@ -691,6 +763,30 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
                     Phase::Stage,
                     StateChange::Unchanged,
                     Remediation::CheckDestination,
+                ),
+            );
+        }
+        "rollback_state_invalid" => {
+            return (
+                Cause::MalformedInput,
+                Context::new(
+                    Subject::State,
+                    "validate_rollback_state",
+                    Phase::Validate,
+                    StateChange::Unchanged,
+                    Remediation::CorrectInput,
+                ),
+            );
+        }
+        "rollback_state_failed" => {
+            return (
+                Cause::UnexpectedProductFailure,
+                Context::new(
+                    Subject::State,
+                    "write_rollback_state",
+                    Phase::Commit,
+                    StateChange::Unknown,
+                    Remediation::Reconcile,
                 ),
             );
         }
@@ -958,6 +1054,7 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
         "development_source_identity_mismatch",
         Cause::IncompatibleInput,
     ),
+    ("dev_source_identity_unknown", Cause::IncompatibleInput),
     ("development_bundle_invalid", Cause::IncompatibleInput),
     ("development_channel_rejected", Cause::IncompatibleInput),
     (
@@ -990,6 +1087,12 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
         Cause::UnexpectedProductFailure,
     ),
     (
+        "candidate_execution_failed",
+        Cause::UnexpectedProductFailure,
+    ),
+    ("candidate_request_failed", Cause::TransportFailure),
+    ("candidate_response_invalid", Cause::MalformedInput),
+    (
         "provider_credential_unavailable",
         Cause::ProviderAuthentication,
     ),
@@ -1008,6 +1111,9 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
         "signature_verifier_unavailable",
         Cause::UnavailableCapability,
     ),
+    ("trusted_tool_invalid", Cause::IncompatibleInput),
+    ("transfer_too_large", Cause::MalformedInput),
+    ("artifact_transfer_failed", Cause::TransportFailure),
     ("candidate_timeout", Cause::Timeout),
     ("dev_command_timeout", Cause::Timeout),
     ("candidate_rejected_lifecycle", Cause::LifecycleRejected),
@@ -1018,6 +1124,8 @@ pub const CATALOGUED_CODES: &[(&str, Cause)] = &[
     ("manifest_digest_mismatch", Cause::IncompatibleInput),
     ("artifact_quota_exceeded", Cause::ResourceExhausted),
     ("dev_workspace_quota_exceeded", Cause::ResourceExhausted),
+    ("rollback_state_invalid", Cause::MalformedInput),
+    ("rollback_state_failed", Cause::UnexpectedProductFailure),
 ];
 
 fn message_contains(message: &str, needle: &str) -> bool {
@@ -1125,6 +1233,7 @@ mod tests {
             Cause::NotRegularFile,
             Cause::PermissionDenied,
             Cause::ReadOnlyStorage,
+            Cause::ResourceExhausted,
             Cause::UnsafeTopology,
             Cause::InvalidPath,
             Cause::MalformedInput,
@@ -1134,6 +1243,7 @@ mod tests {
             Cause::MissingTool,
             Cause::ProviderAuthentication,
             Cause::ProviderRejection,
+            Cause::LifecycleRejected,
             Cause::TransportFailure,
             Cause::Timeout,
             Cause::Cancellation,

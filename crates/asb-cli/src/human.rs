@@ -1428,7 +1428,7 @@ pub(super) fn render_error(
     let kind = CommandKind::parse(args).unwrap_or(CommandKind::Cli);
     let diagnostic = error.diagnostic;
     let mut presentation = Presentation::new(format!(
-        "ASB could not complete the {} because {}.",
+        "ASB could not complete the {}: {}.",
         kind.label(),
         diagnostic.cause_explanation()
     ));
@@ -2609,6 +2609,7 @@ fn tui_failure_text(code: &str) -> &'static str {
         "development_source_identity_mismatch" | "dev_source_identity_mismatch" => {
             "the development source identity does not match the selected artifact"
         }
+        "dev_source_identity_unknown" => "the development source identity could not be established",
         "dev_source_identity_stale" => {
             "the development source identity is stale and must be reconciled"
         }
@@ -2631,6 +2632,13 @@ fn tui_failure_text(code: &str) -> &'static str {
         "development_metadata_failed" | "dev_metadata_failed" => {
             "development metadata could not be produced or validated"
         }
+        "candidate_execution_failed" => {
+            "the lifecycle candidate execution failed before a completed transition"
+        }
+        "candidate_request_failed" => "the lifecycle candidate request did not complete",
+        "candidate_response_invalid" => {
+            "the lifecycle candidate response was malformed or incompatible"
+        }
         "development_operation_invalid" => "the requested terminal interface operation is invalid",
         "development_remove_failed" => {
             "the development installation could not be removed completely"
@@ -2651,9 +2659,16 @@ fn tui_failure_text(code: &str) -> &'static str {
             "the bounded development workspace quota was exhausted before completion"
         }
         "trusted_tool_unavailable" | "host_capability_unavailable" => {
-            "the required trusted host capability is unavailable"
+            "the trusted tool unavailable state prevents use of the required host capability"
         }
         "signature_verifier_unavailable" => "the signature-verifier capability is unavailable",
+        "trusted_tool_invalid" => {
+            "the trusted tool is invalid or does not satisfy the development trust contract"
+        }
+        "transfer_too_large" => "the transferred artifact exceeded the bounded size limit",
+        "artifact_transfer_failed" => "the artifact transfer did not complete",
+        "rollback_state_invalid" => "the persisted rollback state is malformed or incompatible",
+        "rollback_state_failed" => "the rollback state could not be durably written",
         _ => {
             "the terminal interface reported an unclassified failure; inspect the machine-readable code"
         }
@@ -3112,6 +3127,30 @@ mod tests {
     #[test]
     fn routed_lifecycle_and_quota_failures_are_not_generic() {
         let cases = [
+            ("trusted_tool_invalid", "development trust contract"),
+            ("transfer_too_large", "bounded size limit"),
+            ("dev_source_identity_unknown", "could not be established"),
+            (
+                "candidate_execution_failed",
+                "before a completed transition",
+            ),
+            (
+                "candidate_request_failed",
+                "candidate request did not complete",
+            ),
+            (
+                "candidate_response_invalid",
+                "candidate response was malformed",
+            ),
+            (
+                "artifact_transfer_failed",
+                "artifact transfer did not complete",
+            ),
+            ("rollback_state_invalid", "rollback state is malformed"),
+            (
+                "rollback_state_failed",
+                "rollback state could not be durably written",
+            ),
             ("candidate_rejected_lifecycle", "requested transition"),
             ("rollback_rejected", "accepted lifecycle state"),
             ("dev_workspace_quota_exceeded", "quota was exhausted"),
@@ -3127,7 +3166,8 @@ mod tests {
                 }),
                 false,
             );
-            assert!(output.contains(expected), "{code}: {output}");
+            let normalized = output.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(normalized.contains(expected), "{code}: {output}");
             assert!(!output.contains("unclassified failure"), "{code}: {output}");
         }
     }

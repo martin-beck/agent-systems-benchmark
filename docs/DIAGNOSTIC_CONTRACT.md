@@ -20,6 +20,7 @@ when reconciliation is required before retrying.
 
 The minimum cause set is intentionally explicit: missing parent/input,
 already-existing target, target type errors, permission and read-only storage,
+resource-exhaustion and lifecycle-transition rejection,
 unsafe topology, invalid/malformed/incompatible input, stale identity,
 unavailable capability, missing tool, provider authentication/rejection,
 transport failure, timeout, cancellation, partial completion, reconciliation,
@@ -77,6 +78,13 @@ Rust-toolchain permission warning names the risk and correction; unknown future
 warning identities use a bounded review instruction rather than exposing a
 code-to-words fallback. Partial recording coverage identifies that the cassette
 is not offline-ready and does not claim complete replay evidence.
+
+Routed TUI producer identities retain the same granularity. Trusted-tool
+validation, oversized transfers, unknown or stale source identities, candidate
+execution/request/response failures, artifact transfer, rollback-state
+corruption/write failures, lifecycle rejection, and workspace or artifact quota
+exhaustion each have an explicit human phrase and catalog test; none falls
+through to a generic provider or unclassified failure.
 
 ## Privacy boundary
 
