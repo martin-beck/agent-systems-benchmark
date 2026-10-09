@@ -352,7 +352,7 @@ class FakeHandler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             self.reply(400, {"error": {"type": "invalid_request"}})
             return
-        if self.path != "/v1/responses" or value.get("model") != "fixture-cli2key":
+        if self.path != "/v1/responses" or value.get("model") not in {"fixture-cli2key", "fixture-model"}:
             self.reply(404, {"error": {"type": "not_found"}})
             return
         type(self).observed_requests += 1
