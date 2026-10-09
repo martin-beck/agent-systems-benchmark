@@ -51,7 +51,7 @@ fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
 /// inherit a prose-based fallback silently.  Keeping this source inventory
 /// executable makes every literal producer either receive a reviewed cause or
 /// fail this contract.
-fn literal_cli_error_messages(source: &'static str) -> BTreeSet<&'static str> {
+fn bare_cli_error_producers(source: &'static str) -> BTreeSet<&'static str> {
     [
         "CliError::usage(\"",
         "CliError::validation(\"",
@@ -68,19 +68,43 @@ fn literal_cli_error_messages(source: &'static str) -> BTreeSet<&'static str> {
     .collect()
 }
 
-fn assert_literal_cli_producers_are_specific(source: &'static str) -> Result<(), String> {
-    let fallback = literal_cli_error_messages(source)
+fn assert_no_bare_cli_producers(source: &'static str) -> Result<(), String> {
+    let bare = bare_cli_error_producers(source)
         .into_iter()
-        .filter(|message| {
-            Diagnostic::for_cli_literal(message, Severity::Failure).cause == Cause::UnknownCause
-        })
         .collect::<Vec<_>>();
-    if fallback.is_empty() {
+    if bare.is_empty() {
         Ok(())
     } else {
         Err(format!(
-            "ordinary CLI producers need reviewed typed causes: {}",
-            fallback.join(" | ")
+            "bare CLI producer bypasses the typed legacy catalog: {}",
+            bare.join(" | ")
+        ))
+    }
+}
+
+fn assert_legacy_call_sites_are_catalogued(
+    file: &'static str,
+    source: &'static str,
+    catalog: &'static str,
+) -> Result<(), String> {
+    let mut missing = Vec::new();
+    for (index, line) in source.lines().enumerate() {
+        if line.contains("CliError::legacy_usage(")
+            || line.contains("CliError::legacy_validation(")
+            || line.contains("CliError::legacy_operation(")
+        {
+            let entry = format!("(\"{file}\", {})", index + 1);
+            if !catalog.contains(&entry) {
+                missing.push(entry);
+            }
+        }
+    }
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "legacy CLI producer lacks a reviewed call-site identity: {}",
+            missing.join(" | ")
         ))
     }
 }
@@ -231,17 +255,41 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
 }
 
 #[test]
-fn ordinary_cli_producers_are_mechanically_specific() {
-    assert_literal_cli_producers_are_specific(include_str!("../src/lib.rs"))
-        .expect("every ordinary CLI producer must have a specific reviewed cause");
+fn ordinary_cli_producers_are_mechanically_closed() {
+    let catalog = include_str!("../src/diagnostic_legacy_catalog.rs");
+    for (file, source) in [
+        (
+            "crates/asb-cli/src/control.rs",
+            include_str!("../src/control.rs"),
+        ),
+        (
+            "crates/asb-cli/src/human.rs",
+            include_str!("../src/human.rs"),
+        ),
+        ("crates/asb-cli/src/lib.rs", include_str!("../src/lib.rs")),
+        ("crates/asb-cli/src/tui.rs", include_str!("../src/tui.rs")),
+    ] {
+        assert_no_bare_cli_producers(source)
+            .expect("every ordinary CLI producer must cross the typed boundary");
+        assert_legacy_call_sites_are_catalogued(file, source, catalog)
+            .expect("every quarantined legacy producer needs a reviewed identity");
+    }
 }
 
 #[test]
-fn controlled_generic_cli_producer_is_rejected() {
-    let defect = r#"CliError::operation("future unclassified public condition")"#;
-    let error = assert_literal_cli_producers_are_specific(defect)
-        .expect_err("the completeness gate must reject a generic CLI producer");
-    assert!(error.contains("future unclassified public condition"));
+fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
+    let bare = r#"CliError::operation("future workload unavailable")"#;
+    let error = assert_no_bare_cli_producers(bare)
+        .expect_err("the completeness gate must reject a bare keyword-looking producer");
+    assert!(error.contains("future workload unavailable"));
+    let dynamic = "let message = dynamic_message();\nCliError::legacy_operation(message)";
+    let error = assert_legacy_call_sites_are_catalogued(
+        "crates/asb-cli/src/lib.rs",
+        dynamic,
+        include_str!("../src/diagnostic_legacy_catalog.rs"),
+    )
+    .expect_err("a dynamic legacy producer must have an exact reviewed call-site identity");
+    assert!(error.contains("crates/asb-cli/src/lib.rs\", 2"));
 }
 
 #[test]

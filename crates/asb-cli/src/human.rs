@@ -3440,7 +3440,7 @@ mod tests {
         let mut user = Vec::new();
         render_error(
             &args(&["plan"]),
-            &CliError::usage("missing plan"),
+            &CliError::legacy_usage("missing plan"),
             false,
             &mut user,
         )
@@ -3466,7 +3466,7 @@ mod tests {
         let mut product = Vec::new();
         render_error(
             &args(&["run"]),
-            &CliError::operation("journal write failed"),
+            &CliError::legacy_operation("journal write failed"),
             true,
             &mut product,
         )
@@ -3481,7 +3481,7 @@ mod tests {
             let mut output = Vec::new();
             render_error(
                 &args(&["run"]),
-                &CliError::operation(message),
+                &CliError::legacy_operation(message),
                 false,
                 &mut output,
             )
@@ -3494,19 +3494,19 @@ mod tests {
     fn error_presentations_name_cause_state_and_recovery_without_private_text() {
         let cases = [
             (
-                CliError::validation("output parent is unavailable")
+                CliError::legacy_validation("output parent is unavailable")
                     .with_path(Path::new("/tmp/asb-results/report.json")),
                 "required parent directory does not exist",
                 "Create or select the named parent directory",
             ),
             (
-                CliError::validation("output path is not a directory")
+                CliError::legacy_validation("output path is not a directory")
                     .with_path(Path::new("/tmp/asb-results/report.json")),
                 "selected path is not a directory",
                 "Inspect the named destination",
             ),
             (
-                CliError::validation("output path is a symlink")
+                CliError::legacy_validation("output path is a symlink")
                     .with_path(Path::new("/tmp/asb-results/report.json")),
                 "path topology is unsafe",
                 "Inspect the named destination",
@@ -3528,12 +3528,12 @@ mod tests {
                 "Check the selected provider",
             ),
             (
-                CliError::operation("operation timed out"),
+                CliError::legacy_operation("operation timed out"),
                 "bounded deadline expired",
                 "Inspect durable state",
             ),
             (
-                CliError::operation("operation was cancelled"),
+                CliError::legacy_operation("operation was cancelled"),
                 "operation was cancelled before completion",
                 "Inspect durable state",
             ),
@@ -3558,12 +3558,12 @@ mod tests {
     #[test]
     fn known_error_classes_have_distinct_human_explanations() {
         let errors = [
-            CliError::validation("input is missing"),
-            CliError::validation("input is malformed"),
-            CliError::validation("input is incompatible"),
-            CliError::validation("input permission denied"),
-            CliError::operation("provider request timed out"),
-            CliError::operation("provider request was cancelled"),
+            CliError::legacy_validation("input is missing"),
+            CliError::legacy_validation("input is malformed"),
+            CliError::legacy_validation("input is incompatible"),
+            CliError::legacy_validation("input permission denied"),
+            CliError::legacy_operation("provider request timed out"),
+            CliError::legacy_operation("provider request was cancelled"),
         ];
         let outputs = errors
             .iter()

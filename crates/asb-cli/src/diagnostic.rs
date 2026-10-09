@@ -294,6 +294,24 @@ impl Diagnostic {
         }
     }
 
+    /// Resolve a quarantined legacy CLI producer through the checked-in,
+    /// call-site-specific catalog.  `Location` is captured at the producer,
+    /// so a new literal, multiline expression, or dynamic message cannot
+    /// inherit a reviewed identity merely because its prose contains familiar
+    /// words.
+    #[track_caller]
+    pub fn for_legacy_cli_callsite(severity: Severity) -> Self {
+        let location = std::panic::Location::caller();
+        let (code, cause) = legacy_cli_catalog(location.file(), location.line())
+            .unwrap_or(("cli_unreviewed_legacy_producer", Cause::UnknownCause));
+        Self {
+            code,
+            severity,
+            cause,
+            context: legacy_cli_context(cause),
+        }
+    }
+
     /// Return whether this code resolved to a reviewed non-fallback cause.
     pub fn is_catalogued(self) -> bool {
         self.cause != Cause::UnknownCause
@@ -490,6 +508,87 @@ const fn cli_cause_code(cause: Cause) -> &'static str {
         Cause::UnknownCause => "cli_unclassified",
     }
 }
+
+const fn legacy_cli_context(cause: Cause) -> Context {
+    match cause {
+        Cause::MissingInput | Cause::MalformedInput | Cause::IncompatibleInput => Context::new(
+            Subject::Input,
+            "validate_cli_input",
+            Phase::Validate,
+            StateChange::NotStarted,
+            Remediation::CorrectInput,
+        ),
+        Cause::InvalidPath
+        | Cause::MissingParent
+        | Cause::AlreadyExists
+        | Cause::NotDirectory
+        | Cause::NotRegularFile
+        | Cause::UnsafeTopology => Context::new(
+            Subject::Target,
+            "inspect_cli_target",
+            Phase::Inspect,
+            StateChange::NotStarted,
+            Remediation::CheckDestination,
+        ),
+        Cause::PermissionDenied | Cause::ReadOnlyStorage | Cause::ResourceExhausted => {
+            Context::new(
+                Subject::Workspace,
+                "prepare_cli_workspace",
+                Phase::Prepare,
+                StateChange::NotStarted,
+                Remediation::CheckPermissions,
+            )
+        }
+        Cause::ProviderAuthentication | Cause::ProviderRejection | Cause::TransportFailure => {
+            Context::new(
+                Subject::Provider,
+                "communicate_provider",
+                Phase::Transport,
+                StateChange::NotStarted,
+                Remediation::CheckProvider,
+            )
+        }
+        Cause::Timeout | Cause::Cancellation | Cause::PartialCompletion => Context::new(
+            Subject::Attempt,
+            "execute_benchmark",
+            Phase::Execute,
+            StateChange::Unknown,
+            Remediation::Reconcile,
+        ),
+        Cause::ReconciliationRequired | Cause::StaleIdentity | Cause::LifecycleRejected => {
+            Context::new(
+                Subject::State,
+                "reconcile_state",
+                Phase::Reconcile,
+                StateChange::Unknown,
+                Remediation::Reconcile,
+            )
+        }
+        Cause::MissingTool | Cause::UnavailableCapability => Context::new(
+            Subject::Capability,
+            "inspect_capability",
+            Phase::Discover,
+            StateChange::NotStarted,
+            Remediation::RunDoctor,
+        ),
+        Cause::UnexpectedProductFailure => Context::new(
+            Subject::Workspace,
+            "execute_cli_operation",
+            Phase::Execute,
+            StateChange::Unknown,
+            Remediation::Reconcile,
+        ),
+        Cause::UnknownCause => Context::new(
+            Subject::Unknown,
+            "unknown",
+            Phase::Inspect,
+            StateChange::Unknown,
+            Remediation::None,
+        ),
+    }
+}
+
+include!("diagnostic_legacy_catalog.rs");
 
 fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     // Stable operation codes from the provider and routed-TUI boundaries.

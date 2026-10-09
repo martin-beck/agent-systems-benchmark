@@ -164,7 +164,7 @@ impl Channel {
             "stable" => Ok(Self::Stable),
             "nightly" => Ok(Self::Nightly),
             "experimental" => Ok(Self::Experimental),
-            _ => Err(CliError::usage("unsupported asb tui channel")),
+            _ => Err(CliError::legacy_usage("unsupported asb tui channel")),
         }
     }
 }
@@ -833,7 +833,7 @@ fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
         Some("upgrade") => (Operation::Upgrade, &args[1..]),
         Some("--help") | Some("-h") | Some("help") => (Operation::Help, &args[1..]),
         Some("--version") | Some("-V") => (Operation::Version, &args[1..]),
-        _ => return Err(CliError::usage("unsupported asb tui arguments")),
+        _ => return Err(CliError::legacy_usage("unsupported asb tui arguments")),
     };
     let mut options = Options::default();
     let mut channel_seen = false;
@@ -842,14 +842,14 @@ fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
         let flag = &flags[index];
         if flag == "--channel" {
             if channel_seen {
-                return Err(CliError::usage("duplicate asb tui option"));
+                return Err(CliError::legacy_usage("duplicate asb tui option"));
             }
             channel_seen = true;
             options.channel_explicit = true;
             index += 1;
             let value = flags
                 .get(index)
-                .ok_or_else(|| CliError::usage("--channel requires a value"))?;
+                .ok_or_else(|| CliError::legacy_usage("--channel requires a value"))?;
             options.channel = Channel::parse(value)?;
             index += 1;
             continue;
@@ -864,16 +864,16 @@ fn parse(args: &[String]) -> Result<(Operation, Options), CliError> {
             "--launch" if matches!(operation, Operation::Install | Operation::Upgrade) => {
                 &mut options.launch
             }
-            _ => return Err(CliError::usage("unsupported asb tui arguments")),
+            _ => return Err(CliError::legacy_usage("unsupported asb tui arguments")),
         };
         if *slot {
-            return Err(CliError::usage("duplicate asb tui option"));
+            return Err(CliError::legacy_usage("duplicate asb tui option"));
         }
         *slot = true;
         index += 1;
     }
     if options.dry_run && options.launch {
-        return Err(CliError::usage(
+        return Err(CliError::legacy_usage(
             "--dry-run and --launch cannot be used together",
         ));
     }

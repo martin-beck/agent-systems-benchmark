@@ -1291,7 +1291,7 @@ impl FrontendOrchestration {
                 cancelled: Arc::clone(&cancelled),
                 by_plan: BTreeMap::new(),
             })
-            .map_err(|_| CliError::operation("orchestration journal cannot be opened"))
+            .map_err(|_| CliError::legacy_operation("orchestration journal cannot be opened"))
     }
 
     fn admit_plan(&mut self, plan: PlanFile) -> Result<(RunHandle, AttemptHandle), BackendFailure> {
@@ -1503,7 +1503,7 @@ pub(crate) fn serve(path: &Path) -> Result<(), CliError> {
 /// provider capture authority. This is never implicit in the normal service.
 pub(crate) fn serve_local_mock(path: &Path) -> Result<(), CliError> {
     let capture = LocalMockProviderCapture::provision()
-        .map_err(|_| CliError::operation("local mock capture authority unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("local mock capture authority unavailable"))?;
     serve_with_capture(path, Arc::new(capture))
 }
 
@@ -1515,7 +1515,7 @@ pub(crate) fn open_development_backend(
     state_root: PathBuf,
 ) -> Result<DevelopmentBackend, CliError> {
     let capture = LocalMockProviderCapture::provision()
-        .map_err(|_| CliError::operation("local mock capture authority unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("local mock capture authority unavailable"))?;
     open_backend_with_capture(state_root, Arc::new(capture))
         .map(|inner| DevelopmentBackend { inner })
 }
@@ -1526,14 +1526,14 @@ fn serve_with_capture(
 ) -> Result<(), CliError> {
     let config = load_config(path)?;
     if config.schema_version != 1 {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "unsupported control service configuration",
         ));
     }
     validate_root(&config.state_root)?;
     prepare_root(&config.state_root)?;
     let state_root = fs::canonicalize(&config.state_root)
-        .map_err(|_| CliError::operation("control state root cannot be resolved"))?;
+        .map_err(|_| CliError::legacy_operation("control state root cannot be resolved"))?;
     validate_service_endpoint(&config.socket_path, &state_root)?;
     validate_service_endpoint(&config.provisioning_socket_path, &state_root)?;
     let backend = open_backend_with_capture(state_root, provider_capture)?;
@@ -1543,25 +1543,25 @@ fn serve_with_capture(
         config.limits.unwrap_or_default(),
         backend,
     )
-    .map_err(|_| CliError::operation("control endpoint cannot be bound"))?;
+    .map_err(|_| CliError::legacy_operation("control endpoint cannot be bound"))?;
     std::panic::set_hook(Box::new(|_| {
         eprintln!("ASB control worker failed");
     }));
     server
         .serve()
-        .map_err(|_| CliError::operation("control service stopped"))
+        .map_err(|_| CliError::legacy_operation("control service stopped"))
 }
 
 fn validate_service_endpoint(path: &Path, state_root: &Path) -> Result<(), CliError> {
     let parent = path
         .parent()
-        .ok_or_else(|| CliError::validation("control socket path is unsafe"))?;
+        .ok_or_else(|| CliError::legacy_validation("control socket path is unsafe"))?;
     if !path.is_absolute()
         || fs::canonicalize(parent).ok().as_deref() != Some(parent)
         || path.starts_with(state_root)
         || state_root.starts_with(parent)
     {
-        return Err(CliError::validation("control socket path is unsafe"));
+        return Err(CliError::legacy_validation("control socket path is unsafe"));
     }
     Ok(())
 }
@@ -1583,7 +1583,7 @@ pub(crate) fn open_qualified_cassette_backend(
 ) -> Result<(RunnerBackend, String), CliError> {
     prepare_root(&state_root)?;
     let capture = LocalMockProviderCapture::provision()
-        .map_err(|_| CliError::operation("qualification capture unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("qualification capture unavailable"))?;
     let backend = open_backend_with_capture(state_root.clone(), Arc::new(capture))?;
     let runner = backend.runner_instance_id().to_owned();
     // The released TUI asks for every advertised agent status during
@@ -1593,17 +1593,17 @@ pub(crate) fn open_qualified_cassette_backend(
         let mut catalog = backend
             .catalog
             .lock()
-            .map_err(|_| CliError::operation("qualification catalog lock"))?;
+            .map_err(|_| CliError::legacy_operation("qualification catalog lock"))?;
         let snapshot = catalog
             .agent_catalog
             .as_mut()
-            .ok_or_else(|| CliError::operation("qualification agent catalog"))?;
+            .ok_or_else(|| CliError::legacy_operation("qualification agent catalog"))?;
         snapshot.agents.retain(|entry| entry.agent_id == "aider");
         let entry = snapshot
             .agents
             .iter_mut()
             .find(|entry| entry.agent_id == "aider")
-            .ok_or_else(|| CliError::operation("qualification aider entry"))?;
+            .ok_or_else(|| CliError::legacy_operation("qualification aider entry"))?;
         entry.package = Some(asb_control::AgentPackage {
             package_id: "qualification-aider".into(),
             version: "1.0.0".into(),
@@ -1624,7 +1624,7 @@ pub(crate) fn open_qualified_cassette_backend(
         entry.availability = AgentAvailability::Available;
         snapshot.catalog_sha256 = snapshot
             .computed_sha256()
-            .map_err(|_| CliError::operation("qualification agent digest"))?;
+            .map_err(|_| CliError::legacy_operation("qualification agent digest"))?;
         let binding = asb_control::AgentLifecycleBinding {
             agent_id: "aider".into(),
             runner_instance_id: runner.clone(),
@@ -1643,9 +1643,9 @@ pub(crate) fn open_qualified_cassette_backend(
         );
         backend
             .write_active_marker("aider", &"a".repeat(64), "qualification-aider-operation")
-            .map_err(|_| CliError::operation("qualification agent marker"))?;
+            .map_err(|_| CliError::legacy_operation("qualification agent marker"))?;
         commit_catalog(&backend.state_root, &catalog)
-            .map_err(|_| CliError::operation("qualification catalog commit"))?;
+            .map_err(|_| CliError::legacy_operation("qualification catalog commit"))?;
     }
     backend
         .execute(
@@ -1660,9 +1660,9 @@ pub(crate) fn open_qualified_cassette_backend(
                     credential_reference_sha256: Some("a".repeat(64)),
                 },
             }),
-            RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
+            RequestDeadline::start(5_000).map_err(|_| CliError::legacy_operation("deadline"))?,
         )
-        .map_err(|_| CliError::operation("qualification configuration failed"))?;
+        .map_err(|_| CliError::legacy_operation("qualification configuration failed"))?;
     let plan = backend
         .execute(
             &ControlCall::RecordingCampaignPlan(asb_control::RecordingCampaignPlanParams {
@@ -1674,11 +1674,11 @@ pub(crate) fn open_qualified_cassette_backend(
                 agent_ids: vec!["aider".into()],
                 workload_ids: vec!["original.bug-fix".into()],
             }),
-            RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
+            RequestDeadline::start(5_000).map_err(|_| CliError::legacy_operation("deadline"))?,
         )
-        .map_err(|_| CliError::operation("qualification plan failed"))?;
+        .map_err(|_| CliError::legacy_operation("qualification plan failed"))?;
     let ControlResult::RecordingCampaign(plan) = plan.result else {
-        return Err(CliError::operation("qualification plan result"));
+        return Err(CliError::legacy_operation("qualification plan result"));
     };
     backend
         .execute(
@@ -1688,15 +1688,16 @@ pub(crate) fn open_qualified_cassette_backend(
                 runner_instance_id: runner.clone(),
                 campaign_id: plan.campaign_id.clone(),
             }),
-            RequestDeadline::start(5_000).map_err(|_| CliError::operation("deadline"))?,
+            RequestDeadline::start(5_000).map_err(|_| CliError::legacy_operation("deadline"))?,
         )
-        .map_err(|_| CliError::operation("qualification capture failed"))?;
+        .map_err(|_| CliError::legacy_operation("qualification capture failed"))?;
     drop(backend);
     // Keep the credential-free local fixture available for read-only bootstrap
     // projections after restart. Replay itself still hard-disables provider
     // egress; the qualification test verifies that through its typed result.
-    let reopened_capture = LocalMockProviderCapture::provision()
-        .map_err(|_| CliError::operation("qualification capture unavailable after reopen"))?;
+    let reopened_capture = LocalMockProviderCapture::provision().map_err(|_| {
+        CliError::legacy_operation("qualification capture unavailable after reopen")
+    })?;
     let reopened = open_backend_with_capture(state_root, Arc::new(reopened_capture))?;
     Ok((reopened, plan.campaign_id))
 }
@@ -1732,10 +1733,10 @@ fn open_backend_with_options(
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW)
         .open(state_root.join("control.lock"))
-        .map_err(|_| CliError::operation("control state lock cannot be opened"))?;
+        .map_err(|_| CliError::legacy_operation("control state lock cannot be opened"))?;
     state_lock
         .try_lock()
-        .map_err(|_| CliError::operation("control state root is already owned"))?;
+        .map_err(|_| CliError::legacy_operation("control state root is already owned"))?;
     let mut catalog = load_or_create_catalog(&state_root)?;
     let orchestration = FrontendOrchestration::open(&state_root, &catalog.plans)?;
     reconcile_catalog(&mut catalog, &orchestration)?;
@@ -1745,7 +1746,7 @@ fn open_backend_with_options(
     let persisted_authorities = std::mem::take(&mut catalog.runtime_authorities);
     for (provider, record) in persisted_authorities {
         RunnerBackend::install_runtime_authority(&mut catalog, &provider, record)
-            .map_err(|_| CliError::operation("runtime authority recovery was rejected"))?;
+            .map_err(|_| CliError::legacy_operation("runtime authority recovery was rejected"))?;
     }
     if catalog.agent_catalog.is_none() {
         catalog.agent_catalog = Some(build_unavailable_agent_catalog(
@@ -1797,7 +1798,11 @@ fn cleanup_removed_campaign_artifacts(root: &Path, catalog: &mut Catalog) -> Res
             match fs::remove_file(path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(_) => return Err(CliError::operation("removed cassette cleanup failed")),
+                Err(_) => {
+                    return Err(CliError::legacy_operation(
+                        "removed cassette cleanup failed",
+                    ));
+                }
             }
         }
     }
@@ -1826,19 +1831,21 @@ fn cleanup_removed_campaign_artifacts(root: &Path, catalog: &mut Catalog) -> Res
     }
     campaign.pending_cassette_removals = pending;
     if !campaign.pending_cassette_removals.is_empty() {
-        return Err(CliError::operation("pending cassette cleanup failed"));
+        return Err(CliError::legacy_operation(
+            "pending cassette cleanup failed",
+        ));
     }
     Ok(())
 }
 
 fn load_config(path: &Path) -> Result<ServiceConfig, CliError> {
     let metadata = fs::symlink_metadata(path)
-        .map_err(|_| CliError::validation("control configuration is unavailable"))?;
+        .map_err(|_| CliError::legacy_validation("control configuration is unavailable"))?;
     if metadata.file_type().is_symlink()
         || !metadata.is_file()
         || metadata.len() > MAX_CONTROL_CONFIG_BYTES
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "control configuration is not a bounded regular file",
         ));
     }
@@ -1846,68 +1853,72 @@ fn load_config(path: &Path) -> Result<ServiceConfig, CliError> {
         .read(true)
         .custom_flags(libc::O_NOFOLLOW)
         .open(path)
-        .map_err(|_| CliError::validation("control configuration cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("control configuration cannot be read"))?;
     let opened = file
         .metadata()
-        .map_err(|_| CliError::validation("control configuration cannot be inspected"))?;
+        .map_err(|_| CliError::legacy_validation("control configuration cannot be inspected"))?;
     if opened.dev() != metadata.dev() || opened.ino() != metadata.ino() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "control configuration changed during validation",
         ));
     }
     let mut bytes = Vec::new();
     file.take(MAX_CONTROL_CONFIG_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|_| CliError::validation("control configuration cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("control configuration cannot be read"))?;
     if bytes.len() as u64 > MAX_CONTROL_CONFIG_BYTES {
-        return Err(CliError::validation("control configuration is too large"));
+        return Err(CliError::legacy_validation(
+            "control configuration is too large",
+        ));
     }
     toml::from_str(
         std::str::from_utf8(&bytes)
-            .map_err(|_| CliError::validation("control configuration must be UTF-8"))?,
+            .map_err(|_| CliError::legacy_validation("control configuration must be UTF-8"))?,
     )
-    .map_err(|_| CliError::validation("control configuration shape is invalid"))
+    .map_err(|_| CliError::legacy_validation("control configuration shape is invalid"))
 }
 
 fn load_or_create_catalog(root: &Path) -> Result<Catalog, CliError> {
     let path = root.join("control-catalog.json");
     if path.exists() {
         let metadata = fs::symlink_metadata(&path)
-            .map_err(|_| CliError::operation("control catalog cannot be inspected"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog cannot be inspected"))?;
         if metadata.file_type().is_symlink()
             || !metadata.is_file()
             || metadata.len() as usize > MAX_CATALOG_BYTES
         {
-            return Err(CliError::operation("control catalog is unsafe"));
+            return Err(CliError::legacy_operation("control catalog is unsafe"));
         }
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW)
             .open(&path)
-            .map_err(|_| CliError::operation("control catalog cannot be read"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog cannot be read"))?;
         let opened = file
             .metadata()
-            .map_err(|_| CliError::operation("control catalog cannot be inspected"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog cannot be inspected"))?;
         if opened.dev() != metadata.dev() || opened.ino() != metadata.ino() {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "control catalog changed during validation",
             ));
         }
         let mut bytes = Vec::with_capacity(usize::try_from(metadata.len()).unwrap_or(0));
         file.take(MAX_CATALOG_BYTES as u64 + 1)
             .read_to_end(&mut bytes)
-            .map_err(|_| CliError::operation("control catalog cannot be read"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog cannot be read"))?;
         if bytes.len() > MAX_CATALOG_BYTES {
-            return Err(CliError::operation("control catalog exceeds its bound"));
+            return Err(CliError::legacy_operation(
+                "control catalog exceeds its bound",
+            ));
         }
         let catalog: Catalog = serde_json::from_slice(&bytes)
-            .map_err(|_| CliError::operation("control catalog is corrupt"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog is corrupt"))?;
         validate_catalog(&catalog)?;
         return Ok(catalog);
     }
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|_| CliError::operation("system clock is invalid"))?
+        .map_err(|_| CliError::legacy_operation("system clock is invalid"))?
         .as_nanos();
     let identity = format!(
         "runner-{:x}",
@@ -1952,7 +1963,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             .any(|provider| asb_control::validate_identity(provider).is_err())
         || catalog.revision.0 != catalog.events.last().map_or(0, |event| event.revision.0)
     {
-        return Err(CliError::operation("control catalog is invalid"));
+        return Err(CliError::legacy_operation("control catalog is invalid"));
     }
     if catalog.provider_generation == 0
         || catalog.provider_profiles.len() > 32
@@ -1965,10 +1976,12 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     || asb_control::validate_digest(digest).is_err()
             })
     {
-        return Err(CliError::operation("control provider registry is invalid"));
+        return Err(CliError::legacy_operation(
+            "control provider registry is invalid",
+        ));
     }
     if catalog.agent_catalog_generation == 0 {
-        return Err(CliError::operation(
+        return Err(CliError::legacy_operation(
             "control agent catalog generation is invalid",
         ));
     }
@@ -1976,7 +1989,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         || catalog.agent_idempotency.len() > 128
         || catalog.agent_lifecycles.len() > 64
     {
-        return Err(CliError::operation(
+        return Err(CliError::legacy_operation(
             "control agent lifecycle generation or journal is invalid",
         ));
     }
@@ -1985,7 +1998,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             || asb_control::validate_identity(operation_id).is_err()
             || !catalog.agent_lifecycles.contains_key(operation_id)
         {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "control agent idempotency fence is invalid",
             ));
         }
@@ -1994,16 +2007,16 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         if agent_catalog.runner_instance_id != catalog.runner_instance_id
             || agent_catalog.generation.0 != catalog.agent_catalog_generation
         {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "control agent catalog identity is invalid",
             ));
         }
         agent_catalog
             .validate()
-            .map_err(|_| CliError::operation("control agent catalog is invalid"))?;
+            .map_err(|_| CliError::legacy_operation("control agent catalog is invalid"))?;
     }
     if catalog.agent_lifecycles.len() > 32 {
-        return Err(CliError::operation(
+        return Err(CliError::legacy_operation(
             "control agent lifecycle journal is oversized",
         ));
     }
@@ -2011,13 +2024,13 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         if operation_id != &response.operation_id
             || response.binding.runner_instance_id != catalog.runner_instance_id
         {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "control agent lifecycle identity is invalid",
             ));
         }
-        response
-            .validate()
-            .map_err(|_| CliError::operation("control agent lifecycle projection is invalid"))?;
+        response.validate().map_err(|_| {
+            CliError::legacy_operation("control agent lifecycle projection is invalid")
+        })?;
     }
     for (provider_id, entry) in &catalog.provider_profiles {
         if provider_id != &entry.provider_id
@@ -2026,7 +2039,9 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 ProviderAvailability::Unavailable(ref reason) if reason == "authorization-required"
             )
         {
-            return Err(CliError::operation("control provider profile is invalid"));
+            return Err(CliError::legacy_operation(
+                "control provider profile is invalid",
+            ));
         }
         let mut snapshot = ProviderCatalog {
             runner_instance_id: catalog.runner_instance_id.clone(),
@@ -2037,10 +2052,10 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         };
         snapshot.catalog_sha256 = snapshot
             .computed_sha256()
-            .map_err(|_| CliError::operation("control provider profile is invalid"))?;
+            .map_err(|_| CliError::legacy_operation("control provider profile is invalid"))?;
         snapshot
             .validate()
-            .map_err(|_| CliError::operation("control provider profile is invalid"))?;
+            .map_err(|_| CliError::legacy_operation("control provider profile is invalid"))?;
     }
     if let Some(configuration) = &catalog.configuration {
         let snapshot = ConfigurationSnapshot {
@@ -2055,13 +2070,15 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         };
         snapshot
             .validate()
-            .map_err(|_| CliError::operation("control configuration is invalid"))?;
+            .map_err(|_| CliError::legacy_operation("control configuration is invalid"))?;
     }
     if let Some(campaign) = &catalog.recording_campaign {
         asb_control::validate_identity(&campaign.campaign_id)
             .and_then(|_| asb_control::validate_identity(&campaign.provider_id))
             .and_then(|_| asb_control::validate_identity(&campaign.model_id))
-            .map_err(|_| CliError::operation("control recording campaign identity is invalid"))?;
+            .map_err(|_| {
+                CliError::legacy_operation("control recording campaign identity is invalid")
+            })?;
         if campaign.generation == 0
             || campaign.agent_ids.is_empty()
             || campaign.workload_ids.is_empty()
@@ -2084,7 +2101,9 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 )
                 .unwrap_or(0)
         {
-            return Err(CliError::operation("control recording campaign is invalid"));
+            return Err(CliError::legacy_operation(
+                "control recording campaign is invalid",
+            ));
         }
         let mut agents = campaign.agent_ids.clone();
         let mut workloads = campaign.workload_ids.clone();
@@ -2095,24 +2114,24 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             || agents.windows(2).any(|pair| pair[0] == pair[1])
             || workloads.windows(2).any(|pair| pair[0] == pair[1])
         {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "control recording campaign ordering is invalid",
             ));
         }
         if campaign.coverage.len() != usize::from(campaign.tuple_count) {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "control recording campaign coverage is incomplete",
             ));
         }
         if campaign.pending_cassette_removals.len() > 256 {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "pending cassette cleanup exceeds its bound",
             ));
         }
         let mut pending_digests = BTreeSet::new();
         for digest in &campaign.pending_cassette_removals {
             if asb_control::validate_digest(digest).is_err() || !pending_digests.insert(digest) {
-                return Err(CliError::operation(
+                return Err(CliError::legacy_operation(
                     "pending cassette cleanup identity is invalid",
                 ));
             }
@@ -2124,7 +2143,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 .and_then(|()| asb_control::validate_identity(&entry.workload_id))
                 .and_then(|()| asb_control::validate_identity(&entry.scorer_revision))
                 .and_then(|()| asb_control::validate_identity(&entry.attempt_id))
-                .map_err(|_| CliError::operation("recording tuple identity is invalid"))?;
+                .map_err(|_| CliError::legacy_operation("recording tuple identity is invalid"))?;
             if entry.generation != campaign.generation
                 || !matches!(
                     entry.state.as_str(),
@@ -2142,7 +2161,9 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                         || entry.replay_verified
                         || entry.cassette_sha256.is_some())
             {
-                return Err(CliError::operation("recording tuple coverage is invalid"));
+                return Err(CliError::legacy_operation(
+                    "recording tuple coverage is invalid",
+                ));
             }
             let identity = (entry.agent_id.clone(), entry.workload_id.clone());
             if previous.as_ref().is_some_and(|value| value >= &identity)
@@ -2150,7 +2171,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 || !campaign.agent_ids.contains(&entry.agent_id)
                 || !campaign.workload_ids.contains(&entry.workload_id)
             {
-                return Err(CliError::operation(
+                return Err(CliError::legacy_operation(
                     "recording tuple coverage is not an exact ordered matrix",
                 ));
             }
@@ -2165,19 +2186,21 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             || campaign.offline_ready
                 != (campaign.state == "complete" && recording_coverage_complete(campaign))
         {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "recording campaign aggregate does not match tuple coverage",
             ));
         }
     }
     for (plan_id, plan) in &catalog.plans {
         asb_control::validate_identity(plan_id)
-            .map_err(|_| CliError::operation("control plan identity is invalid"))?;
+            .map_err(|_| CliError::legacy_operation("control plan identity is invalid"))?;
         validate_plan(plan)?;
     }
     for (index, event) in catalog.events.iter().enumerate() {
         if event.revision.0 != u64::try_from(index).unwrap_or(u64::MAX) + 1 {
-            return Err(CliError::operation("control event revisions are invalid"));
+            return Err(CliError::legacy_operation(
+                "control event revisions are invalid",
+            ));
         }
         let causal = event.run_id.is_some() && event.attempt_id.is_some();
         let valid = match event.kind {
@@ -2187,7 +2210,9 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             _ => causal,
         };
         if !valid {
-            return Err(CliError::operation("control event association is invalid"));
+            return Err(CliError::legacy_operation(
+                "control event association is invalid",
+            ));
         }
     }
     for (run_id, run) in &catalog.runs {
@@ -2196,21 +2221,23 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             || asb_control::validate_identity(&run.attempt_id).is_err()
             || asb_control::validate_digest(&run.plan_sha256).is_err()
         {
-            return Err(CliError::operation("control run record is invalid"));
+            return Err(CliError::legacy_operation("control run record is invalid"));
         }
         let plan = catalog
             .plans
             .get(&run.plan_id)
-            .ok_or_else(|| CliError::operation("control run plan is missing"))?;
+            .ok_or_else(|| CliError::legacy_operation("control run plan is missing"))?;
         if plan_digest(plan)? != run.plan_sha256 {
-            return Err(CliError::operation("control run plan digest is invalid"));
+            return Err(CliError::legacy_operation(
+                "control run plan digest is invalid",
+            ));
         }
         let latest = catalog
             .events
             .iter()
             .rev()
             .find(|event| event.run_id.as_ref().is_some_and(|id| id.0 == *run_id))
-            .ok_or_else(|| CliError::operation("control run event is missing"))?;
+            .ok_or_else(|| CliError::legacy_operation("control run event is missing"))?;
         let state_kind_ok = match run.state {
             PublicRunState::Planned | PublicRunState::Prepared | PublicRunState::Collecting => {
                 matches!(latest.kind, ControlEventKind::RunUpdated)
@@ -2230,7 +2257,9 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
             || latest.revision != run.revision
             || !state_kind_ok
         {
-            return Err(CliError::operation("control run event state is invalid"));
+            return Err(CliError::legacy_operation(
+                "control run event state is invalid",
+            ));
         }
     }
     let maximum_limits = ControlLimits {
@@ -2243,37 +2272,45 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
         if asb_control::validate_digest(key).is_err()
             || asb_control::validate_digest(&mutation.request_sha256).is_err()
         {
-            return Err(CliError::operation("control mutation record is invalid"));
+            return Err(CliError::legacy_operation(
+                "control mutation record is invalid",
+            ));
         }
         match &mutation.target {
             MutationTarget::CreatePlan => {}
             MutationTarget::Repeat { run_id } => {
-                asb_control::validate_identity(run_id)
-                    .map_err(|_| CliError::operation("control mutation target is invalid"))?;
+                asb_control::validate_identity(run_id).map_err(|_| {
+                    CliError::legacy_operation("control mutation target is invalid")
+                })?;
             }
             MutationTarget::Launch { run_id, attempt_id }
             | MutationTarget::Cancel { run_id, attempt_id } => {
                 asb_control::validate_identity(run_id)
                     .and_then(|()| asb_control::validate_identity(attempt_id))
-                    .map_err(|_| CliError::operation("control mutation target is invalid"))?;
+                    .map_err(|_| {
+                        CliError::legacy_operation("control mutation target is invalid")
+                    })?;
             }
             MutationTarget::AuthEnroll { provider }
             | MutationTarget::AuthHelperInvoke { provider }
             | MutationTarget::AuthRotate { provider }
             | MutationTarget::AuthRevoke { provider } => {
-                asb_control::validate_identity(provider)
-                    .map_err(|_| CliError::operation("control auth mutation target is invalid"))?;
+                asb_control::validate_identity(provider).map_err(|_| {
+                    CliError::legacy_operation("control auth mutation target is invalid")
+                })?;
             }
             MutationTarget::RuntimeBootstrap { provider }
             | MutationTarget::RuntimeBootstrapCancel { provider } => {
                 asb_control::validate_identity(provider).map_err(|_| {
-                    CliError::operation("control runtime bootstrap mutation target is invalid")
+                    CliError::legacy_operation(
+                        "control runtime bootstrap mutation target is invalid",
+                    )
                 })?;
             }
             MutationTarget::ConfigurationApply => {}
             MutationTarget::ProviderProfileUpsert { provider_id } => {
                 asb_control::validate_identity(provider_id).map_err(|_| {
-                    CliError::operation("control provider mutation target is invalid")
+                    CliError::legacy_operation("control provider mutation target is invalid")
                 })?;
             }
             MutationTarget::RecordingCampaignPlan => {}
@@ -2284,7 +2321,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 asb_control::validate_identity(campaign_id)
                     .and_then(|()| asb_control::validate_identity(action))
                     .map_err(|_| {
-                        CliError::operation("control recording mutation target is invalid")
+                        CliError::legacy_operation("control recording mutation target is invalid")
                     })?;
             }
         }
@@ -2299,7 +2336,11 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                     && asb_control::ControlSuccess::Operation(result.clone())
                         .validate(maximum_limits)
                         .is_ok() => {}
-            _ => return Err(CliError::operation("control mutation outcome is invalid")),
+            _ => {
+                return Err(CliError::legacy_operation(
+                    "control mutation outcome is invalid",
+                ));
+            }
         }
         if let Some(result) = mutation.result.as_ref() {
             let plan_matches = |reference: &PlanReference| {
@@ -2428,7 +2469,7 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
                 _ => false,
             };
             if !target_matches {
-                return Err(CliError::operation(
+                return Err(CliError::legacy_operation(
                     "control mutation target/result mismatch",
                 ));
             }
@@ -2439,15 +2480,17 @@ fn validate_catalog(catalog: &Catalog) -> Result<(), CliError> {
 
 fn plan_digest(plan: &PlanFile) -> Result<String, CliError> {
     let bytes = serde_json::to_vec(plan)
-        .map_err(|_| CliError::operation("control plan cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("control plan cannot be encoded"))?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
 fn commit_catalog(root: &Path, catalog: &Catalog) -> Result<(), CliError> {
     let bytes = serde_json::to_vec(catalog)
-        .map_err(|_| CliError::operation("control catalog cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("control catalog cannot be encoded"))?;
     if bytes.len() > MAX_CATALOG_BYTES {
-        return Err(CliError::operation("control catalog exceeds its bound"));
+        return Err(CliError::legacy_operation(
+            "control catalog exceeds its bound",
+        ));
     }
     let temporary = root.join(format!(
         ".control-catalog-{}-{}.tmp",
@@ -2459,17 +2502,17 @@ fn commit_catalog(root: &Path, catalog: &Catalog) -> Result<(), CliError> {
         .create_new(true)
         .mode(0o600)
         .open(&temporary)
-        .map_err(|_| CliError::operation("control catalog staging failed"))?;
+        .map_err(|_| CliError::legacy_operation("control catalog staging failed"))?;
     let result = (|| {
         file.write_all(&bytes)
-            .map_err(|_| CliError::operation("control catalog write failed"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog write failed"))?;
         file.sync_all()
-            .map_err(|_| CliError::operation("control catalog sync failed"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog sync failed"))?;
         fs::rename(&temporary, root.join("control-catalog.json"))
-            .map_err(|_| CliError::operation("control catalog commit failed"))?;
+            .map_err(|_| CliError::legacy_operation("control catalog commit failed"))?;
         fs::File::open(root)
             .and_then(|directory| directory.sync_all())
-            .map_err(|_| CliError::operation("control catalog directory sync failed"))
+            .map_err(|_| CliError::legacy_operation("control catalog directory sync failed"))
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary);
@@ -2501,14 +2544,16 @@ fn commit_analysis(root: &Path, bytes: &[u8], digest: &str) -> Result<(), CliErr
         fs::DirBuilder::new()
             .mode(0o700)
             .create(&directory)
-            .map_err(|_| CliError::operation("analysis directory cannot be created"))?;
+            .map_err(|_| CliError::legacy_operation("analysis directory cannot be created"))?;
     }
     let destination = directory.join(digest);
     if destination.exists() {
         return if digest_file(&destination)? == digest {
             Ok(())
         } else {
-            Err(CliError::operation("stored analysis digest is invalid"))
+            Err(CliError::legacy_operation(
+                "stored analysis digest is invalid",
+            ))
         };
     }
     let temporary = directory.join(format!(
@@ -2521,17 +2566,17 @@ fn commit_analysis(root: &Path, bytes: &[u8], digest: &str) -> Result<(), CliErr
         .create_new(true)
         .mode(0o600)
         .open(&temporary)
-        .map_err(|_| CliError::operation("analysis staging failed"))?;
+        .map_err(|_| CliError::legacy_operation("analysis staging failed"))?;
     let result = (|| {
         file.write_all(bytes)
-            .map_err(|_| CliError::operation("analysis write failed"))?;
+            .map_err(|_| CliError::legacy_operation("analysis write failed"))?;
         file.sync_all()
-            .map_err(|_| CliError::operation("analysis sync failed"))?;
+            .map_err(|_| CliError::legacy_operation("analysis sync failed"))?;
         fs::rename(&temporary, &destination)
-            .map_err(|_| CliError::operation("analysis commit failed"))?;
+            .map_err(|_| CliError::legacy_operation("analysis commit failed"))?;
         fs::File::open(&directory)
             .and_then(|value| value.sync_all())
-            .map_err(|_| CliError::operation("analysis directory sync failed"))
+            .map_err(|_| CliError::legacy_operation("analysis directory sync failed"))
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary);
@@ -2633,13 +2678,13 @@ fn reconcile_catalog(
             .runs
             .get(&run_id)
             .cloned()
-            .ok_or_else(|| CliError::operation("control reconciliation lost a run"))?;
+            .ok_or_else(|| CliError::legacy_operation("control reconciliation lost a run"))?;
         let revision = catalog
             .revision
             .0
             .checked_add(1)
             .map(Revision)
-            .ok_or_else(|| CliError::operation("control revision is exhausted"))?;
+            .ok_or_else(|| CliError::legacy_operation("control revision is exhausted"))?;
         catalog.revision = revision;
         let kind = match record.state {
             PublicRunState::Completed => ControlEventKind::RunCompleted,
@@ -3154,12 +3199,12 @@ impl RunnerBackend {
                 }
                 let execution = orchestration
                     .lock()
-                    .map_err(|_| CliError::operation("orchestration service is unavailable"))
+                    .map_err(|_| CliError::legacy_operation("orchestration service is unavailable"))
                     .and_then(|mut service| {
                         service
                             .execute_plan(&run_id)
                             .map(|_| ())
-                            .map_err(|_| CliError::operation("orchestrated run failed"))
+                            .map_err(|_| CliError::legacy_operation("orchestrated run failed"))
                     });
                 let orchestration_state = orchestration
                     .lock()
@@ -9719,7 +9764,9 @@ mod tests {
         let worker_active = Arc::clone(&active);
         let terminal = thread::spawn(move || -> Result<(), CliError> {
             let _lease = ActiveRunLease::new(worker_active, "run-with-uncertain-commit".into());
-            Err(CliError::operation("injected terminal catalog failure"))
+            Err(CliError::legacy_operation(
+                "injected terminal catalog failure",
+            ))
         })
         .join()
         .unwrap();
