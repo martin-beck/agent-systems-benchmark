@@ -7,6 +7,7 @@
 //! recursive JSON fallback: adding a command requires choosing its human
 //! presentation as well.
 
+use super::diagnostic::{Cause, Remediation};
 use super::{CliError, ErrorRemediation, HumanErrorClass};
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -1425,10 +1426,26 @@ pub(super) fn render_error(
     output: &mut dyn Write,
 ) -> io::Result<()> {
     let kind = CommandKind::parse(args).unwrap_or(CommandKind::Cli);
+    let diagnostic = error.diagnostic;
+    let reason = if error.human_class == HumanErrorClass::UserCorrection
+        || diagnostic.cause == Cause::UnknownCause
+    {
+        sentence_fragment(error.message).to_owned()
+    } else {
+        diagnostic.cause_explanation().to_owned()
+    };
     let mut presentation = Presentation::new(format!(
         "ASB could not complete the {}: {}.",
         kind.label(),
-        sentence_fragment(error.message)
+        reason
+    ));
+    presentation.fact(format!("Affected {}.", diagnostic.subject_label()));
+    presentation.fact(format!("Cause: {}.", diagnostic.cause_explanation()));
+    presentation.fact(format!("Detail: {}.", sentence_fragment(error.message)));
+    presentation.fact(diagnostic.state_change_explanation());
+    presentation.fact(format!(
+        "Recovery: {}",
+        diagnostic.remediation_explanation()
     ));
     match error.exit_code {
         _ if error.human_class == HumanErrorClass::UserCorrection && error.exit_code == 2 => {
@@ -1448,7 +1465,6 @@ pub(super) fn render_error(
         _ if error.human_class == HumanErrorClass::HostLimitation => {
             presentation.kind = OutcomeKind::HostLimitation;
             presentation.fact("A required host capability is unavailable.");
-            presentation.next = NextAction::new(["asb", "doctor"]);
         }
         _ if error.human_class == HumanErrorClass::DependencyUnavailable => {
             presentation.kind = OutcomeKind::Warning;
@@ -1471,6 +1487,27 @@ pub(super) fn render_error(
             );
         }
         _ => presentation.fact("ASB did not report a completed result."),
+    }
+    let next = match diagnostic.context.remediation {
+        Remediation::RunDoctor => NextAction::new(["asb", "doctor"]),
+        Remediation::AuthenticateProvider
+            if error.remediation == ErrorRemediation::OpenRouterCredential
+                && error.human_class != HumanErrorClass::DependencyUnavailable =>
+        {
+            NextAction::new([
+                "asb",
+                "auth",
+                "setup",
+                "--provider",
+                "openrouter",
+                "--api-key-stdin",
+            ])
+        }
+        Remediation::CorrectInput => validation_next(args, error),
+        _ => None,
+    };
+    if next.is_some() {
+        presentation.next = next;
     }
     if let Some(path) = &error.path {
         presentation.fact(format!(
@@ -1579,10 +1616,9 @@ fn present(
             if let Some(warnings) = object.get("warnings").and_then(Value::as_array)
                 && !warnings.is_empty()
             {
-                value.warning(format!(
-                    "{} development warning(s) were reported.",
-                    warnings.len()
-                ));
+                for warning in warnings.iter().filter_map(Value::as_str).take(4) {
+                    value.warning(warning_text(warning));
+                }
             }
             value
         }
@@ -1817,7 +1853,7 @@ fn present_tui(object: &Map<String, Value>) -> Presentation {
     } else {
         format!(
             "ASB could not complete the terminal interface {operation}: {}.",
-            human_code(string(object, "code").unwrap_or("operation failed"))
+            tui_failure_text(string(object, "code").unwrap_or("operation_failed"))
         )
     });
     if !ok {
@@ -1831,13 +1867,19 @@ fn present_tui(object: &Map<String, Value>) -> Presentation {
     if let Some(warnings) = object.get("warnings").and_then(Value::as_array) {
         for warning in warnings.iter().filter_map(Value::as_str).take(4) {
             match warning {
-                "development_missing_authentication_allowed"
-                | "development_missing_signatures_allowed"
-                | "development_missing_key_management_allowed" => {}
+                "development_missing_authentication_allowed" => value.warning(
+                    "Development authentication is not configured; local/mock and offline flows remain available, but no live-provider authorization is claimed.",
+                ),
+                "development_missing_signatures_allowed" => value.warning(
+                    "Development signature verification is not configured; this result is not evidence of a production-trusted release.",
+                ),
+                "development_missing_key_management_allowed" => value.warning(
+                    "Development key management is not configured; no production signing or key-rotation authority is available.",
+                ),
                 "development_rustup_permission_or_ownership_findings_allowed" => value.warning(
                     "The Rust toolchain contains group-writable or differently owned paths; restrict their permissions and ownership before relying on it.",
                 ),
-                other => value.warning(human_code(other)),
+                other => value.warning(warning_text(other)),
             }
         }
     }
@@ -2274,7 +2316,10 @@ fn present_campaign(object: &Map<String, Value>) -> Presentation {
         value.fact(format!("Requested tuples: {count}."));
     }
     if let Some(reason) = string(object, "unavailable_reason") {
-        value.warning(format!("Incomplete because {}.", human_code(reason)));
+        value.warning(format!(
+            "Incomplete because {}.",
+            campaign_reason_text(reason)
+        ));
     }
     value
 }
@@ -2514,6 +2559,186 @@ fn title_case(value: &str) -> String {
 
 fn human_code(value: &str) -> String {
     display_value(value).replace(['_', '-'], " ")
+}
+
+fn warning_text(code: &str) -> &'static str {
+    match code {
+        "development_authentication_warning" | "development_missing_authentication_allowed" => {
+            "Development authentication is not configured; local/mock and offline flows remain available, but live-provider authorization is not claimed."
+        }
+        "development_missing_signatures_allowed" => {
+            "Development signature verification is not configured; this result is not evidence of a production-trusted release."
+        }
+        "development_missing_key_management_allowed" => {
+            "Development key management is not configured; no production signing or key-rotation authority is available."
+        }
+        "development_rustup_permission_or_ownership_findings_allowed" => {
+            "The development Rust toolchain contains group-writable or differently owned paths; restrict permissions and ownership before relying on it."
+        }
+        "development authentication, signatures, and keys are warning-only; discovery does not require them" => {
+            "Tool discovery completed without production authentication, signature, or key-management services; discovery is usable, but it does not establish production trust."
+        }
+        "attacker_defined_claim" => {
+            "The supplied claim is attacker-defined and cannot establish trusted provenance."
+        }
+        "development_only" => {
+            "This result is development-only and must not be presented as production qualification."
+        }
+        _ => {
+            "ASB received an unrecognized warning identity; this version cannot classify its limitation, so do not treat the result as fully qualified. Inspect the bounded machine-readable warning identity before relying on it."
+        }
+    }
+}
+
+fn campaign_reason_text(code: &str) -> &'static str {
+    match code {
+        "recording-coverage-incomplete" => {
+            "the requested recording matrix did not produce a complete offline-ready cassette"
+        }
+        _ => "the requested recording matrix is incomplete and is not offline-ready",
+    }
+}
+
+fn tui_failure_text(code: &str) -> &'static str {
+    match code {
+        "development_bundle_invalid" => {
+            "the development bundle is malformed or incompatible with the selected channel"
+        }
+        "development_channel_rejected" => {
+            "the selected development channel was rejected before activation"
+        }
+        "development_channel_unavailable" => {
+            "the selected development channel could not be reached or inspected"
+        }
+        "development_compiler_unsupported" => {
+            "the required compiler capability is unavailable or unsupported"
+        }
+        "development_control_failed" => "the development control exchange did not complete",
+        "development_control_unavailable" => "the development control service is unavailable",
+        "development_source_identity_invalid" | "dev_source_identity_invalid" => {
+            "the development source identity is invalid"
+        }
+        "development_source_identity_mismatch" | "dev_source_identity_mismatch" => {
+            "the development source identity does not match the selected artifact"
+        }
+        "dev_source_identity_unknown" => "the development source identity could not be established",
+        "dev_source_identity_stale" => {
+            "the development source identity is stale and must be reconciled"
+        }
+        "development_descriptor_failed" => {
+            "the development descriptor could not be validated or published"
+        }
+        "development_descriptor_oversized" => "the development descriptor exceeds its bounded size",
+        "development_filesystem_invalid" => {
+            "the development filesystem layout is unsafe or invalid"
+        }
+        "development_installation_invalid" => {
+            "the installed development artifact is invalid or incomplete"
+        }
+        "development_launch_failed" => {
+            "the terminal interface launch failed before a completed session"
+        }
+        "development_launch_timeout" => {
+            "the terminal interface launch exceeded its bounded deadline"
+        }
+        "development_metadata_failed" | "dev_metadata_failed" => {
+            "development metadata could not be produced or validated"
+        }
+        "candidate_execution_failed" => {
+            "the lifecycle candidate execution failed before a completed transition"
+        }
+        "candidate_request_failed" => "the lifecycle candidate request did not complete",
+        "candidate_response_invalid" => {
+            "the lifecycle candidate response was malformed or incompatible"
+        }
+        "candidate_timeout" => "the lifecycle candidate exceeded its bounded deadline",
+        "dev_command_timeout" => "the development command exceeded its bounded deadline",
+        "manifest_digest_mismatch" => {
+            "the artifact manifest digest does not match the expected content"
+        }
+        "development_operation_invalid" => "the requested terminal interface operation is invalid",
+        "development_remove_failed" => {
+            "the development installation could not be removed completely"
+        }
+        "development_source_unavailable_offline" => {
+            "the development source is unavailable while offline"
+        }
+        "development_terminal_unavailable" => "the required terminal capability is unavailable",
+        "development_host_unavailable" => "the required development host capability is unavailable",
+        "candidate_rejected_lifecycle" => {
+            "the lifecycle candidate rejected the requested transition; resulting state must be reconciled"
+        }
+        "rollback_rejected" => "the requested rollback violates the accepted lifecycle state",
+        "artifact_quota_exceeded" => {
+            "the bounded artifact storage quota was exhausted before publication"
+        }
+        "dev_workspace_quota_exceeded" => {
+            "the bounded development workspace quota was exhausted before completion"
+        }
+        "trusted_tool_unavailable" | "host_capability_unavailable" => {
+            "trusted tool unavailable; the required host capability is unavailable"
+        }
+        "signature_verifier_unavailable" => "the signature-verifier capability is unavailable",
+        "trusted_tool_invalid" => {
+            "the trusted tool is invalid or does not satisfy the development trust contract"
+        }
+        "transfer_too_large" => "the transferred artifact exceeded the bounded size limit",
+        "artifact_transfer_failed" => "the artifact transfer did not complete",
+        "transfer_failed" => "the bounded artifact transfer failed",
+        "transfer_unavailable" => "the artifact transfer capability is unavailable",
+        "rollback_state_invalid" => "the persisted rollback state is malformed or incompatible",
+        "rollback_state_failed" => "the rollback state could not be durably written",
+        "artifact_digest_mismatch" => "the artifact digest does not match the reviewed content",
+        "artifact_invalid" => "the artifact is malformed or incompatible",
+        "artifact_set_incomplete" => "the artifact set is incomplete",
+        "artifact_size_mismatch" => "the artifact size does not match its metadata",
+        "artifact_too_large" => "the artifact exceeds the bounded size limit",
+        "cached_input_invalid" => "the cached input is malformed or incompatible",
+        "cached_input_unavailable" => "the required cached input is unavailable",
+        "channel_invalid" => "the selected channel is malformed or unsupported",
+        "channel_unavailable" => "the selected channel is unavailable",
+        "compatible_release_unavailable" => {
+            "no compatible release is available for the selected channel"
+        }
+        "component_invalid" => "the selected component is malformed or unsupported",
+        "dev_artifact_invalid" => "the development artifact is malformed or unsafe",
+        "dev_cleanup_failed" => "the development cleanup did not complete",
+        "dev_command_failed" => "the development command failed before completion",
+        "dev_command_unavailable" => "the development command capability is unavailable",
+        "dev_workspace_unavailable" => "the development workspace is unavailable",
+        "dev_workspace_unsafe" => "the development workspace has an unsafe topology",
+        "environment_path_invalid" => "the configured environment path is invalid",
+        "environment_terminal_invalid" => "the configured terminal environment is invalid",
+        "extension_not_installed" => "the required development extension is not installed",
+        "installation_verification_failed" => "the installed artifact could not be verified",
+        "license_policy_rejected" => "the artifact was rejected by the license policy",
+        "license_report_incomplete" => "the license report is incomplete",
+        "license_report_invalid" => "the license report is malformed",
+        "license_report_missing" => "the required license report is missing",
+        "lifecycle_busy" => "the lifecycle is busy with another transition",
+        "manifest_invalid" => "the artifact manifest is malformed or incompatible",
+        "offline_artifact_unavailable" => "the required offline artifact is unavailable",
+        "output_unavailable" => "the requested output destination is unavailable",
+        "provenance_invalid" => "the provenance record is malformed or incompatible",
+        "provenance_missing" => "the required provenance record is missing",
+        "redirect_rejected" => "the requested redirect violates the transport policy",
+        "release_invalid" => "the selected release is malformed or incompatible",
+        "sbom_invalid" => "the software bill of materials is malformed or incompatible",
+        "sbom_missing" => "the required software bill of materials is missing",
+        "signature_invalid" => "the artifact signature is invalid for the selected content",
+        "state_path_invalid" => "the durable state path is invalid",
+        "state_unavailable" => "the durable state is unavailable",
+        "state_write_failed" => "the durable state could not be written",
+        "synthetic_interruption" => "the bounded operation was interrupted before completion",
+        "system_clock_invalid" => "the system clock capability is invalid",
+        "trust_anchor_invalid" => "the configured trust anchor is invalid",
+        "unexpected_document" => "the received document has an unexpected shape",
+        "unexpected_range" => "the requested range has an unexpected shape",
+        "xdg_root_invalid" => "the configured XDG root is invalid",
+        _ => {
+            "the terminal interface reported an unclassified failure; inspect the machine-readable code"
+        }
+    }
 }
 
 fn display_value(value: &str) -> String {
@@ -2966,6 +3191,65 @@ mod tests {
     }
 
     #[test]
+    fn routed_lifecycle_and_quota_failures_are_not_generic() {
+        let cases = [
+            ("trusted_tool_invalid", "development trust contract"),
+            ("transfer_too_large", "bounded size limit"),
+            ("dev_source_identity_unknown", "could not be established"),
+            (
+                "candidate_execution_failed",
+                "before a completed transition",
+            ),
+            (
+                "candidate_request_failed",
+                "candidate request did not complete",
+            ),
+            (
+                "candidate_response_invalid",
+                "candidate response was malformed",
+            ),
+            (
+                "artifact_transfer_failed",
+                "artifact transfer did not complete",
+            ),
+            ("rollback_state_invalid", "rollback state is malformed"),
+            (
+                "rollback_state_failed",
+                "rollback state could not be durably written",
+            ),
+            (
+                "candidate_timeout",
+                "candidate exceeded its bounded deadline",
+            ),
+            (
+                "dev_command_timeout",
+                "development command exceeded its bounded deadline",
+            ),
+            ("manifest_digest_mismatch", "manifest digest does not match"),
+            ("transfer_failed", "bounded artifact transfer failed"),
+            ("transfer_unavailable", "transfer capability is unavailable"),
+            ("candidate_rejected_lifecycle", "requested transition"),
+            ("rollback_rejected", "accepted lifecycle state"),
+            ("dev_workspace_quota_exceeded", "quota was exhausted"),
+            ("artifact_quota_exceeded", "quota was exhausted"),
+        ];
+        for (code, expected) in cases {
+            let output = render(
+                &["tui", "status", "--channel", "dev"],
+                serde_json::json!({
+                    "schema_version":1,"ok":false,"command":"tui",
+                    "operation":"status","classification":"product_failure",
+                    "code":code,"channel":"dev"
+                }),
+                false,
+            );
+            let normalized = output.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(normalized.contains(expected), "{code}: {output}");
+            assert!(!output.contains("unclassified failure"), "{code}: {output}");
+        }
+    }
+
+    #[test]
     fn every_tui_operation_has_truthful_success_wording() {
         let cases = [
             ("launch", "launched"),
@@ -2992,6 +3276,40 @@ mod tests {
             assert_eq!(output.matches("group-writable").count(), 1, "{operation}");
             assert!(!output.contains("development_rustup_permission"));
         }
+    }
+
+    #[test]
+    fn every_known_warning_has_explicit_consequence_text() {
+        let cases = [
+            ("development_authentication_warning", "live-provider"),
+            (
+                "development_missing_authentication_allowed",
+                "live-provider",
+            ),
+            (
+                "development_missing_signatures_allowed",
+                "production-trusted",
+            ),
+            ("development_missing_key_management_allowed", "key-rotation"),
+            (
+                "development_rustup_permission_or_ownership_findings_allowed",
+                "permissions",
+            ),
+            ("attacker_defined_claim", "attacker-defined"),
+            ("development_only", "development-only"),
+            (
+                "development authentication, signatures, and keys are warning-only; discovery does not require them",
+                "production trust",
+            ),
+        ];
+        for (code, consequence) in cases {
+            let text = warning_text(code);
+            assert!(!text.contains("unrecognized"), "{code}: {text}");
+            assert!(text.contains(consequence), "{code}: {text}");
+        }
+        let unknown = warning_text("future_warning_identity");
+        assert!(unknown.contains("unrecognized warning identity"));
+        assert!(unknown.contains("cannot classify its limitation"));
     }
 
     #[test]
@@ -3120,6 +3438,96 @@ mod tests {
             )
             .unwrap();
             assert!(String::from_utf8(output).unwrap().contains(message));
+        }
+    }
+
+    #[test]
+    fn error_presentations_name_cause_state_and_recovery_without_private_text() {
+        let cases = [
+            (
+                CliError::validation("output parent is unavailable")
+                    .with_path(Path::new("/tmp/asb-results/report.json")),
+                "required parent directory does not exist",
+                "Create or select the named parent directory",
+            ),
+            (
+                CliError::validation("output path is not a directory")
+                    .with_path(Path::new("/tmp/asb-results/report.json")),
+                "selected path is not a directory",
+                "Inspect the named destination",
+            ),
+            (
+                CliError::validation("output path is a symlink")
+                    .with_path(Path::new("/tmp/asb-results/report.json")),
+                "path topology is unsafe",
+                "Inspect the named destination",
+            ),
+            (
+                CliError::operation_code(
+                    "provider_credential_unavailable",
+                    "OpenRouter credential unavailable",
+                ),
+                "provider authentication could not be established",
+                "Establish the provider credential",
+            ),
+            (
+                CliError::operation_code(
+                    "provider_transport_failed",
+                    "OpenRouter transport failed",
+                ),
+                "bounded transport exchange did not complete",
+                "Check the selected provider",
+            ),
+            (
+                CliError::operation("operation timed out"),
+                "bounded deadline expired",
+                "Inspect durable state",
+            ),
+            (
+                CliError::operation("operation was cancelled"),
+                "operation was cancelled before completion",
+                "Inspect durable state",
+            ),
+        ];
+        for (error, cause, recovery) in cases {
+            let mut output = Vec::new();
+            render_error(&args(&["run"]), &error, false, &mut output).unwrap();
+            let output = String::from_utf8(output).unwrap();
+            let compact = output.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(compact.contains(cause), "{output}");
+            assert!(compact.contains(recovery), "{output}");
+            assert!(
+                output.contains("No relevant state was changed.")
+                    || output.contains("No external operation was started.")
+                    || output.contains("resulting durable state"),
+                "{output}"
+            );
+            assert!(!output.contains("/home/martin"), "{output}");
+        }
+    }
+
+    #[test]
+    fn known_error_classes_have_distinct_human_explanations() {
+        let errors = [
+            CliError::validation("input is missing"),
+            CliError::validation("input is malformed"),
+            CliError::validation("input is incompatible"),
+            CliError::validation("input permission denied"),
+            CliError::operation("provider request timed out"),
+            CliError::operation("provider request was cancelled"),
+        ];
+        let outputs = errors
+            .iter()
+            .map(|error| {
+                let mut output = Vec::new();
+                render_error(&args(&["run"]), error, false, &mut output).unwrap();
+                String::from_utf8(output).unwrap()
+            })
+            .collect::<Vec<_>>();
+        for left in 0..outputs.len() {
+            for right in left + 1..outputs.len() {
+                assert_ne!(outputs[left], outputs[right]);
+            }
         }
     }
 
