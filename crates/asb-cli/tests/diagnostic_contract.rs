@@ -67,8 +67,7 @@ fn bare_cli_error_producers(source: &'static str) -> BTreeSet<&'static str> {
         source.match_indices(constructor).any(|(offset, _)| {
             source[offset + constructor.len()..]
                 .chars()
-                .skip_while(|character| character.is_whitespace())
-                .next()
+                .find(|character| !character.is_whitespace())
                 == Some('(')
         })
     })
