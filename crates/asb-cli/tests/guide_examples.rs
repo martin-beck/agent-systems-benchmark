@@ -197,6 +197,21 @@ fn documented_offline_workflow_produces_validated_artifacts() {
 
 #[test]
 fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
+    let quickstart = include_str!("../../../docs/QUICKSTART.md")
+        .replace("\\\n", " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for configured_form in [
+        "asb plan create --workload WORKLOAD --agent AGENT --agent-executable /absolute/agent --output /absolute/experiment.toml --sweep-max-concurrency 2 --use-config",
+        "asb plan /absolute/experiment.toml --use-config",
+        "asb sweep /absolute/experiment.toml --use-config",
+    ] {
+        assert!(
+            quickstart.contains(configured_form),
+            "QUICKSTART drops persisted provider selection: {configured_form}"
+        );
+    }
     let scratch = Scratch::new();
     let journey = scratch.0.join("human journey's space");
     fs::DirBuilder::new().mode(0o700).create(&journey).unwrap();

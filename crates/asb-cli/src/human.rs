@@ -1365,7 +1365,7 @@ fn project_for_presentation(
         | CommandKind::Serve
         | CommandKind::InternalOpenCodeBatch => &[],
     };
-    let mut projected = fields
+    fields
         .iter()
         .filter_map(|field| {
             object
@@ -1373,15 +1373,7 @@ fn project_for_presentation(
                 .cloned()
                 .map(|value| ((*field).to_owned(), value))
         })
-        .collect::<Map<_, _>>();
-    for field in ["schema_version", "classification", "code"] {
-        if let Some(value) = object.get(field)
-            && matches!(value, Value::String(_) | Value::Number(_))
-        {
-            projected.insert(field.to_owned(), value.clone());
-        }
-    }
-    projected
+        .collect::<Map<_, _>>()
 }
 
 pub(super) fn render_error(
@@ -2545,6 +2537,13 @@ mod tests {
         let mut registered = PUBLIC_COMMANDS.to_vec();
         registered.sort_unstable();
         assert_eq!(classified, registered);
+        let mut golden_families = include_str!("../fixtures/human/public-family-output-v1.tsv")
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .map(|line| line.split('\t').next().unwrap())
+            .collect::<Vec<_>>();
+        golden_families.sort_unstable();
+        assert_eq!(golden_families, registered);
         assert!(CommandKind::parse(&args(&["future-command"])).is_err());
 
         for operation in [
@@ -2905,8 +2904,9 @@ mod tests {
         assert!(!normal.contains("schema_version"));
         assert!(!normal.contains("must-not-render"));
         let details = render(&["provider-catalog"], value, true);
-        assert!(details.contains("Schema version: 1."));
-        assert!(details.contains("Classification: verified."));
+        assert!(!details.contains("Schema version:"));
+        assert!(!details.contains("Classification:"));
+        assert!(!details.contains("Result code:"));
         assert!(!details.contains("must-not-render"));
     }
 
@@ -3364,5 +3364,31 @@ mod tests {
         assert!(output.contains("Highest confirmed concurrency: 1."));
         assert!(!output.contains("attacker"));
         assert!(!output.contains("trusted"));
+
+        for (words, value) in [
+            (
+                &["doctor"][..],
+                serde_json::json!({
+                    "schema_version":1,"ok":true,"command":"doctor","linux":true,
+                    "architecture":"x86_64","procfs":true,"cgroup_v2":true,
+                    "classification":"attacker_claim","code":"trusted"
+                }),
+            ),
+            (
+                &["setup"][..],
+                serde_json::json!({
+                    "schema_version":2,"ok":true,"command":"setup","mode":"preflight",
+                    "persistent_change":false,"persisted":false,"selected_agents":[],
+                    "provider_profile":null,"model":null,
+                    "classification":"attacker_claim","code":"trusted"
+                }),
+            ),
+        ] {
+            let output = render(words, value, true);
+            assert!(!output.contains("attacker"));
+            assert!(!output.contains("trusted"));
+            assert!(!output.contains("Classification:"));
+            assert!(!output.contains("Result code:"));
+        }
     }
 }

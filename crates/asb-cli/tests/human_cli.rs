@@ -378,6 +378,51 @@ fn executable_golden_matrix_covers_zero_two_and_three() {
 }
 
 #[test]
+fn executable_public_family_golden_is_inventory_complete_and_privacy_safe() {
+    let scratch = Scratch::new();
+    let secret = "asb-private-secret-sentinel";
+    let fixture = include_str!("../fixtures/human/public-family-output-v1.tsv");
+    let mut observed = Vec::new();
+    for row in fixture.lines().filter(|line| !line.starts_with('#')) {
+        let fields = row.split('\t').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 5, "malformed golden row: {row}");
+        let command_name = fields[0];
+        observed.push(command_name);
+        let mut command = isolated_asb(&scratch.0);
+        command
+            .arg(command_name)
+            .env("COLUMNS", "240")
+            .env("OPENROUTER_API_KEY", secret);
+        if fields[1] != "-" {
+            command.args(fields[1].split_ascii_whitespace());
+        }
+        let output = command.output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(fields[2].parse().unwrap()),
+            "{command_name}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(
+            stdout.lines().next(),
+            Some(fields[3]),
+            "public family {command_name}"
+        );
+        assert_eq!(output.stderr.is_empty(), fields[4] == "empty");
+        assert!(!stdout.contains(secret));
+        assert!(!stdout.contains(scratch.0.to_str().unwrap()));
+        assert!(!stdout.contains("schema_version"));
+        assert!(!stdout.contains("credential_reference_sha256"));
+        assert!(!stdout.contains('\u{1b}'));
+    }
+    observed.sort_unstable();
+    observed.dedup();
+    assert_eq!(observed.len(), 24);
+}
+
+#[test]
 fn serve_streams_startup_before_blocking_and_remains_a_raw_long_running_command() {
     let scratch = Scratch::new();
     let config = scratch.0.join("control.toml");

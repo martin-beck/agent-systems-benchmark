@@ -42,9 +42,10 @@ asb provider-catalog
 asb setup --agent AGENT --provider-profile PROVIDER --model MODEL --persist
 asb workload-catalog
 asb plan create --workload WORKLOAD --agent AGENT \
-  --agent-executable /absolute/agent --output /absolute/experiment.toml --use-config
-asb plan /absolute/path/experiment.toml
-asb run /absolute/path/experiment.toml
+  --agent-executable /absolute/agent --output /absolute/experiment.toml \
+  --sweep-max-concurrency 2 --use-config
+asb plan /absolute/experiment.toml --use-config
+asb sweep /absolute/experiment.toml --use-config
 asb report /absolute/result/root/runs/RUN_ID
 ```
 
