@@ -52,18 +52,25 @@ fn assert_catalogued_routed_codes(source: &'static str) -> Result<(), String> {
 /// executable makes every literal producer either receive a reviewed cause or
 /// fail this contract.
 fn bare_cli_error_producers(source: &'static str) -> BTreeSet<&'static str> {
+    // Deliberately match the constructor token rather than its argument
+    // spelling: a producer may place `(` and a literal on later lines, or
+    // pass an identifier.  Both shapes must fail before a new diagnostic can
+    // inherit a prose-derived identity.
     [
-        "CliError::usage(\"",
-        "CliError::validation(\"",
-        "CliError::operation(\"",
-        "CliError::validation_with_remediation(\"",
+        "CliError::usage",
+        "CliError::validation",
+        "CliError::operation",
+        "CliError::validation_with_remediation",
     ]
     .into_iter()
-    .flat_map(|prefix| {
-        source
-            .split(prefix)
-            .skip(1)
-            .map(|remainder| remainder.split('\"').next().expect("closed Rust literal"))
+    .filter(|constructor| {
+        source.match_indices(constructor).any(|(offset, _)| {
+            source[offset + constructor.len()..]
+                .chars()
+                .skip_while(|character| character.is_whitespace())
+                .next()
+                == Some('(')
+        })
     })
     .collect()
 }
@@ -281,7 +288,11 @@ fn controlled_bare_and_dynamic_cli_producers_are_rejected() {
     let bare = r#"CliError::operation("future workload unavailable")"#;
     let error = assert_no_bare_cli_producers(bare)
         .expect_err("the completeness gate must reject a bare keyword-looking producer");
-    assert!(error.contains("future workload unavailable"));
+    assert!(error.contains("CliError::operation"));
+    let multiline = "CliError::operation(\n    \"future workload unavailable\",\n)";
+    let error = assert_no_bare_cli_producers(multiline)
+        .expect_err("the completeness gate must reject a multiline bare producer");
+    assert!(error.contains("CliError::operation"));
     let dynamic = "let message = dynamic_message();\nCliError::legacy_operation(message)";
     let error = assert_legacy_call_sites_are_catalogued(
         "crates/asb-cli/src/lib.rs",

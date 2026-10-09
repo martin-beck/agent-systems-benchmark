@@ -2643,7 +2643,7 @@ fn record_live_with_progress(
     progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     if !confirmed {
-        return Err(CliError::validation_with_remediation(
+        return Err(CliError::legacy_validation_with_remediation(
             "record-live requires explicit --confirm-record opt-in",
             ErrorRemediation::RecordConfirmation,
         ));
@@ -9385,7 +9385,11 @@ impl CliError {
         }
     }
 
-    fn validation_with_remediation(message: &'static str, remediation: ErrorRemediation) -> Self {
+    #[track_caller]
+    fn legacy_validation_with_remediation(
+        message: &'static str,
+        remediation: ErrorRemediation,
+    ) -> Self {
         Self {
             code: "validation",
             message,
@@ -9393,8 +9397,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation,
-            diagnostic: diagnostic::Diagnostic::for_cli_literal(
-                message,
+            diagnostic: diagnostic::Diagnostic::for_legacy_cli_callsite(
                 diagnostic::Severity::Error,
             ),
             path: None,
