@@ -27,8 +27,8 @@ use asb_agents::provider_launch::{
 use asb_analysis::{ComparisonField, compare_experiments};
 use asb_config::{
     Agent as ConfigAgent, ConfigStore, Configuration, Connection as ConfigConnection,
-    CredentialReference, CredentialReferenceKind, ModelProfile, OpenRouterFreeModelConfig,
-    ProviderSelection,
+    CredentialReference, CredentialReferenceKind, MAX_CONFIG_BYTES, ModelProfile,
+    OpenRouterFreeModelConfig, ProjectConfigV1, ProviderSelection, decode_project_config,
 };
 use asb_metrics::LinuxCollector;
 use asb_protocol::{
@@ -745,6 +745,9 @@ fn dispatch(
         [command] if command == "workload-catalog" => workload_catalog_output(stdout).map(|()| 0),
         [command, operation] if command == "config" && operation == "openrouter" => {
             configure_openrouter(stdout).map(|()| 0)
+        }
+        [command, subcommand, init_args @ ..] if command == "project" && subcommand == "init" => {
+            project_init(init_args, stdout).map(|()| 0)
         }
         [command, auth_args @ ..] if command == "auth" => auth(auth_args, stdout, stdin),
         [command, selection @ ..] if command == "provider-plan" => {
@@ -1839,7 +1842,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config --local-mock\n  asb capabilities --format json\n  asb project init [PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run EXPERIMENT.toml --local-mock\n  asb sweep EXPERIMENT.toml --local-mock\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json --online [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Progress is written to stderr."
     )
     .map_err(output_error)?;
     writeln!(
@@ -2175,7 +2178,7 @@ fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     }
     writeln!(
         output,
-        "complete -W 'doctor setup capabilities provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy build install update test status rollback remove --help --version' asb"
+        "complete -W 'doctor setup capabilities project provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy build install update test status rollback remove --help --version' asb"
     )
     .map_err(output_error)
 }
@@ -2798,6 +2801,7 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
                 "doctor",
                 "setup",
                 "capabilities",
+                "project init",
                 "provider-catalog",
                 "provider-plan",
                 "plan",
@@ -2815,6 +2819,183 @@ fn doctor(output: &mut dyn Write) -> Result<(), CliError> {
             workloads: OriginalWorkloads::fixture_ids(),
         },
     )
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProjectInitOutput {
+    schema_version: u16,
+    ok: bool,
+    command: &'static str,
+    initialized: bool,
+    recovered: bool,
+    config: &'static str,
+    results: &'static str,
+    catalogs: &'static str,
+    next: [&'static str; 3],
+}
+
+const PROJECT_INIT_CONFIG: &str = ".asb/project.json";
+
+/// Initialize or recover the bounded, credential-free ASB project layout.
+///
+/// The configuration is installed last through a create-new hard link from a
+/// synced temporary file.  Thus an interrupted initialization leaves only
+/// recoverable directories, while an existing configuration is never replaced.
+fn project_init(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    if args.len() > 1 {
+        return Err(CliError::usage("project init accepts at most one PATH"));
+    }
+    let root = PathBuf::from(args.first().map_or(".", String::as_str));
+    ensure_project_root(&root)?;
+
+    let metadata_root = root.join(".asb");
+    ensure_project_directory(&metadata_root, 0o700)?;
+    let results = root.join("results");
+    let catalogs = root.join("catalogs");
+    let config_path = metadata_root.join("project.json");
+    let mut recovered = false;
+
+    if config_path.exists() || fs::symlink_metadata(&config_path).is_ok() {
+        if fs::symlink_metadata(&config_path)
+            .map_err(|_| {
+                CliError::validation("existing ASB project configuration cannot be inspected")
+            })?
+            .file_type()
+            .is_symlink()
+        {
+            return Err(CliError::validation(
+                "existing ASB project configuration is a symlink",
+            ));
+        }
+        let bytes = read_bounded_json(
+            &config_path,
+            MAX_CONFIG_BYTES,
+            "existing ASB project configuration is unreadable",
+        )?;
+        let config = decode_project_config(&bytes).map_err(|_| {
+            CliError::validation("existing ASB project configuration is invalid or conflicting")
+        })?;
+        if config.roots.project != "."
+            || config.roots.results != "results"
+            || config.roots.catalogs != "catalogs"
+        {
+            return Err(CliError::validation(
+                "existing ASB project configuration uses a conflicting layout",
+            ));
+        }
+        recovered = true;
+    }
+
+    ensure_project_directory(&results, 0o755)?;
+    ensure_project_directory(&catalogs, 0o755)?;
+
+    if !recovered {
+        let config = ProjectConfigV1::empty();
+        let bytes = serde_json::to_vec_pretty(&config)
+            .map_err(|_| CliError::operation("ASB project configuration cannot be encoded"))?;
+        install_project_config(&config_path, &bytes)?;
+    }
+
+    write_json(
+        output,
+        &ProjectInitOutput {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: true,
+            command: "project init",
+            initialized: !recovered,
+            recovered,
+            config: PROJECT_INIT_CONFIG,
+            results: "results",
+            catalogs: "catalogs",
+            next: [
+                "asb provider-catalog",
+                "asb project init .",
+                "asb run PLAN.toml",
+            ],
+        },
+    )
+}
+
+fn ensure_project_root(root: &Path) -> Result<(), CliError> {
+    if root.as_os_str().is_empty() {
+        return Err(CliError::validation("project path cannot be empty"));
+    }
+    reject_path_symlinks(root)?;
+    if let Ok(metadata) = fs::symlink_metadata(root) {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(CliError::validation(
+                "project path must be a directory and cannot be a symlink",
+            ));
+        }
+        return Ok(());
+    }
+    fs::create_dir_all(root)
+        .map_err(|_| CliError::operation("project directory cannot be created"))?;
+    reject_path_symlinks(root)
+}
+
+fn reject_path_symlinks(path: &Path) -> Result<(), CliError> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        current.push(component.as_os_str());
+        if let Ok(metadata) = fs::symlink_metadata(&current)
+            && metadata.file_type().is_symlink()
+        {
+            return Err(CliError::validation(
+                "project path contains a symlink component",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn ensure_project_directory(path: &Path, mode: u32) -> Result<(), CliError> {
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(CliError::validation(
+                "project layout contains a conflicting file or symlink",
+            ));
+        }
+        return Ok(());
+    }
+    fs::DirBuilder::new()
+        .mode(mode)
+        .create(path)
+        .map_err(|_| CliError::operation("project layout directory cannot be created"))
+}
+
+fn install_project_config(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| CliError::operation("project configuration parent is unavailable"))?;
+    let temporary = parent.join(format!(".project.json.{}.tmp", std::process::id()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&temporary)
+        .map_err(|_| CliError::operation("project configuration cannot be staged"))?;
+    if file.write_all(bytes).is_err() || file.sync_all().is_err() {
+        let _ = fs::remove_file(&temporary);
+        return Err(CliError::operation(
+            "project configuration cannot be written",
+        ));
+    }
+    drop(file);
+    if fs::hard_link(&temporary, path).is_err() {
+        let _ = fs::remove_file(&temporary);
+        if fs::symlink_metadata(path).is_ok() {
+            return Err(CliError::validation(
+                "project configuration appeared concurrently; rerun init to recover",
+            ));
+        }
+        return Err(CliError::operation(
+            "project configuration cannot be installed",
+        ));
+    }
+    fs::remove_file(&temporary)
+        .map_err(|_| CliError::operation("project configuration staging cannot be cleaned"))
 }
 
 #[derive(Serialize)]
@@ -7672,6 +7853,89 @@ mod tests {
         assert!(!encoded.contains(right));
         assert!(!encoded.contains("/tmp/"));
         assert!(!encoded.contains("C:\\\\Users\\"));
+    }
+
+    #[test]
+    fn project_init_creates_and_recovers_idempotently() {
+        let scratch = Scratch::new("project-init");
+        let project = scratch.0.join("workspace");
+        let args = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        let mut first = Vec::new();
+        assert_eq!(
+            run_with_default_mode(&args, &mut first, &mut Vec::new(), false),
+            0
+        );
+        let first: Value = serde_json::from_slice(&first).unwrap();
+        assert_eq!(first["initialized"], true);
+        assert!(project.join(".asb/project.json").is_file());
+        assert!(project.join("results").is_dir());
+        assert!(project.join("catalogs").is_dir());
+        assert!(!String::from_utf8_lossy(&serde_json::to_vec(&first).unwrap()).contains("/tmp/"));
+
+        fs::remove_dir(project.join("catalogs")).unwrap();
+        let mut second = Vec::new();
+        assert_eq!(
+            run_with_default_mode(&args, &mut second, &mut Vec::new(), false),
+            0
+        );
+        let second: Value = serde_json::from_slice(&second).unwrap();
+        assert_eq!(second["initialized"], false);
+        assert_eq!(second["recovered"], true);
+        assert!(project.join("catalogs").is_dir());
+        let config = decode_project_config(&fs::read(project.join(".asb/project.json")).unwrap());
+        assert!(config.is_ok());
+    }
+
+    #[test]
+    fn project_init_rejects_conflicting_files_and_invalid_config() {
+        let scratch = Scratch::new("project-init-conflict");
+        let project = scratch.0.join("workspace");
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("results"), b"not a directory").unwrap();
+        let args = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        let mut output = Vec::new();
+        assert_ne!(
+            run_with_default_mode(&args, &mut output, &mut Vec::new(), false),
+            0
+        );
+        assert!(!project.join(".asb/project.json").exists());
+
+        fs::remove_file(project.join("results")).unwrap();
+        fs::create_dir_all(project.join(".asb")).unwrap();
+        fs::write(project.join(".asb/project.json"), br#"{"unknown":true}"#).unwrap();
+        let mut output = Vec::new();
+        assert_ne!(
+            run_with_default_mode(&args, &mut output, &mut Vec::new(), false),
+            0
+        );
+        assert!(!project.join("catalogs").exists());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn project_init_rejects_symlink_layout_entries() {
+        let scratch = Scratch::new("project-init-symlink");
+        let project = scratch.0.join("workspace");
+        fs::create_dir_all(&project).unwrap();
+        std::os::unix::fs::symlink(scratch.0.join("elsewhere"), project.join("results")).unwrap();
+        let args = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.into_os_string(),
+        ];
+        let mut output = Vec::new();
+        assert_ne!(
+            run_with_default_mode(&args, &mut output, &mut Vec::new(), false),
+            0
+        );
     }
 
     use super::*;
