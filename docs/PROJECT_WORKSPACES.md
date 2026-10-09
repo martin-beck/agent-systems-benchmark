@@ -38,3 +38,7 @@ its checked schema at
 [`project-config.schema.json`](../crates/asb-config/schema/v1/project-config.schema.json).
 Project initialization does not install tools or contact a provider; those
 operations belong to later project-tool and catalog workflows.
+
+The project-local tool workflow is documented in
+[`PROJECT_TOOLS.md`](PROJECT_TOOLS.md). It provides rootless, bounded
+installation and inventory commands without invoking arbitrary installers.

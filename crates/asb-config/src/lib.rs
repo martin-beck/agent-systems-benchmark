@@ -641,7 +641,7 @@ fn validate_selection(
 
 fn validate_source_ref(value: &str, field: &'static str) -> Result<(), ConfigError> {
     validate_text(value, field)?;
-    if value.contains("://") && !value.starts_with("https://")
+    if value.contains("://") && !value.starts_with("https://") && !value.starts_with("fixture://")
         || value.contains('@')
         || value.contains("token=")
         || value.contains("key=")
