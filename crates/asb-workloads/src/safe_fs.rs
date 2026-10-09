@@ -12,6 +12,7 @@ use std::path::{Component, Path};
 #[derive(Debug)]
 pub(crate) struct OwnedDirectory {
     pub(crate) file: File,
+    pub(crate) created: Option<(File, std::ffi::OsString)>,
 }
 
 pub(crate) fn prepare_absolute(path: &Path, mode: u32) -> io::Result<OwnedDirectory> {
@@ -81,7 +82,10 @@ pub(crate) fn prepare_absolute(path: &Path, mode: u32) -> io::Result<OwnedDirect
         };
         current = next;
     }
-    Ok(OwnedDirectory { file: current })
+    Ok(OwnedDirectory {
+        file: current,
+        created: None,
+    })
 }
 
 pub(crate) fn prepare_child(parent: &File, name: &OsStr, mode: u32) -> io::Result<OwnedDirectory> {
@@ -133,7 +137,21 @@ pub(crate) fn prepare_child(parent: &File, name: &OsStr, mode: u32) -> io::Resul
         }
         return Err(error.into());
     }
-    Ok(OwnedDirectory { file: next })
+    let created_entry = if created {
+        match parent.try_clone() {
+            Ok(parent_clone) => Some((parent_clone, name.to_owned())),
+            Err(error) => {
+                let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
+                return Err(error);
+            }
+        }
+    } else {
+        None
+    };
+    Ok(OwnedDirectory {
+        file: next,
+        created: created_entry,
+    })
 }
 
 pub(crate) fn write_new(parent: &File, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
@@ -155,6 +173,10 @@ fn rollback(created: &[(File, std::ffi::OsString)]) {
     for (parent, name) in created.iter().rev() {
         let _ = unlinkat(parent, name, AtFlags::REMOVEDIR);
     }
+}
+
+pub(crate) fn rollback_created(created: &[(File, std::ffi::OsString)]) {
+    rollback(created);
 }
 
 #[cfg(test)]
@@ -208,5 +230,30 @@ mod tests {
         assert!(prepare_absolute(&child, 0o700).is_err());
         assert!(!child.exists());
         fs::remove_file(root).expect("cleanup");
+    }
+
+    #[test]
+    fn nested_setup_rolls_back_only_directories_created_by_the_transaction() {
+        let root = std::env::temp_dir().join(format!(
+            "asb-safe-fs-rollback-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let parent = prepare_absolute(&root, 0o700).expect("root directory");
+        let workspace = prepare_child(&parent.file, OsStr::new("workspace"), 0o700)
+            .expect("workspace directory");
+        let mut created = Vec::new();
+        let nested =
+            prepare_child(&workspace.file, OsStr::new("nested"), 0o700).expect("nested directory");
+        created.push(nested.created.expect("new nested directory"));
+        write_new(&workspace.file, OsStr::new("blocked"), b"file").expect("blocking file");
+        assert!(prepare_child(&workspace.file, OsStr::new("blocked"), 0o700).is_err());
+        rollback_created(&created);
+        assert!(!root.join("workspace/nested").exists());
+        assert!(root.join("workspace/blocked").is_file());
+        fs::remove_dir_all(root).expect("cleanup");
     }
 }

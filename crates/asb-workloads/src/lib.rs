@@ -576,6 +576,7 @@ fn verify_owner(root: &Path, id: &str) -> Result<(), WorkloadError> {
 }
 
 fn write_initial(workspace: &std::fs::File, fixture: &Fixture) -> Result<(), WorkloadError> {
+    let mut created = Vec::<(std::fs::File, std::ffi::OsString)>::new();
     for (relative, contents) in fixture.initial {
         let path = Path::new(relative);
         let name = path.file_name().ok_or(WorkloadError::UnsafePath)?;
@@ -584,9 +585,22 @@ fn write_initial(workspace: &std::fs::File, fixture: &Fixture) -> Result<(), Wor
             let Component::Normal(component) = component else {
                 return Err(WorkloadError::UnsafePath);
             };
-            parent = safe_fs::prepare_child(&parent, component, 0o700)?.file;
+            let prepared = match safe_fs::prepare_child(&parent, component, 0o700) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    safe_fs::rollback_created(&created);
+                    return Err(error.into());
+                }
+            };
+            if let Some(entry) = prepared.created {
+                created.push(entry);
+            }
+            parent = prepared.file;
         }
-        safe_fs::write_new(&parent, name, contents.as_bytes())?;
+        if let Err(error) = safe_fs::write_new(&parent, name, contents.as_bytes()) {
+            safe_fs::rollback_created(&created);
+            return Err(error.into());
+        }
     }
     Ok(())
 }
