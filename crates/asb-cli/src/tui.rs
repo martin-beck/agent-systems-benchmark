@@ -92,6 +92,7 @@ const ASB_SOURCE_COMMIT: &str = build_identity::COMMIT;
 const ASB_SOURCE_TREE: &str = build_identity::TREE;
 const DEV_COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const MAX_DEV_COMMAND_OUTPUT: usize = 128 * 1024;
+const MAX_DEV_COMMAND_DRAIN_READS: usize = 16;
 const MAX_DEV_WORKSPACE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -2642,7 +2643,10 @@ fn drain_development_command_output(
     oversized: &mut bool,
 ) -> Result<bool, ()> {
     let mut buffer = [0_u8; 8192];
-    loop {
+    // stdout is nonblocking, but a hostile descendant can keep it continuously
+    // readable. Bound each drain pass so the caller always regains control to
+    // enforce its process-group, quota, and wall-clock deadlines.
+    for _ in 0..MAX_DEV_COMMAND_DRAIN_READS {
         match stdout.read(&mut buffer) {
             Ok(0) => return Ok(true),
             Ok(count) => {
@@ -2659,6 +2663,7 @@ fn drain_development_command_output(
             Err(_) => return Err(()),
         }
     }
+    Ok(false)
 }
 
 fn drain_development_command_output_until_closed(
@@ -7752,6 +7757,54 @@ mod tests {
                 .unwrap()
                 .contains(FdFlags::CLOEXEC)
         );
+
+        let writer_pid_file = scratch.0.join("writer-descendant.pid");
+        let writer_pid_staging = scratch.0.join("writer-descendant.pid.tmp");
+        let writer_inherited_marker = scratch.0.join("writer-inherited-fd");
+        let writer_start_marker = scratch.0.join("writer-start");
+        let writer_driver = scratch.0.join("continuous-writer-driver");
+        let script = format!(
+            "#!/bin/sh\n{{\n  if test -e /proc/self/fd/{fd}; then printf retained > {inherited}; fi\n  while ! test -e {start}; do :; done\n  exec /bin/cat /dev/zero\n}} &\nchild=$!\nprintf \"%s\\n\" \"$child\" > {pid_staging}\n/bin/mv {pid_staging} {pid}\nwhile ! test -s {inherited}; do :; done\n: > {start}\n/bin/sleep 30\n",
+            fd = prefix.directory.as_raw_fd(),
+            inherited = shell_quote(&writer_inherited_marker),
+            start = shell_quote(&writer_start_marker),
+            pid_staging = shell_quote(&writer_pid_staging),
+            pid = shell_quote(&writer_pid_file),
+        );
+        fs::write(&writer_driver, script).unwrap();
+        fs::set_permissions(&writer_driver, fs::Permissions::from_mode(0o700)).unwrap();
+        let writer_root = scratch.0.join("continuous-writer-root");
+        prepare_private_directory(&writer_root).unwrap();
+        let started = Instant::now();
+        assert_eq!(
+            validate_development_gcc_driver_with_timeout(
+                &writer_driver,
+                &prefix,
+                &writer_root,
+                Duration::from_millis(500),
+            )
+            .unwrap_err()
+            .code,
+            "development_compiler_unsupported"
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(writer_inherited_marker.is_file());
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+        let writer_descendant: i32 = fs::read_to_string(&writer_pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline && Path::new(&format!("/proc/{writer_descendant}")).exists()
+        {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&format!("/proc/{writer_descendant}")).exists());
     }
 
     #[cfg(unix)]
