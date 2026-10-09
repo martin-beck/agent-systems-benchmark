@@ -1180,6 +1180,15 @@ fn validate_development_gcc_driver(
     linker_prefix: &DevelopmentLinkerPrefix,
     root: &Path,
 ) -> Result<(), RouterError> {
+    validate_development_gcc_driver_with_timeout(cc, linker_prefix, root, Duration::from_secs(5))
+}
+
+fn validate_development_gcc_driver_with_timeout(
+    cc: &Path,
+    linker_prefix: &DevelopmentLinkerPrefix,
+    root: &Path,
+    timeout: Duration,
+) -> Result<(), RouterError> {
     linker_prefix.validate()?;
     let inherited = make_descriptor_inheritable(&linker_prefix.directory)?;
     let search_argument = format!("-B{}", linker_prefix.search_root().display());
@@ -1187,13 +1196,10 @@ fn validate_development_gcc_driver(
     command
         .env_clear()
         .env("LANG", "C.UTF-8")
-        .args([search_argument.as_str(), "-print-prog-name=collect2"]);
-    let probe = run_development_command_with_limits(
-        command,
-        root,
-        Duration::from_secs(5),
-        MAX_DEV_WORKSPACE_BYTES,
-    );
+        .args([search_argument.as_str(), "-print-prog-name=collect2"])
+        .process_group(0);
+    let probe =
+        run_development_command_with_limits(command, root, timeout, MAX_DEV_WORKSPACE_BYTES);
     let restore = restore_descriptor_flags(&linker_prefix.directory, inherited);
     restore?;
     let output = probe.map_err(|_| RouterError::policy("development_compiler_unsupported"))?;
@@ -2559,38 +2565,49 @@ fn run_development_command_with_limits_and_roots(
     let mut child = command
         .spawn()
         .map_err(|_| RouterError::operation("dev_command_unavailable"))?;
+    let pid = Pid::from_child(&child);
     let mut stdout = child
         .stdout
         .take()
         .ok_or_else(|| RouterError::operation("dev_command_unavailable"))?;
-    let output_reader = thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let mut buffer = [0_u8; 8192];
-        let mut oversized = false;
-        loop {
-            let count = stdout.read(&mut buffer).map_err(|_| ())?;
-            if count == 0 {
-                return Ok::<_, ()>((bytes, oversized));
-            }
-            if bytes.len() < MAX_DEV_COMMAND_OUTPUT {
-                let retained = count.min(MAX_DEV_COMMAND_OUTPUT - bytes.len());
-                bytes.extend_from_slice(&buffer[..retained]);
-                oversized |= retained != count;
-            } else {
-                oversized = true;
-            }
-        }
-    });
+    let stdout_flags = fcntl_getfl(&stdout).map_err(|_| {
+        terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
+        RouterError::operation("dev_command_failed")
+    })?;
+    fcntl_setfl(&stdout, stdout_flags | OFlags::NONBLOCK).map_err(|_| {
+        terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
+        RouterError::operation("dev_command_failed")
+    })?;
+    let mut bytes = Vec::new();
+    let mut oversized = false;
     let deadline = Instant::now() + timeout;
     loop {
-        if let Some(status) = child
-            .try_wait()
-            .map_err(|_| RouterError::operation("dev_command_failed"))?
-        {
-            let (bytes, oversized) = output_reader
-                .join()
-                .map_err(|_| RouterError::operation("dev_command_failed"))?
-                .map_err(|_| RouterError::operation("dev_command_failed"))?;
+        if drain_development_command_output(&mut stdout, &mut bytes, &mut oversized).is_err() {
+            terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
+            return Err(RouterError::operation("dev_command_failed"));
+        }
+        let exited = match waitid(
+            WaitId::Pid(pid),
+            WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT,
+        ) {
+            Ok(status) => status.is_some(),
+            Err(_) => {
+                terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
+                return Err(RouterError::operation("dev_command_failed"));
+            }
+        };
+        if exited {
+            // Keep the leader unreaped while killing its owned process group.
+            // This fences PID reuse and closes stdout/linker descriptors held
+            // by descendants before bounded output drain and caller cleanup.
+            let status = finish_bounded_command(&mut child, pid);
+            let drain = drain_development_command_output_until_closed(
+                &mut stdout,
+                &mut bytes,
+                &mut oversized,
+            );
+            let status = status?;
+            drain?;
             if bounded_directory_size_for_roots(quota_roots, quota)? > quota {
                 let _ = fs::remove_dir_all(cleanup_root);
                 return Err(RouterError::policy("dev_workspace_quota_exceeded"));
@@ -2603,45 +2620,93 @@ fn run_development_command_with_limits_and_roots(
         let quota_size = match bounded_directory_size_for_roots(quota_roots, quota) {
             Ok(size) => size,
             Err(error) => {
-                terminate_bounded_command(&mut child, output_reader, cleanup_root);
+                terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
                 return Err(error);
             }
         };
         if quota_size > quota {
-            if let Some(pid) = Pid::from_raw(child.id() as i32) {
-                let _ = kill_process_group(pid, Signal::KILL);
-            }
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = output_reader.join();
-            let _ = fs::remove_dir_all(cleanup_root);
+            terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
             return Err(RouterError::policy("dev_workspace_quota_exceeded"));
         }
         if Instant::now() >= deadline {
-            if let Some(pid) = Pid::from_raw(child.id() as i32) {
-                let _ = kill_process_group(pid, Signal::KILL);
-            }
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = output_reader.join();
-            let _ = fs::remove_dir_all(cleanup_root);
+            terminate_bounded_command(&mut child, pid, &mut stdout, cleanup_root);
             return Err(RouterError::operation("dev_command_timeout"));
         }
         thread::sleep(Duration::from_millis(50));
     }
 }
 
+fn drain_development_command_output(
+    stdout: &mut impl Read,
+    bytes: &mut Vec<u8>,
+    oversized: &mut bool,
+) -> Result<bool, ()> {
+    let mut buffer = [0_u8; 8192];
+    loop {
+        match stdout.read(&mut buffer) {
+            Ok(0) => return Ok(true),
+            Ok(count) => {
+                if bytes.len() < MAX_DEV_COMMAND_OUTPUT {
+                    let retained = count.min(MAX_DEV_COMMAND_OUTPUT - bytes.len());
+                    bytes.extend_from_slice(&buffer[..retained]);
+                    *oversized |= retained != count;
+                } else {
+                    *oversized = true;
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(false),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => return Err(()),
+        }
+    }
+}
+
+fn drain_development_command_output_until_closed(
+    stdout: &mut impl Read,
+    bytes: &mut Vec<u8>,
+    oversized: &mut bool,
+) -> Result<(), RouterError> {
+    let deadline = Instant::now() + Duration::from_millis(250);
+    loop {
+        if drain_development_command_output(stdout, bytes, oversized)
+            .map_err(|_| RouterError::operation("dev_command_failed"))?
+        {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(RouterError::operation("dev_command_failed"));
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn finish_bounded_command(
+    child: &mut Child,
+    pid: Pid,
+) -> Result<std::process::ExitStatus, RouterError> {
+    let group = match kill_process_group(pid, Signal::KILL) {
+        Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
+        Err(_) => Err(RouterError::operation("dev_command_failed")),
+    };
+    let status = child
+        .wait()
+        .map_err(|_| RouterError::operation("dev_command_failed"));
+    group?;
+    status
+}
+
 fn terminate_bounded_command(
-    child: &mut std::process::Child,
-    output_reader: thread::JoinHandle<Result<(Vec<u8>, bool), ()>>,
+    child: &mut Child,
+    pid: Pid,
+    stdout: &mut impl Read,
     cleanup_root: &Path,
 ) {
-    if let Some(pid) = Pid::from_raw(child.id() as i32) {
-        let _ = kill_process_group(pid, Signal::KILL);
-    }
+    let _ = kill_process_group(pid, Signal::KILL);
     let _ = child.kill();
     let _ = child.wait();
-    let _ = output_reader.join();
+    let mut discarded = Vec::new();
+    let mut oversized = false;
+    let _ = drain_development_command_output_until_closed(stdout, &mut discarded, &mut oversized);
     let _ = fs::remove_dir_all(cleanup_root);
 }
 
@@ -7542,11 +7607,21 @@ mod tests {
         )
         .unwrap();
         validate_development_gcc_driver(&cc, &prefix, &scratch.0).unwrap();
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
         assert_eq!(
             validate_development_gcc_driver(Path::new("/bin/false"), &prefix, &scratch.0)
                 .unwrap_err()
                 .code,
             "development_compiler_unsupported"
+        );
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
         );
 
         let relative = scratch.0.join("relative-driver");
@@ -7557,6 +7632,11 @@ mod tests {
                 .unwrap_err()
                 .code,
             "development_compiler_unsupported"
+        );
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
         );
 
         let missing = scratch.0.join("missing-driver");
@@ -7571,6 +7651,106 @@ mod tests {
                 .unwrap_err()
                 .code,
             "development_compiler_unsupported"
+        );
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+
+        let unavailable = scratch.0.join("unavailable-driver");
+        assert_eq!(
+            validate_development_gcc_driver(&unavailable, &prefix, &scratch.0)
+                .unwrap_err()
+                .code,
+            "development_compiler_unsupported"
+        );
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_gcc_probe_kills_stdout_descendant_and_restores_cloexec() {
+        let scratch = Scratch::new("development-linker-probe-descendant");
+        let ld = resolve_development_tool_candidates(
+            DEV_LD_OVERRIDE,
+            &["/usr/bin/ld", "/usr/local/bin/ld"],
+        )
+        .unwrap();
+        let prefix = materialize_development_linker_prefix(&scratch.0, &ld).unwrap();
+        let pid_file = scratch.0.join("descendant.pid");
+        let inherited_marker = scratch.0.join("descendant-inherited-fd");
+        let escaped_marker = scratch.0.join("descendant-escaped");
+        let driver = scratch.0.join("hostile-driver");
+        let script = format!(
+            "#!/bin/sh\n{{\n  if test -e /proc/self/fd/{fd}; then printf retained > {inherited}; fi\n  /bin/sleep 30\n  printf escaped > {escaped}\n}} &\nchild=$!\nprintf '%s\\n' \"$child\" > {pid}\nwhile ! test -s {inherited}; do :; done\nprintf '/definitely/missing/collect2\\n'\nexit 0\n",
+            fd = prefix.directory.as_raw_fd(),
+            inherited = shell_quote(&inherited_marker),
+            escaped = shell_quote(&escaped_marker),
+            pid = shell_quote(&pid_file),
+        );
+        fs::write(&driver, script).unwrap();
+        fs::set_permissions(&driver, fs::Permissions::from_mode(0o700)).unwrap();
+        let probe_root = scratch.0.join("probe-root");
+        prepare_private_directory(&probe_root).unwrap();
+
+        let started = Instant::now();
+        assert_eq!(
+            validate_development_gcc_driver_with_timeout(
+                &driver,
+                &prefix,
+                &probe_root,
+                Duration::from_secs(2),
+            )
+            .unwrap_err()
+            .code,
+            "development_compiler_unsupported"
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(inherited_marker.is_file());
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
+        );
+        let descendant: i32 = fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline && Path::new(&format!("/proc/{descendant}")).exists() {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&format!("/proc/{descendant}")).exists());
+        assert!(!escaped_marker.exists());
+
+        let timeout_driver = scratch.0.join("timeout-driver");
+        fs::write(&timeout_driver, b"#!/bin/sh\n/bin/sleep 30\n").unwrap();
+        fs::set_permissions(&timeout_driver, fs::Permissions::from_mode(0o700)).unwrap();
+        let timeout_root = scratch.0.join("timeout-root");
+        prepare_private_directory(&timeout_root).unwrap();
+        let started = Instant::now();
+        assert_eq!(
+            validate_development_gcc_driver_with_timeout(
+                &timeout_driver,
+                &prefix,
+                &timeout_root,
+                Duration::from_millis(100),
+            )
+            .unwrap_err()
+            .code,
+            "development_compiler_unsupported"
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(
+            fcntl_getfd(&prefix.directory)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC)
         );
     }
 
