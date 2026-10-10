@@ -1308,11 +1308,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1787-review-current-20261011 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. |
@@ -2205,7 +2205,7 @@ flowchart LR
         AR_1784["AR-1784 - Planned"]:::status_planned
         AR_1785["AR-1785 - Blocked"]:::status_blocked
         AR_1786["AR-1786 - Open"]:::status_open
-        AR_1787["AR-1787 - In progress"]:::status_in_progress
+        AR_1787["AR-1787 - Open"]:::status_open
         AR_1788["AR-1788 - Done"]:::status_done
         AR_1789["AR-1789 - Done"]:::status_done
         AR_1790["AR-1790 - Done"]:::status_done
@@ -4230,3 +4230,4 @@ flowchart LR
 | [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0001](../tasks/AR-0001-repository-bootstrap.md) | [AR-0317](../tasks/AR-0317-runtime-bundle-manifest.md), [AR-0702](../tasks/AR-0702-native-platforms.md), [AR-0703](../tasks/AR-0703-native-platform-lab.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md), [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0848](../tasks/AR-0848-native-x86-capacity.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) |
 | [AR-0702](../tasks/AR-0702-native-platforms.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0807](../tasks/AR-0807-tui-resilience-accessibility.md), [AR-0813](../tasks/AR-0813-remote-control-transport.md), [AR-0816](../tasks/AR-0816-cross-platform-remote-interoperability.md), [AR-0903](../tasks/AR-0903-release-qualification.md), [AR-0907](../tasks/AR-0907-hosted-runner-evidence-classification.md), [AR-1006](../tasks/AR-1006-distributed-workers.md) |
+| [AR-0703](../tasks/AR-0703-native-platform-lab.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |

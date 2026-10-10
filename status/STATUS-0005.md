@@ -1,7 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-1643](../tasks/AR-1643.md) | [AR-1613](../tasks/AR-1613.md), [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md), [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1647](../tasks/AR-1647.md), [AR-1651](../tasks/AR-1651.md), [AR-1652](../tasks/AR-1652.md) | [AR-1653](../tasks/AR-1653.md), [AR-1654](../tasks/AR-1654.md) |
-| [AR-1644](../tasks/AR-1644.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md) | [AR-1650](../tasks/AR-1650.md) |
 | [AR-1645](../tasks/AR-1645.md) | [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md) | [AR-1643](../tasks/AR-1643.md), [AR-1647](../tasks/AR-1647.md), [AR-1648](../tasks/AR-1648.md), [AR-1657](../tasks/AR-1657.md), [AR-1686](../tasks/AR-1686.md), [AR-1695](../tasks/AR-1695.md) |
 | [AR-1646](../tasks/AR-1646.md) | [AR-1617](../tasks/AR-1617.md), [AR-1619](../tasks/AR-1619.md), [AR-1620](../tasks/AR-1620.md), [AR-1642](../tasks/AR-1642.md) | [AR-1643](../tasks/AR-1643.md), [AR-1647](../tasks/AR-1647.md), [AR-1648](../tasks/AR-1648.md), [AR-1652](../tasks/AR-1652.md), [AR-1686](../tasks/AR-1686.md), [AR-1688](../tasks/AR-1688.md), [AR-1698](../tasks/AR-1698.md) |
 | [AR-1647](../tasks/AR-1647.md) | [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1648](../tasks/AR-1648.md), [AR-1649](../tasks/AR-1649.md), [AR-1650](../tasks/AR-1650.md), [AR-1651](../tasks/AR-1651.md) | [AR-1643](../tasks/AR-1643.md), [AR-1657](../tasks/AR-1657.md) |
@@ -140,18 +138,13 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | codex-ar1787-review-current-20261011 | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Rebased candidate 573f3e631c9274829461fc051d461a383d994eb3 onto current protected main; PR #553 was closed for stale-base provenance. Release for fresh independent exact-head review before publishing a replacement PR. No GitHub Reviews API approval object is required. |
-
-### Open (2)
+### Open (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
+| P0 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | Unclaimed | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Rebased candidate 573f3e631c9274829461fc051d461a383d994eb3 onto current protected main; PR #553 was closed for stale-base provenance. Release for fresh independent exact-head review before publishing a replacement PR. No GitHub Reviews API approval object is required. |
 
 ### Blocked (89)
 
@@ -563,3 +556,4 @@
 | P0 | [AR-1500](../tasks/AR-1500-development-credential-provider-fixture.md): Development credential/provider lifecycle fixture | Unclaimed | Qualify generated development credentials through provider, capture and replay flows. | AR-1500 complete: PR #379 merged at exact checked head; post-merge main tree equality and offline fixture smoke passed. Continue dependent ARs. |
 | P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
+| P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |

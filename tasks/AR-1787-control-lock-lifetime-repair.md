@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "2026-10-11T00:50:39+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime-current",
   "observed_dirty": 0,
   "observed_head": "573f3e631c9274829461fc051d461a383d994eb3",
-  "owner": "codex-ar1787-review-current-20261011",
+  "owner": "",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 87,
+  "task_revision": 88,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:50:39+00:00",
+  "updated_at": "2026-10-10T22:52:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -284,3 +284,15 @@ not weaken control ownership or the ordinary workspace gate.
   #553 was closed after portable provenance correctly rejected its old base.
 
 - 2026-10-10T22:50:39+00:00: Claimed by codex-ar1787-review-current-20261011.
+
+- 2026-10-10T22:52:18+00:00: Fresh exact-head review of rebased
+  573f3e631c9274829461fc051d461a383d994eb3: SSH-signed and matching DCO verified; merge-base is
+  exact origin/main 59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1; candidate worktree clean; focused
+  owner-preservation, child non-inheritance/CLOEXEC, 16-way concurrency, and diagnostic-contract
+  tests pass; direct cargo test --locked --workspace passes (340 asb-cli unit tests and all
+  workspace suites green; only environment-gated tests ignored); fmt, clippy -D warnings, rustdoc -D
+  warnings, and privacy/diff checks pass. Coordinator wrapper refused test invocations because task
+  declares stale branch codex/ar-1787-lock-lifetime while candidate is
+  codex/ar-1787-lock-lifetime-current; repair metadata before hosted CI/publication. Candidate tree
+  is identical to origin/main (two commits net to no tree delta), so no effective product diff
+  remains relative to current main. No PR, merge, or GitHub Reviews API approval claimed.
