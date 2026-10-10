@@ -25,15 +25,15 @@ Generated from local Git and GitHub. Do not edit.
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38095677491 | `16d8512debab` | push | Formal assurance | in_progress:- |
-| 38095677465 | `16d8512debab` | push | Rust verification | in_progress:- |
-| 38095677460 | `16d8512debab` | push | Cross-repository development broker qualification | in_progress:- |
-| 38095677459 | `16d8512debab` | push | Repository quality | in_progress:- |
-| 38095677445 | `16d8512debab` | push | Portable protected-main provenance | queued:- |
+| 38095677491 | `16d8512debab` | push | Formal assurance | completed:success |
+| 38095677465 | `16d8512debab` | push | Rust verification | completed:success |
+| 38095677460 | `16d8512debab` | push | Cross-repository development broker qualification | completed:success |
+| 38095677459 | `16d8512debab` | push | Repository quality | completed:success |
+| 38095677445 | `16d8512debab` | push | Portable protected-main provenance | completed:success |
 | 38095677437 | `16d8512debab` | push | Huawei MIT source headers | completed:success |
-| 38095677430 | `16d8512debab` | push | Fault assurance | in_progress:- |
-| 38095677428 | `16d8512debab` | push | Emulated aarch64 portability | in_progress:- |
-| 38095677427 | `16d8512debab` | push | Hosted portability and native qualification | in_progress:- |
-| 38095677425 | `16d8512debab` | push | Credential-free benchmark path | in_progress:- |
+| 38095677430 | `16d8512debab` | push | Fault assurance | completed:success |
+| 38095677428 | `16d8512debab` | push | Emulated aarch64 portability | completed:success |
+| 38095677427 | `16d8512debab` | push | Hosted portability and native qualification | completed:success |
+| 38095677425 | `16d8512debab` | push | Credential-free benchmark path | completed:success |
 | 38094974091 | `4dbf735db270` | pull_request | Portable protected-main provenance | completed:success |
 | 38094974020 | `4dbf735db270` | pull_request | Agent Workflow Quality shadow | completed:success |
