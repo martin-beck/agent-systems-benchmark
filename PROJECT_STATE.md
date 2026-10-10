@@ -10,7 +10,7 @@ Generated from local Git and GitHub. Do not edit.
 
 | PR | Head | Base | Merge | Checks | Title |
 | --- | --- | --- | --- | --- | --- |
-| #362 | `dependabot/cargo/serde_json-1.0.151@a7837dd04113` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS | chore(deps): Bump serde_json from 1.0.143 to 1.0.151 |
+| #362 | `dependabot/cargo/serde_json-1.0.151@a7837dd04113` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS | chore(deps): Bump serde_json from 1.0.143 to 1.0.151 |
 | #363 | `dependabot/cargo/rustix-1.1.5@e42ad6479ccc` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:SUCCESS | chore(deps): Bump rustix from 1.1.4 to 1.1.5 |
 | #364 | `dependabot/cargo/jsonschema-0.56.0@e3139eb0974d` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore(deps): Bump jsonschema from 0.33.0 to 0.58.5 |
 | #365 | `dependabot/cargo/rcgen-0.14.10@9058d80291a7` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | chore(deps): Bump rcgen from 0.14.7 to 0.14.10 |
@@ -25,15 +25,15 @@ Generated from local Git and GitHub. Do not edit.
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38090574353 | `59cfd9cf6f06` | dynamic | Dependabot Updates | in_progress:- |
+| 38090573196 | `59cfd9cf6f06` | dynamic | Dependabot Updates | in_progress:- |
+| 38090571830 | `59cfd9cf6f06` | dynamic | Dependabot Updates | in_progress:- |
+| 38090570720 | `59cfd9cf6f06` | dynamic | Dependabot Updates | in_progress:- |
+| 38090570538 | `59cfd9cf6f06` | dynamic | Dependabot Updates | in_progress:- |
 | 38090501425 | `59cfd9cf6f06` | push | Emulated aarch64 portability | in_progress:- |
-| 38090501382 | `59cfd9cf6f06` | push | Fault assurance | in_progress:- |
+| 38090501382 | `59cfd9cf6f06` | push | Fault assurance | completed:success |
 | 38090501366 | `59cfd9cf6f06` | push | Repository quality | in_progress:- |
-| 38090501364 | `59cfd9cf6f06` | push | Hosted portability and native qualification | in_progress:- |
+| 38090501364 | `59cfd9cf6f06` | push | Hosted portability and native qualification | completed:success |
 | 38090501360 | `59cfd9cf6f06` | push | Rust verification | in_progress:- |
 | 38090501353 | `59cfd9cf6f06` | push | Portable protected-main provenance | completed:success |
 | 38090501350 | `59cfd9cf6f06` | push | Formal assurance | in_progress:- |
-| 38090501347 | `59cfd9cf6f06` | push | Cross-repository development broker qualification | in_progress:- |
-| 38090501343 | `59cfd9cf6f06` | push | Huawei MIT source headers | completed:success |
-| 38090501339 | `59cfd9cf6f06` | push | Credential-free benchmark path | in_progress:- |
-| 38089735474 | `c571ad8a2577` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38089735468 | `c571ad8a2577` | pull_request | Hosted portability and native qualification | completed:success |
