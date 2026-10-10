@@ -6979,7 +6979,15 @@ mod tests {
         let mut human = Vec::new();
         crate::render_human(&["tui".into(), "preflight".into()], &json, &mut human).unwrap();
         let human = String::from_utf8(human).unwrap();
-        assert!(human.contains("group-writable or differently owned paths"));
+        let compact = human
+            .replace("[WARN] ", "")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            compact.contains("group-writable or differently owned paths"),
+            "{human}"
+        );
         assert!(!human.contains(GROUP_WRITABLE_RUSTUP_PATH_WARNING));
         fs::remove_dir_all(root).unwrap();
     }
@@ -7183,7 +7191,13 @@ mod tests {
         let mut human = Vec::new();
         crate::render_human(&["tui".into()], &json, &mut human).unwrap();
         let human = String::from_utf8(human).unwrap();
-        assert!(human.contains("trusted tool unavailable"));
+        let compact = human
+            .replace("[WARN] ", "")
+            .replace("[ERR ] ", "")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(compact.contains("trusted tool unavailable"), "{human}");
         assert!(human.contains("Next: asb tui doctor"));
         assert!(!human.contains('/'));
     }

@@ -1580,7 +1580,7 @@ pub(super) fn render_start(args: &[OsString], output: &mut dyn Write) -> io::Res
     }
     writeln!(
         output,
-        "ASB is attempting to start the control service from the supplied configuration."
+        "[WAIT] ASB is attempting to start the control service from the supplied configuration."
     )?;
     output.flush()
 }
@@ -2473,17 +2473,31 @@ fn write_presentation(
     output: &mut dyn Write,
     width: usize,
 ) -> io::Result<()> {
-    write_wrapped(output, &presentation.outcome, width, "")?;
+    let state = status_token(presentation.kind);
+    let state_prefix = format!("{state} ");
+    write_wrapped(output, &presentation.outcome, width, &state_prefix)?;
     for fact in &presentation.facts {
-        write_wrapped(output, fact, width, "  ")?;
+        write_wrapped(output, fact, width, &state_prefix)?;
     }
     for warning in &presentation.warnings {
-        write_wrapped(output, &format!("Note: {warning}"), width, "")?;
+        write_wrapped(output, &format!("Note: {warning}"), width, "[WARN] ")?;
     }
     if let Some(next) = &presentation.next {
-        writeln!(output, "Next: {}", next.render())?;
+        writeln!(output, "{state} Next: {}", next.render())?;
     }
     Ok(())
+}
+
+/// Closed, fixed-width, color-independent state vocabulary for every human
+/// presentation line. The plain text is the complete meaning for redirected
+/// writers and terminals without ANSI support.
+const fn status_token(kind: OutcomeKind) -> &'static str {
+    match kind {
+        OutcomeKind::Succeeded => "[ OK ]",
+        OutcomeKind::Warning | OutcomeKind::Partial | OutcomeKind::HostLimitation => "[WARN]",
+        OutcomeKind::UserError | OutcomeKind::ProductFailure => "[ERR ]",
+        OutcomeKind::Cancelled => "[WAIT]",
+    }
 }
 
 fn write_wrapped(output: &mut dyn Write, text: &str, width: usize, prefix: &str) -> io::Result<()> {
@@ -3189,7 +3203,7 @@ mod tests {
             }),
             false,
         );
-        assert!(output.starts_with("ASB found this host ready"));
+        assert!(output.starts_with("[ OK ] ASB found this host ready"));
         for irrelevant in [
             "schema_version",
             "interactive_stderr",
@@ -3213,7 +3227,7 @@ mod tests {
             serde_json::json!({"schema_version":1,"ok":false,"command":"record-campaign","complete_coverage":false,"offline_ready":false,"tuple_count":1,"unavailable_reason":"recording-coverage-incomplete"}),
             false,
         );
-        assert!(campaign.starts_with("ASB completed part"));
+        assert!(campaign.starts_with("[WARN] ASB completed part"));
     }
 
     #[test]
@@ -3223,7 +3237,7 @@ mod tests {
             serde_json::json!({"schema_version":1,"ok":false,"command":"tui","operation":"status","channel":"dev","classification":"product_failure","code":"development_installation_invalid"}),
             false,
         );
-        assert!(output.starts_with("ASB could not complete"));
+        assert!(output.starts_with("[ERR ] ASB could not complete"));
         assert_eq!(output.matches("Next:").count(), 1);
         assert!(output.ends_with("Next: asb tui install --channel dev\n"));
         assert!(!output.contains("schema_version"));
@@ -3282,7 +3296,11 @@ mod tests {
                 }),
                 false,
             );
-            let normalized = output.split_whitespace().collect::<Vec<_>>().join(" ");
+            let normalized = output
+                .replace("[ERR ] ", "")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
             assert!(normalized.contains(expected), "{code}: {output}");
             assert!(!output.contains("unclassified failure"), "{code}: {output}");
         }
@@ -3364,17 +3382,18 @@ mod tests {
                 super::super::run_with_default_mode(&args, &mut output, &mut diagnostic, true);
             assert_ne!(exit, 0, "{command} invalid journey unexpectedly succeeded");
             if *command == "serve" {
-                assert_eq!(
-                    String::from_utf8(diagnostic).expect("serve progress is UTF-8"),
-                    "ASB is attempting to start the control service from the supplied configuration.\n"
+                assert!(
+                    String::from_utf8_lossy(&diagnostic).starts_with(
+                        "[WAIT] ASB is attempting to start the control service from the supplied configuration.\n"
+                    ),
                 );
             } else {
                 assert!(
-                    diagnostic.is_empty(),
-                    "{command} unexpectedly wrote diagnostics"
+                    !diagnostic.is_empty(),
+                    "{command} did not route its human diagnostic to stderr"
                 );
             }
-            let rendered = String::from_utf8(output).expect("human diagnostic is UTF-8");
+            let rendered = String::from_utf8(diagnostic).expect("human diagnostic is UTF-8");
             assert!(
                 rendered.contains("ASB could not complete"),
                 "{command}: {rendered}"
@@ -3455,7 +3474,7 @@ mod tests {
             let mut output = Vec::new();
             write_presentation(&presentation, &mut output, width).unwrap();
             let output = String::from_utf8(output).unwrap();
-            for line in output.lines().filter(|line| !line.starts_with("Next:")) {
+            for line in output.lines().filter(|line| !line.contains("Next:")) {
                 assert!(line.chars().count() <= width, "width={width}: {line}");
             }
             assert_eq!(output.matches("Next:").count(), 1);
@@ -3569,7 +3588,11 @@ mod tests {
             let mut output = Vec::new();
             render_error(&args(&["run"]), &error, false, &mut output).unwrap();
             let output = String::from_utf8(output).unwrap();
-            let compact = output.split_whitespace().collect::<Vec<_>>().join(" ");
+            let compact = output
+                .replace("[ERR ] ", "")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
             assert!(compact.contains(cause), "{output}");
             assert!(compact.contains(recovery), "{output}");
             assert!(
@@ -3615,9 +3638,14 @@ mod tests {
             false,
         );
         assert!(!output.contains("\u{1b}["));
+        let without_status = output
+            .lines()
+            .map(|line| line.strip_prefix("[ OK ] ").expect("success status token"))
+            .collect::<Vec<_>>()
+            .join("\n");
         assert_eq!(
-            output,
-            "ASB loaded the benchmark workload catalog.\n  Workloads: 1.\n  Runnable workloads: original.bug-fix.\n  Choose a listed workload and create a configured plan with: asb plan create\n  --workload WORKLOAD --agent AGENT --agent-executable AGENT_EXECUTABLE --output\n  PLAN --use-config.\n"
+            format!("{without_status}\n"),
+            "ASB loaded the benchmark workload catalog.\nWorkloads: 1.\nRunnable workloads: original.bug-fix.\nChoose a listed workload and create a configured plan with: asb plan\ncreate --workload WORKLOAD --agent AGENT --agent-executable\nAGENT_EXECUTABLE --output PLAN --use-config.\n"
         );
     }
 
@@ -3632,7 +3660,7 @@ mod tests {
             }),
             false,
         );
-        assert!(tui.starts_with("ASB verified"));
+        assert!(tui.starts_with("[ OK ] ASB verified"));
 
         let create = render(
             &["plan", "create", "--output", "/tmp/plan.toml"],
@@ -3664,7 +3692,7 @@ mod tests {
             serde_json::json!({"jsonrpc":"2.0","id":"request-1","error":{"code":-1,"message":"rejected"}}),
             false,
         );
-        assert!(auth_error.starts_with("The control service rejected"));
+        assert!(auth_error.starts_with("[ERR ] The control service rejected"));
         assert!(!auth_error.contains("completed the authentication"));
     }
 

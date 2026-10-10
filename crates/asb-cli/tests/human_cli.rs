@@ -89,11 +89,35 @@ fn create_public_plan(root: &Path, name: &str, executable: &Path, timeout_ms: u6
 
 fn assert_private_human_output(output: &std::process::Output) -> String {
     assert!(!output.stdout.contains(&0x1b));
-    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
-    assert!(!stdout.starts_with('{'));
-    assert!(!stdout.contains("schema_version"));
-    assert!(!stdout.contains("credential_reference_sha256"));
-    stdout
+    assert!(!output.stderr.contains(&0x1b));
+    let human = if output.stdout.is_empty() {
+        String::from_utf8(output.stderr.clone()).unwrap()
+    } else {
+        String::from_utf8(output.stdout.clone()).unwrap()
+    };
+    assert!(!human.starts_with('{'));
+    assert!(!human.contains("schema_version"));
+    assert!(!human.contains("credential_reference_sha256"));
+    human
+}
+
+fn without_status_prefixes(output: &str) -> String {
+    let lines = output
+        .lines()
+        .map(|line| {
+            line.strip_prefix("[ OK ] ")
+                .or_else(|| line.strip_prefix("[WARN] "))
+                .or_else(|| line.strip_prefix("[ERR ] "))
+                .or_else(|| line.strip_prefix("[WAIT] "))
+                .unwrap_or(line)
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    lines
+        .replace("[ OK ] ", "")
+        .replace("[WARN] ", "")
+        .replace("[ERR ] ", "")
+        .replace("[WAIT] ", "")
 }
 
 fn assert_golden_outcome(scenario: &str, output: &std::process::Output) {
@@ -105,10 +129,14 @@ fn assert_golden_outcome(scenario: &str, output: &std::process::Output) {
     let fields = row.split('\t').collect::<Vec<_>>();
     assert_eq!(fields.len(), 4);
     assert_eq!(output.status.code(), Some(fields[1].parse().unwrap()));
-    let normalized = String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let normalized = String::from_utf8_lossy(if output.stdout.is_empty() {
+        &output.stderr
+    } else {
+        &output.stdout
+    })
+    .split_whitespace()
+    .collect::<Vec<_>>()
+    .join(" ");
     assert!(normalized.contains(fields[2]), "{scenario}: {normalized}");
     assert_eq!(output.stderr.is_empty(), fields[3] == "empty", "{scenario}");
 }
@@ -124,7 +152,7 @@ fn redirected_output_honors_40_80_and_120_column_widths_and_stream_boundaries() 
         assert!(output.status.success());
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(stdout.starts_with("ASB loaded the provider catalog."));
+        assert!(stdout.starts_with("[ OK ] ASB loaded the provider catalog."));
         assert!(
             stdout
                 .lines()
@@ -172,11 +200,9 @@ fn local_mock_validation_failure_is_human_and_preserves_exit_three() {
         .output()
         .expect("ASB executable must run");
     assert_eq!(output.status.code(), Some(3));
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.starts_with("ASB could not complete the benchmark run:"));
-    assert!(!stdout.starts_with('{'));
-    assert!(!stdout.contains("could not write"));
+    let human = assert_private_human_output(&output);
+    assert!(human.starts_with("[ERR ] ASB could not complete the benchmark run:"));
+    assert!(!human.contains("could not write"));
 }
 
 #[test]
@@ -188,10 +214,10 @@ fn serve_progress_is_neutral_and_does_not_leak_or_inject_the_path() {
         .expect("ASB executable must run");
     assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8(output.stderr).unwrap();
-    assert_eq!(
-        stderr,
-        "ASB is attempting to start the control service from the supplied configuration.\n"
-    );
+    assert!(stderr.starts_with(
+        "[WAIT] ASB is attempting to start the control service from the supplied configuration.\n"
+    ));
+    assert!(stderr.contains("[ERR ] ASB could not complete the control service:"));
     assert!(!stderr.contains("private"));
     assert!(!stderr.contains('\u{1b}'));
 }
@@ -215,10 +241,9 @@ fn executable_usage_failure_is_human_on_stdout_and_preserves_exit_two() {
         .output()
         .expect("ASB executable must run");
     assert_eq!(output.status.code(), Some(2));
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.starts_with("ASB could not complete the command:"));
-    assert!(stdout.ends_with("Next: asb --help\n"));
+    let human = assert_private_human_output(&output);
+    assert!(human.starts_with("[ERR ] ASB could not complete the command:"));
+    assert!(human.ends_with("[ERR ] Next: asb --help\n"));
 }
 
 #[test]
@@ -268,7 +293,6 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
     for (name, args, exit, expected) in scenarios {
         let output = isolated_asb(&scratch.0).args(&args).output().unwrap();
         assert_eq!(output.status.code(), Some(exit), "{name}");
-        assert!(output.stderr.is_empty(), "{name}");
         let text = assert_private_human_output(&output);
         assert!(text.contains(expected), "{name}: {text}");
         assert!(text.contains("Affected "), "{name}: {text}");
@@ -290,7 +314,6 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
         .output()
         .unwrap();
     assert_eq!(provider_network.status.code(), Some(4));
-    assert!(provider_network.stderr.is_empty());
     let provider_text = assert_private_human_output(&provider_network);
     assert!(provider_text.contains("auth control service connection failed"));
     assert!(provider_text.contains("Recovery:"));
@@ -304,7 +327,6 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
         .output()
         .unwrap();
     assert_ne!(runtime.status.code(), Some(0));
-    assert!(runtime.stderr.is_empty());
     let runtime_text = assert_private_human_output(&runtime);
     assert!(runtime_text.contains("Recovery:"));
 
@@ -378,8 +400,8 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
     let cancellation = child.wait_with_output().unwrap();
     assert_eq!(cancellation.status.code(), Some(130));
     let cancellation_text = assert_private_human_output(&cancellation);
-    assert!(cancellation_text.starts_with("ASB cancelled the benchmark run"));
-    assert!(cancellation_text.contains("Next: asb report "));
+    assert!(cancellation_text.starts_with("[WAIT] ASB cancelled the benchmark run"));
+    assert!(cancellation_text.contains("[WAIT] Next: asb report "));
 
     let partial_manifest = scratch.0.join("partial-campaign.json");
     fs::write(
@@ -402,11 +424,11 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
         .unwrap();
     assert!(partial.status.success());
     let partial_text = assert_private_human_output(&partial);
-    let partial_normalized = partial_text
+    let partial_normalized = without_status_prefixes(&partial_text)
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(partial_text.starts_with("ASB completed part"));
+    assert!(partial_text.starts_with("[WARN] ASB completed part"));
     assert!(
         partial_normalized.contains("offline coverage is incomplete"),
         "{partial_normalized}"
@@ -423,9 +445,14 @@ fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
         .unwrap();
     assert!(warning.status.success());
     let warning_text = assert_private_human_output(&warning);
-    assert!(warning_text.contains("no usable OpenRouter credential"));
-    assert!(warning_text.contains("offline setup remains available"));
-    assert!(warning_text.contains("Next: asb auth setup --provider openrouter --api-key-stdin"));
+    let warning_content = without_status_prefixes(&warning_text);
+    let warning_normalized = warning_content
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(warning_normalized.contains("no usable OpenRouter credential"));
+    assert!(warning_normalized.contains("offline setup remains available"));
+    assert!(warning_content.contains("Next: asb auth setup --provider openrouter --api-key-stdin"));
 
     let redirected = isolated_asb(&scratch.0)
         .args([
@@ -517,7 +544,8 @@ fn project_init_human_output_distinguishes_initialization_from_recovery() {
             assert!(output.stderr.is_empty());
         }
         let stdout = assert_private_human_output(&output);
-        assert_eq!(stdout.lines().next(), Some(expected_outcome));
+        let expected_line = format!("[ OK ] {expected_outcome}");
+        assert_eq!(stdout.lines().next(), Some(expected_line.as_str()));
         assert!(!stdout.contains(unexpected_outcome));
         assert!(stdout.contains("Configuration: .asb/project.json."));
         assert!(stdout.contains("Results directory: results."));
@@ -525,9 +553,9 @@ fn project_init_human_output_distinguishes_initialization_from_recovery() {
         assert_eq!(
             stdout
                 .lines()
-                .filter(|line| line.starts_with("Next:"))
+                .filter(|line| line.starts_with("[ OK ] Next:"))
                 .collect::<Vec<_>>(),
-            vec!["Next: asb provider-catalog"]
+            vec!["[ OK ] Next: asb provider-catalog"]
         );
         assert!(!stdout.contains(project_root.to_str().unwrap()));
         assert!(!stdout.contains(scratch.0.to_str().unwrap()));
@@ -553,7 +581,6 @@ fn executable_outcome_matrix_covers_product_dependency_host_failed_and_inconclus
         .unwrap();
     assert_golden_outcome("product", &product);
     assert_eq!(product.status.code(), Some(4));
-    assert!(product.stderr.is_empty());
     let product_text = assert_private_human_output(&product);
     assert!(
         product_text
@@ -588,7 +615,6 @@ fn executable_outcome_matrix_covers_product_dependency_host_failed_and_inconclus
         .unwrap();
     assert_golden_outcome("dependency", &dependency);
     assert_eq!(dependency.status.code(), Some(4));
-    assert!(dependency.stderr.is_empty());
     let dependency_text = assert_private_human_output(&dependency);
     assert!(
         dependency_text
@@ -607,7 +633,6 @@ fn executable_outcome_matrix_covers_product_dependency_host_failed_and_inconclus
         .unwrap();
     assert_golden_outcome("host", &host);
     assert_eq!(host.status.code(), Some(4));
-    assert!(host.stderr.is_empty());
     let host_text = assert_private_human_output(&host);
     assert!(host_text.contains("terminal interface preflight"));
 
@@ -690,18 +715,15 @@ fn executable_public_family_golden_is_inventory_complete_and_privacy_safe() {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        let stdout = String::from_utf8(output.stdout).unwrap();
+        let human = assert_private_human_output(&output);
         assert_eq!(
-            stdout.lines().next(),
+            human.lines().next(),
             Some(fields[3]),
             "public family {command_name}"
         );
         assert_eq!(output.stderr.is_empty(), fields[4] == "empty");
-        assert!(!stdout.contains(secret));
-        assert!(!stdout.contains(scratch.0.to_str().unwrap()));
-        assert!(!stdout.contains("schema_version"));
-        assert!(!stdout.contains("credential_reference_sha256"));
-        assert!(!stdout.contains('\u{1b}'));
+        assert!(!human.contains(secret));
+        assert!(!human.contains(scratch.0.to_str().unwrap()));
     }
     observed.sort_unstable();
     observed.dedup();
@@ -745,7 +767,7 @@ fn serve_streams_startup_before_blocking_and_remains_a_raw_long_running_command(
     stderr.read_line(&mut startup).unwrap();
     assert_eq!(
         startup,
-        "ASB is attempting to start the control service from the supplied configuration.\n"
+        "[WAIT] ASB is attempting to start the control service from the supplied configuration.\n"
     );
     let deadline = Instant::now() + Duration::from_secs(5);
     while !socket.exists() {

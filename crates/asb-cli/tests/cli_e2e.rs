@@ -270,7 +270,7 @@ fn sigint_default_mode_reports_human_cancellation_and_retained_report_action() {
     assert_cancelled_golden(&output);
     assert_eq!(output.status.code(), Some(130));
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.starts_with("ASB cancelled the benchmark run"));
+    assert!(stdout.starts_with("[WAIT] ASB cancelled the benchmark run"));
     assert!(stdout.contains("Next: asb report "));
     assert!(!stdout.starts_with('{'));
     assert!(!stdout.contains("schema_version"));

@@ -513,6 +513,58 @@ pub struct GeneratedCatalogReferenceV1 {
     pub active: bool,
 }
 
+/// Closed, credential-free human output settings for an ASB project.
+///
+/// Machine-readable responses are intentionally not configurable: their
+/// versioned JSON contract always owns stdout.  The two writer selectors only
+/// describe the human presentation split, so a project cannot route human
+/// diagnostics into a JSON response by accident.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectOutputLevelV1 {
+    /// Suppress ASB lifecycle and human presentation.
+    Quiet,
+    /// Concise normal operator presentation.
+    #[default]
+    Normal,
+    /// Add bounded, non-sensitive operational detail.
+    Verbose,
+    /// Add bounded development diagnostics without private data.
+    Debug,
+}
+
+/// Safe stream destinations for a project human-output route.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectOutputWriterV1 {
+    /// The process standard output stream.
+    Stdout,
+    /// The process standard error stream.
+    Stderr,
+}
+
+/// Persistent project default for the single CLI output router.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectOutputConfigV1 {
+    /// Closed human presentation level.
+    pub level: ProjectOutputLevelV1,
+    /// Destination for ordinary human command results.
+    pub result_writer: ProjectOutputWriterV1,
+    /// Destination for human operational status and diagnostics.
+    pub human_writer: ProjectOutputWriterV1,
+}
+
+impl Default for ProjectOutputConfigV1 {
+    fn default() -> Self {
+        Self {
+            level: ProjectOutputLevelV1::Normal,
+            result_writer: ProjectOutputWriterV1::Stdout,
+            human_writer: ProjectOutputWriterV1::Stderr,
+        }
+    }
+}
+
 /// Canonical project configuration shared by initialization, discovery,
 /// installation, catalog selection, and benchmark commands.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -522,6 +574,9 @@ pub struct ProjectConfigV1 {
     pub schema_version: u16,
     /// Relative project directory layout.
     pub roots: ProjectRootsV1,
+    /// Credential-free defaults for the sole CLI output router.
+    #[serde(default)]
+    pub output: ProjectOutputConfigV1,
     /// Agent inventory keyed by stable user-facing name.
     pub agents: BTreeMap<String, ProjectToolRecordV1>,
     /// Harness inventory keyed by stable user-facing name.
@@ -549,6 +604,7 @@ impl ProjectConfigV1 {
                 results: "results".into(),
                 catalogs: "catalogs".into(),
             },
+            output: ProjectOutputConfigV1::default(),
             agents: BTreeMap::new(),
             harnesses: BTreeMap::new(),
             benchmarks: BTreeMap::new(),
@@ -2328,7 +2384,15 @@ mod tests {
         config.selections.support_tools.push("tool".into());
         assert!(config.validate().is_ok());
         let encoded = serde_json::to_vec(&config).unwrap();
+        let output = serde_json::from_slice::<Value>(&encoded).unwrap()["output"].clone();
+        assert_eq!(output["level"], "normal");
+        assert_eq!(output["result_writer"], "stdout");
+        assert_eq!(output["human_writer"], "stderr");
         assert_eq!(decode_project_config(&encoded).unwrap(), config);
+
+        let mut malformed = serde_json::from_slice::<Value>(&encoded).unwrap();
+        malformed["output"]["unexpected"] = Value::Bool(true);
+        assert!(decode_project_config(&serde_json::to_vec(&malformed).unwrap()).is_err());
     }
 
     #[test]

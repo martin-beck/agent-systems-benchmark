@@ -32,8 +32,9 @@ use asb_analysis::{ComparisonField, compare_experiments};
 use asb_config::{
     Agent as ConfigAgent, ConfigStore, Configuration, Connection as ConfigConnection,
     CredentialReference, CredentialReferenceKind, MAX_CONFIG_BYTES, ModelProfile,
-    OpenRouterFreeModelConfig, ProjectConfigV1, ProjectToolKind, ProjectToolRecordV1,
-    ProjectToolStatus, ProviderSelection, decode_project_config,
+    OpenRouterFreeModelConfig, ProjectConfigV1, ProjectOutputLevelV1, ProjectOutputWriterV1,
+    ProjectToolKind, ProjectToolRecordV1, ProjectToolStatus, ProviderSelection,
+    decode_project_config,
 };
 use asb_metrics::LinuxCollector;
 use asb_protocol::{
@@ -167,15 +168,19 @@ fn run_with_default_mode_and_stdin(
                 command: command_name(args),
                 error,
             };
-            if human_default && !explicit_json {
-                let _ = human::render_error(args, &envelope.error, false, stdout);
+            if human_default
+                && !explicit_json
+                && !args.iter().any(|arg| arg == "-q" || arg == "--quiet")
+            {
+                let _ = human::render_error(args, &envelope.error, false, stderr);
             } else {
                 let _ = write_json(stdout, &envelope);
             }
             return envelope.error.exit_code;
         }
     };
-    let human = human_default && !output_mode.json;
+    let human =
+        human_default && !output_mode.json && output_mode.level != ProjectOutputLevelV1::Quiet;
     if human && human::render_start(&normalized, stderr).is_err() {
         let _ = writeln!(stderr, "ASB could not write output");
         return 4;
@@ -205,13 +210,24 @@ fn run_with_default_mode_and_stdin(
     match dispatched {
         Ok(exit_code) => {
             let result = if human {
-                human::render_success_with_context(
-                    &normalized,
-                    &captured,
-                    output_mode.details,
-                    &presentation_context,
-                    stdout,
-                )
+                match output_mode.result_writer {
+                    ProjectOutputWriterV1::Stdout => human::render_success_with_context(
+                        &normalized,
+                        &captured,
+                        output_mode.details,
+                        &presentation_context,
+                        stdout,
+                    ),
+                    ProjectOutputWriterV1::Stderr => human::render_success_with_context(
+                        &normalized,
+                        &captured,
+                        output_mode.details,
+                        &presentation_context,
+                        stderr,
+                    ),
+                }
+            } else if !output_mode.json && output_mode.level == ProjectOutputLevelV1::Quiet {
+                Ok(())
             } else {
                 stdout.write_all(&captured)
             };
@@ -230,13 +246,28 @@ fn run_with_default_mode_and_stdin(
                 error,
             };
             if human {
-                if human::render_error(&normalized, &envelope.error, output_mode.details, stdout)
-                    .is_err()
-                {
+                let result = match output_mode.human_writer {
+                    ProjectOutputWriterV1::Stdout => human::render_error(
+                        &normalized,
+                        &envelope.error,
+                        output_mode.details,
+                        stdout,
+                    ),
+                    ProjectOutputWriterV1::Stderr => human::render_error(
+                        &normalized,
+                        &envelope.error,
+                        output_mode.details,
+                        stderr,
+                    ),
+                };
+                if result.is_err() {
                     let _ = writeln!(stderr, "ASB could not write output");
                     return 4;
                 }
-            } else if write_json(stdout, &envelope).is_err() {
+            } else if !output_mode.json && output_mode.level == ProjectOutputLevelV1::Quiet {
+                // Quiet preserves command effects and exit status while the
+                // router emits neither a result nor a human diagnostic.
+            } else if write_json(stdout, &envelope).is_err() && !output_mode.json {
                 let _ = writeln!(stderr, "ASB could not write structured error output");
             }
             envelope.error.exit_code
@@ -254,10 +285,13 @@ fn run_with_default_mode(
     run_with_default_mode_and_stdin(args, stdout, stderr, human_default, None)
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct OutputMode {
     json: bool,
     details: bool,
+    level: ProjectOutputLevelV1,
+    result_writer: ProjectOutputWriterV1,
+    human_writer: ProjectOutputWriterV1,
 }
 
 fn parse_output_mode(
@@ -265,7 +299,7 @@ fn parse_output_mode(
     human_default: bool,
 ) -> Result<(OutputMode, Vec<OsString>), CliError> {
     let mut json = false;
-    let mut details = false;
+    let mut requested_level = None;
     let mut normalized = Vec::with_capacity(args.len());
     let mut index = 0;
     while index < args.len() {
@@ -276,12 +310,26 @@ fn parse_output_mode(
             }
             json = true;
         } else if human_default && (arg == "--details" || arg == "--verbose") {
-            if details {
+            if requested_level.is_some() {
                 return Err(CliError::legacy_usage(
-                    "--details or --verbose was supplied more than once",
+                    "only one human output level may be supplied",
                 ));
             }
-            details = true;
+            requested_level = Some(ProjectOutputLevelV1::Verbose);
+        } else if human_default && arg == "--debug" {
+            if requested_level.is_some() {
+                return Err(CliError::legacy_usage(
+                    "only one human output level may be supplied",
+                ));
+            }
+            requested_level = Some(ProjectOutputLevelV1::Debug);
+        } else if arg == "-q" || arg == "--quiet" {
+            if requested_level.is_some() {
+                return Err(CliError::legacy_usage(
+                    "--quiet cannot be combined with another human output level",
+                ));
+            }
+            requested_level = Some(ProjectOutputLevelV1::Quiet);
         } else if arg == "--format=json"
             || (arg == "--format" && args.get(index + 1).is_some_and(|value| value == "json"))
         {
@@ -295,12 +343,51 @@ fn parse_output_mode(
         }
         index += 1;
     }
-    if json && details {
+    let project_output = load_project_output_defaults()?;
+    let level = requested_level.unwrap_or(project_output.level);
+    if json
+        && matches!(
+            level,
+            ProjectOutputLevelV1::Verbose | ProjectOutputLevelV1::Debug
+        )
+    {
         return Err(CliError::legacy_usage(
-            "--details cannot be combined with machine-readable JSON output",
+            "verbose or debug output cannot be combined with machine-readable JSON output",
         ));
     }
-    Ok((OutputMode { json, details }, normalized))
+    Ok((
+        OutputMode {
+            json,
+            details: matches!(
+                level,
+                ProjectOutputLevelV1::Verbose | ProjectOutputLevelV1::Debug
+            ),
+            level,
+            result_writer: project_output.result_writer,
+            human_writer: project_output.human_writer,
+        },
+        normalized,
+    ))
+}
+
+/// Load the closed, credential-free output defaults from the current project.
+/// Missing project metadata retains the portable normal stdout/stderr default;
+/// a present malformed project remains a fail-closed configuration error.
+fn load_project_output_defaults() -> Result<asb_config::ProjectOutputConfigV1, CliError> {
+    let path = Path::new(PROJECT_INIT_CONFIG);
+    if !path.exists() {
+        return Ok(asb_config::ProjectOutputConfigV1::default());
+    }
+    let bytes = read_bounded_json(
+        path,
+        MAX_CONFIG_BYTES,
+        "project output configuration is unreadable",
+    )?;
+    decode_project_config(&bytes)
+        .map(|config| config.output)
+        .map_err(|_| {
+            CliError::legacy_validation("project output configuration is invalid or conflicting")
+        })
 }
 
 #[cfg(test)]
@@ -9838,7 +9925,6 @@ mod tests {
             let exit =
                 super::run_with_default_mode(&args, &mut output, &mut error, !prefix.is_empty());
             assert_eq!(exit, 0);
-            assert!(error.is_empty());
             if let Some((expected_output, expected_error)) = &baseline {
                 assert_eq!(&output, expected_output);
                 assert_eq!(&error, expected_error);
@@ -9880,10 +9966,10 @@ mod tests {
             true,
         );
         assert_eq!(exit, 2);
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.starts_with("ASB could not complete the doctor:"));
-        assert!(output.ends_with("Next: asb --help\n"));
-        assert!(error.is_empty());
+        assert!(output.is_empty());
+        let error = String::from_utf8(error).unwrap();
+        assert!(error.starts_with("[ERR ] ASB could not complete the doctor:"));
+        assert!(error.ends_with("[ERR ] Next: asb --help\n"));
 
         let mut json = Vec::new();
         let mut json_err = Vec::new();
@@ -9907,13 +9993,13 @@ mod tests {
             let exit =
                 super::run_with_default_mode(&os_args(malformed), &mut output, &mut error, true);
             assert_eq!(exit, 2, "{malformed:?}");
+            assert!(output.is_empty(), "{malformed:?}");
             assert!(
-                String::from_utf8(output)
+                String::from_utf8(error.clone())
                     .unwrap()
-                    .starts_with("ASB could not complete the doctor:"),
+                    .starts_with("[ERR ] ASB could not complete the doctor:"),
                 "{malformed:?}"
             );
-            assert!(error.is_empty());
         }
     }
 
@@ -10944,8 +11030,39 @@ mod tests {
         assert!(
             String::from_utf8(human_output)
                 .unwrap()
-                .starts_with("ASB found this host")
+                .starts_with("[ OK ] ASB found this host")
         );
+    }
+
+    #[test]
+    fn global_quiet_is_position_independent_and_json_remains_silent() {
+        for args in [os_args(&["-q", "doctor"]), os_args(&["doctor", "--quiet"])] {
+            let mut output = Vec::new();
+            let mut diagnostic = Vec::new();
+            assert_eq!(
+                run_with_default_mode(&args, &mut output, &mut diagnostic, true),
+                0
+            );
+            assert!(output.is_empty(), "{args:?}");
+            assert!(diagnostic.is_empty(), "{args:?}");
+        }
+
+        let mut output = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &os_args(&["doctor", "-q", "--json"]),
+                &mut output,
+                &mut diagnostic,
+                true,
+            ),
+            0
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output).unwrap()["command"],
+            "doctor"
+        );
+        assert!(diagnostic.is_empty());
     }
 
     #[test]
@@ -11095,7 +11212,7 @@ mod tests {
             0
         );
         let human = String::from_utf8(human).unwrap();
-        assert!(human.starts_with("ASB loaded the provider catalog."));
+        assert!(human.starts_with("[ OK ] ASB loaded the provider catalog."));
         assert!(human.contains("Provider profiles: 4."));
         assert!(!human.starts_with('{'));
 
@@ -11655,7 +11772,7 @@ mod tests {
         setup_invocation.extend(setup_args.iter().map(OsString::from));
         human::render_success(&setup_invocation, &setup_output, false, &mut setup_human).unwrap();
         let setup_human = String::from_utf8(setup_human).unwrap();
-        assert!(setup_human.starts_with("ASB saved the selected agents"));
+        assert!(setup_human.starts_with("[ OK ] ASB saved the selected agents"));
         assert!(setup_human.ends_with("Next: asb workload-catalog\n"));
         let config = ConfigStore::new(&config_path).load().unwrap().unwrap();
         let configured = provider_plan_from_configuration(&config, "opencode").unwrap();
@@ -11684,7 +11801,7 @@ mod tests {
         )
         .unwrap();
         let plan_human = String::from_utf8(plan_human).unwrap();
-        assert!(plan_human.starts_with("ASB validated the benchmark plan."));
+        assert!(plan_human.starts_with("[ OK ] ASB validated the benchmark plan."));
         assert!(plan_human.contains("Next: asb run"));
         let planned: Value = serde_json::from_slice(&planned).unwrap();
         assert_eq!(planned["provider_profile"], "openrouter");
@@ -11720,7 +11837,7 @@ mod tests {
         )
         .unwrap();
         let run_human = String::from_utf8(run_human).unwrap();
-        assert!(run_human.starts_with("ASB completed the benchmark run successfully."));
+        assert!(run_human.starts_with("[ OK ] ASB completed the benchmark run successfully."));
         assert!(run_human.contains("Run IDs: setup-runtime."));
         let result: Value = serde_json::from_slice(&run_output).unwrap();
         assert_eq!(result["ok"], true);
@@ -11765,11 +11882,14 @@ mod tests {
         assert_eq!(error["error"]["code"], "usage");
 
         let mut human_output = Vec::new();
+        let mut human_diagnostic = Vec::new();
         assert_eq!(
-            run_with_default_mode(&args, &mut human_output, &mut Vec::new(), true),
+            run_with_default_mode(&args, &mut human_output, &mut human_diagnostic, true),
             2
         );
-        let text = String::from_utf8(human_output).unwrap();
+        assert!(human_output.is_empty());
+        let text = String::from_utf8(human_diagnostic).unwrap();
+        assert!(text.starts_with("[ERR ]"));
         assert!(text.contains("ASB could not complete the live benchmark"));
         assert!(text.contains("unsupported arguments"));
     }
@@ -13301,7 +13421,7 @@ mod tests {
         )
         .unwrap();
         let report_human = String::from_utf8(report_human).unwrap();
-        assert!(report_human.starts_with("ASB generated the benchmark report."));
+        assert!(report_human.starts_with("[ OK ] ASB generated the benchmark report."));
         assert!(report_human.contains("Run provider-run: completed"));
         assert_eq!(
             report["runs"][0]["provider_selection_sha256"],
@@ -13359,7 +13479,7 @@ mod tests {
         )
         .unwrap();
         let compare_human = String::from_utf8(compare_human).unwrap();
-        assert!(compare_human.starts_with("ASB compared the runs, but"));
+        assert!(compare_human.starts_with("[WARN] ASB compared the runs, but"));
         assert!(compare_human.contains("Differences: execution."));
         assert_eq!(comparison["confounders"][0]["kind"], "provenance");
         assert!(
