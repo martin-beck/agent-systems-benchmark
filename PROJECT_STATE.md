@@ -29,7 +29,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38090655795 | `d1f19141fe54` | pull_request | Repository quality | completed:failure |
 | 38090655775 | `d1f19141fe54` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38090655769 | `d1f19141fe54` | pull_request | Hosted portability and native qualification | completed:success |
-| 38090655761 | `d1f19141fe54` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38090655761 | `d1f19141fe54` | pull_request | Emulated aarch64 portability | completed:success |
 | 38090655742 | `d1f19141fe54` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38090655739 | `d1f19141fe54` | pull_request | Formal assurance | completed:success |
 | 38090655734 | `d1f19141fe54` | pull_request | Rust verification | completed:failure |
