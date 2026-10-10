@@ -1308,11 +1308,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | blocked |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | coordinator |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. |
@@ -2177,7 +2177,7 @@ flowchart LR
         AR_1784["AR-1784 - Planned"]:::status_planned
         AR_1785["AR-1785 - Blocked"]:::status_blocked
         AR_1786["AR-1786 - Blocked"]:::status_blocked
-        AR_1787["AR-1787 - In progress"]:::status_in_progress
+        AR_1787["AR-1787 - Blocked"]:::status_blocked
         AR_1788["AR-1788 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002

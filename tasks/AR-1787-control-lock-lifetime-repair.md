@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "2026-10-10T21:51:49+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "owner": "coordinator",
+  "owner": "",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 47,
+  "task_revision": 48,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:21:49+00:00",
+  "updated_at": "2026-10-10T21:22:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -166,3 +166,8 @@ not weaken control ownership or the ordinary workspace gate.
   ordinary workspace gate deterministic, then rerun independent review; no PR or merge.
 
 - 2026-10-10T21:21:49+00:00: Claimed by coordinator.
+
+- 2026-10-10T21:22:07+00:00: Independent review completed: exact candidate passed then failed then
+  passed ordinary cargo test --locked --workspace in
+  tui::tests::development_rustup_tools_execute_validated_objects_after_path_replacement. Wait for
+  AR-1788 rustup fixture determinism repair; no GitHub Reviews API approval object is required.
