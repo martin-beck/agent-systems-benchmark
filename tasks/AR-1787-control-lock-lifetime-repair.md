@@ -9,9 +9,9 @@
   ],
   "id": "AR-1787",
   "next_action": "PR #553 exact head dbbf27c3684e90efc93b85fd8afe252a1011f6a1 is published; wait for every exact-head required check to reach terminal success, then perform signed protected merge and exact-main verification. No GitHub Reviews API approval object is required.",
-  "observed_branch": "codex/ar-1787-lock-lifetime",
-  "observed_dirty": 0,
-  "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
+  "observed_branch": "DETACHED",
+  "observed_dirty": 2,
+  "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
   "owner": "codex-ar1787-publisher",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 74,
+  "task_revision": 75,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:48:54+00:00",
+  "updated_at": "2026-10-10T22:48:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
