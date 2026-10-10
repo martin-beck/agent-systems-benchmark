@@ -1336,11 +1336,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1789-independent-review |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. |
@@ -2193,7 +2193,7 @@ flowchart LR
         AR_1786["AR-1786 - Blocked"]:::status_blocked
         AR_1787["AR-1787 - Blocked"]:::status_blocked
         AR_1788["AR-1788 - Blocked"]:::status_blocked
-        AR_1789["AR-1789 - In progress"]:::status_in_progress
+        AR_1789["AR-1789 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003

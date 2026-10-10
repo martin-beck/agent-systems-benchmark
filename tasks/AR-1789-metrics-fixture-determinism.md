@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1789-metrics-fixture",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:41:07+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1789-independent-review",
+  "owner": "",
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 41,
+  "task_revision": 42,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T21:42:15+00:00",
+  "updated_at": "2026-10-10T21:42:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -158,3 +158,9 @@ the ordinary parallel workspace gate.
 
 - 2026-10-10T21:42:15+00:00: Recorded command exit 0; command argv SHA-256
   e9a9e4314b81d3d32449ce7ea733a209bc8d42a9aa47564e46906884b44083f6.
+
+- 2026-10-10T21:42:25+00:00: Independent exact-head review blocks 2f1f08fb: metrics retry loop has
+  MAX_SPAWN_ATTEMPTS=8 but WouldBlock guard remains attempt < 2 at kernel.rs:397, so attempt 3 still
+  returns ProbeRejected. No regression test exercises retries beyond the old three attempts. Focused
+  malformed-configuration test passes but does not prove the repair; no full review qualification,
+  PR, or merge.
