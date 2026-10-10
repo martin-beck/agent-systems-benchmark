@@ -12,7 +12,7 @@ Generated from local Git and GitHub. Do not edit.
 | --- | --- | --- | --- | --- | --- |
 | #362 | `dependabot/cargo/serde_json-1.0.151@176ac1929784` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS | build(deps): Bump serde_json from 1.0.143 to 1.0.151 |
 | #363 | `dependabot/cargo/rustix-1.1.5@3317583e7d90` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:SUCCESS | build(deps): Bump rustix from 1.1.4 to 1.1.5 |
-| #364 | `dependabot/cargo/jsonschema-0.56.0@d1f19141fe54` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, QUEUED:, COMPLETED:SUCCESS, QUEUED:, COMPLETED:SUCCESS | build(deps): Bump jsonschema from 0.33.0 to 0.58.5 |
+| #364 | `dependabot/cargo/jsonschema-0.56.0@d1f19141fe54` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, QUEUED:, COMPLETED:SUCCESS | build(deps): Bump jsonschema from 0.33.0 to 0.58.5 |
 | #365 | `dependabot/cargo/rcgen-0.14.10@6b41c74d7546` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, QUEUED:, COMPLETED:SUCCESS | build(deps): Bump rcgen from 0.14.7 to 0.14.10 |
 | #366 | `dependabot/cargo/schemars-1.2.2@d1daf60dee91` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:FAILURE, COMPLETED:SUCCESS | build(deps): Bump schemars from 1.0.4 to 1.2.2 |
 | #384 | `feature/ar-1508-platform-owned-authority-provider@2c70f81100ca` | `main` | DIRTY | - | feat(runtime): platform-owned authority provider |
@@ -33,7 +33,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38090655742 | `d1f19141fe54` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38090655739 | `d1f19141fe54` | pull_request | Formal assurance | queued:- |
 | 38090655734 | `d1f19141fe54` | pull_request | Rust verification | in_progress:- |
-| 38090655729 | `d1f19141fe54` | pull_request | Fault assurance | queued:- |
+| 38090655729 | `d1f19141fe54` | pull_request | Fault assurance | in_progress:- |
 | 38090655719 | `d1f19141fe54` | pull_request | Credential-free benchmark path | in_progress:- |
 | 38090655699 | `d1f19141fe54` | pull_request | Portable protected-main provenance | completed:failure |
 | 38090643059 | `6b41c74d7546` | pull_request | Hosted portability and native qualification | completed:success |
