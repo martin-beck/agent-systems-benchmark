@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T00:16:41+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "owner": "",
+  "owner": "codex-ar1787-publisher",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 62,
+  "task_revision": 63,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:46:25+00:00",
+  "updated_at": "2026-10-10T22:46:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -219,3 +219,5 @@ not weaken control ownership or the ordinary workspace gate.
   --check, clippy --locked --workspace --all-targets -D warnings, and RUSTDOCFLAGS=-Dwarnings cargo
   doc --locked --workspace --no-deps pass; diff/privacy check pass. No PR, merge, or hosted CI
   conclusion claimed; next action exact-head hosted CI.
+
+- 2026-10-10T22:46:41+00:00: Claimed by codex-ar1787-publisher.
