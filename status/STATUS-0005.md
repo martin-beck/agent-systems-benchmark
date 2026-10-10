@@ -122,7 +122,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | ar1715-openrouter-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Coordinator must declare a clean exact-main AR-1715 branch and worktree binding, then reclaim and run the documented secure-key selected/all live matrix; record either success or typed HTTP 429 quota outcome without secret retention. |
+| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | ar1715-openrouter-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Run bounded all-agent secure OpenRouter selection on exact ASB main b79ad159; retain only typed redacted outcome and then run credential-free failure/output parity checks. |
 
 ### Open (1)
 

@@ -308,7 +308,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. |
-| Next action | Coordinator must declare a clean exact-main AR-1715 branch and worktree binding, then reclaim and run the documented secure-key selected/all live matrix; record either success or typed HTTP 429 quota outcome without secret retention. |
+| Next action | Run bounded all-agent secure OpenRouter selection on exact ASB main b79ad159; retain only typed redacted outcome and then run credential-free failure/output parity checks. |
 
 ### AR-1716 — Cassette provider-profile identity binding
 
