@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:04:43+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,17 +13,17 @@
   "observed_branch": "codex/ar-1788-rustup-fixture-current",
   "observed_dirty": 0,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
-  "owner": "codex-ar1788-requalify",
+  "owner": "",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T22:38:07+00:00",
+  "updated_at": "2026-10-10T22:38:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -154,3 +154,8 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T22:38:07+00:00: Recorded command exit 0; command argv SHA-256
   751c742f2270be9abb1e0279aa128df6c2b2b01e3f9989c158252fa8e1e25a8e.
+
+- 2026-10-10T22:38:14+00:00: Current protected main already contains AR-1788 implementation eece088d
+  as an ancestor. Focused rustup path-replacement test passed five times; isolated reproduction of
+  the one transient full-gate failure passed; two consecutive ordinary full locked workspace runs
+  pass. Release for independent exact-main review; no GitHub Reviews API approval object required.

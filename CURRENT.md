@@ -3,17 +3,12 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1788](tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. | codex-ar1788-requalify |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
+| P0 | [AR-1788](tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. | - |
 
 ## Blocked
 

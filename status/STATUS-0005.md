@@ -138,17 +138,12 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | codex-ar1788-requalify | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. |
-
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | Unclaimed | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. |
 
 ### Blocked (91)
 
