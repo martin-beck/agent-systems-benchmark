@@ -18,9 +18,9 @@
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 9,
+  "task_revision": 10,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:01:13+00:00",
+  "updated_at": "2026-10-10T23:01:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-runtime-owned-local-replay-cli"
 }
 ---
@@ -54,3 +54,6 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 
 - 2026-10-10T23:01:13+00:00: Recorded command exit 0; command argv SHA-256
   c89423b254146cbfb809f17acb09745c0d3b147e4b8e52b9bdc18a181394fc84.
+
+- 2026-10-10T23:01:16+00:00: Recorded command exit 0; command argv SHA-256
+  2b245f3f633ccd5d4e76b46865b4c38975ea764a922263c5a2cb4b711d4b3167.
