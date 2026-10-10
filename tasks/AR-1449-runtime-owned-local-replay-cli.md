@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1449-runtime-owned-local-replay-cli",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T01:59:56+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1443",
     "AR-1448"
@@ -12,15 +12,15 @@
   "observed_branch": "feature/ar-1449-runtime-owned-local-replay-cli",
   "observed_dirty": 0,
   "observed_head": "f03d9e484d6ca73eacdbd5476980bf33ca737540",
-  "owner": "codex-ar1449-runtime-replay-20261011",
+  "owner": "",
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 15,
+  "task_revision": 16,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:02:02+00:00",
+  "updated_at": "2026-10-10T23:02:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-runtime-owned-local-replay-cli"
 }
 ---
@@ -63,3 +63,13 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 
 - 2026-10-10T23:01:35+00:00: Recorded command exit 1; command argv SHA-256
   b7c438686581cf292b6cd41497ceabb3af42dfed57e04dfd6cc89efed8e2d15b.
+
+- 2026-10-10T23:02:14+00:00: Terminal blocker: declared
+  feature/ar-1449-runtime-owned-local-replay-cli is an unrelated-history stale branch (HEAD
+  f03d9e484d6ca73eacdbd5476980bf33ca737540; origin/main 59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1). A
+  handoffctl-wrapped rebase onto origin/main stopped at commit 2579362d with hundreds of add/add
+  conflicts across the repository; minimal git rebase --abort recovery restored clean declared
+  worktree. No product mutation was published. Current protected origin/main already contains
+  runtime-owned LocalReplayProvisioner/development_fixture acquisition and guided replay wiring
+  (03d98ac7 and descendants), so cherry-picking onto this unrelated branch is unsafe. Requires
+  coordinator rebind/rebase successor; preserve AR-1791 unrelated dirty state.
