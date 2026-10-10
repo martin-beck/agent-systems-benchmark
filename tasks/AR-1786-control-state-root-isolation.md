@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:42:11+00:00",
+  "updated_at": "2026-10-10T20:42:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -95,3 +95,6 @@ gate into a serial-only or exclusion-based check.
 - 2026-10-10T20:42:11+00:00: Ordinary locked workspace rerun reproduced control state-root ownership
   failure in recording-campaign restart; baseline prior rerun passed. Focused source audit in
   progress; no test serialization or exclusions.
+
+- 2026-10-10T20:42:19+00:00: Recorded command exit 0; command argv SHA-256
+  c38d9c9ba7c2c51cf76919f501ff285f748692b9e046dc5a87f24a4903cb35f8.
