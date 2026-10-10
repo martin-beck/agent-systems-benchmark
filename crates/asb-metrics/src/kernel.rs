@@ -371,6 +371,25 @@ fn execute(
     arguments: &[String],
     timeout: Duration,
 ) -> Result<ProcessOutput, UnavailableReason> {
+    execute_with_spawn(
+        executable,
+        directory,
+        arguments,
+        timeout,
+        RunningProcess::spawn,
+    )
+}
+
+fn execute_with_spawn<F>(
+    executable: &Path,
+    directory: &Path,
+    arguments: &[String],
+    timeout: Duration,
+    mut spawn: F,
+) -> Result<ProcessOutput, UnavailableReason>
+where
+    F: FnMut(Command, ProcessLimits) -> Result<RunningProcess, ProcessError>,
+{
     let limits = ProcessLimits::new(
         MAX_OUTPUT_BYTES,
         MAX_OUTPUT_BYTES,
@@ -388,7 +407,7 @@ fn execute(
             .env("LC_ALL", "C")
             .current_dir(directory)
             .stdin(Stdio::null());
-        match RunningProcess::spawn(command, limits) {
+        match spawn(command, limits) {
             Ok(value) => {
                 process = Some(value);
                 break;
@@ -625,6 +644,60 @@ mod tests {
             MAX_SPAWN_ATTEMPTS - 1
         ));
         assert!(!should_retry_spawn(io::ErrorKind::Other, 0));
+    }
+
+    #[test]
+    fn execute_recovers_after_repeated_would_block_spawns() {
+        let root = TestRoot::new();
+        let tool = root.harness_tool();
+        let arguments = vec![
+            "run".to_owned(),
+            "fixture".to_owned(),
+            "kernel::tests::fixture_process_success".to_owned(),
+        ];
+        let mut attempts = 0;
+        let result = execute_with_spawn(
+            &tool.path,
+            &root.0,
+            &arguments,
+            Duration::from_secs(2),
+            |command, limits| {
+                attempts += 1;
+                if attempts <= 4 {
+                    Err(ProcessError::Spawn(io::Error::from(
+                        io::ErrorKind::WouldBlock,
+                    )))
+                } else {
+                    RunningProcess::spawn(command, limits)
+                }
+            },
+        );
+        assert_eq!(attempts, 5);
+        let output = result.expect("spawn must recover within the declared retry budget");
+        assert_eq!(output.exit_code, Some(0));
+        assert!(!output.stdout.truncated);
+    }
+
+    #[test]
+    fn execute_reports_typed_rejection_after_spawn_retry_exhaustion() {
+        let root = TestRoot::new();
+        let tool = root.harness_tool();
+        let arguments = vec!["run".to_owned()];
+        let mut attempts = 0;
+        let result = execute_with_spawn(
+            &tool.path,
+            &root.0,
+            &arguments,
+            Duration::from_secs(2),
+            |_command, _limits| {
+                attempts += 1;
+                Err(ProcessError::Spawn(io::Error::from(
+                    io::ErrorKind::WouldBlock,
+                )))
+            },
+        );
+        assert_eq!(attempts, MAX_SPAWN_ATTEMPTS);
+        assert_eq!(result, Err(UnavailableReason::ProbeRejected));
     }
 
     #[test]
