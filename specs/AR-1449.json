@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1449.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "runtime-owned", "description": "The replay authority is acquired inside the runtime boundary from validated cassette identity; callers cannot construct authority."},
+    {"id": "offline", "description": "Guided strict offline replay succeeds with the deterministic development fixture and does not contact a provider."},
+    {"id": "safety", "description": "Focused lifecycle, path, cancellation, mismatch, and egress-denial contracts remain fail-closed."},
+    {"id": "publication", "description": "Exact-main signatures/DCO, focused and full applicable tests, fmt, privacy, and diff checks pass; no GitHub Reviews API approval object is required."}
+  ],
+  "definition_of_done": [
+    "Current protected main contains the runtime-owned local replay provisioner and guided replay wiring.",
+    "Independent exact-head requalification and full applicable gates pass.",
+    "A privacy-safe durable receipt is accepted and the AR is released done."
+  ],
+  "inputs": [
+    {"id": "runtime-replay-contract", "description": "AR-1448 runtime replay authority source and AR-1443 guided replay route."},
+    {"id": "current-main", "description": "Protected ASB main exact commit under review."}
+  ],
+  "outputs": [
+    {"id": "qualification", "description": "Exact-main local replay authority qualification receipt."}
+  ],
+  "allowed_tools": ["cargo", "git", "uv", "tools/handoffctl"],
+  "forbidden_tools": ["credential-output", "provider-network", "github-reviews-api-approval-gate", "gate-weakening"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality"],
+  "gates": [
+    {"id": "replay", "description": "Guided local replay and runtime launch-factory tests pass."},
+    {"id": "workspace", "description": "Full locked workspace test, fmt, signature/DCO, privacy, and diff gates pass."},
+    {"id": "acceptance", "description": "Independent exact-main receipt is accepted without a GitHub Reviews API approval object."}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "ar": "AR-1449",
+  "status": "postmerge_verified",
+  "integration": "already_integrated",
+  "current_main": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
+  "current_main_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "independent_review": "Exact-main requalification recorded 2026-10-10T23:06:27Z; SSH signature/DCO, guided local replay, runtime launch-factory tests, full workspace, fmt, privacy, and clean-diff checks passed",
+  "focused": "guided_local_replay_uses_runtime_owned_fixture_seam passed; runtime launch-factory 21 passed and 1 native capability test was explicitly ignored",
+  "authorization_boundary": "No product diff, PR, merge, provider traffic, credential, or GitHub Reviews API approval object was required because the reviewed implementation is already on protected main."
+}
