@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:20:01+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf",
-  "owner": "codex-ar1785-coordinator",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 174,
+  "task_revision": 175,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T23:55:22+00:00",
+  "updated_at": "2026-10-10T23:55:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -533,3 +533,6 @@ merging, and post-merge verification remain required.
 - 2026-10-10T23:55:22+00:00: AR-1791 completed with green post-merge assurance. Rebased AR-1785
   candidate onto current main; two ordinary locked workspace runs and focused/configuration gates
   pass. Release for independent exact-head review.
+
+- 2026-10-10T23:55:29+00:00: AR-1785 candidate dd1930684 is ready for independent exact-head review;
+  no GitHub Reviews API approval object required.
