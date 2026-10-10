@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1715](tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | PR #483 merged at ASB b9c5835; exact-main provider path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free negative returns OPENROUTER_API_KEY required exit 3. Keep planned until quota recovers and selected/all succeeds. | ar1715-openrouter-qualification |
+| P0 | [AR-1715](tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Coordinator must declare a clean exact-main AR-1715 branch and worktree binding, then reclaim and run the documented secure-key selected/all live matrix; record either success or typed HTTP 429 quota outcome without secret retention. | ar1715-openrouter-qualification |
 
 ## Open
 

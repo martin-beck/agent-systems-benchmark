@@ -308,7 +308,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. |
-| Next action | PR #483 merged at ASB b9c5835; exact-main provider path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free negative returns OPENROUTER_API_KEY required exit 3. Keep planned until quota recovers and selected/all succeeds. |
+| Next action | Coordinator must declare a clean exact-main AR-1715 branch and worktree binding, then reclaim and run the documented secure-key selected/all live matrix; record either success or typed HTTP 429 quota outcome without secret retention. |
 
 ### AR-1716 — Cassette provider-profile identity binding
 
