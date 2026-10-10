@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1790](tasks/AR-1790-metrics-retry-budget.md): Make metrics spawn retry budget effective | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. | codex-ar1790-integration |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
