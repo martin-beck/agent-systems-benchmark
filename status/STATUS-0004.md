@@ -1,6 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-0703](../tasks/AR-0703-native-platform-lab.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |
 | [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0705](../tasks/AR-0705-native-debian-capacity.md), [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) |
 | [AR-0705](../tasks/AR-0705-native-debian-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
@@ -583,3 +582,5 @@
 | [AR-1640](../tasks/AR-1640.md) | [AR-1639](../tasks/AR-1639.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md) |
 | [AR-1641](../tasks/AR-1641.md) | [AR-1608](../tasks/AR-1608.md), [AR-1609](../tasks/AR-1609.md), [AR-1614](../tasks/AR-1614.md) | [AR-1613](../tasks/AR-1613.md), [AR-1622](../tasks/AR-1622.md), [AR-1643](../tasks/AR-1643.md), [AR-1645](../tasks/AR-1645.md), [AR-1657](../tasks/AR-1657.md), [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md) |
 | [AR-1642](../tasks/AR-1642.md) | [AR-1607](../tasks/AR-1607.md), [AR-1621](../tasks/AR-1621.md) | [AR-1613](../tasks/AR-1613.md), [AR-1622](../tasks/AR-1622.md), [AR-1643](../tasks/AR-1643.md), [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md) |
+| [AR-1643](../tasks/AR-1643.md) | [AR-1613](../tasks/AR-1613.md), [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md), [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1647](../tasks/AR-1647.md), [AR-1651](../tasks/AR-1651.md), [AR-1652](../tasks/AR-1652.md) | [AR-1653](../tasks/AR-1653.md), [AR-1654](../tasks/AR-1654.md) |
+| [AR-1644](../tasks/AR-1644.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md) | [AR-1650](../tasks/AR-1650.md) |
