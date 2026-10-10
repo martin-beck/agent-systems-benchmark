@@ -15289,7 +15289,7 @@ mod tests {
 
         let (first_path, first) = plan_fixture(&scratch.0, "project-first");
         fs::write(&first_path, toml::to_string(&first).unwrap()).unwrap();
-        let (exit, first_output) = run_json_with_progress(&[
+        let (exit, first_output) = run_json_without_progress(&[
             "run".into(),
             first_path.as_os_str().to_owned(),
             "--project".into(),
@@ -15304,7 +15304,7 @@ mod tests {
         second.point.seed = second.point.seed.saturating_add(1);
         fs::write(&second_path, toml::to_string(&second).unwrap()).unwrap();
         assert_eq!(
-            run_json_with_progress(&[
+            run_json_without_progress(&[
                 "run".into(),
                 second_path.as_os_str().to_owned(),
                 "--project".into(),
@@ -15351,11 +15351,7 @@ mod tests {
             ),
             0
         );
-        assert!(
-            String::from_utf8(local_mock_progress)
-                .unwrap()
-                .starts_with("starting ")
-        );
+        assert!(local_mock_progress.is_empty());
         assert_eq!(
             serde_json::from_slice::<Value>(&local_mock_output).unwrap()["command"],
             "run"
