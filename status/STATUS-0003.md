@@ -308,7 +308,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. |
-| Next action | Use the exact-main disposable CLI plan/selection fixtures to complete benchmark-live selected/all human and JSON output plus typed no-fallback negative matrix; rerun applicable hosted gates before any completion decision. |
+| Next action | Create a product-bound repair AR for the disposable config-path inconsistency: setup persisted a valid OpenRouter selection under the supplied XDG_CONFIG_HOME, but provider-plan --use-config reported configuration absent. After exact-head repair, regenerate one config-bound selection and rerun benchmark-live selected/all human and JSON plus the credential/no-fallback negative matrix. |
 
 ### AR-1716 — Cassette provider-profile identity binding
 
