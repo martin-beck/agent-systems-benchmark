@@ -242,6 +242,82 @@ fn checked_artifact(
     Ok((reference, artifact))
 }
 
+/// Validate that every project inventory class has one usable active catalog.
+///
+/// Execution consumes these artifacts rather than treating the mutable tool
+/// inventory as an implicit catalog.  This keeps a tool install, discovery, or
+/// selection change from silently changing the benchmark inputs after a
+/// catalog was generated.
+pub(super) fn validate_active_execution_catalogs(
+    root: &Path,
+    config: &ProjectConfigV1,
+) -> Result<(), CliError> {
+    for kind in kinds() {
+        let reference = config
+            .catalogs
+            .values()
+            .find(|reference| reference.kind == kind && reference.active)
+            .ok_or_else(|| {
+                CliError::legacy_validation(
+                    "project active catalog is missing; run `asb catalog generate --project PATH` then select the catalog",
+                )
+            })?;
+        let (_, artifact) = checked_artifact(root, config, &reference.id)?;
+        if artifact
+            .entries
+            .iter()
+            .any(|entry| entry.status != ProjectToolStatus::Available)
+        {
+            return Err(CliError::legacy_validation(
+                "project active catalog contains unavailable tools; run `asb tool discover PATH`, repair or install the tools, then regenerate and select the catalog",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Bind a selected inventory record to the exact entry in its active catalog.
+///
+/// Inventory discovery is mutable, whereas a generated catalog is the
+/// execution input.  A selection therefore cannot be used after installation,
+/// discovery, or replacement changes its public identity; the operator must
+/// regenerate the catalog and select it again.
+pub(super) fn validate_selected_catalog_entry(
+    root: &Path,
+    config: &ProjectConfigV1,
+    kind: ProjectToolKind,
+    id: &str,
+    record: &ProjectToolRecordV1,
+) -> Result<(), CliError> {
+    let reference = config
+        .catalogs
+        .values()
+        .find(|reference| reference.kind == kind && reference.active)
+        .ok_or_else(|| {
+            CliError::legacy_validation(
+                "project active catalog is missing; run `asb catalog generate --project PATH` then select the catalog",
+            )
+        })?;
+    let (_, artifact) = checked_artifact(root, config, &reference.id)?;
+    let entry = artifact.entries.iter().find(|entry| entry.id == id).ok_or_else(|| {
+        CliError::legacy_validation(
+            "project selection is absent from its active catalog; rerun `asb catalog generate --project PATH` and select the regenerated catalog",
+        )
+    })?;
+    if entry.source_ref != record.source_ref
+        || entry.version != record.version
+        || entry.platform != record.platform
+        || entry.digest_sha256 != record.digest_sha256
+        || entry.capabilities != record.capabilities
+        || entry.status != record.status
+    {
+        return Err(CliError::legacy_validation(
+            "project selected tool drifted from its active catalog; rerun `asb catalog generate --project PATH` and select the regenerated catalog",
+        ));
+    }
+    Ok(())
+}
+
 fn show(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let (id, root) = parse_id_and_project(args, "catalog show requires an ID")?;
     let config = super::load_tool_project(&root)?;
