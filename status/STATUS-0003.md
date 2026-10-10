@@ -1346,6 +1346,20 @@
 | Summary | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. |
 | Next action | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
 
+### AR-1790 — Make metrics spawn retry budget effective
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. |
+| Next action | Promote and claim; repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage. |
+
 
 ## Dependency graph
 
@@ -2194,6 +2208,7 @@ flowchart LR
         AR_1787["AR-1787 - Blocked"]:::status_blocked
         AR_1788["AR-1788 - Blocked"]:::status_blocked
         AR_1789["AR-1789 - Open"]:::status_open
+        AR_1790["AR-1790 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4043,6 +4058,7 @@ flowchart LR
     AR_1711 --> AR_1787
     AR_1711 --> AR_1788
     AR_1711 --> AR_1789
+    AR_1711 --> AR_1790
     AR_1712 --> AR_1716
     AR_1712 --> AR_1717
     AR_1712 --> AR_1724
@@ -4071,6 +4087,7 @@ flowchart LR
     AR_1733 --> AR_1787
     AR_1733 --> AR_1788
     AR_1733 --> AR_1789
+    AR_1733 --> AR_1790
     AR_1734 --> AR_1737
     AR_1734 --> AR_1738
     AR_1737 --> AR_1751
@@ -4213,6 +4230,3 @@ flowchart LR
 | [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0001](../tasks/AR-0001-repository-bootstrap.md) | [AR-0317](../tasks/AR-0317-runtime-bundle-manifest.md), [AR-0702](../tasks/AR-0702-native-platforms.md), [AR-0703](../tasks/AR-0703-native-platform-lab.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md), [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0848](../tasks/AR-0848-native-x86-capacity.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) |
 | [AR-0702](../tasks/AR-0702-native-platforms.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0807](../tasks/AR-0807-tui-resilience-accessibility.md), [AR-0813](../tasks/AR-0813-remote-control-transport.md), [AR-0816](../tasks/AR-0816-cross-platform-remote-interoperability.md), [AR-0903](../tasks/AR-0903-release-qualification.md), [AR-0907](../tasks/AR-0907-hosted-runner-evidence-classification.md), [AR-1006](../tasks/AR-1006-distributed-workers.md) |
 | [AR-0703](../tasks/AR-0703-native-platform-lab.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |
-| [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0705](../tasks/AR-0705-native-debian-capacity.md), [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) |
-| [AR-0705](../tasks/AR-0705-native-debian-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
-| [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
