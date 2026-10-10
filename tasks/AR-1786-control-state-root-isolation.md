@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T00:42:48+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
-  "owner": "",
+  "owner": "codex-ar1786-independent-rereview",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 63,
+  "task_revision": 64,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T22:42:36+00:00",
+  "updated_at": "2026-10-10T22:42:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -212,3 +212,5 @@ gate into a serial-only or exclusion-based check.
 - 2026-10-10T22:42:36+00:00: Dependencies AR-1711 and AR-1733 are complete; AR-1788 is now complete.
   Promote AR-1786 for independent exact-head review of 7be2fcb0, with no GitHub Reviews API approval
   requirement.
+
+- 2026-10-10T22:42:48+00:00: Claimed by codex-ar1786-independent-rereview.
