@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1787.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "lock-lifetime", "description": "A rejected same-process contender cannot close or unlock the active control state owner descriptor."},
+    {"id": "fork-isolation", "description": "Fixture children and fork/exec descendants cannot retain control ownership after the parent backend is dropped."},
+    {"id": "workspace-determinism", "description": "Repeated ordinary cargo test --locked --workspace runs pass without state-root ownership races or diagnostic catalog failures."},
+    {"id": "privacy", "description": "Evidence contains no credentials, private paths, raw control payloads, or unbounded logs."}
+  ],
+  "definition_of_done": [
+    "AR-1786's lock repair is corrected with focused same-process, child-inheritance, cleanup, and concurrent tests.",
+    "Diagnostic catalog identities are updated deterministically and all exact local gates pass repeatedly.",
+    "Independent review, signed DCO integration, exact-head CI, and exact-main post-merge workflows pass; no GitHub Reviews API approval object is required."
+  ],
+  "inputs": [
+    {"id": "ar1786-review", "description": "Blocked independent review of 7be2fcb identifying stale diagnostic identities and same-process POSIX lock release on rejected contenders."},
+    {"id": "control-lock-contract", "description": "Existing control.lock ownership, lifecycle cleanup, child process, and test isolation behavior."}
+  ],
+  "outputs": [
+    {"id": "safe-lock-lifetime", "description": "Ownership-safe lock guard that never drops or unlocks the active descriptor on a rejected contender."},
+    {"id": "deterministic-gates", "description": "Repeated ordinary workspace and diagnostic-contract evidence at the exact candidate."}
+  ],
+  "allowed_tools": ["cargo", "git", "gh", "python", "tools/handoffctl"],
+  "forbidden_tools": ["serial-only-gate-bypass", "test-exclusion", "unsafe-unlock", "credential-output", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality", "privacy", "hosted"],
+  "gates": [
+    {"id": "lifetime", "description": "Same-process rejected contender, child inheritance, cleanup, and concurrent ownership tests pass."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace and diagnostic closure pass."},
+    {"id": "publication", "description": "Independent review, exact-head CI, signed merge, and exact-main post-merge workflows pass without a GitHub Reviews API approval object."}
+  ]
+}
