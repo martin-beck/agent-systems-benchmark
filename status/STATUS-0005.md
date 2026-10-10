@@ -118,17 +118,12 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | ar1715-openrouter-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Use the exact-main disposable CLI plan/selection fixtures to complete benchmark-live selected/all human and JSON output plus typed no-fallback negative matrix; rerun applicable hosted gates before any completion decision. |
-
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Unclaimed | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Use the exact-main disposable CLI plan/selection fixtures to complete benchmark-live selected/all human and JSON output plus typed no-fallback negative matrix; rerun applicable hosted gates before any completion decision. |
 
 ### Blocked (87)
 
