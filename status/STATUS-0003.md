@@ -1288,7 +1288,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. |
-| Next action | Independent exact-head review of e9ad590eccb3d4ed30c6199c0d65a8223d55d57a; then publish a PR, require exact-head CI, perform signed merge, and requalify AR-1715. |
+| Next action | Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715. |
 
 ### AR-1786 — Repair control state-root isolation race
 
@@ -4111,6 +4111,8 @@ flowchart LR
     AR_1782 --> AR_1783
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
+    AR_1787 --> AR_1785
+    AR_1788 --> AR_1785
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
