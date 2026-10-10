@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1789-metrics-fixture",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:30:27+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,7 +13,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1789-publisher",
+  "owner": "",
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 89,
+  "task_revision": 90,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T22:34:18+00:00",
+  "updated_at": "2026-10-10T22:34:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -321,3 +321,6 @@ the ordinary parallel workspace gate.
   current protected main tree already integrated by signed AR-1790. Stale PR #552 was correctly
   closed after portable provenance rejected its old base. No GitHub Reviews API approval object
   required.
+
+- 2026-10-10T22:34:22+00:00: AR-1789 complete: independently reviewed deterministic metrics fixture
+  is already on protected main through AR-1790; exact tree and postmerge evidence verified.
