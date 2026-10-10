@@ -1330,7 +1330,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. |
-| Next action | Promote and claim after AR-1787 review receipt is reconciled; reproduce the named rustup fixture flake before changing product code. |
+| Next action | Diagnosis: PID-only persistent fixture roots survive failed runs and can be reused; candidate uses nonce-based RAII Scratch roots. Run module-qualified focused tests, then bounded repeated ordinary workspace gates. |
 
 
 ## Dependency graph

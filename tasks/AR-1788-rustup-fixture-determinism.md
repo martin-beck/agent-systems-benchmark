@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1788",
-  "next_action": "Promote and claim after AR-1787 review receipt is reconciled; reproduce the named rustup fixture flake before changing product code.",
+  "next_action": "Diagnosis: PID-only persistent fixture roots survive failed runs and can be reused; candidate uses nonce-based RAII Scratch roots. Run module-qualified focused tests, then bounded repeated ordinary workspace gates.",
   "observed_branch": "codex/ar-1788-rustup-fixture-determinism",
   "observed_dirty": 1,
   "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
@@ -20,9 +20,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:27:22+00:00",
+  "updated_at": "2026-10-10T21:27:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -75,3 +75,7 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T21:27:22+00:00: Recorded command exit 0; command argv SHA-256
   2c46fcb1972a2bb6a0924352d6b3af56eb0876f62d709667515cbf3714e5db07.
+
+- 2026-10-10T21:27:40+00:00: Recorded reproduction: ordinary workspace exited 101, then passed.
+  Stale substituted fixture roots corroborate PID-only persistent-root contamination. Initial exact
+  filters matched zero tests; corrected module-qualified commands remain required.

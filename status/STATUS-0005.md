@@ -137,7 +137,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | codex-ar1788-rustup-fixture | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Promote and claim after AR-1787 review receipt is reconciled; reproduce the named rustup fixture flake before changing product code. |
+| P0 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | codex-ar1788-rustup-fixture | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Diagnosis: PID-only persistent fixture roots survive failed runs and can be reused; candidate uses nonce-based RAII Scratch roots. Run module-qualified focused tests, then bounded repeated ordinary workspace gates. |
 
 ### Open (1)
 
