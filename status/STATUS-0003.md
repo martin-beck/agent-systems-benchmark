@@ -1344,7 +1344,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. |
-| Next action | Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code. |
+| Next action | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
 
 
 ## Dependency graph

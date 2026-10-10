@@ -139,7 +139,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | coordinator-ar1789 | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code. |
+| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | coordinator-ar1789 | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
 
 ### Open (1)
 
