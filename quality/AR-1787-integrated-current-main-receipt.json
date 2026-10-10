@@ -1,0 +1,14 @@
+{
+  "ar": "AR-1787",
+  "status": "postmerge_verified",
+  "integration": "already_integrated",
+  "candidate_commit": "573f3e631c9274829461fc051d461a383d994eb3",
+  "candidate_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "current_main": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
+  "current_main_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "equivalence": "git diff origin/main candidate is empty; rebased candidate is already represented by protected main",
+  "independent_review": "Fresh AR-1787 exact-head review accepted candidate at 2026-10-10T22:52:18Z; signatures/DCO, focused lock and diagnostic tests, full locked workspace, fmt, clippy, rustdoc, and privacy passed; no GitHub Reviews API approval object required",
+  "failed_pr": 553,
+  "failed_pr_reason": "Portable provenance correctly rejected the stale-base topic; PR was closed and no merge attempted",
+  "authorization_boundary": "No replacement PR or merge is authorized because the exact reviewed tree is already on protected main; release AR-1787 done with durable integrated-main evidence."
+}
