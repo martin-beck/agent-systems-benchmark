@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Binding repaired; add the selected/all injected-factory matrix and run focused and full gates. |
+| Next action | Rerun the focused diagnostic contract and full workspace gates after updating the reviewed legacy call-site identity shifted by the selected/all matrix tests; then commit and obtain independent review. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 

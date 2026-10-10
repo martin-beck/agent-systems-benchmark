@@ -122,7 +122,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1711](../tasks/AR-1711.md): Explicit live benchmark runner and typed failures | ar1711-live-runner | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Binding repaired; add the selected/all injected-factory matrix and run focused and full gates. |
+| P0 | [AR-1711](../tasks/AR-1711.md): Explicit live benchmark runner and typed failures | ar1711-live-runner | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Rerun the focused diagnostic contract and full workspace gates after updating the reviewed legacy call-site identity shifted by the selected/all matrix tests; then commit and obtain independent review. |
 
 ### Open (1)
 
