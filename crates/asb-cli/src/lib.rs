@@ -218,7 +218,7 @@ fn run_with_default_mode_and_stdin(
                 &mut captured,
                 progress,
                 None,
-                None,
+                default_live_provider_factory(),
                 stdin,
                 context,
             )
@@ -15901,6 +15901,92 @@ mod tests {
         assert!(!human.contains("replay"));
         assert!(!human.contains("mock"));
     }
+
+    fn run_with_live_provider_factory_default_mode(
+        args: &[OsString],
+        factory: LiveProviderAttemptFactory,
+        stdout: &mut dyn Write,
+        stderr: &mut dyn Write,
+        human_default: bool,
+    ) -> u8 {
+        TEST_LIVE_PROVIDER_FACTORY.with(|slot| {
+            assert!(slot.borrow().is_none());
+            *slot.borrow_mut() = Some(factory);
+        });
+        run_with_default_mode_and_stdin(args, stdout, stderr, human_default, None)
+    }
+
+    #[test]
+    fn public_live_provider_failure_has_human_json_parity_without_fallback() {
+        let run = |scratch: &Scratch, id: &str, json: bool| {
+            let (selection_path, selection) =
+                provider_selection_fixture(&scratch.0, "selection.json", "openrouter", &["codex"]);
+            let (plan_path, mut plan) = plan_fixture(&scratch.0, id);
+            bind_provider_selection(&mut plan, &selection, "codex", "openrouter");
+            plan.point.measured = 1;
+            plan.point.warmups = 0;
+            fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+            let mut args = vec![
+                "benchmark-live".into(),
+                plan_path.into_os_string(),
+                "--provider-selection".into(),
+                selection_path.into_os_string(),
+                "--online".into(),
+            ];
+            if json {
+                args.push("--json".into());
+            }
+            let factory = LiveProviderAttemptFactory::from_fn(|_, _| {
+                Err(LaunchAuthorityError::InvalidLaunchInput)
+            });
+            let mut output = Vec::new();
+            let mut stderr = Vec::new();
+            let code = run_with_live_provider_factory_default_mode(
+                &args,
+                factory,
+                &mut output,
+                &mut stderr,
+                true,
+            );
+            (code, output, stderr)
+        };
+        let (json_code, json_output, json_stderr) = run(
+            &Scratch::new("public-live-provider-failure"),
+            "public-live-provider-failure",
+            true,
+        );
+        assert_eq!(json_code, 6, "json={json_output:?} stderr={json_stderr:?}");
+        assert!(json_stderr.is_empty());
+        let json: Value = serde_json::from_slice(&json_output).unwrap();
+        assert_eq!(json["ok"], false);
+        assert_eq!(
+            json["points"][0]["attempt_failures"][0]["code"],
+            "live_provider_attempt_unavailable"
+        );
+        assert!(!json.to_string().contains("local_mock"));
+        assert!(!json.to_string().contains("strict_replay"));
+
+        let (human_code, human_output, human_stderr) = run(
+            &Scratch::new("public-live-provider-failure-human"),
+            "public-live-provider-failure-human",
+            false,
+        );
+        assert_eq!(
+            human_code, 6,
+            "human={human_output:?} stderr={human_stderr:?}"
+        );
+        let human = format!(
+            "{}{}",
+            String::from_utf8(human_output).unwrap(),
+            String::from_utf8(human_stderr).unwrap()
+        );
+        assert!(
+            human.contains("live_provider_attempt_unavailable"),
+            "human={human}"
+        );
+        assert!(!human.contains("local mock"));
+        assert!(!human.contains("strict replay"));
+    }
 }
 
 fn dispatch_fallback(words: &[String], stdout: &mut dyn Write) -> Result<u8, CliError> {
@@ -15915,3 +16001,18 @@ fn dispatch_fallback(words: &[String], stdout: &mut dyn Write) -> Result<u8, Cli
 }
 
 mod project_catalog;
+
+#[cfg(test)]
+thread_local! {
+    static TEST_LIVE_PROVIDER_FACTORY: std::cell::RefCell<Option<LiveProviderAttemptFactory>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn default_live_provider_factory() -> Option<LiveProviderAttemptFactory> {
+    TEST_LIVE_PROVIDER_FACTORY.with(|slot| slot.borrow_mut().take())
+}
+
+#[cfg(not(test))]
+fn default_live_provider_factory() -> Option<LiveProviderAttemptFactory> {
+    None
+}
