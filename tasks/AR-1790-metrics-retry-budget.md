@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:f20280a8843f139b14ed8fe9aa37b740d10dd729333721f74ddb70c83f7069d9",
+    "evidence_ref": "quality/AR-1790-metrics-retry-postmerge-receipt.json",
+    "spec_ref": "specs/AR-1790.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 139,
+  "task_revision": 140,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T22:22:38+00:00",
+  "updated_at": "2026-10-10T22:22:46+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -445,3 +453,7 @@ post-merge verification remain mandatory.
 
 - 2026-10-10T22:22:38+00:00: Recorded command exit 0; command argv SHA-256
   f4cd5a8339df653fcd35d0129984ae97d13da92c96373031a30322d682c5d155.
+
+- 2026-10-10T22:22:46+00:00: Accepted complete postmerge evidence: independent review, exact-head
+  CI, signed exact-tree merge 59cfd9cf, and all exact-main workflows terminal-success. No GitHub
+  Reviews API approval object required.
