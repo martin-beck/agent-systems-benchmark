@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T22:36:22+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1786-control-race",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:34:12+00:00",
+  "updated_at": "2026-10-10T20:36:22+00:00",
   "worktree_key": ""
 }
 ---
@@ -39,3 +39,5 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-10T20:34:12+00:00: AR-1711 and AR-1733 are done; promote control state-root isolation
   repair discovered by AR-1785 exact-head review
+
+- 2026-10-10T20:36:22+00:00: Claimed by codex-ar1786-control-race.
