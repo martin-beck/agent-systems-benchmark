@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 133,
+  "task_revision": 134,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T22:53:56+00:00",
+  "updated_at": "2026-10-10T22:54:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -416,3 +416,6 @@ merging, and post-merge verification remain required.
   exact-head CI. No GitHub Reviews API approval object is required.
 
 - 2026-10-10T22:53:56+00:00: Claimed by codex-ar1785-requalification.
+
+- 2026-10-10T22:54:05+00:00: Recorded command exit 1; command argv SHA-256
+  18399f436a01ca94a727fb51be14ac26f2d612bd9abfd5f3272c691075208a4d.
