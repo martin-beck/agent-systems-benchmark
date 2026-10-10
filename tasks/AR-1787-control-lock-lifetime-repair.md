@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:706926d7d7025a9f6c52d9438448a47cab1a994156c3396d642f9c5aca15b44f",
+    "evidence_ref": "quality/AR-1787-integrated-current-main-receipt.json",
+    "spec_ref": "specs/AR-1787.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 91,
+  "task_revision": 92,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:53:05+00:00",
+  "updated_at": "2026-10-10T22:53:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -304,3 +312,6 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:53:05+00:00: Recorded command exit 0; command argv SHA-256
   59a465164c598326462875e085b19c6cf95536018d2f9fc520cc6c224b4aa091.
+
+- 2026-10-10T22:53:26+00:00: Fresh independent exact-head review passed all technical gates;
+  candidate tree is already identical to protected main, so no no-op PR or merge was authorized.
