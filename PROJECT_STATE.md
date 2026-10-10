@@ -35,5 +35,5 @@ Generated from local Git and GitHub. Do not edit.
 | 38091712339 | `023e366a489c` | pull_request | Huawei MIT source headers | completed:success |
 | 38091712332 | `023e366a489c` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38091712325 | `023e366a489c` | pull_request | Hosted portability and native qualification | completed:failure |
-| 38091712324 | `023e366a489c` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38091712324 | `023e366a489c` | pull_request | Emulated aarch64 portability | completed:success |
 | 38090655828 | `d1f19141fe54` | pull_request | Huawei MIT source headers | completed:success |
