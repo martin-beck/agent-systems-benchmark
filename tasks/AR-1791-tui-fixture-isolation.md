@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1791-tui-fixture-isolation",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T01:18:20+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1770",
     "AR-1788",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
-  "owner": "codex-ar1791-fixture-repair",
+  "owner": "",
   "plan": "../plans/AR-1791-tui-fixture-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1791.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:21:55+00:00",
+  "updated_at": "2026-10-10T23:22:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -125,3 +125,17 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:21:55+00:00: Recorded command exit 0; command argv SHA-256
   4c1dd549c7fa7cfa736b77e60908a5544d43021bd2f6ca805b8289eebb67feda.
+
+- 2026-10-10T23:22:30+00:00: Candidate 4dbf735db270be0faf25fa005104397d8a680eb3 is released only for
+  independent exact-head review; it is SSH-signed and carries matching DCO. Repair adds a positive
+  Scratch uniqueness/removal regression and replaces the racy global /proc/self/fd/N post-close
+  assertion with positive/negative dev+inode identity checks, so parallel FD-number reuse cannot be
+  mistaken for a leaked original descriptor. Focused rustup path-replacement and GCC
+  descendant-marker tests pass; ordinary parallel asb-cli lib run passed 341/341. First workspace
+  command exited 101 without retained subprocess output; narrowed run then passed and the two
+  following ordinary cargo +1.93.0 test --locked --workspace runs exited 0 (23:17:52 and 23:21:55).
+  fmt --check, clippy --workspace --all-targets -D warnings, rustdoc -D warnings --workspace
+  --no-deps, corrected-base diff --check, signature verification, and privacy diff inspection pass.
+  The stale-base diff exit 128 and attempted unsupported note CLI error are recorded as operator
+  errors, not product evidence. No serial-only bypass, exclusion, merge, or GitHub Reviews API
+  approval object. Reviewer must independently inspect exact head and rerun applicable gates.
