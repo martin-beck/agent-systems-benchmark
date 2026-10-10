@@ -3,7 +3,7 @@
   "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1785"],
+  "depends_on": ["AR-1711", "AR-1733"],
   "id": "AR-1786",
   "next_action": "Promote after AR-1785's blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates.",
   "observed_branch": "",
