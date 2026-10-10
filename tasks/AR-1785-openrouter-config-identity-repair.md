@@ -12,7 +12,7 @@
   "id": "AR-1785",
   "next_action": "Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715.",
   "observed_branch": "codex/ar-1785-openrouter-config",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "76e9f6c3ebe709f8cffbf2f6aa44a57603d6a185",
   "owner": "codex-ar1785-requalification",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 140,
+  "task_revision": 141,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T22:55:50+00:00",
+  "updated_at": "2026-10-10T22:55:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
