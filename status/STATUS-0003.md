@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Repair the missing active branch/worktree binding in task metadata; handoffctl run rejects all product mutations despite the listed live-runner worktree. Then add the selected/all injected-factory matrix and run gates. |
+| Next action | Binding repaired; add the selected/all injected-factory matrix and run focused and full gates. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 

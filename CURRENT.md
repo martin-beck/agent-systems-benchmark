@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Repair the missing active branch/worktree binding in task metadata; handoffctl run rejects all product mutations despite the listed live-runner worktree. Then add the selected/all injected-factory matrix and run gates. | ar1711-live-runner |
+| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Binding repaired; add the selected/all injected-factory matrix and run focused and full gates. | ar1711-live-runner |
 
 ## Open
 
