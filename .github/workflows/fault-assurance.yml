@@ -49,7 +49,7 @@ jobs:
           rustup toolchain install nightly-2025-11-21 --profile minimal
           cargo install --locked cargo-fuzz --version 0.13.2
       - name: Install pinned fuzz supply-chain tools
-        uses: taiki-e/install-action@76c2e6406e52637deed7160d77bded76bd83e06e
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7
         with:
           tool: cargo-audit@0.22.2,cargo-deny@0.20.2
       - name: Audit the independent fuzz dependency graph
