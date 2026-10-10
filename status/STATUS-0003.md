@@ -1372,7 +1372,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. |
-| Next action | Run repeated ordinary workspace gates for signed candidate 4dbf735d; investigate or block if either recurrent TUI fixture fails. |
+| Next action | Run a second ordinary full workspace gate; if it fails, identify the cross-crate failing test before modifying or releasing the candidate. |
 
 
 ## Dependency graph

@@ -10,7 +10,7 @@
     "AR-1790"
   ],
   "id": "AR-1791",
-  "next_action": "Run repeated ordinary workspace gates for signed candidate 4dbf735d; investigate or block if either recurrent TUI fixture fails.",
+  "next_action": "Run a second ordinary full workspace gate; if it fails, identify the cross-crate failing test before modifying or releasing the candidate.",
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 18,
+  "task_revision": 19,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:16:49+00:00",
+  "updated_at": "2026-10-10T23:17:02+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -76,3 +76,11 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:16:49+00:00: Recorded command exit 0; command argv SHA-256
   955dfd54f7432b57d0e6cee4f15baadfe05d190309a35de135483691a7cdaf8e.
+
+- 2026-10-10T23:17:02+00:00: First full workspace gate at 4dbf735d exited 101 in the bounded
+  coordinator record, although the visible stream included both target TUI tests passing; runner
+  evidence intentionally retains no subprocess output. Narrowed ordinary parallel cargo test
+  --locked -p asb-cli --lib then passed all 341 tests, including GCC descendant-marker, rustup
+  path-replacement, and new Scratch cleanup coverage. Therefore do not claim the target fixtures are
+  still failing or the candidate is qualified: repeat the full workspace gate to distinguish another
+  crate/cross-crate failure from transient infrastructure before release.
