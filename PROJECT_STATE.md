@@ -25,15 +25,15 @@ Generated from local Git and GitHub. Do not edit.
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38075674764 | `be2f42ab34c1` | push | Repository quality | in_progress:- |
-| 38075674744 | `be2f42ab34c1` | push | Credential-free benchmark path | in_progress:- |
+| 38075674764 | `be2f42ab34c1` | push | Repository quality | completed:success |
+| 38075674744 | `be2f42ab34c1` | push | Credential-free benchmark path | completed:success |
 | 38075674734 | `be2f42ab34c1` | push | Portable protected-main provenance | completed:success |
-| 38075674726 | `be2f42ab34c1` | push | Hosted portability and native qualification | in_progress:- |
+| 38075674726 | `be2f42ab34c1` | push | Hosted portability and native qualification | completed:success |
 | 38075674701 | `be2f42ab34c1` | push | Huawei MIT source headers | completed:success |
-| 38075674670 | `be2f42ab34c1` | push | Rust verification | in_progress:- |
-| 38075674610 | `be2f42ab34c1` | push | Cross-repository development broker qualification | in_progress:- |
-| 38075674609 | `be2f42ab34c1` | push | Fault assurance | in_progress:- |
-| 38075674608 | `be2f42ab34c1` | push | Formal assurance | in_progress:- |
-| 38075674605 | `be2f42ab34c1` | push | Emulated aarch64 portability | in_progress:- |
+| 38075674670 | `be2f42ab34c1` | push | Rust verification | completed:success |
+| 38075674610 | `be2f42ab34c1` | push | Cross-repository development broker qualification | completed:success |
+| 38075674609 | `be2f42ab34c1` | push | Fault assurance | completed:success |
+| 38075674608 | `be2f42ab34c1` | push | Formal assurance | completed:success |
+| 38075674605 | `be2f42ab34c1` | push | Emulated aarch64 portability | completed:success |
 | 38074897563 | `700b13b3a744` | pull_request | Rust verification | completed:success |
 | 38074897561 | `700b13b3a744` | pull_request | Cross-repository development broker qualification | completed:success |
