@@ -3,7 +3,10 @@
   "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1711", "AR-1733"],
+  "depends_on": [
+    "AR-1711",
+    "AR-1733"
+  ],
   "id": "AR-1787",
   "next_action": "Promote and claim after dependency verification; reproduce the AR-1786 same-process lock-release flaw, repair descriptor lifetime and catalog identities, then run repeated full gates.",
   "observed_branch": "",
@@ -15,11 +18,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:02:00+00:00",
+  "updated_at": "2026-10-10T21:01:33+00:00",
   "worktree_key": ""
 }
 ---
@@ -33,3 +36,6 @@ not weaken control ownership or the ordinary workspace gate.
   7be2fcb0 had three ordinary workspace failures from stale diagnostic identities,
   and a P0 same-process POSIX record-lock lifetime flaw where a rejected contender's
   descriptor close could release the active owner lock. No publication or merge is authorized.
+
+- 2026-10-10T21:01:33+00:00: AR-1711 and AR-1733 done; promote lock lifetime repair from AR-1786 P0
+  review blocker
