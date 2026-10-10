@@ -1322,11 +1322,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1788-independent-main-review |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. |
@@ -2206,7 +2206,7 @@ flowchart LR
         AR_1785["AR-1785 - Blocked"]:::status_blocked
         AR_1786["AR-1786 - Blocked"]:::status_blocked
         AR_1787["AR-1787 - Blocked"]:::status_blocked
-        AR_1788["AR-1788 - In progress"]:::status_in_progress
+        AR_1788["AR-1788 - Open"]:::status_open
         AR_1789["AR-1789 - Done"]:::status_done
         AR_1790["AR-1790 - Done"]:::status_done
     end

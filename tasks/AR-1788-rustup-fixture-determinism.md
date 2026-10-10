@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:38:27+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,17 +13,17 @@
   "observed_branch": "codex/ar-1788-rustup-fixture-current",
   "observed_dirty": 0,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
-  "owner": "codex-ar1788-independent-main-review",
+  "owner": "",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 48,
+  "task_revision": 49,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T22:39:28+00:00",
+  "updated_at": "2026-10-10T22:40:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -170,3 +170,15 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T22:39:28+00:00: Recorded command exit 0; command argv SHA-256
   fedd6c5f1b5192b93782b3c7681ec082b68000b7b1f4bdd25157dfec91a57df4.
+
+- 2026-10-10T22:40:13+00:00: Independent exact-main review accepts protected origin/main
+  59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1, fetched through handoffctl. It is a valid SSH-signed DCO
+  merge (parents b79ad159 and c571ad8a); eece088d is an ancestor and itself independently verifies
+  with matching DCO. The minimal fixture repair replaces the persistent PID-only HOME cache root
+  with RAII Scratch isolation and adds unique-root coverage; manual privacy inspection finds no
+  credentials, private host data, prompts, transcripts, or unbounded evidence. Integrated diff check
+  passes. Current-main focused path-replacement regression passes, and independent ordinary cargo
+  +1.93.0 test --locked --workspace passes. Prior durable records include five focused passes,
+  isolated transient metrics fixture investigation, and two consecutive full workspace passes. No
+  GitHub Reviews API approval object is required. Exact-main technical review is accepted;
+  coordinator may complete after confirming hosted exact-main evidence. No merge performed.
