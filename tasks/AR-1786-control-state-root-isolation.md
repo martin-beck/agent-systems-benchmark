@@ -3,7 +3,10 @@
   "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1711", "AR-1733"],
+  "depends_on": [
+    "AR-1711",
+    "AR-1733"
+  ],
   "id": "AR-1786",
   "next_action": "Promote after AR-1785's blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates.",
   "observed_branch": "",
@@ -15,11 +18,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:35:00+00:00",
+  "updated_at": "2026-10-10T20:34:12+00:00",
   "worktree_key": ""
 }
 ---
@@ -33,3 +36,6 @@ gate into a serial-only or exclusion-based check.
   ordinary `cargo test --locked --workspace` runs at e9ad590e failed in distinct
   `asb-cli::control` tests with `control state root is already owned`, while isolated
   runs passed. No AR-1785 publication or merge is authorized until this race is repaired.
+
+- 2026-10-10T20:34:12+00:00: AR-1711 and AR-1733 are done; promote control state-root isolation
+  repair discovered by AR-1785 exact-head review
