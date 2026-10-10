@@ -5,6 +5,7 @@
 use asb_cli::diagnostic::{
     CATALOGUED_CODES, Cause, Diagnostic, Remediation, Severity, StateChange, Subject,
 };
+use proc_macro2::{TokenStream, TokenTree};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
@@ -85,6 +86,26 @@ impl<'ast> Visit<'ast> for DiagnosticAstGate {
         }
         syn::visit::visit_expr_call(self, call);
     }
+
+    fn visit_macro(&mut self, mac: &'ast syn::Macro) {
+        visit_macro_token_groups(self, mac.tokens.clone());
+        syn::visit::visit_macro(self, mac);
+    }
+}
+
+fn visit_macro_token_groups(gate: &mut DiagnosticAstGate, tokens: TokenStream) {
+    if let Ok(expression) = syn::parse2::<syn::Expr>(tokens.clone()) {
+        gate.visit_expr(&expression);
+    }
+    for token in tokens {
+        if let TokenTree::Group(group) = token {
+            let stream = group.stream();
+            if let Ok(block) = syn::parse2::<syn::Block>(stream.clone()) {
+                gate.visit_block(&block);
+            }
+            visit_macro_token_groups(gate, stream);
+        }
+    }
 }
 
 fn is_diagnostic_type(ty: &syn::Type) -> bool {
@@ -97,29 +118,24 @@ fn diagnostic_constructor(path: &Path) -> Option<&'static str> {
         .iter()
         .map(|segment| segment.ident.to_string())
         .collect::<Vec<_>>();
-    match segments.as_slice() {
-        [error, constructor]
-            if error == "RouterError" && matches!(constructor.as_str(), "policy" | "operation") =>
-        {
-            Some(if constructor == "policy" {
-                "RouterError::policy"
-            } else {
-                "RouterError::operation"
-            })
+    let [.., error, constructor] = segments.as_slice() else {
+        return None;
+    };
+    match (error.as_str(), constructor.as_str()) {
+        ("RouterError", "policy") => Some("RouterError::policy"),
+        ("RouterError", "operation") => Some("RouterError::operation"),
+        ("CliError", "usage") => Some("CliError::usage"),
+        ("CliError", "validation") => Some("CliError::validation"),
+        ("CliError", "operation") => Some("CliError::operation"),
+        ("CliError", "validation_with_remediation") => {
+            Some("CliError::validation_with_remediation")
         }
-        [error, constructor] if error == "CliError" => match constructor.as_str() {
-            "usage" => Some("CliError::usage"),
-            "validation" => Some("CliError::validation"),
-            "operation" => Some("CliError::operation"),
-            "validation_with_remediation" => Some("CliError::validation_with_remediation"),
-            "legacy_usage" => Some("CliError::legacy_usage"),
-            "legacy_validation" => Some("CliError::legacy_validation"),
-            "legacy_validation_with_remediation" => {
-                Some("CliError::legacy_validation_with_remediation")
-            }
-            "legacy_operation" => Some("CliError::legacy_operation"),
-            _ => None,
-        },
+        ("CliError", "legacy_usage") => Some("CliError::legacy_usage"),
+        ("CliError", "legacy_validation") => Some("CliError::legacy_validation"),
+        ("CliError", "legacy_validation_with_remediation") => {
+            Some("CliError::legacy_validation_with_remediation")
+        }
+        ("CliError", "legacy_operation") => Some("CliError::legacy_operation"),
         _ => None,
     }
 }
@@ -479,6 +495,15 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(namespaced_qualified)
         .expect_err("the completeness gate must reject a namespaced qualified routed path");
     assert!(error.contains("qualified diagnostic error paths"));
+    let regular_qualified = "crate::RouterError::policy(\"future_regular_qualified_router_error\")";
+    let error = assert_catalogued_routed_codes(regular_qualified)
+        .expect_err("the completeness gate must reject a qualified routed constructor");
+    assert!(error.contains("future_regular_qualified_router_error"));
+    let macro_producer =
+        "emit_error! { crate::RouterError::policy(\"future_macro_router_error\") };";
+    let error = assert_catalogued_routed_codes(macro_producer)
+        .expect_err("the completeness gate must inspect macro diagnostic producers");
+    assert!(error.contains("future_macro_router_error"));
 }
 
 #[test]
