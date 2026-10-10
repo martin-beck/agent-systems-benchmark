@@ -135,12 +135,17 @@
 
 ## Complete AR inventory
 
-### Open (2)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | codex-ar1789-independent-review | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
+
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | Unclaimed | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
 
 ### Blocked (92)
 
@@ -556,4 +561,3 @@
 | P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
 | P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |
-| P0 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md): Reconciled development auth handoff runtime | Unclaimed | Repair ASB development-runtime reconciliation between digest-only enrollment and helper invocation. | Complete; PR #386 merged at bf89a45ddd71af96e6d4b6954320e199e147f83e. Protected main tree equals reviewed topic and post-merge auth-focused ASB tests pass. Paired asb-tui AR-1323 qualification remains external. |
