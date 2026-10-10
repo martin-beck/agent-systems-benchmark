@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:54:20+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1790-independent-rereview",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 39,
+  "task_revision": 40,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:53:55+00:00",
+  "updated_at": "2026-10-10T21:54:20+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -155,3 +155,5 @@ post-merge verification remain mandatory.
   recovery and typed exhaustion tests. Focused metrics, full workspace, fmt, clippy, and rustdoc
   gates pass. Release for fresh independent exact-head review; no GitHub Reviews API approval object
   is required.
+
+- 2026-10-10T21:54:20+00:00: Claimed by codex-ar1790-independent-rereview.
