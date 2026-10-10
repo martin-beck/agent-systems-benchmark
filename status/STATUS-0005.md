@@ -122,7 +122,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1711](../tasks/AR-1711.md): Explicit live benchmark runner and typed failures | ar1711-live-runner | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | PR #483 merged at ASB b9c5835; exact-main live path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free exact-main negative returns OPENROUTER_API_KEY required exit 3. Rerun selected/all after quota recovery. |
+| P0 | [AR-1711](../tasks/AR-1711.md): Explicit live benchmark runner and typed failures | ar1711-live-runner | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Repair the missing active branch/worktree binding in task metadata; handoffctl run rejects all product mutations despite the listed live-runner worktree. Then add the selected/all injected-factory matrix and run gates. |
 
 ### Open (1)
 

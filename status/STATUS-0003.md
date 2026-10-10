@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | PR #483 merged at ASB b9c5835; exact-main live path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free exact-main negative returns OPENROUTER_API_KEY required exit 3. Rerun selected/all after quota recovery. |
+| Next action | Repair the missing active branch/worktree binding in task metadata; handoffctl run rejects all product mutations despite the listed live-runner worktree. Then add the selected/all injected-factory matrix and run gates. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 
