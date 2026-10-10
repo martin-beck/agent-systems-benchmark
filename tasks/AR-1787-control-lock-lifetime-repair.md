@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T00:50:39+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime-current",
   "observed_dirty": 0,
   "observed_head": "573f3e631c9274829461fc051d461a383d994eb3",
-  "owner": "",
+  "owner": "codex-ar1787-review-current-20261011",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 86,
+  "task_revision": 87,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:50:29+00:00",
+  "updated_at": "2026-10-10T22:50:39+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -282,3 +282,5 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:50:29+00:00: Rebased exact candidate is ready for fresh independent review; stale PR
   #553 was closed after portable provenance correctly rejected its old base.
+
+- 2026-10-10T22:50:39+00:00: Claimed by codex-ar1787-review-current-20261011.
