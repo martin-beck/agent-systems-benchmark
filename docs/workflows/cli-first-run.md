@@ -41,6 +41,35 @@ The local/mock qualification receipt at
 validated plan, two reportable completed runs, and an empty-difference
 comparison without provider contact.
 
+## Project-local tool qualification
+
+For a disposable project workspace, initialize the project, register and
+select each fixture tool kind, generate the active catalogs, then use the
+project-bound local/mock route. `--local-mock` is accepted after the project selector as
+shown; this route is credential-free and does not contact a provider.
+
+```sh
+asb project init PROJECT
+asb tool install agent-fixture --kind agent --source fixture://agent-fixture --version 1.0.0 --project PROJECT
+asb tool install harness-fixture --kind harness --source fixture://harness-fixture --version 1.0.0 --project PROJECT
+asb tool install benchmark-fixture --kind benchmark --source fixture://benchmark-fixture --version 1.0.0 --project PROJECT
+asb tool install workload-fixture --kind workload --source fixture://workload-fixture --version 1.0.0 --project PROJECT
+asb tool install support-fixture --kind support --source fixture://support-fixture --version 1.0.0 --project PROJECT
+asb tool select agent-fixture --kind agent --project PROJECT
+asb tool select harness-fixture --kind harness --project PROJECT
+asb tool select benchmark-fixture --kind benchmark --project PROJECT
+asb tool select workload-fixture --kind workload --project PROJECT
+asb tool select support-fixture --kind support --project PROJECT
+asb catalog generate --project PROJECT
+asb --json run PLAN.toml --project PROJECT --local-mock
+```
+
+The project retains its credential-free configuration, selected catalog
+provenance, tools, and results below `PROJECT/.asb` and `PROJECT/results`.
+Repeat installation is idempotent. A missing, stale, unsafe, or incompatible
+selection fails before a run is created; in JSON mode the error is the sole
+machine envelope on stdout and stderr remains empty.
+
 New plans use `schema_version = 2` and include a closed `measurement_selection`
 table generated from the exact content-addressed measurement catalog. The table
 contains `schema_version = 1`, `catalog_schema_version = 1`, the catalog and
