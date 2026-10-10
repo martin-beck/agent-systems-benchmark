@@ -16,11 +16,11 @@
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-09-25T16:57:47+00:00",
+  "updated_at": "2026-10-10T22:58:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-runtime-owned-local-replay-cli"
 }
 ---
@@ -42,3 +42,7 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
   caller-built SandboxLaunchInput, benchmark ResourceLease, SandboxBackend and relay attestation;
   ordinary CLI cannot safely acquire these. Promote a runtime-owned local replay acquisition factory
   successor; no product changes made.
+
+- 2026-10-10T22:58:00+00:00: Dependencies AR-1443 and AR-1448 are complete. Promote runtime-owned
+  local replay authority repair to unblock AR-1698; local/mock fixtures are sufficient and no GitHub
+  Reviews API approval object is required.
