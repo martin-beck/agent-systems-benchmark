@@ -27,7 +27,7 @@ Generated from local Git and GitHub. Do not edit.
 | --- | --- | --- | --- | --- |
 | 38080613327 | `b79ad1597a1c` | push | Portable protected-main provenance | completed:success |
 | 38080613305 | `b79ad1597a1c` | push | Cross-repository development broker qualification | completed:success |
-| 38080613288 | `b79ad1597a1c` | push | Rust verification | in_progress:- |
+| 38080613288 | `b79ad1597a1c` | push | Rust verification | completed:success |
 | 38080613256 | `b79ad1597a1c` | push | Credential-free benchmark path | completed:success |
 | 38080613233 | `b79ad1597a1c` | push | Formal assurance | completed:success |
 | 38080613202 | `b79ad1597a1c` | push | Emulated aarch64 portability | in_progress:- |
