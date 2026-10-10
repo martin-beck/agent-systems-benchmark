@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:27:43+00:00",
+  "claim_expires": "2026-10-10T23:31:31+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -21,9 +21,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 28,
+  "task_revision": 29,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:30:43+00:00",
+  "updated_at": "2026-10-10T21:31:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -111,3 +111,5 @@ workspace gate or turn a flaky one-off pass into qualification.
   kernel::tests::missing_malformed_and_unsafe_configuration_fail_closed expected MalformedEvidence
   and received ProbeRejected. Its isolated exact rerun passed; fixture uses distinct TestRoot, so no
   demonstrated AR-1788 shared resource.
+
+- 2026-10-10T21:31:31+00:00: Heartbeat by codex-ar1788-rustup-fixture.
