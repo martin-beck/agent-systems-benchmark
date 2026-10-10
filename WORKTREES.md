@@ -319,6 +319,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1652-review-20261007` | `DETACHED` | `0c4ba0c721d0` | 0 | behind 230, ahead 1 |
 | `asb-ar1704-integration` | `DETACHED` | `4dfc1e07f424` | 0 | behind 8, ahead 0 |
 | `asb-ar1709-integration` | `DETACHED` | `2c6f3083504c` | 0 | behind 5, ahead 0 |
+| `asb-ar1715-live-qualification` | `DETACHED` | `b79ad1597a1c` | 0 | behind 0, ahead 0 |
 | `asb-ar1743-integration` | `DETACHED` | `507559f636e0` | 0 | behind 193, ahead 0 |
 | `asb-ar1743-postmerge` | `DETACHED` | `fd956d857970` | 0 | behind 191, ahead 0 |
 | `asb-ar1744-main-repro` | `DETACHED` | `1ab175c30eb0` | 0 | behind 187, ahead 0 |
