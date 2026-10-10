@@ -21,12 +21,15 @@ use sha2::{Digest, Sha256};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::io::{Read, Write};
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
 const MAX_OBSERVED_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_AUTHORIZATION_BYTES: usize = 8 * 1024;
+const TRUSTED_CURL_CANDIDATES: &[&str] = &["/usr/bin/curl", "/bin/curl"];
 
 /// Exact public API base accepted by the built-in profile.
 pub const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
@@ -477,7 +480,8 @@ fn openrouter_curl_transport(
     config_path: &std::path::Path,
     body: &[u8],
 ) -> Result<(bool, Vec<u8>), OpenRouterLiveError> {
-    let result = Command::new("curl")
+    let curl = discover_trusted_curl()?;
+    let result = Command::new(curl)
         .args(["--silent", "--show-error", "--config"])
         .arg(config_path)
         .args(["--data-binary", "@-", "--write-out", "\n%{http_code}"])
@@ -503,6 +507,27 @@ fn openrouter_curl_transport(
                 OpenRouterLiveError::Transport
             }
         })
+}
+
+/// Resolve curl only from the bounded system-tool roster, never ambient PATH.
+fn discover_trusted_curl() -> Result<PathBuf, OpenRouterLiveError> {
+    for candidate in TRUSTED_CURL_CANDIDATES {
+        let path = Path::new(candidate);
+        let Ok(canonical) = std::fs::canonicalize(path) else {
+            continue;
+        };
+        let Ok(metadata) = std::fs::metadata(&canonical) else {
+            continue;
+        };
+        if metadata.is_file()
+            && metadata.uid() == 0
+            && metadata.mode() & 0o022 == 0
+            && metadata.mode() & 0o111 != 0
+        {
+            return Ok(canonical);
+        }
+    }
+    Err(OpenRouterLiveError::CurlUnavailable)
 }
 
 /// Normalize a bounded response from OpenRouter's public `/models` endpoint.
@@ -1276,6 +1301,17 @@ mod tests {
             capture_openrouter_live(&profile, OpenRouterAgent::Aider, &oversized),
             Err(OpenRouterLiveError::RequestTooLarge)
         ));
+    }
+
+    #[test]
+    fn trusted_curl_discovery_is_bounded_and_never_uses_ambient_path() {
+        let curl = discover_trusted_curl().expect("a trusted system curl fixture is available");
+        assert!(
+            TRUSTED_CURL_CANDIDATES
+                .iter()
+                .any(|candidate| curl.starts_with(Path::new(candidate).parent().unwrap()))
+        );
+        assert_eq!(curl.file_name().and_then(OsStr::to_str), Some("curl"));
     }
 
     #[test]

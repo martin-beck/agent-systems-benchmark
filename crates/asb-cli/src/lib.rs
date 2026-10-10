@@ -1490,8 +1490,8 @@ fn openrouter_live_cli_error(error: OpenRouterLiveError) -> CliError {
             "OpenRouter returned a non-success HTTP status",
         ),
         OpenRouterLiveError::CurlUnavailable => CliError::operation_code(
-            "provider_transport_unavailable",
-            "OpenRouter curl transport is unavailable",
+            "trusted_tool_unavailable",
+            "OpenRouter trusted curl transport is unavailable",
         ),
     }
 }
