@@ -20,11 +20,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 131,
+  "task_revision": 132,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T21:25:00+00:00",
+  "updated_at": "2026-10-10T22:53:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -410,3 +410,7 @@ merging, and post-merge verification remain required.
   --locked --workspace failed twice in distinct asb-cli control tests with control state root is
   already owned; reproduce and fix deterministic parallel control-state isolation, then rerun
   exact-head review. Exit 101 at 20:27:51 was only a state-cwd Cargo invocation artifact.
+
+- 2026-10-10T22:53:38+00:00: Dependencies AR-1787 and AR-1788 are complete; promote AR-1785 for
+  current-main requalification. Its implementation must be rebased and independently reviewed before
+  exact-head CI. No GitHub Reviews API approval object is required.
