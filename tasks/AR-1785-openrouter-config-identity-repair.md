@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:10:39+00:00",
+  "updated_at": "2026-10-10T20:11:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -147,3 +147,6 @@ merging, and post-merge verification remain required.
   no-fallback coverage plus full workspace tests, Clippy, docs, and formatting passed. The one
   intermediate exit 101 was a test-only ProviderPlanOutput versus Value helper type mismatch,
   corrected before the successful rerun.
+
+- 2026-10-10T20:11:47+00:00: Recorded command exit 101; command argv SHA-256
+  5dd44f6a742bee5acc66e01e67779092f4aded4665e4aca5ae3adc2ddafdb20b.
