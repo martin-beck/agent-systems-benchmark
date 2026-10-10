@@ -9,9 +9,9 @@
   ],
   "id": "AR-1788",
   "next_action": "Promote and claim after AR-1787 review receipt is reconciled; reproduce the named rustup fixture flake before changing product code.",
-  "observed_branch": "",
+  "observed_branch": "codex/ar-1788-rustup-fixture-determinism",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
   "owner": "codex-ar1788-rustup-fixture",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:23:53+00:00",
+  "updated_at": "2026-10-10T21:23:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
