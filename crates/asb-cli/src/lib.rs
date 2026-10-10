@@ -13775,9 +13775,9 @@ mod tests {
                 let mut replay_diagnostic = Vec::new();
                 assert_eq!(
                     run_with_default_mode(
-                    &[
-                        "easy".into(),
-                        "replay-offline".into(),
+                        &[
+                            "easy".into(),
+                            "replay-offline".into(),
                             cassette_path.as_os_str().to_owned(),
                             profile.clone().into(),
                             agent.into(),
