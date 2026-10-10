@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:47:18+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1790-independent-review",
+  "owner": "",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:48:59+00:00",
+  "updated_at": "2026-10-10T21:49:09+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -101,3 +101,9 @@ post-merge verification remain mandatory.
 
 - 2026-10-10T21:48:59+00:00: Recorded command exit 0; command argv SHA-256
   294cd7057f55cbcb2ec5d90c74590e36395c24f714ff95fe17d78b5e01f838b9.
+
+- 2026-10-10T21:49:09+00:00: Independent review blocks 97eb1e38: guard fix is semantically correct
+  and focused metrics/control/rustup tests pass, but spawn_retry_budget_matches_declared_bound only
+  tests helper predicate. It does not deterministically drive 4+ actual WouldBlock spawn failures or
+  prove exhausted retries return typed ProbeRejected, as AR-1790 requires. No full qualification,
+  PR, or merge.
