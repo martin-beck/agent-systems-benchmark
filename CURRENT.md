@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1785](tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Promote after AR-1715 live transport evidence is reconciled; reproduce the provider-plan --use-config and benchmark-live identity mismatch in a clean product-bound worktree. | ar1785-openrouter-config-repair |
+| P0 | [AR-1785](tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Independent exact-head review of a393455d, then publish PR and require exact-head CI before signed merge and post-merge AR-1715 requalification. | ar1785-openrouter-config-repair |
 
 ## Open
 

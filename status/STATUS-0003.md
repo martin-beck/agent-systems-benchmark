@@ -1288,7 +1288,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. |
-| Next action | Promote after AR-1715 live transport evidence is reconciled; reproduce the provider-plan --use-config and benchmark-live identity mismatch in a clean product-bound worktree. |
+| Next action | Independent exact-head review of a393455d, then publish PR and require exact-head CI before signed merge and post-merge AR-1715 requalification. |
 
 
 ## Dependency graph
