@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1449-current-main",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:12:36+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1443",
     "AR-1448"
@@ -12,7 +12,7 @@
   "observed_branch": "codex/ar-1449-current-main",
   "observed_dirty": 0,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
-  "owner": "codex-ar1449-final",
+  "owner": "",
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1449.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 34,
+  "task_revision": 35,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:13:10+00:00",
+  "updated_at": "2026-10-10T23:13:13+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -142,3 +142,6 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 - 2026-10-10T23:13:10+00:00: Exact-main requalification passed guided replay, launch-factory, full
   workspace, fmt, signatures/DCO, privacy, and clean-diff gates; implementation is already
   integrated and no API approval object is required.
+
+- 2026-10-10T23:13:13+00:00: AR-1449 complete via exact-main requalification; no product diff, PR,
+  merge, provider traffic, or GitHub Reviews API approval was required.
