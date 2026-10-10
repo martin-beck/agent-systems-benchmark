@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Fresh independent technical review must inspect exact commit 653b91c09f146afc47f8b13f55d8eeeba8c794b7 and its clean tree; no publication or merge is authorized until review accepts it. |
+| Next action | Independent technical review accepted exact commit 653b91c09f146afc47f8b13f55d8eeeba8c794b7; await coordinator-authorized PR and hosted exact-head checks. No publication or merge is authorized by this receipt. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 
