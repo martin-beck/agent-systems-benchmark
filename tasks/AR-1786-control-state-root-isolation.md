@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:42:48+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
-  "owner": "codex-ar1786-independent-rereview",
+  "owner": "",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 64,
+  "task_revision": 65,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T22:42:48+00:00",
+  "updated_at": "2026-10-10T22:43:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -214,3 +214,16 @@ gate into a serial-only or exclusion-based check.
   requirement.
 
 - 2026-10-10T22:42:48+00:00: Claimed by codex-ar1786-independent-rereview.
+
+- 2026-10-10T22:43:38+00:00: Independent exact-head re-review blocks
+  7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b. SSH signature, matching DCO, and diff --check pass, but
+  required cargo +1.93.0 test --locked -p asb-cli --test diagnostic_contract fails:
+  ordinary_cli_producers_are_mechanically_closed is 8/9 and reports uncatalogued legacy control.rs
+  producers at 9768, 11375, 11380, 11382, and 11399. Additionally, the proposed F_SETLK design
+  remains unsound: POSIX record locks are process-scoped, and a failed same-process contender
+  returns by dropping its separately opened file descriptor; that close can release the existing
+  owner record lock even though CONTROL_STATE_LOCK_OWNERS still marks it held, permitting another
+  process to enter. Repair all diagnostic identities and use an ownership mechanism safe across
+  same-process failed-open/descriptor-close, with a regression showing an external process remains
+  rejected after a same-process failed contender. Do not publish, merge, or run full qualification
+  until repaired. No GitHub Reviews API approval object is required.
