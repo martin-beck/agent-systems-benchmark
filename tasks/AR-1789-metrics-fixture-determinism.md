@@ -21,9 +21,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 56,
+  "task_revision": 57,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T22:27:45+00:00",
+  "updated_at": "2026-10-10T22:27:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -204,3 +204,6 @@ the ordinary parallel workspace gate.
   for independent exact-head review. No GitHub Reviews API approval object required.
 
 - 2026-10-10T22:27:45+00:00: Claimed by codex-ar1789-independent-rereview.
+
+- 2026-10-10T22:27:52+00:00: Recorded command exit 0; command argv SHA-256
+  5e0cf89e7f812433264518fd544be77dc1a7877fb5fa6384f234528617740fd0.
