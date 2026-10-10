@@ -10,8 +10,8 @@
   "id": "AR-1787",
   "next_action": "Promote and claim after dependency verification; reproduce the AR-1786 same-process lock-release flaw, repair descriptor lifetime and catalog identities, then run repeated full gates.",
   "observed_branch": "codex/ar-1787-lock-lifetime",
-  "observed_dirty": 0,
-  "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
+  "observed_dirty": 1,
+  "observed_head": "3ae71e36bafee94466107eea4c8fdb2370713d22",
   "owner": "codex-ar1787-lock-lifetime",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 10,
+  "task_revision": 11,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:07:00+00:00",
+  "updated_at": "2026-10-10T21:07:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
