@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 14,
+  "task_revision": 15,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:09:36+00:00",
+  "updated_at": "2026-10-10T21:09:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -70,3 +70,6 @@ not weaken control ownership or the ordinary workspace gate.
   d6aae71ce5ce498f124f6ad2cefb2a0096a22fb71a7034fa81fd3d5097367db3.
 
 - 2026-10-10T21:09:36+00:00: Heartbeat by codex-ar1787-lock-lifetime.
+
+- 2026-10-10T21:09:41+00:00: Recorded command exit 0; command argv SHA-256
+  0535ce4331829f68c2bf60f5b95eadc6fca5cc039e14ca05867c3bb1ccd1d30f.
