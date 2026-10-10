@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 51,
+  "task_revision": 52,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:15:57+00:00",
+  "updated_at": "2026-10-10T20:16:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -174,3 +174,6 @@ merging, and post-merge verification remain required.
   failure at a393455d; catalog repair is authorized before repeating review.
 
 - 2026-10-10T20:15:57+00:00: Claimed by ar1785-openrouter-config-repair.
+
+- 2026-10-10T20:16:16+00:00: Recorded command exit 0; command argv SHA-256
+  f7ffe576b2c49556262a9a02c6e0bc96c2bf44fd2591c0a884968d4e7b383fb3.
