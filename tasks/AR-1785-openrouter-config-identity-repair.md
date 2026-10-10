@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:36:55+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "d46180c297699f96d2c4e5f2d4b2cc6b6aabed12",
-  "owner": "codex-state-receipt-commit",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 163,
+  "task_revision": 164,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T23:07:04+00:00",
+  "updated_at": "2026-10-10T23:07:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -503,3 +503,6 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T23:07:04+00:00: Recorded command exit 0; command argv SHA-256
   9237a85cd0424c9bbc790d7c657b51e81c57c806eb83cadad2c250b4a647d14c.
+
+- 2026-10-10T23:07:24+00:00: Temporary state receipt commit complete; release AR-1785 back to open
+  pending AR-1791.
