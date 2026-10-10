@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 108,
+  "task_revision": 109,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T22:12:31+00:00",
+  "updated_at": "2026-10-10T22:12:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -359,3 +359,6 @@ post-merge verification remain mandatory.
 
 - 2026-10-10T22:12:31+00:00: Recorded command exit 0; command argv SHA-256
   976901be7ac1c5991f8d0220209856997ac0905f91dde21dde9ada07d991291f.
+
+- 2026-10-10T22:12:40+00:00: Recorded command exit 0; command argv SHA-256
+  d0f0930334f13e4b6f9a00e9ec612d180b776f328a5387ce400dba644c3b0d16.
