@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1791.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "gcc-fixture-isolation", "description": "The development GCC probe fixture uses a unique RAII-owned root and deterministically verifies descendant FD inheritance without depending on shared or stale marker paths."},
+    {"id": "rustup-fixture-isolation", "description": "The development rustup path-replacement fixture uses unique cleanup-safe roots and deterministically removes descriptor artifacts under repeated parallel execution."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace runs pass with the AR-1785 OpenRouter candidate and no fixture contamination."},
+    {"id": "publication", "description": "Independent technical review, exact-head CI, signed DCO integration, and exact-main post-merge verification pass; no GitHub Reviews API approval object is required."}
+  ],
+  "definition_of_done": [
+    "The two recurrent TUI fixture failures are repaired with focused positive and negative coverage.",
+    "Repeated full workspace, fmt, clippy, rustdoc, privacy, and diff gates pass.",
+    "Independent exact-head review and exact-main integration evidence are recorded before AR-1785 requalification."
+  ],
+  "inputs": [
+    {"id": "ar1785-review", "description": "AR-1785 second ordinary workspace run showing GCC descendant-marker and rustup descriptor-cleanup failures."},
+    {"id": "tui-fixtures", "description": "Current ASB GCC probe and rustup path-replacement development fixtures."}
+  ],
+  "outputs": [
+    {"id": "fixture-repair", "description": "Deterministic isolated GCC and rustup fixture implementations with regression coverage."},
+    {"id": "requalification-handoff", "description": "Exact candidate and repeated ordinary workspace evidence for AR-1785."}
+  ],
+  "allowed_tools": ["cargo", "git", "python", "uv", "tools/handoffctl"],
+  "forbidden_tools": ["test-exclusion", "serial-only-gate-bypass", "credential-output", "history-rewrite", "force-push", "github-reviews-api-approval-gate"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality", "hosted"],
+  "gates": [
+    {"id": "fixtures", "description": "Focused GCC and rustup fixture tests pass repeatedly."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace passes."},
+    {"id": "publication", "description": "Independent review, exact-head CI, signed merge, and exact-main workflows pass without a GitHub Reviews API approval object."}
+  ]
+}
