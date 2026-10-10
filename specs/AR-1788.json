@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1788.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "reproduce", "description": "The AR-1787 full-workspace nondeterministic tui test outcome is reproduced with bounded repeated runs and classified without treating a one-off pass as sufficient."},
+    {"id": "isolation", "description": "The rustup path-replacement fixture is isolated from parallel tests and remains behaviorally equivalent, with positive and negative regression coverage."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace runs pass at the exact candidate without the observed flake."},
+    {"id": "publication", "description": "Independent technical review, exact-head CI, signed DCO integration, and exact-main post-merge verification pass; no GitHub Reviews API approval object is required."}
+  ],
+  "definition_of_done": [
+    "The AR-1787 nondeterministic failure is independently reproduced or boundedly ruled out with recorded exit evidence.",
+    "A minimal repair and regression tests preserve the existing rustup validation contract.",
+    "Repeated ordinary workspace, focused, formatting, lint, documentation, privacy, and diff gates pass.",
+    "The exact reviewed signed candidate is integrated and exact-main workflows pass."
+  ],
+  "inputs": [
+    {"id": "ar1787-review", "description": "Independent AR-1787 review receipt reporting one full-workspace failure followed by a pass in development_rustup_tools_execute_validated_objects_after_path_replacement."},
+    {"id": "rustup-fixture", "description": "Existing ASB rustup validated-object path replacement fixture and diagnostic contract."}
+  ],
+  "outputs": [
+    {"id": "deterministic-fixture", "description": "A race-safe rustup path-replacement test fixture with privacy-safe evidence."},
+    {"id": "qualification-receipt", "description": "Repeated full-workspace and exact-head integration evidence. "}
+  ],
+  "allowed_tools": ["cargo", "git", "python", "uv", "tools/handoffctl"],
+  "forbidden_tools": ["test-exclusion", "serial-only-gate-bypass", "credential-output", "history-rewrite", "force-push", "github-reviews-api-approval-gate"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality", "hosted"],
+  "gates": [
+    {"id": "focused", "description": "Rustup path-replacement positive, negative, cleanup, and concurrent tests pass."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace passes without the nondeterministic failure."},
+    {"id": "publication", "description": "Independent review, exact-head CI, signed merge, and exact-main post-merge workflows pass without a GitHub Reviews API approval object."}
+  ]
+}
