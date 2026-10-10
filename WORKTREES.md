@@ -108,7 +108,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar1727-review` | `DETACHED` | `23138efcc45d` | 0 | behind 230, ahead 0 |
 | `agent-systems-benchmark-ar1727-signed-recovery` | `repair/ar-1727-signed-descendant-recovery` | `0714b0e96c45` | 0 | behind 227, ahead 0 |
 | `agent-systems-benchmark-ar1762-merge` | `DETACHED` | `f361cfc7f89a` | 0 | behind 125, ahead 0 |
-| `agent-systems-benchmark-ar1785-config` | `codex/ar-1785-openrouter-config` | `d46180c29769` | 0 | behind 2, ahead 3 |
+| `agent-systems-benchmark-ar1785-config` | `codex/ar-1785-openrouter-config` | `dd1930684ca8` | 0 | behind 0, ahead 3 |
 | `agent-systems-benchmark-ar1786-control-product` | `codex/ar-1786-control-state` | `7be2fcb0dc0e` | 0 | behind 9, ahead 1 |
 | `agent-systems-benchmark-ar1787-lock-lifetime` | `codex/ar-1787-lock-lifetime-current` | `573f3e631c92` | 0 | behind 2, ahead 2 |
 | `agent-systems-benchmark-ar1788-rustup-fixture-determinism` | `codex/ar-1788-rustup-fixture-current` | `59cfd9cf6f06` | 0 | behind 2, ahead 0 |
