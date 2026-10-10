@@ -118,19 +118,13 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | ar1715-openrouter-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Coordinator must declare a clean exact-main AR-1715 branch and worktree binding, then reclaim and run the documented secure-key selected/all live matrix; record either success or typed HTTP 429 quota outcome without secret retention. |
-
 ### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
 
-### Blocked (87)
+### Blocked (88)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -202,6 +196,7 @@
 | P0 | [AR-1652](../tasks/AR-1652.md): Selected-workload recording and offline replay command | Unclaimed | Expose an easy command to record selected/all workload responses and run the next benchmark offline from the resulting cassette. | Add an upstream-supported exact-revision mutation that binds branch and worktree_key on an active legacy task, vendor it into ASB state, then bind AR-1652 to repair/ar-1652-record-replay and agent-systems-benchmark-ar-1652-record-replay before any wrapped product command. |
 | P0 | [AR-1698](../tasks/AR-1698.md): Current-head recording and strict offline qualification repair | Unclaimed | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. | Run the current-head record, record-campaign, cassette integrity, strict offline replay, incomplete coverage, redaction, and network-denial matrix; publish a signed receipt without changing AR-1652 status from stale evidence. |
 | P0 | [AR-1702](../tasks/AR-1702.md): Development live OpenRouter qualification | Unclaimed | Run credential-backed online OpenRouter smoke and typed negative tests for the merged ASB live path without mock fallback. | Provide OPENROUTER_API_KEY only in the worker runtime environment, then rerun one bounded real OpenRouter request at exact ASB main 31ca7a481fca8b79bfbff126b92db6c6118beb7c and record only redacted provider/model/timing/outcome metadata; retain the already-green credential-free negative matrix. |
+| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Unclaimed | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Coordinator must declare a clean exact-main AR-1715 branch and worktree binding, then reclaim and run the documented secure-key selected/all live matrix; record either success or typed HTTP 429 quota outcome without secret retention. |
 | P0 | [AR-1746](../tasks/AR-1746-protected-main-admission-enforcement.md): Enforce protected-main admission for AR-1722 recovery | Unclaimed | Apply and independently verify ASB&#x27;s merge-only protected-main settings and active exact-head ruleset so signed local integrations are enforced by GitHub. | Require all exact-main post-merge workflows for 2f52ecbaf79ae8316e0c2a42ad4c4a79dae5d9eb terminal-success, then invoke the merged typed settings apply once and audit normalized live state; stop on any rejected, partial, or ambiguous result. |
 | P1 | [AR-0604](../tasks/AR-0604-csb-native-qualification.md): Qualify native CSB monitoring contention and overhead | Unclaimed | Qualify native x86_64 CSB monitoring and required emulated-AArch64 portability without blocking on native ARM64. | Obtain authorized native x86 runner and immutable CSB/Python evidence; rerun native_boundary and record A/B overhead. |
 | P1 | [AR-0814](../tasks/AR-0814-remote-enrollment-authorization.md): Secure remote enrollment and authorization | Unclaimed | Provide the ASB protocol and CLI for explicit remote trust and least-privilege roles. | Create successor AR for authenticated route/ancestor authority; preserve AR-1288 evidence and AR-0814 head 29cfa193. |
