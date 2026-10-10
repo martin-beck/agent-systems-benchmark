@@ -1,0 +1,23 @@
+{
+  "ar": "AR-1790",
+  "status": "postmerge_verified",
+  "pr": 551,
+  "reviewed_head": "c571ad8a25774e0caea54a813939f27b66d5f2e8",
+  "merge_commit": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
+  "merge_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "base": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
+  "workflows": {
+    "repository quality": 38090501366,
+    "rust verification": 38090501360,
+    "emulated aarch64 portability": 38090501425,
+    "fault assurance": 38090501382,
+    "cross-repository development broker qualification": 38090501347,
+    "hosted portability and native qualification": 38090501364,
+    "formal assurance": 38090501350,
+    "credential-free benchmark path": 38090501339,
+    "portable protected-main provenance": 38090501353,
+    "Huawei MIT source headers": 38090501343
+  },
+  "all_conclusions": "success",
+  "approval_boundary": "No GitHub Reviews API approval object required; independent technical review recorded in task evidence."
+}
