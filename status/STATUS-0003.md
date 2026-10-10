@@ -1330,7 +1330,21 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. |
-| Next action | Rustup fixture candidate is focused-green, but ordinary workspace also flakes in unrelated asb-metrics kernel malformed-evidence test. Preserve candidate and obtain coordinator scope decision or successor before claiming deterministic workspace qualification. |
+| Next action | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. |
+
+### AR-1789 — Make metrics malformed-configuration fixture deterministic
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. |
+| Next action | Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code. |
 
 
 ## Dependency graph
@@ -2179,6 +2193,7 @@ flowchart LR
         AR_1786["AR-1786 - Blocked"]:::status_blocked
         AR_1787["AR-1787 - Blocked"]:::status_blocked
         AR_1788["AR-1788 - In progress"]:::status_in_progress
+        AR_1789["AR-1789 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4027,6 +4042,7 @@ flowchart LR
     AR_1711 --> AR_1786
     AR_1711 --> AR_1787
     AR_1711 --> AR_1788
+    AR_1711 --> AR_1789
     AR_1712 --> AR_1716
     AR_1712 --> AR_1717
     AR_1712 --> AR_1724
@@ -4054,6 +4070,7 @@ flowchart LR
     AR_1733 --> AR_1786
     AR_1733 --> AR_1787
     AR_1733 --> AR_1788
+    AR_1733 --> AR_1789
     AR_1734 --> AR_1737
     AR_1734 --> AR_1738
     AR_1737 --> AR_1751
@@ -4113,6 +4130,7 @@ flowchart LR
     AR_1784 --> AR_1779
     AR_1787 --> AR_1785
     AR_1788 --> AR_1785
+    AR_1789 --> AR_1788
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
@@ -4198,4 +4216,3 @@ flowchart LR
 | [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0705](../tasks/AR-0705-native-debian-capacity.md), [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) |
 | [AR-0705](../tasks/AR-0705-native-debian-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
-| [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |

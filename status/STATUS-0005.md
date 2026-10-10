@@ -1,5 +1,6 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1647](../tasks/AR-1647.md) | [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1648](../tasks/AR-1648.md), [AR-1649](../tasks/AR-1649.md), [AR-1650](../tasks/AR-1650.md), [AR-1651](../tasks/AR-1651.md) | [AR-1643](../tasks/AR-1643.md), [AR-1657](../tasks/AR-1657.md) |
 | [AR-1648](../tasks/AR-1648.md) | [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md) | [AR-1647](../tasks/AR-1647.md), [AR-1649](../tasks/AR-1649.md), [AR-1650](../tasks/AR-1650.md), [AR-1686](../tasks/AR-1686.md), [AR-1695](../tasks/AR-1695.md) |
 | [AR-1649](../tasks/AR-1649.md) | [AR-1648](../tasks/AR-1648.md) | [AR-1647](../tasks/AR-1647.md), [AR-1651](../tasks/AR-1651.md), [AR-1686](../tasks/AR-1686.md), [AR-1687](../tasks/AR-1687.md) |
 | [AR-1650](../tasks/AR-1650.md) | [AR-1644](../tasks/AR-1644.md), [AR-1648](../tasks/AR-1648.md) | [AR-1647](../tasks/AR-1647.md), [AR-1652](../tasks/AR-1652.md), [AR-1686](../tasks/AR-1686.md), [AR-1695](../tasks/AR-1695.md) |
@@ -54,7 +55,7 @@
 | [AR-1704](../tasks/AR-1704.md) | [AR-1656](../tasks/AR-1656.md), [AR-1657](../tasks/AR-1657.md), [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md) | [AR-1709](../tasks/AR-1709.md), [AR-1711](../tasks/AR-1711.md) |
 | [AR-1709](../tasks/AR-1709.md) | [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md) | [AR-1710](../tasks/AR-1710.md), [AR-1711](../tasks/AR-1711.md), [AR-1715](../tasks/AR-1715.md) |
 | [AR-1710](../tasks/AR-1710.md) | [AR-1656](../tasks/AR-1656.md), [AR-1657](../tasks/AR-1657.md), [AR-1709](../tasks/AR-1709.md) | None |
-| [AR-1711](../tasks/AR-1711.md) | [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md), [AR-1709](../tasks/AR-1709.md) | [AR-1712](../tasks/AR-1712.md), [AR-1715](../tasks/AR-1715.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
+| [AR-1711](../tasks/AR-1711.md) | [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md), [AR-1709](../tasks/AR-1709.md) | [AR-1712](../tasks/AR-1712.md), [AR-1715](../tasks/AR-1715.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md), [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) |
 | [AR-1712](../tasks/AR-1712.md) | [AR-1698](../tasks/AR-1698.md), [AR-1701](../tasks/AR-1701.md), [AR-1711](../tasks/AR-1711.md) | [AR-1716](../tasks/AR-1716.md), [AR-1717](../tasks/AR-1717.md), [AR-1724](../tasks/AR-1724-easy-sweep-default-online.md) |
 | [AR-1715](../tasks/AR-1715.md) | [AR-1700](../tasks/AR-1700.md), [AR-1709](../tasks/AR-1709.md), [AR-1711](../tasks/AR-1711.md) | [AR-1723](../tasks/AR-1723-easy-run-default-online.md) |
 | [AR-1716](../tasks/AR-1716.md) | [AR-1712](../tasks/AR-1712.md) | None |
@@ -74,7 +75,7 @@
 | [AR-1730](../tasks/AR-1730-cli2key-provider-contract.md) | [AR-1728](../tasks/AR-1728-cli2key-contract.md) | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) |
 | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) | [AR-1729](../tasks/AR-1729-cli2key-sidecar-lifecycle.md), [AR-1730](../tasks/AR-1730-cli2key-provider-contract.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) |
 | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) |
-| [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md), [AR-1754](../tasks/AR-1754-default-online-live-workflow.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
+| [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md), [AR-1754](../tasks/AR-1754-default-online-live-workflow.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md), [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) |
 | [AR-1734](../tasks/AR-1734-development-tui-tool-environment.md) | [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1727](../tasks/AR-1727-development-broker-foreground-terminal.md) | [AR-1737](../tasks/AR-1737-development-tui-linker-handoff.md), [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) |
 | [AR-1735](../tasks/AR-1735-goose-symlink-fixture-determinism.md) | None | None |
 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
@@ -129,7 +130,8 @@
 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | None |
 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
-| [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
+| [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
+| [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
 
 ## Complete AR inventory
 
@@ -137,7 +139,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | codex-ar1788-rustup-fixture | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Rustup fixture candidate is focused-green, but ordinary workspace also flakes in unrelated asb-metrics kernel malformed-evidence test. Preserve candidate and obtain coordinator scope decision or successor before claiming deterministic workspace qualification. |
+| P0 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | codex-ar1788-rustup-fixture | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. |
 
 ### Open (1)
 
@@ -241,7 +243,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (103)
+### Planned (104)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -307,6 +309,7 @@
 | P0 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md): Verified asb workload installation | Unclaimed | Implement dedicated verified remote external workload installation and lifecycle through asb workload. | Implement asb workload install/list/status/select/repair/update/remove for every development-supported official external workload bundle. |
 | P0 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md): Installed workload selection and execution | Unclaimed | Select every development external workload and prove ASB uses its exact project-local identity end to end. | Integrate every development-supported installed workload bundle into selection and prove full run/sweep/report/compare consumes its exact recorded identity. |
 | P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | Unclaimed | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Derive a complete command-to-tool/host-capability dependency registry and fail-fast preflight from all ASB command paths, adapters, monitors, and build recipes. |
+| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | Unclaimed | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code. |
 | P1 | [AR-0808](../tasks/AR-0808-core-workflow-guides.md): Publish core program workflow guides | Unclaimed | Document tested workflows for installing, configuring, running, replaying, comparing, and operating ASB. | Document and execute the qualified CLI setup, reconfiguration, recording, strict-offline and analysis workflows. |
 | P1 | [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md): Publish terminal frontend workflow guides | Unclaimed | Document guided configuration, launch, monitoring, history, repeat, and analysis in the TUI. | Document the exact standalone first-run, provider/auth/model, defaults, recording, offline run and analysis journeys after cross-repository parity passes. |
 | P1 | [AR-0810](../tasks/AR-0810-github-pages-documentation.md): Publish workflow documentation to GitHub Pages | Unclaimed | Publish core and frontend workflows as a searchable, accessible, versioned GitHub Pages site. | Build and publish the versioned workflow documentation on the project&#x27;s GitHub Pages site. |
@@ -559,5 +562,3 @@
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
 | P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |
 | P0 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md): Reconciled development auth handoff runtime | Unclaimed | Repair ASB development-runtime reconciliation between digest-only enrollment and helper invocation. | Complete; PR #386 merged at bf89a45ddd71af96e6d4b6954320e199e147f83e. Protected main tree equals reviewed topic and post-merge auth-focused ASB tests pass. Paired asb-tui AR-1323 qualification remains external. |
-| P0 | [AR-1515](../tasks/AR-1515-ar1307-runner-ci-oom-repair.md): AR-1307 runner CI repair | Unclaimed | Triage complete: AR-1307 runner admission and diagnostics are intact; remaining failure is workload capacity under the unchanged 3G/3G contract. | No runner source repair remains; AR-1309 owns the separately reviewed capacity/model-reduction decision. |
-| P0 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md): AR-1308 QEMU fixture repair | Unclaimed | Fixture repair passed boot/transient/JAR checks; full tier timed out at 1700s without attestation. | Close fixture repair; hand timeout to AR-1309 for capacity/model decision. |
