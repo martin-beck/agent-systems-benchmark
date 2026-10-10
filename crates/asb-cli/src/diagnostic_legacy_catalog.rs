@@ -676,6 +676,21 @@ const LEGACY_CLI_CATALOG: &[(&str, u32, &str, Cause)] = &[
     ("crates/asb-cli/src/project_run.rs", 132, "legacy_cli_0673", Cause::MissingInput),
     ("crates/asb-cli/src/project_run.rs", 137, "legacy_cli_0674", Cause::StaleIdentity),
     ("crates/asb-cli/src/project_run.rs", 142, "legacy_cli_0675", Cause::UnavailableCapability),
+    ("crates/asb-cli/src/lib.rs", 15248, "legacy_cli_0676", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 297, "legacy_cli_0677", Cause::MissingInput),
+    ("crates/asb-cli/src/project_catalog.rs", 303, "legacy_cli_0678", Cause::MissingInput),
+    ("crates/asb-cli/src/project_catalog.rs", 343, "legacy_cli_0679", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 360, "legacy_cli_0680", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 363, "legacy_cli_0681", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 375, "legacy_cli_0682", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 382, "legacy_cli_0683", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 388, "legacy_cli_0684", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 390, "legacy_cli_0685", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 395, "legacy_cli_0686", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_catalog.rs", 404, "legacy_cli_0687", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 136, "legacy_cli_0688", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 141, "legacy_cli_0689", Cause::MalformedInput),
+    ("crates/asb-cli/src/project_run.rs", 146, "legacy_cli_0690", Cause::MalformedInput),
 ];
 
 fn legacy_cli_catalog(file: &str, line: u32) -> Option<(&str, Cause)> {

@@ -15111,6 +15111,27 @@ mod tests {
         )
         .unwrap();
 
+        let mut drifted = load_tool_project(&project).unwrap();
+        drifted.agents.get_mut("agent-fixture").unwrap().version = "2.0.0".into();
+        save_tool_project(&project, &drifted).unwrap();
+        let (drift_path, _) = plan_fixture(&scratch.0, "project-drift");
+        let (drift_exit, drift_result) = run_json(&[
+            "run".into(),
+            drift_path.as_os_str().to_owned(),
+            "--project".into(),
+            project.as_os_str().to_owned(),
+        ]);
+        assert_eq!(drift_exit, 3, "{drift_result}");
+        assert!(
+            drift_result["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("drifted from its active catalog")
+        );
+        assert!(!project.join("results/runs/project-drift").exists());
+        drifted.agents.get_mut("agent-fixture").unwrap().version = "1.0.0".into();
+        save_tool_project(&project, &drifted).unwrap();
+
         let (first_path, first) = plan_fixture(&scratch.0, "project-first");
         fs::write(&first_path, toml::to_string(&first).unwrap()).unwrap();
         let (exit, first_output) = run_json_with_progress(&[

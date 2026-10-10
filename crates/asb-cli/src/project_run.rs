@@ -49,7 +49,7 @@ impl ProjectExecution {
         }
         let config = super::load_tool_project(&root)?;
         super::project_catalog::validate_active_execution_catalogs(&root, &config)?;
-        validate_required_selections(&config)?;
+        validate_required_selections(&root, &config)?;
 
         let result_root = root.join(&config.roots.results);
         let work_root = root.join(".asb").join("work");
@@ -109,21 +109,25 @@ fn ensure_project_child(root: &Path, child: &Path, label: &'static str) -> Resul
     Ok(())
 }
 
-fn validate_required_selections(config: &ProjectConfigV1) -> Result<(), CliError> {
+fn validate_required_selections(root: &Path, config: &ProjectConfigV1) -> Result<(), CliError> {
     for (kind, selected, inventory) in [
-        ("agent", config.selections.agent.as_ref(), &config.agents),
         (
-            "harness",
+            ProjectToolKind::Agent,
+            config.selections.agent.as_ref(),
+            &config.agents,
+        ),
+        (
+            ProjectToolKind::Harness,
             config.selections.harness.as_ref(),
             &config.harnesses,
         ),
         (
-            "benchmark",
+            ProjectToolKind::Benchmark,
             config.selections.benchmark.as_ref(),
             &config.benchmarks,
         ),
         (
-            "workload",
+            ProjectToolKind::Workload,
             config.selections.workload.as_ref(),
             &config.workloads,
         ),
@@ -143,7 +147,7 @@ fn validate_required_selections(config: &ProjectConfigV1) -> Result<(), CliError
                 "project selected tool is unavailable; run `asb tool discover PATH`, repair or install the tool, then regenerate and select catalogs",
             ));
         }
-        let _ = kind;
+        super::project_catalog::validate_selected_catalog_entry(root, config, kind, name, record)?;
     }
     Ok(())
 }
