@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1709](tasks/AR-1709.md): Development live provider execution contract and credential injection | Define and qualify the explicit development live provider boundary, runtime credential injection, and typed no-fallback failures. | PR #549 exact head 700b13b3a74401a42f9c5c1cae1a788641ac94a2 has fresh independent technical approval and all 15 exact-head checks green; merge only through signed protected-main procedure, then verify exact-main workflows. | ar1709-live-provider |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |

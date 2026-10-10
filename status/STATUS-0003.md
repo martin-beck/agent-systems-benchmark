@@ -244,11 +244,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1709-live-provider |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Define and qualify the explicit development live provider boundary, runtime credential injection, and typed no-fallback failures. |
@@ -2045,7 +2045,7 @@ flowchart LR
         AR_1702["AR-1702 - Blocked"]:::status_blocked
         AR_1703["AR-1703 - Planned"]:::status_planned
         AR_1704["AR-1704 - Done"]:::status_done
-        AR_1709["AR-1709 - In progress"]:::status_in_progress
+        AR_1709["AR-1709 - Done"]:::status_done
         AR_1710["AR-1710 - Planned"]:::status_planned
         AR_1711["AR-1711 - Planned"]:::status_planned
         AR_1712["AR-1712 - Planned"]:::status_planned
