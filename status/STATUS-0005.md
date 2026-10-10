@@ -118,12 +118,6 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1711](../tasks/AR-1711.md): Explicit live benchmark runner and typed failures | ar1711-live-runner | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Independent technical review accepted exact commit 653b91c09f146afc47f8b13f55d8eeeba8c794b7; await coordinator-authorized PR and hosted exact-head checks. No publication or merge is authorized by this receipt. |
-
 ### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
@@ -337,7 +331,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (553)
+### Done (554)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -557,3 +551,5 @@
 | P0 | [AR-1533](../tasks/AR-1533.md): AR-1308 unsigned-development QEMU fixture repair | Unclaimed | Repair the provider-free unsigned-development QEMU fixture for AR-1308 and make its diagnostics, cleanup and non-qualification boundary reliable. | Promote and claim; rerun the provider-free unsigned-development AR-1308 QEMU fixture on the v0.3.53-compatible state and preserve qualification_authorized=false. |
 | P0 | [AR-1534](../tasks/AR-1534.md): Coordinator vendor integrity repair | Unclaimed | Immutable coordinator v0.3.53 vendor boundary and ASB lifecycle/session/SQLite compatibility are green; close with successor receipts. | Promote and close from AR-1547/AR-1549: v0.3.53 vendor verification and all compatibility gates are green; preserve the separate formal qualification boundary. |
 | P0 | [AR-1536](../tasks/AR-1536.md): AR-1308 capacity and preflight handoff repair | Unclaimed | Repair AR-1308 capacity/preflight handoff after the unsigned-development fixture and approved vendor boundary are complete. | No development action remains. Preserve the unsigned-development handoff receipt; AR-1531 exact formal inputs remain separate optional formal work and cannot block development. |
+| P0 | [AR-1540](../tasks/AR-1540.md): Session and lifecycle contract compatibility | Unclaimed | Session/checkpoint/recovery compatibility is green against coordinator v0.3.53; close with AR-1549 evidence. | Promote and close from AR-1549&#x27;s v0.3.53 compatibility receipt; no additional ASB-owned session repair remains. |
+| P0 | [AR-1541](../tasks/AR-1541.md): SQLite fence compatibility and isolation | Unclaimed | SQLite/WAL fence compatibility is green against coordinator v0.3.53; close with AR-1549 evidence. | Promote and close from AR-1549&#x27;s v0.3.53 compatibility receipt; no additional ASB-owned SQLite repair remains. |

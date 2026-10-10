@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Independent technical review accepted exact commit 653b91c09f146afc47f8b13f55d8eeeba8c794b7; await coordinator-authorized PR and hosted exact-head checks. No publication or merge is authorized by this receipt. | ar1711-live-runner |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
