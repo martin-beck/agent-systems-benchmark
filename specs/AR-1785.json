@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1785.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "config-identity", "description": "The configured OpenRouter provider/model/credential-reference identity used by provider-plan is the same identity accepted by benchmark-live selected and all-agent paths."},
+    {"id": "selected-human-json", "description": "A configured OpenRouter selection executes benchmark-live selected scope successfully in human and versioned JSON output without exposing credentials."},
+    {"id": "all-human-json", "description": "The same configuration executes bounded all-agent benchmark-live scope successfully in human and versioned JSON output with one typed result per agent."},
+    {"id": "typed-negative", "description": "Missing configuration, stale selection, invalid identity, missing key, and provider failure remain typed nonzero errors with no mock or replay fallback."},
+    {"id": "privacy", "description": "Only provider/model identifiers, bounded digests, statuses, timings, and token counters enter evidence; keys, prompts, responses, and private paths do not."}
+  ],
+  "definition_of_done": [
+    "Repair is implemented on a clean product-bound branch with positive and negative tests.",
+    "Independent exact-head review, applicable full gates, hosted exact-head CI, signed protected merge, and exact-main post-merge workflows pass.",
+    "AR-1715 is requalified with secure-key selected/all live evidence and a durable redacted receipt."
+  ],
+  "inputs": [
+    {"id": "ar1715-evidence", "description": "AR-1715 secure-key selected/all transport and CLI identity failure evidence."},
+    {"id": "benchmark-live-matrix", "description": "AR-1711 bounded selected/all benchmark-live execution contract."},
+    {"id": "provider-config", "description": "provider-plan --use-config and persisted OpenRouter setup configuration."}
+  ],
+  "outputs": [
+    {"id": "config-identity-repair", "description": "Canonical OpenRouter configuration and selection identity across planning and execution."},
+    {"id": "cli-qualification", "description": "Selected/all human and versioned JSON benchmark-live qualification evidence."},
+    {"id": "negative-regressions", "description": "Typed negative and no-fallback regression coverage."}
+  ],
+  "allowed_tools": ["cargo", "git", "gh", "make", "tools/handoffctl"],
+  "forbidden_tools": ["credential-output", "silent-mock-fallback", "network-bypass", "production-gate-weakening"],
+  "required_evidence_classes": ["contract-test", "privacy", "hosted", "quality"],
+  "gates": [
+    {"id": "identity", "description": "Provider-plan, saved selection, and benchmark-live identity agree for configured OpenRouter."},
+    {"id": "cli-matrix", "description": "Selected/all human and JSON paths plus typed negative cases pass without fallback."},
+    {"id": "publication", "description": "Independent review, exact-head CI, signed merge, and exact-main post-merge workflows pass."}
+  ]
+}
