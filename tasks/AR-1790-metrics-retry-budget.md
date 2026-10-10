@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T22:19:25+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1790-independent-review",
+  "owner": "",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:49:25+00:00",
+  "updated_at": "2026-10-10T21:49:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -109,3 +109,9 @@ post-merge verification remain mandatory.
   PR, or merge.
 
 - 2026-10-10T21:49:25+00:00: Claimed by codex-ar1790-independent-review.
+
+- 2026-10-10T21:49:28+00:00: Independent review blocks 97eb1e38. Required repair: add deterministic
+  actual RunningProcess spawn injection proving recovery after more than three WouldBlock failures
+  and typed bounded ProbeRejected exhaustion; helper-only predicate coverage is insufficient.
+  Focused metrics/control/rustup tests and signatures/DCO pass, but no full qualification, PR, or
+  merge is authorized. No GitHub Reviews API approval object is required.
