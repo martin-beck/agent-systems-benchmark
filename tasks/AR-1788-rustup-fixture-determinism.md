@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T00:04:43+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,17 +13,17 @@
   "observed_branch": "codex/ar-1788-rustup-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "eece088d66a30f310987e0ed238bc80227ff7d32",
-  "owner": "",
+  "owner": "codex-ar1788-requalify",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 31,
+  "task_revision": 32,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T22:34:38+00:00",
+  "updated_at": "2026-10-10T22:34:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -122,3 +122,5 @@ workspace gate or turn a flaky one-off pass into qualification.
 - 2026-10-10T22:34:38+00:00: Dependency AR-1789 is complete with independent review and exact-tree
   main integration. Requalify the rustup fixture candidate on current protected main; no GitHub
   Reviews API approval object required.
+
+- 2026-10-10T22:34:43+00:00: Claimed by codex-ar1788-requalify.
