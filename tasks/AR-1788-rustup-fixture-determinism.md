@@ -20,9 +20,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:23:19+00:00",
+  "updated_at": "2026-10-10T21:23:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -42,3 +42,6 @@ workspace gate or turn a flaky one-off pass into qualification.
   AR-1733 verified; beginning bounded flake reproduction.
 
 - 2026-10-10T21:23:19+00:00: Claimed by codex-ar1788-rustup-fixture.
+
+- 2026-10-10T21:23:26+00:00: Recorded command exit 0; command argv SHA-256
+  0cfdba1bb7f3b56220c6a197e7721e065a7fa52691a568c597b93c32f8f0c83a.
