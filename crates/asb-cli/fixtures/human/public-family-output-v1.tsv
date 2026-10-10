@@ -3,7 +3,7 @@ doctor	-	0	[ OK ] ASB found this host ready for its supported command-line workf
 setup	-	0	[ OK ] ASB checked the available setup choices; no configuration was changed.	empty
 capabilities	-	0	[ OK ] ASB reported its supported frontend capabilities.	empty
 project	{scratch}/project	0	[ OK ] ASB initialized the project workspace.	notice
-tool	-	2	[ERR ] ASB could not complete the tool: tool requires install|list|status|select|remove.	human
+tool	-	2	[ERR ] ASB could not complete the tool: tool requires install|list|status|select|remove|discover.	human
 catalog	-	2	[ERR ] ASB could not complete the catalog: catalog requires generate|list|show|select.	human
 provider-catalog	-	0	[ OK ] ASB loaded the provider catalog.	empty
 adapter-catalog	-	0	[ OK ] ASB loaded the coding-agent adapter catalog.	empty
