@@ -127,17 +127,12 @@
 
 ## Complete AR inventory
 
-### In progress (1)
-
-| Priority | AR | Owner | Summary | Next action |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | codex-ar1787-independent-review | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass. |
-
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P0 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | Unclaimed | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (90)
 
