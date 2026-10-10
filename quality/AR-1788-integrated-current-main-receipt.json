@@ -1,0 +1,21 @@
+{
+  "ar": "AR-1788",
+  "status": "postmerge_verified",
+  "integration": "already_integrated",
+  "candidate_commit": "eece088d66a30f310987e0ed238bc80227ff7d32",
+  "candidate_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "current_main": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
+  "current_main_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "equivalence": "candidate is an ancestor of protected origin/main and git diff origin/main candidate is empty",
+  "independent_review": "AR-1788 task receipt at 2026-10-10T22:40:13Z accepted exact-main protected origin/main; no GitHub Reviews API approval object required",
+  "candidate_gates": [
+    "focused rustup path-replacement regression passed five times",
+    "isolated transient full-gate reproduction passed",
+    "two consecutive ordinary full locked workspace runs passed",
+    "independent exact-main full locked workspace run exited 0",
+    "diff/privacy inspection",
+    "SSH signatures and DCO"
+  ],
+  "main_postmerge_evidence": "AR-1788 is present on protected main through the signed current-main history; no new merge was authorized",
+  "authorization_boundary": "No new PR or merge is authorized because the exact reviewed tree is already on main; release AR-1788 done after durable receipt acceptance."
+}
