@@ -18,11 +18,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 48,
+  "task_revision": 49,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:22:07+00:00",
+  "updated_at": "2026-10-10T22:42:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -171,3 +171,7 @@ not weaken control ownership or the ordinary workspace gate.
   passed ordinary cargo test --locked --workspace in
   tui::tests::development_rustup_tools_execute_validated_objects_after_path_replacement. Wait for
   AR-1788 rustup fixture determinism repair; no GitHub Reviews API approval object is required.
+
+- 2026-10-10T22:42:45+00:00: Dependencies AR-1711 and AR-1733 are complete; promote the ready
+  lock-lifetime candidate for independent review. This development repair has no GitHub Reviews API
+  approval dependency.
