@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1789-metrics-fixture",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T22:17:15+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "coordinator-ar1789",
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 42,
+  "task_revision": 43,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T21:42:25+00:00",
+  "updated_at": "2026-10-10T21:47:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -164,3 +164,5 @@ the ordinary parallel workspace gate.
   returns ProbeRejected. No regression test exercises retries beyond the old three attempts. Focused
   malformed-configuration test passes but does not prove the repair; no full review qualification,
   PR, or merge.
+
+- 2026-10-10T21:47:15+00:00: Claimed by coordinator-ar1789.
