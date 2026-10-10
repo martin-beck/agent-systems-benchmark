@@ -10,7 +10,7 @@
     "AR-1790"
   ],
   "id": "AR-1791",
-  "next_action": "Run a second ordinary full workspace gate; if it fails, identify the cross-crate failing test before modifying or releasing the candidate.",
+  "next_action": "Inspect privacy/diff, then run another ordinary full workspace gate; release only if it passes and static/provenance gates remain green.",
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:20:15+00:00",
+  "updated_at": "2026-10-10T23:20:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -113,3 +113,9 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:20:15+00:00: Recorded command exit 0; command argv SHA-256
   dde51f6432f8cbc7e95d3c77421fd1355c1d5cc331e2c7393464d5590d460485.
+
+- 2026-10-10T23:20:33+00:00: Classified quality command exit 128 at 23:19:38: git diff --check
+  received a stale/truncated base SHA and failed before inspecting the tree. Actual merge base is
+  59cfd9cf; rerun diff --check 59cfd9cf..4dbf735d exited 0. This is operator-input evidence, not a
+  product/test failure and not a passing gate. The attempted unsupported handoffctl note subcommand
+  was also a CLI usage error only; durable update follows.

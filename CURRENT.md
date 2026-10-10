@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1785](tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | AR-1791 must repair recurrent GCC and rustup TUI fixture contamination first. Then independently re-review d46180c297699f96d2c4e5f2d4b2cc6b6aabed12, publish exact-head CI, merge, and requalify AR-1715. No GitHub Reviews API approval object is required. | codex-clean-state-coordinator |
-| P0 | [AR-1791](tasks/AR-1791-tui-fixture-isolation.md): Repair recurrent TUI fixture isolation failures | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. | Run a second ordinary full workspace gate; if it fails, identify the cross-crate failing test before modifying or releasing the candidate. | codex-ar1791-fixture-repair |
+| P0 | [AR-1791](tasks/AR-1791-tui-fixture-isolation.md): Repair recurrent TUI fixture isolation failures | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. | Inspect privacy/diff, then run another ordinary full workspace gate; release only if it passes and static/provenance gates remain green. | codex-ar1791-fixture-repair |
 
 ## Open
 
