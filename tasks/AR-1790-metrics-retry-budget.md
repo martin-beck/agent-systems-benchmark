@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:07:44+00:00",
+  "claim_expires": "2026-10-10T23:09:00+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 91,
+  "task_revision": 92,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T22:08:53+00:00",
+  "updated_at": "2026-10-10T22:09:00+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -310,3 +310,5 @@ post-merge verification remain mandatory.
 
 - 2026-10-10T22:08:53+00:00: Recorded command exit 0; command argv SHA-256
   664b246b4d36d0f563b142edd74839a94da170df149fdcaccbf3ede6e08a6505.
+
+- 2026-10-10T22:09:00+00:00: Heartbeat by codex-ar1790-integration.
