@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:53:56+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "d46180c297699f96d2c4e5f2d4b2cc6b6aabed12",
-  "owner": "codex-ar1785-requalification",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 154,
+  "task_revision": 155,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T22:59:59+00:00",
+  "updated_at": "2026-10-10T23:00:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -467,3 +467,18 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T22:59:59+00:00: Recorded command exit 101; command argv SHA-256
   d543bbc4d349ae630b98b0a0a35540b3f4b126a24950adccfa082fb879a6b793.
+
+- 2026-10-10T23:00:14+00:00: AR-1785 rebased candidate d46180c2bf338394c9ad189fb94d37d9e3307b2a
+  (3cee8483 and 76e9f6c3 rebased onto origin/main 59cfd9cf, then signed DCO catalog reconciliation
+  d46180c2) is not reviewable yet. Rebase initially conflicted only in diagnostic_legacy_catalog.rs;
+  preserving main control identities and assigning stable IDs 0720-0742 to rebased OpenRouter
+  producers restores diagnostic_contract 9/9. Focused provider-plan config, config-bound plan/run,
+  and selected/all benchmark-live no-fallback matrix pass; fmt, clippy, rustdoc pass. The first
+  ordinary locked workspace run passed, but second ordinary run failed in unrelated TUI fixtures:
+  development_gcc_probe_kills_stdout_descendant_and_restores_cloexec expected inherited marker file,
+  and development_rustup_tools_execute_validated_objects_after_path_replacement found its cargo
+  descriptor still exists. This is renewed nondeterministic workspace contamination; do not publish,
+  merge, or request independent review until it is reproduced/assigned and repeated ordinary
+  workspace gates pass. A prior rustdoc command exited 127 solely because RUSTDOCFLAGS was split
+  into argv; quoted retry passed. An initial unqualified provider-plan filter ran zero tests and was
+  replaced by qualified exact test. No GitHub Reviews API approval object is required.

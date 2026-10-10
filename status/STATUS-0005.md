@@ -138,19 +138,19 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-requalification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715. |
 | P1 | [AR-1449](../tasks/AR-1449-runtime-owned-local-replay-cli.md): Runtime-owned local replay CLI authority | codex-ar1449-runtime-replay-20261011 | Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper. | Blocked: AR-1448 exposes issuance only and requires caller-built sandbox, lease, backend and relay. A runtime-owned provisioning successor is required; no product change was published. |
 
-### Open (3)
+### Open (4)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
 | P0 | [AR-1698](../tasks/AR-1698.md): Current-head recording and strict offline qualification repair | Unclaimed | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. | Run the current-head record, record-campaign, cassette integrity, strict offline replay, incomplete coverage, redaction, and network-denial matrix; publish a signed receipt without changing AR-1652 status from stale evidence. |
+| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Unclaimed | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (86)
