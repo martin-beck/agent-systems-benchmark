@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Promote after AR-1785's blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates.",
+  "next_action": "Reproduced ordinary parallel workspace failure in control recording-campaign restart after backend drop; trace retained state-lock ownership and add isolation plus recovery coverage.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 21,
+  "task_revision": 22,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:41:36+00:00",
+  "updated_at": "2026-10-10T20:42:11+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -91,3 +91,7 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-10T20:41:36+00:00: Recorded command exit 101; command argv SHA-256
   534f8613e1c316db8f0f46dd989e44e14a8ca74304a94791b4e4a1c59b2fbb1d.
+
+- 2026-10-10T20:42:11+00:00: Ordinary locked workspace rerun reproduced control state-root ownership
+  failure in recording-campaign restart; baseline prior rerun passed. Focused source audit in
+  progress; no test serialization or exclusions.

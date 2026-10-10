@@ -1302,7 +1302,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
-| Next action | Promote after AR-1785&#x27;s blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates. |
+| Next action | Reproduced ordinary parallel workspace failure in control recording-campaign restart after backend drop; trace retained state-lock ownership and add isolation plus recovery coverage. |
 
 
 ## Dependency graph
