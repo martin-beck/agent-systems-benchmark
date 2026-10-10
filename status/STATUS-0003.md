@@ -1288,7 +1288,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. |
-| Next action | Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715. |
+| Next action | AR-1791 must repair recurrent GCC and rustup TUI fixture contamination first. Then independently re-review d46180c297699f96d2c4e5f2d4b2cc6b6aabed12, publish exact-head CI, merge, and requalify AR-1715. No GitHub Reviews API approval object is required. |
 
 ### AR-1786 — Repair control state-root isolation race
 

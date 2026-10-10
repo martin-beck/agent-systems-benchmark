@@ -146,7 +146,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-coordinator | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715. |
+| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-coordinator | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | AR-1791 must repair recurrent GCC and rustup TUI fixture contamination first. Then independently re-review d46180c297699f96d2c4e5f2d4b2cc6b6aabed12, publish exact-head CI, merge, and requalify AR-1715. No GitHub Reviews API approval object is required. |
 
 ### Open (3)
 
