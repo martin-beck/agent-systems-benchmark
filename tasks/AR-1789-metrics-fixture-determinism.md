@@ -5,10 +5,11 @@
   "claim_expires": "2026-10-10T22:17:15+00:00",
   "depends_on": [
     "AR-1711",
-    "AR-1733"
+    "AR-1733",
+    "AR-1790"
   ],
   "id": "AR-1789",
-  "next_action": "Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code.",
+  "next_action": "Wait for AR-1790 retry-budget repair and independent review; then re-review combined candidate 2f1f08fb plus 97eb1e38 and publish exact-head CI only after all gates pass.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
