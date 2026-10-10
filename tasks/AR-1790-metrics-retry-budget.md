@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:43:24+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "coordinator-ar1790",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:43:20+00:00",
+  "updated_at": "2026-10-10T21:43:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -38,3 +38,5 @@ post-merge verification remain mandatory.
 
 - 2026-10-10T21:43:20+00:00: Promote retry-budget repair after AR-1789 independent review found the
   declared eight-attempt metrics retry loop still guarded by attempt < 2.
+
+- 2026-10-10T21:43:24+00:00: Claimed by coordinator-ar1790.
