@@ -4026,6 +4026,7 @@ flowchart LR
     AR_1711 --> AR_1785
     AR_1711 --> AR_1786
     AR_1711 --> AR_1787
+    AR_1711 --> AR_1788
     AR_1712 --> AR_1716
     AR_1712 --> AR_1717
     AR_1712 --> AR_1724
@@ -4052,6 +4053,7 @@ flowchart LR
     AR_1733 --> AR_1785
     AR_1733 --> AR_1786
     AR_1733 --> AR_1787
+    AR_1733 --> AR_1788
     AR_1734 --> AR_1737
     AR_1734 --> AR_1738
     AR_1737 --> AR_1751
@@ -4109,7 +4111,6 @@ flowchart LR
     AR_1782 --> AR_1783
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
-    AR_1787 --> AR_1788
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
@@ -4196,4 +4197,3 @@ flowchart LR
 | [AR-0705](../tasks/AR-0705-native-debian-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
 | [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |
-| [AR-0801](../tasks/AR-0801-terminal-interface.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0204](../tasks/AR-0204-capacity-sweeps.md) | [AR-0802](../tasks/AR-0802-executable-guides.md), [AR-0803](../tasks/AR-0803-frontend-control-api.md), [AR-0808](../tasks/AR-0808-core-workflow-guides.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0840](../tasks/AR-0840-frontend-protocol-contract.md), [AR-0842](../tasks/AR-0842-frontend-run-lifecycle.md), [AR-0847](../tasks/AR-0847-frontend-control-api-repair.md), [AR-0849](../tasks/AR-0849-ar0801-documentation-repair.md), [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md) |

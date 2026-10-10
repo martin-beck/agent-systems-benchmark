@@ -1,5 +1,8 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1648](../tasks/AR-1648.md) | [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md) | [AR-1647](../tasks/AR-1647.md), [AR-1649](../tasks/AR-1649.md), [AR-1650](../tasks/AR-1650.md), [AR-1686](../tasks/AR-1686.md), [AR-1695](../tasks/AR-1695.md) |
+| [AR-1649](../tasks/AR-1649.md) | [AR-1648](../tasks/AR-1648.md) | [AR-1647](../tasks/AR-1647.md), [AR-1651](../tasks/AR-1651.md), [AR-1686](../tasks/AR-1686.md), [AR-1687](../tasks/AR-1687.md) |
+| [AR-1650](../tasks/AR-1650.md) | [AR-1644](../tasks/AR-1644.md), [AR-1648](../tasks/AR-1648.md) | [AR-1647](../tasks/AR-1647.md), [AR-1652](../tasks/AR-1652.md), [AR-1686](../tasks/AR-1686.md), [AR-1695](../tasks/AR-1695.md) |
 | [AR-1651](../tasks/AR-1651.md) | [AR-1649](../tasks/AR-1649.md) | [AR-1643](../tasks/AR-1643.md), [AR-1647](../tasks/AR-1647.md), [AR-1655](../tasks/AR-1655.md), [AR-1657](../tasks/AR-1657.md), [AR-1686](../tasks/AR-1686.md), [AR-1687](../tasks/AR-1687.md) |
 | [AR-1652](../tasks/AR-1652.md) | [AR-1646](../tasks/AR-1646.md), [AR-1650](../tasks/AR-1650.md) | [AR-1643](../tasks/AR-1643.md), [AR-1654](../tasks/AR-1654.md), [AR-1655](../tasks/AR-1655.md), [AR-1686](../tasks/AR-1686.md), [AR-1688](../tasks/AR-1688.md) |
 | [AR-1653](../tasks/AR-1653.md) | [AR-1562](../tasks/AR-1562.md), [AR-1563](../tasks/AR-1563.md), [AR-1564](../tasks/AR-1564.md), [AR-1613](../tasks/AR-1613.md), [AR-1623](../tasks/AR-1623.md), [AR-1643](../tasks/AR-1643.md) | [AR-1654](../tasks/AR-1654.md), [AR-1655](../tasks/AR-1655.md), [AR-1658](../tasks/AR-1658.md) |
@@ -51,7 +54,7 @@
 | [AR-1704](../tasks/AR-1704.md) | [AR-1656](../tasks/AR-1656.md), [AR-1657](../tasks/AR-1657.md), [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md) | [AR-1709](../tasks/AR-1709.md), [AR-1711](../tasks/AR-1711.md) |
 | [AR-1709](../tasks/AR-1709.md) | [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md) | [AR-1710](../tasks/AR-1710.md), [AR-1711](../tasks/AR-1711.md), [AR-1715](../tasks/AR-1715.md) |
 | [AR-1710](../tasks/AR-1710.md) | [AR-1656](../tasks/AR-1656.md), [AR-1657](../tasks/AR-1657.md), [AR-1709](../tasks/AR-1709.md) | None |
-| [AR-1711](../tasks/AR-1711.md) | [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md), [AR-1709](../tasks/AR-1709.md) | [AR-1712](../tasks/AR-1712.md), [AR-1715](../tasks/AR-1715.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) |
+| [AR-1711](../tasks/AR-1711.md) | [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md), [AR-1709](../tasks/AR-1709.md) | [AR-1712](../tasks/AR-1712.md), [AR-1715](../tasks/AR-1715.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
 | [AR-1712](../tasks/AR-1712.md) | [AR-1698](../tasks/AR-1698.md), [AR-1701](../tasks/AR-1701.md), [AR-1711](../tasks/AR-1711.md) | [AR-1716](../tasks/AR-1716.md), [AR-1717](../tasks/AR-1717.md), [AR-1724](../tasks/AR-1724-easy-sweep-default-online.md) |
 | [AR-1715](../tasks/AR-1715.md) | [AR-1700](../tasks/AR-1700.md), [AR-1709](../tasks/AR-1709.md), [AR-1711](../tasks/AR-1711.md) | [AR-1723](../tasks/AR-1723-easy-run-default-online.md) |
 | [AR-1716](../tasks/AR-1716.md) | [AR-1712](../tasks/AR-1712.md) | None |
@@ -71,7 +74,7 @@
 | [AR-1730](../tasks/AR-1730-cli2key-provider-contract.md) | [AR-1728](../tasks/AR-1728-cli2key-contract.md) | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) |
 | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) | [AR-1729](../tasks/AR-1729-cli2key-sidecar-lifecycle.md), [AR-1730](../tasks/AR-1730-cli2key-provider-contract.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) |
 | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) |
-| [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md), [AR-1754](../tasks/AR-1754-default-online-live-workflow.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) |
+| [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md), [AR-1754](../tasks/AR-1754-default-online-live-workflow.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md), [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md), [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
 | [AR-1734](../tasks/AR-1734-development-tui-tool-environment.md) | [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1727](../tasks/AR-1727-development-broker-foreground-terminal.md) | [AR-1737](../tasks/AR-1737-development-tui-linker-handoff.md), [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) |
 | [AR-1735](../tasks/AR-1735-goose-symlink-fixture-determinism.md) | None | None |
 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
@@ -125,8 +128,8 @@
 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md) | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md) |
 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
-| [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
-| [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) | None |
+| [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
+| [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 
 ## Complete AR inventory
 
@@ -555,4 +558,3 @@
 | P0 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md): AR-1308 QEMU fixture repair | Unclaimed | Fixture repair passed boot/transient/JAR checks; full tier timed out at 1700s without attestation. | Close fixture repair; hand timeout to AR-1309 for capacity/model decision. |
 | P0 | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md): AR-1309 capacity decision | Unclaimed | Select a reviewed AR-1309 capacity/model contract after runner failure. | Classify evidence and select AR-1309&#x27;s capacity/model contract. |
 | P0 | [AR-1519](../tasks/AR-1519.md): AR-1307/1308 reduced-model development profile | Unclaimed | Reduced development tier implemented with explicit 900s/1-worker/2G/2G/4G bounds and non-claiming attestation. | Independently review the exact head, then release this development-only repair; full AR-1307/1308 qualification remains separate. |
-| P0 | [AR-1520](../tasks/AR-1520.md): AR-1308 reduced-profile runtime qualification | Unclaimed | Reduced profile passes self-contained QEMU: transient admission, bounded models, sanitized non-claiming attestation, and clean poweroff. | Release after exact-head review; retain AR-1307/1308 formal qualification as separate blocked gates. |
