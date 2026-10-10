@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:31:31+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,17 +13,17 @@
   "observed_branch": "codex/ar-1788-rustup-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "eece088d66a30f310987e0ed238bc80227ff7d32",
-  "owner": "codex-ar1788-rustup-fixture",
+  "owner": "",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:31:31+00:00",
+  "updated_at": "2026-10-10T21:31:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -113,3 +113,8 @@ workspace gate or turn a flaky one-off pass into qualification.
   demonstrated AR-1788 shared resource.
 
 - 2026-10-10T21:31:31+00:00: Heartbeat by codex-ar1788-rustup-fixture.
+
+- 2026-10-10T21:31:43+00:00: Signed clean candidate eece088d66a30f310987e0ed238bc80227ff7d32 fixes
+  the reproduced rustup PID-only fixture contamination and focused tests pass. Ordinary candidate
+  workspace gate also flakes in separately-owned AR-1789 metrics test; wait for AR-1789, then rerun
+  repeated full gates before review or publication.
