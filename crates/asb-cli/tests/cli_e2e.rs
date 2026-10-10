@@ -266,6 +266,95 @@ fn json_and_quiet_suppress_execution_notices_on_both_streams() {
 }
 
 #[test]
+fn project_output_defaults_route_human_streams_and_fail_closed() {
+    let scratch = Scratch::new();
+    let project = scratch.0.join("project");
+    let executable = env!("CARGO_BIN_EXE_asb");
+    let initialized = Command::new(executable)
+        .args(["--quiet", "project", "init"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(initialized.status.success());
+    assert!(initialized.stdout.is_empty());
+    assert!(initialized.stderr.is_empty());
+
+    let config_path = project.join(".asb/project.json");
+    let mut config: Value = serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+    config["output"] = serde_json::json!({
+        "level": "normal",
+        "result_writer": "stderr",
+        "human_writer": "stdout",
+    });
+    fs::write(&config_path, serde_json::to_vec(&config).unwrap()).unwrap();
+    let routed = Command::new(executable)
+        .arg("doctor")
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert!(routed.status.success());
+    assert!(routed.stdout.is_empty());
+    assert!(
+        String::from_utf8(routed.stderr)
+            .unwrap()
+            .starts_with("[ OK ]")
+    );
+
+    let routed_notice = Command::new(executable)
+        .args(["serve", "missing-control.toml"])
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert_ne!(routed_notice.status.code(), Some(0));
+    assert!(
+        String::from_utf8(routed_notice.stdout)
+            .unwrap()
+            .starts_with("[WAIT]")
+    );
+    assert!(routed_notice.stderr.is_empty());
+
+    config["output"] = serde_json::json!({
+        "level": "quiet",
+        "result_writer": "stdout",
+        "human_writer": "stderr",
+    });
+    fs::write(&config_path, serde_json::to_vec(&config).unwrap()).unwrap();
+    let quiet_failure = Command::new(executable)
+        .arg("not-a-command")
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert_eq!(quiet_failure.status.code(), Some(2));
+    assert!(quiet_failure.stdout.is_empty());
+    assert!(quiet_failure.stderr.is_empty());
+
+    fs::write(&config_path, b"{\"output\":{\"unknown\":true}}\n").unwrap();
+    let malformed_json = Command::new(executable)
+        .args(["--json", "doctor"])
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert_ne!(malformed_json.status.code(), Some(0));
+    assert!(malformed_json.stderr.is_empty());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&malformed_json.stdout).unwrap()["ok"],
+        false
+    );
+    let malformed_human = Command::new(executable)
+        .arg("doctor")
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert_ne!(malformed_human.status.code(), Some(0));
+    assert!(malformed_human.stdout.is_empty());
+    assert!(
+        String::from_utf8(malformed_human.stderr)
+            .unwrap()
+            .starts_with("[ERR ]")
+    );
+}
+
+#[test]
 fn sigint_default_mode_reports_human_cancellation_and_retained_report_action() {
     let scratch = Scratch::new();
     let (plan, result_root, executable, _) = cancellation_plan(&scratch.0);
