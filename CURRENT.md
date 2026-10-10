@@ -3,6 +3,12 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
+## In Progress
+
+| Priority | Task | Summary | Next action | Owner |
+| --- | --- | --- | --- | --- |
+| P1 | [AR-1449](tasks/AR-1449-runtime-owned-local-replay-cli.md): Runtime-owned local replay CLI authority | Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper. | Requalify the current protected-main runtime-owned replay provisioner against generated cassettes; repair any strict offline authority failure, then independently review and run exact-head CI. | codex-ar1449-runtime-replay-20261011 |
+
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
@@ -11,7 +17,6 @@ Never edit this file directly.
 | P0 | [AR-1698](tasks/AR-1698.md): Current-head recording and strict offline qualification repair | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. | Run the current-head record, record-campaign, cassette integrity, strict offline replay, incomplete coverage, redaction, and network-denial matrix; publish a signed receipt without changing AR-1652 status from stale evidence. | - |
 | P0 | [AR-1785](tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | AR-1791 must repair recurrent GCC and rustup TUI fixture contamination first. Then independently re-review d46180c297699f96d2c4e5f2d4b2cc6b6aabed12, publish exact-head CI, merge, and requalify AR-1715. No GitHub Reviews API approval object is required. | - |
 | P0 | [AR-1786](tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. | - |
-| P1 | [AR-1449](tasks/AR-1449-runtime-owned-local-replay-cli.md): Runtime-owned local replay CLI authority | Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper. | Requalify the current protected-main runtime-owned replay provisioner against generated cassettes; repair any strict offline authority failure, then independently review and run exact-head CI. | - |
 
 ## Blocked
 

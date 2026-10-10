@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1449-current-main",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T02:04:16+00:00",
   "depends_on": [
     "AR-1443",
     "AR-1448"
@@ -12,15 +12,15 @@
   "observed_branch": "codex/ar-1449-current-main",
   "observed_dirty": 0,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
-  "owner": "",
+  "owner": "codex-ar1449-runtime-replay-20261011",
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:04:09+00:00",
+  "updated_at": "2026-10-10T23:04:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -87,3 +87,5 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 
 - 2026-10-10T23:04:09+00:00: Rebound stale AR-1449 metadata to current protected-main
   branch/worktree; worker may now requalify the existing runtime-owned replay provisioner.
+
+- 2026-10-10T23:04:16+00:00: Claimed by codex-ar1449-runtime-replay-20261011.
