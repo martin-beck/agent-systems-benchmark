@@ -19,11 +19,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "blocked",
+  "status": "open",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:31:43+00:00",
+  "updated_at": "2026-10-10T22:34:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -118,3 +118,7 @@ workspace gate or turn a flaky one-off pass into qualification.
   the reproduced rustup PID-only fixture contamination and focused tests pass. Ordinary candidate
   workspace gate also flakes in separately-owned AR-1789 metrics test; wait for AR-1789, then rerun
   repeated full gates before review or publication.
+
+- 2026-10-10T22:34:38+00:00: Dependency AR-1789 is complete with independent review and exact-tree
+  main integration. Requalify the rustup fixture candidate on current protected main; no GitHub
+  Reviews API approval object required.
