@@ -108,7 +108,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar1786-control-product` | `codex/ar-1786-control-state` | `7be2fcb0dc0e` | 0 | behind 7, ahead 1 |
 | `agent-systems-benchmark-ar1787-lock-lifetime` | `codex/ar-1787-lock-lifetime` | `dbbf27c3684e` | 0 | behind 7, ahead 2 |
 | `agent-systems-benchmark-ar1788-rustup-fixture-determinism` | `codex/ar-1788-rustup-fixture-determinism` | `eece088d66a3` | 0 | behind 6, ahead 0 |
-| `agent-systems-benchmark-ar1789-metrics` | `codex/ar-1789-metrics-fixture` | `023e366a489c` | 0 | behind 3, ahead 2 |
+| `agent-systems-benchmark-ar1789-metrics` | `codex/ar-1789-metrics-fixture-v2` | `59cfd9cf6f06` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar1790-merge` | `DETACHED` | `b79ad1597a1c` | 0 | behind 7, ahead 0 |
 | `agent-systems-benchmark-ar1790-metrics-retry` | `codex/ar-1790-metrics-retry` | `c571ad8a2577` | 0 | behind 1, ahead 0 |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 511, ahead 326 |
