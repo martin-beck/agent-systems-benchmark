@@ -13410,6 +13410,425 @@ mod tests {
     }
 
     #[test]
+    fn opencode_opendesk_provider_catalog_matrix_is_deterministic_and_typed() {
+        let catalog = provider_catalog_digest();
+        let agents = ["opencode", "opendesk"];
+
+        for (provider, model) in [
+            ("openai", asb_agents::openai::OPENAI_MODEL),
+            ("openrouter", asb_agents::openrouter::OPENROUTER_MODEL),
+        ] {
+            let (exit, row) = run_json(&provider_args(&catalog, provider, &agents));
+            assert_eq!(exit, 0, "{provider} matrix row failed: {row}");
+            assert_eq!(row["provider_profile"], provider);
+            assert_eq!(row["model"], model);
+            assert_eq!(
+                row["effective"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| item["agent"].as_str().unwrap())
+                    .collect::<Vec<_>>(),
+                agents
+            );
+        }
+
+        for (provider, message) in [
+            (
+                "ollama",
+                "provider profile is advertised but unavailable without verified daemon evidence",
+            ),
+            ("gemini", "unknown provider profile"),
+        ] {
+            let (exit, row) = run_json(&provider_args(&catalog, provider, &agents));
+            assert_eq!(exit, 3, "{provider} must remain unavailable");
+            assert_eq!(row["error"]["code"], "validation");
+            assert_eq!(row["error"]["message"], message);
+        }
+    }
+
+    #[test]
+    fn opencode_opendesk_matrix_persists_runs_replays_and_compares() {
+        let scratch = Scratch::new("opencode-opendesk-matrix");
+        let config_path = scratch.0.join("config.json");
+        let setup_args = vec![
+            "--agent".into(),
+            "opencode".into(),
+            "--agent".into(),
+            "opendesk".into(),
+            "--provider-profile".into(),
+            "openrouter".into(),
+            "--model".into(),
+            asb_agents::openrouter::OPENROUTER_MODEL.into(),
+            "--config".into(),
+            config_path.to_string_lossy().into_owned(),
+        ];
+        setup(&setup_args, &mut Vec::new()).unwrap();
+        let store = ConfigStore::new(&config_path);
+        let mut configured = store.load().unwrap().unwrap();
+        configured.agent_overrides.insert(
+            "opendesk".into(),
+            asb_config::AgentOverride {
+                repetitions: Some(2),
+                ..Default::default()
+            },
+        );
+        store.save(&configured).unwrap();
+        let reloaded = store.load().unwrap().unwrap();
+        assert_eq!(reloaded.defaults.agents, vec!["opencode", "opendesk"]);
+        assert_eq!(
+            reloaded
+                .resolve_defaults(Some("opendesk"), None)
+                .unwrap()
+                .repetitions
+                .value,
+            2
+        );
+        assert_eq!(
+            reloaded
+                .resolve_defaults(Some("opencode"), None)
+                .unwrap()
+                .repetitions
+                .value,
+            reloaded.defaults.repetitions
+        );
+
+        let mut run_paths = Vec::new();
+        for (agent, live_agent) in [
+            ("opencode", OpenRouterAgent::OpenCode),
+            ("opendesk", OpenRouterAgent::OpenDesk),
+        ] {
+            let (plan_path, mut plan) = plan_fixture(&scratch.0, &format!("matrix-{agent}"));
+            let provider = provider_plan_from_configuration(&reloaded, agent).unwrap();
+            plan.experiment.agent.implementation = agent.into();
+            plan.experiment.model.provider = "openrouter".into();
+            plan.experiment.model.model = asb_agents::openrouter::OPENROUTER_MODEL.into();
+            plan.experiment.model.settings.additional_settings_sha256 =
+                Some(provider.provider_profile_sha256.clone());
+            plan.experiment.refresh_content_address().unwrap();
+            fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+
+            let mut output = Vec::new();
+            assert_eq!(
+                execute_inner_from_source(
+                    &plan_path,
+                    SelectionSource::Config(&store),
+                    false,
+                    false,
+                    None,
+                    true,
+                    &mut output,
+                    &mut Vec::new(),
+                    None,
+                )
+                .unwrap(),
+                0
+            );
+            let json: Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(json["ok"], true);
+            let mut human_output = Vec::new();
+            human::render_success(
+                &[
+                    "run".into(),
+                    plan_path.as_os_str().to_owned(),
+                    "--use-config".into(),
+                ],
+                &output,
+                false,
+                &mut human_output,
+            )
+            .unwrap();
+            assert!(
+                String::from_utf8(human_output)
+                    .unwrap()
+                    .starts_with("[ OK ] ASB completed the benchmark run successfully.")
+            );
+            run_paths.push(plan.result_root.join(format!("runs/matrix-{agent}")));
+
+            let request = OpenRouterLiveCaptureInput {
+                schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+                provider_profile_sha256: provider.provider_profile_sha256,
+                agent_id: agent.into(),
+                request_body: json!({
+                    "model": asb_agents::openrouter::OPENROUTER_MODEL,
+                    "messages": [{"role": "user", "content": "bounded matrix fixture"}],
+                }),
+                estimated_cost_minor: 0,
+            };
+            let cassette_path = scratch.0.join(format!("{agent}-capture.json"));
+            record_openrouter_live_response(
+                &request,
+                live_agent,
+                asb_agents::openrouter::OpenRouterLiveResponse {
+                    status: 200,
+                    body: br#"{"id":"matrix","choices":[{"message":{"content":"fixture completion"}}]}"#.to_vec(),
+                },
+                &cassette_path,
+                &mut Vec::new(),
+                None,
+            )
+            .unwrap();
+            let cassette = asb_replay::decode_cassette(
+                &fs::read(cassette_path).unwrap(),
+                asb_replay::CassetteLimits::default(),
+            )
+            .unwrap();
+            let replay =
+                asb_replay::StrictReplayService::new(cassette, asb_replay::ReplayLimits::default())
+                    .unwrap();
+            let replayed = replay
+                .handle(
+                    &asb_replay::ReplayRoute {
+                        session_id: "openrouter-live".into(),
+                        attempt_id: "openrouter-live".into(),
+                        dialect: asb_replay::ProviderDialect::OpenaiChatCompletions,
+                    },
+                    asb_replay::ReplayHttpRequest {
+                        method: "POST".into(),
+                        path: "/v1/chat/completions".into(),
+                        headers: Vec::new(),
+                        body: asb_replay::canonical_json_bytes(&request.request_body).unwrap(),
+                    },
+                )
+                .unwrap();
+            assert!(String::from_utf8_lossy(&replayed.segments[0]).contains("fixture completion"));
+        }
+
+        let (exit, comparison) = run_json(&[
+            "compare".into(),
+            run_paths[0].as_os_str().to_owned(),
+            run_paths[1].as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(comparison["command"], "compare");
+        assert_eq!(comparison["comparable"], false);
+        let mut human_output = Vec::new();
+        human::render_success(
+            &[
+                "compare".into(),
+                run_paths[0].as_os_str().to_owned(),
+                run_paths[1].as_os_str().to_owned(),
+            ],
+            &serde_json::to_vec(&comparison).unwrap(),
+            false,
+            &mut human_output,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(human_output)
+                .unwrap()
+                .starts_with("[WARN] ASB compared the runs, but")
+        );
+    }
+
+    #[test]
+    fn opencode_opendesk_matrix_exercises_public_cli_routes() {
+        let scratch = Scratch::new("public-opencode-opendesk-matrix");
+        let agents = ["opencode", "opendesk"];
+        let mut runs = Vec::new();
+        let mut tuple_profiles = Vec::new();
+        for provider in ["openai", "openrouter"] {
+            let (selection_path, selection) = provider_selection_fixture(
+                &scratch.0,
+                &format!("{provider}-selection.json"),
+                provider,
+                &agents,
+            );
+            let provider_args = provider_args(&provider_catalog_digest(), provider, &agents);
+            let mut human = Vec::new();
+            let mut diagnostic = Vec::new();
+            assert_eq!(
+                run_with_default_mode(&provider_args, &mut human, &mut diagnostic, true),
+                0
+            );
+            assert!(diagnostic.is_empty());
+            let human = String::from_utf8(human).unwrap();
+            assert!(human.starts_with("[ OK ]"));
+            assert!(human.contains(provider));
+            tuple_profiles.push((
+                provider,
+                selection["provider_profile_sha256"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            ));
+            for agent in agents {
+                let (plan_path, mut plan) =
+                    plan_fixture(&scratch.0, &format!("public-{provider}-{agent}"));
+                bind_provider_selection(&mut plan, &selection, agent, provider);
+                fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+                let (exit, planned) = run_json_without_progress(&[
+                    "plan".into(),
+                    plan_path.as_os_str().to_owned(),
+                    "--provider-selection".into(),
+                    selection_path.as_os_str().to_owned(),
+                ]);
+                assert_eq!(exit, 0, "{provider}/{agent}: {planned}");
+                assert_eq!(planned["provider_profile"], provider);
+                let (exit, output) = run_json_without_progress(&[
+                    "run".into(),
+                    plan_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ]);
+                assert_eq!(exit, 0, "{provider}/{agent}: {output}");
+                assert_eq!(output["command"], "run");
+                runs.push(
+                    plan.result_root
+                        .join(format!("runs/public-{provider}-{agent}")),
+                );
+            }
+        }
+
+        for (provider, profile) in tuple_profiles {
+            for agent in agents {
+                let capture_path = scratch.0.join(format!("{provider}-{agent}-capture.json"));
+                let cassette_path = scratch.0.join(format!("{provider}-{agent}-cassette.json"));
+                let request_body = json!({
+                    "model": if provider == "openai" { asb_agents::openai::OPENAI_MODEL } else { asb_agents::openrouter::OPENROUTER_MODEL },
+                    "messages": [{"role": "user", "content": "bounded tuple capture"}],
+                });
+                let request_sha256 = format!(
+                    "{:x}",
+                    Sha256::digest(asb_replay::canonical_json_bytes(&request_body).unwrap())
+                );
+                let response_body = json!({"id": "tuple-fixture", "choices": [{"message": {"content": "bounded completion"}}]});
+                let response_sha256 = format!(
+                    "{:x}",
+                    Sha256::digest(asb_replay::canonical_json_bytes(&response_body).unwrap())
+                );
+                let capture = asb_replay::RecordingCapture {
+                    schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+                    provider_profile_sha256: profile.clone(),
+                    agent_id: agent.into(),
+                    network: asb_replay::NetworkConsequence::LoopbackOnly,
+                    estimated_cost_minor: 0,
+                    confirmation: asb_replay::RecordingConfirmation {
+                        record: true,
+                        network: true,
+                        cost: false,
+                    },
+                    contents: CassetteContents {
+                        schema_version: asb_replay::CASSETTE_SCHEMA_VERSION,
+                        cassette_id: format!("{provider}-{agent}-tuple"),
+                        provider_profile_sha256: None,
+                        normalization: PolicyVersion { version: 1 },
+                        redaction: asb_replay::RedactionPolicy::default().descriptor().unwrap(),
+                        interactions: vec![Interaction {
+                            session_id: format!("{provider}-{agent}"),
+                            attempt_id: "attempt-1".into(),
+                            interaction_id: "interaction-1".into(),
+                            ordinal: 0,
+                            dialect: ProviderDialect::OpenaiChatCompletions,
+                            request: RecordedRequest {
+                                method: "POST".into(),
+                                path: "/v1/chat/completions".into(),
+                                headers: vec![],
+                                body: request_body,
+                                body_sha256: request_sha256,
+                                model: if provider == "openai" {
+                                    asb_agents::openai::OPENAI_MODEL.into()
+                                } else {
+                                    asb_agents::openrouter::OPENROUTER_MODEL.into()
+                                },
+                                options: BTreeMap::new(),
+                                tools: vec![],
+                                previous_response_id: None,
+                            },
+                            response: RecordedResponse {
+                                status: 200,
+                                headers: vec![],
+                                body: ResponseBody::Buffered {
+                                    payload: response_body,
+                                    payload_sha256: response_sha256,
+                                    response_id: None,
+                                    terminal: TerminalEvent::Completed,
+                                },
+                            },
+                        }],
+                    },
+                };
+                fs::write(&capture_path, serde_json::to_vec(&capture).unwrap()).unwrap();
+                let (record_exit, recorded) = run_json(&[
+                    "record-live".into(),
+                    capture_path.as_os_str().to_owned(),
+                    cassette_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                    "--confirm-record".into(),
+                ]);
+                assert_eq!(record_exit, 0);
+                assert!(cassette_path.is_file());
+                let (exit, replay) = run_json(&[
+                    "replay-offline".into(),
+                    cassette_path.as_os_str().to_owned(),
+                    profile.clone().into(),
+                    agent.into(),
+                    "--local-mock".into(),
+                ]);
+                assert_eq!(exit, 0, "{provider}/{agent}: {replay}");
+                assert_eq!(
+                    replay["source"]["replay"]["cassette_sha256"],
+                    recorded["cassette_sha256"]
+                );
+                assert_eq!(replay["provider_profile_sha256"], profile);
+                assert_eq!(replay["agent_id"], agent);
+                let mut replay_human = Vec::new();
+                let mut replay_diagnostic = Vec::new();
+                assert_eq!(
+                    run_with_default_mode(
+                        &[
+                            "easy".into(),
+                            "replay-offline".into(),
+                            cassette_path.as_os_str().to_owned(),
+                            profile.clone().into(),
+                            agent.into(),
+                            "--local-mock".into(),
+                        ],
+                        &mut replay_human,
+                        &mut replay_diagnostic,
+                        true,
+                    ),
+                    0
+                );
+                assert!(replay_diagnostic.is_empty());
+                assert!(
+                    String::from_utf8(replay_human)
+                        .unwrap()
+                        .starts_with("[ OK ]")
+                );
+            }
+        }
+
+        let (exit, comparison) = run_json(&[
+            "compare".into(),
+            runs[0].as_os_str().to_owned(),
+            runs[1].as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(comparison["command"], "compare");
+        let mut human = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &[
+                    "compare".into(),
+                    runs[0].as_os_str().to_owned(),
+                    runs[1].as_os_str().to_owned(),
+                ],
+                &mut human,
+                &mut diagnostic,
+                true,
+            ),
+            0
+        );
+        assert!(diagnostic.is_empty());
+        assert!(
+            String::from_utf8(human)
+                .unwrap()
+                .starts_with("[WARN] ASB compared the runs, but")
+        );
+    }
+
+    #[test]
     fn provider_plan_bounds_options_and_has_no_filesystem_effect() {
         let scratch = Scratch::new("provider-plan");
         let before = fs::read_dir(&scratch.0).unwrap().count();
