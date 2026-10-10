@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 81,
+  "task_revision": 82,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:49:54+00:00",
+  "updated_at": "2026-10-10T22:50:02+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -269,3 +269,6 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:49:54+00:00: Recorded command exit 0; command argv SHA-256
   7a9d699ab28aa47c1381c83c2a59d9f3956d03708287f9a032f52b1bb366edac.
+
+- 2026-10-10T22:50:02+00:00: Recorded command exit 0; command argv SHA-256
+  71de30a31c587e6db1113fa0a97a7ad2f950c96c230279cfcf2f9e9d9475495d.
