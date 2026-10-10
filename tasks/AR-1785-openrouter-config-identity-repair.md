@@ -1,28 +1,28 @@
 ---
 {
   "branch": "codex/ar-1785-openrouter-config",
-  "observed_branch": "codex/ar-1785-openrouter-config",
-  "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
-  "observed_dirty": 0,
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T20:48:21+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
   ],
   "id": "AR-1785",
   "next_action": "Promote after AR-1715 live transport evidence is reconciled; reproduce the provider-plan --use-config and benchmark-live identity mismatch in a clean product-bound worktree.",
-  "owner": "",
+  "observed_branch": "codex/ar-1785-openrouter-config",
+  "observed_dirty": 0,
+  "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
+  "owner": "ar1785-openrouter-config-repair",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:05:00+00:00",
+  "updated_at": "2026-10-10T20:03:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -47,3 +47,5 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T20:03:00+00:00: Dedicated product branch/worktree created; bind task metadata before
   reclaiming for implementation.
+
+- 2026-10-10T20:03:21+00:00: Claimed by ar1785-openrouter-config-repair.
