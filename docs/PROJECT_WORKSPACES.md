@@ -50,3 +50,25 @@ operations belong to later project-tool and catalog workflows.
 The project-local tool workflow is documented in
 [`PROJECT_TOOLS.md`](PROJECT_TOOLS.md). It provides rootless, bounded
 installation and inventory commands without invoking arbitrary installers.
+
+## Generated project catalogs
+
+After installing or discovering project tools, generate the deterministic,
+content-addressed catalogs that later project commands select:
+
+```sh
+asb catalog generate --project .
+asb catalog list --project .
+asb catalog show project-agent-catalog-v1 --project .
+asb catalog select project-agent-catalog-v1 --kind agent \
+  --digest-sha256 DIGEST_FROM_LIST --project .
+```
+
+Generation writes only public inventory metadata to `catalogs/` and records the
+typed schema, source, digest, compatibility labels, generation time, and active
+selection in `.asb/project.json`. The artifact filename includes its SHA-256.
+`show` and `select` recompute that digest and reject stale, altered,
+incompatible, or unavailable catalogs without changing the active selection.
+Use `--json` on each command for the versioned machine result; the normal route
+has human-readable output. Catalog artifacts never include paths, credentials,
+API keys, prompts, or provider responses.

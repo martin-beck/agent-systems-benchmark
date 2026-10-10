@@ -36,6 +36,7 @@ unicode-width = "=0.2.2"
 libc = "=0.2.189"
 nix = { version = "=0.30.1", features = ["signal"] }
 rustix = { version = "=1.1.4", features = ["fs", "process", "pty", "termios"] }
+time = { version = "=0.3.55", features = ["formatting"] }
 
 [dev-dependencies]
 jsonschema = { version = "=0.33.0", default-features = false }

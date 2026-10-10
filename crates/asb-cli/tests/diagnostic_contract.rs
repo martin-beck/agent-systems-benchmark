@@ -538,6 +538,10 @@ fn ordinary_cli_producers_are_mechanically_closed() {
             include_str!("../src/human.rs"),
         ),
         ("crates/asb-cli/src/lib.rs", include_str!("../src/lib.rs")),
+        (
+            "crates/asb-cli/src/project_catalog.rs",
+            include_str!("../src/project_catalog.rs"),
+        ),
         ("crates/asb-cli/src/tui.rs", include_str!("../src/tui.rs")),
     ] {
         assert_no_bare_cli_producers(source)

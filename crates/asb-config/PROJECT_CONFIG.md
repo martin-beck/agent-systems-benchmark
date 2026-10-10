@@ -8,7 +8,8 @@ introduce another configuration authority.
 The document contains portable relative roots (`project`, `results`, and
 `catalogs`), typed inventories for agents, harnesses, benchmarks, workloads,
 and support tools, active selections, and digest-bound generated catalog
-references. Records retain public source/version/platform/path/digest,
+references. Each catalog reference records its inventory kind, schema/source/digest,
+generation time, compatibility labels, and active status. Records retain public source/version/platform/path/digest,
 capabilities, and status. Paths are relative and cannot contain `..`, absolute
 roots, symlink intent, or home-directory expansion. Unknown JSON fields are
 rejected. Credential values, API keys, tokens, prompts, and private host paths

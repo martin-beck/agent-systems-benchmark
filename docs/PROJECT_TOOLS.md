@@ -32,3 +32,6 @@ asb tool remove my-agent --project .
 Installation stages and hashes the artifact before atomically publishing the
 project record. A failed staging or record update removes the new artifact and
 leaves the previous registry unchanged.
+
+Generate and inspect the associated typed catalogs with the project workflow
+described in [`PROJECT_WORKSPACES.md`](PROJECT_WORKSPACES.md#generated-project-catalogs).

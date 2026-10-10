@@ -4,6 +4,7 @@ setup	-	0	ASB checked the available setup choices; no configuration was changed.
 capabilities	-	0	ASB reported its supported frontend capabilities.	empty
 project	{scratch}/project	0	ASB initialized the project workspace.	notice
 tool	-	2	ASB could not complete the tool: tool requires install|list|status|remove.	empty
+catalog	-	2	ASB could not complete the catalog: catalog requires generate|list|show|select.	empty
 provider-catalog	-	0	ASB loaded the provider catalog.	empty
 adapter-catalog	-	0	ASB loaded the coding-agent adapter catalog.	empty
 workload-catalog	-	0	ASB loaded the benchmark workload catalog.	empty

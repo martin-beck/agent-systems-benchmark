@@ -55,14 +55,15 @@ impl PresentationContext {
 }
 
 /// Authoritative public top-level command inventory for dispatch, help, and
-/// human-presentation exhaustiveness. Legacy doctor/completion projections are
-/// independently pinned to their compatibility fixtures.
+/// human-presentation exhaustiveness. The inventory is deterministic.
+#[rustfmt::skip]
 pub(crate) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
     "setup",
     "capabilities",
     "project",
-    "tool",
+    // Project tools and generated catalogs share the same presentation family.
+    "tool", "catalog",
     "provider-catalog",
     "adapter-catalog",
     "workload-catalog",
@@ -98,6 +99,7 @@ enum CommandKind {
     Capabilities,
     Project,
     Tool,
+    Catalog,
     ProviderCatalog,
     AdapterCatalog,
     WorkloadCatalog,
@@ -207,6 +209,7 @@ pub(super) enum InvocationKind {
     Capabilities,
     ProjectInit,
     Tool,
+    Catalog,
     ProviderCatalog { refresh: bool },
     AdapterCatalog,
     WorkloadCatalog,
@@ -282,6 +285,7 @@ impl InvocationKind {
             Some("capabilities") => Self::Capabilities,
             Some("project") => Self::ProjectInit,
             Some("tool") => Self::Tool,
+            Some("catalog") => Self::Catalog,
             Some("provider-catalog") => Self::ProviderCatalog {
                 refresh: words.contains(&"--refresh"),
             },
@@ -331,6 +335,7 @@ impl InvocationKind {
             Self::Capabilities => CommandKind::Capabilities,
             Self::ProjectInit => CommandKind::Project,
             Self::Tool => CommandKind::Tool,
+            Self::Catalog => CommandKind::Catalog,
             Self::ProviderCatalog { .. } | Self::Easy(EasyKind::ProviderCatalog) => {
                 CommandKind::ProviderCatalog
             }
@@ -405,6 +410,7 @@ impl CommandKind {
             Self::Capabilities => "capabilities",
             Self::Project => "project initialization",
             Self::Tool => "tool",
+            Self::Catalog => "catalog",
             Self::ProviderCatalog => "provider catalog",
             Self::AdapterCatalog => "adapter catalog",
             Self::WorkloadCatalog => "workload catalog",
@@ -1016,6 +1022,12 @@ fn validate_typed_result(
                 return Err(invalid());
             }
         }
+        InvocationKind::Catalog => {
+            let value: CatalogEnvelope = decode(captured)?;
+            if !value.ok || !value.command.starts_with("catalog ") {
+                return Err(invalid());
+            }
+        }
         InvocationKind::ConfigOpenrouter => {
             let value: ConfigView = decode(captured)?;
             if !value.ok
@@ -1362,6 +1374,16 @@ fn project_for_presentation(
         CommandKind::Capabilities => &["protocol_version", "capabilities"],
         CommandKind::Project => &["initialized", "recovered", "config", "results", "catalogs"],
         CommandKind::Tool => &["ok", "command", "tools", "warnings"],
+        CommandKind::Catalog => &[
+            "command",
+            "catalogs",
+            "catalog",
+            "reference",
+            "id",
+            "kind",
+            "digest_sha256",
+            "active",
+        ],
         CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
         CommandKind::AdapterCatalog => &["adapters"],
         CommandKind::WorkloadCatalog => &["entries"],
@@ -1620,6 +1642,11 @@ fn present(
                     value.warning(warning_text(warning));
                 }
             }
+            value
+        }
+        CommandKind::Catalog => {
+            let mut value = Presentation::new("ASB completed the project catalog operation.");
+            fact_count(&mut value, object, "catalogs", "catalogs");
             value
         }
         CommandKind::ProviderCatalog => present_catalog(
@@ -2828,14 +2855,14 @@ mod tests {
 
     #[test]
     fn public_command_inventory_is_explicit_and_has_no_unknown_fallback() {
-        let commands: &[&[&str]] = &[
+        #[rustfmt::skip] let commands: &[&[&str]] = &[
             &["doctor"],
             &["setup"],
             &["easy", "run"],
             &["tui", "launch"],
             &["capabilities"],
             &["project", "init", "/tmp/project"],
-            &["tool", "discover"],
+            &["tool", "discover"], &["catalog", "list"],
             &["provider-catalog"],
             &["adapter-catalog"],
             &["workload-catalog"],
