@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T21:57:24+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
-  "owner": "",
+  "owner": "codex-ar1786-independent-review",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 57,
+  "task_revision": 58,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:56:29+00:00",
+  "updated_at": "2026-10-10T20:57:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -190,3 +190,5 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-10T20:56:29+00:00: Released only for independent exact-head technical review of SSH-signed
   DCO commit 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b. No PR, merge, or CI conclusion is claimed.
+
+- 2026-10-10T20:57:24+00:00: Claimed by codex-ar1786-independent-review.
