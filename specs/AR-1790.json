@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1790.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "retry-bound", "description": "The metrics diagnostic WouldBlock retry loop actually permits the declared bounded attempt budget and never retries beyond it."},
+    {"id": "regression", "description": "A deterministic fixture or seam proves a retry beyond the legacy third attempt and proves exhaustion remains typed and bounded."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace runs pass on the combined AR-1789 candidate with stable metrics, control, and rustup fixtures."},
+    {"id": "publication", "description": "Independent technical review, exact-head CI, signed DCO integration, and exact-main post-merge verification pass; no GitHub Reviews API approval object is required."}
+  ],
+  "definition_of_done": [
+    "The exact review finding is repaired on a clean signed-DCO branch with focused positive and negative retry-budget coverage.",
+    "Repeated full workspace, fmt, clippy, rustdoc, privacy, and diff gates pass.",
+    "Independent exact-head review and exact-main integration evidence pass before AR-1789 is re-reviewed."
+  ],
+  "inputs": [
+    {"id": "ar1789-review", "description": "Independent review of 2f1f08fb showing MAX_SPAWN_ATTEMPTS=8 while the guard still uses attempt < 2."},
+    {"id": "metrics-execute", "description": "Bounded asb-metrics diagnostic process-spawn retry implementation and typed ProbeRejected contract."}
+  ],
+  "outputs": [
+    {"id": "retry-repair", "description": "Effective bounded retry implementation with regression coverage."},
+    {"id": "requalification-handoff", "description": "Exact candidate and gates for AR-1789 independent re-review."}
+  ],
+  "allowed_tools": ["cargo", "git", "python", "uv", "tools/handoffctl"],
+  "forbidden_tools": ["test-exclusion", "unbounded-retry", "serial-only-gate-bypass", "credential-output", "history-rewrite", "force-push", "github-reviews-api-approval-gate"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality", "hosted"],
+  "gates": [
+    {"id": "retry", "description": "Focused retry-budget and typed exhaustion tests pass."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace passes."},
+    {"id": "publication", "description": "Independent review, exact-head CI, signed merge, and exact-main workflows pass without a GitHub Reviews API approval object."}
+  ]
+}
