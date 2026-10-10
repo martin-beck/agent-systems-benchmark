@@ -1,0 +1,15 @@
+AR-1709 development live-provider post-merge receipt
+
+Exact protected main: be2f42ab34c15431238fcef0281806b76a23073a
+Merged PR: 549
+Reviewed head: 700b13b3a74401a42f9c5c1cae1a788641ac94a2
+Reviewed tree: 02969a7d7ce72eb454d8df02982e8eb8a76e287a
+
+The signed merge has the reviewed head and prior protected-main parent, its
+tree matches the reviewed head, and its DCO trailer and SSH signature verify.
+All ten exact-main workflows for be2f42ab34c15431238fcef0281806b76a23073a
+reached terminal SUCCESS.
+
+Qualification confirms the explicit development live-provider boundary and
+human/JSON typed no-fallback failure parity. No credential-backed live-provider
+claim is made by this development receipt.
