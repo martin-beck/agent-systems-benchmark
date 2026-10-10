@@ -1344,7 +1344,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. |
-| Next action | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
+| Next action | Wait for AR-1790 retry-budget repair and independent review; then re-review combined candidate 2f1f08fb plus 97eb1e38 and publish exact-head CI only after all gates pass. |
 
 ### AR-1790 — Make metrics spawn retry budget effective
 
@@ -4148,6 +4148,7 @@ flowchart LR
     AR_1787 --> AR_1785
     AR_1788 --> AR_1785
     AR_1789 --> AR_1788
+    AR_1790 --> AR_1789
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px

@@ -133,8 +133,8 @@
 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
 | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
-| [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
-| [AR-1790](../tasks/AR-1790-metrics-retry-budget.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
+| [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md), [AR-1790](../tasks/AR-1790-metrics-retry-budget.md) | [AR-1788](../tasks/AR-1788-rustup-fixture-determinism.md) |
+| [AR-1790](../tasks/AR-1790-metrics-retry-budget.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md) |
 
 ## Complete AR inventory
 
@@ -142,7 +142,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | coordinator-ar1789 | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code. |
+| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | coordinator-ar1789 | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Wait for AR-1790 retry-budget repair and independent review; then re-review combined candidate 2f1f08fb plus 97eb1e38 and publish exact-head CI only after all gates pass. |
 | P0 | [AR-1790](../tasks/AR-1790-metrics-retry-budget.md): Make metrics spawn retry budget effective | codex-ar1790-independent-review | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. |
 
 ### Open (1)
@@ -562,4 +562,3 @@
 | P0 | [AR-1498](../tasks/AR-1498-authenticated-lifecycle-executor.md): Authenticated lifecycle artifact executor | Unclaimed | PR 376 merged at protected main exact merge commit | Verify origin/main contains merge 9231a660675d4b01277a60b75d838d69c6bba917, run post-merge applicable smoke/build checks, then release AR-1498 durably. |
 | P0 | [AR-1499](../tasks/AR-1499-development-credential-enrollment.md): Development credential enrollment contract | Unclaimed | Repair merged development credential selection binding | Released; no further AR-1499 action. PR #378 merged at protected main ee8ea15; exact main tree and post-merge smoke verified, and all eight post-merge workflows passed. |
 | P0 | [AR-1500](../tasks/AR-1500-development-credential-provider-fixture.md): Development credential/provider lifecycle fixture | Unclaimed | Qualify generated development credentials through provider, capture and replay flows. | AR-1500 complete: PR #379 merged at exact checked head; post-merge main tree equality and offline fixture smoke passed. Continue dependent ARs. |
-| P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
