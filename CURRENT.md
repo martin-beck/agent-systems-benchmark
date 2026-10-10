@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1787](tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass. | codex-ar1787-publisher |
+| P0 | [AR-1787](tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | PR #553 exact head dbbf27c3684e90efc93b85fd8afe252a1011f6a1 is published; wait for every exact-head required check to reach terminal success, then perform signed protected merge and exact-main verification. No GitHub Reviews API approval object is required. | codex-ar1787-publisher |
 
 ## Open
 

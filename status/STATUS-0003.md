@@ -1316,7 +1316,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. |
-| Next action | Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass. |
+| Next action | PR #553 exact head dbbf27c3684e90efc93b85fd8afe252a1011f6a1 is published; wait for every exact-head required check to reach terminal success, then perform signed protected merge and exact-main verification. No GitHub Reviews API approval object is required. |
 
 ### AR-1788 — Make rustup path-replacement fixture deterministic
 

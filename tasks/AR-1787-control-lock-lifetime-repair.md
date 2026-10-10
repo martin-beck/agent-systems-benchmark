@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1787",
-  "next_action": "Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass.",
+  "next_action": "PR #553 exact head dbbf27c3684e90efc93b85fd8afe252a1011f6a1 is published; wait for every exact-head required check to reach terminal success, then perform signed protected merge and exact-main verification. No GitHub Reviews API approval object is required.",
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 67,
+  "task_revision": 68,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:47:42+00:00",
+  "updated_at": "2026-10-10T22:47:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -233,3 +233,6 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:47:42+00:00: Recorded command exit 0; command argv SHA-256
   c46c170de7338d793831cbdb6f64f96a3726212ab241eb92e2f3cd6d607aa380.
+
+- 2026-10-10T22:47:58+00:00: Published PR #553 from the independently accepted exact candidate.
+  Hosted exact-head CI is now the next gate; no merge yet.
