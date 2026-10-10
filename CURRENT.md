@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1790](tasks/AR-1790-metrics-retry-budget.md): Make metrics spawn retry budget effective | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. | Promote and claim; repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage. | coordinator-ar1790 |
+| P0 | [AR-1790](tasks/AR-1790-metrics-retry-budget.md): Make metrics spawn retry budget effective | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. | coordinator-ar1790 |
 
 ## Open
 

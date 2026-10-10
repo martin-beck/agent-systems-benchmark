@@ -1358,7 +1358,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. |
-| Next action | Promote and claim; repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage. |
+| Next action | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. |
 
 
 ## Dependency graph
