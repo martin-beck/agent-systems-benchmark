@@ -26,7 +26,7 @@ Generated from local Git and GitHub. Do not edit.
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
 | 38091712492 | `023e366a489c` | pull_request | Repository quality | completed:failure |
-| 38091712377 | `023e366a489c` | pull_request | Formal assurance | in_progress:- |
+| 38091712377 | `023e366a489c` | pull_request | Formal assurance | completed:success |
 | 38091712376 | `023e366a489c` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38091712370 | `023e366a489c` | pull_request | Fault assurance | completed:success |
 | 38091712354 | `023e366a489c` | pull_request | Portable protected-main provenance | completed:failure |
