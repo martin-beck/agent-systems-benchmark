@@ -222,6 +222,241 @@ fn executable_usage_failure_is_human_on_stdout_and_preserves_exit_two() {
 }
 
 #[test]
+fn ar1769_executable_diagnostic_matrix_covers_public_failure_boundaries() {
+    let scratch = Scratch::new();
+    let scenarios: [(&str, Vec<String>, i32, &str); 5] = [
+        (
+            "filesystem",
+            vec![
+                "--details".into(),
+                "run".into(),
+                "/definitely/missing/asb-plan.toml".into(),
+                "--local-mock".into(),
+            ],
+            3,
+            "required input",
+        ),
+        (
+            "configuration",
+            vec!["--details".into(), "setup".into(), "--not-an-option".into()],
+            2,
+            "arguments were not accepted",
+        ),
+        (
+            "tool-catalog",
+            vec![
+                "--details".into(),
+                "tool".into(),
+                "not-a-tool-command".into(),
+            ],
+            2,
+            "arguments were not accepted",
+        ),
+        (
+            "provider-plan",
+            vec!["--details".into(), "provider-plan".into()],
+            3,
+            "required input",
+        ),
+        (
+            "tui-lifecycle",
+            vec!["--details".into(), "tui".into(), "not-a-tui-command".into()],
+            2,
+            "arguments were not accepted",
+        ),
+    ];
+    for (name, args, exit, expected) in scenarios {
+        let output = isolated_asb(&scratch.0).args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(exit), "{name}");
+        assert!(output.stderr.is_empty(), "{name}");
+        let text = assert_private_human_output(&output);
+        assert!(text.contains(expected), "{name}: {text}");
+        assert!(text.contains("Affected "), "{name}: {text}");
+        assert!(text.contains("Recovery: "), "{name}: {text}");
+        assert!(text.contains("Diagnostic code:"), "{name}: {text}");
+        assert!(text.contains("Diagnostic cause:"), "{name}: {text}");
+    }
+
+    let provider_network = isolated_asb(&scratch.0)
+        .args([
+            "--details",
+            "auth",
+            "status",
+            "--provider",
+            "openrouter",
+            "--socket",
+            "/definitely/missing/asb.sock",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(provider_network.status.code(), Some(4));
+    assert!(provider_network.stderr.is_empty());
+    let provider_text = assert_private_human_output(&provider_network);
+    assert!(provider_text.contains("auth control service connection failed"));
+    assert!(provider_text.contains("Recovery:"));
+
+    let runtime = isolated_asb(&scratch.0)
+        .args([
+            "--details",
+            "replay-offline",
+            "/definitely/missing/cassette.json",
+        ])
+        .output()
+        .unwrap();
+    assert_ne!(runtime.status.code(), Some(0));
+    assert!(runtime.stderr.is_empty());
+    let runtime_text = assert_private_human_output(&runtime);
+    assert!(runtime_text.contains("Recovery:"));
+
+    let prepared = scratch.0.join("prepared-directory");
+    let directory = isolated_asb(&scratch.0)
+        .args(["project", "init"])
+        .arg(&prepared)
+        .output()
+        .unwrap();
+    assert!(directory.status.success());
+    assert!(String::from_utf8_lossy(&directory.stderr).contains("will create directory"));
+
+    let slow = scratch.0.join("slow-agent");
+    fs::write(&slow, "#!/bin/sh\nsleep 1\n").unwrap();
+    fs::set_permissions(&slow, fs::Permissions::from_mode(0o700)).unwrap();
+    // `PointPlan` polls at a five-millisecond minimum, so retain a timeout
+    // comfortably above that validation bound while still making the fixture
+    // deterministically exceed it.
+    let timeout_plan = create_public_plan(&scratch.0, "timeout", &slow, 50);
+    let timeout = isolated_asb(&scratch.0)
+        .args(["run"])
+        .arg(&timeout_plan)
+        .output()
+        .unwrap();
+    assert_ne!(timeout.status.code(), Some(0));
+    let timeout_text = assert_private_human_output(&timeout);
+    let timeout_normalized = timeout_text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        timeout_normalized.contains("The bounded deadline expired"),
+        "{timeout_normalized}"
+    );
+    assert!(
+        timeout_normalized.contains("Recovery:"),
+        "{timeout_normalized}"
+    );
+
+    let marker = scratch.0.join("cancellation-started");
+    let cancellable = scratch.0.join("cancellable-agent");
+    fs::write(
+        &cancellable,
+        format!(
+            "#!/bin/sh\nprintf started > '{}'\nexec /bin/sleep 30\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&cancellable, fs::Permissions::from_mode(0o700)).unwrap();
+    let cancellation_plan = create_public_plan(&scratch.0, "cancellation", &cancellable, 30_000);
+    let child = isolated_asb(&scratch.0)
+        .arg("run")
+        .arg(&cancellation_plan)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while !marker.exists() {
+        assert!(Instant::now() < deadline, "cancellable agent did not start");
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        Command::new("/bin/kill")
+            .args(["-INT", &child.id().to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let cancellation = child.wait_with_output().unwrap();
+    assert_eq!(cancellation.status.code(), Some(130));
+    let cancellation_text = assert_private_human_output(&cancellation);
+    assert!(cancellation_text.starts_with("ASB cancelled the benchmark run"));
+    assert!(cancellation_text.contains("Next: asb report "));
+
+    let partial_manifest = scratch.0.join("partial-campaign.json");
+    fs::write(
+        &partial_manifest,
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "provider_profile_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "agent_ids": ["codex"],
+            "workload_ids": ["original.bug-fix"],
+            "entries": []
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let partial = isolated_asb(&scratch.0)
+        .args(["record-campaign"])
+        .arg(&partial_manifest)
+        .arg("--local-mock")
+        .output()
+        .unwrap();
+    assert!(partial.status.success());
+    let partial_text = assert_private_human_output(&partial);
+    let partial_normalized = partial_text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(partial_text.starts_with("ASB completed part"));
+    assert!(
+        partial_normalized.contains("offline coverage is incomplete"),
+        "{partial_normalized}"
+    );
+    assert!(
+        partial_normalized.contains("did not produce a complete offline-ready cassette"),
+        "{partial_normalized}"
+    );
+
+    let warning = isolated_asb(&scratch.0)
+        .env_remove("OPENROUTER_API_KEY")
+        .args(["auth", "setup", "--provider", "openrouter"])
+        .output()
+        .unwrap();
+    assert!(warning.status.success());
+    let warning_text = assert_private_human_output(&warning);
+    assert!(warning_text.contains("no usable OpenRouter credential"));
+    assert!(warning_text.contains("offline setup remains available"));
+    assert!(warning_text.contains("Next: asb auth setup --provider openrouter --api-key-stdin"));
+
+    let redirected = isolated_asb(&scratch.0)
+        .args([
+            "--json",
+            "run",
+            "/definitely/missing/asb-plan.toml",
+            "--local-mock",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(redirected.status.code(), Some(3));
+    assert!(redirected.stderr.is_empty());
+    let envelope: serde_json::Value = serde_json::from_slice(&redirected.stdout).unwrap();
+    assert_eq!(envelope["error"]["exit_code"], 3);
+    assert_eq!(
+        envelope["error"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        vec!["code", "exit_code", "message"]
+    );
+    assert!(
+        !redirected
+            .stdout
+            .windows(b"/definitely".len())
+            .any(|part| part == b"/definitely")
+    );
+}
+
+#[test]
 fn executable_json_alias_is_machine_readable_and_not_styled() {
     let output = asb()
         .args(["--format", "json", "doctor"])

@@ -278,6 +278,40 @@ impl Diagnostic {
         }
     }
 
+    /// Classify an ordinary CLI literal at its public boundary.  The CLI has a
+    /// large established producer surface, so constructors must not reuse the
+    /// broad machine-envelope families (`usage`, `validation`, `operation`) as
+    /// their human diagnostic identity.  This resolver returns a closed
+    /// semantic identity and deliberately leaves an unrecognised future
+    /// literal uncatalogued for the mechanical contract test to reject.
+    pub fn for_cli_literal(message: &'static str, severity: Severity) -> Self {
+        let (cause, context) = classify_cli_literal(message);
+        Self {
+            code: cli_cause_code(cause),
+            severity,
+            cause,
+            context,
+        }
+    }
+
+    /// Resolve a quarantined legacy CLI producer through the checked-in,
+    /// call-site-specific catalog.  `Location` is captured at the producer,
+    /// so a new literal, multiline expression, or dynamic message cannot
+    /// inherit a reviewed identity merely because its prose contains familiar
+    /// words.
+    #[track_caller]
+    pub fn for_legacy_cli_callsite(severity: Severity) -> Self {
+        let location = std::panic::Location::caller();
+        let (code, cause) = legacy_cli_catalog(location.file(), location.line())
+            .unwrap_or(("cli_unreviewed_legacy_producer", Cause::UnknownCause));
+        Self {
+            code,
+            severity,
+            cause,
+            context: legacy_cli_context(cause),
+        }
+    }
+
     /// Return whether this code resolved to a reviewed non-fallback cause.
     pub fn is_catalogued(self) -> bool {
         self.cause != Cause::UnknownCause
@@ -444,6 +478,123 @@ impl Diagnostic {
         }
     }
 }
+
+const fn cli_cause_code(cause: Cause) -> &'static str {
+    match cause {
+        Cause::MissingParent => "cli_missing_parent",
+        Cause::MissingInput => "cli_missing_input",
+        Cause::AlreadyExists => "cli_already_exists",
+        Cause::NotDirectory => "cli_not_directory",
+        Cause::NotRegularFile => "cli_not_regular_file",
+        Cause::PermissionDenied => "cli_permission_denied",
+        Cause::ReadOnlyStorage => "cli_read_only_storage",
+        Cause::ResourceExhausted => "cli_resource_exhausted",
+        Cause::UnsafeTopology => "cli_unsafe_topology",
+        Cause::InvalidPath => "cli_invalid_path",
+        Cause::MalformedInput => "cli_malformed_input",
+        Cause::IncompatibleInput => "cli_incompatible_input",
+        Cause::StaleIdentity => "cli_stale_identity",
+        Cause::UnavailableCapability => "cli_unavailable_capability",
+        Cause::MissingTool => "cli_missing_tool",
+        Cause::ProviderAuthentication => "cli_provider_authentication",
+        Cause::ProviderRejection => "cli_provider_rejection",
+        Cause::LifecycleRejected => "cli_lifecycle_rejected",
+        Cause::TransportFailure => "cli_transport_failure",
+        Cause::Timeout => "cli_timeout",
+        Cause::Cancellation => "cli_cancellation",
+        Cause::PartialCompletion => "cli_partial_completion",
+        Cause::ReconciliationRequired => "cli_reconciliation_required",
+        Cause::UnexpectedProductFailure => "cli_product_failure",
+        Cause::UnknownCause => "cli_unclassified",
+    }
+}
+
+const fn legacy_cli_context(cause: Cause) -> Context {
+    match cause {
+        Cause::MissingInput | Cause::MalformedInput | Cause::IncompatibleInput => Context::new(
+            Subject::Input,
+            "validate_cli_input",
+            Phase::Validate,
+            StateChange::NotStarted,
+            Remediation::CorrectInput,
+        ),
+        Cause::MissingParent => Context::new(
+            Subject::Parent,
+            "inspect_cli_parent",
+            Phase::Inspect,
+            StateChange::NotStarted,
+            Remediation::CreateParent,
+        ),
+        Cause::InvalidPath
+        | Cause::AlreadyExists
+        | Cause::NotDirectory
+        | Cause::NotRegularFile
+        | Cause::UnsafeTopology => Context::new(
+            Subject::Target,
+            "inspect_cli_target",
+            Phase::Inspect,
+            StateChange::NotStarted,
+            Remediation::CheckDestination,
+        ),
+        Cause::PermissionDenied | Cause::ReadOnlyStorage | Cause::ResourceExhausted => {
+            Context::new(
+                Subject::Workspace,
+                "prepare_cli_workspace",
+                Phase::Prepare,
+                StateChange::NotStarted,
+                Remediation::CheckPermissions,
+            )
+        }
+        Cause::ProviderAuthentication | Cause::ProviderRejection | Cause::TransportFailure => {
+            Context::new(
+                Subject::Provider,
+                "communicate_provider",
+                Phase::Transport,
+                StateChange::NotStarted,
+                Remediation::CheckProvider,
+            )
+        }
+        Cause::Timeout | Cause::Cancellation | Cause::PartialCompletion => Context::new(
+            Subject::Attempt,
+            "execute_benchmark",
+            Phase::Execute,
+            StateChange::Unknown,
+            Remediation::Reconcile,
+        ),
+        Cause::ReconciliationRequired | Cause::StaleIdentity | Cause::LifecycleRejected => {
+            Context::new(
+                Subject::State,
+                "reconcile_state",
+                Phase::Reconcile,
+                StateChange::Unknown,
+                Remediation::Reconcile,
+            )
+        }
+        Cause::MissingTool | Cause::UnavailableCapability => Context::new(
+            Subject::Capability,
+            "inspect_capability",
+            Phase::Discover,
+            StateChange::NotStarted,
+            Remediation::RunDoctor,
+        ),
+        Cause::UnexpectedProductFailure => Context::new(
+            Subject::Workspace,
+            "execute_cli_operation",
+            Phase::Execute,
+            StateChange::Unknown,
+            Remediation::Reconcile,
+        ),
+        Cause::UnknownCause => Context::new(
+            Subject::Unknown,
+            "unknown",
+            Phase::Inspect,
+            StateChange::Unknown,
+            Remediation::None,
+        ),
+    }
+}
+
+include!("diagnostic_legacy_catalog.rs");
 
 fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     // Stable operation codes from the provider and routed-TUI boundaries.
@@ -1506,6 +1657,297 @@ fn classify(code: &'static str, message: &'static str) -> (Cause, Context) {
     )
 }
 
+fn classify_cli_literal(message: &'static str) -> (Cause, Context) {
+    let classified = classify("cli_literal", message);
+    if classified.0 != Cause::UnknownCause
+        && !(classified.0 == Cause::UnexpectedProductFailure
+            && classified.1.subject == Subject::Unknown)
+    {
+        return classified;
+    }
+
+    let context = |subject, operation, phase, remediation| {
+        Context::new(
+            subject,
+            operation,
+            phase,
+            StateChange::NotStarted,
+            remediation,
+        )
+    };
+    if message_contains(message, "requires")
+        || message_contains(message, "is missing")
+        || message_contains(message, "has no ")
+        || message_contains(message, "lacks ")
+    {
+        return (
+            Cause::MissingInput,
+            context(
+                Subject::Input,
+                "validate_input",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "must be")
+        || message_contains(message, "option")
+        || message_contains(message, "arguments")
+        || message_contains(message, "supplied twice")
+        || message_contains(message, "out of range")
+    {
+        return (
+            Cause::MalformedInput,
+            context(
+                Subject::Option,
+                "validate_option",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "overflow") || message_contains(message, "exceeds its bound") {
+        return (
+            Cause::ResourceExhausted,
+            context(
+                Subject::Input,
+                "bound_input",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "stale") || message_contains(message, "changed before") {
+        return (
+            Cause::StaleIdentity,
+            context(
+                Subject::State,
+                "verify_identity",
+                Phase::Validate,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "provider") || message_contains(message, "OpenRouter") {
+        return (
+            Cause::TransportFailure,
+            context(
+                Subject::Provider,
+                "communicate",
+                Phase::Transport,
+                Remediation::CheckProvider,
+            ),
+        );
+    }
+    if message_contains(message, "configuration") || message_contains(message, "selection") {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Configuration,
+                "configure",
+                Phase::Commit,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "recording")
+        || message_contains(message, "replay")
+        || message_contains(message, "cassette")
+        || message_contains(message, "experiment")
+        || message_contains(message, "plan")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Artifact,
+                "validate_artifact",
+                Phase::Validate,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "workload") || message_contains(message, "evaluation") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Capability,
+                "prepare_workload",
+                Phase::Prepare,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "auth") || message_contains(message, "relay") {
+        return (
+            Cause::TransportFailure,
+            context(
+                Subject::Transport,
+                "communicate",
+                Phase::Transport,
+                Remediation::CheckProvider,
+            ),
+        );
+    }
+    if message_contains(message, "signal")
+        || message_contains(message, "SIGINT")
+        || message_contains(message, "SIGTERM")
+        || message_contains(message, "clock")
+        || message_contains(message, "adapter")
+        || message_contains(message, "rust")
+    {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Capability,
+                "probe_capability",
+                Phase::Inspect,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "API key")
+        || message_contains(message, "api-key")
+        || message_contains(message, "--json")
+    {
+        return (
+            Cause::MalformedInput,
+            context(
+                Subject::Option,
+                "validate_option",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "workspace") {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Workspace,
+                "prepare_workspace",
+                Phase::Cleanup,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "result store") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Store,
+                "open_store",
+                Phase::Inspect,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "rollback target") {
+        return (
+            Cause::MissingInput,
+            context(
+                Subject::State,
+                "select_rollback",
+                Phase::Inspect,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "completion") || message_contains(message, "project init") {
+        return (
+            Cause::IncompatibleInput,
+            context(
+                Subject::Option,
+                "validate_command",
+                Phase::Validate,
+                Remediation::CorrectInput,
+            ),
+        );
+    }
+    if message_contains(message, "redaction") || message_contains(message, "local/mock owner") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Capability,
+                "probe_capability",
+                Phase::Inspect,
+                Remediation::RunDoctor,
+            ),
+        );
+    }
+    if message_contains(message, "easy build") || message_contains(message, "execution definition")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Artifact,
+                "prepare_artifact",
+                Phase::Prepare,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "tool") {
+        return (
+            Cause::UnavailableCapability,
+            context(
+                Subject::Tool,
+                "inspect_tool",
+                Phase::Inspect,
+                Remediation::InstallTool,
+            ),
+        );
+    }
+    if message_contains(message, "output") || message_contains(message, "directory") {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Output,
+                "write_output",
+                Phase::Commit,
+                Remediation::CheckDestination,
+            ),
+        );
+    }
+    if message_contains(message, "agent")
+        || message_contains(message, "process")
+        || message_contains(message, "prompt")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::Attempt,
+                "execute",
+                Phase::Execute,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    if message_contains(message, "state")
+        || message_contains(message, "journal")
+        || message_contains(message, "run ")
+    {
+        return (
+            Cause::UnexpectedProductFailure,
+            context(
+                Subject::State,
+                "operate",
+                Phase::Commit,
+                Remediation::Reconcile,
+            ),
+        );
+    }
+    (
+        Cause::UnknownCause,
+        Context::new(
+            Subject::Unknown,
+            "unknown",
+            Phase::Validate,
+            StateChange::Unknown,
+            Remediation::None,
+        ),
+    )
+}
+
 /// Stable routed producers with an explicit reviewed catalog mapping.
 ///
 /// Keeping this inventory beside the resolver makes omissions test-visible;
@@ -1658,8 +2100,22 @@ fn message_contains(message: &str, needle: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        CATALOGUED_CODES, Cause, Context, Diagnostic, Remediation, Severity, StateChange, Subject,
+        CATALOGUED_CODES, Cause, Context, Diagnostic, LEGACY_CLI_CATALOG, Remediation, Severity,
+        StateChange, Subject, cli_cause_code, legacy_cli_catalog, legacy_cli_context,
     };
+    use std::hint::black_box;
+
+    #[test]
+    fn every_legacy_producer_location_resolves_to_its_reviewed_identity() {
+        for &(file, line, expected_code, expected_cause) in LEGACY_CLI_CATALOG {
+            assert_eq!(
+                legacy_cli_catalog(file, line),
+                Some((expected_code, expected_cause)),
+                "legacy diagnostic catalog entry {file}:{line}"
+            );
+        }
+        assert_eq!(legacy_cli_catalog("unknown.rs", 0), None);
+    }
 
     #[test]
     fn required_fine_grained_causes_remain_distinct() {
@@ -1776,7 +2232,7 @@ mod tests {
             let diagnostic = Diagnostic {
                 code: "catalog-test",
                 severity: Severity::Failure,
-                cause,
+                cause: black_box(cause),
                 context: Context::new(
                     Subject::Target,
                     "test",
@@ -1785,17 +2241,261 @@ mod tests {
                     Remediation::None,
                 ),
             };
-            assert!(!diagnostic.cause_explanation().is_empty());
-            assert!(!diagnostic.subject_label().is_empty());
-            assert!(!diagnostic.state_change_explanation().is_empty());
-            assert!(!diagnostic.remediation_explanation().is_empty());
+            assert!(!black_box(diagnostic).cause_explanation().is_empty());
+            assert!(!black_box(diagnostic).subject_label().is_empty());
+            assert!(!black_box(diagnostic).state_change_explanation().is_empty());
+            assert!(!black_box(diagnostic).remediation_explanation().is_empty());
+            assert!(black_box(cli_cause_code(cause)).starts_with("cli_"));
+            assert!(!legacy_cli_context(black_box(cause)).operation.is_empty());
+        }
+    }
+
+    #[test]
+    fn public_rendering_covers_every_closed_context_dimension_at_runtime() {
+        let subjects = [
+            Subject::Parent,
+            Subject::Input,
+            Subject::Target,
+            Subject::Option,
+            Subject::Configuration,
+            Subject::Tool,
+            Subject::Provider,
+            Subject::Capability,
+            Subject::Transport,
+            Subject::Run,
+            Subject::Attempt,
+            Subject::Store,
+            Subject::Catalog,
+            Subject::Workspace,
+            Subject::Channel,
+            Subject::Artifact,
+            Subject::CredentialReference,
+            Subject::Output,
+            Subject::State,
+            Subject::Unknown,
+        ];
+        let states = [
+            StateChange::NotStarted,
+            StateChange::Unchanged,
+            StateChange::Created,
+            StateChange::Updated,
+            StateChange::PartiallyCompleted,
+            StateChange::Completed,
+            StateChange::RolledBack,
+            StateChange::Unknown,
+        ];
+        let remediations = [
+            Remediation::None,
+            Remediation::CorrectInput,
+            Remediation::CreateParent,
+            Remediation::CheckDestination,
+            Remediation::CheckPermissions,
+            Remediation::InstallTool,
+            Remediation::AuthenticateProvider,
+            Remediation::CheckProvider,
+            Remediation::Retry,
+            Remediation::Reconcile,
+            Remediation::RunDoctor,
+            Remediation::UseOfflineReplay,
+        ];
+
+        for subject in subjects {
+            let diagnostic = Diagnostic {
+                code: "runtime-subject",
+                severity: Severity::Failure,
+                cause: Cause::UnexpectedProductFailure,
+                context: Context::new(
+                    black_box(subject),
+                    "render_subject",
+                    super::Phase::Inspect,
+                    StateChange::Unchanged,
+                    Remediation::None,
+                ),
+            };
+            assert!(!black_box(diagnostic).subject_label().is_empty());
+        }
+        for state_change in states {
+            let diagnostic = Diagnostic {
+                code: "runtime-state",
+                severity: Severity::Failure,
+                cause: Cause::UnexpectedProductFailure,
+                context: Context::new(
+                    Subject::State,
+                    "render_state",
+                    super::Phase::Inspect,
+                    black_box(state_change),
+                    Remediation::None,
+                ),
+            };
+            assert!(!black_box(diagnostic).state_change_explanation().is_empty());
+        }
+        for remediation in remediations {
+            let diagnostic = Diagnostic {
+                code: "runtime-remediation",
+                severity: Severity::Failure,
+                cause: Cause::UnexpectedProductFailure,
+                context: Context::new(
+                    Subject::State,
+                    "render_remediation",
+                    super::Phase::Inspect,
+                    StateChange::Unchanged,
+                    black_box(remediation),
+                ),
+            };
+            assert!(!black_box(diagnostic).remediation_explanation().is_empty());
+        }
+    }
+
+    #[test]
+    fn ordinary_cli_literals_select_their_specific_runtime_contexts() {
+        let cases = [
+            ("requires input", Cause::MissingInput, Subject::Input),
+            ("option value", Cause::MalformedInput, Subject::Option),
+            ("overflow", Cause::ResourceExhausted, Subject::Input),
+            ("stale selection", Cause::StaleIdentity, Subject::State),
+            ("provider route", Cause::TransportFailure, Subject::Provider),
+            (
+                "configuration selection",
+                Cause::UnexpectedProductFailure,
+                Subject::Configuration,
+            ),
+            (
+                "recording artifact",
+                Cause::UnexpectedProductFailure,
+                Subject::Artifact,
+            ),
+            (
+                "workload profile",
+                Cause::UnavailableCapability,
+                Subject::Capability,
+            ),
+            ("auth relay", Cause::TransportFailure, Subject::Transport),
+            (
+                "signal adapter",
+                Cause::UnavailableCapability,
+                Subject::Capability,
+            ),
+            ("API key", Cause::MalformedInput, Subject::Option),
+            (
+                "workspace root",
+                Cause::UnexpectedProductFailure,
+                Subject::Workspace,
+            ),
+            ("result store", Cause::UnavailableCapability, Subject::Store),
+            ("rollback target", Cause::MissingInput, Subject::State),
+            (
+                "completion request",
+                Cause::IncompatibleInput,
+                Subject::Option,
+            ),
+            (
+                "redaction policy",
+                Cause::UnavailableCapability,
+                Subject::Capability,
+            ),
+            (
+                "easy build",
+                Cause::UnexpectedProductFailure,
+                Subject::Artifact,
+            ),
+            ("tool catalog", Cause::UnavailableCapability, Subject::Tool),
+            (
+                "output destination",
+                Cause::UnexpectedProductFailure,
+                Subject::Output,
+            ),
+            (
+                "agent process",
+                Cause::UnexpectedProductFailure,
+                Subject::Attempt,
+            ),
+            (
+                "state journal",
+                Cause::UnexpectedProductFailure,
+                Subject::State,
+            ),
+            ("opaque literal", Cause::UnknownCause, Subject::Unknown),
+        ];
+
+        for (message, expected_cause, expected_subject) in cases {
+            let diagnostic =
+                Diagnostic::for_cli_literal(black_box(message), black_box(Severity::Failure));
+            assert_eq!(diagnostic.cause, expected_cause, "{message}");
+            assert_eq!(diagnostic.context.subject, expected_subject, "{message}");
+            assert!(diagnostic.is_catalogued() || expected_cause == Cause::UnknownCause);
+        }
+    }
+
+    #[test]
+    fn unreviewed_codes_preserve_specific_runtime_message_classification() {
+        let cases = [
+            (
+                "parent is unavailable",
+                Cause::MissingParent,
+                Subject::Parent,
+            ),
+            ("tool is not installed", Cause::MissingTool, Subject::Tool),
+            ("input is missing", Cause::MissingInput, Subject::Input),
+            (
+                "target already exists",
+                Cause::AlreadyExists,
+                Subject::Target,
+            ),
+            ("unsafe symlink", Cause::UnsafeTopology, Subject::Target),
+            (
+                "target is not a directory",
+                Cause::NotDirectory,
+                Subject::Target,
+            ),
+            (
+                "input regular file cannot be opened",
+                Cause::NotRegularFile,
+                Subject::Input,
+            ),
+            ("access denied", Cause::PermissionDenied, Subject::Target),
+            ("read-only store", Cause::ReadOnlyStorage, Subject::Store),
+            ("path is invalid", Cause::InvalidPath, Subject::Input),
+            ("request timed out", Cause::Timeout, Subject::Attempt),
+            ("operation cancelled", Cause::Cancellation, Subject::Attempt),
+            (
+                "reconciliation required",
+                Cause::ReconciliationRequired,
+                Subject::State,
+            ),
+            ("malformed syntax", Cause::MalformedInput, Subject::Input),
+            (
+                "incompatible selection",
+                Cause::IncompatibleInput,
+                Subject::Input,
+            ),
+            ("deadline expired", Cause::Timeout, Subject::Attempt),
+            (
+                "operation failed",
+                Cause::UnexpectedProductFailure,
+                Subject::Unknown,
+            ),
+            ("opaque prose", Cause::UnknownCause, Subject::Unknown),
+        ];
+
+        for (message, expected_cause, expected_subject) in cases {
+            let diagnostic = Diagnostic::for_code(
+                black_box("runtime_unreviewed_code"),
+                black_box(message),
+                black_box(Severity::Failure),
+            );
+            assert_eq!(diagnostic.cause, expected_cause, "{message}");
+            assert_eq!(diagnostic.context.subject, expected_subject, "{message}");
         }
     }
 
     #[test]
     fn every_catalogued_producer_has_an_explicit_cause_and_context() {
         for &(code, expected_cause) in CATALOGUED_CODES {
-            let diagnostic = Diagnostic::for_code(code, code, Severity::Failure);
+            let diagnostic = Diagnostic::for_code(
+                black_box(code),
+                black_box(code),
+                black_box(Severity::Failure),
+            );
             assert_eq!(
                 diagnostic.cause, expected_cause,
                 "catalog mapping for {code}"

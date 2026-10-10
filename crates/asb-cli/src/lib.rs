@@ -115,6 +115,15 @@ static RECORDING_TRANSACTION_NONCE: AtomicU64 = AtomicU64::new(0);
 #[cfg(test)]
 static FAIL_RECORDING_INSTALL_AT: AtomicU64 = AtomicU64::new(u64::MAX);
 
+/// Return the closed public top-level command inventory.
+///
+/// This is shared by dispatch/help presentation and diagnostic qualification so
+/// a new public command cannot silently escape the executable negative journey.
+#[must_use]
+pub fn public_command_inventory() -> &'static [&'static str] {
+    human::PUBLIC_COMMANDS
+}
+
 /// Run the command-line interface with process standard streams.
 #[must_use]
 pub fn entry(args: Vec<OsString>) -> ExitCode {
@@ -262,12 +271,12 @@ fn parse_output_mode(
         let arg = &args[index];
         if arg == "--json" {
             if json {
-                return Err(CliError::usage("--json was supplied more than once"));
+                return Err(CliError::legacy_usage("--json was supplied more than once"));
             }
             json = true;
         } else if human_default && (arg == "--details" || arg == "--verbose") {
             if details {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "--details or --verbose was supplied more than once",
                 ));
             }
@@ -286,7 +295,7 @@ fn parse_output_mode(
         index += 1;
     }
     if json && details {
-        return Err(CliError::usage(
+        return Err(CliError::legacy_usage(
             "--details cannot be combined with machine-readable JSON output",
         ));
     }
@@ -622,7 +631,7 @@ fn run_local_mock_entry_result(
         [command, path] if command == "run" => (path.as_str(), false),
         [command, path] if command == "sweep" => (path.as_str(), true),
         _ => {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "runtime local/mock entry expects run or sweep",
             ));
         }
@@ -648,7 +657,7 @@ fn run_local_mock_dispatch(
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     if args.len() != 3 {
-        return Err(CliError::usage(
+        return Err(CliError::legacy_usage(
             "runtime local/mock entry expects run or sweep",
         ));
     }
@@ -658,13 +667,13 @@ fn run_local_mock_dispatch(
         "a".repeat(64),
         "b".repeat(64),
     )
-    .map_err(|_| CliError::operation("runtime-owned local/mock owner unavailable"))?;
+    .map_err(|_| CliError::legacy_operation("runtime-owned local/mock owner unavailable"))?;
     let owner = Arc::new(Mutex::new(owner));
     owner
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .enroll()
-        .map_err(|_| CliError::operation("runtime-owned local/mock owner unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("runtime-owned local/mock owner unavailable"))?;
     let result = run_local_mock_entry_result(
         &args[..2],
         Arc::clone(&owner),
@@ -676,7 +685,7 @@ fn run_local_mock_dispatch(
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .teardown()
-        .map_err(|_| CliError::operation("runtime-owned local/mock owner teardown failed"));
+        .map_err(|_| CliError::legacy_operation("runtime-owned local/mock owner teardown failed"));
     match (result, teardown) {
         (Err(error), _) | (Ok(_), Err(error)) => Err(error),
         (Ok(exit_code), Ok(())) => Ok(exit_code),
@@ -720,22 +729,22 @@ fn run_opencode_batch(
 ) -> Result<u8, CliError> {
     let timeout_ms = timeout_ms
         .parse::<u64>()
-        .map_err(|_| CliError::usage("OpenCode batch timeout is invalid"))?;
+        .map_err(|_| CliError::legacy_usage("OpenCode batch timeout is invalid"))?;
     let mut input = Vec::new();
     stdin
-        .ok_or_else(|| CliError::operation("OpenCode batch prompt is unavailable"))?
+        .ok_or_else(|| CliError::legacy_operation("OpenCode batch prompt is unavailable"))?
         .take(asb_agents::opencode::MAX_PROMPT_BYTES as u64 + 1)
         .read_to_end(&mut input)
-        .map_err(|_| CliError::operation("OpenCode batch prompt cannot be read"))?;
+        .map_err(|_| CliError::legacy_operation("OpenCode batch prompt cannot be read"))?;
     if input.len() > asb_agents::opencode::MAX_PROMPT_BYTES {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "OpenCode batch prompt exceeds its bound",
         ));
     }
     let prompt = String::from_utf8(input)
-        .map_err(|_| CliError::validation("OpenCode batch prompt is not UTF-8"))?;
+        .map_err(|_| CliError::legacy_validation("OpenCode batch prompt is not UTF-8"))?;
     let endpoint = Url::parse(asb_agents::openrouter::OPENROUTER_API_BASE)
-        .map_err(|_| CliError::operation("OpenRouter endpoint is unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("OpenRouter endpoint is unavailable"))?;
     let adapter = OpenCodeConfig::new(
         binary,
         workspace,
@@ -744,7 +753,7 @@ fn run_opencode_batch(
         model,
         OpenCodeArtifact::LinuxX86_64V1_18_29,
     )
-    .map_err(|_| CliError::validation("pinned OpenCode adapter configuration is invalid"))?;
+    .map_err(|_| CliError::legacy_validation("pinned OpenCode adapter configuration is invalid"))?;
     let limits = ProcessLimits::new(
         asb_runtime::MAX_CAPTURE_BYTES,
         asb_runtime::MAX_CAPTURE_BYTES,
@@ -752,7 +761,7 @@ fn run_opencode_batch(
         Duration::from_secs(1),
         Duration::from_millis(10),
     )
-    .map_err(|_| CliError::validation("OpenCode batch timeout is outside its bound"))?;
+    .map_err(|_| CliError::legacy_validation("OpenCode batch timeout is outside its bound"))?;
     let mut running = adapter
         .start(
             Id("asb-batch-session".into()),
@@ -760,14 +769,14 @@ fn run_opencode_batch(
             &prompt,
             limits,
         )
-        .map_err(|_| CliError::operation("pinned OpenCode adapter could not start"))?;
+        .map_err(|_| CliError::legacy_operation("pinned OpenCode adapter could not start"))?;
     let outcome = running.wait().map_err(|_| {
-        CliError::operation("pinned OpenCode adapter did not yield terminal evidence")
+        CliError::legacy_operation("pinned OpenCode adapter did not yield terminal evidence")
     })?;
     if outcome.status() == TerminalStatus::Completed && outcome.exit_code() == Some(0) {
         Ok(0)
     } else {
-        Err(CliError::operation(
+        Err(CliError::legacy_operation(
             "pinned OpenCode adapter reported a failed attempt",
         ))
     }
@@ -794,7 +803,9 @@ fn dispatch(
         .collect::<Vec<_>>();
     let word_refs = words.iter().map(String::as_str).collect::<Vec<_>>();
     if human::InvocationKind::classify_words(&word_refs) == human::InvocationKind::Cli {
-        return Err(CliError::usage("unsupported arguments; use asb --help"));
+        return Err(CliError::legacy_usage(
+            "unsupported arguments; use asb --help",
+        ));
     }
     match words.as_slice() {
         [command, binary, workspace, state_root, model, timeout_ms]
@@ -1145,7 +1156,9 @@ fn dispatch(
         {
             replay_offline_development_fixture(Path::new(cassette), profile, agent, stdout, stderr)
         }
-        _ => Err(CliError::usage("unsupported arguments; use asb --help")),
+        _ => Err(CliError::legacy_usage(
+            "unsupported arguments; use asb --help",
+        )),
     }
 }
 
@@ -1168,9 +1181,9 @@ fn record_openrouter_live_with_progress(
 ) -> Result<(), CliError> {
     let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "OpenRouter live capture request")?;
     let request: OpenRouterLiveCaptureInput = serde_json::from_slice(&bytes)
-        .map_err(|_| CliError::validation("OpenRouter live capture request is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("OpenRouter live capture request is invalid"))?;
     if request.schema_version != asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "OpenRouter live capture schema version is unsupported",
         ));
     }
@@ -1184,15 +1197,15 @@ fn record_openrouter_live_with_progress(
         "mini-swe" => OpenRouterAgent::MiniSwe,
         "openhands" => OpenRouterAgent::OpenHands,
         _ => {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "OpenRouter live capture agent is unsupported",
             ));
         }
     };
     let profile = OpenRouterProfile::new(request.provider_profile_sha256.clone())
-        .map_err(|_| CliError::validation("OpenRouter provider profile is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("OpenRouter provider profile is invalid"))?;
     let request_bytes = serde_json::to_vec(&request.request_body)
-        .map_err(|_| CliError::validation("OpenRouter request body cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_validation("OpenRouter request body cannot be encoded"))?;
     let response = capture_openrouter_live(&profile, agent, &request_bytes)
         .map_err(openrouter_live_cli_error)?;
     record_openrouter_live_response(&request, agent, response, output, stdout, progress)
@@ -1246,19 +1259,21 @@ fn record_openrouter_live_response(
     progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     let response_body: Value = serde_json::from_slice(&response.body)
-        .map_err(|_| CliError::operation("OpenRouter response was not JSON"))?;
+        .map_err(|_| CliError::legacy_operation("OpenRouter response was not JSON"))?;
     let request_body_sha256 = format!(
         "{:x}",
         Sha256::digest(
-            &asb_replay::canonical_json_bytes(&request.request_body)
-                .map_err(|_| CliError::operation("OpenRouter request cannot be canonicalized"))?,
+            &asb_replay::canonical_json_bytes(&request.request_body).map_err(|_| {
+                CliError::legacy_operation("OpenRouter request cannot be canonicalized")
+            })?,
         )
     );
     let response_body_sha256 = format!(
         "{:x}",
         Sha256::digest(
-            &asb_replay::canonical_json_bytes(&response_body)
-                .map_err(|_| CliError::operation("OpenRouter response cannot be canonicalized"))?,
+            &asb_replay::canonical_json_bytes(&response_body).map_err(|_| {
+                CliError::legacy_operation("OpenRouter response cannot be canonicalized")
+            })?,
         )
     );
     let path = if matches!(agent, OpenRouterAgent::Codex) {
@@ -1326,14 +1341,14 @@ fn record_openrouter_live_response(
             normalization: PolicyVersion { version: 1 },
             redaction: asb_replay::RedactionPolicy::default()
                 .descriptor()
-                .map_err(|_| CliError::operation("redaction policy unavailable"))?,
+                .map_err(|_| CliError::legacy_operation("redaction policy unavailable"))?,
             interactions: vec![interaction],
         },
     };
     let artifact = seal_recording(capture, Default::default(), CassetteLimits::default())
-        .map_err(|_| CliError::operation("OpenRouter live capture could not be sealed"))?;
+        .map_err(|_| CliError::legacy_operation("OpenRouter live capture could not be sealed"))?;
     let encoded = serde_json::to_vec(&artifact.cassette)
-        .map_err(|_| CliError::operation("OpenRouter live cassette cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("OpenRouter live cassette cannot be encoded"))?;
     write_atomic_private(output, &encoded, DirectoryPurpose::Recording, progress)?;
     write_json(stdout, &artifact.metadata)
 }
@@ -1343,7 +1358,7 @@ fn unicode_args(args: &[OsString]) -> Result<Vec<String>, CliError> {
         .map(|arg| {
             arg.clone()
                 .into_string()
-                .map_err(|_| CliError::usage("arguments must be valid UTF-8"))
+                .map_err(|_| CliError::legacy_usage("arguments must be valid UTF-8"))
         })
         .collect()
 }
@@ -1424,7 +1439,7 @@ fn guided_local_with_context(
     }
     if args[0] == "record-live" && args.len() == 5 {
         if args[3] != "--local-mock" || args[4] != "--confirm-record" {
-            return Err(CliError::usage(
+            return Err(CliError::legacy_usage(
                 "easy record-live requires --local-mock --confirm-record",
             ));
         }
@@ -1449,7 +1464,7 @@ fn guided_local_with_context(
     }
     if args.len() == 3 && args[0] == "record-campaign" {
         if args[2] != "--local-mock" {
-            return Err(CliError::usage(
+            return Err(CliError::legacy_usage(
                 "easy record-campaign accepts only --local-mock",
             ));
         }
@@ -1462,12 +1477,12 @@ fn guided_local_with_context(
         .map(|()| 0);
     }
     if args.len() != 4 {
-        return Err(CliError::usage(
+        return Err(CliError::legacy_usage(
             "easy requires run|sweep PATH --use-config --local-mock",
         ));
     }
     if args[1].is_empty() || !args[2..].iter().any(|flag| flag == "--use-config") {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "easy requires an experiment path and --use-config",
         ));
     }
@@ -1476,12 +1491,12 @@ fn guided_local_with_context(
             .iter()
             .any(|flag| !matches!(flag.as_str(), "--use-config" | "--local-mock"))
     {
-        return Err(CliError::usage(
+        return Err(CliError::legacy_usage(
             "easy accepts only --use-config and --local-mock",
         ));
     }
     let store = ConfigStore::from_environment()
-        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
     guided_local_at(args, &store, output, progress, presentation_context)
 }
 
@@ -1493,7 +1508,7 @@ fn guided_path(value: &str, label: &'static str) -> Result<PathBuf, CliError> {
             .any(|component| component == Component::ParentDir)
     {
         let _ = label;
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "guided path must be absolute and cannot contain '..'",
         ));
     }
@@ -1516,9 +1531,9 @@ fn guided_setup_with_progress(
                 index += 2;
             }
             "--provider-profile" | "--model" | "--output" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| CliError::usage("guided setup option is missing a value"))?;
+                let value = args.get(index + 1).ok_or_else(|| {
+                    CliError::legacy_usage("guided setup option is missing a value")
+                })?;
                 if args[index] == "--provider-profile" {
                     profile = Some(value.as_str());
                 } else if args[index] == "--model" {
@@ -1528,11 +1543,11 @@ fn guided_setup_with_progress(
                 }
                 index += 2;
             }
-            _ => return Err(CliError::usage("unsupported guided setup option")),
+            _ => return Err(CliError::legacy_usage("unsupported guided setup option")),
         }
     }
     if profile.is_some() != model.is_some() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "guided setup provider and model must be selected together",
         ));
     }
@@ -1556,18 +1571,18 @@ fn guided_setup_with_progress(
                 }
             }
             "ollama" => {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "guided setup provider is unavailable without verified local daemon evidence",
                 ));
             }
             _ => {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "guided setup provider is not in the catalog",
                 ));
             }
         };
         if model != expected {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "guided setup model is not the catalog-advertised model for this provider",
             ));
         }
@@ -1601,9 +1616,9 @@ fn easy_lifecycle_root() -> Result<PathBuf, CliError> {
         .or_else(|| {
             std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("state"))
         })
-        .ok_or_else(|| CliError::operation("ASB lifecycle state location is unavailable"))?;
+        .ok_or_else(|| CliError::legacy_operation("ASB lifecycle state location is unavailable"))?;
     if !root.is_absolute() || root.components().any(|c| c == Component::ParentDir) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "ASB lifecycle state location is unsafe",
         ));
     }
@@ -1620,21 +1635,25 @@ fn easy_channel(args: &[String]) -> Result<(String, bool, bool), CliError> {
             "--yes" => yes = true,
             "--dry-run" => dry_run = true,
             "--channel" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| CliError::usage("easy lifecycle --channel requires a value"))?;
+                let value = args.get(index + 1).ok_or_else(|| {
+                    CliError::legacy_usage("easy lifecycle --channel requires a value")
+                })?;
                 if channel.replace(value.clone()).is_some() {
-                    return Err(CliError::usage("easy lifecycle channel was supplied twice"));
+                    return Err(CliError::legacy_usage(
+                        "easy lifecycle channel was supplied twice",
+                    ));
                 }
                 index += 1;
             }
             value if value.starts_with("--channel=") => {
                 let value = value.trim_start_matches("--channel=");
                 if value.is_empty() || channel.replace(value.to_owned()).is_some() {
-                    return Err(CliError::usage("easy lifecycle channel was supplied twice"));
+                    return Err(CliError::legacy_usage(
+                        "easy lifecycle channel was supplied twice",
+                    ));
                 }
             }
-            _ => return Err(CliError::usage("unsupported easy lifecycle option")),
+            _ => return Err(CliError::legacy_usage("unsupported easy lifecycle option")),
         }
         index += 1;
     }
@@ -1643,12 +1662,12 @@ fn easy_channel(args: &[String]) -> Result<(String, bool, bool), CliError> {
         channel.as_str(),
         "dev" | "stable" | "nightly" | "experimental"
     ) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "easy lifecycle channel is unavailable",
         ));
     }
     if matches!(channel.as_str(), "nightly" | "experimental") {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "selected channel is not available in the development lifecycle",
         ));
     }
@@ -1665,14 +1684,14 @@ fn easy_state(root: &Path) -> Result<EasyLifecycleState, CliError> {
     }
     serde_json::from_slice(
         &fs::read(path)
-            .map_err(|_| CliError::operation("easy lifecycle state could not be read"))?,
+            .map_err(|_| CliError::legacy_operation("easy lifecycle state could not be read"))?,
     )
-    .map_err(|_| CliError::operation("easy lifecycle state is invalid"))
+    .map_err(|_| CliError::legacy_operation("easy lifecycle state is invalid"))
 }
 
 fn easy_write_state(root: &Path, state: &EasyLifecycleState) -> Result<(), CliError> {
     let encoded = serde_json::to_vec(state)
-        .map_err(|_| CliError::operation("easy lifecycle state cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("easy lifecycle state cannot be encoded"))?;
     write_atomic_private(
         &root.join("state.json"),
         &encoded,
@@ -1759,7 +1778,7 @@ fn guided_lifecycle_at_with_progress(
         requested_channel
     };
     if !dry_run && matches!(operation, "install" | "update" | "rollback" | "remove") && !yes {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "easy lifecycle mutation requires --yes (or use --dry-run)",
         ));
     }
@@ -1806,7 +1825,7 @@ fn guided_lifecycle_at_with_progress(
                 DirectoryPurpose::Lifecycle,
                 None,
             )
-            .map_err(|_| CliError::operation("easy build failed"))?;
+            .map_err(|_| CliError::legacy_operation("easy build failed"))?;
             easy_lifecycle_output(
                 output,
                 operation,
@@ -1852,7 +1871,7 @@ fn guided_lifecycle_at_with_progress(
         }
         "test" => {
             if !state.installed {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "easy lifecycle test requires an installation",
                 ));
             }
@@ -1870,7 +1889,7 @@ fn guided_lifecycle_at_with_progress(
             let prior = state
                 .previous_channel
                 .clone()
-                .ok_or_else(|| CliError::validation("no rollback target is recorded"))?;
+                .ok_or_else(|| CliError::legacy_validation("no rollback target is recorded"))?;
             state.active_channel = Some(prior.clone());
             state.previous_channel = None;
             state.generation = state.generation.saturating_add(1);
@@ -1916,7 +1935,7 @@ fn guided_local_at(
     let sweep = match args[0].as_str() {
         "run" => false,
         "sweep" => true,
-        _ => return Err(CliError::usage("easy requires run or sweep")),
+        _ => return Err(CliError::legacy_usage("easy requires run or sweep")),
     };
     execute_inner_from_source(
         Path::new(&args[1]),
@@ -1956,7 +1975,7 @@ fn read_api_key_stdin(input: &mut dyn Read) -> Result<Vec<u8>, CliError> {
         .is_err()
     {
         value.fill(0);
-        return Err(CliError::operation("API key input cannot be read"));
+        return Err(CliError::legacy_operation("API key input cannot be read"));
     }
     while value
         .last()
@@ -1966,7 +1985,9 @@ fn read_api_key_stdin(input: &mut dyn Read) -> Result<Vec<u8>, CliError> {
     }
     if value.is_empty() || value.len() > asb_agents::credential::MAX_CREDENTIAL_BYTES {
         value.fill(0);
-        return Err(CliError::validation("API key input is empty or too large"));
+        return Err(CliError::legacy_validation(
+            "API key input is empty or too large",
+        ));
     }
     Ok(value)
 }
@@ -1984,45 +2005,49 @@ fn auth_setup(
         match args[index].as_str() {
             "--provider" => {
                 if provider.is_some() {
-                    return Err(CliError::usage(
+                    return Err(CliError::legacy_usage(
                         "auth setup provider was supplied more than once",
                     ));
                 }
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| CliError::usage("auth setup provider is missing a value"))?;
+                let value = args.get(index + 1).ok_or_else(|| {
+                    CliError::legacy_usage("auth setup provider is missing a value")
+                })?;
                 provider = Some(value.as_str());
                 index += 2;
             }
             "--api-key-stdin" => {
                 if stdin_requested {
-                    return Err(CliError::usage(
+                    return Err(CliError::legacy_usage(
                         "auth setup --api-key-stdin was supplied more than once",
                     ));
                 }
                 stdin_requested = true;
                 index += 1;
             }
-            _ => return Err(CliError::usage("auth setup received an unsupported option")),
+            _ => {
+                return Err(CliError::legacy_usage(
+                    "auth setup received an unsupported option",
+                ));
+            }
         }
     }
-    let provider =
-        provider.ok_or_else(|| CliError::usage("auth setup requires --provider openrouter"))?;
+    let provider = provider
+        .ok_or_else(|| CliError::legacy_usage("auth setup requires --provider openrouter"))?;
     if provider != "openrouter" {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "development API-key setup supports only openrouter",
         ));
     }
     let configured = if stdin_requested {
         let input = stdin.ok_or_else(|| {
-            CliError::usage("--api-key-stdin is available only from the executable CLI")
+            CliError::legacy_usage("--api-key-stdin is available only from the executable CLI")
         })?;
         let reference =
             asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
-                CliError::operation("OpenRouter credential reference cannot be prepared")
+                CliError::legacy_operation("OpenRouter credential reference cannot be prepared")
             })?;
         let profile = OpenRouterProfile::new(reference)
-            .map_err(|_| CliError::operation("OpenRouter profile cannot be prepared"))?;
+            .map_err(|_| CliError::legacy_operation("OpenRouter profile cannot be prepared"))?;
         let mut key = read_api_key_stdin(input)?;
         let mut secret = Some(OsString::from_vec(std::mem::take(&mut key)));
         let result =
@@ -2034,14 +2059,14 @@ fn auth_setup(
                 drop(credential);
                 true
             })
-            .map_err(|_| CliError::validation("OpenRouter API key is invalid"))?
+            .map_err(|_| CliError::legacy_validation("OpenRouter API key is invalid"))?
     } else {
         let reference =
             asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
-                CliError::operation("OpenRouter credential reference cannot be prepared")
+                CliError::legacy_operation("OpenRouter credential reference cannot be prepared")
             })?;
         let profile = OpenRouterProfile::new(reference)
-            .map_err(|_| CliError::operation("OpenRouter profile cannot be prepared"))?;
+            .map_err(|_| CliError::legacy_operation("OpenRouter profile cannot be prepared"))?;
         asb_agents::openrouter::resolve_openrouter_environment(&profile).is_ok()
     };
     write_json(
@@ -2075,14 +2100,15 @@ fn auth(
     if args.first().is_some_and(|operation| operation == "setup") {
         return auth_setup(&args[1..], stdout, stdin);
     }
-    let usage =
-        || CliError::usage("auth requires enroll|status|rotate|revoke and named digest options");
+    let usage = || {
+        CliError::legacy_usage("auth requires enroll|status|rotate|revoke and named digest options")
+    };
     let operation = args.first().ok_or_else(usage)?;
     let value = |name: &str| -> Result<String, CliError> {
         args.windows(2)
             .find(|pair| pair[0] == name)
             .map(|pair| pair[1].clone())
-            .ok_or_else(|| CliError::usage("auth missing required option"))
+            .ok_or_else(|| CliError::legacy_usage("auth missing required option"))
     };
     let provider = value("--provider")?;
     let call = match operation.as_str() {
@@ -2122,11 +2148,11 @@ fn auth(
             asb_control::ControlLimits::default(),
             asb_control::SUPPORTED_CONTROL_VERSIONS,
         )
-        .map_err(|_| CliError::operation("auth control service connection failed"))?;
+        .map_err(|_| CliError::legacy_operation("auth control service connection failed"))?;
         let timeout_ms = client.negotiated().limits.max_timeout_ms;
         let response = client
             .call(request.call, timeout_ms)
-            .map_err(|_| CliError::operation("auth control service request failed"))?;
+            .map_err(|_| CliError::legacy_operation("auth control service request failed"))?;
         return write_json(stdout, &response).map(|()| 0);
     }
     write_json(stdout, &request).map(|()| 0)
@@ -2309,9 +2335,11 @@ where
             "--agent" => {
                 let argument = args
                     .get(index + 1)
-                    .ok_or_else(|| CliError::usage("setup option is missing a value"))?;
+                    .ok_or_else(|| CliError::legacy_usage("setup option is missing a value"))?;
                 if agents.len() >= MAX_SELECTED_AGENTS {
-                    return Err(CliError::validation("selected agent set exceeds its bound"));
+                    return Err(CliError::legacy_validation(
+                        "selected agent set exceeds its bound",
+                    ));
                 }
                 let parsed = parse_agent(argument)?;
                 let name = agent_id(parsed).to_owned();
@@ -2334,7 +2362,7 @@ where
                 continue;
             }
             _ => {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "setup accepts --agent, --provider-profile, --model, --credential-env, --config, --output, --persist, and --json",
                 ));
             }
@@ -2342,9 +2370,9 @@ where
         index += 1;
         let argument = args
             .get(index)
-            .ok_or_else(|| CliError::usage("setup option is missing a value"))?;
+            .ok_or_else(|| CliError::legacy_usage("setup option is missing a value"))?;
         if argument.is_empty() || argument.len() > MAX_ID_BYTES {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "setup option value is empty or too long",
             ));
         }
@@ -2352,7 +2380,7 @@ where
         index += 1;
     }
     if provider_profile.is_some() != model.is_some() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider profile and model must be selected together",
         ));
     }
@@ -2369,13 +2397,13 @@ where
             _ => false,
         };
         if !compatible {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "provider profile and model are incompatible or unsupported",
             ));
         }
     }
     if !agents.is_empty() && provider_profile.is_none() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "agent selection requires a provider profile and model",
         ));
     }
@@ -2390,7 +2418,7 @@ where
     if !agents.is_empty() {
         let provider = provider_profile.as_deref().expect("validated above");
         if !SETUP_PROVIDER_IDS.contains(&provider) {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "selected provider has no supported setup runtime",
             ));
         }
@@ -2400,18 +2428,21 @@ where
             _ => unreachable!("setup provider authority checked above"),
         };
         if credential_environment.as_deref() != Some(expected_credential_environment) {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "credential environment is not supported by the selected provider runtime",
             ));
         }
         let store = match config_path {
             Some(path) => ConfigStore::new(path),
-            None => ConfigStore::from_environment()
-                .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?,
+            None => ConfigStore::from_environment().map_err(|_| {
+                CliError::legacy_operation("ASB configuration location is unavailable")
+            })?,
         };
         let config = store
             .load()
-            .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
+            .map_err(|_| {
+                CliError::legacy_validation("ASB configuration is unavailable or malformed")
+            })?
             .unwrap_or_else(Configuration::empty);
         let selected_model = model.as_deref().expect("validated above");
         let credential_env = credential_environment
@@ -2441,7 +2472,7 @@ where
         let endpoint = match provider {
             "openrouter" => asb_agents::openrouter::OPENROUTER_API_BASE,
             "openai" => asb_agents::openai::OPENAI_API_BASE,
-            _ => return Err(CliError::validation("unsupported setup provider")),
+            _ => return Err(CliError::legacy_validation("unsupported setup provider")),
         };
         let profile_name = format!("{provider}-{selected_model}");
         let connection_name = format!("{provider}-default");
@@ -2472,7 +2503,7 @@ where
             default_for_all,
         };
         next = next.apply_provider_selection(&selection).map_err(|_| {
-            CliError::validation("setup selection is incompatible with configuration")
+            CliError::legacy_validation("setup selection is incompatible with configuration")
         })?;
         if provider == "openrouter" && selected_model != asb_agents::openrouter::OPENROUTER_MODEL {
             next.openrouter_dynamic_model = Some(asb_config::OpenRouterDynamicModelConfig {
@@ -2495,7 +2526,7 @@ where
         )?;
         store
             .save(&next)
-            .map_err(|_| CliError::operation("setup configuration cannot be persisted"))?;
+            .map_err(|_| CliError::legacy_operation("setup configuration cannot be persisted"))?;
         persisted = true;
     }
     let contract = SetupOutput {
@@ -2540,7 +2571,7 @@ where
     };
     if let Some(path) = output_path {
         let encoded = serde_json::to_vec(&contract)
-            .map_err(|_| CliError::operation("setup configuration cannot be encoded"))?;
+            .map_err(|_| CliError::legacy_operation("setup configuration cannot be encoded"))?;
         write_atomic_private(
             Path::new(&path),
             &encoded,
@@ -2553,7 +2584,7 @@ where
 
 fn completion(shell: &str, output: &mut dyn Write) -> Result<(), CliError> {
     if shell != "bash" {
-        return Err(CliError::usage("only bash completion is supported"));
+        return Err(CliError::legacy_usage("only bash completion is supported"));
     }
     output
         .write_all(include_bytes!("../fixtures/legacy/completion-bash-v1.txt"))
@@ -2584,15 +2615,15 @@ fn record_with_progress(
 ) -> Result<(), CliError> {
     let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "recording capture")?;
     let capture: RecordingCapture = serde_json::from_slice(&bytes)
-        .map_err(|_| CliError::validation("recording capture syntax or shape is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("recording capture syntax or shape is invalid"))?;
     let artifact =
         seal_recording(capture, Default::default(), CassetteLimits::default()).map_err(|_| {
-            CliError::validation("recording capture is incomplete, unsafe, or unapproved")
+            CliError::legacy_validation("recording capture is incomplete, unsafe, or unapproved")
         })?;
     let encoded = serde_json::to_vec(&artifact.cassette)
-        .map_err(|_| CliError::operation("recording cassette cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("recording cassette cannot be encoded"))?;
     if encoded.len() > MAX_CAPTURE_BYTES {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "recording cassette exceeds its byte limit",
         ));
     }
@@ -2612,7 +2643,7 @@ fn record_live_with_progress(
     progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     if !confirmed {
-        return Err(CliError::validation_with_remediation(
+        return Err(CliError::legacy_validation_with_remediation(
             "record-live requires explicit --confirm-record opt-in",
             ErrorRemediation::RecordConfirmation,
         ));
@@ -2658,13 +2689,13 @@ fn record_campaign_with_progress(
 ) -> Result<(), CliError> {
     let bytes = read_bounded_json(input, MAX_CAPTURE_BYTES, "recording campaign manifest")?;
     let manifest: RecordingCampaignManifest = serde_json::from_slice(&bytes)
-        .map_err(|_| CliError::validation("recording campaign manifest is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("recording campaign manifest is invalid"))?;
     if manifest.schema_version != asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION
         || manifest.agent_ids.len() > MAX_SELECTED_AGENTS
         || manifest.workload_ids.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
         || manifest.entries.len() > asb_replay::MAX_RECORDING_CAMPAIGN_TUPLES
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "recording campaign bounds are invalid",
         ));
     }
@@ -2693,18 +2724,21 @@ fn record_campaign_with_progress(
         || workload_ids.windows(2).any(|pair| pair[0] == pair[1])
         || agent_ids.iter().any(|agent| parse_agent(agent).is_err())
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "recording campaign identities are invalid",
         ));
     }
     let workloads = workload_ids
         .iter()
         .map(|id| {
-            let selected = select_workload(id, "linux-x86_64")
-                .map_err(|_| CliError::validation("recording campaign workload is unavailable"))?;
+            let selected = select_workload(id, "linux-x86_64").map_err(|_| {
+                CliError::legacy_validation("recording campaign workload is unavailable")
+            })?;
             describe_workload(&selected.id)
                 .map(|workload| (selected.id, workload.scoring_version))
-                .map_err(|_| CliError::validation("recording campaign workload is unavailable"))
+                .map_err(|_| {
+                    CliError::legacy_validation("recording campaign workload is unavailable")
+                })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let campaign = asb_replay::RecordingCampaign {
@@ -2717,7 +2751,7 @@ fn record_campaign_with_progress(
     };
     let tuples = campaign
         .expand()
-        .map_err(|_| CliError::validation("recording campaign matrix is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("recording campaign matrix is invalid"))?;
     let expected = tuples
         .iter()
         .map(|tuple| (tuple.agent_id.clone(), tuple.workload_id.clone()))
@@ -2728,12 +2762,12 @@ fn record_campaign_with_progress(
     let mut output_paths = BTreeSet::new();
     for entry in manifest.entries {
         if !workload_ids.contains(&entry.workload_id) {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "recording campaign entry workload is not selected",
             ));
         }
         if !output_paths.insert(entry.cassette_path.clone()) {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "recording campaign cassette outputs are duplicated",
             ));
         }
@@ -2743,21 +2777,24 @@ fn record_campaign_with_progress(
             "recording campaign capture",
         )?;
         let capture: RecordingCapture = serde_json::from_slice(&capture_bytes)
-            .map_err(|_| CliError::validation("recording campaign capture is invalid"))?;
+            .map_err(|_| CliError::legacy_validation("recording campaign capture is invalid"))?;
         if capture.provider_profile_sha256 != manifest.provider_profile_sha256
             || !agent_ids.contains(&capture.agent_id)
             || !seen.insert((capture.agent_id.clone(), entry.workload_id.clone()))
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "recording campaign coverage is duplicate or mismatched",
             ));
         }
         let artifact = seal_recording(capture, Default::default(), CassetteLimits::default())
-            .map_err(|_| CliError::validation("recording campaign capture cannot be sealed"))?;
-        let encoded = serde_json::to_vec(&artifact.cassette)
-            .map_err(|_| CliError::operation("recording campaign cassette cannot be encoded"))?;
+            .map_err(|_| {
+                CliError::legacy_validation("recording campaign capture cannot be sealed")
+            })?;
+        let encoded = serde_json::to_vec(&artifact.cassette).map_err(|_| {
+            CliError::legacy_operation("recording campaign cassette cannot be encoded")
+        })?;
         if encoded.len() > MAX_CAPTURE_BYTES {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "recording campaign cassette is too large",
             ));
         }
@@ -2810,11 +2847,13 @@ fn replay(
 ) -> Result<(), CliError> {
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
-        .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+        .map_err(|_| CliError::legacy_validation("recording cassette is corrupt or incomplete"))?;
     let mut runtime_context = authority
-        .ok_or_else(|| CliError::validation("runtime replay authority is required"))?
+        .ok_or_else(|| CliError::legacy_validation("runtime replay authority is required"))?
         .consume_for(&cassette.integrity.digest)
-        .map_err(|_| CliError::validation("runtime replay authority does not match cassette"))?;
+        .map_err(|_| {
+            CliError::legacy_validation("runtime replay authority does not match cassette")
+        })?;
     let descriptor = RecordingDescriptor {
         provider_profile_sha256: provider_profile_sha256.to_owned(),
         agent_id: agent_id.to_owned(),
@@ -2822,7 +2861,7 @@ fn replay(
     };
     let mut index = RecordingIndex::new();
     index.insert(descriptor, &cassette).map_err(|_| {
-        CliError::validation("recording cassette is not compatible with this selection")
+        CliError::legacy_validation("recording cassette is not compatible with this selection")
     })?;
     let source = asb_replay::choose_source(
         &index,
@@ -2833,12 +2872,12 @@ fn replay(
             cassette_sha256: cassette.integrity.digest.clone(),
         }),
     )
-    .map_err(|_| CliError::validation("recording cassette is not an exact compatible replay"))?;
-    let interaction = cassette
-        .contents
-        .interactions
-        .first()
-        .ok_or_else(|| CliError::validation("recording cassette has no replay interaction"))?;
+    .map_err(|_| {
+        CliError::legacy_validation("recording cassette is not an exact compatible replay")
+    })?;
+    let interaction = cassette.contents.interactions.first().ok_or_else(|| {
+        CliError::legacy_validation("recording cassette has no replay interaction")
+    })?;
     let route = asb_replay::ReplayRoute {
         session_id: interaction.session_id.clone(),
         attempt_id: interaction.attempt_id.clone(),
@@ -2849,19 +2888,19 @@ fn replay(
         path: interaction.request.path.clone(),
         headers: interaction.request.headers.clone(),
         body: asb_replay::canonical_json_bytes(&interaction.request.body)
-            .map_err(|_| CliError::validation("recording request body is not canonical"))?,
+            .map_err(|_| CliError::legacy_validation("recording request body is not canonical"))?,
     };
     let encoded_request =
         asb_replay::encode_dispatch_request(&asb_replay::ReplayDispatchRequest { route, request })
-            .map_err(|_| CliError::validation("replay operation request is not bounded"))?;
+            .map_err(|_| CliError::legacy_validation("replay operation request is not bounded"))?;
     let service =
         asb_replay::StrictReplayService::new(cassette.clone(), asb_replay::ReplayLimits::default())
             .map_err(|_| {
-                CliError::validation("recording cassette cannot initialize strict replay")
+                CliError::legacy_validation("recording cassette cannot initialize strict replay")
             })?;
     let mut operation = runtime_context
         .issue_operation()
-        .map_err(|_| CliError::operation("runtime replay operation could not be issued"))?;
+        .map_err(|_| CliError::legacy_operation("runtime replay operation could not be issued"))?;
     let encoded_response = operation
         .dispatch(
             "replay-operation-1".into(),
@@ -2876,9 +2915,11 @@ fn replay(
                     .map_err(|_| asb_runtime::ReplayTransportError::InvalidEnvelope)
             },
         )
-        .map_err(|_| CliError::operation("strict replay operation failed; no provider fallback"))?;
+        .map_err(|_| {
+            CliError::legacy_operation("strict replay operation failed; no provider fallback")
+        })?;
     let response = asb_replay::decode_dispatch_response(&encoded_response)
-        .map_err(|_| CliError::operation("strict replay response was malformed"))?;
+        .map_err(|_| CliError::legacy_operation("strict replay response was malformed"))?;
     let response_sha256 = response
         .segments
         .iter()
@@ -2889,12 +2930,14 @@ fn replay(
         .finalize();
     let mut child = runtime_context
         .spawn_owned()
-        .map_err(|_| CliError::validation("runtime replay child could not be supervised"))?;
-    let output = child
-        .wait()
-        .map_err(|_| CliError::validation("runtime replay child did not terminate cleanly"))?;
+        .map_err(|_| CliError::legacy_validation("runtime replay child could not be supervised"))?;
+    let output = child.wait().map_err(|_| {
+        CliError::legacy_validation("runtime replay child did not terminate cleanly")
+    })?;
     if output.exit_code != Some(0) {
-        return Err(CliError::validation("runtime replay child failed closed"));
+        return Err(CliError::legacy_validation(
+            "runtime replay child failed closed",
+        ));
     }
     write_json(
         stdout,
@@ -2923,11 +2966,11 @@ fn replay_offline_development_fixture(
 ) -> Result<u8, CliError> {
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
-        .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+        .map_err(|_| CliError::legacy_validation("recording cassette is corrupt or incomplete"))?;
     let authority = match LocalReplayProvisioner::development_fixture(&cassette.integrity.digest) {
         Ok(authority) => authority,
         Err(_error) => {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "development replay authority is unavailable",
             ));
         }
@@ -2955,12 +2998,14 @@ fn replay_local_mock(
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
     if !valid_sha256(provider_profile_sha256) {
-        return Err(CliError::validation("provider profile digest is invalid"));
+        return Err(CliError::legacy_validation(
+            "provider profile digest is invalid",
+        ));
     }
     parse_agent(agent_id)?;
     let bytes = read_bounded_json(cassette_path, MAX_CAPTURE_BYTES, "recording cassette")?;
     let cassette = asb_replay::decode_cassette(&bytes, CassetteLimits::default())
-        .map_err(|_| CliError::validation("recording cassette is corrupt or incomplete"))?;
+        .map_err(|_| CliError::legacy_validation("recording cassette is corrupt or incomplete"))?;
     let cassette_sha256 = cassette.integrity.digest.clone();
     let result =
         asb_runtime::guided_replay::execute_local_strict_replay(cassette_path, &cassette_sha256)
@@ -2976,7 +3021,7 @@ fn replay_local_mock(
                         "recording cassette digest does not match runtime identity"
                     }
                 };
-                CliError::validation(message)
+                CliError::legacy_validation(message)
             })?;
     write_json(
         stdout,
@@ -3009,17 +3054,19 @@ fn read_bounded_json(
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)
-        .map_err(|_| CliError::validation(label))?;
-    let metadata = file.metadata().map_err(|_| CliError::validation(label))?;
+        .map_err(|_| CliError::legacy_validation(label))?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| CliError::legacy_validation(label))?;
     if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(CliError::validation(label));
+        return Err(CliError::legacy_validation(label));
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take((maximum as u64).saturating_add(1))
         .read_to_end(&mut bytes)
-        .map_err(|_| CliError::validation(label))?;
+        .map_err(|_| CliError::legacy_validation(label))?;
     if bytes.len() > maximum {
-        return Err(CliError::validation(label));
+        return Err(CliError::legacy_validation(label));
     }
     Ok(bytes)
 }
@@ -3029,21 +3076,21 @@ fn read_bounded_file(path: &Path, maximum: u64) -> Result<Vec<u8>, CliError> {
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)
-        .map_err(|_| CliError::validation("tool source file cannot be inspected"))?;
+        .map_err(|_| CliError::legacy_validation("tool source file cannot be inspected"))?;
     let metadata = file
         .metadata()
-        .map_err(|_| CliError::validation("tool source file cannot be inspected"))?;
+        .map_err(|_| CliError::legacy_validation("tool source file cannot be inspected"))?;
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > maximum {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "tool source must be a bounded non-empty regular file",
         ));
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take(maximum.saturating_add(1))
         .read_to_end(&mut bytes)
-        .map_err(|_| CliError::validation("tool source file cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("tool source file cannot be read"))?;
     if bytes.len() as u64 > maximum {
-        return Err(CliError::validation("tool source exceeds its bound"));
+        return Err(CliError::legacy_validation("tool source exceeds its bound"));
     }
     Ok(bytes)
 }
@@ -3089,7 +3136,9 @@ fn write_atomic_private(
         .is_err()
     {
         let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
-        return Err(CliError::operation("workflow output cannot be backed up"));
+        return Err(CliError::legacy_operation(
+            "workflow output cannot be backed up",
+        ));
     }
     if let Err(error) = renameat(&parent.file, &temporary, &parent.file, &name) {
         if let Some(backup_name) = &backup {
@@ -3097,14 +3146,17 @@ fn write_atomic_private(
         }
         let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
         let _ = error;
-        return Err(CliError::operation("workflow output cannot be installed"));
+        return Err(CliError::legacy_operation(
+            "workflow output cannot be installed",
+        ));
     }
     if let Some(backup_name) = backup {
         unlinkat(&parent.file, &backup_name, AtFlags::empty())
-            .map_err(|_| CliError::operation("workflow output backup cannot be removed"))?;
+            .map_err(|_| CliError::legacy_operation("workflow output backup cannot be removed"))?;
     }
-    fsync(&parent.file)
-        .map_err(|_| CliError::operation("workflow output directory cannot be synchronized"))?;
+    fsync(&parent.file).map_err(|_| {
+        CliError::legacy_operation("workflow output directory cannot be synchronized")
+    })?;
     Ok(())
 }
 
@@ -3149,7 +3201,7 @@ fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliE
             Ok(parent) => parent,
             Err(_) => {
                 rollback_recording_campaign(&staged, &installed);
-                return Err(CliError::operation(
+                return Err(CliError::legacy_operation(
                     "workflow output cannot retain rollback state",
                 ));
             }
@@ -3162,7 +3214,9 @@ fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliE
                 AtFlags::empty(),
             );
             rollback_recording_campaign(&staged, &installed);
-            return Err(CliError::operation("workflow output cannot be installed"));
+            return Err(CliError::legacy_operation(
+                "workflow output cannot be installed",
+            ));
         }
         let backup = match inspect_output_at(&staged_output.parent, &staged_output.name) {
             Ok(Some(_)) => {
@@ -3182,7 +3236,9 @@ fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliE
                 .is_err()
                 {
                     rollback_recording_campaign(&staged, &installed);
-                    return Err(CliError::operation("workflow output cannot be backed up"));
+                    return Err(CliError::legacy_operation(
+                        "workflow output cannot be backed up",
+                    ));
                 }
                 Some(backup)
             }
@@ -3209,7 +3265,9 @@ fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliE
                 );
             }
             rollback_recording_campaign(&staged, &installed);
-            return Err(CliError::operation("workflow output cannot be installed"));
+            return Err(CliError::legacy_operation(
+                "workflow output cannot be installed",
+            ));
         }
         installed.push(InstalledOutput {
             parent: rollback_parent,
@@ -3218,13 +3276,15 @@ fn publish_recording_campaign(pending: &[(PathBuf, Vec<u8>)]) -> Result<(), CliE
         });
     }
     for installed_output in &installed {
-        fsync(&installed_output.parent)
-            .map_err(|_| CliError::operation("workflow output directory cannot be synchronized"))?;
+        fsync(&installed_output.parent).map_err(|_| {
+            CliError::legacy_operation("workflow output directory cannot be synchronized")
+        })?;
     }
     for installed_output in installed {
         if let Some(backup) = installed_output.backup {
-            unlinkat(&installed_output.parent, &backup, AtFlags::empty())
-                .map_err(|_| CliError::operation("workflow output backup cannot be removed"))?;
+            unlinkat(&installed_output.parent, &backup, AtFlags::empty()).map_err(|_| {
+                CliError::legacy_operation("workflow output backup cannot be removed")
+            })?;
         }
     }
     Ok(())
@@ -3272,12 +3332,14 @@ fn stage_output_at(
         OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         RustixMode::from(mode),
     )
-    .map_err(|_| CliError::operation("workflow output cannot be staged"))?;
+    .map_err(|_| CliError::legacy_operation("workflow output cannot be staged"))?;
     let mut file = File::from(fd);
     if file.write_all(bytes).is_err() || fsync(&file).is_err() {
         drop(file);
         let _ = unlinkat(parent, temporary, AtFlags::empty());
-        return Err(CliError::operation("workflow output cannot be written"));
+        return Err(CliError::legacy_operation(
+            "workflow output cannot be written",
+        ));
     }
     Ok(())
 }
@@ -3294,14 +3356,14 @@ fn write_new_output_at(
         OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         RustixMode::from(mode),
     )
-    .map_err(|_| CliError::operation("output cannot be created"))?;
+    .map_err(|_| CliError::legacy_operation("output cannot be created"))?;
     let mut file = File::from(fd);
     if file.write_all(bytes).is_err() || fsync(&file).is_err() {
         drop(file);
         let _ = unlinkat(parent, name, AtFlags::empty());
-        return Err(CliError::operation("output cannot be written"));
+        return Err(CliError::legacy_operation("output cannot be written"));
     }
-    fsync(parent).map_err(|_| CliError::operation("output directory cannot be synchronized"))
+    fsync(parent).map_err(|_| CliError::legacy_operation("output directory cannot be synchronized"))
 }
 
 fn create_private_prompt(parent: &File, bytes: &[u8]) -> Result<File, CliError> {
@@ -3312,7 +3374,7 @@ fn create_private_prompt(parent: &File, bytes: &[u8]) -> Result<File, CliError> 
         OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         RustixMode::from(0o600),
     )
-    .map_err(|_| CliError::operation("prompt descriptor cannot be created"))?;
+    .map_err(|_| CliError::legacy_operation("prompt descriptor cannot be created"))?;
     let mut prompt = File::from(fd);
     if prompt.write_all(bytes).is_err()
         || prompt.flush().is_err()
@@ -3321,7 +3383,9 @@ fn create_private_prompt(parent: &File, bytes: &[u8]) -> Result<File, CliError> 
         || unlinkat(parent, &name, AtFlags::empty()).is_err()
     {
         let _ = unlinkat(parent, &name, AtFlags::empty());
-        return Err(CliError::operation("prompt descriptor cannot be prepared"));
+        return Err(CliError::legacy_operation(
+            "prompt descriptor cannot be prepared",
+        ));
     }
     Ok(prompt)
 }
@@ -3330,7 +3394,9 @@ fn output_name(path: &Path) -> Result<OsString, CliError> {
     path.file_name()
         .filter(|name| !name.is_empty() && *name != "." && *name != "..")
         .map(OsString::from)
-        .ok_or_else(|| CliError::validation("output destination has no file name").with_path(path))
+        .ok_or_else(|| {
+            CliError::legacy_validation("output destination has no file name").with_path(path)
+        })
 }
 
 fn inspect_output_at(parent: &File, name: &OsString) -> Result<Option<Metadata>, CliError> {
@@ -3344,19 +3410,21 @@ fn inspect_output_at(parent: &File, name: &OsString) -> Result<Option<Metadata>,
             let file = File::from(fd);
             let metadata = file
                 .metadata()
-                .map_err(|_| CliError::operation("workflow output cannot be inspected"))?;
+                .map_err(|_| CliError::legacy_operation("workflow output cannot be inspected"))?;
             if !metadata.is_file() {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "workflow output destination must be a regular file",
                 ));
             }
             Ok(Some(metadata))
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) if error.raw_os_error() == libc::ELOOP => Err(CliError::validation(
+        Err(error) if error.raw_os_error() == libc::ELOOP => Err(CliError::legacy_validation(
             "workflow output cannot replace a symlink",
         )),
-        Err(_) => Err(CliError::operation("workflow output cannot be inspected")),
+        Err(_) => Err(CliError::legacy_operation(
+            "workflow output cannot be inspected",
+        )),
     }
 }
 
@@ -3367,22 +3435,24 @@ fn read_output_at(parent: &File, name: &OsString, maximum: u64) -> Result<Vec<u8
         OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         RustixMode::empty(),
     )
-    .map_err(|_| CliError::validation("existing output cannot be read"))?;
+    .map_err(|_| CliError::legacy_validation("existing output cannot be read"))?;
     let file = File::from(fd);
     let metadata = file
         .metadata()
-        .map_err(|_| CliError::validation("existing output cannot be inspected"))?;
+        .map_err(|_| CliError::legacy_validation("existing output cannot be inspected"))?;
     if !metadata.is_file() || metadata.len() > maximum {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "existing output is not a bounded regular file",
         ));
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take(maximum.saturating_add(1))
         .read_to_end(&mut bytes)
-        .map_err(|_| CliError::validation("existing output cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("existing output cannot be read"))?;
     if bytes.len() as u64 > maximum {
-        return Err(CliError::validation("existing output exceeds its bound"));
+        return Err(CliError::legacy_validation(
+            "existing output exceeds its bound",
+        ));
     }
     Ok(bytes)
 }
@@ -3467,7 +3537,9 @@ fn project_init_with_progress(
     human: bool,
 ) -> Result<(), CliError> {
     if args.len() > 1 {
-        return Err(CliError::usage("project init accepts at most one PATH"));
+        return Err(CliError::legacy_usage(
+            "project init accepts at most one PATH",
+        ));
     }
     let root = PathBuf::from(args.first().map_or(".", String::as_str));
     ensure_project_root_with_progress(&root, human.then_some(progress))?;
@@ -3487,12 +3559,14 @@ fn project_init_with_progress(
     if config_path.exists() || fs::symlink_metadata(&config_path).is_ok() {
         if fs::symlink_metadata(&config_path)
             .map_err(|_| {
-                CliError::validation("existing ASB project configuration cannot be inspected")
+                CliError::legacy_validation(
+                    "existing ASB project configuration cannot be inspected",
+                )
             })?
             .file_type()
             .is_symlink()
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "existing ASB project configuration is a symlink",
             ));
         }
@@ -3502,13 +3576,15 @@ fn project_init_with_progress(
             "existing ASB project configuration is unreadable",
         )?;
         let config = decode_project_config(&bytes).map_err(|_| {
-            CliError::validation("existing ASB project configuration is invalid or conflicting")
+            CliError::legacy_validation(
+                "existing ASB project configuration is invalid or conflicting",
+            )
         })?;
         if config.roots.project != "."
             || config.roots.results != "results"
             || config.roots.catalogs != "catalogs"
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "existing ASB project configuration uses a conflicting layout",
             ));
         }
@@ -3530,8 +3606,9 @@ fn project_init_with_progress(
 
     if !recovered {
         let config = ProjectConfigV1::empty();
-        let bytes = serde_json::to_vec_pretty(&config)
-            .map_err(|_| CliError::operation("ASB project configuration cannot be encoded"))?;
+        let bytes = serde_json::to_vec_pretty(&config).map_err(|_| {
+            CliError::legacy_operation("ASB project configuration cannot be encoded")
+        })?;
         install_project_config(&config_path, &bytes)?;
     }
 
@@ -3568,13 +3645,15 @@ fn tool_with_progress(
     let operation = args
         .first()
         .map(String::as_str)
-        .ok_or_else(|| CliError::usage("tool requires install|list|status|remove"))?;
+        .ok_or_else(|| CliError::legacy_usage("tool requires install|list|status|remove"))?;
     match operation {
         "install" => tool_install_with_progress(&args[1..], output, progress, human),
         "list" => tool_inventory(&args[1..], output),
         "status" => tool_status(&args[1..], output),
         "remove" => tool_remove(&args[1..], output),
-        _ => Err(CliError::usage("tool requires install|list|status|remove")),
+        _ => Err(CliError::legacy_usage(
+            "tool requires install|list|status|remove",
+        )),
     }
 }
 
@@ -3591,7 +3670,7 @@ fn tool_kind(value: &str) -> Result<ProjectToolKind, CliError> {
         "benchmark" => Ok(ProjectToolKind::Benchmark),
         "workload" => Ok(ProjectToolKind::Workload),
         "support" | "support_tool" => Ok(ProjectToolKind::SupportTool),
-        _ => Err(CliError::validation(
+        _ => Err(CliError::legacy_validation(
             "tool kind must be agent, harness, benchmark, workload, or support",
         )),
     }
@@ -3635,12 +3714,12 @@ fn tool_project_path(args: &[String], start: usize) -> Result<PathBuf, CliError>
         .count()
         > 1
     {
-        return Err(CliError::usage(
+        return Err(CliError::legacy_usage(
             "tool --project was supplied more than once",
         ));
     }
     if path.is_empty() || start > args.len() {
-        return Err(CliError::usage("tool project path is invalid"));
+        return Err(CliError::legacy_usage("tool project path is invalid"));
     }
     Ok(PathBuf::from(path))
 }
@@ -3648,11 +3727,13 @@ fn tool_project_path(args: &[String], start: usize) -> Result<PathBuf, CliError>
 fn load_tool_project(root: &Path) -> Result<ProjectConfigV1, CliError> {
     match fs::symlink_metadata(root) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
-            return Err(CliError::validation("ASB project root is not a directory").with_path(root));
+            return Err(
+                CliError::legacy_validation("ASB project root is not a directory").with_path(root),
+            );
         }
         Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Err(CliError::validation("ASB project root is missing").with_path(root));
+            return Err(CliError::legacy_validation("ASB project root is missing").with_path(root));
         }
         Err(error) => return Err(directory_io_error(error, root)),
     }
@@ -3663,7 +3744,7 @@ fn load_tool_project(root: &Path) -> Result<ProjectConfigV1, CliError> {
         "ASB project configuration is missing or unreadable; run `asb project init` first",
     )?;
     decode_project_config(&bytes).map_err(|_| {
-        CliError::validation(
+        CliError::legacy_validation(
             "ASB project configuration is invalid; run project recovery before installing tools",
         )
     })
@@ -3672,9 +3753,9 @@ fn load_tool_project(root: &Path) -> Result<ProjectConfigV1, CliError> {
 fn save_tool_project(root: &Path, config: &ProjectConfigV1) -> Result<(), CliError> {
     config
         .validate()
-        .map_err(|_| CliError::validation("tool registry update is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("tool registry update is invalid"))?;
     let bytes = serde_json::to_vec_pretty(config)
-        .map_err(|_| CliError::operation("tool registry cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("tool registry cannot be encoded"))?;
     write_atomic_private(
         &root.join(PROJECT_INIT_CONFIG),
         &bytes,
@@ -3691,7 +3772,7 @@ fn parse_tool_project_only(args: &[String]) -> Result<PathBuf, CliError> {
                 .windows(2)
                 .any(|pair| pair[1] == *value && pair[0] == "--project")
         {
-            return Err(CliError::usage(
+            return Err(CliError::legacy_usage(
                 "tool operation received an unsupported option",
             ));
         }
@@ -3729,7 +3810,7 @@ fn tool_inventory(args: &[String], output: &mut dyn Write) -> Result<(), CliErro
 fn tool_status(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let (id, rest) = args
         .split_first()
-        .ok_or_else(|| CliError::usage("tool status requires an ID"))?;
+        .ok_or_else(|| CliError::legacy_usage("tool status requires an ID"))?;
     let root = parse_tool_project_only(rest)?;
     let config = load_tool_project(&root)?;
     let found = [
@@ -3741,7 +3822,8 @@ fn tool_status(args: &[String], output: &mut dyn Write) -> Result<(), CliError> 
     ]
     .iter()
     .find_map(|(inventory, kind)| inventory.get(id).map(|record| (*kind, record)));
-    let (kind, record) = found.ok_or_else(|| CliError::validation("tool ID is not installed"))?;
+    let (kind, record) =
+        found.ok_or_else(|| CliError::legacy_validation("tool ID is not installed"))?;
     write_json(
         output,
         &serde_json::json!({
@@ -3775,9 +3857,9 @@ fn tool_install_with_progress(
 ) -> Result<(), CliError> {
     let (id, options) = args
         .split_first()
-        .ok_or_else(|| CliError::usage("tool install requires an ID"))?;
+        .ok_or_else(|| CliError::legacy_usage("tool install requires an ID"))?;
     if !valid_tool_id(id) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "tool ID must contain only lowercase letters, digits, '-' or '_'",
         ));
     }
@@ -3790,11 +3872,11 @@ fn tool_install_with_progress(
     while index < options.len() {
         match options[index].as_str() {
             "--kind" | "--source" | "--version" | "--project" => {
-                let value = options
-                    .get(index + 1)
-                    .ok_or_else(|| CliError::usage("tool install option is missing a value"))?;
+                let value = options.get(index + 1).ok_or_else(|| {
+                    CliError::legacy_usage("tool install option is missing a value")
+                })?;
                 if value.is_empty() || value.len() > MAX_ID_BYTES * 32 {
-                    return Err(CliError::validation(
+                    return Err(CliError::legacy_validation(
                         "tool install option value is empty or too long",
                     ));
                 }
@@ -3812,21 +3894,22 @@ fn tool_install_with_progress(
                 index += 1;
             }
             _ => {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "tool install accepts --kind, --source, --version, --project, and --dry-run",
                 ));
             }
         }
     }
-    let kind = kind.ok_or_else(|| CliError::usage("tool install requires --kind"))?;
-    let source = source.ok_or_else(|| CliError::usage("tool install requires --source"))?;
-    let version = version.ok_or_else(|| CliError::usage("tool install requires --version"))?;
+    let kind = kind.ok_or_else(|| CliError::legacy_usage("tool install requires --kind"))?;
+    let source = source.ok_or_else(|| CliError::legacy_usage("tool install requires --source"))?;
+    let version =
+        version.ok_or_else(|| CliError::legacy_usage("tool install requires --version"))?;
     if version.contains('/')
         || version.contains('\\')
         || version.contains("secret")
         || version.contains("token")
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "tool version is not a public bounded identifier",
         ));
     }
@@ -3834,7 +3917,7 @@ fn tool_install_with_progress(
     let mut config = load_tool_project(&root)?;
     let (source_ref, bytes) = if let Some(fixture) = source.strip_prefix("fixture://") {
         if !valid_tool_id(fixture) {
-            return Err(CliError::validation("fixture source ID is invalid"));
+            return Err(CliError::legacy_validation("fixture source ID is invalid"));
         }
         (
             source.clone(),
@@ -3842,7 +3925,7 @@ fn tool_install_with_progress(
         )
     } else {
         if source.contains("://") {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "tool source is unsupported; only local files and fixture:// sources are allowed",
             ));
         }
@@ -3851,7 +3934,7 @@ fn tool_install_with_progress(
         ("local-file".to_owned(), bytes)
     };
     if bytes.is_empty() {
-        return Err(CliError::validation("tool source is empty"));
+        return Err(CliError::legacy_validation("tool source is empty"));
     }
     let digest = format!("{:x}", Sha256::digest(&bytes));
     let path = format!(".asb/tools/{id}/tool");
@@ -3869,7 +3952,7 @@ fn tool_install_with_progress(
     if let Some(existing) = inventory.get(id)
         && existing != &record
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "tool ID is already installed with different metadata; remove it before reinstalling",
         ));
     }
@@ -3903,7 +3986,7 @@ fn tool_install_with_progress(
         Some(_) => {
             let current = read_output_at(&parent.file, &destination_name, MAX_EXECUTABLE_BYTES)?;
             if Sha256::digest(&current) != Sha256::digest(&bytes) {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "tool destination already exists with a different digest",
                 ));
             }
@@ -3911,7 +3994,7 @@ fn tool_install_with_progress(
         None => {
             let temporary = OsString::from(format!(".tool-{}.tmp", std::process::id()));
             stage_output_at(&parent.file, &temporary, &bytes, 0o700)
-                .map_err(|_| CliError::operation("tool source cannot be staged"))?;
+                .map_err(|_| CliError::legacy_operation("tool source cannot be staged"))?;
             if renameat_with(
                 &parent.file,
                 &temporary,
@@ -3922,12 +4005,12 @@ fn tool_install_with_progress(
             .is_err()
             {
                 let _ = unlinkat(&parent.file, &temporary, AtFlags::empty());
-                return Err(CliError::operation(
+                return Err(CliError::legacy_operation(
                     "tool installation failed and was rolled back",
                 ));
             }
             fsync(&parent.file).map_err(|_| {
-                CliError::operation("tool installation directory cannot be synchronized")
+                CliError::legacy_operation("tool installation directory cannot be synchronized")
             })?;
             created_destination = true;
         }
@@ -3948,9 +4031,9 @@ fn tool_install_with_progress(
 fn tool_remove(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let (id, rest) = args
         .split_first()
-        .ok_or_else(|| CliError::usage("tool remove requires an ID"))?;
+        .ok_or_else(|| CliError::legacy_usage("tool remove requires an ID"))?;
     if !valid_tool_id(id) {
-        return Err(CliError::validation("tool ID is invalid"));
+        return Err(CliError::legacy_validation("tool ID is invalid"));
     }
     let root = parse_tool_project_only(rest)?;
     let mut config = load_tool_project(&root)?;
@@ -3968,7 +4051,8 @@ fn tool_remove(args: &[String], output: &mut dyn Write) -> Result<(), CliError> 
             break;
         }
     }
-    let kind = removed_kind.ok_or_else(|| CliError::validation("tool ID is not installed"))?;
+    let kind =
+        removed_kind.ok_or_else(|| CliError::legacy_validation("tool ID is not installed"))?;
     config.selections.support_tools.retain(|name| name != id);
     if config.selections.agent.as_deref() == Some(id) {
         config.selections.agent = None;
@@ -3985,10 +4069,12 @@ fn tool_remove(args: &[String], output: &mut dyn Write) -> Result<(), CliError> 
     let path = root.join(format!(".asb/tools/{id}"));
     if let Ok(metadata) = fs::symlink_metadata(&path) {
         if metadata.file_type().is_symlink() {
-            return Err(CliError::validation("tool installation path is a symlink"));
+            return Err(CliError::legacy_validation(
+                "tool installation path is a symlink",
+            ));
         }
         fs::remove_dir_all(&path)
-            .map_err(|_| CliError::operation("tool installation cannot be removed"))?;
+            .map_err(|_| CliError::legacy_operation("tool installation cannot be removed"))?;
     }
     save_tool_project(&root, &config)?;
     write_json(
@@ -4002,26 +4088,28 @@ fn tool_remove(args: &[String], output: &mut dyn Write) -> Result<(), CliError> 
 /// remain separate commands and authorities.
 fn tool_discovery(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     if args.len() > 1 {
-        return Err(CliError::usage("tool discover accepts at most one PATH"));
+        return Err(CliError::legacy_usage(
+            "tool discover accepts at most one PATH",
+        ));
     }
     let root = PathBuf::from(args.first().map_or(".", String::as_str));
     if fs::symlink_metadata(&root)
         .map(|metadata| metadata.file_type().is_symlink())
         .unwrap_or(false)
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "tool discovery project path cannot be a symlink",
         ));
     }
     if !root.is_dir() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "tool discovery project path must be a directory",
         ));
     }
     let config_path = root.join(".asb/project.json");
     let config = match fs::symlink_metadata(&config_path) {
         Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "tool discovery configuration is a symlink",
             ));
         }
@@ -4031,14 +4119,13 @@ fn tool_discovery(args: &[String], output: &mut dyn Write) -> Result<(), CliErro
                 MAX_CONFIG_BYTES,
                 "tool discovery configuration is unreadable",
             )?;
-            Some(
-                decode_project_config(&bytes)
-                    .map_err(|_| CliError::validation("tool discovery configuration is invalid"))?,
-            )
+            Some(decode_project_config(&bytes).map_err(|_| {
+                CliError::legacy_validation("tool discovery configuration is invalid")
+            })?)
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(_) => {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "tool discovery configuration cannot be inspected",
             ));
         }
@@ -4099,27 +4186,29 @@ fn prepare_owned_directory(
     mut progress: Option<&mut dyn Write>,
 ) -> Result<DirectoryPreparation, CliError> {
     if path.as_os_str().is_empty() {
-        return Err(CliError::validation("directory path cannot be empty").with_path(path));
+        return Err(CliError::legacy_validation("directory path cannot be empty").with_path(path));
     }
     // Validate the entire lexical path before opening or creating anything.
     // This preserves the no-mutation contract for traversal and unsupported
     // prefix inputs even when a valid component precedes the bad one.
     for component in path.components() {
         if matches!(component, Component::ParentDir | Component::Prefix(_)) {
-            return Err(
-                CliError::validation(if matches!(component, Component::ParentDir) {
+            return Err(CliError::legacy_validation(
+                if matches!(component, Component::ParentDir) {
                     "directory path contains unsafe traversal"
                 } else {
                     "directory path has an unsupported prefix"
-                })
-                .with_path(path),
-            );
+                },
+            )
+            .with_path(path));
         }
     }
     let mut current = if path.is_absolute() {
-        File::open("/").map_err(|_| CliError::operation("directory path cannot be resolved"))?
+        File::open("/")
+            .map_err(|_| CliError::legacy_operation("directory path cannot be resolved"))?
     } else {
-        File::open(".").map_err(|_| CliError::operation("directory path cannot be resolved"))?
+        File::open(".")
+            .map_err(|_| CliError::legacy_operation("directory path cannot be resolved"))?
     };
     let mut created = Vec::new();
     let mut announced = false;
@@ -4127,10 +4216,10 @@ fn prepare_owned_directory(
         match component {
             Component::RootDir | Component::CurDir => {}
             Component::ParentDir => {
-                return Err(
-                    CliError::validation("directory path contains unsafe traversal")
-                        .with_path(path),
-                );
+                return Err(CliError::legacy_validation(
+                    "directory path contains unsafe traversal",
+                )
+                .with_path(path));
             }
             Component::Normal(part) => {
                 let next = match openat(
@@ -4192,7 +4281,7 @@ fn prepare_owned_directory(
                                     || component_is_symlink(&current, part) =>
                             {
                                 rollback_created_directories(&created);
-                                return Err(CliError::validation(
+                                return Err(CliError::legacy_validation(
                                     "directory destination was replaced by a symlink",
                                 )
                                 .with_path(path));
@@ -4213,7 +4302,7 @@ fn prepare_owned_directory(
                             || component_is_symlink(&current, part) =>
                     {
                         rollback_created_directories(&created);
-                        return Err(CliError::validation(
+                        return Err(CliError::legacy_validation(
                             "directory destination is unsafe or a symlink",
                         )
                         .with_path(path));
@@ -4226,10 +4315,10 @@ fn prepare_owned_directory(
                 current = next;
             }
             Component::Prefix(_) => {
-                return Err(
-                    CliError::validation("directory path has an unsupported prefix")
-                        .with_path(path),
-                );
+                return Err(CliError::legacy_validation(
+                    "directory path has an unsupported prefix",
+                )
+                .with_path(path));
             }
         }
     }
@@ -4256,7 +4345,7 @@ fn directory_io_error(error: io::Error, path: &Path) -> CliError {
         io::ErrorKind::ReadOnlyFilesystem => "directory destination is read-only",
         _ => "directory destination cannot be created",
     };
-    CliError::operation(message).with_path(path)
+    CliError::legacy_operation(message).with_path(path)
 }
 
 fn display_local_path(path: &Path) -> String {
@@ -4277,9 +4366,9 @@ fn prepare_output_parent(
     purpose: DirectoryPurpose,
     progress: Option<&mut dyn Write>,
 ) -> Result<DirectoryPreparation, CliError> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| CliError::validation("output destination has no parent").with_path(path))?;
+    let parent = path.parent().ok_or_else(|| {
+        CliError::legacy_validation("output destination has no parent").with_path(path)
+    })?;
     prepare_owned_directory(
         if parent.as_os_str().is_empty() {
             Path::new(".")
@@ -4321,11 +4410,11 @@ fn install_project_config(path: &Path, bytes: &[u8]) -> Result<(), CliError> {
             .flatten()
             .is_some()
         {
-            CliError::validation(
+            CliError::legacy_validation(
                 "project configuration appeared concurrently; rerun init to recover",
             )
         } else {
-            CliError::operation("project configuration cannot be installed")
+            CliError::legacy_operation("project configuration cannot be installed")
         }
     })
 }
@@ -4641,7 +4730,7 @@ fn configure_openrouter_with_progress(
     progress: Option<&mut dyn Write>,
 ) -> Result<(), CliError> {
     let store = ConfigStore::from_environment()
-        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
     configure_openrouter_at_with_progress(&store, output, progress)
 }
 
@@ -4657,25 +4746,29 @@ fn configure_openrouter_at_with_progress(
 ) -> Result<(), CliError> {
     let mut config = store
         .load()
-        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
+        .map_err(|_| CliError::legacy_validation("ASB configuration is unavailable or malformed"))?
         .unwrap_or_else(Configuration::empty);
-    let credential_reference = asb_agents::openrouter::openrouter_credential_reference()
-        .map_err(|_| CliError::operation("OpenRouter credential reference cannot be prepared"))?;
+    let credential_reference =
+        asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
+            CliError::legacy_operation("OpenRouter credential reference cannot be prepared")
+        })?;
     let profile = OpenRouterProfile::new(&credential_reference)
-        .map_err(|_| CliError::operation("OpenRouter profile cannot be prepared"))?;
+        .map_err(|_| CliError::legacy_operation("OpenRouter profile cannot be prepared"))?;
     let generation = config
         .openrouter_free_model
         .as_ref()
         .map_or(0, |value| value.enrollment.generation)
         .checked_add(1)
-        .ok_or_else(|| CliError::validation("OpenRouter configuration generation overflow"))?;
+        .ok_or_else(|| {
+            CliError::legacy_validation("OpenRouter configuration generation overflow")
+        })?;
     let selection = OpenRouterFreeModelConfig::enroll(
         asb_agents::openrouter::OPENROUTER_MODEL.to_owned(),
         asb_agents::openrouter::OPENROUTER_MODEL_SNAPSHOT_DATE.to_owned(),
         profile.provider_profile().endpoint.identity_sha256.clone(),
         generation,
     )
-    .map_err(|_| CliError::operation("OpenRouter configuration cannot be validated"))?;
+    .map_err(|_| CliError::legacy_operation("OpenRouter configuration cannot be validated"))?;
     let result = ConfigOutput {
         schema_version: asb_config::CONFIG_SCHEMA_VERSION,
         ok: true,
@@ -4691,7 +4784,7 @@ fn configure_openrouter_at_with_progress(
     prepare_output_parent(store.path(), DirectoryPurpose::Configuration, progress)?;
     store
         .save(&config)
-        .map_err(|_| CliError::operation("OpenRouter configuration cannot be persisted"))?;
+        .map_err(|_| CliError::legacy_operation("OpenRouter configuration cannot be persisted"))?;
     write_json(output, &result)
 }
 
@@ -4725,7 +4818,7 @@ struct EffectiveCliAgent {
 
 fn provider_plan(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let store = ConfigStore::from_environment()
-        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
     provider_plan_at(args, output, &store)
 }
 
@@ -4754,7 +4847,7 @@ fn provider_plan_at_with_catalog(
         let flag = args[index].as_str();
         if flag == "--use-config" {
             if use_config {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "provider-plan option was supplied more than once",
                 ));
             }
@@ -4764,7 +4857,7 @@ fn provider_plan_at_with_catalog(
         }
         let value = args
             .get(index + 1)
-            .ok_or_else(|| CliError::usage("provider-plan options require values"))?;
+            .ok_or_else(|| CliError::legacy_usage("provider-plan options require values"))?;
         match flag {
             "--catalog-sha256" if catalog_sha256.replace(value.as_str()).is_none() => {}
             "--provider-profile" if provider.replace(value.as_str()).is_none() => {}
@@ -4778,14 +4871,16 @@ fn provider_plan_at_with_catalog(
             | "--provider-profile"
             | "--credential-reference-sha256"
             | "--model" => {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "provider-plan option was supplied more than once",
                 ));
             }
             "--agent" => {
-                return Err(CliError::validation("selected agent set exceeds its bound"));
+                return Err(CliError::legacy_validation(
+                    "selected agent set exceeds its bound",
+                ));
             }
-            _ => return Err(CliError::usage("unsupported provider-plan option")),
+            _ => return Err(CliError::legacy_usage("unsupported provider-plan option")),
         }
         index += 2;
     }
@@ -4794,9 +4889,9 @@ fn provider_plan_at_with_catalog(
         .transpose()?;
     let provider = provider
         .or_else(|| config.as_ref().map(|_| "openrouter"))
-        .ok_or_else(|| CliError::validation("provider profile is absent"))?;
+        .ok_or_else(|| CliError::legacy_validation("provider profile is absent"))?;
     if use_config && provider != "openrouter" {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "--use-config only supports openrouter",
         ));
     }
@@ -4804,7 +4899,7 @@ fn provider_plan_at_with_catalog(
         if let Some(requested) = credential_reference_sha256
             && requested != config.credential_reference_sha256
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "configured credential reference does not match",
             ));
         }
@@ -4813,7 +4908,7 @@ fn provider_plan_at_with_catalog(
             if let Some(requested) = requested_model
                 && requested != config.model
             {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "configured OpenRouter model does not match the requested model",
                 ));
             }
@@ -4821,7 +4916,7 @@ fn provider_plan_at_with_catalog(
             if let Some(requested) = catalog_sha256
                 && requested != config.catalog_sha256
             {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "configured OpenRouter catalog does not match the requested catalog",
                 ));
             }
@@ -4830,22 +4925,23 @@ fn provider_plan_at_with_catalog(
     }
     let expected_catalog = provider_catalog_digest();
     if requested_model.is_none() && catalog_sha256 != Some(expected_catalog.as_str()) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider catalog identity is stale or absent",
         ));
     }
     if provider == "ollama" {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider profile is advertised but unavailable without verified daemon evidence",
         ));
     }
     let dynamic_catalog = requested_model.is_some();
     let (provider_kind, plan, model) = if let Some(model) = requested_model {
-        let expected_catalog_sha256 = catalog_sha256
-            .ok_or_else(|| CliError::validation("provider catalog identity is stale or absent"))?;
+        let expected_catalog_sha256 = catalog_sha256.ok_or_else(|| {
+            CliError::legacy_validation("provider catalog identity is stale or absent")
+        })?;
         if let Some(catalog) = catalog_override {
             if catalog.digest_sha256() != expected_catalog_sha256 {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "provider catalog identity is stale or absent",
                 ));
             }
@@ -4928,12 +5024,12 @@ struct OpenRouterPlanConfig {
 fn load_openrouter_plan_config_at(store: &ConfigStore) -> Result<OpenRouterPlanConfig, CliError> {
     let config = store
         .load()
-        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
-        .ok_or_else(|| CliError::validation("OpenRouter configuration is absent"))?;
+        .map_err(|_| CliError::legacy_validation("ASB configuration is unavailable or malformed"))?
+        .ok_or_else(|| CliError::legacy_validation("OpenRouter configuration is absent"))?;
     if let Some(dynamic) = config.openrouter_dynamic_model {
-        dynamic
-            .validate()
-            .map_err(|_| CliError::validation("OpenRouter dynamic configuration is invalid"))?;
+        dynamic.validate().map_err(|_| {
+            CliError::legacy_validation("OpenRouter dynamic configuration is invalid")
+        })?;
         return Ok(OpenRouterPlanConfig {
             model: dynamic.model,
             catalog_sha256: dynamic.catalog_sha256,
@@ -4953,19 +5049,19 @@ fn load_openrouter_plan_config_at(store: &ConfigStore) -> Result<OpenRouterPlanC
 fn load_openrouter_config_at(store: &ConfigStore) -> Result<OpenRouterFreeModelConfig, CliError> {
     let config = store
         .load()
-        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
-        .ok_or_else(|| CliError::validation("OpenRouter configuration is absent"))?;
+        .map_err(|_| CliError::legacy_validation("ASB configuration is unavailable or malformed"))?
+        .ok_or_else(|| CliError::legacy_validation("OpenRouter configuration is absent"))?;
     let selection = config
         .openrouter_free_model
-        .ok_or_else(|| CliError::validation("OpenRouter configuration is absent"))?;
+        .ok_or_else(|| CliError::legacy_validation("OpenRouter configuration is absent"))?;
     let profile = OpenRouterProfile::new(selection.credential.locator_sha256.clone())
-        .map_err(|_| CliError::validation("OpenRouter credential reference is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("OpenRouter credential reference is invalid"))?;
     if selection.model != asb_agents::openrouter::OPENROUTER_MODEL
         || selection.model_snapshot != asb_agents::openrouter::OPENROUTER_MODEL_SNAPSHOT
         || selection.model_snapshot_date != asb_agents::openrouter::OPENROUTER_MODEL_SNAPSHOT_DATE
         || selection.endpoint_identity_sha256 != profile.provider_profile().endpoint.identity_sha256
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "OpenRouter configuration identity is stale",
         ));
     }
@@ -5025,10 +5121,10 @@ fn provider_plan_for(
     let provider_kind = match provider {
         "openai" => AllAgentsProviderKind::OpenAi,
         "openrouter" => AllAgentsProviderKind::OpenRouter,
-        _ => return Err(CliError::validation("unknown provider profile")),
+        _ => return Err(CliError::legacy_validation("unknown provider profile")),
     };
     let credential_reference_sha256 = credential_reference_sha256
-        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
+        .ok_or_else(|| CliError::legacy_validation("credential reference identity is absent"))?;
     let selection = AllAgentsProviderSelection {
         schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
         provider: provider_kind,
@@ -5036,23 +5132,25 @@ fn provider_plan_for(
     };
     let (plan, model) = match selection.provider {
         AllAgentsProviderKind::OpenAi => {
-            let profile = OpenAiProfile::new(credential_reference_sha256)
-                .map_err(|_| CliError::validation("credential reference identity is invalid"))?;
+            let profile = OpenAiProfile::new(credential_reference_sha256).map_err(|_| {
+                CliError::legacy_validation("credential reference identity is invalid")
+            })?;
             let plan = resolve_openai_selection(&selection, &profile).map_err(|_| {
-                CliError::validation("provider profile is incompatible with selected agents")
+                CliError::legacy_validation("provider profile is incompatible with selected agents")
             })?;
             (plan, asb_agents::openai::OPENAI_MODEL)
         }
         AllAgentsProviderKind::OpenRouter => {
-            let profile = OpenRouterProfile::new(credential_reference_sha256)
-                .map_err(|_| CliError::validation("credential reference identity is invalid"))?;
+            let profile = OpenRouterProfile::new(credential_reference_sha256).map_err(|_| {
+                CliError::legacy_validation("credential reference identity is invalid")
+            })?;
             let plan = resolve_openrouter_selection(&selection, &profile).map_err(|_| {
-                CliError::validation("provider profile is incompatible with selected agents")
+                CliError::legacy_validation("provider profile is incompatible with selected agents")
             })?;
             (plan, asb_agents::openrouter::OPENROUTER_MODEL)
         }
         AllAgentsProviderKind::Ollama => {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "provider profile is advertised but unavailable without verified daemon evidence",
             ));
         }
@@ -5071,13 +5169,13 @@ fn provider_plan_for_selected_model(
     expected_catalog_sha256: &str,
 ) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, String), CliError> {
     if provider != "openrouter" {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "dynamic model selection is currently supported only for openrouter",
         ));
     }
     let catalog = discover_openrouter_model_catalog().map_err(catalog_cli_error)?;
     if catalog.digest_sha256() != expected_catalog_sha256 {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider catalog identity is stale or absent",
         ));
     }
@@ -5098,12 +5196,12 @@ fn provider_plan_for_selected_model_in_catalog(
     catalog: &asb_agents::openrouter::OpenRouterModelCatalog,
 ) -> Result<(AllAgentsProviderKind, AllAgentsProviderPlan, String), CliError> {
     if provider != "openrouter" {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "dynamic model selection is currently supported only for openrouter",
         ));
     }
     let credential = credential_reference_sha256
-        .ok_or_else(|| CliError::validation("credential reference identity is absent"))?;
+        .ok_or_else(|| CliError::legacy_validation("credential reference identity is absent"))?;
     let profile =
         OpenRouterProfile::new_from_free_catalog(credential, catalog, model).map_err(|error| {
             match error {
@@ -5111,7 +5209,7 @@ fn provider_plan_for_selected_model_in_catalog(
                     "provider_model_unavailable",
                     "OpenRouter model is unavailable or not explicitly zero-price",
                 ),
-                _ => CliError::validation("credential reference identity is invalid"),
+                _ => CliError::legacy_validation("credential reference identity is invalid"),
             }
         })?;
     let selection = AllAgentsProviderSelection {
@@ -5139,7 +5237,7 @@ fn provider_selection_digest(
         selection,
         effective,
     ))
-    .map_err(|_| CliError::operation("provider plan cannot be encoded"))?;
+    .map_err(|_| CliError::legacy_operation("provider plan cannot be encoded"))?;
     let mut digest = Sha256::new();
     digest.update(b"asb-cli-provider-plan-v1\0");
     digest.update(canonical);
@@ -5171,7 +5269,7 @@ fn parse_agent(value: &str) -> Result<SelectedAgent, CliError> {
         "goose" => Ok(SelectedAgent::Goose),
         "mini_swe" => Ok(SelectedAgent::MiniSwe),
         "openhands" => Ok(SelectedAgent::OpenHands),
-        _ => Err(CliError::validation("unknown selected agent")),
+        _ => Err(CliError::legacy_validation("unknown selected agent")),
     }
 }
 
@@ -5235,17 +5333,21 @@ impl PointInput {
             .checked_add(self.warmups)
             .is_none_or(|total| total > MAX_POINT_ATTEMPTS)
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "point attempt evidence exceeds the durable CLI bound",
             ));
         }
         if self.timeout_ms == 0 || self.timeout_ms > MAX_TIMEOUT_MS {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "point timeout is outside the supported bound",
             ));
         }
         let model = match self.open_loop_interval_ms {
-            Some(0) => return Err(CliError::validation("open-loop interval must be positive")),
+            Some(0) => {
+                return Err(CliError::legacy_validation(
+                    "open-loop interval must be positive",
+                ));
+            }
             Some(value) => LoadModel::OpenLoop {
                 inter_arrival: Duration::from_millis(value),
             },
@@ -5262,7 +5364,7 @@ impl PointInput {
             Duration::from_millis(self.poll_ms),
             self.seed,
         )
-        .map_err(|_| CliError::validation("invalid capacity-point settings"))
+        .map_err(|_| CliError::legacy_validation("invalid capacity-point settings"))
     }
 }
 
@@ -5348,20 +5450,20 @@ fn create_plan_with_progress(
             *index += 1;
             args.get(*index)
                 .cloned()
-                .ok_or_else(|| CliError::usage("plan create option is missing a value"))
+                .ok_or_else(|| CliError::legacy_usage("plan create option is missing a value"))
         };
         match flag {
             "--workload" => workload = Some(value(&mut index)?),
             "--agent-executable" => executable = Some(PathBuf::from(value(&mut index)?)),
             "--agent" if agent.is_none() => agent = Some(value(&mut index)?),
             "--agent" => {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "plan create option was supplied more than once",
                 ));
             }
             "--use-config" if !use_config => use_config = true,
             "--use-config" => {
-                return Err(CliError::usage(
+                return Err(CliError::legacy_usage(
                     "plan create option was supplied more than once",
                 ));
             }
@@ -5372,29 +5474,29 @@ fn create_plan_with_progress(
             "--measured" => {
                 measured = value(&mut index)?
                     .parse()
-                    .map_err(|_| CliError::validation("measured must be an integer"))?
+                    .map_err(|_| CliError::legacy_validation("measured must be an integer"))?
             }
             "--warmups" => {
                 warmups = value(&mut index)?
                     .parse()
-                    .map_err(|_| CliError::validation("warmups must be an integer"))?
+                    .map_err(|_| CliError::legacy_validation("warmups must be an integer"))?
             }
             "--concurrency" => {
                 concurrency = value(&mut index)?
                     .parse()
-                    .map_err(|_| CliError::validation("concurrency must be an integer"))?
+                    .map_err(|_| CliError::legacy_validation("concurrency must be an integer"))?
             }
             "--sweep-max-concurrency" => {
                 sweep_max_concurrency = Some(value(&mut index)?.parse().map_err(|_| {
-                    CliError::validation("sweep-max-concurrency must be an integer")
+                    CliError::legacy_validation("sweep-max-concurrency must be an integer")
                 })?)
             }
             "--timeout-ms" => {
                 timeout_ms = value(&mut index)?
                     .parse()
-                    .map_err(|_| CliError::validation("timeout-ms must be an integer"))?
+                    .map_err(|_| CliError::legacy_validation("timeout-ms must be an integer"))?
             }
-            _ => return Err(CliError::usage("unsupported plan create option")),
+            _ => return Err(CliError::legacy_usage("unsupported plan create option")),
         }
         index += 1;
     }
@@ -5423,45 +5525,47 @@ fn create_plan_with_progress(
                 selection.push(byte[0]);
             }
             if selection.len() == 64 {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "workload selection exceeds the 64-byte bound",
                 ));
             }
             let selection = String::from_utf8(selection)
-                .map_err(|_| CliError::validation("workload selection is not UTF-8"))?;
+                .map_err(|_| CliError::legacy_validation("workload selection is not UTF-8"))?;
             let number: usize = selection
                 .trim()
                 .parse()
-                .map_err(|_| CliError::validation("workload selection must be a number"))?;
+                .map_err(|_| CliError::legacy_validation("workload selection must be a number"))?;
             candidates
                 .get(number.saturating_sub(1))
                 .map(|entry| entry.id.clone())
-                .ok_or_else(|| CliError::validation("workload selection is out of range"))?
+                .ok_or_else(|| CliError::legacy_validation("workload selection is out of range"))?
         }
         None => {
-            return Err(CliError::usage(
+            return Err(CliError::legacy_usage(
                 "plan create requires --workload in noninteractive mode",
             ));
         }
     };
     let platform = format!("linux-{}", std::env::consts::ARCH);
     let selected = select_workload(&workload, &platform).map_err(|_| {
-        CliError::validation("workload is not currently supported for runnable selection")
+        CliError::legacy_validation("workload is not currently supported for runnable selection")
     })?;
-    let executable =
-        executable.ok_or_else(|| CliError::usage("plan create requires --agent-executable"))?;
+    let executable = executable
+        .ok_or_else(|| CliError::legacy_usage("plan create requires --agent-executable"))?;
     if use_config && agent.is_none() {
-        return Err(CliError::usage("plan create --use-config requires --agent"));
+        return Err(CliError::legacy_usage(
+            "plan create --use-config requires --agent",
+        ));
     }
     let executable = fs::canonicalize(&executable)
-        .map_err(|_| CliError::validation("agent executable is unavailable"))?;
+        .map_err(|_| CliError::legacy_validation("agent executable is unavailable"))?;
     let executable_sha256 = digest_file(&executable)?;
     let manifest_workload = describe_workload(&selected.id)
-        .map_err(|_| CliError::validation("selected workload has no executable manifest"))?;
+        .map_err(|_| CliError::legacy_validation("selected workload has no executable manifest"))?;
     let mut experiment: ExperimentManifestV1 = serde_json::from_str(include_str!(
         "../../asb-protocol/fixtures/v1/experiment-manifest.json"
     ))
-    .map_err(|_| CliError::operation("built-in experiment template is invalid"))?;
+    .map_err(|_| CliError::legacy_operation("built-in experiment template is invalid"))?;
     experiment.agent.binary_sha256 = executable_sha256.clone();
     if let Some(agent) = &agent {
         validate_id(agent)?;
@@ -5476,7 +5580,7 @@ fn create_plan_with_progress(
     experiment.controls.replay.cassette_sha256 = None;
     experiment
         .refresh_content_address()
-        .map_err(|_| CliError::validation("selected workload manifest is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("selected workload manifest is invalid"))?;
     // The local/mock backend does not claim optional metric samples. Keep the
     // generated plan explicitly empty and catalog-bound so its terminal
     // evidence remains reportable; live callers can choose measurements in a
@@ -5487,7 +5591,7 @@ fn create_plan_with_progress(
         experiment.controls.replay.mode,
         None,
     )
-    .map_err(|_| CliError::validation("generated measurement selection is invalid"))?;
+    .map_err(|_| CliError::legacy_validation("generated measurement selection is invalid"))?;
     let mut plan = PlanFile {
         schema_version: PLAN_SCHEMA_VERSION,
         run_id: run_id.unwrap_or_else(|| format!("asb-{}", selected.id)),
@@ -5517,36 +5621,36 @@ fn create_plan_with_progress(
     };
     if use_config {
         let store = ConfigStore::from_environment()
-            .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+            .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
         let selection = selection_for_plan_at(&plan, &store)?;
         plan.experiment.model.provider = selection.provider_profile.clone();
         plan.experiment.model.model = selection.model.clone();
         plan.experiment.model.settings.additional_settings_sha256 =
             Some(selection.provider_profile_sha256.clone());
-        plan.experiment
-            .refresh_content_address()
-            .map_err(|_| CliError::validation("configured experiment identity is invalid"))?;
+        plan.experiment.refresh_content_address().map_err(|_| {
+            CliError::legacy_validation("configured experiment identity is invalid")
+        })?;
         validate_selection_binding(&plan, &selection)?;
     }
     validate_plan(&plan)?;
     let destination =
-        destination.ok_or_else(|| CliError::usage("plan create requires --output"))?;
+        destination.ok_or_else(|| CliError::legacy_usage("plan create requires --output"))?;
     if !destination.is_absolute() || destination.exists() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "plan output must be an absolute unused path",
         ));
     }
     let parent = destination
         .parent()
-        .ok_or_else(|| CliError::validation("plan output parent is unavailable"))?;
+        .ok_or_else(|| CliError::legacy_validation("plan output parent is unavailable"))?;
     let mut notice = human.then_some(progress as &mut dyn Write);
     let prepared =
         prepare_owned_directory(parent, 0o700, DirectoryPurpose::PlanOutput, notice.take())?;
-    let text =
-        toml::to_string_pretty(&plan).map_err(|_| CliError::operation("plan cannot be encoded"))?;
+    let text = toml::to_string_pretty(&plan)
+        .map_err(|_| CliError::legacy_operation("plan cannot be encoded"))?;
     let name = output_name(&destination)?;
     write_new_output_at(&prepared.file, &name, text.as_bytes(), 0o600)
-        .map_err(|_| CliError::operation("plan output cannot be written"))?;
+        .map_err(|_| CliError::legacy_operation("plan output cannot be written"))?;
     write_json(
         output,
         &json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "plan-create", "plan": destination, "workload": plan.workload, "experiment_sha256": plan.experiment.experiment_sha256}),
@@ -5568,7 +5672,7 @@ fn plan_with_config_with_context(
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<(), CliError> {
     let store = ConfigStore::from_environment()
-        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
     plan_with_config_at_with_context(path, output, &store, presentation_context)
 }
 
@@ -5658,8 +5762,8 @@ fn selection_for_plan_at(
 ) -> Result<ProviderPlanOutput, CliError> {
     let config = store
         .load()
-        .map_err(|_| CliError::validation("ASB configuration is unavailable or malformed"))?
-        .ok_or_else(|| CliError::validation("ASB configuration is absent"))?;
+        .map_err(|_| CliError::legacy_validation("ASB configuration is unavailable or malformed"))?
+        .ok_or_else(|| CliError::legacy_validation("ASB configuration is absent"))?;
     // A setup-selected agent takes precedence over the legacy standalone
     // OpenRouter enrollment.  This prevents switching a configured agent to
     // OpenAI while an older `config openrouter` enrollment remains present.
@@ -5682,22 +5786,22 @@ fn provider_plan_from_configuration(
 ) -> Result<ProviderPlanOutput, CliError> {
     config
         .validate()
-        .map_err(|_| CliError::validation("ASB configuration is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("ASB configuration is invalid"))?;
     let configured_agent = config
         .agents
         .get(agent)
-        .ok_or_else(|| CliError::validation("selected agent is not configured"))?;
+        .ok_or_else(|| CliError::legacy_validation("selected agent is not configured"))?;
     if !configured_agent.enabled {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "selected agent is disabled in setup configuration",
         ));
     }
     let profile = config
         .profiles
         .get(&configured_agent.profile)
-        .ok_or_else(|| CliError::validation("configured provider profile is absent"))?;
+        .ok_or_else(|| CliError::legacy_validation("configured provider profile is absent"))?;
     let credential = profile.credential.as_ref().ok_or_else(|| {
-        CliError::validation("configured provider credential reference is absent")
+        CliError::legacy_validation("configured provider credential reference is absent")
     })?;
     let selected = vec![parse_agent(agent)?];
     let (provider_kind, plan, expected_model) = provider_plan_for(
@@ -5706,7 +5810,7 @@ fn provider_plan_from_configuration(
         Some(&credential.locator_sha256),
     )?;
     if profile.model != expected_model {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "configured provider model is not supported",
         ));
     }
@@ -5762,40 +5866,41 @@ fn load_plan_and_selection(
 
 fn load_provider_selection(path: &Path) -> Result<ProviderPlanOutput, CliError> {
     let metadata = fs::symlink_metadata(path)
-        .map_err(|_| CliError::validation("provider selection is unavailable"))?;
+        .map_err(|_| CliError::legacy_validation("provider selection is unavailable"))?;
     if metadata.file_type().is_symlink()
         || !metadata.is_file()
         || metadata.len() > MAX_PROVIDER_SELECTION_BYTES
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider selection is not a bounded regular file",
         ));
     }
     let file = fs::File::open(path)
-        .map_err(|_| CliError::validation("provider selection cannot be opened"))?;
+        .map_err(|_| CliError::legacy_validation("provider selection cannot be opened"))?;
     let opened = file
         .metadata()
-        .map_err(|_| CliError::validation("provider selection metadata cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("provider selection metadata cannot be read"))?;
     if !opened.is_file()
         || opened.len() > MAX_PROVIDER_SELECTION_BYTES
         || opened.dev() != metadata.dev()
         || opened.ino() != metadata.ino()
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider selection changed during validation",
         ));
     }
     let mut bytes = Vec::with_capacity(usize::try_from(metadata.len()).unwrap_or(0));
     file.take(MAX_PROVIDER_SELECTION_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|_| CliError::validation("provider selection cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("provider selection cannot be read"))?;
     if bytes.len() as u64 > MAX_PROVIDER_SELECTION_BYTES {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider selection exceeds its byte limit",
         ));
     }
-    let selection: ProviderPlanOutput = serde_json::from_slice(&bytes)
-        .map_err(|_| CliError::validation("provider selection syntax or shape is invalid"))?;
+    let selection: ProviderPlanOutput = serde_json::from_slice(&bytes).map_err(|_| {
+        CliError::legacy_validation("provider selection syntax or shape is invalid")
+    })?;
     validate_provider_selection(&selection)?;
     Ok(selection)
 }
@@ -5813,17 +5918,17 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
         || value.effective.is_empty()
         || value.effective.len() > MAX_SELECTED_AGENTS
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider selection identity is invalid",
         ));
     }
     if value.provider_profile == "cli2key" {
         let launch = value.cli2key_launch.as_ref().ok_or_else(|| {
-            CliError::validation("cli2key provider selection lacks a runtime launch")
+            CliError::legacy_validation("cli2key provider selection lacks a runtime launch")
         })?;
         launch
             .validate_shape()
-            .map_err(|_| CliError::validation("cli2key launch identity is invalid"))?;
+            .map_err(|_| CliError::legacy_validation("cli2key launch identity is invalid"))?;
         if value.model != launch.selection.model_id
             || value.catalog_sha256 != launch.selection.catalog_sha256
             || value.credential_reference_sha256 != launch.selection.credential_reference_sha256
@@ -5831,7 +5936,7 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
             || value.effective[0].agent != "codex"
             || value.effective[0].api_mode != EffectiveApiMode::Responses
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "cli2key provider selection identity is invalid",
             ));
         }
@@ -5845,30 +5950,32 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
     let (provider_kind, expected) = match value.provider_profile.as_str() {
         "openai" => {
             if value.model != asb_agents::openai::OPENAI_MODEL {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "provider selection identity is invalid",
                 ));
             }
             let verification_profile = OpenAiProfile::new(&value.credential_reference_sha256)
-                .map_err(|_| CliError::operation("provider verifier profile cannot be created"))?;
+                .map_err(|_| {
+                    CliError::legacy_operation("provider verifier profile cannot be created")
+                })?;
             let selection = AllAgentsProviderSelection {
                 schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
                 provider: AllAgentsProviderKind::OpenAi,
                 agents,
             };
             let expected = resolve_openai_selection(&selection, &verification_profile)
-                .map_err(|_| CliError::validation("provider selection is incompatible"))?;
+                .map_err(|_| CliError::legacy_validation("provider selection is incompatible"))?;
             (AllAgentsProviderKind::OpenAi, expected)
         }
         "openrouter" => {
             if value.model != asb_agents::openrouter::OPENROUTER_MODEL {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "provider selection identity is invalid",
                 ));
             }
             let verification_profile = OpenRouterProfile::new(&value.credential_reference_sha256)
                 .map_err(|_| {
-                CliError::operation("provider verifier profile cannot be created")
+                CliError::legacy_operation("provider verifier profile cannot be created")
             })?;
             let selection = AllAgentsProviderSelection {
                 schema_version: ALL_AGENTS_PROVIDER_SELECTION_V1,
@@ -5876,11 +5983,11 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
                 agents,
             };
             let expected = resolve_openrouter_selection(&selection, &verification_profile)
-                .map_err(|_| CliError::validation("provider selection is incompatible"))?;
+                .map_err(|_| CliError::legacy_validation("provider selection is incompatible"))?;
             (AllAgentsProviderKind::OpenRouter, expected)
         }
         _ => {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "provider selection identity is invalid",
             ));
         }
@@ -5910,7 +6017,7 @@ fn validate_provider_selection(value: &ProviderPlanOutput) -> Result<(), CliErro
             &value.effective,
         )? != value.selection_sha256
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider selection content address is invalid",
         ));
     }
@@ -5936,7 +6043,7 @@ fn validate_selection_binding(
             .as_deref()
             != Some(selection.provider_profile_sha256.as_str())
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "provider selection does not match the experiment identity",
         ));
     }
@@ -5954,16 +6061,18 @@ fn build_provider_launch(
         .iter()
         .find(|value| value.agent == plan.experiment.agent.implementation)
         .ok_or_else(|| {
-            CliError::validation("provider selection does not include the launched agent")
+            CliError::legacy_validation("provider selection does not include the launched agent")
         })?;
     let selected_agent = parse_agent(&selected.agent)?;
     let (projection, endpoint_sha256) = match selection.provider_profile.as_str() {
         "openai" => {
-            let profile = OpenAiProfile::new(&selection.credential_reference_sha256)
-                .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
+            let profile =
+                OpenAiProfile::new(&selection.credential_reference_sha256).map_err(|_| {
+                    CliError::legacy_validation("provider credential reference is invalid")
+                })?;
             let projection =
                 ProviderLaunchProjection::openai(&profile, selected_agent).map_err(|_| {
-                    CliError::validation("selected adapter has no exact provider route")
+                    CliError::legacy_validation("selected adapter has no exact provider route")
                 })?;
             (
                 projection,
@@ -5971,11 +6080,13 @@ fn build_provider_launch(
             )
         }
         "openrouter" => {
-            let profile = OpenRouterProfile::new(&selection.credential_reference_sha256)
-                .map_err(|_| CliError::validation("provider credential reference is invalid"))?;
+            let profile =
+                OpenRouterProfile::new(&selection.credential_reference_sha256).map_err(|_| {
+                    CliError::legacy_validation("provider credential reference is invalid")
+                })?;
             let projection = ProviderLaunchProjection::openrouter(&profile, selected_agent)
                 .map_err(|_| {
-                    CliError::validation("selected adapter has no exact provider route")
+                    CliError::legacy_validation("selected adapter has no exact provider route")
                 })?;
             (
                 projection,
@@ -5984,18 +6095,20 @@ fn build_provider_launch(
         }
         "cli2key" => {
             let launch = selection.cli2key_launch.as_ref().ok_or_else(|| {
-                CliError::validation("cli2key provider selection lacks a runtime launch")
+                CliError::legacy_validation("cli2key provider selection lacks a runtime launch")
             })?;
             launch
                 .validate_shape()
-                .map_err(|_| CliError::validation("cli2key launch identity is invalid"))?;
+                .map_err(|_| CliError::legacy_validation("cli2key launch identity is invalid"))?;
             if selected_agent != SelectedAgent::Codex
                 || launch.selection.model_id != selection.model
                 || launch.selection.credential_reference_sha256
                     != selection.credential_reference_sha256
                 || launch.selection.catalog_sha256 != selection.catalog_sha256
             {
-                return Err(CliError::validation("cli2key selection binding is invalid"));
+                return Err(CliError::legacy_validation(
+                    "cli2key selection binding is invalid",
+                ));
             }
             let projection = ProviderLaunchProjection::cli2key(
                 &selection.model,
@@ -6003,10 +6116,16 @@ fn build_provider_launch(
                 &selection.credential_reference_sha256,
                 selected_agent,
             )
-            .map_err(|_| CliError::validation("selected adapter has no exact cli2key route"))?;
+            .map_err(|_| {
+                CliError::legacy_validation("selected adapter has no exact cli2key route")
+            })?;
             (projection, launch.selection.endpoint_sha256.clone())
         }
-        _ => return Err(CliError::validation("provider selection is incompatible")),
+        _ => {
+            return Err(CliError::legacy_validation(
+                "provider selection is incompatible",
+            ));
+        }
     };
     let input = ProviderLaunchV1 {
         schema_version: asb_agents::provider_launch::PROVIDER_LAUNCH_V1,
@@ -6040,32 +6159,33 @@ fn build_provider_launch(
         },
     };
     ProviderLaunchRecord::bind(input, &projection)
-        .map_err(|_| CliError::validation("provider-aware launch binding is invalid"))
+        .map_err(|_| CliError::legacy_validation("provider-aware launch binding is invalid"))
 }
 
 fn load_and_validate(path: &Path) -> Result<PlanFile, CliError> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|_| CliError::validation("experiment plan is unavailable"))?;
+    let metadata = fs::symlink_metadata(path).map_err(|_| {
+        CliError::validation_code("cached_input_unavailable", "experiment plan is unavailable")
+    })?;
     if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_PLAN_BYTES {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "experiment plan is not a bounded regular file",
         ));
     }
     let file = fs::File::open(path)
-        .map_err(|_| CliError::validation("experiment plan cannot be opened"))?;
+        .map_err(|_| CliError::legacy_validation("experiment plan cannot be opened"))?;
     let mut bytes = Vec::with_capacity(usize::try_from(metadata.len()).unwrap_or(0));
     file.take(MAX_PLAN_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|_| CliError::validation("experiment plan cannot be read"))?;
+        .map_err(|_| CliError::legacy_validation("experiment plan cannot be read"))?;
     if bytes.len() as u64 > MAX_PLAN_BYTES {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "experiment plan exceeds its byte limit",
         ));
     }
     let text = std::str::from_utf8(&bytes)
-        .map_err(|_| CliError::validation("experiment plan must be UTF-8"))?;
+        .map_err(|_| CliError::legacy_validation("experiment plan must be UTF-8"))?;
     let plan: PlanFile = toml::from_str(text)
-        .map_err(|_| CliError::validation("experiment plan syntax or shape is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("experiment plan syntax or shape is invalid"))?;
     validate_plan(&plan)?;
     Ok(plan)
 }
@@ -6091,7 +6211,7 @@ fn process_measurement_selection(
         mode,
         Some(interval_ns),
     )
-    .map_err(|_| CliError::validation("legacy measurement selection cannot be migrated"))
+    .map_err(|_| CliError::legacy_validation("legacy measurement selection cannot be migrated"))
 }
 
 fn legacy_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelectionV1, CliError> {
@@ -6099,7 +6219,7 @@ fn legacy_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelectionV
         .point
         .poll_ms
         .checked_mul(1_000_000)
-        .ok_or_else(|| CliError::validation("legacy measurement cadence overflows"))?;
+        .ok_or_else(|| CliError::legacy_validation("legacy measurement cadence overflows"))?;
     process_measurement_selection(plan.experiment.controls.replay.mode, interval)
 }
 
@@ -6107,13 +6227,15 @@ fn effective_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelecti
     match (plan.schema_version, &plan.measurement_selection) {
         (LEGACY_PLAN_SCHEMA_VERSION, None) => legacy_measurement_selection(plan),
         (PLAN_SCHEMA_VERSION, Some(selection)) => Ok(selection.clone()),
-        (LEGACY_PLAN_SCHEMA_VERSION, Some(_)) => Err(CliError::validation(
+        (LEGACY_PLAN_SCHEMA_VERSION, Some(_)) => Err(CliError::legacy_validation(
             "legacy experiment plans cannot declare measurement_selection",
         )),
-        (PLAN_SCHEMA_VERSION, None) => Err(CliError::validation(
+        (PLAN_SCHEMA_VERSION, None) => Err(CliError::legacy_validation(
             "experiment plan v2 requires measurement_selection",
         )),
-        _ => Err(CliError::validation("unsupported experiment plan version")),
+        _ => Err(CliError::legacy_validation(
+            "unsupported experiment plan version",
+        )),
     }
 }
 
@@ -6218,7 +6340,7 @@ fn validate_measurement_selection(plan: &PlanFile) -> Result<MeasurementSelectio
                 .max_event_bytes
                 .saturating_sub(64 * 1024)
     }) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "measurement selection exceeds the terminal evidence bound",
         ));
     }
@@ -6306,11 +6428,13 @@ fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
         plan.schema_version,
         LEGACY_PLAN_SCHEMA_VERSION | PLAN_SCHEMA_VERSION
     ) {
-        return Err(CliError::validation("unsupported experiment plan version"));
+        return Err(CliError::legacy_validation(
+            "unsupported experiment plan version",
+        ));
     }
     validate_id(&plan.run_id)?;
     if plan.run_id.len() > MAX_ID_BYTES - 16 {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "run identity is too long for sweep points",
         ));
     }
@@ -6320,33 +6444,33 @@ fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
         || plan.result_root.starts_with(&plan.work_root)
         || plan.work_root.starts_with(&plan.result_root)
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "result and work roots must be disjoint",
         ));
     }
     validate_agent(&plan.agent)?;
     plan.experiment
         .validate()
-        .map_err(|_| CliError::validation("experiment identity is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("experiment identity is invalid"))?;
     if plan.experiment.agent.binary_sha256 != plan.agent.executable_sha256 {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "agent executable identity does not match experiment",
         ));
     }
     if plan.experiment.platform.architecture != std::env::consts::ARCH {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "experiment architecture does not match this host",
         ));
     }
     validate_measurement_selection(plan)?;
     let workload = describe_workload(&plan.workload)
-        .map_err(|_| CliError::validation("unknown or invalid workload"))?;
+        .map_err(|_| CliError::legacy_validation("unknown or invalid workload"))?;
     if workload.workload_id.0 != plan.experiment.workload.workload
         || workload.version != plan.experiment.workload.workload_revision
         || workload.content_sha256 != plan.experiment.workload.workload_sha256
         || workload.scoring_version != plan.experiment.workload.scorer_revision
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "workload identity does not match experiment",
         ));
     }
@@ -6354,7 +6478,7 @@ fn validate_plan(plan: &PlanFile) -> Result<(), CliError> {
     process_limits(plan.point)?;
     if let Some(maximum) = plan.point.sweep_max_concurrency {
         capacity_order(maximum, plan.point.seed)
-            .map_err(|_| CliError::validation("invalid sweep concurrency bound"))?;
+            .map_err(|_| CliError::legacy_validation("invalid sweep concurrency bound"))?;
     }
     Ok(())
 }
@@ -6366,28 +6490,28 @@ fn validate_id(value: &str) -> Result<(), CliError> {
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
     {
-        return Err(CliError::validation("run identity is invalid"));
+        return Err(CliError::legacy_validation("run identity is invalid"));
     }
     Ok(())
 }
 
 fn validate_root(path: &Path) -> Result<(), CliError> {
     if !path.is_absolute() {
-        return Err(CliError::validation("run roots must be absolute"));
+        return Err(CliError::legacy_validation("run roots must be absolute"));
     }
     let existing = if path.exists() {
         path
     } else {
         path.parent()
-            .ok_or_else(|| CliError::validation("run root has no parent"))?
+            .ok_or_else(|| CliError::legacy_validation("run root has no parent"))?
     };
     let metadata = fs::symlink_metadata(existing)
-        .map_err(|_| CliError::validation("run root parent is unavailable"))?;
+        .map_err(|_| CliError::legacy_validation("run root parent is unavailable"))?;
     if metadata.file_type().is_symlink()
         || !metadata.is_dir()
         || fs::canonicalize(existing).ok().as_deref() != Some(existing)
     {
-        return Err(CliError::validation("run root topology is unsafe"));
+        return Err(CliError::legacy_validation("run root topology is unsafe"));
     }
     Ok(())
 }
@@ -6396,31 +6520,31 @@ fn validate_agent(agent: &BatchAgent) -> Result<(), CliError> {
     if !agent.executable.is_absolute()
         || fs::canonicalize(&agent.executable).ok().as_deref() != Some(&agent.executable)
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "agent executable path is not exact and absolute",
         ));
     }
     let metadata = fs::symlink_metadata(&agent.executable)
-        .map_err(|_| CliError::validation("agent executable is unavailable"))?;
+        .map_err(|_| CliError::legacy_validation("agent executable is unavailable"))?;
     if metadata.file_type().is_symlink()
         || !metadata.is_file()
         || metadata.len() == 0
         || metadata.len() > MAX_EXECUTABLE_BYTES
         || metadata.permissions().mode() & 0o111 == 0
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "agent executable is not a bounded regular file",
         ));
     }
     if !valid_sha256(&agent.executable_sha256)
         || digest_file(&agent.executable)? != agent.executable_sha256
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "agent executable digest does not match",
         ));
     }
     if !agent.arguments.is_empty() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "agent arguments are not provenance-pinned; use a pinned wrapper executable",
         ));
     }
@@ -6436,13 +6560,13 @@ fn valid_sha256(value: &str) -> bool {
 
 fn digest_file(path: &Path) -> Result<String, CliError> {
     let mut file = fs::File::open(path)
-        .map_err(|_| CliError::validation("agent executable cannot be opened"))?;
+        .map_err(|_| CliError::legacy_validation("agent executable cannot be opened"))?;
     let mut digest = Sha256::new();
     let mut buffer = [0u8; 64 * 1024];
     loop {
         let count = file
             .read(&mut buffer)
-            .map_err(|_| CliError::validation("agent executable cannot be read"))?;
+            .map_err(|_| CliError::legacy_validation("agent executable cannot be read"))?;
         if count == 0 {
             break;
         }
@@ -6459,7 +6583,7 @@ fn process_limits(point: PointInput) -> Result<ProcessLimits, CliError> {
         Duration::from_secs(1),
         Duration::from_millis(point.poll_ms),
     )
-    .map_err(|_| CliError::validation("invalid process limits"))
+    .map_err(|_| CliError::legacy_validation("invalid process limits"))
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -6511,7 +6635,7 @@ impl PreparedGuard {
         if let Some(workload) = self.0.take() {
             workload
                 .cleanup()
-                .map_err(|_| CliError::operation("attempt workspace cleanup failed"))?;
+                .map_err(|_| CliError::legacy_operation("attempt workspace cleanup failed"))?;
         }
         Ok(())
     }
@@ -6646,7 +6770,7 @@ fn execution_definition(
 
 fn execution_digest(execution: &ExecutionDefinition) -> Result<String, CliError> {
     let bytes = serde_json::to_vec(execution)
-        .map_err(|_| CliError::operation("execution definition cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("execution definition cannot be encoded"))?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
@@ -6654,7 +6778,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
     definition
         .experiment
         .validate()
-        .map_err(|_| CliError::validation("run experiment is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("run experiment is invalid"))?;
     if let Some(selection) = &definition.provider_selection {
         validate_provider_selection(selection)?;
         let synthetic_plan = PlanFile {
@@ -6678,7 +6802,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
     if let Some(launch) = &definition.provider_launch {
         launch
             .validate()
-            .map_err(|_| CliError::validation("stored provider launch is invalid"))?;
+            .map_err(|_| CliError::legacy_validation("stored provider launch is invalid"))?;
         let selection = definition.provider_selection.as_ref();
         if selection.is_none()
             || definition.execution.provider_launch_sha256.as_deref()
@@ -6696,13 +6820,13 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             || launch.input.runtime.executable_sha256
                 != definition.execution.agent_executable_sha256
         {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "stored provider launch is not bound to its execution",
             ));
         }
     }
     let workload = describe_workload(&definition.execution.workload)
-        .map_err(|_| CliError::validation("stored run workload is invalid"))?;
+        .map_err(|_| CliError::legacy_validation("stored run workload is invalid"))?;
     let measurement_selection = match definition.execution.plan_schema_version {
         LEGACY_PLAN_SCHEMA_VERSION => {
             let expected = legacy_measurement_selection(&PlanFile {
@@ -6726,7 +6850,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
                 .as_ref()
                 .is_some_and(|selection| selection != &expected)
             {
-                return Err(CliError::validation(
+                return Err(CliError::legacy_validation(
                     "stored legacy measurement migration is invalid",
                 ));
             }
@@ -6735,14 +6859,18 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
         PLAN_SCHEMA_VERSION => definition
             .measurement_selection
             .clone()
-            .ok_or_else(|| CliError::validation("stored measurement selection is absent"))?,
-        _ => return Err(CliError::validation("run execution definition is invalid")),
+            .ok_or_else(|| CliError::legacy_validation("stored measurement selection is absent"))?,
+        _ => {
+            return Err(CliError::legacy_validation(
+                "run execution definition is invalid",
+            ));
+        }
     };
     let stored_architecture = match definition.experiment.platform.architecture.as_str() {
         "x86_64" => MeasurementArchitecture::X86_64,
         "aarch64" => MeasurementArchitecture::Aarch64,
         _ => {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "stored measurement architecture is invalid",
             ));
         }
@@ -6763,7 +6891,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             .validate(&baseline_measurement_catalog(), &stored_capabilities)
             .is_err()
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "stored measurement selection is invalid",
         ));
     }
@@ -6773,7 +6901,7 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
             || definition.execution.measurement_selection_sha256.as_deref()
                 != Some(measurement_selection.selection_sha256.as_str()))
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "stored measurement selection is not bound to its execution",
         ));
     }
@@ -6804,7 +6932,9 @@ fn validate_stored_definition(definition: &StoredRunDefinition) -> Result<(), Cl
                 .as_ref()
                 .map(|value| value.launch_sha256.as_str())
     {
-        return Err(CliError::validation("run execution definition is invalid"));
+        return Err(CliError::legacy_validation(
+            "run execution definition is invalid",
+        ));
     }
     Ok(())
 }
@@ -6881,7 +7011,7 @@ fn execute_with_config(
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     let store = ConfigStore::from_environment()
-        .map_err(|_| CliError::operation("ASB configuration location is unavailable"))?;
+        .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
     execute_inner_from_source(
         path,
         SelectionSource::Config(&store),
@@ -6996,7 +7126,7 @@ fn execute_inner_from_source_with_owner(
         }
     };
     if live_provider && selection.is_none() {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "--live-provider requires an explicit provider selection",
         ));
     }
@@ -7006,39 +7136,43 @@ fn execute_inner_from_source_with_owner(
     // the selected provider credential only at the final child launch.  It is
     // never persisted or included in run evidence.
     if live_provider && live_factory.is_none() {
-        let selection = selection
-            .as_ref()
-            .ok_or_else(|| CliError::validation("live provider requires an explicit selection"))?;
+        let selection = selection.as_ref().ok_or_else(|| {
+            CliError::legacy_validation("live provider requires an explicit selection")
+        })?;
         if selection.provider_profile == "cli2key" {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "cli2key live execution requires a runtime-issued sidecar launch",
             ));
         }
         if selection.provider_profile != "openrouter" {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "development live execution currently supports only openrouter",
             ));
         }
-        let reference = asb_agents::openrouter::openrouter_credential_reference()
-            .map_err(|_| CliError::operation("OpenRouter credential reference is unavailable"))?;
+        let reference =
+            asb_agents::openrouter::openrouter_credential_reference().map_err(|_| {
+                CliError::legacy_operation("OpenRouter credential reference is unavailable")
+            })?;
         let profile = asb_agents::openrouter::OpenRouterProfile::new(reference)
-            .map_err(|_| CliError::operation("OpenRouter profile is unavailable"))?;
+            .map_err(|_| CliError::legacy_operation("OpenRouter profile is unavailable"))?;
         asb_agents::openrouter::resolve_openrouter_environment(&profile)
             .map(drop)
             .map_err(|_| {
-                CliError::validation(
+                CliError::legacy_validation(
                     "OPENROUTER_API_KEY is required for an explicit live development run",
                 )
             })?;
     }
     if plan.experiment.controls.replay.mode == asb_protocol::ReplayMode::Replay {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "run cannot use a replay plan without an explicit strict cassette execution",
         ));
     }
     let measurement_selection = effective_measurement_selection(&plan)?;
     if sweep && plan.point.sweep_max_concurrency.is_none() {
-        return Err(CliError::validation("sweep requires sweep_max_concurrency"));
+        return Err(CliError::legacy_validation(
+            "sweep requires sweep_max_concurrency",
+        ));
     }
     let human_directory_notices = presentation_context.is_some();
     prepare_root_with_progress(
@@ -7053,19 +7187,19 @@ fn execute_inner_from_source_with_owner(
     )?;
     let store = Arc::new(
         AtomicStore::open(&plan.result_root, StoreLimits::default())
-            .map_err(|_| CliError::operation("result store cannot be opened"))?,
+            .map_err(|_| CliError::legacy_operation("result store cannot be opened"))?,
     );
     let cancelled = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(SIGINT, Arc::clone(&cancelled))
-        .map_err(|_| CliError::operation("SIGINT handler cannot be installed"))?;
+        .map_err(|_| CliError::legacy_operation("SIGINT handler cannot be installed"))?;
     signal_hook::flag::register(SIGTERM, Arc::clone(&cancelled))
-        .map_err(|_| CliError::operation("SIGTERM handler cannot be installed"))?;
+        .map_err(|_| CliError::legacy_operation("SIGTERM handler cannot be installed"))?;
     let concurrencies = if sweep {
         capacity_order(
             plan.point.sweep_max_concurrency.unwrap_or(0),
             plan.point.seed,
         )
-        .map_err(|_| CliError::validation("invalid sweep concurrency bound"))?
+        .map_err(|_| CliError::legacy_validation("invalid sweep concurrency bound"))?
     } else {
         vec![plan.point.concurrency]
     };
@@ -7253,11 +7387,11 @@ fn run_point_with_selection_with_owner(
             execution,
             execution_sha256: execution_sha256.clone(),
         })
-        .map_err(|_| CliError::operation("experiment cannot be encoded"))?,
+        .map_err(|_| CliError::legacy_operation("experiment cannot be encoded"))?,
     };
-    store
-        .create_run(&manifest)
-        .map_err(|_| CliError::operation("run identity already exists or cannot be stored"))?;
+    store.create_run(&manifest).map_err(|_| {
+        CliError::legacy_operation("run identity already exists or cannot be stored")
+    })?;
     append_state(
         &store,
         &run_id,
@@ -7643,7 +7777,7 @@ fn run_attempt(
     let attempt_root = work_root.join(format!("{run_id}-{phase}-{input_id}"));
     let mut prepared = PreparedGuard::new(
         prepare_workload(&plan.workload, &attempt_root)
-            .map_err(|_| CliError::operation("workload preparation failed"))?,
+            .map_err(|_| CliError::legacy_operation("workload preparation failed"))?,
     );
     let private_path = attempt_root.join(".asb-private");
     let private =
@@ -7684,7 +7818,9 @@ fn run_attempt(
         .collect::<Vec<_>>();
     let mut metric = collector
         .collect_process_selected(process.pid(), 0, &selected_ids)
-        .map_err(|_| CliError::validation("validated process measurement selection drifted"))?;
+        .map_err(|_| {
+            CliError::legacy_validation("validated process measurement selection drifted")
+        })?;
     let measurement_interval_ns = measurement_selection.sample_interval_ns;
     let mut next_measurement_slot = 1_u64;
     let mut metric_scheduled_collections = u64::from(measurement_interval_ns.is_some());
@@ -7711,12 +7847,12 @@ fn run_attempt(
     let process_started = Instant::now();
     while !process
         .leader_has_exited()
-        .map_err(|_| CliError::operation("agent process cannot be observed"))?
+        .map_err(|_| CliError::legacy_operation("agent process cannot be observed"))?
     {
         if cancelled.load(Ordering::SeqCst) {
             process
                 .cancel()
-                .map_err(|_| CliError::operation("agent process cannot be cancelled"))?;
+                .map_err(|_| CliError::legacy_operation("agent process cannot be cancelled"))?;
             break;
         }
         if process_started.elapsed() >= Duration::from_millis(plan.point.timeout_ms) {
@@ -7725,7 +7861,7 @@ fn run_attempt(
         thread::sleep(Duration::from_millis(plan.point.poll_ms));
         if !process
             .leader_has_exited()
-            .map_err(|_| CliError::operation("agent process cannot be observed"))?
+            .map_err(|_| CliError::legacy_operation("agent process cannot be observed"))?
         {
             let elapsed = process_started.elapsed();
             let elapsed_ns = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
@@ -7744,7 +7880,9 @@ fn run_attempt(
                 metric = collector
                     .collect_process_selected(process.pid(), elapsed_ns, &selected_ids)
                     .map_err(|_| {
-                        CliError::validation("validated process measurement selection drifted")
+                        CliError::legacy_validation(
+                            "validated process measurement selection drifted",
+                        )
                     })?;
                 metric_completed_collections = metric_completed_collections.saturating_add(1);
                 metric_collection_time_ns = metric_collection_time_ns
@@ -7767,10 +7905,10 @@ fn run_attempt(
     }
     let evidence = process
         .wait()
-        .map_err(|_| CliError::operation("agent process did not yield terminal evidence"))?;
+        .map_err(|_| CliError::legacy_operation("agent process did not yield terminal evidence"))?;
     let grade = prepared
         .evaluate()
-        .map_err(|_| CliError::operation("workload evaluation failed"))?;
+        .map_err(|_| CliError::legacy_operation("workload evaluation failed"))?;
     let termination = termination_name(evidence.termination);
     let outcome = match evidence.termination {
         Termination::Cancelled => "cancelled",
@@ -7846,14 +7984,14 @@ fn spawn_verified_agent(
         if let Some(mut attempt) = live_attempt {
             let process = attempt
                 .spawn()
-                .map_err(|_| CliError::operation("runtime live-provider spawn failed"))?;
+                .map_err(|_| CliError::legacy_operation("runtime live-provider spawn failed"))?;
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .map_err(|_| CliError::operation("runtime clock is unavailable"))?
+                .map_err(|_| CliError::legacy_operation("runtime clock is unavailable"))?
                 .as_millis() as u64;
             let relay_worker = attempt
                 .start_relay(now)
-                .map_err(|_| CliError::operation("runtime live relay cannot start"))?;
+                .map_err(|_| CliError::legacy_operation("runtime live relay cannot start"))?;
             return Ok((
                 AgentProcess::Live {
                     process,
@@ -7871,17 +8009,17 @@ fn spawn_verified_agent(
             value.input.provider != "openrouter"
                 || !matches!(value.input.adapter.as_str(), "opencode" | "opendesk")
         }) {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "development live execution requires an OpenRouter OpenCode or OpenDesk launch",
             ));
         }
     }
     if let Some(launch) = launch {
-        launch
-            .validate()
-            .map_err(|_| CliError::validation("provider-aware launch changed before spawn"))?;
+        launch.validate().map_err(|_| {
+            CliError::legacy_validation("provider-aware launch changed before spawn")
+        })?;
         if launch.input.runtime.executable_sha256 != plan.agent.executable_sha256 {
-            return Err(CliError::validation(
+            return Err(CliError::legacy_validation(
                 "provider-aware executable identity changed before spawn",
             ));
         }
@@ -7889,25 +8027,26 @@ fn spawn_verified_agent(
     for retry in 0..=MAX_BUSY_SPAWN_RETRIES {
         let stdin = prompt
             .try_clone()
-            .map_err(|_| CliError::operation("prompt descriptor cannot be duplicated"))?;
+            .map_err(|_| CliError::legacy_operation("prompt descriptor cannot be duplicated"))?;
         let uses_opencode_batch =
             live_provider && launch.is_some_and(|value| value.input.adapter == "opencode");
         let mut command = if uses_opencode_batch {
-            let executable = std::env::current_exe()
-                .map_err(|_| CliError::operation("ASB OpenCode batch adapter is unavailable"))?;
+            let executable = std::env::current_exe().map_err(|_| {
+                CliError::legacy_operation("ASB OpenCode batch adapter is unavailable")
+            })?;
             let launch = launch.expect("OpenCode batch adapter requires launch metadata");
             let mut command = Command::new(executable);
             command.args([
                 "internal-opencode-batch",
-                agent_snapshot
-                    .to_str()
-                    .ok_or_else(|| CliError::validation("OpenCode executable path is not UTF-8"))?,
-                workspace
-                    .to_str()
-                    .ok_or_else(|| CliError::validation("OpenCode workspace path is not UTF-8"))?,
-                temporary
-                    .to_str()
-                    .ok_or_else(|| CliError::validation("OpenCode state path is not UTF-8"))?,
+                agent_snapshot.to_str().ok_or_else(|| {
+                    CliError::legacy_validation("OpenCode executable path is not UTF-8")
+                })?,
+                workspace.to_str().ok_or_else(|| {
+                    CliError::legacy_validation("OpenCode workspace path is not UTF-8")
+                })?,
+                temporary.to_str().ok_or_else(|| {
+                    CliError::legacy_validation("OpenCode state path is not UTF-8")
+                })?,
                 launch.input.model.as_str(),
                 &limits.timeout().as_millis().to_string(),
             ]);
@@ -7929,7 +8068,9 @@ fn spawn_verified_agent(
             let credential_target =
                 credential_target_for_provider_agent(&launch.input.provider, &launch.input.adapter)
                     .ok_or_else(|| {
-                        CliError::validation("provider adapter credential target is unsupported")
+                        CliError::legacy_validation(
+                            "provider adapter credential target is unsupported",
+                        )
                     })?;
             command
                 .env(provider_launch::LAUNCH_VERSION_ENV, "1")
@@ -7962,7 +8103,7 @@ fn spawn_verified_agent(
                 let key = std::env::var_os(asb_agents::openrouter::OPENROUTER_API_KEY_ENV)
                     .filter(|value| !value.is_empty())
                     .ok_or_else(|| {
-                        CliError::validation(
+                        CliError::legacy_validation(
                             "OPENROUTER_API_KEY is required for an explicit live development run",
                         )
                     })?;
@@ -8004,17 +8145,17 @@ impl AgentProcess {
         match self {
             Self::Direct(process) => process
                 .leader_has_exited()
-                .map_err(|_| CliError::operation("agent process cannot be observed")),
+                .map_err(|_| CliError::legacy_operation("agent process cannot be observed")),
             Self::Live { process, .. } => process
                 .leader_has_exited()
-                .map_err(|_| CliError::operation("agent process cannot be observed")),
+                .map_err(|_| CliError::legacy_operation("agent process cannot be observed")),
         }
     }
     fn cancel(&mut self) -> Result<(), CliError> {
         match self {
             Self::Direct(process) => process
                 .cancel()
-                .map_err(|_| CliError::operation("agent process cannot be cancelled")),
+                .map_err(|_| CliError::legacy_operation("agent process cannot be cancelled")),
             Self::Live {
                 process,
                 _attempt,
@@ -8023,12 +8164,12 @@ impl AgentProcess {
                 _attempt.revoke();
                 process
                     .cancel()
-                    .map_err(|_| CliError::operation("agent process cannot be cancelled"))?;
+                    .map_err(|_| CliError::legacy_operation("agent process cannot be cancelled"))?;
                 if let Some(worker) = relay_worker.take() {
                     worker
                         .join()
-                        .map_err(|_| CliError::operation("live relay worker panicked"))?
-                        .map_err(|_| CliError::operation("live relay forwarding failed"))?;
+                        .map_err(|_| CliError::legacy_operation("live relay worker panicked"))?
+                        .map_err(|_| CliError::legacy_operation("live relay forwarding failed"))?;
                 }
                 Ok(())
             }
@@ -8036,24 +8177,23 @@ impl AgentProcess {
     }
     fn wait(&mut self) -> Result<asb_runtime::ProcessOutput, CliError> {
         match self {
-            Self::Direct(process) => process
-                .wait()
-                .cloned()
-                .map_err(|_| CliError::operation("agent process did not yield terminal evidence")),
+            Self::Direct(process) => process.wait().cloned().map_err(|_| {
+                CliError::legacy_operation("agent process did not yield terminal evidence")
+            }),
             Self::Live {
                 process,
                 _attempt,
                 relay_worker,
             } => {
                 let result = process.wait().map_err(|_| {
-                    CliError::operation("agent process did not yield terminal evidence")
+                    CliError::legacy_operation("agent process did not yield terminal evidence")
                 });
                 _attempt.revoke();
                 if let Some(worker) = relay_worker.take() {
                     worker
                         .join()
-                        .map_err(|_| CliError::operation("live relay worker panicked"))?
-                        .map_err(|_| CliError::operation("live relay forwarding failed"))?;
+                        .map_err(|_| CliError::legacy_operation("live relay worker panicked"))?
+                        .map_err(|_| CliError::legacy_operation("live relay forwarding failed"))?;
                 }
                 result
             }
@@ -8068,15 +8208,15 @@ fn should_retry_busy(raw_os_error: Option<i32>, retries_completed: u8) -> bool {
 fn spawn_error(error: ProcessError) -> CliError {
     match error {
         ProcessError::Spawn(error) if error.raw_os_error() == Some(libc::ETXTBSY) => {
-            CliError::operation("agent snapshot is unexpectedly busy")
+            CliError::legacy_operation("agent snapshot is unexpectedly busy")
         }
         ProcessError::Spawn(error) if error.raw_os_error() == Some(libc::EAGAIN) => {
-            CliError::operation("agent process limit prevented start")
+            CliError::legacy_operation("agent process limit prevented start")
         }
         ProcessError::Spawn(error) if error.raw_os_error() == Some(libc::EACCES) => {
-            CliError::operation("agent snapshot execution was denied")
+            CliError::legacy_operation("agent snapshot execution was denied")
         }
-        _ => CliError::operation("agent process cannot be started"),
+        _ => CliError::legacy_operation("agent process cannot be started"),
     }
 }
 
@@ -8085,12 +8225,12 @@ fn snapshot_agent(agent: &BatchAgent, private: &Path) -> Result<PathBuf, CliErro
         .read(true)
         .custom_flags(libc::O_NOFOLLOW)
         .open(&agent.executable)
-        .map_err(|_| CliError::operation("agent executable cannot be reopened safely"))?;
+        .map_err(|_| CliError::legacy_operation("agent executable cannot be reopened safely"))?;
     let metadata = source
         .metadata()
-        .map_err(|_| CliError::operation("agent executable metadata cannot be verified"))?;
+        .map_err(|_| CliError::legacy_operation("agent executable metadata cannot be verified"))?;
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_EXECUTABLE_BYTES {
-        return Err(CliError::operation(
+        return Err(CliError::legacy_operation(
             "agent executable changed after validation",
         ));
     }
@@ -8100,42 +8240,42 @@ fn snapshot_agent(agent: &BatchAgent, private: &Path) -> Result<PathBuf, CliErro
         .create_new(true)
         .mode(0o600)
         .open(&snapshot)
-        .map_err(|_| CliError::operation("agent snapshot cannot be created"))?;
+        .map_err(|_| CliError::legacy_operation("agent snapshot cannot be created"))?;
     let mut digest = Sha256::new();
     let mut copied = 0_u64;
     let mut buffer = [0_u8; 64 * 1024];
     loop {
         let count = source
             .read(&mut buffer)
-            .map_err(|_| CliError::operation("agent executable cannot be snapshotted"))?;
+            .map_err(|_| CliError::legacy_operation("agent executable cannot be snapshotted"))?;
         if count == 0 {
             break;
         }
         copied = copied
             .checked_add(count as u64)
-            .ok_or_else(|| CliError::operation("agent executable size overflow"))?;
+            .ok_or_else(|| CliError::legacy_operation("agent executable size overflow"))?;
         if copied > MAX_EXECUTABLE_BYTES {
-            return Err(CliError::operation(
+            return Err(CliError::legacy_operation(
                 "agent executable changed after validation",
             ));
         }
         digest.update(&buffer[..count]);
         destination
             .write_all(&buffer[..count])
-            .map_err(|_| CliError::operation("agent snapshot cannot be written"))?;
+            .map_err(|_| CliError::legacy_operation("agent snapshot cannot be written"))?;
     }
     destination
         .sync_all()
-        .map_err(|_| CliError::operation("agent snapshot cannot be synchronized"))?;
+        .map_err(|_| CliError::legacy_operation("agent snapshot cannot be synchronized"))?;
     if copied != metadata.len() || format!("{:x}", digest.finalize()) != agent.executable_sha256 {
-        return Err(CliError::operation(
+        return Err(CliError::legacy_operation(
             "agent executable changed after validation",
         ));
     }
     drop(destination);
     drop(source);
     fs::set_permissions(&snapshot, fs::Permissions::from_mode(0o500))
-        .map_err(|_| CliError::operation("agent snapshot cannot be made executable"))?;
+        .map_err(|_| CliError::legacy_operation("agent snapshot cannot be made executable"))?;
     Ok(snapshot)
 }
 
@@ -8161,7 +8301,7 @@ fn append_state(
                 evidence,
             },
         )
-        .map_err(|_| CliError::operation("run state cannot be committed"))
+        .map_err(|_| CliError::legacy_operation("run state cannot be committed"))
 }
 
 fn prepare_root(path: &Path) -> Result<(), CliError> {
@@ -8267,7 +8407,7 @@ fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
             }
         }
         let report = compare_experiments(&baseline.experiment, &candidate.2.experiment)
-            .map_err(|_| CliError::validation("stored experiments cannot be compared"))?;
+            .map_err(|_| CliError::legacy_validation("stored experiments cannot be compared"))?;
         let mut pair_differences = report
             .differences()
             .iter()
@@ -8365,34 +8505,34 @@ fn opaque_run_id(path: &str) -> String {
 fn load_run_definition(path: &Path) -> Result<StoredRunDefinition, CliError> {
     let (store_root, run_id) = parse_run_ref(path)?;
     let store = AtomicStore::open(store_root, StoreLimits::default())
-        .map_err(|_| CliError::validation("run store cannot be opened"))?;
+        .map_err(|_| CliError::legacy_validation("run store cannot be opened"))?;
     let manifest = store
         .load_manifest(run_id)
-        .map_err(|_| CliError::validation("run manifest cannot be loaded"))?;
+        .map_err(|_| CliError::legacy_validation("run manifest cannot be loaded"))?;
     let definition: StoredRunDefinition = serde_json::from_value(manifest.definition)
-        .map_err(|_| CliError::validation("run definition has an invalid shape"))?;
+        .map_err(|_| CliError::legacy_validation("run definition has an invalid shape"))?;
     validate_stored_definition(&definition)?;
     Ok(definition)
 }
 
 fn parse_run_ref(path: &Path) -> Result<(&Path, &str), CliError> {
     if !path.is_absolute() || fs::canonicalize(path).ok().as_deref() != Some(path) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "run reference must be an exact absolute directory",
         ));
     }
     let run_id = path
         .file_name()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| CliError::validation("run reference identity is invalid"))?;
+        .ok_or_else(|| CliError::legacy_validation("run reference identity is invalid"))?;
     validate_id(run_id)?;
     let runs = path
         .parent()
         .filter(|value| value.file_name().is_some_and(|name| name == "runs"))
-        .ok_or_else(|| CliError::validation("run reference is outside a store"))?;
+        .ok_or_else(|| CliError::legacy_validation("run reference is outside a store"))?;
     let root = runs
         .parent()
-        .ok_or_else(|| CliError::validation("run reference has no store root"))?;
+        .ok_or_else(|| CliError::legacy_validation("run reference has no store root"))?;
     Ok((root, run_id))
 }
 
@@ -8466,15 +8606,15 @@ fn report(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     for path in runs {
         let (root, run_id) = parse_run_ref(Path::new(path))?;
         let store = AtomicStore::open(root, StoreLimits::default())
-            .map_err(|_| CliError::validation("run store cannot be opened"))?;
+            .map_err(|_| CliError::legacy_validation("run store cannot be opened"))?;
         let manifest = store
             .load_manifest(run_id)
-            .map_err(|_| CliError::validation("run manifest cannot be loaded"))?;
+            .map_err(|_| CliError::legacy_validation("run manifest cannot be loaded"))?;
         let journal = store
             .load_journal(run_id)
-            .map_err(|_| CliError::validation("run journal cannot be loaded"))?;
+            .map_err(|_| CliError::legacy_validation("run journal cannot be loaded"))?;
         let definition: StoredRunDefinition = serde_json::from_value(manifest.definition)
-            .map_err(|_| CliError::validation("run definition has an invalid shape"))?;
+            .map_err(|_| CliError::legacy_validation("run definition has an invalid shape"))?;
         validate_stored_definition(&definition)?;
         let point = validate_terminal_point(journal.last(), &definition)?;
         let exposes_measurement_selection =
@@ -8542,18 +8682,22 @@ fn validate_terminal_point(
         .evidence
         .as_object()
         .filter(|object| object.len() == 2)
-        .ok_or_else(|| CliError::validation("terminal point evidence has an invalid shape"))?;
+        .ok_or_else(|| {
+            CliError::legacy_validation("terminal point evidence has an invalid shape")
+        })?;
     if evidence.get("execution_sha256").and_then(Value::as_str)
         != Some(&definition.execution_sha256)
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "terminal point evidence does not match execution",
         ));
     }
     let point = evidence
         .get("point")
         .and_then(Value::as_object)
-        .ok_or_else(|| CliError::validation("terminal point evidence has an invalid shape"))?;
+        .ok_or_else(|| {
+            CliError::legacy_validation("terminal point evidence has an invalid shape")
+        })?;
     const KEYS: &[&str] = &[
         "concurrency",
         "decision",
@@ -8571,7 +8715,7 @@ fn validate_terminal_point(
         "attempt_failures",
     ];
     if point.len() != KEYS.len() || KEYS.iter().any(|key| !point.contains_key(*key)) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "terminal point evidence has an invalid shape",
         ));
     }
@@ -8591,7 +8735,7 @@ fn validate_terminal_point(
         .requested_point
         .measured
         .checked_add(definition.execution.requested_point.warmups)
-        .ok_or_else(|| CliError::validation("terminal point evidence count overflow"))?
+        .ok_or_else(|| CliError::legacy_validation("terminal point evidence count overflow"))?
         as usize;
     let attempts = point.get("attempts").and_then(Value::as_array);
     let scheduler = point.get("scheduler_attempts").and_then(Value::as_array);
@@ -8645,12 +8789,12 @@ fn validate_terminal_point(
             .zip(failures)
             .is_none_or(|(attempts, failures)| attempts.len() + failures.len() > total)
     {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "terminal point evidence is inconsistent",
         ));
     }
     if !valid_point_relationships(point, definition) {
-        return Err(CliError::validation(
+        return Err(CliError::legacy_validation(
             "terminal point evidence relationships are inconsistent",
         ));
     }
@@ -9209,7 +9353,8 @@ enum HumanErrorClass {
 }
 
 impl CliError {
-    fn usage(message: &'static str) -> Self {
+    #[track_caller]
+    fn legacy_usage(message: &'static str) -> Self {
         Self {
             code: "usage",
             message,
@@ -9217,16 +9362,15 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::Help,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "usage",
-                message,
+            diagnostic: diagnostic::Diagnostic::for_legacy_cli_callsite(
                 diagnostic::Severity::Error,
             ),
             path: None,
         }
     }
 
-    fn validation(message: &'static str) -> Self {
+    #[track_caller]
+    fn legacy_validation(message: &'static str) -> Self {
         Self {
             code: "validation",
             message,
@@ -9234,16 +9378,18 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "validation",
-                message,
+            diagnostic: diagnostic::Diagnostic::for_legacy_cli_callsite(
                 diagnostic::Severity::Error,
             ),
             path: None,
         }
     }
 
-    fn validation_with_remediation(message: &'static str, remediation: ErrorRemediation) -> Self {
+    #[track_caller]
+    fn legacy_validation_with_remediation(
+        message: &'static str,
+        remediation: ErrorRemediation,
+    ) -> Self {
         Self {
             code: "validation",
             message,
@@ -9251,9 +9397,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::UserCorrection,
             remediation,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "validation",
-                message,
+            diagnostic: diagnostic::Diagnostic::for_legacy_cli_callsite(
                 diagnostic::Severity::Error,
             ),
             path: None,
@@ -9268,8 +9412,7 @@ impl CliError {
             settings_issue,
             human_class: HumanErrorClass::UserCorrection,
             remediation: ErrorRemediation::None,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "validation",
+            diagnostic: diagnostic::Diagnostic::for_cli_literal(
                 message,
                 diagnostic::Severity::Error,
             ),
@@ -9277,7 +9420,8 @@ impl CliError {
         }
     }
 
-    fn operation(message: &'static str) -> Self {
+    #[track_caller]
+    fn legacy_operation(message: &'static str) -> Self {
         Self {
             code: "operation",
             message,
@@ -9285,9 +9429,7 @@ impl CliError {
             settings_issue: asb_control::SettingsIssue::InvalidFormat,
             human_class: HumanErrorClass::ProductFailure,
             remediation: ErrorRemediation::None,
-            diagnostic: diagnostic::Diagnostic::for_code(
-                "operation",
-                message,
+            diagnostic: diagnostic::Diagnostic::for_legacy_cli_callsite(
                 diagnostic::Severity::Failure,
             ),
             path: None,
@@ -9351,12 +9493,12 @@ impl CliError {
 }
 
 fn output_error(_: io::Error) -> CliError {
-    CliError::operation("structured output cannot be written")
+    CliError::legacy_operation("structured output cannot be written")
 }
 
 fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliError> {
     serde_json::to_writer(&mut *output, value)
-        .map_err(|_| CliError::operation("structured output cannot be encoded"))?;
+        .map_err(|_| CliError::legacy_operation("structured output cannot be encoded"))?;
     writeln!(output).map_err(output_error)
 }
 

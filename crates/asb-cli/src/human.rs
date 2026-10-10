@@ -57,7 +57,7 @@ impl PresentationContext {
 /// Authoritative public top-level command inventory for dispatch, help, and
 /// human-presentation exhaustiveness. Legacy doctor/completion projections are
 /// independently pinned to their compatibility fixtures.
-pub(super) const PUBLIC_COMMANDS: &[&str] = &[
+pub(crate) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
     "setup",
     "capabilities",
@@ -2154,6 +2154,18 @@ fn present_execution(
         }
     }
     if let Some(points) = object.get("points").and_then(Value::as_array) {
+        let timed_out = points
+            .iter()
+            .filter_map(Value::as_object)
+            .filter_map(|point| number(point, "timed_out"))
+            .sum::<u64>();
+        if timed_out > 0 {
+            value.fact(format!("Timed-out attempts: {timed_out}."));
+            value.warning("The bounded deadline expired for one or more benchmark attempts.");
+            value.fact(
+                "Recovery: Inspect the retained run report before retrying the timed-out benchmark.",
+            );
+        }
         let decisions = points
             .iter()
             .filter_map(|point| string_value(point, "decision"))
@@ -3313,6 +3325,43 @@ mod tests {
     }
 
     #[test]
+    fn every_public_command_has_a_human_safe_invalid_argument_journey() {
+        for command in PUBLIC_COMMANDS {
+            let args = [
+                OsString::from(*command),
+                OsString::from("--invalid-diagnostic-fixture"),
+            ];
+            let mut output = Vec::new();
+            let mut diagnostic = Vec::new();
+            let exit =
+                super::super::run_with_default_mode(&args, &mut output, &mut diagnostic, true);
+            assert_ne!(exit, 0, "{command} invalid journey unexpectedly succeeded");
+            if *command == "serve" {
+                assert_eq!(
+                    String::from_utf8(diagnostic).expect("serve progress is UTF-8"),
+                    "ASB is attempting to start the control service from the supplied configuration.\n"
+                );
+            } else {
+                assert!(
+                    diagnostic.is_empty(),
+                    "{command} unexpectedly wrote diagnostics"
+                );
+            }
+            let rendered = String::from_utf8(output).expect("human diagnostic is UTF-8");
+            assert!(
+                rendered.contains("ASB could not complete"),
+                "{command}: {rendered}"
+            );
+            assert!(rendered.contains("Affected "), "{command}: {rendered}");
+            assert!(rendered.contains("Recovery: "), "{command}: {rendered}");
+            assert!(
+                !rendered.contains("credential payload"),
+                "{command}: {rendered}"
+            );
+        }
+    }
+
+    #[test]
     fn plan_next_command_is_shell_safe_and_context_aware() {
         let output = render(
             &["plan", "/tmp/plan with quote's.toml", "--use-config"],
@@ -3391,7 +3440,7 @@ mod tests {
         let mut user = Vec::new();
         render_error(
             &args(&["plan"]),
-            &CliError::usage("missing plan"),
+            &CliError::legacy_usage("missing plan"),
             false,
             &mut user,
         )
@@ -3417,7 +3466,7 @@ mod tests {
         let mut product = Vec::new();
         render_error(
             &args(&["run"]),
-            &CliError::operation("journal write failed"),
+            &CliError::legacy_operation("journal write failed"),
             true,
             &mut product,
         )
@@ -3432,7 +3481,7 @@ mod tests {
             let mut output = Vec::new();
             render_error(
                 &args(&["run"]),
-                &CliError::operation(message),
+                &CliError::legacy_operation(message),
                 false,
                 &mut output,
             )
@@ -3445,19 +3494,19 @@ mod tests {
     fn error_presentations_name_cause_state_and_recovery_without_private_text() {
         let cases = [
             (
-                CliError::validation("output parent is unavailable")
+                CliError::legacy_validation("output parent is unavailable")
                     .with_path(Path::new("/tmp/asb-results/report.json")),
                 "required parent directory does not exist",
                 "Create or select the named parent directory",
             ),
             (
-                CliError::validation("output path is not a directory")
+                CliError::legacy_validation("output path is not a directory")
                     .with_path(Path::new("/tmp/asb-results/report.json")),
                 "selected path is not a directory",
                 "Inspect the named destination",
             ),
             (
-                CliError::validation("output path is a symlink")
+                CliError::legacy_validation("output path is a symlink")
                     .with_path(Path::new("/tmp/asb-results/report.json")),
                 "path topology is unsafe",
                 "Inspect the named destination",
@@ -3479,12 +3528,12 @@ mod tests {
                 "Check the selected provider",
             ),
             (
-                CliError::operation("operation timed out"),
+                CliError::legacy_operation("operation timed out"),
                 "bounded deadline expired",
                 "Inspect durable state",
             ),
             (
-                CliError::operation("operation was cancelled"),
+                CliError::legacy_operation("operation was cancelled"),
                 "operation was cancelled before completion",
                 "Inspect durable state",
             ),
@@ -3509,12 +3558,12 @@ mod tests {
     #[test]
     fn known_error_classes_have_distinct_human_explanations() {
         let errors = [
-            CliError::validation("input is missing"),
-            CliError::validation("input is malformed"),
-            CliError::validation("input is incompatible"),
-            CliError::validation("input permission denied"),
-            CliError::operation("provider request timed out"),
-            CliError::operation("provider request was cancelled"),
+            CliError::legacy_validation("input is missing"),
+            CliError::legacy_validation("input is malformed"),
+            CliError::legacy_validation("input is incompatible"),
+            CliError::legacy_validation("input permission denied"),
+            CliError::legacy_operation("provider request timed out"),
+            CliError::legacy_operation("provider request was cancelled"),
         ];
         let outputs = errors
             .iter()

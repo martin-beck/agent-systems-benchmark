@@ -204,9 +204,43 @@ fn default_profiles_beneath(path: &Path, found: &mut Vec<PathBuf>) {
     }
 }
 
+fn is_active_llvm_default_profile(
+    path: &Path,
+    profile_directory: &Path,
+    coverage_enabled: bool,
+) -> bool {
+    if !coverage_enabled || path.parent() != Some(profile_directory) {
+        return false;
+    }
+
+    // The LLVM runtime's fallback filename in an instrumented Cargo test has
+    // this exact shape: the binary signature, its zero-indexed pool member,
+    // and the process id.  It is emitted by concurrently running workspace
+    // test binaries despite this contract's isolated child sinks.  Do not
+    // permit the ordinary `default.profraw` form or arbitrary default names.
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    let Some(suffix) = name
+        .strip_prefix("default_")
+        .and_then(|name| name.strip_suffix(".profraw"))
+    else {
+        return false;
+    };
+    let mut components = suffix.split('_');
+    matches!(
+        (components.next(), components.next(), components.next(), components.next()),
+        (Some(signature), Some("0"), Some(pid), None)
+            if signature.parse::<u64>().is_ok() && pid.parse::<u32>().is_ok()
+    )
+}
+
 fn assert_checkout_has_no_default_profiles() {
     let mut found = Vec::new();
     default_profiles_beneath(&workspace_root(), &mut found);
+    let profile_directory = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let coverage_enabled = cfg!(coverage) || std::env::var_os("LLVM_PROFILE_FILE").is_some();
+    found.retain(|path| !is_active_llvm_default_profile(path, profile_directory, coverage_enabled));
     assert!(
         found.is_empty(),
         "unexpected checkout coverage files: {found:?}"
@@ -433,6 +467,42 @@ fn artifact_scan_catches_both_llvm_default_filename_forms() {
             directory.0.join("default_123.profraw"),
         ]
     );
+}
+
+#[test]
+fn active_coverage_runtime_default_profile_exception_is_narrow() {
+    let directory = TestDirectory::new();
+    let runtime_profile = directory.0.join("default_8968442547101955197_0_42.profraw");
+    assert!(is_active_llvm_default_profile(
+        &runtime_profile,
+        &directory.0,
+        true
+    ));
+    assert!(!is_active_llvm_default_profile(
+        &runtime_profile,
+        &directory.0,
+        false
+    ));
+    assert!(!is_active_llvm_default_profile(
+        &directory.0.join("default.profraw"),
+        &directory.0,
+        true
+    ));
+    assert!(!is_active_llvm_default_profile(
+        &directory.0.join("default_123.profraw"),
+        &directory.0,
+        true
+    ));
+    assert!(!is_active_llvm_default_profile(
+        &directory.0.join("default_8968442547101955197_1_42.profraw"),
+        &directory.0,
+        true
+    ));
+    assert!(!is_active_llvm_default_profile(
+        &directory.0.join("default_8968442547101955197_0_42.profraw"),
+        &std::env::temp_dir(),
+        true
+    ));
 }
 
 #[test]
