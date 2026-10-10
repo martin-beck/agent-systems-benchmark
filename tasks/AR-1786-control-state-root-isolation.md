@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-10T22:37:03+00:00",
   "depends_on": [
@@ -9,9 +9,9 @@
   ],
   "id": "AR-1786",
   "next_action": "Promote after AR-1785's blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates.",
-  "observed_branch": "",
+  "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
-  "observed_head": "",
+  "observed_head": "0ce437b966099c265c5c256e1f6ec47706922e09",
   "owner": "codex-ar1786-control-race",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
@@ -23,7 +23,7 @@
   "task_revision": 5,
   "title": "Repair control state-root isolation race",
   "updated_at": "2026-10-10T20:37:06+00:00",
-  "worktree_key": ""
+  "worktree_key": "agent-systems-benchmark-ar1786-control"
 }
 ---
 
