@@ -1372,7 +1372,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. |
-| Next action | Implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785. |
+| Next action | Run repeated ordinary workspace gates for signed candidate 4dbf735d; investigate or block if either recurrent TUI fixture fails. |
 
 
 ## Dependency graph

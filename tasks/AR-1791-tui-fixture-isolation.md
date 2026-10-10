@@ -10,7 +10,7 @@
     "AR-1790"
   ],
   "id": "AR-1791",
-  "next_action": "Implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785.",
+  "next_action": "Run repeated ordinary workspace gates for signed candidate 4dbf735d; investigate or block if either recurrent TUI fixture fails.",
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 15,
+  "task_revision": 16,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:14:54+00:00",
+  "updated_at": "2026-10-10T23:15:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -62,3 +62,11 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:14:49+00:00: Recorded command exit 0; command argv SHA-256
   e16a3a9426a494cc890c8c53da22acbc56e95a09ced4233c37795649cfe5d8a6.
+
+- 2026-10-10T23:15:08+00:00: Candidate 4dbf735db270be0faf25fa005104397d8a680eb3 is SSH-signed and
+  DCO-signed. Initial focused attempt exited 101 because I added a duplicate Scratch Drop
+  implementation; source inspection found the existing RAII Drop later in the module, so I removed
+  the duplicate. The committed repair adds a cleanup regression and changes the rustup post-close
+  check from global /proc/self/fd/N nonexistence (racy under parallel FD reuse) to positive/negative
+  original dev+inode identity checks. Corrected focused rustup and GCC hostile-descendant tests
+  pass. No serialization, exclusion, publication, or merge.
