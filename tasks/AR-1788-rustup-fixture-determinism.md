@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:41:38+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,7 +13,7 @@
   "observed_branch": "codex/ar-1788-rustup-fixture-current",
   "observed_dirty": 0,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
-  "owner": "codex-ar1788-publisher",
+  "owner": "",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
@@ -27,11 +27,11 @@
   },
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 53,
+  "task_revision": 54,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T22:42:03+00:00",
+  "updated_at": "2026-10-10T22:42:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -201,3 +201,7 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T22:42:03+00:00: Independent exact-main review accepted; implementation is already
   integrated on protected main and all recorded gates are terminal green.
+
+- 2026-10-10T22:42:14+00:00: Completed: exact reviewed implementation already on protected main;
+  independent review, focused repetition, full workspace gates, signatures/DCO, privacy, and
+  post-merge evidence are recorded.

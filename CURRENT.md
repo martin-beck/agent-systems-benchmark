@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1788](tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32. | codex-ar1788-publisher |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
