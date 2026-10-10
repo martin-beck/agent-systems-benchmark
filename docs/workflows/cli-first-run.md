@@ -59,12 +59,13 @@ asb tool select agent-fixture --kind agent --project PROJECT
 asb tool select harness-fixture --kind harness --project PROJECT
 asb tool select benchmark-fixture --kind benchmark --project PROJECT
 asb tool select workload-fixture --kind workload --project PROJECT
-asb tool select support-fixture --kind support --project PROJECT
+asb tool discover PROJECT
 asb catalog generate --project PROJECT
 asb --json run PLAN.toml --project PROJECT --local-mock
 ```
 
-The project retains its credential-free configuration, selected catalog
+Support tools are installed and catalogued, but are not primary benchmark
+selections. The project retains its credential-free configuration, selected catalog
 provenance, tools, and results below `PROJECT/.asb` and `PROJECT/results`.
 Repeat installation is idempotent. A missing, stale, unsafe, or incompatible
 selection fails before a run is created; in JSON mode the error is the sole

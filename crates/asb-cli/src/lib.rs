@@ -3888,18 +3888,18 @@ fn tool_with_progress(
     progress: &mut dyn Write,
     human: bool,
 ) -> Result<(), CliError> {
-    let operation = args
-        .first()
-        .map(String::as_str)
-        .ok_or_else(|| CliError::legacy_usage("tool requires install|list|status|select|remove"))?;
+    let operation = args.first().map(String::as_str).ok_or_else(|| {
+        CliError::legacy_usage("tool requires install|list|status|select|remove|discover")
+    })?;
     match operation {
         "install" => tool_install_with_progress(&args[1..], output, progress, human),
         "list" => tool_inventory(&args[1..], output),
+        "discover" => tool_discovery(&args[1..], output),
         "status" => tool_status(&args[1..], output),
         "select" => tool_select(&args[1..], output),
         "remove" => tool_remove(&args[1..], output),
         _ => Err(CliError::legacy_usage(
-            "tool requires install|list|status|select|remove",
+            "tool requires install|list|status|select|remove|discover",
         )),
     }
 }
