@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:52:19+00:00",
+  "updated_at": "2026-10-10T20:52:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -148,3 +148,6 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-10T20:52:14+00:00: Recorded command exit 0; command argv SHA-256
   7ca4558f1330f6854210b691cb99c18e6c2f4261c4cbfc2a22ce72a274c39a73.
+
+- 2026-10-10T20:52:26+00:00: Recorded command exit 0; command argv SHA-256
+  7109951d44fa989265b6b6481cadfc8b40676ae39f4e04b8e1126fe99b431b01.
