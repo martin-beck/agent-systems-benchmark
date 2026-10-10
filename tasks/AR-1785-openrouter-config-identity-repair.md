@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 70,
+  "task_revision": 71,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:19:32+00:00",
+  "updated_at": "2026-10-10T20:19:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -230,3 +230,6 @@ merging, and post-merge verification remain required.
   bd2b6feda5ee64be93f83a678b285e35d7a308d727c7516065386ed46c5d8cfe.
 
 - 2026-10-10T20:19:32+00:00: Heartbeat by ar1785-openrouter-config-repair.
+
+- 2026-10-10T20:19:52+00:00: Recorded command exit 0; command argv SHA-256
+  28b492abfc663266c20f9b189682ade78c2704cb82f3e456edf800fa089541a7.
