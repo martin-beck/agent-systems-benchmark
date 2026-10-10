@@ -495,6 +495,8 @@ pub struct ProjectSelectionsV1 {
 pub struct GeneratedCatalogReferenceV1 {
     /// Stable catalog identifier.
     pub id: String,
+    /// Inventory class represented by this catalog.
+    pub kind: ProjectToolKind,
     /// Catalog schema identifier and version.
     pub schema: String,
     /// Public generator/source reference, never a private path.
@@ -503,6 +505,12 @@ pub struct GeneratedCatalogReferenceV1 {
     pub digest_sha256: String,
     /// Bounded UTC generation timestamp in RFC3339 shape.
     pub generated_at: String,
+    /// Stable capability labels required by a compatible selection.
+    #[serde(default)]
+    pub compatibility: Vec<String>,
+    /// Whether this is the active catalog for its inventory class.
+    #[serde(default)]
+    pub active: bool,
 }
 
 /// Canonical project configuration shared by initialization, discovery,
@@ -592,6 +600,26 @@ impl ProjectConfigV1 {
             validate_source_ref(&catalog.source_ref, "catalog source")?;
             validate_sha256(&catalog.digest_sha256, "catalog digest")?;
             validate_timestamp(&catalog.generated_at)?;
+            validate_list(&catalog.compatibility, "catalog compatibility")?;
+        }
+        for kind in [
+            ProjectToolKind::Agent,
+            ProjectToolKind::Harness,
+            ProjectToolKind::Benchmark,
+            ProjectToolKind::Workload,
+            ProjectToolKind::SupportTool,
+        ] {
+            if self
+                .catalogs
+                .values()
+                .filter(|catalog| catalog.kind == kind && catalog.active)
+                .count()
+                > 1
+            {
+                return Err(ConfigError::InvalidValue(
+                    "multiple active catalogs for one inventory kind".into(),
+                ));
+            }
         }
         Ok(())
     }
@@ -2334,10 +2362,13 @@ mod tests {
             "models".into(),
             GeneratedCatalogReferenceV1 {
                 id: "models".into(),
+                kind: ProjectToolKind::Agent,
                 schema: "asb.models.v1".into(),
                 source_ref: "https://example.invalid/catalog".into(),
                 digest_sha256: "b".repeat(64),
                 generated_at: "2026-10-09T12:00:00Z".into(),
+                compatibility: vec!["chat".into()],
+                active: true,
             },
         );
         let mut value = serde_json::to_value(&config).unwrap();

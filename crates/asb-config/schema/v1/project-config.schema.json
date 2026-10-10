@@ -47,11 +47,11 @@
     },
     "catalog": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "schema", "source_ref", "digest_sha256", "generated_at"],
+      "required": ["id", "kind", "schema", "source_ref", "digest_sha256", "generated_at", "compatibility", "active"],
       "properties": {
-        "id": {"type": "string"}, "schema": {"type": "string"}, "source_ref": {"type": "string"},
+        "id": {"type": "string"}, "kind": {"enum": ["agent", "harness", "benchmark", "workload", "support_tool"]}, "schema": {"type": "string"}, "source_ref": {"type": "string"},
         "digest_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
-        "generated_at": {"type": "string"}
+        "generated_at": {"type": "string"}, "compatibility": {"type": "array", "items": {"type": "string"}}, "active": {"type": "boolean"}
       }
     }
   }

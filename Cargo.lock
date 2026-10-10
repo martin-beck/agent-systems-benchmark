@@ -98,6 +98,7 @@ dependencies = [
  "signal-hook",
  "syn 2.0.119",
  "tempfile",
+ "time",
  "toml",
  "unicode-width",
  "url",

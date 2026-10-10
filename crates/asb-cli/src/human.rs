@@ -55,14 +55,15 @@ impl PresentationContext {
 }
 
 /// Authoritative public top-level command inventory for dispatch, help, and
-/// human-presentation exhaustiveness. Legacy doctor/completion projections are
-/// independently pinned to their compatibility fixtures.
+/// human-presentation exhaustiveness. The inventory is deterministic.
+#[rustfmt::skip]
 pub(crate) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
     "setup",
     "capabilities",
     "project",
-    "tool",
+    // Project tools and generated catalogs share the same presentation family.
+    "tool", "catalog",
     "provider-catalog",
     "adapter-catalog",
     "workload-catalog",
@@ -281,7 +282,7 @@ impl InvocationKind {
             }),
             Some("capabilities") => Self::Capabilities,
             Some("project") => Self::ProjectInit,
-            Some("tool") => Self::Tool,
+            Some("tool" | "catalog") => Self::Tool,
             Some("provider-catalog") => Self::ProviderCatalog {
                 refresh: words.contains(&"--refresh"),
             },
@@ -374,7 +375,7 @@ impl InvocationKind {
                 | Self::Easy(EasyKind::Help)
                 | Self::Tui(TuiKind::Help | TuiKind::Version)
                 | Self::Serve
-                | Self::Tool
+                | Self::Tui(TuiKind::Unknown)
                 | Self::InternalOpenCodeBatch
         )
     }
@@ -1361,7 +1362,7 @@ fn project_for_presentation(
         ],
         CommandKind::Capabilities => &["protocol_version", "capabilities"],
         CommandKind::Project => &["initialized", "recovered", "config", "results", "catalogs"],
-        CommandKind::Tool => &["ok", "command", "tools", "warnings"],
+        CommandKind::Tool => &["ok", "command", "tools", "catalogs", "warnings"],
         CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
         CommandKind::AdapterCatalog => &["adapters"],
         CommandKind::WorkloadCatalog => &["entries"],
@@ -1611,8 +1612,8 @@ fn present(
             value
         }
         CommandKind::Tool => {
-            let mut value = Presentation::new("ASB discovered project and system tools.");
-            fact_count(&mut value, object, "tools", "discovered tools");
+            let mut value = Presentation::new("ASB listed catalog entries and discovered tools.");
+            fact_count(&mut value, object, "tools", "catalog entries");
             if let Some(warnings) = object.get("warnings").and_then(Value::as_array)
                 && !warnings.is_empty()
             {
@@ -2828,14 +2829,14 @@ mod tests {
 
     #[test]
     fn public_command_inventory_is_explicit_and_has_no_unknown_fallback() {
-        let commands: &[&[&str]] = &[
+        #[rustfmt::skip] let commands: &[&[&str]] = &[
             &["doctor"],
             &["setup"],
             &["easy", "run"],
             &["tui", "launch"],
             &["capabilities"],
             &["project", "init", "/tmp/project"],
-            &["tool", "discover"],
+            &["tool", "discover"], &["catalog", "list"],
             &["provider-catalog"],
             &["adapter-catalog"],
             &["workload-catalog"],
