@@ -243,7 +243,10 @@ fn run_with_default_mode_and_stdin(
                         stderr,
                     ),
                 }
-            } else if !output_mode.json && output_mode.level == ProjectOutputLevelV1::Quiet {
+            } else if human_default
+                && !output_mode.json
+                && output_mode.level == ProjectOutputLevelV1::Quiet
+            {
                 Ok(())
             } else {
                 stdout.write_all(&captured)
@@ -281,7 +284,10 @@ fn run_with_default_mode_and_stdin(
                     let _ = writeln!(stderr, "ASB could not write output");
                     return 4;
                 }
-            } else if !output_mode.json && output_mode.level == ProjectOutputLevelV1::Quiet {
+            } else if human_default
+                && !output_mode.json
+                && output_mode.level == ProjectOutputLevelV1::Quiet
+            {
                 // Quiet preserves command effects and exit status while the
                 // router emits neither a result nor a human diagnostic.
             } else if write_json(stdout, &envelope).is_err() && !output_mode.json {
@@ -11080,6 +11086,22 @@ mod tests {
             "doctor"
         );
         assert!(diagnostic.is_empty());
+    }
+
+    #[test]
+    fn library_quiet_preserves_structured_success_and_failure_envelopes() {
+        for args in [
+            os_args(&["-q", "doctor"]),
+            os_args(&["-q", "not-a-command"]),
+        ] {
+            let mut output = Vec::new();
+            let mut diagnostic = Vec::new();
+            let exit = run(&args, &mut output, &mut diagnostic);
+            assert!(matches!(exit, 0 | 2));
+            assert!(diagnostic.is_empty());
+            let envelope: Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(envelope["ok"], exit == 0);
+        }
     }
 
     #[test]
