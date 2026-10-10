@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:15:08+00:00",
+  "updated_at": "2026-10-10T23:15:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -70,3 +70,6 @@ This development repair does not require a GitHub Reviews API approval object. I
   check from global /proc/self/fd/N nonexistence (racy under parallel FD reuse) to positive/negative
   original dev+inode identity checks. Corrected focused rustup and GCC hostile-descendant tests
   pass. No serialization, exclusion, publication, or merge.
+
+- 2026-10-10T23:15:57+00:00: Recorded command exit 101; command argv SHA-256
+  4c1dd549c7fa7cfa736b77e60908a5544d43021bd2f6ca805b8289eebb67feda.
