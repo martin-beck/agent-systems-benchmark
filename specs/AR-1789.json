@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1789.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "reproduce", "description": "The asb-metrics malformed-configuration failure is reproduced in the ordinary parallel workspace and classified with exact evidence."},
+    {"id": "isolation", "description": "Metrics probe fixtures isolate configuration roots, environment, and subprocess state without weakening malformed/unsafe rejection semantics."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace runs pass with the exact metrics test and rustup fixture both stable."},
+    {"id": "publication", "description": "Independent technical review, exact-head CI, signed DCO integration, and exact-main post-merge verification pass; no GitHub Reviews API approval object is required."}
+  ],
+  "definition_of_done": [
+    "The full-workspace-only metrics failure is independently reproduced and its contamination source is documented.",
+    "A minimal fixture-isolation repair and positive/negative regression coverage preserve the typed ProbeRejected and MalformedEvidence contract.",
+    "Repeated ordinary workspace, focused, formatting, lint, documentation, privacy, and diff gates pass.",
+    "The exact reviewed signed candidate is integrated and exact-main workflows pass."
+  ],
+  "inputs": [
+    {"id": "ar1788-review", "description": "AR-1788 candidate review evidence showing metrics test failure after a rustup full-workspace pass."},
+    {"id": "metrics-fixture", "description": "Existing asb-metrics malformed/unsafe configuration probe tests and typed result contract."}
+  ],
+  "outputs": [
+    {"id": "deterministic-metrics-fixture", "description": "A race-safe metrics configuration fixture with privacy-safe evidence."},
+    {"id": "qualification-receipt", "description": "Repeated full-workspace and exact-head integration evidence."}
+  ],
+  "allowed_tools": ["cargo", "git", "python", "uv", "tools/handoffctl"],
+  "forbidden_tools": ["test-exclusion", "serial-only-gate-bypass", "credential-output", "history-rewrite", "force-push", "github-reviews-api-approval-gate"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality", "hosted"],
+  "gates": [
+    {"id": "focused", "description": "Metrics malformed, unsafe, valid, cleanup, and concurrent tests pass."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace passes without metrics or rustup contamination."},
+    {"id": "publication", "description": "Independent review, exact-head CI, signed merge, and exact-main post-merge workflows pass without a GitHub Reviews API approval object."}
+  ]
+}

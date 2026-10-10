@@ -5,10 +5,11 @@
   "claim_expires": "2026-10-10T23:27:43+00:00",
   "depends_on": [
     "AR-1711",
-    "AR-1733"
+    "AR-1733",
+    "AR-1789"
   ],
   "id": "AR-1788",
-  "next_action": "Rustup fixture candidate is focused-green, but ordinary workspace also flakes in unrelated asb-metrics kernel malformed-evidence test. Preserve candidate and obtain coordinator scope decision or successor before claiming deterministic workspace qualification.",
+  "next_action": "Wait for AR-1789 metrics fixture repair; then rerun focused tests and bounded repeated ordinary workspace gates on signed candidate eece088d66a30f310987e0ed238bc80227ff7d32.",
   "observed_branch": "codex/ar-1788-rustup-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "eece088d66a30f310987e0ed238bc80227ff7d32",
