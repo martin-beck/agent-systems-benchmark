@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:33:12+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "d46180c297699f96d2c4e5f2d4b2cc6b6aabed12",
-  "owner": "",
+  "owner": "codex-ar1785-coordinator",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 155,
+  "task_revision": 156,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T23:00:14+00:00",
+  "updated_at": "2026-10-10T23:03:12+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -482,3 +482,5 @@ merging, and post-merge verification remain required.
   workspace gates pass. A prior rustdoc command exited 127 solely because RUSTDOCFLAGS was split
   into argv; quoted retry passed. An initial unqualified provider-plan filter ran zero tests and was
   replaced by qualified exact test. No GitHub Reviews API approval object is required.
+
+- 2026-10-10T23:03:12+00:00: Claimed by codex-ar1785-coordinator.
