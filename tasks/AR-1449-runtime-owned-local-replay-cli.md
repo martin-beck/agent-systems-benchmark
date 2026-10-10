@@ -16,13 +16,21 @@
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "quality",
+    "evidence_digest": "sha256:5b93d20e8910a526b16ffc3502389e5c939fd6b66bbe5f66decdfd25b11e150e",
+    "evidence_ref": "quality/AR-1449-current-main-requalification.json",
+    "spec_ref": "specs/AR-1449.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1449.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:12:54+00:00",
+  "updated_at": "2026-10-10T23:13:10+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -130,3 +138,7 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 
 - 2026-10-10T23:12:54+00:00: Recorded command exit 1; command argv SHA-256
   ea46d009fa95347762ef8ec0148e1e47b0d5dd359d2b3f9e65357ffd30552339.
+
+- 2026-10-10T23:13:10+00:00: Exact-main requalification passed guided replay, launch-factory, full
+  workspace, fmt, signatures/DCO, privacy, and clean-diff gates; implementation is already
+  integrated and no API approval object is required.
