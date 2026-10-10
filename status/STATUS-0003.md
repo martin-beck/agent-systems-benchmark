@@ -1290,6 +1290,20 @@
 | Summary | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. |
 | Next action | Independent exact-head review of e9ad590eccb3d4ed30c6199c0d65a8223d55d57a; then publish a PR, require exact-head CI, perform signed merge, and requalify AR-1715. |
 
+### AR-1786 — Repair control state-root isolation race
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
+| Next action | Promote after AR-1785&#x27;s blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates. |
+
 
 ## Dependency graph
 
@@ -2134,6 +2148,7 @@ flowchart LR
         AR_1783["AR-1783 - Planned"]:::status_planned
         AR_1784["AR-1784 - Planned"]:::status_planned
         AR_1785["AR-1785 - Blocked"]:::status_blocked
+        AR_1786["AR-1786 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4060,6 +4075,7 @@ flowchart LR
     AR_1782 --> AR_1783
     AR_1783 --> AR_1780
     AR_1784 --> AR_1779
+    AR_1785 --> AR_1786
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
