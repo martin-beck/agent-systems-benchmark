@@ -16,11 +16,13 @@
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
+  "spec_ref": "specs/AR-1449.json",
+  "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 31,
+  "task_revision": 32,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:12:36+00:00",
+  "updated_at": "2026-10-10T23:12:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -122,3 +124,6 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
   a PR or GitHub Reviews API approval object.
 
 - 2026-10-10T23:12:36+00:00: Claimed by codex-ar1449-final.
+
+- 2026-10-10T23:12:47+00:00: Recorded command exit 0; command argv SHA-256
+  74dcd1cb28fa2fad4b01a1261e8fa21822af4c19bc8a7c826b6f4129e8f8ca8b.
