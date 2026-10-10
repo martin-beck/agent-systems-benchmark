@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:02:30+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1787-lock-lifetime",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:01:33+00:00",
+  "updated_at": "2026-10-10T21:02:30+00:00",
   "worktree_key": ""
 }
 ---
@@ -39,3 +39,5 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T21:01:33+00:00: AR-1711 and AR-1733 done; promote lock lifetime repair from AR-1786 P0
   review blocker
+
+- 2026-10-10T21:02:30+00:00: Claimed by codex-ar1787-lock-lifetime.
