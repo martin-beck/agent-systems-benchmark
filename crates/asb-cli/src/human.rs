@@ -99,6 +99,7 @@ enum CommandKind {
     Capabilities,
     Project,
     Tool,
+    Catalog,
     ProviderCatalog,
     AdapterCatalog,
     WorkloadCatalog,
@@ -208,6 +209,7 @@ pub(super) enum InvocationKind {
     Capabilities,
     ProjectInit,
     Tool,
+    Catalog,
     ProviderCatalog { refresh: bool },
     AdapterCatalog,
     WorkloadCatalog,
@@ -282,7 +284,8 @@ impl InvocationKind {
             }),
             Some("capabilities") => Self::Capabilities,
             Some("project") => Self::ProjectInit,
-            Some("tool" | "catalog") => Self::Tool,
+            Some("tool") => Self::Tool,
+            Some("catalog") => Self::Catalog,
             Some("provider-catalog") => Self::ProviderCatalog {
                 refresh: words.contains(&"--refresh"),
             },
@@ -332,6 +335,7 @@ impl InvocationKind {
             Self::Capabilities => CommandKind::Capabilities,
             Self::ProjectInit => CommandKind::Project,
             Self::Tool => CommandKind::Tool,
+            Self::Catalog => CommandKind::Catalog,
             Self::ProviderCatalog { .. } | Self::Easy(EasyKind::ProviderCatalog) => {
                 CommandKind::ProviderCatalog
             }
@@ -375,7 +379,7 @@ impl InvocationKind {
                 | Self::Easy(EasyKind::Help)
                 | Self::Tui(TuiKind::Help | TuiKind::Version)
                 | Self::Serve
-                | Self::Tui(TuiKind::Unknown)
+                | Self::Tool
                 | Self::InternalOpenCodeBatch
         )
     }
@@ -406,6 +410,7 @@ impl CommandKind {
             Self::Capabilities => "capabilities",
             Self::Project => "project initialization",
             Self::Tool => "tool",
+            Self::Catalog => "catalog",
             Self::ProviderCatalog => "provider catalog",
             Self::AdapterCatalog => "adapter catalog",
             Self::WorkloadCatalog => "workload catalog",
@@ -1017,6 +1022,12 @@ fn validate_typed_result(
                 return Err(invalid());
             }
         }
+        InvocationKind::Catalog => {
+            let value: CatalogEnvelope = decode(captured)?;
+            if !value.ok || !value.command.starts_with("catalog ") {
+                return Err(invalid());
+            }
+        }
         InvocationKind::ConfigOpenrouter => {
             let value: ConfigView = decode(captured)?;
             if !value.ok
@@ -1362,7 +1373,17 @@ fn project_for_presentation(
         ],
         CommandKind::Capabilities => &["protocol_version", "capabilities"],
         CommandKind::Project => &["initialized", "recovered", "config", "results", "catalogs"],
-        CommandKind::Tool => &["ok", "command", "tools", "catalogs", "warnings"],
+        CommandKind::Tool => &["ok", "command", "tools", "warnings"],
+        CommandKind::Catalog => &[
+            "command",
+            "catalogs",
+            "catalog",
+            "reference",
+            "id",
+            "kind",
+            "digest_sha256",
+            "active",
+        ],
         CommandKind::ProviderCatalog => &["profiles", "openrouter_free_models", "agents"],
         CommandKind::AdapterCatalog => &["adapters"],
         CommandKind::WorkloadCatalog => &["entries"],
@@ -1612,8 +1633,8 @@ fn present(
             value
         }
         CommandKind::Tool => {
-            let mut value = Presentation::new("ASB listed catalog entries and discovered tools.");
-            fact_count(&mut value, object, "tools", "catalog entries");
+            let mut value = Presentation::new("ASB discovered project and system tools.");
+            fact_count(&mut value, object, "tools", "discovered tools");
             if let Some(warnings) = object.get("warnings").and_then(Value::as_array)
                 && !warnings.is_empty()
             {
@@ -1621,6 +1642,11 @@ fn present(
                     value.warning(warning_text(warning));
                 }
             }
+            value
+        }
+        CommandKind::Catalog => {
+            let mut value = Presentation::new("ASB completed the project catalog operation.");
+            fact_count(&mut value, object, "catalogs", "catalogs");
             value
         }
         CommandKind::ProviderCatalog => present_catalog(
