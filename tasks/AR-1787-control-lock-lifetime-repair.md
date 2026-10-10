@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 68,
+  "task_revision": 69,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:47:58+00:00",
+  "updated_at": "2026-10-10T22:48:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -236,3 +236,6 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:47:58+00:00: Published PR #553 from the independently accepted exact candidate.
   Hosted exact-head CI is now the next gate; no merge yet.
+
+- 2026-10-10T22:48:04+00:00: Recorded command exit 1; command argv SHA-256
+  32beed397211f4da36532dba51573c9542d58ba8f5066b39380503329fbc82b6.
