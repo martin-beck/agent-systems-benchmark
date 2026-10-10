@@ -1360,6 +1360,20 @@
 | Summary | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. |
 | Next action | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. |
 
+### AR-1791 — Repair recurrent TUI fixture isolation failures
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. |
+| Next action | Bind an isolated current-main worktree, implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785. |
+
 
 ## Dependency graph
 
@@ -2209,6 +2223,7 @@ flowchart LR
         AR_1788["AR-1788 - Done"]:::status_done
         AR_1789["AR-1789 - Done"]:::status_done
         AR_1790["AR-1790 - Done"]:::status_done
+        AR_1791["AR-1791 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4130,6 +4145,7 @@ flowchart LR
     AR_1769 --> AR_1763
     AR_1769 --> AR_1773
     AR_1769 --> AR_1774
+    AR_1770 --> AR_1791
     AR_1771 --> AR_1775
     AR_1772 --> AR_1773
     AR_1773 --> AR_1774
@@ -4147,8 +4163,11 @@ flowchart LR
     AR_1784 --> AR_1779
     AR_1787 --> AR_1785
     AR_1788 --> AR_1785
+    AR_1788 --> AR_1791
     AR_1789 --> AR_1788
+    AR_1789 --> AR_1791
     AR_1790 --> AR_1789
+    AR_1790 --> AR_1791
     classDef status_in_progress fill:#1565c0,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_open fill:#2e7d32,color:#ffffff,stroke:#263238,stroke-width:2px
     classDef status_blocked fill:#c62828,color:#ffffff,stroke:#263238,stroke-width:2px
@@ -4229,5 +4248,3 @@ flowchart LR
 | [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |
 | [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0001](../tasks/AR-0001-repository-bootstrap.md) | [AR-0317](../tasks/AR-0317-runtime-bundle-manifest.md), [AR-0702](../tasks/AR-0702-native-platforms.md), [AR-0703](../tasks/AR-0703-native-platform-lab.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md), [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0848](../tasks/AR-0848-native-x86-capacity.md), [AR-1007](../tasks/AR-1007-benchmark-validity.md) |
-| [AR-0702](../tasks/AR-0702-native-platforms.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | [AR-0807](../tasks/AR-0807-tui-resilience-accessibility.md), [AR-0813](../tasks/AR-0813-remote-control-transport.md), [AR-0816](../tasks/AR-0816-cross-platform-remote-interoperability.md), [AR-0903](../tasks/AR-0903-release-qualification.md), [AR-0907](../tasks/AR-0907-hosted-runner-evidence-classification.md), [AR-1006](../tasks/AR-1006-distributed-workers.md) |
-| [AR-0703](../tasks/AR-0703-native-platform-lab.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |
