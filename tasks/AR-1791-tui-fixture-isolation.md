@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:20:33+00:00",
+  "updated_at": "2026-10-10T23:20:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -119,3 +119,6 @@ This development repair does not require a GitHub Reviews API approval object. I
   59cfd9cf; rerun diff --check 59cfd9cf..4dbf735d exited 0. This is operator-input evidence, not a
   product/test failure and not a passing gate. The attempted unsupported handoffctl note subcommand
   was also a CLI usage error only; durable update follows.
+
+- 2026-10-10T23:20:40+00:00: Recorded command exit 0; command argv SHA-256
+  08c4b90bc238fea378d62bab8df8b6a161ad683257a10e94780f61d6e12247a0.
