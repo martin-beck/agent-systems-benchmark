@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T22:36:22+00:00",
+  "claim_expires": "2026-10-10T22:37:03+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:36:22+00:00",
+  "updated_at": "2026-10-10T20:37:03+00:00",
   "worktree_key": ""
 }
 ---
@@ -41,3 +41,5 @@ gate into a serial-only or exclusion-based check.
   repair discovered by AR-1785 exact-head review
 
 - 2026-10-10T20:36:22+00:00: Claimed by codex-ar1786-control-race.
+
+- 2026-10-10T20:37:03+00:00: Heartbeat by codex-ar1786-control-race.
