@@ -542,6 +542,10 @@ fn ordinary_cli_producers_are_mechanically_closed() {
             "crates/asb-cli/src/project_catalog.rs",
             include_str!("../src/project_catalog.rs"),
         ),
+        (
+            "crates/asb-cli/src/project_run.rs",
+            include_str!("../src/project_run.rs"),
+        ),
         ("crates/asb-cli/src/tui.rs", include_str!("../src/tui.rs")),
     ] {
         assert_no_bare_cli_producers(source)

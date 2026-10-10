@@ -6,6 +6,7 @@ pub mod capabilities;
 mod control;
 pub mod diagnostic;
 mod human;
+mod project_run;
 mod provider_launch;
 pub mod tool_discovery;
 mod tui;
@@ -627,16 +628,25 @@ fn run_local_mock_entry_result(
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
     let words = unicode_args(args)?;
-    let (path, sweep) = match words.as_slice() {
-        [command, path] if command == "run" => (path.as_str(), false),
-        [command, path] if command == "sweep" => (path.as_str(), true),
+    let (path, sweep, project_path) = match words.as_slice() {
+        [command, path] if command == "run" => (path.as_str(), false, None),
+        [command, path] if command == "sweep" => (path.as_str(), true, None),
+        [command, path, flag, project] if command == "run" && flag == "--project" => {
+            (path.as_str(), false, Some(project.as_str()))
+        }
+        [command, path, flag, project] if command == "sweep" && flag == "--project" => {
+            (path.as_str(), true, Some(project.as_str()))
+        }
         _ => {
             return Err(CliError::legacy_validation(
                 "runtime local/mock entry expects run or sweep",
             ));
         }
     };
-    execute_inner_from_source_with_owner(
+    let project = project_path
+        .map(|path| project_run::ProjectExecution::resolve(Path::new(path)))
+        .transpose()?;
+    execute_inner_from_source_with_owner_project(
         Path::new(path),
         SelectionSource::Path(None),
         sweep,
@@ -644,6 +654,7 @@ fn run_local_mock_entry_result(
         None,
         true,
         Some(owner),
+        project.as_ref(),
         stdout,
         stderr,
         presentation_context,
@@ -656,7 +667,27 @@ fn run_local_mock_dispatch(
     stderr: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
-    if args.len() != 3 {
+    let effective_args = match args {
+        [command, path, local_mock] if local_mock == "--local-mock" => {
+            vec![command.clone(), path.clone()]
+        }
+        [command, path, local_mock, project_flag, project]
+            if local_mock == "--local-mock" && project_flag == "--project" =>
+        {
+            vec![
+                command.clone(),
+                path.clone(),
+                project_flag.clone(),
+                project.clone(),
+            ]
+        }
+        _ => {
+            return Err(CliError::legacy_usage(
+                "runtime local/mock entry expects run or sweep",
+            ));
+        }
+    };
+    if effective_args.len() != 2 && effective_args.len() != 4 {
         return Err(CliError::legacy_usage(
             "runtime local/mock entry expects run or sweep",
         ));
@@ -675,7 +706,7 @@ fn run_local_mock_dispatch(
         .enroll()
         .map_err(|_| CliError::legacy_operation("runtime-owned local/mock owner unavailable"))?;
     let result = run_local_mock_entry_result(
-        &args[..2],
+        &effective_args,
         Arc::clone(&owner),
         stdout,
         stderr,
@@ -697,10 +728,25 @@ fn run_local_mock_dispatch_machine(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> u8 {
-    if args.len() != 3 {
-        let _ = writeln!(stderr, "runtime local/mock entry expects run or sweep");
-        return 3;
-    }
+    let effective_args = match args {
+        [command, path, local_mock] if local_mock == "--local-mock" => {
+            vec![command.clone(), path.clone()]
+        }
+        [command, path, local_mock, project_flag, project]
+            if local_mock == "--local-mock" && project_flag == "--project" =>
+        {
+            vec![
+                command.clone(),
+                path.clone(),
+                project_flag.clone(),
+                project.clone(),
+            ]
+        }
+        _ => {
+            let _ = writeln!(stderr, "runtime local/mock entry expects run or sweep");
+            return 3;
+        }
+    };
     let owner = match LocalMockRuntimeControlOwner::provision(
         "cli-local-mock".into(),
         1,
@@ -713,7 +759,7 @@ fn run_local_mock_dispatch_machine(
             return 2;
         }
     };
-    run_with_runtime_control_local_mock_owner(&args[..2], owner, stdout, stderr)
+    run_with_runtime_control_local_mock_owner(&effective_args, owner, stdout, stderr)
 }
 
 /// Run the pinned OpenCode adapter behind the benchmark's batch process
@@ -828,6 +874,10 @@ fn dispatch(
                 .map_err(output_error)
         }
         [command] if command == "doctor" => doctor(stdout).map(|()| 0),
+        [command, project_flag, project] if command == "setup" && project_flag == "--project" => {
+            project_run::ProjectExecution::validate_setup_project(Path::new(project))?;
+            setup_with_progress(&[], stdout, stderr, presentation_context.is_some()).map(|()| 0)
+        }
         [command] if command == "setup" => {
             setup_with_progress(&[], stdout, stderr, presentation_context.is_some()).map(|()| 0)
         }
@@ -916,12 +966,34 @@ fn dispatch(
             )
             .map(|()| 0)
         }
+        [command, _path, local_mock, project_flag, _project]
+            if command == "run" && local_mock == "--local-mock" && project_flag == "--project" =>
+        {
+            if presentation_context.is_some() {
+                run_local_mock_dispatch(args, stdout, stderr, presentation_context)
+            } else {
+                Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
+            }
+        }
         [command, _path, flag] if command == "run" && flag == "--local-mock" => {
             if presentation_context.is_some() {
                 run_local_mock_dispatch(args, stdout, stderr, presentation_context)
             } else {
                 Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
             }
+        }
+        [command, path, project_flag, project]
+            if command == "run" && project_flag == "--project" =>
+        {
+            let project = project_run::ProjectExecution::resolve(Path::new(project))?;
+            execute_project(
+                Path::new(path),
+                &project,
+                false,
+                stdout,
+                stderr,
+                presentation_context,
+            )
         }
         [command, path] if command == "run" => execute(
             Path::new(path),
@@ -1009,12 +1081,36 @@ fn dispatch(
                 presentation_context,
             )
         }
+        [command, _path, local_mock, project_flag, _project]
+            if command == "sweep"
+                && local_mock == "--local-mock"
+                && project_flag == "--project" =>
+        {
+            if presentation_context.is_some() {
+                run_local_mock_dispatch(args, stdout, stderr, presentation_context)
+            } else {
+                Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
+            }
+        }
         [command, _path, flag] if command == "sweep" && flag == "--local-mock" => {
             if presentation_context.is_some() {
                 run_local_mock_dispatch(args, stdout, stderr, presentation_context)
             } else {
                 Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
             }
+        }
+        [command, path, project_flag, project]
+            if command == "sweep" && project_flag == "--project" =>
+        {
+            let project = project_run::ProjectExecution::resolve(Path::new(project))?;
+            execute_project(
+                Path::new(path),
+                &project,
+                true,
+                stdout,
+                stderr,
+                presentation_context,
+            )
         }
         [command, path] if command == "sweep" => execute(
             Path::new(path),
@@ -1078,10 +1174,10 @@ fn dispatch(
             control::serve_local_mock(Path::new(path)).map(|()| 0)
         }
         [command, runs @ ..] if command == "compare" && runs.len() >= 2 => {
-            compare(runs, stdout).map(|()| 0)
+            compare_with_project(runs, stdout).map(|()| 0)
         }
         [command, runs @ ..] if command == "report" && !runs.is_empty() => {
-            report(runs, stdout).map(|()| 0)
+            report_with_project(runs, stdout).map(|()| 0)
         }
         [command, input, output] if command == "record" => record_with_progress(
             Path::new(input),
@@ -2196,7 +2292,7 @@ fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     .map_err(output_error)?;
     writeln!(
         output,
-        "  asb tool install ID --kind agent|harness|benchmark|workload|support --source SOURCE --version VERSION [--project PATH] [--dry-run]\n  asb tool list|status|remove ID [--project PATH]"
+        "  asb tool install ID --kind agent|harness|benchmark|workload|support --source SOURCE --version VERSION [--project PATH] [--dry-run]\n  asb tool select ID --kind agent|harness|benchmark|workload [--project PATH]\n  asb tool list|status|remove ID [--project PATH]\n  asb run|sweep PLAN.toml --project PATH [--local-mock]\n  asb compare RUN... --project PATH\n  asb report RUN... --project PATH"
     )
     .map_err(output_error)?;
     writeln!(
@@ -3645,14 +3741,15 @@ fn tool_with_progress(
     let operation = args
         .first()
         .map(String::as_str)
-        .ok_or_else(|| CliError::legacy_usage("tool requires install|list|status|remove"))?;
+        .ok_or_else(|| CliError::legacy_usage("tool requires install|list|status|select|remove"))?;
     match operation {
         "install" => tool_install_with_progress(&args[1..], output, progress, human),
         "list" => tool_inventory(&args[1..], output),
         "status" => tool_status(&args[1..], output),
+        "select" => tool_select(&args[1..], output),
         "remove" => tool_remove(&args[1..], output),
         _ => Err(CliError::legacy_usage(
-            "tool requires install|list|status|remove",
+            "tool requires install|list|status|select|remove",
         )),
     }
 }
@@ -3833,6 +3930,81 @@ fn tool_status(args: &[String], output: &mut dyn Write) -> Result<(), CliError> 
             "id": id,
             "kind": kind,
             "record": record,
+        }),
+    )
+}
+
+/// Select one available inventory entry for project-bound benchmark execution.
+fn tool_select(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let (id, rest) = args
+        .split_first()
+        .ok_or_else(|| CliError::legacy_usage("tool select requires an ID and --kind"))?;
+    if !valid_tool_id(id) {
+        return Err(CliError::legacy_validation("tool ID is invalid"));
+    }
+    let mut kind = None;
+    let mut project_args = Vec::new();
+    let mut index = 0;
+    while index < rest.len() {
+        match rest[index].as_str() {
+            "--kind" => {
+                let value = rest
+                    .get(index + 1)
+                    .ok_or_else(|| CliError::legacy_usage("tool select --kind requires a value"))?;
+                kind = Some(tool_kind(value)?);
+                index += 2;
+            }
+            "--project" => {
+                project_args.push(rest[index].clone());
+                project_args.push(
+                    rest.get(index + 1)
+                        .ok_or_else(|| {
+                            CliError::legacy_usage("tool select --project requires a path")
+                        })?
+                        .clone(),
+                );
+                index += 2;
+            }
+            _ => {
+                return Err(CliError::legacy_usage(
+                    "tool select accepts --kind and --project",
+                ));
+            }
+        }
+    }
+    let kind = kind.ok_or_else(|| CliError::legacy_usage("tool select requires --kind"))?;
+    if kind == ProjectToolKind::SupportTool {
+        return Err(CliError::legacy_validation(
+            "support tools are not primary benchmark selections",
+        ));
+    }
+    let root = parse_tool_project_only(&project_args)?;
+    let mut config = load_tool_project(&root)?;
+    let record = tool_kind_map(&config, kind).get(id).ok_or_else(|| {
+        CliError::legacy_validation("selected tool is not installed; run `asb tool install` first")
+    })?;
+    if record.status != ProjectToolStatus::Available {
+        return Err(CliError::legacy_validation(
+            "selected tool is unavailable; run `asb tool discover PATH` then repair or install it",
+        ));
+    }
+    match kind {
+        ProjectToolKind::Agent => config.selections.agent = Some(id.clone()),
+        ProjectToolKind::Harness => config.selections.harness = Some(id.clone()),
+        ProjectToolKind::Benchmark => config.selections.benchmark = Some(id.clone()),
+        ProjectToolKind::Workload => config.selections.workload = Some(id.clone()),
+        ProjectToolKind::SupportTool => unreachable!(),
+    }
+    save_tool_project(&root, &config)?;
+    write_json(
+        output,
+        &serde_json::json!({
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "ok": true,
+            "command": "tool select",
+            "id": id,
+            "kind": kind,
+            "next": "run `asb catalog generate --project PATH` then select each generated catalog",
         }),
     )
 }
@@ -6981,6 +7153,30 @@ fn execute(
     )
 }
 
+/// Execute a plan after binding it to a checked initialized project.
+fn execute_project(
+    path: &Path,
+    project: &project_run::ProjectExecution,
+    sweep: bool,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<u8, CliError> {
+    execute_inner_from_source_with_owner_project(
+        path,
+        SelectionSource::Path(None),
+        sweep,
+        false,
+        None,
+        false,
+        None,
+        Some(project),
+        output,
+        progress,
+        presentation_context,
+    )
+}
+
 fn execute_with_selection(
     path: &Path,
     selection_path: &Path,
@@ -7116,6 +7312,35 @@ fn execute_inner_from_source_with_owner(
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
+    execute_inner_from_source_with_owner_project(
+        path,
+        source,
+        sweep,
+        live_provider,
+        live_factory,
+        local_mock,
+        local_mock_owner,
+        None,
+        output,
+        progress,
+        presentation_context,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_inner_from_source_with_owner_project(
+    path: &Path,
+    source: SelectionSource<'_>,
+    sweep: bool,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
+    local_mock_owner: Option<Arc<Mutex<LocalMockRuntimeControlOwner>>>,
+    project: Option<&project_run::ProjectExecution>,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+) -> Result<u8, CliError> {
     let (plan, selection) = match source {
         SelectionSource::Path(selection_path) => load_plan_and_selection(path, selection_path)?,
         SelectionSource::Config(store) => {
@@ -7124,6 +7349,11 @@ fn execute_inner_from_source_with_owner(
             validate_selection_binding(&plan, &selection)?;
             (plan, Some(selection))
         }
+    };
+    let plan = if let Some(project) = project {
+        project.bind_plan(plan)
+    } else {
+        plan
     };
     if live_provider && selection.is_none() {
         return Err(CliError::legacy_validation(
@@ -8383,6 +8613,36 @@ struct ComparisonConfounderOutput {
     description: String,
 }
 
+fn split_project_run_arguments(
+    runs: &[String],
+) -> Result<(Vec<String>, Option<project_run::ProjectExecution>), CliError> {
+    let Some(position) = runs.iter().position(|value| value == "--project") else {
+        return Ok((runs.to_vec(), None));
+    };
+    if position + 2 != runs.len() {
+        return Err(CliError::legacy_usage(
+            "--project must be the final option followed by a project path",
+        ));
+    }
+    let project = project_run::ProjectExecution::resolve(Path::new(&runs[position + 1]))?;
+    Ok((runs[..position].to_vec(), Some(project)))
+}
+
+fn compare_with_project(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let (runs, project) = split_project_run_arguments(runs)?;
+    if runs.len() < 2 {
+        return Err(CliError::legacy_usage(
+            "compare requires at least two run references",
+        ));
+    }
+    if let Some(project) = project.as_ref() {
+        for run in &runs {
+            project.validate_run_reference(Path::new(run))?;
+        }
+    }
+    compare(&runs, output)
+}
+
 fn compare(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let manifests = runs
         .iter()
@@ -8599,6 +8859,19 @@ struct ReportRun {
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_launch_sha256: Option<String>,
     point: Option<Value>,
+}
+
+fn report_with_project(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
+    let (runs, project) = split_project_run_arguments(runs)?;
+    if runs.is_empty() {
+        return Err(CliError::legacy_usage("report requires a run reference"));
+    }
+    if let Some(project) = project.as_ref() {
+        for run in &runs {
+            project.validate_run_reference(Path::new(run))?;
+        }
+    }
+    report(&runs, output)
 }
 
 fn report(runs: &[String], output: &mut dyn Write) -> Result<(), CliError> {
@@ -14778,6 +15051,170 @@ mod tests {
         for workload_id in workload_ids {
             assert!(scratch.0.join(format!("{workload_id}.json")).is_file());
         }
+    }
+
+    fn install_and_select_project_tool(project: &Path, id: &str, kind: &str) {
+        tool(
+            &[
+                "install".into(),
+                id.into(),
+                "--kind".into(),
+                kind.into(),
+                "--source".into(),
+                format!("fixture://{id}"),
+                "--version".into(),
+                "1.0.0".into(),
+                "--project".into(),
+                project.display().to_string(),
+            ],
+            &mut Vec::new(),
+        )
+        .unwrap();
+        let select_args = [
+            OsString::from("tool"),
+            OsString::from("select"),
+            OsString::from(id),
+            OsString::from("--kind"),
+            OsString::from(kind),
+            OsString::from("--project"),
+            project.as_os_str().to_owned(),
+        ];
+        assert_eq!(run(&select_args, &mut Vec::new(), &mut Vec::new()), 0);
+    }
+
+    #[test]
+    fn project_bound_run_report_and_compare_use_only_project_results() {
+        let scratch = Scratch::new("project-bound-run");
+        let project = scratch.0.join("project");
+        project_init_with_progress(
+            &[project.display().to_string()],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            false,
+        )
+        .unwrap();
+        for (id, kind) in [
+            ("agent-fixture", "agent"),
+            ("harness-fixture", "harness"),
+            ("benchmark-fixture", "benchmark"),
+            ("workload-fixture", "workload"),
+        ] {
+            install_and_select_project_tool(&project, id, kind);
+        }
+        project_catalog::dispatch(
+            &[
+                "generate".into(),
+                "--project".into(),
+                project.display().to_string(),
+            ],
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        let (first_path, first) = plan_fixture(&scratch.0, "project-first");
+        fs::write(&first_path, toml::to_string(&first).unwrap()).unwrap();
+        let (exit, first_output) = run_json_with_progress(&[
+            "run".into(),
+            first_path.as_os_str().to_owned(),
+            "--project".into(),
+            project.as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0, "{first_output}");
+        assert!(!first.result_root.exists());
+        let first_run = project.join("results/runs/project-first");
+        assert!(first_run.is_dir());
+
+        let (second_path, mut second) = plan_fixture(&scratch.0, "project-second");
+        second.point.seed = second.point.seed.saturating_add(1);
+        fs::write(&second_path, toml::to_string(&second).unwrap()).unwrap();
+        assert_eq!(
+            run_json_with_progress(&[
+                "run".into(),
+                second_path.as_os_str().to_owned(),
+                "--project".into(),
+                project.as_os_str().to_owned(),
+            ])
+            .0,
+            0
+        );
+        let second_run = project.join("results/runs/project-second");
+        let (report_exit, report) = run_json(&[
+            "report".into(),
+            first_run.as_os_str().to_owned(),
+            "--project".into(),
+            project.as_os_str().to_owned(),
+        ]);
+        assert_eq!(report_exit, 0, "{report}");
+        assert_eq!(report["runs"][0]["run_id"], "project-first");
+        assert_eq!(
+            run_json(&[
+                "compare".into(),
+                first_run.as_os_str().to_owned(),
+                second_run.as_os_str().to_owned(),
+                "--project".into(),
+                project.as_os_str().to_owned(),
+            ])
+            .0,
+            0
+        );
+        let (local_mock_path, _) = plan_fixture(&scratch.0, "project-local-mock");
+        let local_mock_args = [
+            "run".into(),
+            local_mock_path.as_os_str().to_owned(),
+            "--local-mock".into(),
+            "--project".into(),
+            project.as_os_str().to_owned(),
+        ];
+        let mut local_mock_output = Vec::new();
+        let mut local_mock_progress = Vec::new();
+        assert_eq!(
+            run(
+                &local_mock_args,
+                &mut local_mock_output,
+                &mut local_mock_progress
+            ),
+            0
+        );
+        assert!(
+            String::from_utf8(local_mock_progress)
+                .unwrap()
+                .starts_with("starting ")
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&local_mock_output).unwrap()["command"],
+            "run"
+        );
+        let outside = scratch.0.join("outside");
+        fs::create_dir_all(&outside).unwrap();
+        let (outside_exit, outside_result) = run_json(&[
+            "report".into(),
+            outside.into_os_string(),
+            "--project".into(),
+            project.as_os_str().to_owned(),
+        ]);
+        assert_eq!(outside_exit, 3);
+        assert!(
+            outside_result["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("outside this project's results")
+        );
+        let mut stale_config = load_tool_project(&project).unwrap();
+        stale_config.agents.get_mut("agent-fixture").unwrap().status = ProjectToolStatus::Stale;
+        save_tool_project(&project, &stale_config).unwrap();
+        let (stale_exit, stale) = run_json(&[
+            "run".into(),
+            first_path.as_os_str().to_owned(),
+            "--project".into(),
+            project.as_os_str().to_owned(),
+        ]);
+        assert_eq!(stale_exit, 3);
+        assert!(
+            stale["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("selected tool is unavailable")
+        );
     }
 }
 

@@ -242,6 +242,40 @@ fn checked_artifact(
     Ok((reference, artifact))
 }
 
+/// Validate that every project inventory class has one usable active catalog.
+///
+/// Execution consumes these artifacts rather than treating the mutable tool
+/// inventory as an implicit catalog.  This keeps a tool install, discovery, or
+/// selection change from silently changing the benchmark inputs after a
+/// catalog was generated.
+pub(super) fn validate_active_execution_catalogs(
+    root: &Path,
+    config: &ProjectConfigV1,
+) -> Result<(), CliError> {
+    for kind in kinds() {
+        let reference = config
+            .catalogs
+            .values()
+            .find(|reference| reference.kind == kind && reference.active)
+            .ok_or_else(|| {
+                CliError::legacy_validation(
+                    "project active catalog is missing; run `asb catalog generate --project PATH` then select the catalog",
+                )
+            })?;
+        let (_, artifact) = checked_artifact(root, config, &reference.id)?;
+        if artifact
+            .entries
+            .iter()
+            .any(|entry| entry.status != ProjectToolStatus::Available)
+        {
+            return Err(CliError::legacy_validation(
+                "project active catalog contains unavailable tools; run `asb tool discover PATH`, repair or install the tools, then regenerate and select the catalog",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn show(args: &[String], output: &mut dyn Write) -> Result<(), CliError> {
     let (id, root) = parse_id_and_project(args, "catalog show requires an ID")?;
     let config = super::load_tool_project(&root)?;
