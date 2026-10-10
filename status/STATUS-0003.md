@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Rerun the transcript provenance test and full workspace gates after refreshing the checked CLI source digest in the public workflow provenance fixture; then commit and obtain independent review. |
+| Next action | Submit signed commit 90c0980459e83e656264deedcd82cd78018f8ffb for independent review, then run exact-head CI and protected signed merge. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 
