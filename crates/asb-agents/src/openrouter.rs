@@ -22,7 +22,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
@@ -511,8 +511,16 @@ fn openrouter_curl_transport(
 
 /// Resolve curl only from the bounded system-tool roster, never ambient PATH.
 fn discover_trusted_curl() -> Result<PathBuf, OpenRouterLiveError> {
-    for candidate in TRUSTED_CURL_CANDIDATES {
-        let path = Path::new(candidate);
+    let candidates = TRUSTED_CURL_CANDIDATES
+        .iter()
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+    discover_trusted_curl_from(&candidates)
+}
+
+/// Testable bounded discovery seam; callers supply no ambient PATH entries.
+fn discover_trusted_curl_from(candidates: &[PathBuf]) -> Result<PathBuf, OpenRouterLiveError> {
+    for path in candidates {
         let Ok(canonical) = std::fs::canonicalize(path) else {
             continue;
         };
@@ -1085,6 +1093,8 @@ fn is_sha256(value: &str) -> bool {
 mod tests {
     use super::*;
     use asb_protocol::{CredentialSource, EndpointClass, ProviderKind};
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
 
     fn profile() -> OpenRouterProfile {
         OpenRouterProfile::new(openrouter_credential_reference().unwrap()).unwrap()
@@ -1312,6 +1322,24 @@ mod tests {
                 .any(|candidate| curl.starts_with(Path::new(candidate).parent().unwrap()))
         );
         assert_eq!(curl.file_name().and_then(OsStr::to_str), Some("curl"));
+    }
+
+    #[test]
+    fn trusted_curl_discovery_rejects_absent_and_path_decoy_candidates() {
+        assert!(matches!(
+            discover_trusted_curl_from(&[]),
+            Err(OpenRouterLiveError::CurlUnavailable)
+        ));
+        let root = std::env::temp_dir().join(format!("asb-curl-decoy-{}", std::process::id()));
+        std::fs::write(&root, b"not a trusted curl").unwrap();
+        let mut permissions = std::fs::metadata(&root).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&root, permissions).unwrap();
+        assert!(matches!(
+            discover_trusted_curl_from(std::slice::from_ref(&root)),
+            Err(OpenRouterLiveError::CurlUnavailable)
+        ));
+        let _ = std::fs::remove_file(root);
     }
 
     #[test]
