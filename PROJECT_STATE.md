@@ -25,7 +25,7 @@ Generated from local Git and GitHub. Do not edit.
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38092740623 | `dbbf27c3684e` | pull_request | Formal assurance | in_progress:- |
+| 38092740623 | `dbbf27c3684e` | pull_request | Formal assurance | completed:success |
 | 38092740618 | `dbbf27c3684e` | pull_request | Credential-free benchmark path | completed:success |
 | 38092740610 | `dbbf27c3684e` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38092740609 | `dbbf27c3684e` | pull_request | Huawei MIT source headers | completed:success |
@@ -35,5 +35,5 @@ Generated from local Git and GitHub. Do not edit.
 | 38092740597 | `dbbf27c3684e` | pull_request | Hosted portability and native qualification | completed:failure |
 | 38092740589 | `dbbf27c3684e` | pull_request | Repository quality | completed:failure |
 | 38092740550 | `dbbf27c3684e` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38092740535 | `dbbf27c3684e` | pull_request | Fault assurance | in_progress:- |
+| 38092740535 | `dbbf27c3684e` | pull_request | Fault assurance | completed:success |
 | 38091712492 | `023e366a489c` | pull_request | Repository quality | completed:failure |
