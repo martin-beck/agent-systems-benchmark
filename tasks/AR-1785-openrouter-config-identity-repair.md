@@ -10,8 +10,8 @@
   "id": "AR-1785",
   "next_action": "Independent exact-head review of a393455d, then publish PR and require exact-head CI before signed merge and post-merge AR-1715 requalification.",
   "observed_branch": "codex/ar-1785-openrouter-config",
-  "observed_dirty": 2,
-  "observed_head": "a393455d9b619a505a67e685bb013032d492998d",
+  "observed_dirty": 0,
+  "observed_head": "e9ad590eccb3d4ed30c6199c0d65a8223d55d57a",
   "owner": "ar1785-openrouter-config-repair",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 95,
+  "task_revision": 96,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:25:01+00:00",
+  "updated_at": "2026-10-10T20:25:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
