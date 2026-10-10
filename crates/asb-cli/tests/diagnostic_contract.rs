@@ -281,7 +281,7 @@ fn assert_legacy_call_sites_are_catalogued(
     let mut missing = Vec::new();
     for (constructor, line, _) in gate.constructor_calls {
         if constructors.contains(&constructor.as_str()) {
-            let entry = format!("(\"{file}\", {line})");
+            let entry = format!("(\"{file}\", {line},");
             if !catalog.contains(&entry) {
                 missing.push(entry);
             }

@@ -2100,8 +2100,21 @@ fn message_contains(message: &str, needle: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        CATALOGUED_CODES, Cause, Context, Diagnostic, Remediation, Severity, StateChange, Subject,
+        CATALOGUED_CODES, Cause, Context, Diagnostic, LEGACY_CLI_CATALOG, Remediation, Severity,
+        StateChange, Subject, legacy_cli_catalog,
     };
+
+    #[test]
+    fn every_legacy_producer_location_resolves_to_its_reviewed_identity() {
+        for &(file, line, expected_code, expected_cause) in LEGACY_CLI_CATALOG {
+            assert_eq!(
+                legacy_cli_catalog(file, line),
+                Some((expected_code, expected_cause)),
+                "legacy diagnostic catalog entry {file}:{line}"
+            );
+        }
+        assert_eq!(legacy_cli_catalog("unknown.rs", 0), None);
+    }
 
     #[test]
     fn required_fine_grained_causes_remain_distinct() {
