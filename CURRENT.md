@@ -3,12 +3,6 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
-## In Progress
-
-| Priority | Task | Summary | Next action | Owner |
-| --- | --- | --- | --- | --- |
-| P0 | [AR-1787](tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Rebased candidate 573f3e631c9274829461fc051d461a383d994eb3 onto current protected main; PR #553 was closed for stale-base provenance. Release for fresh independent exact-head review before publishing a replacement PR. No GitHub Reviews API approval object is required. | codex-ar1787-publisher-final |
-
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
