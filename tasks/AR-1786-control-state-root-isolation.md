@@ -10,7 +10,7 @@
   "id": "AR-1786",
   "next_action": "Reproduced ordinary parallel workspace failure in control recording-campaign restart after backend drop; trace retained state-lock ownership and add isolation plus recovery coverage.",
   "observed_branch": "codex/ar-1786-control-state",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
   "owner": "codex-ar1786-control-race",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 24,
+  "task_revision": 25,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:42:51+00:00",
+  "updated_at": "2026-10-10T20:42:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
