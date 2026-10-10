@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:37:03+00:00",
+  "updated_at": "2026-10-10T20:37:06+00:00",
   "worktree_key": ""
 }
 ---
@@ -43,3 +43,6 @@ gate into a serial-only or exclusion-based check.
 - 2026-10-10T20:36:22+00:00: Claimed by codex-ar1786-control-race.
 
 - 2026-10-10T20:37:03+00:00: Heartbeat by codex-ar1786-control-race.
+
+- 2026-10-10T20:37:06+00:00: Recorded command exit 0; command argv SHA-256
+  599225c1489a39ad2dc00bec49906045b80e7ec1d6d2e85a7979fcc17839ea18.
