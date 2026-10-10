@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 103,
+  "task_revision": 104,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:26:40+00:00",
+  "updated_at": "2026-10-10T20:26:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -321,3 +321,6 @@ merging, and post-merge verification remain required.
   e9ad590e; publication and merge remain intentionally pending.
 
 - 2026-10-10T20:26:40+00:00: Claimed by codex-ar1785-independent-review.
+
+- 2026-10-10T20:26:52+00:00: Recorded command exit 1; command argv SHA-256
+  58ee27ba7461e6a990b1a1134b84c291d05e174806e1f8487a23f2364ae79078.
