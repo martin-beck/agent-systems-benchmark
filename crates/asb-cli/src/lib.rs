@@ -13622,6 +13622,140 @@ mod tests {
     }
 
     #[test]
+    fn opencode_opendesk_matrix_exercises_public_cli_routes() {
+        let scratch = Scratch::new("public-opencode-opendesk-matrix");
+        let agents = ["opencode", "opendesk"];
+        let mut runs = Vec::new();
+        for provider in ["openai", "openrouter"] {
+            let (selection_path, selection) = provider_selection_fixture(
+                &scratch.0,
+                &format!("{provider}-selection.json"),
+                provider,
+                &agents,
+            );
+            let provider_args = provider_args(&provider_catalog_digest(), provider, &agents);
+            let mut human = Vec::new();
+            let mut diagnostic = Vec::new();
+            assert_eq!(
+                run_with_default_mode(&provider_args, &mut human, &mut diagnostic, true),
+                0
+            );
+            assert!(diagnostic.is_empty());
+            let human = String::from_utf8(human).unwrap();
+            assert!(human.starts_with("[ OK ]"));
+            assert!(human.contains(provider));
+            for agent in agents {
+                let (plan_path, mut plan) =
+                    plan_fixture(&scratch.0, &format!("public-{provider}-{agent}"));
+                bind_provider_selection(&mut plan, &selection, agent, provider);
+                fs::write(&plan_path, toml::to_string(&plan).unwrap()).unwrap();
+                let (exit, planned) = run_json_without_progress(&[
+                    "plan".into(),
+                    plan_path.as_os_str().to_owned(),
+                    "--provider-selection".into(),
+                    selection_path.as_os_str().to_owned(),
+                ]);
+                assert_eq!(exit, 0, "{provider}/{agent}: {planned}");
+                assert_eq!(planned["provider_profile"], provider);
+                let (exit, output) = run_json_without_progress(&[
+                    "run".into(),
+                    plan_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ]);
+                assert_eq!(exit, 0, "{provider}/{agent}: {output}");
+                assert_eq!(output["command"], "run");
+                runs.push(
+                    plan.result_root
+                        .join(format!("runs/public-{provider}-{agent}")),
+                );
+            }
+        }
+
+        for agent in agents {
+            let capture_path = scratch.0.join(format!("{agent}-capture.json"));
+            let cassette_path = scratch.0.join(format!("{agent}-cassette.json"));
+            let cassette = asb_replay::decode_cassette(
+                include_bytes!("../../asb-replay/fixtures/v1/buffered.json"),
+                asb_replay::CassetteLimits::default(),
+            )
+            .unwrap();
+            let mut contents = cassette.contents;
+            contents.provider_profile_sha256 = Some("a".repeat(64));
+            let capture = asb_replay::RecordingCapture {
+                schema_version: asb_replay::RECORDING_WORKFLOW_SCHEMA_VERSION,
+                provider_profile_sha256: "a".repeat(64),
+                agent_id: agent.into(),
+                network: asb_replay::NetworkConsequence::LoopbackOnly,
+                estimated_cost_minor: 0,
+                confirmation: asb_replay::RecordingConfirmation {
+                    record: true,
+                    network: true,
+                    cost: false,
+                },
+                contents,
+            };
+            fs::write(&capture_path, serde_json::to_vec(&capture).unwrap()).unwrap();
+            assert_eq!(
+                run_json(&[
+                    "record-live".into(),
+                    capture_path.as_os_str().to_owned(),
+                    cassette_path.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                    "--confirm-record".into(),
+                ])
+                .0,
+                0
+            );
+            assert!(cassette_path.is_file());
+            let replay_path = scratch.0.join(format!("{agent}-strict-replay.json"));
+            fs::write(
+                &replay_path,
+                include_bytes!("../../asb-replay/fixtures/v1/gemini-generate-content.json"),
+            )
+            .unwrap();
+            let (exit, replay) = run_json(&[
+                "easy".into(),
+                "replay-offline".into(),
+                replay_path.as_os_str().to_owned(),
+                "a".repeat(64).into(),
+                agent.into(),
+                "--local-mock".into(),
+            ]);
+            assert_eq!(exit, 0, "{agent}: {replay}");
+            assert_eq!(replay["source"], "strict_replay");
+        }
+
+        let (exit, comparison) = run_json(&[
+            "compare".into(),
+            runs[0].as_os_str().to_owned(),
+            runs[1].as_os_str().to_owned(),
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(comparison["command"], "compare");
+        let mut human = Vec::new();
+        let mut diagnostic = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &[
+                    "compare".into(),
+                    runs[0].as_os_str().to_owned(),
+                    runs[1].as_os_str().to_owned(),
+                ],
+                &mut human,
+                &mut diagnostic,
+                true,
+            ),
+            0
+        );
+        assert!(diagnostic.is_empty());
+        assert!(
+            String::from_utf8(human)
+                .unwrap()
+                .starts_with("[WARN] ASB compared the runs, but")
+        );
+    }
+
+    #[test]
     fn provider_plan_bounds_options_and_has_no_filesystem_effect() {
         let scratch = Scratch::new("provider-plan");
         let before = fs::read_dir(&scratch.0).unwrap().count();
