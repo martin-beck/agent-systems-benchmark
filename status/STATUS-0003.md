@@ -252,7 +252,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Define and qualify the explicit development live provider boundary, runtime credential injection, and typed no-fallback failures. |
-| Next action | Run diagnostic_contract once after the line-stable test-only factory seam; if clean, run the public parity fixture and provenance/full gates. |
+| Next action | PR #549 exact head 700b13b3a74401a42f9c5c1cae1a788641ac94a2 has fresh independent technical approval and all 15 exact-head checks green; merge only through signed protected-main procedure, then verify exact-main workflows. |
 
 ### AR-1710 — Wizard provider-model selection and warning-only readiness
 

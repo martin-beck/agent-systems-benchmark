@@ -122,7 +122,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1709](../tasks/AR-1709.md): Development live provider execution contract and credential injection | ar1709-live-provider | Define and qualify the explicit development live provider boundary, runtime credential injection, and typed no-fallback failures. | Run diagnostic_contract once after the line-stable test-only factory seam; if clean, run the public parity fixture and provenance/full gates. |
+| P0 | [AR-1709](../tasks/AR-1709.md): Development live provider execution contract and credential injection | ar1709-live-provider | Define and qualify the explicit development live provider boundary, runtime credential injection, and typed no-fallback failures. | PR #549 exact head 700b13b3a74401a42f9c5c1cae1a788641ac94a2 has fresh independent technical approval and all 15 exact-head checks green; merge only through signed protected-main procedure, then verify exact-main workflows. |
 
 ### Open (1)
 
