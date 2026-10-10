@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1789-metrics-fixture",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T00:27:45+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,17 +13,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1789-independent-rereview",
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 55,
+  "task_revision": 56,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T22:27:38+00:00",
+  "updated_at": "2026-10-10T22:27:45+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -202,3 +202,5 @@ the ordinary parallel workspace gate.
 - 2026-10-10T22:27:38+00:00: Combined candidate 023e366a (553435d3 plus 023e366a on 2f1f08fb) passes
   focused metrics, full locked workspace tests, clippy, rustdoc, and manifest-bound fmt; released
   for independent exact-head review. No GitHub Reviews API approval object required.
+
+- 2026-10-10T22:27:45+00:00: Claimed by codex-ar1789-independent-rereview.
