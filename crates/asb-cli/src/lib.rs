@@ -791,6 +791,16 @@ fn run_local_mock_dispatch(
                 project.clone(),
             ]
         }
+        [command, path, project_flag, project, local_mock]
+            if project_flag == "--project" && local_mock == "--local-mock" =>
+        {
+            vec![
+                command.clone(),
+                path.clone(),
+                project_flag.clone(),
+                project.clone(),
+            ]
+        }
         _ => {
             return Err(CliError::legacy_usage(
                 "runtime local/mock entry expects run or sweep",
@@ -844,6 +854,16 @@ fn run_local_mock_dispatch_machine(
         }
         [command, path, local_mock, project_flag, project]
             if local_mock == "--local-mock" && project_flag == "--project" =>
+        {
+            vec![
+                command.clone(),
+                path.clone(),
+                project_flag.clone(),
+                project.clone(),
+            ]
+        }
+        [command, path, project_flag, project, local_mock]
+            if project_flag == "--project" && local_mock == "--local-mock" =>
         {
             vec![
                 command.clone(),
@@ -1085,6 +1105,15 @@ fn dispatch(
                 Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
             }
         }
+        [command, _path, project_flag, _project, local_mock]
+            if command == "run" && project_flag == "--project" && local_mock == "--local-mock" =>
+        {
+            if presentation_context.is_some() {
+                run_local_mock_dispatch(args, stdout, stderr, presentation_context)
+            } else {
+                Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
+            }
+        }
         [command, _path, flag] if command == "run" && flag == "--local-mock" => {
             if presentation_context.is_some() {
                 run_local_mock_dispatch(args, stdout, stderr, presentation_context)
@@ -1195,6 +1224,17 @@ fn dispatch(
             if command == "sweep"
                 && local_mock == "--local-mock"
                 && project_flag == "--project" =>
+        {
+            if presentation_context.is_some() {
+                run_local_mock_dispatch(args, stdout, stderr, presentation_context)
+            } else {
+                Ok(run_local_mock_dispatch_machine(args, stdout, stderr))
+            }
+        }
+        [command, _path, project_flag, _project, local_mock]
+            if command == "sweep"
+                && project_flag == "--project"
+                && local_mock == "--local-mock" =>
         {
             if presentation_context.is_some() {
                 run_local_mock_dispatch(args, stdout, stderr, presentation_context)
@@ -15355,6 +15395,29 @@ mod tests {
         assert_eq!(
             serde_json::from_slice::<Value>(&local_mock_output).unwrap()["command"],
             "run"
+        );
+        let (documented_order_path, _) = plan_fixture(&scratch.0, "project-local-mock-order");
+        let mut documented_order_output = Vec::new();
+        let mut documented_order_diagnostic = Vec::new();
+        assert_eq!(
+            run_with_default_mode(
+                &[
+                    "run".into(),
+                    documented_order_path.as_os_str().to_owned(),
+                    "--project".into(),
+                    project.as_os_str().to_owned(),
+                    "--local-mock".into(),
+                ],
+                &mut documented_order_output,
+                &mut documented_order_diagnostic,
+                true,
+            ),
+            0
+        );
+        assert!(
+            String::from_utf8(documented_order_output)
+                .unwrap()
+                .contains("project-local-mock-order")
         );
         let outside = scratch.0.join("outside");
         fs::create_dir_all(&outside).unwrap();
