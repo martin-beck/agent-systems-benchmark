@@ -18,11 +18,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 49,
+  "task_revision": 50,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:13:30+00:00",
+  "updated_at": "2026-10-10T20:15:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -169,3 +169,6 @@ merging, and post-merge verification remain required.
   diagnostic_contract::ordinary_cli_producers_are_mechanically_closed fail reproducibly: changed
   lib.rs CliError legacy call sites lack reviewed identities in diagnostic_legacy_catalog.rs. Repair
   catalog, amend signed DCO commit, then repeat review/gates. No product publish or merge.
+
+- 2026-10-10T20:15:54+00:00: Independent exact-head review reproduced diagnostic catalog closure
+  failure at a393455d; catalog repair is authorized before repeating review.
