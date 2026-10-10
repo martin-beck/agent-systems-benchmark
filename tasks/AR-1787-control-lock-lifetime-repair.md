@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1787",
-  "next_action": "Promote and claim after dependency verification; reproduce the AR-1786 same-process lock-release flaw, repair descriptor lifetime and catalog identities, then run repeated full gates.",
+  "next_action": "Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass.",
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:14:44+00:00",
+  "updated_at": "2026-10-10T21:14:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -111,3 +111,7 @@ not weaken control ownership or the ordinary workspace gate.
   ff6d1fa7a7185010f75fcfafe4bdc1bdd5b9804d8c2b3e7abdd8a1b96cd81c63.
 
 - 2026-10-10T21:14:44+00:00: Checkpointed source commit dbbf27c3684e90efc93b85fd8afe252a1011f6a1.
+
+- 2026-10-10T21:14:51+00:00: Recorded dbbf27c3 checkpoint with focused lifetime, child, concurrency,
+  diagnostic closure, two ordinary workspace runs, fmt, clippy, rustdoc, and privacy/diff checks
+  passing.

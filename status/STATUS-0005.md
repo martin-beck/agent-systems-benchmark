@@ -131,7 +131,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | codex-ar1787-lock-lifetime | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Promote and claim after dependency verification; reproduce the AR-1786 same-process lock-release flaw, repair descriptor lifetime and catalog identities, then run repeated full gates. |
+| P0 | [AR-1787](../tasks/AR-1787-control-lock-lifetime-repair.md): Repair control lock lifetime semantics | codex-ar1787-lock-lifetime | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. | Independent exact-head technical review of dbbf27c3684e90efc93b85fd8afe252a1011f6a1, then exact-head CI; no PR or merge before both pass. |
 
 ### Open (1)
 
