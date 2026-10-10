@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1786](tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Reproduced ordinary parallel workspace failure in control recording-campaign restart after backend drop; trace retained state-lock ownership and add isolation plus recovery coverage. | codex-ar1786-control-race |
+| P0 | [AR-1786](tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. | codex-ar1786-control-race |
 
 ## Open
 

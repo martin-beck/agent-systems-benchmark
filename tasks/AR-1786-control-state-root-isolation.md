@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Reproduced ordinary parallel workspace failure in control recording-campaign restart after backend drop; trace retained state-lock ownership and add isolation plus recovery coverage.",
+  "next_action": "Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 55,
+  "task_revision": 56,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:56:10+00:00",
+  "updated_at": "2026-10-10T20:56:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -181,3 +181,9 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-10T20:56:10+00:00: Recorded command exit 0; command argv SHA-256
   d2a2a8ad56e7e7a67cf0666e4b588fe3ad587cd1fe3ca4af0f67fac9df2bff5f.
+
+- 2026-10-10T20:56:24+00:00: Implemented POSIX record-lock ownership plus an inode registry to
+  preserve same-process exclusion while preventing child inheritance. Added child, negative, and
+  16-way concurrency coverage. Commit 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b is SSH-signed and
+  DCO-signed. Three ordinary locked workspace runs, fmt, clippy, rustdoc, and diagnostic contract
+  pass.
