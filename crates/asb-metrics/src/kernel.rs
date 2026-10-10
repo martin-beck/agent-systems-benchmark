@@ -393,9 +393,7 @@ fn execute(
                 process = Some(value);
                 break;
             }
-            Err(ProcessError::Spawn(error))
-                if error.kind() == io::ErrorKind::WouldBlock && attempt < 2 =>
-            {
+            Err(ProcessError::Spawn(error)) if should_retry_spawn(error.kind(), attempt) => {
                 // A busy parallel workspace can transiently exhaust the
                 // process admission limit. Retry with a bounded linear delay
                 // while preserving the caller's overall operation deadline.
@@ -410,6 +408,10 @@ fn execute(
         .wait()
         .cloned()
         .map_err(|_| UnavailableReason::ProbeRejected)
+}
+
+fn should_retry_spawn(error_kind: io::ErrorKind, attempt: usize) -> bool {
+    error_kind == io::ErrorKind::WouldBlock && attempt < MAX_SPAWN_ATTEMPTS.saturating_sub(1)
 }
 
 impl Drop for StagedTool {
@@ -609,6 +611,20 @@ mod tests {
             Some(2)
         );
         assert_eq!(parse_ebpf_features(b"unrelated\n"), None);
+    }
+
+    #[test]
+    fn spawn_retry_budget_matches_declared_bound() {
+        assert!(should_retry_spawn(io::ErrorKind::WouldBlock, 2));
+        assert!(should_retry_spawn(
+            io::ErrorKind::WouldBlock,
+            MAX_SPAWN_ATTEMPTS - 2
+        ));
+        assert!(!should_retry_spawn(
+            io::ErrorKind::WouldBlock,
+            MAX_SPAWN_ATTEMPTS - 1
+        ));
+        assert!(!should_retry_spawn(io::ErrorKind::Other, 0));
     }
 
     #[test]
