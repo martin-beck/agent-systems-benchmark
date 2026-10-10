@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T20:58:59+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "e9ad590eccb3d4ed30c6199c0d65a8223d55d57a",
-  "owner": "codex-ar1785-independent-review",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 130,
+  "task_revision": 131,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:32:38+00:00",
+  "updated_at": "2026-10-10T20:32:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -401,3 +401,10 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T20:32:38+00:00: Recorded command exit 1; command argv SHA-256
   30137d4486b688bac2c99cf5e8ce59b6adfc1d4ea1b74ddaea4e9c5a8b395983.
+
+- 2026-10-10T20:32:53+00:00: Independent review BLOCKED at e9ad590e: SSH signature and matching DCO
+  verified; diagnostic catalog closure, provenance, configured OpenRouter selected/all human+JSON
+  no-fallback, fmt, clippy, rustdoc, and serial full workspace pass. Required ordinary cargo test
+  --locked --workspace failed twice in distinct asb-cli control tests with control state root is
+  already owned; reproduce and fix deterministic parallel control-state isolation, then rerun
+  exact-head review. Exit 101 at 20:27:51 was only a state-cwd Cargo invocation artifact.
