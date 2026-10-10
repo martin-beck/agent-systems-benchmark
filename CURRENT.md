@@ -8,6 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1785](tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | AR-1791 must repair recurrent GCC and rustup TUI fixture contamination first. Then independently re-review d46180c297699f96d2c4e5f2d4b2cc6b6aabed12, publish exact-head CI, merge, and requalify AR-1715. No GitHub Reviews API approval object is required. | codex-clean-state-coordinator |
+| P0 | [AR-1791](tasks/AR-1791-tui-fixture-isolation.md): Repair recurrent TUI fixture isolation failures | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. | Bind an isolated current-main worktree, implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785. | codex-ar1791-fixture-repair |
 
 ## Open
 
@@ -16,7 +17,6 @@ Never edit this file directly.
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
 | P0 | [AR-1698](tasks/AR-1698.md): Current-head recording and strict offline qualification repair | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. | Run the current-head record, record-campaign, cassette integrity, strict offline replay, incomplete coverage, redaction, and network-denial matrix; publish a signed receipt without changing AR-1652 status from stale evidence. | - |
 | P0 | [AR-1786](tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. | - |
-| P0 | [AR-1791](tasks/AR-1791-tui-fixture-isolation.md): Repair recurrent TUI fixture isolation failures | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. | Bind an isolated current-main worktree, implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785. | - |
 
 ## Blocked
 
