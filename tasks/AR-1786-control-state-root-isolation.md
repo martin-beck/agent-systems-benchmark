@@ -18,11 +18,11 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 62,
+  "task_revision": 63,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:59:47+00:00",
+  "updated_at": "2026-10-10T22:42:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -208,3 +208,7 @@ gate into a serial-only or exclusion-based check.
   lock helper); additionally, POSIX F_SETLK record locks are process-scoped and closing the failed
   same-process contender descriptor can release the active owner lock despite the inode registry.
   Repair both and add cross-process regression coverage; no PR or merge.
+
+- 2026-10-10T22:42:36+00:00: Dependencies AR-1711 and AR-1733 are complete; AR-1788 is now complete.
+  Promote AR-1786 for independent exact-head review of 7be2fcb0, with no GitHub Reviews API approval
+  requirement.
