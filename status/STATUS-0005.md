@@ -138,13 +138,18 @@
 
 ## Complete AR inventory
 
-### Open (3)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1790](../tasks/AR-1790-metrics-retry-budget.md): Make metrics spawn retry budget effective | codex-ar1790-integration | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. |
+
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
 | P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | Unclaimed | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Wait for AR-1790 retry-budget repair and independent review; then re-review combined candidate 2f1f08fb plus 97eb1e38 and publish exact-head CI only after all gates pass. |
-| P0 | [AR-1790](../tasks/AR-1790-metrics-retry-budget.md): Make metrics spawn retry budget effective | Unclaimed | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. | Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree. |
 
 ### Blocked (92)
 

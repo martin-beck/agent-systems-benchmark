@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T22:59:25+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1790-integration",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 50,
+  "task_revision": 51,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:58:55+00:00",
+  "updated_at": "2026-10-10T21:59:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -193,3 +193,5 @@ post-merge verification remain mandatory.
   filter ran zero tests and was immediately superseded by qualified exact tests. No GitHub Reviews
   API approval object is required. No merge authorized by this review; ready for integration
   decision.
+
+- 2026-10-10T21:59:25+00:00: Claimed by codex-ar1790-integration.
