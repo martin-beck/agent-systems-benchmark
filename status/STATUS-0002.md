@@ -1606,11 +1606,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P1 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1449-runtime-replay-20261011 |
 | Parent | None |
 | Children | None |
 | Summary | Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper. |

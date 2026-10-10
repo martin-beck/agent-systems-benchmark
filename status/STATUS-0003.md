@@ -1882,7 +1882,7 @@ flowchart LR
         AR_1446["AR-1446 - Done"]:::status_done
         AR_1447["AR-1447 - Done"]:::status_done
         AR_1448["AR-1448 - Done"]:::status_done
-        AR_1449["AR-1449 - Open"]:::status_open
+        AR_1449["AR-1449 - In progress"]:::status_in_progress
         AR_1450["AR-1450 - Done"]:::status_done
         AR_1451["AR-1451 - Done"]:::status_done
         AR_1452["AR-1452 - Done"]:::status_done

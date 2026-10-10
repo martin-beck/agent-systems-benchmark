@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1449-runtime-owned-local-replay-cli",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T01:59:56+00:00",
   "depends_on": [
     "AR-1443",
     "AR-1448"
@@ -12,15 +12,15 @@
   "observed_branch": "feature/ar-1449-runtime-owned-local-replay-cli",
   "observed_dirty": 0,
   "observed_head": "f03d9e484d6ca73eacdbd5476980bf33ca737540",
-  "owner": "",
+  "owner": "codex-ar1449-runtime-replay-20261011",
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T22:58:00+00:00",
+  "updated_at": "2026-10-10T22:59:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-runtime-owned-local-replay-cli"
 }
 ---
@@ -46,3 +46,5 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 - 2026-10-10T22:58:00+00:00: Dependencies AR-1443 and AR-1448 are complete. Promote runtime-owned
   local replay authority repair to unblock AR-1698; local/mock fixtures are sufficient and no GitHub
   Reviews API approval object is required.
+
+- 2026-10-10T22:59:56+00:00: Claimed by codex-ar1449-runtime-replay-20261011.
