@@ -30,8 +30,8 @@ Generated from local Git and GitHub. Do not edit.
 | 38090501366 | `59cfd9cf6f06` | push | Repository quality | in_progress:- |
 | 38090501364 | `59cfd9cf6f06` | push | Hosted portability and native qualification | in_progress:- |
 | 38090501360 | `59cfd9cf6f06` | push | Rust verification | in_progress:- |
-| 38090501353 | `59cfd9cf6f06` | push | Portable protected-main provenance | in_progress:- |
-| 38090501350 | `59cfd9cf6f06` | push | Formal assurance | queued:- |
+| 38090501353 | `59cfd9cf6f06` | push | Portable protected-main provenance | completed:success |
+| 38090501350 | `59cfd9cf6f06` | push | Formal assurance | in_progress:- |
 | 38090501347 | `59cfd9cf6f06` | push | Cross-repository development broker qualification | in_progress:- |
 | 38090501343 | `59cfd9cf6f06` | push | Huawei MIT source headers | completed:success |
 | 38090501339 | `59cfd9cf6f06` | push | Credential-free benchmark path | in_progress:- |
