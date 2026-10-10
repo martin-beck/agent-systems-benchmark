@@ -211,11 +211,7 @@ fn sigint_cancels_process_group_persists_terminal_state_and_returns_json() {
     );
     assert_eq!(result["points"][0]["attempts"].as_array().unwrap().len(), 1);
     assert_eq!(fs::read_to_string(launches).unwrap().lines().count(), 1);
-    assert!(
-        String::from_utf8(output.stderr)
-            .unwrap()
-            .contains("starting cancel-e2e")
-    );
+    assert!(output.stderr.is_empty());
     let journal = fs::read_to_string(result_root.join("runs/cancel-e2e/journal.ndjson")).unwrap();
     assert!(journal.contains("\"state\":\"cancelled\""));
     for input_id in 0..6 {
@@ -242,6 +238,31 @@ fn sigint_cancels_process_group_persists_terminal_state_and_returns_json() {
             );
         }
     }
+}
+
+#[test]
+fn json_and_quiet_suppress_execution_notices_on_both_streams() {
+    let scratch = Scratch::new();
+    let project = scratch.0.join("project");
+    let json = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .args(["--json", "project", "init"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(json.status.success());
+    assert!(json.stderr.is_empty());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&json.stdout).unwrap()["command"],
+        "project init"
+    );
+
+    let quiet = Command::new(env!("CARGO_BIN_EXE_asb"))
+        .args(["--quiet", "not-a-command"])
+        .output()
+        .unwrap();
+    assert_eq!(quiet.status.code(), Some(2));
+    assert!(quiet.stdout.is_empty());
+    assert!(quiet.stderr.is_empty());
 }
 
 #[test]

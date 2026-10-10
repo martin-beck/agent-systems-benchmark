@@ -181,31 +181,48 @@ fn run_with_default_mode_and_stdin(
     };
     let human =
         human_default && !output_mode.json && output_mode.level != ProjectOutputLevelV1::Quiet;
-    if human && human::render_start(&normalized, stderr).is_err() {
-        let _ = writeln!(stderr, "ASB could not write output");
-        return 4;
+    if human {
+        let start = match output_mode.human_writer {
+            ProjectOutputWriterV1::Stdout => human::render_start(&normalized, stdout),
+            ProjectOutputWriterV1::Stderr => human::render_start(&normalized, stderr),
+        };
+        if start.is_err() {
+            let _ = writeln!(stderr, "ASB could not write output");
+            return 4;
+        }
     }
     let mut captured = Vec::new();
     let mut presentation_context = human::PresentationContext::default();
     let context = human.then_some(&mut presentation_context);
     let executable_capabilities =
         human_default && normalized.len() == 1 && normalized[0] == "capabilities";
-    let dispatched = if executable_capabilities {
-        write_json(
-            &mut captured,
-            &capabilities::CapabilityResponse::control_v1(),
-        )
-        .map(|()| 0)
-    } else {
-        dispatch(
-            &normalized,
-            &mut captured,
-            stderr,
-            None,
-            None,
-            stdin,
-            context,
-        )
+    let dispatched = {
+        let mut suppressed_progress = io::sink();
+        let progress: &mut dyn Write = if human {
+            match output_mode.human_writer {
+                ProjectOutputWriterV1::Stdout => stdout,
+                ProjectOutputWriterV1::Stderr => stderr,
+            }
+        } else {
+            &mut suppressed_progress
+        };
+        if executable_capabilities {
+            write_json(
+                &mut captured,
+                &capabilities::CapabilityResponse::control_v1(),
+            )
+            .map(|()| 0)
+        } else {
+            dispatch(
+                &normalized,
+                &mut captured,
+                progress,
+                None,
+                None,
+                stdin,
+                context,
+            )
+        }
     };
     match dispatched {
         Ok(exit_code) => {
@@ -4493,7 +4510,7 @@ fn prepare_owned_directory(
                             if let Some(stream) = progress.as_deref_mut() {
                                 writeln!(
                                     stream,
-                                    "ASB will create directory {} for {}.",
+                                    "[WAIT] ASB will create directory {} for {}.",
                                     display_local_path(path),
                                     purpose.label()
                                 )
@@ -7533,7 +7550,7 @@ fn execute_inner_from_source_with_owner_project(
         } else {
             plan.run_id.clone()
         };
-        let _ = writeln!(progress, "starting {run_id}");
+        let _ = writeln!(progress, "[WAIT] starting {run_id}");
         let point = run_point_with_selection_with_owner(
             Arc::clone(&store),
             &plan,
@@ -10152,7 +10169,7 @@ mod tests {
         assert_eq!(
             notice,
             format!(
-                "ASB will create directory {} for benchmark run results.\n",
+                "[WAIT] ASB will create directory {} for benchmark run results.\n",
                 display_local_path(&prepared.path)
             )
         );
@@ -12854,15 +12871,11 @@ mod tests {
         (exit, serde_json::from_slice(&output).unwrap())
     }
 
-    fn run_json_with_progress(args: &[OsString]) -> (u8, Value) {
+    fn run_json_without_progress(args: &[OsString]) -> (u8, Value) {
         let mut output = Vec::new();
         let mut diagnostic = Vec::new();
         let exit = run(args, &mut output, &mut diagnostic);
-        assert!(
-            String::from_utf8(diagnostic)
-                .unwrap()
-                .starts_with("starting ")
-        );
+        assert!(diagnostic.is_empty());
         (exit, serde_json::from_slice(&output).unwrap())
     }
 
@@ -13197,7 +13210,7 @@ mod tests {
             asb_agents::openrouter::OPENROUTER_MODEL
         );
 
-        let (exit, executed) = run_json_with_progress(&[
+        let (exit, executed) = run_json_without_progress(&[
             "run".into(),
             plan_arg,
             "--provider-selection".into(),
@@ -13399,7 +13412,7 @@ mod tests {
             selection["provider_profile_sha256"]
         );
 
-        let (exit, executed) = run_json_with_progress(&[
+        let (exit, executed) = run_json_without_progress(&[
             "run".into(),
             plan_arg,
             "--provider-selection".into(),
@@ -13445,7 +13458,7 @@ mod tests {
         bind_openai_selection(&mut plan, &alternate, "codex");
         fs::write(&alternate_plan_path, toml::to_string(&plan).unwrap()).unwrap();
         assert_eq!(
-            run_json_with_progress(&[
+            run_json_without_progress(&[
                 "run".into(),
                 alternate_plan_path.as_os_str().to_owned(),
                 "--provider-selection".into(),
@@ -13493,7 +13506,7 @@ mod tests {
         plan.result_root = scratch.0.join("sweep-results");
         plan.work_root = scratch.0.join("sweep-work");
         fs::write(&alternate_plan_path, toml::to_string(&plan).unwrap()).unwrap();
-        let (exit, sweep) = run_json_with_progress(&[
+        let (exit, sweep) = run_json_without_progress(&[
             "sweep".into(),
             alternate_plan_path.as_os_str().to_owned(),
             "--provider-selection".into(),
@@ -13513,7 +13526,7 @@ mod tests {
         bind_openai_selection(&mut first, &selection, "codex");
         fs::write(&first_path, toml::to_string(&first).unwrap()).unwrap();
         assert_eq!(
-            run_json_with_progress(&[
+            run_json_without_progress(&[
                 "run".into(),
                 first_path.as_os_str().to_owned(),
                 "--provider-selection".into(),
@@ -13527,7 +13540,7 @@ mod tests {
         bind_openai_selection(&mut second, &selection, "codex");
         fs::write(&second_path, toml::to_string(&second).unwrap()).unwrap();
         assert_eq!(
-            run_json_with_progress(&[
+            run_json_without_progress(&[
                 "run".into(),
                 second_path.as_os_str().to_owned(),
                 "--provider-selection".into(),
@@ -13554,7 +13567,7 @@ mod tests {
 
         let (third_path, third) = plan_fixture(&scratch.0, "comparison-unavailable");
         assert_eq!(
-            run_json_with_progress(&["run".into(), third_path.as_os_str().to_owned()]).0,
+            run_json_without_progress(&["run".into(), third_path.as_os_str().to_owned()]).0,
             0
         );
         let third_run = third.result_root.join("runs/comparison-unavailable");

@@ -4021,7 +4021,7 @@ fn prepare_private_directory_with_notice(
     if human && missing {
         writeln!(
             progress,
-            "ASB will create directory {} for {}.",
+            "[WAIT] ASB will create directory {} for {}.",
             path.display(),
             purpose
         )
@@ -5108,7 +5108,7 @@ mod tests {
         assert_eq!(
             String::from_utf8(progress).unwrap(),
             format!(
-                "ASB will create directory {} for ASB TUI lifecycle state.\n",
+                "[WAIT] ASB will create directory {} for ASB TUI lifecycle state.\n",
                 destination.display()
             )
         );
