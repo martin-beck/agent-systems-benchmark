@@ -30,9 +30,9 @@ Generated from local Git and GitHub. Do not edit.
 | 38080613288 | `b79ad1597a1c` | push | Rust verification | completed:success |
 | 38080613256 | `b79ad1597a1c` | push | Credential-free benchmark path | completed:success |
 | 38080613233 | `b79ad1597a1c` | push | Formal assurance | completed:success |
-| 38080613202 | `b79ad1597a1c` | push | Emulated aarch64 portability | in_progress:- |
+| 38080613202 | `b79ad1597a1c` | push | Emulated aarch64 portability | completed:success |
 | 38080613200 | `b79ad1597a1c` | push | Huawei MIT source headers | completed:success |
-| 38080613196 | `b79ad1597a1c` | push | Repository quality | in_progress:- |
+| 38080613196 | `b79ad1597a1c` | push | Repository quality | completed:success |
 | 38080613193 | `b79ad1597a1c` | push | Hosted portability and native qualification | completed:success |
 | 38080613174 | `b79ad1597a1c` | push | Fault assurance | completed:success |
 | 38079810850 | `653b91c09f14` | pull_request | Agent Workflow Quality shadow | completed:success |
