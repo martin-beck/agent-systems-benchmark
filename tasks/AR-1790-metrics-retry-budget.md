@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:43:24+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "coordinator-ar1790",
+  "owner": "",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 14,
+  "task_revision": 15,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:47:01+00:00",
+  "updated_at": "2026-10-10T21:47:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -73,3 +73,8 @@ post-merge verification remain mandatory.
 
 - 2026-10-10T21:47:01+00:00: Recorded command exit 0; command argv SHA-256
   0675fd6c5cfdd230f79fdfd18cb7bd8f9686f6f0345be13ad93b7384545d5d69.
+
+- 2026-10-10T21:47:08+00:00: Signed+DCO candidate 97eb1e38 repairs effective eight-attempt
+  WouldBlock guard and adds retry-budget regression. Focused retry test, combined workspace gate,
+  fmt, clippy and rustdoc pass. Release for independent review; no GitHub Reviews API approval
+  object is required.
