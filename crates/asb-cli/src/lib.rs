@@ -1490,8 +1490,8 @@ fn openrouter_live_cli_error(error: OpenRouterLiveError) -> CliError {
             "OpenRouter returned a non-success HTTP status",
         ),
         OpenRouterLiveError::CurlUnavailable => CliError::operation_code(
-            "provider_transport_unavailable",
-            "OpenRouter curl transport is unavailable",
+            "trusted_tool_unavailable",
+            "OpenRouter trusted curl transport is unavailable",
         ),
     }
 }
@@ -15869,6 +15869,37 @@ mod tests {
                 .unwrap()
                 .contains("selected tool is unavailable")
         );
+    }
+    #[test]
+    fn trusted_curl_unavailable_is_typed_in_json_and_human_without_fallback() {
+        let error = openrouter_live_cli_error(OpenRouterLiveError::CurlUnavailable);
+        assert_eq!(error.code, "trusted_tool_unavailable");
+        let envelope = ErrorEnvelope {
+            schema_version: OUTPUT_SCHEMA_VERSION,
+            ok: false,
+            command: "record-live",
+            error: error.clone(),
+        };
+        let mut json = Vec::new();
+        write_json(&mut json, &envelope).unwrap();
+        let json: Value = serde_json::from_slice(&json).unwrap();
+        assert_eq!(json["error"]["code"], "trusted_tool_unavailable");
+        assert!(!json.to_string().contains("strict_replay"));
+        assert!(!json.to_string().contains("local_mock"));
+
+        let mut human_output = Vec::new();
+        human::render_error(
+            &[OsString::from("record-live")],
+            &error,
+            false,
+            &mut human_output,
+        )
+        .unwrap();
+        let human = String::from_utf8(human_output).unwrap();
+        assert!(human.contains("ASB could not complete"));
+        assert!(human.contains("trusted curl transport is unavailable"));
+        assert!(!human.contains("replay"));
+        assert!(!human.contains("mock"));
     }
 }
 
