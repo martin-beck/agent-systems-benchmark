@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1791-tui-fixture-isolation",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:55:07+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1770",
     "AR-1788",
@@ -14,7 +14,7 @@
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
-  "owner": "codex-ar1791-integration",
+  "owner": "",
   "plan": "../plans/AR-1791-tui-fixture-isolation.md",
   "priority": "P0",
   "schema_version": 1,
@@ -28,11 +28,11 @@
   },
   "spec_ref": "specs/AR-1791.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 53,
+  "task_revision": 54,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:50:23+00:00",
+  "updated_at": "2026-10-10T23:50:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -214,3 +214,6 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:50:23+00:00: Accepted exact reviewed candidate 4dbf735, signed merge 16d8512, all
   exact-head and exact-main checks green; no GitHub Reviews API approval object required.
+
+- 2026-10-10T23:50:36+00:00: AR-1791 complete: exact reviewed merge 16d8512, post-merge workflows
+  terminal green, durable receipt accepted.
