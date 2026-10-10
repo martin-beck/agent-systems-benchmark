@@ -18,9 +18,9 @@
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 17,
+  "task_revision": 18,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:03:44+00:00",
+  "updated_at": "2026-10-10T23:03:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -75,3 +75,6 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
   coordinator rebind/rebase successor; preserve AR-1791 unrelated dirty state.
 
 - 2026-10-10T23:03:44+00:00: Claimed by codex-ar1449-rebind.
+
+- 2026-10-10T23:03:47+00:00: Recorded command exit 0; command argv SHA-256
+  74dcd1cb28fa2fad4b01a1261e8fa21822af4c19bc8a7c826b6f4129e8f8ca8b.
