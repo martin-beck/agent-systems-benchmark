@@ -17,13 +17,21 @@
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:411c19cd8ab0601a81ce249910e6287940509fd23bf0c7a3d3a5012f0a986334",
+    "evidence_ref": "quality/AR-1788-integrated-current-main-receipt.json",
+    "spec_ref": "specs/AR-1788.json",
+    "spec_revision": 2,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 52,
+  "task_revision": 53,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T22:41:50+00:00",
+  "updated_at": "2026-10-10T22:42:03+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -190,3 +198,6 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T22:41:50+00:00: Recorded command exit 0; command argv SHA-256
   91d8ffe8fd3f2180e06c78799c3927711d15f4ce6bb74e90ead96bbabee1a7cb.
+
+- 2026-10-10T22:42:03+00:00: Independent exact-main review accepted; implementation is already
+  integrated on protected main and all recorded gates are terminal green.
