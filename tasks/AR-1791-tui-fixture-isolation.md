@@ -12,7 +12,7 @@
   "id": "AR-1791",
   "next_action": "Implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785.",
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
   "owner": "codex-ar1791-fixture-repair",
   "plan": "../plans/AR-1791-tui-fixture-isolation.md",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:12:08+00:00",
+  "updated_at": "2026-10-10T23:12:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
