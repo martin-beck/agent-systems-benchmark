@@ -135,12 +135,17 @@
 
 ## Complete AR inventory
 
-### Open (2)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | coordinator-ar1789 | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code. |
+
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1789](../tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | Unclaimed | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code. |
 
 ### Blocked (92)
 

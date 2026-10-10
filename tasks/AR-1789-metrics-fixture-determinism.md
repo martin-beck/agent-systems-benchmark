@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:31:51+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "coordinator-ar1789",
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T21:31:46+00:00",
+  "updated_at": "2026-10-10T21:31:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -40,3 +40,5 @@ the ordinary parallel workspace gate.
 - 2026-10-10T21:31:46+00:00: Promote metrics fixture nondeterminism repair after AR-1788 review
   identified an unrelated full-workspace-only failure; dependencies AR-1711 and AR-1733 are
   complete.
+
+- 2026-10-10T21:31:51+00:00: Claimed by coordinator-ar1789.
