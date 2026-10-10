@@ -1,7 +1,7 @@
 ---
 {
   "branch": "codex/ar-1787-lock-lifetime",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
   "claim_expires": "2026-10-10T23:09:36+00:00",
   "depends_on": [
     "AR-1711",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:14:30+00:00",
+  "updated_at": "2026-10-10T21:14:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -109,3 +109,5 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T21:14:30+00:00: Recorded command exit 0; command argv SHA-256
   ff6d1fa7a7185010f75fcfafe4bdc1bdd5b9804d8c2b3e7abdd8a1b96cd81c63.
+
+- 2026-10-10T21:14:44+00:00: Checkpointed source commit dbbf27c3684e90efc93b85fd8afe252a1011f6a1.
