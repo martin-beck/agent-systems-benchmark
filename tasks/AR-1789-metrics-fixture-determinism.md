@@ -21,9 +21,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 68,
+  "task_revision": 69,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T22:31:06+00:00",
+  "updated_at": "2026-10-10T22:31:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -248,3 +248,6 @@ the ordinary parallel workspace gate.
 
 - 2026-10-10T22:31:06+00:00: Recorded command exit 0; command argv SHA-256
   5756a96b84344d7389edb7c0b2f7cdaec9dd1af42135c6753f8ac7b3a8b85b6a.
+
+- 2026-10-10T22:31:17+00:00: Recorded command exit 1; command argv SHA-256
+  fa80113b1ce3ca1f3d1c02d69a144cdda7e521074b332417f2c094f254c07863.
