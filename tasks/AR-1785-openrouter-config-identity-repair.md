@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1785",
-  "next_action": "Independent exact-head review of a393455d, then publish PR and require exact-head CI before signed merge and post-merge AR-1715 requalification.",
+  "next_action": "Independent exact-head review of e9ad590eccb3d4ed30c6199c0d65a8223d55d57a; then publish a PR, require exact-head CI, perform signed merge, and requalify AR-1715.",
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "e9ad590eccb3d4ed30c6199c0d65a8223d55d57a",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 100,
+  "task_revision": 101,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:25:39+00:00",
+  "updated_at": "2026-10-10T20:25:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -311,3 +311,8 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T20:25:39+00:00: Recorded command exit 0; command argv SHA-256
   eb0bda22244ba2ee1fb6df77e8248fc5c8f5e866e08a5e496ebbacfe5d1ce828.
+
+- 2026-10-10T20:25:50+00:00: Repaired the legacy diagnostic catalog for the OpenRouter configuration
+  identity change. Signed DCO head e9ad590e passed focused diagnostic closure, catalog identity,
+  workflow provenance, full locked workspace tests, fmt, clippy, and rustdoc; no publication or
+  merge performed.
