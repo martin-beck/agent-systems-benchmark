@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1791-tui-fixture-isolation",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T02:22:53+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1770",
     "AR-1788",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
-  "owner": "codex-ar1791-independent-review",
+  "owner": "",
   "plan": "../plans/AR-1791-tui-fixture-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1791.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 39,
+  "task_revision": 40,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:24:41+00:00",
+  "updated_at": "2026-10-10T23:24:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -156,3 +156,15 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:24:41+00:00: Recorded command exit 0; command argv SHA-256
   f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
+
+- 2026-10-10T23:24:50+00:00: Independent review clean for exact candidate
+  4dbf735db270be0faf25fa005104397d8a680eb3. Complete diff is one file (crates/asb-cli/src/tui.rs,
+  +42/-2): adds Scratch RAII cleanup regression and changes rustup descriptor teardown assertions to
+  compare original dev+inode identity, removing a parallel-FD reuse race. git diff --check passed;
+  no secrets, credentials, private paths, serialization/publication changes, or network behavior.
+  Candidate commit is SSH-signed with ED25519 SHA256:a36V6yPvRZyxnQ2113tiA/MlHt7mPfJEXAGByBXVkuE and
+  matching Signed-off-by. Focused tests passed: scratch_roots_are_unique_and_removed_on_drop,
+  development_rustup_tools_execute_validated_objects_after_path_replacement,
+  development_gcc_probe_kills_stdout_descendant_and_restores_cloexec. Repeated ordinary cargo test
+  --locked --workspace --all-targets passed; cargo fmt --all -- --check passed. No GitHub Reviews
+  API approval object required. Released for integration; reviewer did not accept or merge.
