@@ -2181,6 +2181,20 @@ fn present_execution(
         }
     }
     if let Some(points) = object.get("points").and_then(Value::as_array) {
+        let live_provider_attempt_unavailable = points.iter().any(|point| {
+            point
+                .get("attempt_failures")
+                .and_then(Value::as_array)
+                .is_some_and(|failures| {
+                    failures.iter().any(|failure| {
+                        string_value(failure, "code") == Some("live_provider_attempt_unavailable")
+                    })
+                })
+        });
+        if live_provider_attempt_unavailable {
+            value.fact("Failure: live_provider_attempt_unavailable.");
+            value.warning("The requested live provider attempt was unavailable; ASB did not substitute another execution mode.");
+        }
         let timed_out = points
             .iter()
             .filter_map(Value::as_object)
