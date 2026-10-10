@@ -1,0 +1,16 @@
+{
+  "ar": "AR-1789",
+  "status": "postmerge_verified",
+  "integration": "already_integrated",
+  "candidate_commit": "023e366a489cfc55acd1549cf27115dda8a5a0e3",
+  "candidate_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "current_main": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
+  "current_main_tree": "787929ddbb7a10fbd70e358251d354c40eae7828",
+  "equivalence": "git diff origin/main candidate is empty; the reviewed AR-1789 tree is already present on protected main through signed AR-1790 integration",
+  "independent_review": "AR-1789 task receipt at 2026-10-10T22:30:06Z accepted the exact candidate; no GitHub Reviews API approval object required",
+  "candidate_gates": ["focused metrics", "full locked workspace", "clippy", "rustdoc", "fmt", "diff/privacy", "signatures/DCO"],
+  "main_postmerge_evidence": "quality/AR-1790-metrics-retry-postmerge-receipt.json",
+  "failed_pr": 552,
+  "failed_pr_reason": "portable provenance correctly rejected the stale candidate base; no merge was attempted",
+  "authorization_boundary": "No new PR or merge is authorized because the exact reviewed tree is already on main; close the stale no-op PR and release AR-1789 done."
+}
