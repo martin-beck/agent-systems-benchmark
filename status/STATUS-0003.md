@@ -1280,11 +1280,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | blocked |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1785-openrouter-config-repair |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. |
@@ -2133,7 +2133,7 @@ flowchart LR
         AR_1782["AR-1782 - Planned"]:::status_planned
         AR_1783["AR-1783 - Planned"]:::status_planned
         AR_1784["AR-1784 - Planned"]:::status_planned
-        AR_1785["AR-1785 - In progress"]:::status_in_progress
+        AR_1785["AR-1785 - Blocked"]:::status_blocked
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
