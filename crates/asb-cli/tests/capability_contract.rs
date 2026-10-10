@@ -600,7 +600,7 @@ fn command_ignores_hostile_environment_and_help_completion_are_explicit() {
     assert!(
         String::from_utf8(human.stdout)
             .unwrap()
-            .starts_with("ASB reported its supported frontend capabilities.")
+            .starts_with("[ OK ] ASB reported its supported frontend capabilities.")
     );
     let profile = workspace_root().join("target/asb-capability-%p-%m.profraw");
     let output = Command::new(env!("CARGO_BIN_EXE_asb"))

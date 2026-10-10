@@ -61,10 +61,35 @@ fn displayed_next_shell(output: &Output) -> String {
     let stdout = String::from_utf8(output.stdout.clone()).unwrap();
     let line = stdout
         .lines()
-        .find_map(|line| line.strip_prefix("Next: "))
+        .find_map(|line| {
+            line.strip_prefix("[ OK ] Next: ")
+                .or_else(|| line.strip_prefix("[WARN] Next: "))
+                .or_else(|| line.strip_prefix("[ERR ] Next: "))
+                .or_else(|| line.strip_prefix("[WAIT] Next: "))
+        })
         .unwrap_or_else(|| panic!("missing displayed Next command: {stdout}"));
     assert!(!line.chars().any(char::is_control));
     line.to_owned()
+}
+
+fn human_content(output: &str) -> String {
+    output
+        .lines()
+        .map(|line| {
+            line.strip_prefix("[ OK ] ")
+                .or_else(|| line.strip_prefix("[WARN] "))
+                .or_else(|| line.strip_prefix("[ERR ] "))
+                .or_else(|| line.strip_prefix("[WAIT] "))
+                .unwrap_or(line)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn has_status_prefix(output: &str) -> bool {
+    ["[ OK ] ", "[WARN] ", "[ERR ] ", "[WAIT] "]
+        .iter()
+        .any(|prefix| output.starts_with(prefix))
 }
 
 fn execute_displayed_next(root: &Path, output: &Output) -> Output {
@@ -268,7 +293,7 @@ fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
     let workload_text = String::from_utf8(workloads.stdout).unwrap();
     assert!(workload_text.contains("original.bug-fix"));
     assert!(
-        workload_text
+        human_content(&workload_text)
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ")
@@ -371,7 +396,7 @@ fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
     let compared = execute_displayed_next(&journey, &report);
     assert!(compared.status.success());
     let compared_text = String::from_utf8(compared.stdout).unwrap();
-    assert!(compared_text.starts_with("ASB compared the runs"));
+    assert!(compared_text.starts_with("[WARN] ASB compared the runs"));
 
     let tui = human_asb(
         &journey,
@@ -384,7 +409,8 @@ fn human_journey_reaches_selection_sweep_report_compare_and_tui() {
     );
     let tui_text = String::from_utf8(tui.stdout).unwrap();
     assert!(!tui_text.starts_with('{'));
-    assert!(tui_text.starts_with("ASB "));
+    assert!(has_status_prefix(&tui_text));
+    assert!(tui_text.contains("ASB "));
 }
 
 #[test]

@@ -1,9 +1,9 @@
 # scenario<TAB>exit<TAB>normalized stdout phrase<TAB>stderr
 success	0	ASB found this host ready	empty
-usage	2	ASB could not complete the command	empty
-validation	3	ASB could not complete the benchmark run	empty
-product	4	auth control service connection failed	empty
-dependency	4	OpenRouter credential unavailable	empty
+usage	2	ASB could not complete the command	human
+validation	3	ASB could not complete the benchmark run	human
+product	4	auth control service connection failed	human
+dependency	4	OpenRouter credential unavailable	human
 host	4	terminal interface preflight	empty
 failed	5	benchmark points failed	progress
 inconclusive	6	result is inconclusive	progress

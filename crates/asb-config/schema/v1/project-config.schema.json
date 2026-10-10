@@ -12,6 +12,15 @@
       "required": ["project", "results", "catalogs"],
       "properties": {"project": {"type": "string"}, "results": {"type": "string"}, "catalogs": {"type": "string"}}
     },
+    "output": {
+      "type": "object", "additionalProperties": false,
+      "required": ["level", "result_writer", "human_writer"],
+      "properties": {
+        "level": {"enum": ["quiet", "normal", "verbose", "debug"]},
+        "result_writer": {"enum": ["stdout", "stderr"]},
+        "human_writer": {"enum": ["stdout", "stderr"]}
+      }
+    },
     "agents": {"$ref": "#/$defs/inventory"},
     "harnesses": {"$ref": "#/$defs/inventory"},
     "benchmarks": {"$ref": "#/$defs/inventory"},

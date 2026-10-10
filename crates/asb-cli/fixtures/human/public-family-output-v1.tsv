@@ -1,28 +1,28 @@
 # command<TAB>arguments (- means none)<TAB>exit<TAB>exact first stdout line<TAB>stderr
-doctor	-	0	ASB found this host ready for its supported command-line workflows.	empty
-setup	-	0	ASB checked the available setup choices; no configuration was changed.	empty
-capabilities	-	0	ASB reported its supported frontend capabilities.	empty
-project	{scratch}/project	0	ASB initialized the project workspace.	notice
-tool	-	2	ASB could not complete the tool: tool requires install|list|status|select|remove.	empty
-catalog	-	2	ASB could not complete the catalog: catalog requires generate|list|show|select.	empty
-provider-catalog	-	0	ASB loaded the provider catalog.	empty
-adapter-catalog	-	0	ASB loaded the coding-agent adapter catalog.	empty
-workload-catalog	-	0	ASB loaded the benchmark workload catalog.	empty
+doctor	-	0	[ OK ] ASB found this host ready for its supported command-line workflows.	empty
+setup	-	0	[ OK ] ASB checked the available setup choices; no configuration was changed.	empty
+capabilities	-	0	[ OK ] ASB reported its supported frontend capabilities.	empty
+project	{scratch}/project	0	[ OK ] ASB initialized the project workspace.	notice
+tool	-	2	[ERR ] ASB could not complete the tool: tool requires install|list|status|select|remove.	human
+catalog	-	2	[ERR ] ASB could not complete the catalog: catalog requires generate|list|show|select.	human
+provider-catalog	-	0	[ OK ] ASB loaded the provider catalog.	empty
+adapter-catalog	-	0	[ OK ] ASB loaded the coding-agent adapter catalog.	empty
+workload-catalog	-	0	[ OK ] ASB loaded the benchmark workload catalog.	empty
 easy	--help	0	ASB guided local workflow	empty
 tui	--help	0	Usage: asb tui [preflight|launch|live-provider|dynamic-catalog|status|doctor|remove|install|upgrade] [--channel dev|stable|nightly|experimental]	empty
-config	-	2	ASB could not complete the command: unsupported arguments; use asb --help.	empty
-auth	-	2	ASB could not complete the authentication: auth requires enroll|status|rotate|revoke and named digest options.	empty
-provider-plan	-	3	ASB could not complete the provider plan: provider profile is absent.	empty
+config	-	2	[ERR ] ASB could not complete the command: unsupported arguments; use asb --help.	human
+auth	-	2	[ERR ] ASB could not complete the authentication: auth requires enroll|status|rotate|revoke and named digest options.	human
+provider-plan	-	3	[ERR ] ASB could not complete the provider plan: provider profile is absent.	human
 completion	bash	0	complete -W 'doctor setup capabilities project tool provider-catalog workload-catalog provider-plan plan run sweep benchmark-live compare report record record-campaign replay completion serve tui easy build install update test status rollback remove --help --version' asb	empty
-plan	-	2	ASB could not complete the plan: unsupported arguments; use asb --help.	empty
-run	-	2	ASB could not complete the benchmark run: unsupported arguments; use asb --help.	empty
-sweep	-	2	ASB could not complete the benchmark sweep: unsupported arguments; use asb --help.	empty
-benchmark-live	-	2	ASB could not complete the live benchmark: unsupported arguments; use asb --help.	empty
-compare	-	2	ASB could not complete the comparison: unsupported arguments; use asb --help.	empty
-report	-	2	ASB could not complete the report: unsupported arguments; use asb --help.	empty
-serve	-	2	ASB could not complete the control service: unsupported arguments; use asb --help.	empty
-record	-	2	ASB could not complete the recording: unsupported arguments; use asb --help.	empty
-record-live	-	2	ASB could not complete the live recording: unsupported arguments; use asb --help.	empty
-record-campaign	-	2	ASB could not complete the recording campaign: unsupported arguments; use asb --help.	empty
-replay	-	2	ASB could not complete the replay: unsupported arguments; use asb --help.	empty
-replay-offline	-	2	ASB could not complete the offline replay: unsupported arguments; use asb --help.	empty
+plan	-	2	[ERR ] ASB could not complete the plan: unsupported arguments; use asb --help.	human
+run	-	2	[ERR ] ASB could not complete the benchmark run: unsupported arguments; use asb --help.	human
+sweep	-	2	[ERR ] ASB could not complete the benchmark sweep: unsupported arguments; use asb --help.	human
+benchmark-live	-	2	[ERR ] ASB could not complete the live benchmark: unsupported arguments; use asb --help.	human
+compare	-	2	[ERR ] ASB could not complete the comparison: unsupported arguments; use asb --help.	human
+report	-	2	[ERR ] ASB could not complete the report: unsupported arguments; use asb --help.	human
+serve	-	2	[ERR ] ASB could not complete the control service: unsupported arguments; use asb --help.	human
+record	-	2	[ERR ] ASB could not complete the recording: unsupported arguments; use asb --help.	human
+record-live	-	2	[ERR ] ASB could not complete the live recording: unsupported arguments; use asb --help.	human
+record-campaign	-	2	[ERR ] ASB could not complete the recording campaign: unsupported arguments; use asb --help.	human
+replay	-	2	[ERR ] ASB could not complete the replay: unsupported arguments; use asb --help.	human
+replay-offline	-	2	[ERR ] ASB could not complete the offline replay: unsupported arguments; use asb --help.	human

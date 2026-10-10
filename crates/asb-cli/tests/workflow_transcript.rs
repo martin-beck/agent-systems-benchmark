@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const SOURCE_REVISION: &str = "32df706413a6f165f086941426a5c793bd5e01e8";
+const SOURCE_REVISION: &str = "174411ff73515b3d6ae6d67eda1d902e58078ca4";
 const TRANSCRIPT: &str = include_str!("../../../docs/examples/asb-cli-workflow-v1.json");
 const PROVENANCE: &str = include_str!("../../../docs/examples/asb-cli-workflow-v1.provenance.json");
 const MERGE_ATTESTATION: &str =

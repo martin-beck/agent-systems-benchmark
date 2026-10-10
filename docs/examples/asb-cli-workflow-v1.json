@@ -7,7 +7,7 @@
   ],
   "scenario": "credential-free offline original.bug-fix",
   "schema_version": 1,
-  "source_revision": "32df706413a6f165f086941426a5c793bd5e01e8",
+  "source_revision": "174411ff73515b3d6ae6d67eda1d902e58078ca4",
   "steps": [
     {
       "argv": [
@@ -86,9 +86,7 @@
         "${SCENARIO_ROOT}/first/experiment.toml"
       ],
       "exit_code": 0,
-      "stderr": [
-        "starting capture-first"
-      ],
+      "stderr": [],
       "stdout": {
         "cancelled": false,
         "command": "run",
@@ -226,9 +224,7 @@
         "${SCENARIO_ROOT}/second/experiment.toml"
       ],
       "exit_code": 0,
-      "stderr": [
-        "starting capture-second"
-      ],
+      "stderr": [],
       "stdout": {
         "cancelled": false,
         "command": "run",

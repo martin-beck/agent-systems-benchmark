@@ -1,16 +1,18 @@
 # ASB command output contract
 
-The executable CLI is human-first by default. Each completed command starts
-with one plain sentence that says what succeeded, partially completed, or
-failed. Only facts needed to understand that command follow. When the user can
-safely make progress, the final line contains exactly one copyable command:
+The executable CLI is human-first by default. Every human presentation line
+starts with one fixed-width, color-independent state marker: `[ OK ]` for a
+success, `[ERR ]` for an error or failure, `[WARN]` for a warning or partial
+result, and `[WAIT]` for a bounded in-progress operation. Only facts needed to
+understand that command follow. When the user can safely make progress, the
+final line contains exactly one copyable command:
 
 ```text
-ASB validated the benchmark plan.
-  Run: example-run.
-  Workload: original.bug-fix.
-  Agent: codex.
-Next: asb run /absolute/path/experiment.toml --use-config
+[ OK ] ASB validated the benchmark plan.
+[ OK ] Run: example-run.
+[ OK ] Workload: original.bug-fix.
+[ OK ] Agent: codex.
+[ OK ] Next: asb run /absolute/path/experiment.toml --use-config
 ```
 
 Default output does not expose envelope fields such as `schema_version`, `ok`,
@@ -37,11 +39,19 @@ distinct. These identities are rendered with a concrete consequence and
 recovery rather than being reported as provider rejection or a generic
 unclassified failure.
 
-Progress and long-running service startup messages belong on stderr. Results
-belong on stdout. Plain output contains no terminal escape sequences, so
-`NO_COLOR`, redirected output, and narrow terminals remain readable. Prose
-wraps to the bounded terminal width; a `Next:` command stays on one line so it
-can be copied safely.
+Ordinary human results use stdout; human operational messages and diagnostics
+use stderr. A project created by `asb project init` persists this normal-level
+default in its credential-free `output` configuration. It has the closed levels
+`quiet`, `normal`, `verbose`, and `debug`; command-line `--quiet` (`-q`),
+`--verbose`/`--details`, and `--debug` override the project level. Quiet
+suppresses ASB-owned human presentation while preserving effects, result
+schemas, and exit status. It does not suppress required interactive input or
+the launched TUI application itself.
+
+Progress and long-running service startup messages belong on stderr. Plain
+output contains no terminal escape sequences, so `NO_COLOR`, redirected output,
+and narrow terminals remain readable. Prose wraps to the bounded terminal
+width; a `Next:` command stays on one line so it can be copied safely.
 
 Before mutating a command-owned destination, human mode may emit one bounded
 stderr notice in the form `ASB will create directory PATH for PURPOSE.`
@@ -61,17 +71,22 @@ asb --json report /absolute/results/runs/RUN_ID > report.json
 ```
 
 `--format=json` and `--format json` remain exact compatibility aliases. JSON
-schemas, field meanings, bytes for deterministic commands, exit codes,
-redaction, and stdout/stderr boundaries are unchanged. The library `run()` and
-runtime-authority entry points also retain their structured interfaces; only
-the executable's ordinary terminal mode selects human presentation.
+mode is silent on stderr and emits no human result, diagnostic, status, update,
+or progress bytes on either stream; `-q --json` has the same machine-output
+behavior. JSON schemas, field meanings, bytes for deterministic commands, exit
+codes, redaction, and stdout/stderr boundaries are unchanged. The library
+`run()` and runtime-authority entry points also retain their structured
+interfaces; only the executable's ordinary terminal mode selects human
+presentation.
 
-Use `--details` (or its `--verbose` alias) for bounded diagnostic identifiers
-while keeping the human layout. It cannot be combined with JSON mode. Details
-never reveal secrets or recursively dump an unrecognized object. Version,
-completion scripts, and command-specific TUI help/version remain explicit text
-artifacts and retain their established bytes. Top-level help intentionally
-changes to document human output, JSON selectors, and details mode.
+Use `--details` (or its `--verbose` alias) for bounded operational detail, or
+`--debug` for bounded development diagnostics, while keeping the human layout.
+Neither can be combined with JSON mode, and `--quiet` cannot be combined with a
+different human level. No level reveals secrets or recursively dumps an
+unrecognized object. Version, completion scripts, and command-specific TUI
+help/version remain explicit text artifacts and retain their established bytes.
+Top-level help intentionally changes to document human output, JSON selectors,
+and details mode.
 
 | Outcome | Exit behavior | Human guidance |
 | --- | --- | --- |
