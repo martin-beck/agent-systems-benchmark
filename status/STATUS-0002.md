@@ -1606,15 +1606,15 @@
 
 | Field | Value |
 | --- | --- |
-| Status | blocked |
+| Status | in_progress |
 | Priority | P1 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1449-rebind |
 | Parent | None |
 | Children | None |
 | Summary | Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper. |
-| Next action | Blocked: AR-1448 exposes issuance only and requires caller-built sandbox, lease, backend and relay. A runtime-owned provisioning successor is required; no product change was published. |
+| Next action | Requalify the current protected-main runtime-owned replay provisioner against generated cassettes; repair any strict offline authority failure, then independently review and run exact-head CI. |
 
 ### AR-1450 — Runtime-owned local replay acquisition factory
 
