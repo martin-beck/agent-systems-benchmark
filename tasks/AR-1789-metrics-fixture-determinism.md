@@ -3,7 +3,10 @@
   "branch": "",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1711", "AR-1733"],
+  "depends_on": [
+    "AR-1711",
+    "AR-1733"
+  ],
   "id": "AR-1789",
   "next_action": "Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code.",
   "observed_branch": "",
@@ -15,12 +18,12 @@
   "schema_version": 1,
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "planned",
+  "status": "open",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 1,
+  "task_revision": 2,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism",
-  "updated_at": "2026-10-10T21:31:00+00:00"
+  "updated_at": "2026-10-10T21:31:46+00:00",
+  "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
 
@@ -33,3 +36,7 @@ the ordinary parallel workspace gate.
   ordinary workspace failed in `kernel::tests::missing_malformed_and_unsafe_configuration_fail_closed`
   while the isolated test passed. No publication or merge is authorized until
   the cross-test contamination is repaired.
+
+- 2026-10-10T21:31:46+00:00: Promote metrics fixture nondeterminism repair after AR-1788 review
+  identified an unrelated full-workspace-only failure; dependencies AR-1711 and AR-1733 are
+  complete.
