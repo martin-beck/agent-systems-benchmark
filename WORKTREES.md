@@ -109,7 +109,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar1787-lock-lifetime` | `codex/ar-1787-lock-lifetime` | `dbbf27c3684e` | 0 | behind 0, ahead 2 |
 | `agent-systems-benchmark-ar1788-rustup-fixture-determinism` | `codex/ar-1788-rustup-fixture-determinism` | `eece088d66a3` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar1789-metrics` | `codex/ar-1789-metrics-fixture` | `2f1f08fb588c` | 0 | behind 0, ahead 4 |
-| `agent-systems-benchmark-ar1790-metrics-retry` | `codex/ar-1790-metrics-retry` | `2f1f08fb588c` | 0 | behind 0, ahead 4 |
+| `agent-systems-benchmark-ar1790-metrics-retry` | `codex/ar-1790-metrics-retry` | `2f1f08fb588c` | 1 | behind 0, ahead 4 |
+| changed files | - | - | - | `crates/asb-metrics/src/kernel.rs` |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 504, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 504, ahead 323 |
