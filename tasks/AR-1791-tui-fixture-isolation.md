@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1791-tui-fixture-isolation",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:55:07+00:00",
   "depends_on": [
     "AR-1770",
     "AR-1788",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1791-tui-fixture-isolation",
   "observed_dirty": 0,
   "observed_head": "4dbf735db270be0faf25fa005104397d8a680eb3",
-  "owner": "",
+  "owner": "codex-ar1791-integration",
   "plan": "../plans/AR-1791-tui-fixture-isolation.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1791.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 40,
+  "task_revision": 41,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:24:50+00:00",
+  "updated_at": "2026-10-10T23:25:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -168,3 +168,5 @@ This development repair does not require a GitHub Reviews API approval object. I
   development_gcc_probe_kills_stdout_descendant_and_restores_cloexec. Repeated ordinary cargo test
   --locked --workspace --all-targets passed; cargo fmt --all -- --check passed. No GitHub Reviews
   API approval object required. Released for integration; reviewer did not accept or merge.
+
+- 2026-10-10T23:25:07+00:00: Claimed by codex-ar1791-integration.
