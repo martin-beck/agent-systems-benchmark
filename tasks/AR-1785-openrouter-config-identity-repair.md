@@ -1,6 +1,9 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar-1785-openrouter-config",
+  "observed_branch": "codex/ar-1785-openrouter-config",
+  "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
+  "observed_dirty": 0,
   "checkpoint_commit": "",
   "claim_expires": "",
   "depends_on": [
@@ -19,8 +22,8 @@
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
   "task_revision": 7,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:03:00+00:00",
-  "worktree_key": ""
+  "updated_at": "2026-10-10T20:05:00+00:00",
+  "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
 
