@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1789-metrics-fixture",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T00:29:27+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -13,17 +13,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1789-independent-rereview",
+  "owner": "",
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 61,
+  "task_revision": 62,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T22:29:46+00:00",
+  "updated_at": "2026-10-10T22:30:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -218,3 +218,16 @@ the ordinary parallel workspace gate.
 
 - 2026-10-10T22:29:46+00:00: Recorded command exit 0; command argv SHA-256
   09a488d5f323f72fa8f3f736ad491871f577903365c39c99a5327abc1635a859.
+
+- 2026-10-10T22:30:06+00:00: Independent exact-head review accepts
+  023e366a489cfc55acd1549cf27115dda8a5a0e3. All six combined commits (eece088d, b9523f20, eb8fd6ae,
+  2f1f08fb, 553435d3, 023e366a) independently verify with configured SSH signer and matching DCO
+  trailers. Full combined diff passes diff --check and manual privacy inspection: no credentials,
+  private host data, prompts, transcripts, or unbounded evidence introduced. The metrics suite
+  passes 19 tests (4 deliberately ignored subprocess fixtures); it includes deterministic
+  malformed/unsafe configuration rejection, actual recovery after four WouldBlock spawns, and typed
+  ProbeRejected exhaustion at MAX_SPAWN_ATTEMPTS. Rustup path-replacement regression passes.
+  Independent ordinary cargo +1.93.0 test --locked --workspace passes at exact head. Coordinator
+  evidence reports fmt, clippy, rustdoc and additional focused 1+6+3 suites passing. No GitHub
+  Reviews API approval object is required. Ready for authorized signed integration; no merge
+  performed by this review.
