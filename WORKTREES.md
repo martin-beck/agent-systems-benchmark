@@ -96,8 +96,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar1657-merge` | `DETACHED` | `a65ebb560cf2` | 0 | behind 11, ahead 0 |
 | `agent-systems-benchmark-ar1704-provider-errors` | `codex/ar-1704-provider-errors` | `b2fefe2f9a42` | 0 | behind 3, ahead 0 |
 | `agent-systems-benchmark-ar1709-live-provider` | `codex/ar-1709-live-provider` | `700b13b3a744` | 0 | behind 1, ahead 0 |
-| `agent-systems-benchmark-ar1711-live-runner` | `codex/ar-1711-live-runner` | `90c0980459e8` | 3 | behind 0, ahead 1 |
-| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog.rs`, `crates/asb-cli/src/lib.rs`, `docs/QUICKSTART.md` |
+| `agent-systems-benchmark-ar1711-live-runner` | `codex/ar-1711-live-runner` | `90c0980459e8` | 4 | behind 0, ahead 1 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog.rs`, `crates/asb-cli/src/lib.rs`, `docs/QUICKSTART.md`, `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `agent-systems-benchmark-ar1721-requalification-20261009` | `DETACHED` | `e21d6bc7ed1c` | 0 | behind 153, ahead 0 |
 | `agent-systems-benchmark-ar1726-review` | `DETACHED` | `a3222ae105dc` | 0 | behind 218, ahead 0 |
 | `agent-systems-benchmark-ar1727-integration` | `DETACHED` | `457317b21dbe` | 0 | behind 214, ahead 0 |
