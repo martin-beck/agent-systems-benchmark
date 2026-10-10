@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "2026-10-10T23:09:36+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "owner": "codex-ar1787-lock-lifetime",
+  "owner": "",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 31,
+  "task_revision": 32,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:14:51+00:00",
+  "updated_at": "2026-10-10T21:14:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -115,3 +115,6 @@ not weaken control ownership or the ordinary workspace gate.
 - 2026-10-10T21:14:51+00:00: Recorded dbbf27c3 checkpoint with focused lifetime, child, concurrency,
   diagnostic closure, two ordinary workspace runs, fmt, clippy, rustdoc, and privacy/diff checks
   passing.
+
+- 2026-10-10T21:14:54+00:00: Released only for independent exact-head technical review of SSH-signed
+  DCO commit dbbf27c3684e90efc93b85fd8afe252a1011f6a1. No PR, merge, or CI conclusion is claimed.
