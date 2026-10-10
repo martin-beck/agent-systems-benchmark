@@ -29,7 +29,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38092740618 | `dbbf27c3684e` | pull_request | Credential-free benchmark path | completed:success |
 | 38092740610 | `dbbf27c3684e` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38092740609 | `dbbf27c3684e` | pull_request | Huawei MIT source headers | completed:success |
-| 38092740602 | `dbbf27c3684e` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38092740602 | `dbbf27c3684e` | pull_request | Emulated aarch64 portability | completed:success |
 | 38092740600 | `dbbf27c3684e` | pull_request | Rust verification | completed:failure |
 | 38092740599 | `dbbf27c3684e` | pull_request | Portable protected-main provenance | completed:failure |
 | 38092740597 | `dbbf27c3684e` | pull_request | Hosted portability and native qualification | completed:failure |
