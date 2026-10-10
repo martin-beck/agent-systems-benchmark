@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-10T23:43:24+00:00",
   "depends_on": [
@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1790",
-  "next_action": "Promote and claim; repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage.",
+  "next_action": "Repair the effective metrics WouldBlock retry guard and add retry-budget regression coverage in the bound worktree.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
