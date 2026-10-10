@@ -1322,11 +1322,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1788-rustup-fixture |
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. |
@@ -2178,7 +2178,7 @@ flowchart LR
         AR_1785["AR-1785 - Blocked"]:::status_blocked
         AR_1786["AR-1786 - Blocked"]:::status_blocked
         AR_1787["AR-1787 - Blocked"]:::status_blocked
-        AR_1788["AR-1788 - Open"]:::status_open
+        AR_1788["AR-1788 - In progress"]:::status_in_progress
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -4197,4 +4197,3 @@ flowchart LR
 | [AR-0705](../tasks/AR-0705-native-debian-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0704](../tasks/AR-0704-native-capacity-controller.md) | None |
 | [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |
-| [AR-0801](../tasks/AR-0801-terminal-interface.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0204](../tasks/AR-0204-capacity-sweeps.md) | [AR-0802](../tasks/AR-0802-executable-guides.md), [AR-0803](../tasks/AR-0803-frontend-control-api.md), [AR-0808](../tasks/AR-0808-core-workflow-guides.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0840](../tasks/AR-0840-frontend-protocol-contract.md), [AR-0842](../tasks/AR-0842-frontend-run-lifecycle.md), [AR-0847](../tasks/AR-0847-frontend-control-api-repair.md), [AR-0849](../tasks/AR-0849-ar0801-documentation-repair.md), [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md) |

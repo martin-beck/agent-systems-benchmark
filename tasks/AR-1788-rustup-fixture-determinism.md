@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:23:19+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1788-rustup-fixture",
   "plan": "../plans/AR-1788-rustup-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1788.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:23:16+00:00",
+  "updated_at": "2026-10-10T21:23:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -40,3 +40,5 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T21:23:16+00:00: AR-1787 review receipt reconciled; completed dependencies AR-1711 and
   AR-1733 verified; beginning bounded flake reproduction.
+
+- 2026-10-10T21:23:19+00:00: Claimed by codex-ar1788-rustup-fixture.
