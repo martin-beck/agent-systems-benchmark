@@ -5,7 +5,7 @@
 use asb_cli::diagnostic::{
     CATALOGUED_CODES, Cause, Diagnostic, Remediation, Severity, StateChange, Subject,
 };
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
@@ -96,6 +96,21 @@ impl<'ast> Visit<'ast> for DiagnosticAstGate {
 fn visit_macro_token_groups(gate: &mut DiagnosticAstGate, tokens: TokenStream) {
     if let Ok(expression) = syn::parse2::<syn::Expr>(tokens.clone()) {
         gate.visit_expr(&expression);
+    }
+    // Macro payloads are token streams rather than expressions.  In particular,
+    // a statement-form payload such as `let _ = RouterError::policy(...);` is
+    // neither an `Expr` nor a brace-delimited `Block` by itself.  Parse both a
+    // single statement and the same stream in an explicit block context so
+    // multi-statement macro payloads receive the ordinary syn visitor walk.
+    if let Ok(statement) = syn::parse2::<syn::Stmt>(tokens.clone()) {
+        gate.visit_stmt(&statement);
+    }
+    let block_context = TokenStream::from(TokenTree::Group(Group::new(
+        Delimiter::Brace,
+        tokens.clone(),
+    )));
+    if let Ok(block) = syn::parse2::<syn::Block>(block_context) {
+        gate.visit_block(&block);
     }
     for token in tokens {
         if let TokenTree::Group(group) = token {
@@ -504,6 +519,10 @@ fn controlled_uncatalogued_routed_producer_is_rejected() {
     let error = assert_catalogued_routed_codes(macro_producer)
         .expect_err("the completeness gate must inspect macro diagnostic producers");
     assert!(error.contains("future_macro_router_error"));
+    let macro_statement_producer = "emit_error! { let _ = crate::RouterError::policy(\"future_macro_statement_router_error\"); };";
+    let error = assert_catalogued_routed_codes(macro_statement_producer)
+        .expect_err("the completeness gate must inspect statement-form macro diagnostic producers");
+    assert!(error.contains("future_macro_statement_router_error"));
 }
 
 #[test]
