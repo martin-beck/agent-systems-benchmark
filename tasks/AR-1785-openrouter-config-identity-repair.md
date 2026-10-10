@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T02:55:39+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733",
@@ -14,17 +14,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf",
-  "owner": "codex-ar1785-independent-review",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 182,
+  "task_revision": 183,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T23:58:07+00:00",
+  "updated_at": "2026-10-10T23:58:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -556,3 +556,20 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T23:58:07+00:00: Recorded command exit 0; command argv SHA-256
   f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
+
+- 2026-10-10T23:58:17+00:00: Independent review clean for exact rebased candidate
+  dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf. Complete diff is 3 files: crates/asb-cli/src/lib.rs
+  identity binding for setup-config OpenRouter profiles and selected/all benchmark-live no-fallback
+  paths; diagnostic_legacy_catalog.rs generated identity rebase; provenance example digest update.
+  git diff --check passed; no credentials, secrets, private paths, telemetry, or network fallback
+  added. Candidate SSH signature good (ED25519 SHA256:a36V6yPvRZyxnQ2113tiA/MlHt7mPfJEXAGByBXVkuE)
+  with matching Signed-off-by. Focused config/no-fallback tests passed:
+  plan_and_run_config_sources_bind_selection_before_execution; 5 benchmark_live tests (explicit
+  online/selection, malformed/duplicate denial, selected/all runtime-factory matrix); 5
+  provider_plan tests (catalog binding, bounds, stale/unknown/mismatch denial, config dispatch).
+  First ordinary full workspace gate exit 101 was infrastructure-only: /srv/data had 40 MiB free and
+  Cargo failed writing libasb_cli.rlib with No space left on device. Identical cargo test --locked
+  --workspace --all-targets rerun with CARGO_TARGET_DIR=/tmp/asb-ar1785-review-target passed all
+  applicable tests (external/native fixtures explicitly ignored). cargo fmt --all -- --check passed.
+  No GitHub Reviews API approval object required. Released for integration; reviewer did not accept
+  or merge.
