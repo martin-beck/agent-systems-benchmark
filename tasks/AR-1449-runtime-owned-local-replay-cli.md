@@ -11,16 +11,16 @@
   "next_action": "Requalify the current protected-main runtime-owned replay provisioner against generated cassettes; repair any strict offline authority failure, then independently review and run exact-head CI.",
   "observed_branch": "codex/ar-1449-current-main",
   "observed_dirty": 0,
-  "observed_head": "f03d9e484d6ca73eacdbd5476980bf33ca737540",
+  "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
   "owner": "codex-ar1449-rebind",
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 20,
+  "task_revision": 21,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:04:02+00:00",
+  "updated_at": "2026-10-10T23:04:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---

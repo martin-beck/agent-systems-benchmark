@@ -54,6 +54,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-aider-deterministic-replay` | `fix/aider-deterministic-replay` | `87a22654913a` | 0 | behind 511, ahead 99 |
 | `agent-systems-benchmark-all-agents-provider` | `feature/all-agents-provider` | `03962f28571e` | 0 | behind 511, ahead 136 |
 | `agent-systems-benchmark-ar-1404` | `codex/ar-1404-literature-documentation` | `16c5b87177e4` | 0 | behind 511, ahead 1043 |
+| `agent-systems-benchmark-ar-1449-current-main` | `codex/ar-1449-current-main` | `59cfd9cf6f06` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1449-runtime-owned-local-replay-cli` | `feature/ar-1449-runtime-owned-local-replay-cli` | `f03d9e484d6c` | 0 | behind 511, ahead 1119 |
 | `agent-systems-benchmark-ar-1698-current-head` | `codex/ar-1698-current-head` | `59cfd9cf6f06` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1722-requalification` | `repair/ar-1722-pr487-requalification` | `9b7941cdd810` | 0 | behind 255, ahead 0 |
