@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T22:19:25+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1790-independent-review",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 24,
+  "task_revision": 25,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:49:09+00:00",
+  "updated_at": "2026-10-10T21:49:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -107,3 +107,5 @@ post-merge verification remain mandatory.
   tests helper predicate. It does not deterministically drive 4+ actual WouldBlock spawn failures or
   prove exhausted retries return typed ProbeRejected, as AR-1790 requires. No full qualification,
   PR, or merge.
+
+- 2026-10-10T21:49:25+00:00: Claimed by codex-ar1790-independent-review.
