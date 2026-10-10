@@ -1,5 +1,7 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1643](../tasks/AR-1643.md) | [AR-1613](../tasks/AR-1613.md), [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md), [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1647](../tasks/AR-1647.md), [AR-1651](../tasks/AR-1651.md), [AR-1652](../tasks/AR-1652.md) | [AR-1653](../tasks/AR-1653.md), [AR-1654](../tasks/AR-1654.md) |
+| [AR-1644](../tasks/AR-1644.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md) | [AR-1650](../tasks/AR-1650.md) |
 | [AR-1645](../tasks/AR-1645.md) | [AR-1641](../tasks/AR-1641.md), [AR-1642](../tasks/AR-1642.md) | [AR-1643](../tasks/AR-1643.md), [AR-1647](../tasks/AR-1647.md), [AR-1648](../tasks/AR-1648.md), [AR-1657](../tasks/AR-1657.md), [AR-1686](../tasks/AR-1686.md), [AR-1695](../tasks/AR-1695.md) |
 | [AR-1646](../tasks/AR-1646.md) | [AR-1617](../tasks/AR-1617.md), [AR-1619](../tasks/AR-1619.md), [AR-1620](../tasks/AR-1620.md), [AR-1642](../tasks/AR-1642.md) | [AR-1643](../tasks/AR-1643.md), [AR-1647](../tasks/AR-1647.md), [AR-1648](../tasks/AR-1648.md), [AR-1652](../tasks/AR-1652.md), [AR-1686](../tasks/AR-1686.md), [AR-1688](../tasks/AR-1688.md), [AR-1698](../tasks/AR-1698.md) |
 | [AR-1647](../tasks/AR-1647.md) | [AR-1645](../tasks/AR-1645.md), [AR-1646](../tasks/AR-1646.md), [AR-1648](../tasks/AR-1648.md), [AR-1649](../tasks/AR-1649.md), [AR-1650](../tasks/AR-1650.md), [AR-1651](../tasks/AR-1651.md) | [AR-1643](../tasks/AR-1643.md), [AR-1657](../tasks/AR-1657.md) |
@@ -138,18 +140,18 @@
 
 ## Complete AR inventory
 
-### In progress (1)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
+| P0 | [AR-1698](../tasks/AR-1698.md): Current-head recording and strict offline qualification repair | codex-ar1698-qualification-20261011 | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. | Run the current-head record, record-campaign, cassette integrity, strict offline replay, incomplete coverage, redaction, and network-denial matrix; publish a signed receipt without changing AR-1652 status from stale evidence. |
 | P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-requalification | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Wait for AR-1787 and AR-1788 to make the ordinary workspace gate deterministic; then independently re-review e9ad590eccb3d4ed30c6199c0d65a8223d55d57a, publish exact-head CI, merge, and requalify AR-1715. |
 
-### Open (3)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1698](../tasks/AR-1698.md): Current-head recording and strict offline qualification repair | Unclaimed | Qualify the existing ASB selected/all recording, cassette sealing, and strict offline replay implementation at the current merged ASB head so AR-1652 can be reconciled truthfully. | Run the current-head record, record-campaign, cassette integrity, strict offline replay, incomplete coverage, redaction, and network-denial matrix; publish a signed receipt without changing AR-1652 status from stale evidence. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Unclaimed | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
 ### Blocked (87)
@@ -561,4 +563,3 @@
 | P0 | [AR-1502](../tasks/AR-1502-runtime-bootstrap-authority.md): Runtime-owned bootstrap authority | Unclaimed | Runtime-owned authenticated bootstrap authority merged and verified on main. | No further action; release AR-1502 after protected merge and exact-head post-merge workflows. |
 | P0 | [AR-1505](../tasks/AR-1505-control-plane-platform-authority.md): Control-plane platform authority/bootstrap protocol | Unclaimed | Provide an authenticated platform protocol that issues private runtime bootstrap inputs to ASB. | No further AR-1505 action; merge and post-merge assurance complete. |
 | P0 | [AR-1513](../tasks/AR-1513-authenticated-lease-dispatch-bridge.md): Authenticated lease-to-live-dispatch bridge | Unclaimed | Authenticate process-owner material, validate executable provenance, and connect leases to ordinary live dispatch. | PR #383 merged at 47329e35; monitor post-merge workflows 36550477933, 36550477996, 36550478002, 36550478037, 36550478039, 36550478042, 36550478232 to terminal success, then verify protected main and close AR. |
-| P0 | [AR-1514](../tasks/AR-1514-runtime-auth-reconciliation.md): Reconciled development auth handoff runtime | Unclaimed | Repair ASB development-runtime reconciliation between digest-only enrollment and helper invocation. | Complete; PR #386 merged at bf89a45ddd71af96e6d4b6954320e199e147f83e. Protected main tree equals reviewed topic and post-merge auth-focused ASB tests pass. Paired asb-tui AR-1323 qualification remains external. |
