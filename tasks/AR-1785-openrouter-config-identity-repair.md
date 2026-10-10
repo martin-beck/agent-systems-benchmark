@@ -10,7 +10,7 @@
   "id": "AR-1785",
   "next_action": "Promote after AR-1715 live transport evidence is reconciled; reproduce the provider-plan --use-config and benchmark-live identity mismatch in a clean product-bound worktree.",
   "observed_branch": "codex/ar-1785-openrouter-config",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
   "owner": "ar1785-openrouter-config-repair",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 19,
+  "task_revision": 20,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:05:43+00:00",
+  "updated_at": "2026-10-10T20:05:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
