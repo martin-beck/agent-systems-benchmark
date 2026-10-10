@@ -10,7 +10,7 @@
   "id": "AR-1449",
   "next_action": "Blocked: AR-1448 exposes issuance only and requires caller-built sandbox, lease, backend and relay. A runtime-owned provisioning successor is required; no product change was published.",
   "observed_branch": "feature/ar-1449-runtime-owned-local-replay-cli",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "f03d9e484d6ca73eacdbd5476980bf33ca737540",
   "owner": "codex-ar1449-runtime-replay-20261011",
   "plan": "../plans/AR-1449.md",
@@ -18,9 +18,9 @@
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:01:02+00:00",
+  "updated_at": "2026-10-10T23:01:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-runtime-owned-local-replay-cli"
 }
 ---
