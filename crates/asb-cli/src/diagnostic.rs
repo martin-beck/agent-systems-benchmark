@@ -2101,8 +2101,9 @@ fn message_contains(message: &str, needle: &str) -> bool {
 mod tests {
     use super::{
         CATALOGUED_CODES, Cause, Context, Diagnostic, LEGACY_CLI_CATALOG, Remediation, Severity,
-        StateChange, Subject, legacy_cli_catalog,
+        StateChange, Subject, cli_cause_code, legacy_cli_catalog, legacy_cli_context,
     };
+    use std::hint::black_box;
 
     #[test]
     fn every_legacy_producer_location_resolves_to_its_reviewed_identity() {
@@ -2231,7 +2232,7 @@ mod tests {
             let diagnostic = Diagnostic {
                 code: "catalog-test",
                 severity: Severity::Failure,
-                cause,
+                cause: black_box(cause),
                 context: Context::new(
                     Subject::Target,
                     "test",
@@ -2240,17 +2241,261 @@ mod tests {
                     Remediation::None,
                 ),
             };
-            assert!(!diagnostic.cause_explanation().is_empty());
-            assert!(!diagnostic.subject_label().is_empty());
-            assert!(!diagnostic.state_change_explanation().is_empty());
-            assert!(!diagnostic.remediation_explanation().is_empty());
+            assert!(!black_box(diagnostic).cause_explanation().is_empty());
+            assert!(!black_box(diagnostic).subject_label().is_empty());
+            assert!(!black_box(diagnostic).state_change_explanation().is_empty());
+            assert!(!black_box(diagnostic).remediation_explanation().is_empty());
+            assert!(black_box(cli_cause_code(cause)).starts_with("cli_"));
+            assert!(!legacy_cli_context(black_box(cause)).operation.is_empty());
+        }
+    }
+
+    #[test]
+    fn public_rendering_covers_every_closed_context_dimension_at_runtime() {
+        let subjects = [
+            Subject::Parent,
+            Subject::Input,
+            Subject::Target,
+            Subject::Option,
+            Subject::Configuration,
+            Subject::Tool,
+            Subject::Provider,
+            Subject::Capability,
+            Subject::Transport,
+            Subject::Run,
+            Subject::Attempt,
+            Subject::Store,
+            Subject::Catalog,
+            Subject::Workspace,
+            Subject::Channel,
+            Subject::Artifact,
+            Subject::CredentialReference,
+            Subject::Output,
+            Subject::State,
+            Subject::Unknown,
+        ];
+        let states = [
+            StateChange::NotStarted,
+            StateChange::Unchanged,
+            StateChange::Created,
+            StateChange::Updated,
+            StateChange::PartiallyCompleted,
+            StateChange::Completed,
+            StateChange::RolledBack,
+            StateChange::Unknown,
+        ];
+        let remediations = [
+            Remediation::None,
+            Remediation::CorrectInput,
+            Remediation::CreateParent,
+            Remediation::CheckDestination,
+            Remediation::CheckPermissions,
+            Remediation::InstallTool,
+            Remediation::AuthenticateProvider,
+            Remediation::CheckProvider,
+            Remediation::Retry,
+            Remediation::Reconcile,
+            Remediation::RunDoctor,
+            Remediation::UseOfflineReplay,
+        ];
+
+        for subject in subjects {
+            let diagnostic = Diagnostic {
+                code: "runtime-subject",
+                severity: Severity::Failure,
+                cause: Cause::UnexpectedProductFailure,
+                context: Context::new(
+                    black_box(subject),
+                    "render_subject",
+                    super::Phase::Inspect,
+                    StateChange::Unchanged,
+                    Remediation::None,
+                ),
+            };
+            assert!(!black_box(diagnostic).subject_label().is_empty());
+        }
+        for state_change in states {
+            let diagnostic = Diagnostic {
+                code: "runtime-state",
+                severity: Severity::Failure,
+                cause: Cause::UnexpectedProductFailure,
+                context: Context::new(
+                    Subject::State,
+                    "render_state",
+                    super::Phase::Inspect,
+                    black_box(state_change),
+                    Remediation::None,
+                ),
+            };
+            assert!(!black_box(diagnostic).state_change_explanation().is_empty());
+        }
+        for remediation in remediations {
+            let diagnostic = Diagnostic {
+                code: "runtime-remediation",
+                severity: Severity::Failure,
+                cause: Cause::UnexpectedProductFailure,
+                context: Context::new(
+                    Subject::State,
+                    "render_remediation",
+                    super::Phase::Inspect,
+                    StateChange::Unchanged,
+                    black_box(remediation),
+                ),
+            };
+            assert!(!black_box(diagnostic).remediation_explanation().is_empty());
+        }
+    }
+
+    #[test]
+    fn ordinary_cli_literals_select_their_specific_runtime_contexts() {
+        let cases = [
+            ("requires input", Cause::MissingInput, Subject::Input),
+            ("option value", Cause::MalformedInput, Subject::Option),
+            ("overflow", Cause::ResourceExhausted, Subject::Input),
+            ("stale selection", Cause::StaleIdentity, Subject::State),
+            ("provider route", Cause::TransportFailure, Subject::Provider),
+            (
+                "configuration selection",
+                Cause::UnexpectedProductFailure,
+                Subject::Configuration,
+            ),
+            (
+                "recording artifact",
+                Cause::UnexpectedProductFailure,
+                Subject::Artifact,
+            ),
+            (
+                "workload profile",
+                Cause::UnavailableCapability,
+                Subject::Capability,
+            ),
+            ("auth relay", Cause::TransportFailure, Subject::Transport),
+            (
+                "signal adapter",
+                Cause::UnavailableCapability,
+                Subject::Capability,
+            ),
+            ("API key", Cause::MalformedInput, Subject::Option),
+            (
+                "workspace root",
+                Cause::UnexpectedProductFailure,
+                Subject::Workspace,
+            ),
+            ("result store", Cause::UnavailableCapability, Subject::Store),
+            ("rollback target", Cause::MissingInput, Subject::State),
+            (
+                "completion request",
+                Cause::IncompatibleInput,
+                Subject::Option,
+            ),
+            (
+                "redaction policy",
+                Cause::UnavailableCapability,
+                Subject::Capability,
+            ),
+            (
+                "easy build",
+                Cause::UnexpectedProductFailure,
+                Subject::Artifact,
+            ),
+            ("tool catalog", Cause::UnavailableCapability, Subject::Tool),
+            (
+                "output destination",
+                Cause::UnexpectedProductFailure,
+                Subject::Output,
+            ),
+            (
+                "agent process",
+                Cause::UnexpectedProductFailure,
+                Subject::Attempt,
+            ),
+            (
+                "state journal",
+                Cause::UnexpectedProductFailure,
+                Subject::State,
+            ),
+            ("opaque literal", Cause::UnknownCause, Subject::Unknown),
+        ];
+
+        for (message, expected_cause, expected_subject) in cases {
+            let diagnostic =
+                Diagnostic::for_cli_literal(black_box(message), black_box(Severity::Failure));
+            assert_eq!(diagnostic.cause, expected_cause, "{message}");
+            assert_eq!(diagnostic.context.subject, expected_subject, "{message}");
+            assert!(diagnostic.is_catalogued() || expected_cause == Cause::UnknownCause);
+        }
+    }
+
+    #[test]
+    fn unreviewed_codes_preserve_specific_runtime_message_classification() {
+        let cases = [
+            (
+                "parent is unavailable",
+                Cause::MissingParent,
+                Subject::Parent,
+            ),
+            ("tool is not installed", Cause::MissingTool, Subject::Tool),
+            ("input is missing", Cause::MissingInput, Subject::Input),
+            (
+                "target already exists",
+                Cause::AlreadyExists,
+                Subject::Target,
+            ),
+            ("unsafe symlink", Cause::UnsafeTopology, Subject::Target),
+            (
+                "target is not a directory",
+                Cause::NotDirectory,
+                Subject::Target,
+            ),
+            (
+                "input regular file cannot be opened",
+                Cause::NotRegularFile,
+                Subject::Input,
+            ),
+            ("access denied", Cause::PermissionDenied, Subject::Target),
+            ("read-only store", Cause::ReadOnlyStorage, Subject::Store),
+            ("path is invalid", Cause::InvalidPath, Subject::Input),
+            ("request timed out", Cause::Timeout, Subject::Attempt),
+            ("operation cancelled", Cause::Cancellation, Subject::Attempt),
+            (
+                "reconciliation required",
+                Cause::ReconciliationRequired,
+                Subject::State,
+            ),
+            ("malformed syntax", Cause::MalformedInput, Subject::Input),
+            (
+                "incompatible selection",
+                Cause::IncompatibleInput,
+                Subject::Input,
+            ),
+            ("deadline expired", Cause::Timeout, Subject::Attempt),
+            (
+                "operation failed",
+                Cause::UnexpectedProductFailure,
+                Subject::Unknown,
+            ),
+            ("opaque prose", Cause::UnknownCause, Subject::Unknown),
+        ];
+
+        for (message, expected_cause, expected_subject) in cases {
+            let diagnostic = Diagnostic::for_code(
+                black_box("runtime_unreviewed_code"),
+                black_box(message),
+                black_box(Severity::Failure),
+            );
+            assert_eq!(diagnostic.cause, expected_cause, "{message}");
+            assert_eq!(diagnostic.context.subject, expected_subject, "{message}");
         }
     }
 
     #[test]
     fn every_catalogued_producer_has_an_explicit_cause_and_context() {
         for &(code, expected_cause) in CATALOGUED_CODES {
-            let diagnostic = Diagnostic::for_code(code, code, Severity::Failure);
+            let diagnostic = Diagnostic::for_code(
+                black_box(code),
+                black_box(code),
+                black_box(Severity::Failure),
+            );
             assert_eq!(
                 diagnostic.cause, expected_cause,
                 "catalog mapping for {code}"
