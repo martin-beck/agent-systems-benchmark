@@ -1304,6 +1304,20 @@
 | Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
 | Next action | Independent exact-head review of 7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b, then exact-head CI; no PR or merge before both pass. |
 
+### AR-1787 — Repair control lock lifetime semantics
+
+| Field | Value |
+| --- | --- |
+| Status | planned |
+| Priority | P0 |
+| Role | unassigned |
+| Team | unassigned |
+| Owner | Unclaimed |
+| Parent | None |
+| Children | None |
+| Summary | Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker. |
+| Next action | Promote and claim after dependency verification; reproduce the AR-1786 same-process lock-release flaw, repair descriptor lifetime and catalog identities, then run repeated full gates. |
+
 
 ## Dependency graph
 
@@ -2149,6 +2163,7 @@ flowchart LR
         AR_1784["AR-1784 - Planned"]:::status_planned
         AR_1785["AR-1785 - Blocked"]:::status_blocked
         AR_1786["AR-1786 - Blocked"]:::status_blocked
+        AR_1787["AR-1787 - Planned"]:::status_planned
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
@@ -3995,6 +4010,7 @@ flowchart LR
     AR_1711 --> AR_1723
     AR_1711 --> AR_1785
     AR_1711 --> AR_1786
+    AR_1711 --> AR_1787
     AR_1712 --> AR_1716
     AR_1712 --> AR_1717
     AR_1712 --> AR_1724
@@ -4020,6 +4036,7 @@ flowchart LR
     AR_1733 --> AR_1754
     AR_1733 --> AR_1785
     AR_1733 --> AR_1786
+    AR_1733 --> AR_1787
     AR_1734 --> AR_1737
     AR_1734 --> AR_1738
     AR_1737 --> AR_1751
@@ -4165,4 +4182,3 @@ flowchart LR
 | [AR-0707](../tasks/AR-0707-emulated-aarch64-portability.md) | [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0701](../tasks/AR-0701-platform-manifests.md) | None |
 | [AR-0801](../tasks/AR-0801-terminal-interface.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0204](../tasks/AR-0204-capacity-sweeps.md) | [AR-0802](../tasks/AR-0802-executable-guides.md), [AR-0803](../tasks/AR-0803-frontend-control-api.md), [AR-0808](../tasks/AR-0808-core-workflow-guides.md), [AR-0820](../tasks/AR-0820-verifiable-install-artifacts.md), [AR-0840](../tasks/AR-0840-frontend-protocol-contract.md), [AR-0842](../tasks/AR-0842-frontend-run-lifecycle.md), [AR-0847](../tasks/AR-0847-frontend-control-api-repair.md), [AR-0849](../tasks/AR-0849-ar0801-documentation-repair.md), [AR-0869](../tasks/AR-0869-cli-multi-agent-provider-selection.md) |
 | [AR-0802](../tasks/AR-0802-executable-guides.md) | [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0505](../tasks/AR-0505-agent-replay-conformance.md), [AR-0801](../tasks/AR-0801-terminal-interface.md) | [AR-0808](../tasks/AR-0808-core-workflow-guides.md), [AR-0809](../tasks/AR-0809-frontend-workflow-guides.md), [AR-0872](../tasks/AR-0872-beginner-workflow-documentation.md), [AR-0903](../tasks/AR-0903-release-qualification.md) |
-| [AR-0803](../tasks/AR-0803-frontend-control-api.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0204](../tasks/AR-0204-capacity-sweeps.md), [AR-0801](../tasks/AR-0801-terminal-interface.md) | [AR-0804](../tasks/AR-0804-tui-settings-wizard.md), [AR-0805](../tasks/AR-0805-tui-run-control.md), [AR-0813](../tasks/AR-0813-remote-control-transport.md), [AR-0819](../tasks/AR-0819-ssh-remote-bootstrap.md), [AR-0821](../tasks/AR-0821-one-line-local-install.md), [AR-1010](../tasks/AR-1010-ratatui-crossterm-foundation.md), [AR-1017](../tasks/AR-1017-asb-tui-separate-repository.md), [AR-1023](../tasks/AR-1023-asb-tui-capabilities-command.md) |
