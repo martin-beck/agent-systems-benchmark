@@ -17,13 +17,21 @@
   "plan": "../plans/AR-1789-metrics-fixture-determinism.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:bb6e86c5365304488e4d6a96481920ae42379d2037179080513adc02ef6b9de4",
+    "evidence_ref": "quality/AR-1789-integrated-via-AR-1790-receipt.json",
+    "spec_ref": "specs/AR-1789.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1789.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review.",
-  "task_revision": 88,
+  "task_revision": 89,
   "title": "Make metrics malformed-configuration fixture deterministic",
-  "updated_at": "2026-10-10T22:34:09+00:00",
+  "updated_at": "2026-10-10T22:34:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
 }
 ---
@@ -308,3 +316,8 @@ the ordinary parallel workspace gate.
 
 - 2026-10-10T22:34:09+00:00: Recorded command exit 0; command argv SHA-256
   c0a66b62f506adba6e14950efb1c65390861642e462377561e412e52f50fa647.
+
+- 2026-10-10T22:34:18+00:00: Accepted: independent exact-head review passed; candidate tree equals
+  current protected main tree already integrated by signed AR-1790. Stale PR #552 was correctly
+  closed after portable provenance rejected its old base. No GitHub Reviews API approval object
+  required.
