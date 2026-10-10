@@ -105,8 +105,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar1727-signed-recovery` | `repair/ar-1727-signed-descendant-recovery` | `0714b0e96c45` | 0 | behind 218, ahead 0 |
 | `agent-systems-benchmark-ar1762-merge` | `DETACHED` | `f361cfc7f89a` | 0 | behind 116, ahead 0 |
 | `agent-systems-benchmark-ar1785-config` | `codex/ar-1785-openrouter-config` | `e9ad590eccb3` | 0 | behind 0, ahead 2 |
-| `agent-systems-benchmark-ar1786-control-product` | `codex/ar-1786-control-state` | `b79ad1597a1c` | 2 | behind 0, ahead 0 |
-| changed files | - | - | - | `crates/asb-cli/Cargo.toml`, `crates/asb-cli/src/control.rs` |
+| `agent-systems-benchmark-ar1786-control-product` | `codex/ar-1786-control-state` | `b79ad1597a1c` | 3 | behind 0, ahead 0 |
+| changed files | - | - | - | `crates/asb-cli/Cargo.toml`, `crates/asb-cli/src/control.rs`, `crates/asb-cli/src/diagnostic_legacy_catalog.rs` |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 504, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 504, ahead 323 |
