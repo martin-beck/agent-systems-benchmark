@@ -1330,7 +1330,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. |
-| Next action | Diagnosis: PID-only persistent fixture roots survive failed runs and can be reused; candidate uses nonce-based RAII Scratch roots. Run module-qualified focused tests, then bounded repeated ordinary workspace gates. |
+| Next action | Rustup fixture candidate is focused-green, but ordinary workspace also flakes in unrelated asb-metrics kernel malformed-evidence test. Preserve candidate and obtain coordinator scope decision or successor before claiming deterministic workspace qualification. |
 
 
 ## Dependency graph

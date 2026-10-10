@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1788",
-  "next_action": "Diagnosis: PID-only persistent fixture roots survive failed runs and can be reused; candidate uses nonce-based RAII Scratch roots. Run module-qualified focused tests, then bounded repeated ordinary workspace gates.",
+  "next_action": "Rustup fixture candidate is focused-green, but ordinary workspace also flakes in unrelated asb-metrics kernel malformed-evidence test. Preserve candidate and obtain coordinator scope decision or successor before claiming deterministic workspace qualification.",
   "observed_branch": "codex/ar-1788-rustup-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "eece088d66a30f310987e0ed238bc80227ff7d32",
@@ -20,9 +20,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 27,
+  "task_revision": 28,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:30:30+00:00",
+  "updated_at": "2026-10-10T21:30:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -105,3 +105,8 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T21:30:30+00:00: Recorded command exit 0; command argv SHA-256
   c219d761bccf4860ef8011fcd694b29a10c5307631acea695fe8f1375f6aa304.
+
+- 2026-10-10T21:30:43+00:00: Candidate workspace gate exit 101 at 21:30:07: asb-metrics
+  kernel::tests::missing_malformed_and_unsafe_configuration_fail_closed expected MalformedEvidence
+  and received ProbeRejected. Its isolated exact rerun passed; fixture uses distinct TestRoot, so no
+  demonstrated AR-1788 shared resource.

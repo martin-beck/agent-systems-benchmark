@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1788](tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Diagnosis: PID-only persistent fixture roots survive failed runs and can be reused; candidate uses nonce-based RAII Scratch roots. Run module-qualified focused tests, then bounded repeated ordinary workspace gates. | codex-ar1788-rustup-fixture |
+| P0 | [AR-1788](tasks/AR-1788-rustup-fixture-determinism.md): Make rustup path-replacement fixture deterministic | Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review. | Rustup fixture candidate is focused-green, but ordinary workspace also flakes in unrelated asb-metrics kernel malformed-evidence test. Preserve candidate and obtain coordinator scope decision or successor before claiming deterministic workspace qualification. | codex-ar1788-rustup-fixture |
 
 ## Open
 
