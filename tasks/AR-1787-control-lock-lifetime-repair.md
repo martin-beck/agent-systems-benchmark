@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T23:15:44+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "owner": "",
+  "owner": "codex-ar1787-independent-review",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:14:54+00:00",
+  "updated_at": "2026-10-10T21:15:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -118,3 +118,5 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T21:14:54+00:00: Released only for independent exact-head technical review of SSH-signed
   DCO commit dbbf27c3684e90efc93b85fd8afe252a1011f6a1. No PR, merge, or CI conclusion is claimed.
+
+- 2026-10-10T21:15:44+00:00: Claimed by codex-ar1787-independent-review.
