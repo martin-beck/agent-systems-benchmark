@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T21:07:34+00:00",
+  "claim_expires": "2026-10-10T22:38:36+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-10T20:38:23+00:00",
+  "updated_at": "2026-10-10T20:38:36+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control"
 }
 ---
@@ -66,3 +66,5 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-10T20:38:23+00:00: Recorded command exit 0; command argv SHA-256
   89901aa84043e8dc7e1eb76ddfef2f9c56172ab8c80f666ef8217add6a12066d.
+
+- 2026-10-10T20:38:36+00:00: Heartbeat by codex-ar1786-control-race.
