@@ -3,12 +3,17 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
+## In Progress
+
+| Priority | Task | Summary | Next action | Owner |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | PR #483 merged at ASB b9c5835; exact-main live path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free exact-main negative returns OPENROUTER_API_KEY required exit 3. Rerun selected/all after quota recovery. | ar1711-live-runner |
+
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
-| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | PR #483 merged at ASB b9c5835; exact-main live path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free exact-main negative returns OPENROUTER_API_KEY required exit 3. Rerun selected/all after quota recovery. | - |
 
 ## Blocked
 
