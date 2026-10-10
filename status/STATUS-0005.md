@@ -46,7 +46,7 @@
 | [AR-1704](../tasks/AR-1704.md) | [AR-1656](../tasks/AR-1656.md), [AR-1657](../tasks/AR-1657.md), [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md) | [AR-1709](../tasks/AR-1709.md), [AR-1711](../tasks/AR-1711.md) |
 | [AR-1709](../tasks/AR-1709.md) | [AR-1699](../tasks/AR-1699.md), [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md) | [AR-1710](../tasks/AR-1710.md), [AR-1711](../tasks/AR-1711.md), [AR-1715](../tasks/AR-1715.md) |
 | [AR-1710](../tasks/AR-1710.md) | [AR-1656](../tasks/AR-1656.md), [AR-1657](../tasks/AR-1657.md), [AR-1709](../tasks/AR-1709.md) | None |
-| [AR-1711](../tasks/AR-1711.md) | [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md), [AR-1709](../tasks/AR-1709.md) | [AR-1712](../tasks/AR-1712.md), [AR-1715](../tasks/AR-1715.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
+| [AR-1711](../tasks/AR-1711.md) | [AR-1700](../tasks/AR-1700.md), [AR-1704](../tasks/AR-1704.md), [AR-1709](../tasks/AR-1709.md) | [AR-1712](../tasks/AR-1712.md), [AR-1715](../tasks/AR-1715.md), [AR-1723](../tasks/AR-1723-easy-run-default-online.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) |
 | [AR-1712](../tasks/AR-1712.md) | [AR-1698](../tasks/AR-1698.md), [AR-1701](../tasks/AR-1701.md), [AR-1711](../tasks/AR-1711.md) | [AR-1716](../tasks/AR-1716.md), [AR-1717](../tasks/AR-1717.md), [AR-1724](../tasks/AR-1724-easy-sweep-default-online.md) |
 | [AR-1715](../tasks/AR-1715.md) | [AR-1700](../tasks/AR-1700.md), [AR-1709](../tasks/AR-1709.md), [AR-1711](../tasks/AR-1711.md) | [AR-1723](../tasks/AR-1723-easy-run-default-online.md) |
 | [AR-1716](../tasks/AR-1716.md) | [AR-1712](../tasks/AR-1712.md) | None |
@@ -66,7 +66,7 @@
 | [AR-1730](../tasks/AR-1730-cli2key-provider-contract.md) | [AR-1728](../tasks/AR-1728-cli2key-contract.md) | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) |
 | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) | [AR-1729](../tasks/AR-1729-cli2key-sidecar-lifecycle.md), [AR-1730](../tasks/AR-1730-cli2key-provider-contract.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) |
 | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1731](../tasks/AR-1731-cli2key-codex-adapter.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) |
-| [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md), [AR-1754](../tasks/AR-1754-default-online-live-workflow.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) |
+| [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1732](../tasks/AR-1732-cli2key-run-sweep.md) | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md), [AR-1754](../tasks/AR-1754-default-online-live-workflow.md), [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md), [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) |
 | [AR-1734](../tasks/AR-1734-development-tui-tool-environment.md) | [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md), [AR-1727](../tasks/AR-1727-development-broker-foreground-terminal.md) | [AR-1737](../tasks/AR-1737-development-tui-linker-handoff.md), [AR-1738](../tasks/AR-1738-development-rustup-permission-compatibility.md) |
 | [AR-1735](../tasks/AR-1735-goose-symlink-fixture-determinism.md) | None | None |
 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md) | [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
@@ -118,8 +118,8 @@
 | [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md) | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) |
 | [AR-1783](../tasks/AR-1783-installed-workload-selection-and-execution.md) | [AR-1763](../tasks/AR-1763-generated-catalog-selection.md), [AR-1764](../tasks/AR-1764-project-run-integration.md), [AR-1782](../tasks/AR-1782-verified-asb-workload-installation.md) | [AR-1780](../tasks/AR-1780-installed-tool-workload-execution-qualification.md) |
 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md) | [AR-1776](../tasks/AR-1776-supported-tool-acquisition-catalog.md) | [AR-1779](../tasks/AR-1779-default-usable-tool-install-command.md) |
-| [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) |
-| [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) | None |
+| [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
+| [AR-1786](../tasks/AR-1786-control-state-root-isolation.md) | [AR-1711](../tasks/AR-1711.md), [AR-1733](../tasks/AR-1733-cli2key-qualification.md) | None |
 
 ## Complete AR inventory
 
