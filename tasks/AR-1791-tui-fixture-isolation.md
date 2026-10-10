@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution.",
-  "task_revision": 28,
+  "task_revision": 29,
   "title": "Repair recurrent TUI fixture isolation failures",
-  "updated_at": "2026-10-10T23:20:05+00:00",
+  "updated_at": "2026-10-10T23:20:15+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
@@ -110,3 +110,6 @@ This development repair does not require a GitHub Reviews API approval object. I
 
 - 2026-10-10T23:20:05+00:00: Recorded command exit 0; command argv SHA-256
   88416ef4db0f5102fe87b682cf45630aee60fb359ce416aeb53144aaf4ef4746.
+
+- 2026-10-10T23:20:15+00:00: Recorded command exit 0; command argv SHA-256
+  dde51f6432f8cbc7e95d3c77421fd1355c1d5cc331e2c7393464d5590d460485.
