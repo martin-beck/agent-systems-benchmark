@@ -316,6 +316,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `ar1722-receipt-worker.ObeqHt` | `DETACHED` | `ac6557038cc3` | 0 | behind 241, ahead 0 |
 | `asb-ar1652-review-20261007` | `DETACHED` | `0c4ba0c721d0` | 0 | behind 225, ahead 1 |
 | `asb-ar1704-integration` | `DETACHED` | `4dfc1e07f424` | 0 | behind 3, ahead 0 |
+| `asb-ar1709-integration` | `DETACHED` | `2c6f3083504c` | 0 | behind 0, ahead 0 |
 | `asb-ar1743-integration` | `DETACHED` | `507559f636e0` | 0 | behind 188, ahead 0 |
 | `asb-ar1743-postmerge` | `DETACHED` | `fd956d857970` | 0 | behind 186, ahead 0 |
 | `asb-ar1744-main-repro` | `DETACHED` | `1ab175c30eb0` | 0 | behind 182, ahead 0 |
