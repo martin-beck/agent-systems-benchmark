@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1449-current-main",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T02:04:16+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1443",
     "AR-1448"
@@ -12,15 +12,15 @@
   "observed_branch": "codex/ar-1449-current-main",
   "observed_dirty": 0,
   "observed_head": "59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1",
-  "owner": "codex-ar1449-runtime-replay-20261011",
+  "owner": "",
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
-  "status": "in_progress",
+  "status": "blocked",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 28,
+  "task_revision": 29,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:06:13+00:00",
+  "updated_at": "2026-10-10T23:06:27+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -104,3 +104,15 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
 
 - 2026-10-10T23:06:13+00:00: Recorded command exit 0; command argv SHA-256
   f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
+
+- 2026-10-10T23:06:27+00:00: AR-1449 exact-head requalification is terminally green but done
+  admission is blocked by coordinator gate: spec_acceptance is incomplete or unknown. Evidence:
+  protected current-main 59cfd9cf6f068ff8945eb093a04f0bbb0c7bb7c1 in isolated worktree
+  /srv/data/projects/agent-systems-benchmark-ar-1449-current-main; SSH signature good (ED25519
+  SHA256:a36V6yPvRZyxnQ2113tiA/MlHt7mPfJEXAGByBXVkuE), Signed-off-by matches; focused CLI
+  guided_local_replay_uses_runtime_owned_fixture_seam 1 passed; focused runtime launch_factory 21
+  passed/1 ignored native bwrap; exact-head cargo test --workspace --all-targets passed with only
+  explicit unavailable native/external ignores; cargo fmt check passed; worktree clean and no
+  product diff required because runtime-owned LocalReplayProvisioner/development_fixture and guided
+  replay integration are already on protected head. Coordinator must complete spec_acceptance or
+  accept no-op requalification; no merge/API approval object was needed.
