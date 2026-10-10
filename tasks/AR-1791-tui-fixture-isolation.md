@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar-1791-tui-fixture-isolation",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-11T00:40:24+00:00",
   "depends_on": [
@@ -10,7 +10,7 @@
     "AR-1790"
   ],
   "id": "AR-1791",
-  "next_action": "Bind an isolated current-main worktree, implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785.",
+  "next_action": "Implement and qualify both fixture repairs, then independently review, publish exact-head CI, merge, and requalify AR-1785.",
   "owner": "codex-ar1791-fixture-repair",
   "plan": "../plans/AR-1791-tui-fixture-isolation.md",
   "priority": "P0",
@@ -22,7 +22,7 @@
   "task_revision": 3,
   "title": "Repair recurrent TUI fixture isolation failures",
   "updated_at": "2026-10-10T23:10:24+00:00",
-  "worktree_key": ""
+  "worktree_key": "agent-systems-benchmark-ar-1791-tui-fixture-isolation"
 }
 ---
 
