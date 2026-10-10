@@ -118,12 +118,17 @@
 
 ## Complete AR inventory
 
-### Open (2)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | ar1715-openrouter-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | PR #483 merged at ASB b9c5835; exact-main provider path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free negative returns OPENROUTER_API_KEY required exit 3. Keep planned until quota recovers and selected/all succeeds. |
+
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | Unclaimed | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | PR #483 merged at ASB b9c5835; exact-main provider path reached OpenRouter but returned HTTP 429 free-models-per-day (daily remaining 0). Credential-free negative returns OPENROUTER_API_KEY required exit 3. Keep planned until quota recovers and selected/all succeeds. |
 
 ### Blocked (87)
 
