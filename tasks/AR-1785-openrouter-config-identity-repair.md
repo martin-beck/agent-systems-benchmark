@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 125,
+  "task_revision": 126,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:31:54+00:00",
+  "updated_at": "2026-10-10T20:32:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -386,3 +386,6 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T20:31:54+00:00: Recorded command exit 0; command argv SHA-256
   f71a0e0187887ea039bd13ae6190b13a57dcf5d4473318b98b465843aa87da06.
+
+- 2026-10-10T20:32:05+00:00: Recorded command exit 0; command argv SHA-256
+  d64a6d8a0f667e5886ac1fb7b0be08e26b172d67f5fc2aa170e4c558155aaf7e.
