@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1787-lock-lifetime",
   "checkpoint_commit": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "claim_expires": "2026-10-11T00:43:05+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1787-lock-lifetime",
   "observed_dirty": 0,
   "observed_head": "dbbf27c3684e90efc93b85fd8afe252a1011f6a1",
-  "owner": "codex-ar1787-review-20261011",
+  "owner": "",
   "plan": "../plans/AR-1787-control-lock-lifetime-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1787.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 61,
+  "task_revision": 62,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:46:08+00:00",
+  "updated_at": "2026-10-10T22:46:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -210,3 +210,12 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:46:08+00:00: Recorded command exit 0; command argv SHA-256
   b36d15881eb65027724bc584f1b04db05666cd79896b100806e528307c04b65c.
+
+- 2026-10-10T22:46:25+00:00: Independent exact-head review PASS for
+  dbbf27c3684e90efc93b85fd8afe252a1011f6a1: SSH-signed+DCO verified; candidate worktree clean;
+  focused rejected-contender owner preservation, child lock non-inheritance/CLOEXEC, 16-way
+  concurrency, and diagnostic closure tests pass; full cargo test --locked --workspace passes (all
+  executed tests green; only pre-existing environment-gated tests ignored); cargo fmt --all --
+  --check, clippy --locked --workspace --all-targets -D warnings, and RUSTDOCFLAGS=-Dwarnings cargo
+  doc --locked --workspace --no-deps pass; diff/privacy check pass. No PR, merge, or hosted CI
+  conclusion claimed; next action exact-head hosted CI.
