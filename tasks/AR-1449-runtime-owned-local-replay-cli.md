@@ -16,11 +16,11 @@
   "plan": "../plans/AR-1449.md",
   "priority": "P1",
   "schema_version": 1,
-  "status": "blocked",
+  "status": "open",
   "summary": "Provide fail-closed runtime-owned local replay authority for the guided CLI wrapper.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Runtime-owned local replay CLI authority",
-  "updated_at": "2026-10-10T23:06:27+00:00",
+  "updated_at": "2026-10-10T23:12:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1449-current-main"
 }
 ---
@@ -116,3 +116,7 @@ Do not weaken AR-1448 or make live provider reachability a prerequisite.
   product diff required because runtime-owned LocalReplayProvisioner/development_fixture and guided
   replay integration are already on protected head. Coordinator must complete spec_acceptance or
   accept no-op requalification; no merge/API approval object was needed.
+
+- 2026-10-10T23:12:33+00:00: Spec and privacy-safe exact-main receipt are now present;
+  requalification is terminal green. Admit the existing runtime-owned replay implementation without
+  a PR or GitHub Reviews API approval object.
