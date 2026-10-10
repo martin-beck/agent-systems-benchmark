@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T21:15:44+00:00",
+  "updated_at": "2026-10-10T21:15:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -120,3 +120,6 @@ not weaken control ownership or the ordinary workspace gate.
   DCO commit dbbf27c3684e90efc93b85fd8afe252a1011f6a1. No PR, merge, or CI conclusion is claimed.
 
 - 2026-10-10T21:15:44+00:00: Claimed by codex-ar1787-independent-review.
+
+- 2026-10-10T21:15:47+00:00: Recorded command exit 0; command argv SHA-256
+  db9ad4cca3619875c843528617bb6bdf7f4fc6090319f0b3950ace8d6ccb769f.
