@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Replace rejected 90c09804 coverage-only patch with an actual benchmark-live fan-out command that expands provider-selected agents and catalog-supported workloads into bounded, distinct execution plans and aggregate human/JSON receipt; then rerun gates. |
+| Next action | Run formatter, diagnostic/output contract checks, and full workspace gates for the actual benchmark-live selected/all matrix; then update fixtures and seek independent review. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 
