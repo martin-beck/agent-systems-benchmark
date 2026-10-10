@@ -108,7 +108,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar1786-control-product` | `codex/ar-1786-control-state` | `7be2fcb0dc0e` | 0 | behind 0, ahead 1 |
 | `agent-systems-benchmark-ar1787-lock-lifetime` | `codex/ar-1787-lock-lifetime` | `dbbf27c3684e` | 0 | behind 0, ahead 2 |
 | `agent-systems-benchmark-ar1788-rustup-fixture-determinism` | `codex/ar-1788-rustup-fixture-determinism` | `eece088d66a3` | 0 | behind 0, ahead 1 |
-| `agent-systems-benchmark-ar1789-metrics` | `codex/ar-1789-metrics-fixture` | `b9523f2010a5` | 0 | behind 0, ahead 3 |
+| `agent-systems-benchmark-ar1789-metrics` | `codex/ar-1789-metrics-fixture` | `b9523f2010a5` | 1 | behind 0, ahead 3 |
+| changed files | - | - | - | `crates/asb-cli/Cargo.toml` |
 | `agent-systems-benchmark-asb-cli-workflow-captures` | `docs/asb-cli-workflow-captures-attestation` | `b18e38ad94f1` | 1 | behind 504, ahead 326 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
 | `agent-systems-benchmark-asb-tui-capabilities-command` | `feature/asb-tui-capabilities-command` | `d60d23510044` | 0 | behind 504, ahead 323 |
