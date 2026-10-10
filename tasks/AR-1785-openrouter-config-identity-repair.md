@@ -2,24 +2,24 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T22:02:46+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
   ],
   "id": "AR-1785",
   "next_action": "Promote after AR-1715 live transport evidence is reconciled; reproduce the provider-plan --use-config and benchmark-live identity mismatch in a clean product-bound worktree.",
-  "owner": "ar1785-openrouter-config-repair",
+  "owner": "",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 6,
+  "task_revision": 7,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:02:49+00:00",
+  "updated_at": "2026-10-10T20:03:00+00:00",
   "worktree_key": ""
 }
 ---
@@ -41,3 +41,6 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T20:02:49+00:00: Recorded command exit 0; command argv SHA-256
   c4ec0e4fce82629a05576c9c1cfaa4587670a9d09fb7ee68f05aa4926c7bad1b.
+
+- 2026-10-10T20:03:00+00:00: Dedicated product branch/worktree created; bind task metadata before
+  reclaiming for implementation.
