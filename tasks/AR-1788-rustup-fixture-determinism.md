@@ -20,9 +20,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:28:21+00:00",
+  "updated_at": "2026-10-10T21:28:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -93,3 +93,6 @@ workspace gate or turn a flaky one-off pass into qualification.
 
 - 2026-10-10T21:28:16+00:00: Recorded command exit 0; command argv SHA-256
   ebbaf7df7302b27cf99468969b08da3a8ad8f1075d978cd5e024f55c17f421c2.
+
+- 2026-10-10T21:28:25+00:00: Recorded command exit 0; command argv SHA-256
+  77566eea6869ab562c0817e1189871b394782852e37e76b9e5a39276a740194f.
