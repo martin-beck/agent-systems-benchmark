@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1786.json",
+  "spec_revision": 1,
+  "acceptance_predicates": [
+    {"id": "isolated-control-state", "description": "Every control lifecycle test allocates an isolated state root and cannot collide with another test process."},
+    {"id": "parallel-workspace", "description": "The ordinary cargo test --locked --workspace command passes repeatedly without state-root ownership failures."},
+    {"id": "lifecycle-regressions", "description": "Authenticated lifecycle, private bundle-root, cleanup, and recovery tests retain their existing positive and negative semantics."},
+    {"id": "privacy", "description": "No credentials, private paths, raw control payloads, or unbounded logs enter durable evidence."}
+  ],
+  "definition_of_done": [
+    "The exact reproducible state-root collision is repaired with focused positive and negative tests.",
+    "Independent exact-head review, signed DCO commit, exact-head CI, protected merge, and exact-main post-merge workflows pass.",
+    "AR-1785 can be re-reviewed and published without a parallel workspace test flake."
+  ],
+  "inputs": [
+    {"id": "ar1785-review", "description": "Independent review of e9ad590e showing distinct control tests fail only under the ordinary parallel workspace suite with control state root already owned."},
+    {"id": "control-lifecycle", "description": "Existing ASB control state-root ownership, lifecycle, cleanup, and private bundle-root tests."}
+  ],
+  "outputs": [
+    {"id": "state-root-isolation", "description": "Deterministic per-test control state-root ownership and cleanup."},
+    {"id": "workspace-qualification", "description": "Repeated ordinary locked workspace test evidence with no ownership collision."}
+  ],
+  "allowed_tools": ["cargo", "git", "gh", "python", "tools/handoffctl"],
+  "forbidden_tools": ["test-exclusion", "serial-only-gate-bypass", "global-state-leak", "credential-output", "history-rewrite", "force-push"],
+  "required_evidence_classes": ["contract-test", "mechanical", "quality", "privacy", "hosted"],
+  "gates": [
+    {"id": "focused", "description": "Control lifecycle and state-root isolation tests pass with concurrent hostile fixtures."},
+    {"id": "workspace", "description": "Repeated ordinary cargo test --locked --workspace passes at the exact candidate without ownership collisions."},
+    {"id": "publication", "description": "Independent technical review, exact-head CI, signed merge, and exact-main post-merge workflows pass; no GitHub Reviews API approval object is required."}
+  ]
+}

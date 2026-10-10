@@ -1,0 +1,35 @@
+---
+{
+  "branch": "",
+  "checkpoint_commit": "",
+  "claim_expires": "",
+  "depends_on": ["AR-1785"],
+  "id": "AR-1786",
+  "next_action": "Promote after AR-1785's blocked review is reconciled; reproduce the ordinary workspace state-root collision in a dedicated worktree, repair isolation, and run repeated full gates.",
+  "observed_branch": "",
+  "observed_dirty": 0,
+  "observed_head": "",
+  "owner": "",
+  "plan": "../plans/AR-1786-control-state-root-isolation.md",
+  "priority": "P0",
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1786.json",
+  "spec_revision": 1,
+  "status": "planned",
+  "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
+  "task_revision": 1,
+  "title": "Repair control state-root isolation race",
+  "updated_at": "2026-10-10T20:35:00+00:00",
+  "worktree_key": ""
+}
+---
+
+This development repair is independent of GitHub Reviews API approvals. It requires
+independent technical review, exact-head CI, signed DCO integration, and post-merge
+verification. It must not weaken control ownership or convert the full workspace
+gate into a serial-only or exclusion-based check.
+
+- 2026-10-10T20:35:00+00:00: Created from the AR-1785 independent review blocker. Two
+  ordinary `cargo test --locked --workspace` runs at e9ad590e failed in distinct
+  `asb-cli::control` tests with `control state root is already owned`, while isolated
+  runs passed. No AR-1785 publication or merge is authorized until this race is repaired.
