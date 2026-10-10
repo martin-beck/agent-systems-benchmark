@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1785-openrouter-config",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-10T22:26:40+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "e9ad590eccb3d4ed30c6199c0d65a8223d55d57a",
-  "owner": "",
+  "owner": "codex-ar1785-independent-review",
   "plan": "../plans/AR-1785-openrouter-config-identity-repair.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1785.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 102,
+  "task_revision": 103,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T20:25:53+00:00",
+  "updated_at": "2026-10-10T20:26:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -319,3 +319,5 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T20:25:53+00:00: Released for independent exact-head review of signed DCO commit
   e9ad590e; publication and merge remain intentionally pending.
+
+- 2026-10-10T20:26:40+00:00: Claimed by codex-ar1785-independent-review.

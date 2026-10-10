@@ -122,12 +122,17 @@
 
 ## Complete AR inventory
 
-### Open (2)
+### In progress (1)
+
+| Priority | AR | Owner | Summary | Next action |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | codex-ar1785-independent-review | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Independent exact-head review of e9ad590eccb3d4ed30c6199c0d65a8223d55d57a; then publish a PR, require exact-head CI, perform signed merge, and requalify AR-1715. |
+
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1785](../tasks/AR-1785-openrouter-config-identity-repair.md): Repair OpenRouter configuration identity for live benchmark qualification | Unclaimed | Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution. | Independent exact-head review of e9ad590eccb3d4ed30c6199c0d65a8223d55d57a; then publish a PR, require exact-head CI, perform signed merge, and requalify AR-1715. |
 
 ### Blocked (88)
 
