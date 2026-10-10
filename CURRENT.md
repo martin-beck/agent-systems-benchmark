@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Submit signed commit 90c0980459e83e656264deedcd82cd78018f8ffb for independent review, then run exact-head CI and protected signed merge. | ar1711-live-runner |
+| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Repair blocking review finding: implement true selected/all agent and workload fan-out through benchmark-live, then rerun focused/full gates before publication. | ar1711-live-runner |
 
 ## Open
 

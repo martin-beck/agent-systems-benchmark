@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Submit signed commit 90c0980459e83e656264deedcd82cd78018f8ffb for independent review, then run exact-head CI and protected signed merge. |
+| Next action | Repair blocking review finding: implement true selected/all agent and workload fan-out through benchmark-live, then rerun focused/full gates before publication. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 
