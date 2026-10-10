@@ -20,20 +20,21 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
+| #555 | `codex/ar-1785-openrouter-config@dd1930684ca8` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | fix(cli): bind OpenRouter config identity before live execution |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38096884683 | `dd1930684ca8` | pull_request | Credential-free benchmark path | queued:- |
+| 38096884651 | `dd1930684ca8` | pull_request | Formal assurance | queued:- |
+| 38096884595 | `dd1930684ca8` | pull_request | Repository quality | queued:- |
+| 38096884578 | `dd1930684ca8` | pull_request | Emulated aarch64 portability | queued:- |
+| 38096884575 | `dd1930684ca8` | pull_request | Agent Workflow Quality shadow | queued:- |
+| 38096884568 | `dd1930684ca8` | pull_request | Cross-repository development broker qualification | queued:- |
+| 38096884556 | `dd1930684ca8` | pull_request | Rust verification | queued:- |
+| 38096884555 | `dd1930684ca8` | pull_request | Hosted portability and native qualification | queued:- |
+| 38096884546 | `dd1930684ca8` | pull_request | Fault assurance | queued:- |
+| 38096884544 | `dd1930684ca8` | pull_request | Portable protected-main provenance | queued:- |
+| 38096884542 | `dd1930684ca8` | pull_request | Huawei MIT source headers | queued:- |
 | 38095677491 | `16d8512debab` | push | Formal assurance | completed:success |
-| 38095677465 | `16d8512debab` | push | Rust verification | completed:success |
-| 38095677460 | `16d8512debab` | push | Cross-repository development broker qualification | completed:success |
-| 38095677459 | `16d8512debab` | push | Repository quality | completed:success |
-| 38095677445 | `16d8512debab` | push | Portable protected-main provenance | completed:success |
-| 38095677437 | `16d8512debab` | push | Huawei MIT source headers | completed:success |
-| 38095677430 | `16d8512debab` | push | Fault assurance | completed:success |
-| 38095677428 | `16d8512debab` | push | Emulated aarch64 portability | completed:success |
-| 38095677427 | `16d8512debab` | push | Hosted portability and native qualification | completed:success |
-| 38095677425 | `16d8512debab` | push | Credential-free benchmark path | completed:success |
-| 38094974091 | `4dbf735db270` | pull_request | Portable protected-main provenance | completed:success |
-| 38094974020 | `4dbf735db270` | pull_request | Agent Workflow Quality shadow | completed:success |
