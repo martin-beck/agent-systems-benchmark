@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Run formatter, diagnostic/output contract checks, and full workspace gates for the actual benchmark-live selected/all matrix; then update fixtures and seek independent review. | ar1711-live-runner |
+| P0 | [AR-1711](tasks/AR-1711.md): Explicit live benchmark runner and typed failures | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. | Inspect the final four-file diff, commit the true selected/all matrix with the deterministic diagnostic/provenance repairs, then obtain a fresh independent exact-head review; do not publish or merge. | ar1711-live-runner |
 
 ## Open
 

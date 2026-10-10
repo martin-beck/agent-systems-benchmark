@@ -280,7 +280,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Provide a simple explicit online benchmark command with selectable agents/workloads, typed failures, and no implicit mock or replay fallback. |
-| Next action | Run formatter, diagnostic/output contract checks, and full workspace gates for the actual benchmark-live selected/all matrix; then update fixtures and seek independent review. |
+| Next action | Inspect the final four-file diff, commit the true selected/all matrix with the deterministic diagnostic/provenance repairs, then obtain a fresh independent exact-head review; do not publish or merge. |
 
 ### AR-1712 — Live result, recording, and comparison handoff contract
 
