@@ -1364,11 +1364,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1791-independent-review |
 | Parent | None |
 | Children | None |
 | Summary | Make the GCC descendant-marker and rustup descriptor-cleanup TUI fixtures deterministic under repeated ordinary workspace execution. |
@@ -2223,7 +2223,7 @@ flowchart LR
         AR_1788["AR-1788 - Done"]:::status_done
         AR_1789["AR-1789 - Done"]:::status_done
         AR_1790["AR-1790 - Done"]:::status_done
-        AR_1791["AR-1791 - Open"]:::status_open
+        AR_1791["AR-1791 - In progress"]:::status_in_progress
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
