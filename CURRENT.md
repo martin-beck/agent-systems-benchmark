@@ -3,12 +3,17 @@
 This file is generated. Read `README.md`, then use `tools/handoffctl snapshot`.
 Never edit this file directly.
 
+## In Progress
+
+| Priority | Task | Summary | Next action | Owner |
+| --- | --- | --- | --- | --- |
+| P0 | [AR-1789](tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Wait for AR-1790 retry-budget repair and independent review; then re-review combined candidate 2f1f08fb plus 97eb1e38 and publish exact-head CI only after all gates pass. | codex-ar1789-publisher |
+
 ## Open
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
-| P0 | [AR-1789](tasks/AR-1789-metrics-fixture-determinism.md): Make metrics malformed-configuration fixture deterministic | Repair nondeterministic asb-metrics malformed-configuration fixture failure exposed by AR-1788 review. | Wait for AR-1790 retry-budget repair and independent review; then re-review combined candidate 2f1f08fb plus 97eb1e38 and publish exact-head CI only after all gates pass. | - |
 
 ## Blocked
 
