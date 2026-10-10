@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar-1789-metrics-fixture",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-10T23:31:51+00:00",
   "depends_on": [
@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1789",
-  "next_action": "Promote and claim; reproduce the asb-metrics full-workspace-only failure before changing product code.",
+  "next_action": "Reproduce the asb-metrics full-workspace-only failure in the bound worktree before changing product code.",
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
@@ -23,7 +23,8 @@
   "task_revision": 4,
   "title": "Make metrics malformed-configuration fixture deterministic",
   "updated_at": "2026-10-10T21:31:57+00:00",
-  "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism"
+  "worktree_key": "agent-systems-benchmark-ar1789-metrics-fixture-determinism",
+  "updated_at": "2026-10-10T21:32:30+00:00"
 }
 ---
 
