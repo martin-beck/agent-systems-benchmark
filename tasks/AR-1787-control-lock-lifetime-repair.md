@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1787",
-  "next_action": "PR #553 exact head dbbf27c3684e90efc93b85fd8afe252a1011f6a1 is published; wait for every exact-head required check to reach terminal success, then perform signed protected merge and exact-main verification. No GitHub Reviews API approval object is required.",
+  "next_action": "Rebased candidate 573f3e631c9274829461fc051d461a383d994eb3 onto current protected main; PR #553 was closed for stale-base provenance. Release for fresh independent exact-head review before publishing a replacement PR. No GitHub Reviews API approval object is required.",
   "observed_branch": "codex/ar-1787-lock-lifetime-current",
   "observed_dirty": 0,
   "observed_head": "573f3e631c9274829461fc051d461a383d994eb3",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Correct control lock descriptor lifetime and diagnostic identities after the AR-1786 review blocker.",
-  "task_revision": 84,
+  "task_revision": 85,
   "title": "Repair control lock lifetime semantics",
-  "updated_at": "2026-10-10T22:50:13+00:00",
+  "updated_at": "2026-10-10T22:50:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar1787-lock-lifetime"
 }
 ---
@@ -275,3 +275,7 @@ not weaken control ownership or the ordinary workspace gate.
 
 - 2026-10-10T22:50:13+00:00: Recorded command exit 0; command argv SHA-256
   2407bda27f066d54791779655aefd58f8ffff5846dffba8ccbaff615b0b6a303.
+
+- 2026-10-10T22:50:24+00:00: Stale-base portable provenance failure preserved; rebased onto current
+  main and pushed as codex/ar-1787-lock-lifetime-current. Fresh independent review is mandatory
+  before hosted CI.
