@@ -1,0 +1,23 @@
+{
+  "ar": "AR-1711",
+  "candidate": "653b91c09f146afc47f8b13f55d8eeeba8c794b7",
+  "pull_request": 550,
+  "pull_request_checks": "terminal-success",
+  "merge": "b79ad1597a1cde44b0255df9d6c377614cf9cddf",
+  "merge_topology": "two-parent-signed-dco",
+  "independent_review": "accepted",
+  "post_merge_workflows": [
+    38080613174,
+    38080613193,
+    38080613196,
+    38080613200,
+    38080613202,
+    38080613233,
+    38080613256,
+    38080613288,
+    38080613305,
+    38080613327
+  ],
+  "post_merge_status": "all-terminal-success",
+  "github_reviews_api_approval": false
+}
