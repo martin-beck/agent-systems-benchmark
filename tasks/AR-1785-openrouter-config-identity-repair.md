@@ -10,7 +10,7 @@
     "AR-1788"
   ],
   "id": "AR-1785",
-  "next_action": "AR-1791 must repair recurrent GCC and rustup TUI fixture contamination first. Then independently re-review d46180c297699f96d2c4e5f2d4b2cc6b6aabed12, publish exact-head CI, merge, and requalify AR-1715. No GitHub Reviews API approval object is required.",
+  "next_action": "Independently review rebased candidate dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf, publish exact-head CI, merge, and requalify AR-1715. AR-1791 is complete; no GitHub Reviews API approval object is required.",
   "observed_branch": "codex/ar-1785-openrouter-config",
   "observed_dirty": 0,
   "observed_head": "dd1930684ca8fbe13ff0c0cdc6964ae862ff0edf",
@@ -22,9 +22,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Align persisted OpenRouter configuration, provider-plan selection identity, and benchmark-live selected/all execution.",
-  "task_revision": 173,
+  "task_revision": 174,
   "title": "Repair OpenRouter configuration identity for live benchmark qualification",
-  "updated_at": "2026-10-10T23:54:13+00:00",
+  "updated_at": "2026-10-10T23:55:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar1785-config"
 }
 ---
@@ -529,3 +529,7 @@ merging, and post-merge verification remain required.
 
 - 2026-10-10T23:54:13+00:00: Recorded command exit 0; command argv SHA-256
   f66bb4e1ac1d50678a4ec4d31dbf6cbe961265655f69a439cee02c66f841ab93.
+
+- 2026-10-10T23:55:22+00:00: AR-1791 completed with green post-merge assurance. Rebased AR-1785
+  candidate onto current main; two ordinary locked workspace runs and focused/configuration gates
+  pass. Release for independent exact-head review.
