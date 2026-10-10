@@ -1350,11 +1350,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1790-independent-rereview |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review. |
@@ -2208,7 +2208,7 @@ flowchart LR
         AR_1787["AR-1787 - Blocked"]:::status_blocked
         AR_1788["AR-1788 - Blocked"]:::status_blocked
         AR_1789["AR-1789 - Open"]:::status_open
-        AR_1790["AR-1790 - In progress"]:::status_in_progress
+        AR_1790["AR-1790 - Open"]:::status_open
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003

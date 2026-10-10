@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1790-metrics-retry",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:58:07+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,17 +12,17 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1790-independent-rereview",
+  "owner": "",
   "plan": "../plans/AR-1790-metrics-retry-budget.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1790.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Repair the ineffective bounded metrics spawn retry guard found in AR-1789 review.",
-  "task_revision": 49,
+  "task_revision": 50,
   "title": "Make metrics spawn retry budget effective",
-  "updated_at": "2026-10-10T21:58:07+00:00",
+  "updated_at": "2026-10-10T21:58:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar1790-metrics-retry-budget"
 }
 ---
@@ -183,3 +183,13 @@ post-merge verification remain mandatory.
   87a9ee43fea803a4de3b3069bfecde7916b3038c6764611206ababe693ff1ce0.
 
 - 2026-10-10T21:58:07+00:00: Heartbeat by codex-ar1790-independent-rereview.
+
+- 2026-10-10T21:58:55+00:00: Independent exact-head re-review passes for
+  c571ad8a25774e0caea54a813939f27b66d5f2e8: SSH signature and matching DCO verified; diff --check
+  and privacy inspection pass. Qualified actual-spawn recovery injects four WouldBlock failures then
+  real-spawns successfully; qualified exhaustion makes exactly MAX_SPAWN_ATTEMPTS attempts and
+  returns typed ProbeRejected. Focused metrics recovery/exhaustion, control-lock, and rustup
+  path-replacement tests pass; two ordinary locked workspace runs pass. An initial unqualified
+  filter ran zero tests and was immediately superseded by qualified exact tests. No GitHub Reviews
+  API approval object is required. No merge authorized by this review; ready for integration
+  decision.
