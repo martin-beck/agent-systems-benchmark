@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-10T23:23:19+00:00",
+  "claim_expires": "2026-10-10T23:27:43+00:00",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -20,9 +20,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair nondeterministic rustup path-replacement fixture failure exposed by AR-1787 review.",
-  "task_revision": 17,
+  "task_revision": 18,
   "title": "Make rustup path-replacement fixture deterministic",
-  "updated_at": "2026-10-10T21:27:40+00:00",
+  "updated_at": "2026-10-10T21:27:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar1788-rustup-fixture-determinism"
 }
 ---
@@ -79,3 +79,5 @@ workspace gate or turn a flaky one-off pass into qualification.
 - 2026-10-10T21:27:40+00:00: Recorded reproduction: ordinary workspace exited 101, then passed.
   Stale substituted fixture roots corroborate PID-only persistent-root contamination. Initial exact
   filters matched zero tests; corrected module-qualified commands remain required.
+
+- 2026-10-10T21:27:43+00:00: Heartbeat by codex-ar1788-rustup-fixture.
