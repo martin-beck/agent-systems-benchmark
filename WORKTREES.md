@@ -315,6 +315,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1729-merge` | `DETACHED` | `4f460a6aa707` | 0 | behind 157, ahead 0 |
 | `asb-ar1750-integration.fOtNyt` | `DETACHED` | `dc19bb1b758a` | 0 | behind 177, ahead 0 |
 | `asb-ar1761-review` | `DETACHED` | `644085ecd2f3` | 0 | behind 130, ahead 6 |
+| `asb-ar1791-merge` | `DETACHED` | `59cfd9cf6f06` | 0 | behind 0, ahead 0 |
 | `asb-goose-repair` | `repair/ar-1730-goose-aarch64-diagnostic` | `71b48057cd03` | 0 | behind 230, ahead 0 |
 | `asb-pr492-review` | `repair/pr492-coverage-cleanup` | `358bd9a2816f` | 0 | behind 240, ahead 0 |
 | `asb-pr499-rereview-d9ef0bc` | `DETACHED` | `d9ef0bce9bf6` | 0 | behind 227, ahead 0 |
