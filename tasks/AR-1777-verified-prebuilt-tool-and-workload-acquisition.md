@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor hosted checks at exact d30079b7; inspect policy coverage result and obtain independent re-review before merge.",
+  "next_action": "AR-1794 \u2014 protected-main merge-path repair must create the signed local forward merge after the web-merge provenance failure; then rerun exact-main workflows and close AR-1777 only after all post-merge gates pass.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened.",
-  "task_revision": 177,
+  "task_revision": 178,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:18:47+00:00",
+  "updated_at": "2026-10-11T13:22:07+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -626,3 +626,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T13:18:47+00:00: Recorded command exit 0; command argv SHA-256
   d63d92ce64a8d4d7abb22cea588444f8a99231a5452ecea2c2d3e79f6579091b.
+
+- 2026-10-11T13:22:07+00:00: PR #579 merged as 06514c06 via GitHub web committer; Portable
+  protected-main provenance failed. Preserve evidence and require the signed local repair path
+  before AR closeout.
