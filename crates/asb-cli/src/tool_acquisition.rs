@@ -108,11 +108,14 @@ pub fn resolve(id: &str) -> Result<(ToolEntry, ArtifactAlternative), Acquisition
     if entry.license.trim().is_empty() {
         return Err(AcquisitionError::LicenseMissing);
     }
+    // Source archives require a separate, bounded build pipeline and must
+    // never be silently selected as executable tool artifacts.  Falling back
+    // to the first catalog alternative would make a source-only entry appear
+    // installable while handing archive bytes to the executable verifier.
     let alt = entry
         .alternatives
         .iter()
         .find(|a| a.kind == "prebuilt")
-        .or_else(|| entry.alternatives.first())
         .cloned()
         .ok_or(AcquisitionError::UnverifiedSource)?;
     Ok((entry, alt))
@@ -128,6 +131,13 @@ pub fn verify_bytes(
     }
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(AcquisitionError::TooLarge);
+    }
+    // Compression support is deliberately not implicit: without a bounded
+    // decompressor and archive validator, compressed source/prebuilt bundles
+    // are not executable bytes and must fail closed.
+    if bytes.starts_with(&[0x1f, 0x8b]) || bytes.starts_with(&[0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00])
+    {
+        return Err(AcquisitionError::UnsafeArtifact);
     }
     let (entry, alternative) = resolve(id)?;
     let digest = format!("{:x}", Sha256::digest(&bytes));
@@ -240,6 +250,26 @@ mod tests {
         assert_eq!(entry.id, "codex");
         assert_eq!(alt.verifier, "sha256");
         assert_eq!(alt.sha256.len(), 64);
+    }
+
+    #[test]
+    fn source_only_catalog_entries_never_resolve_as_executables() {
+        for id in ["aider", "gemini", "mini-swe"] {
+            assert_eq!(resolve(id), Err(AcquisitionError::UnverifiedSource), "{id}");
+        }
+    }
+
+    #[test]
+    fn compressed_archives_fail_closed_before_digest_or_execution() {
+        for bytes in [
+            vec![0x1f, 0x8b, 0x08, 0x00],
+            vec![0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00],
+        ] {
+            assert!(matches!(
+                verify_bytes("codex", "https://example.invalid/archive".into(), bytes),
+                Err(AcquisitionError::UnsafeArtifact)
+            ));
+        }
     }
 
     #[test]
