@@ -39,7 +39,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38146604599 | `24f1872cdb33` | push | Cross-repository development broker qualification | in_progress:- |
 | 38146604568 | `24f1872cdb33` | push | Rust verification | in_progress:- |
 | 38146604562 | `24f1872cdb33` | push | Huawei MIT source headers | completed:success |
-| 38146604525 | `24f1872cdb33` | push | Hosted portability and native qualification | in_progress:- |
+| 38146604525 | `24f1872cdb33` | push | Hosted portability and native qualification | completed:success |
 | 38146604519 | `24f1872cdb33` | push | Portable protected-main provenance | completed:success |
 | 38146604518 | `24f1872cdb33` | push | Credential-free benchmark path | in_progress:- |
 | 38146604500 | `24f1872cdb33` | push | Formal assurance | in_progress:- |

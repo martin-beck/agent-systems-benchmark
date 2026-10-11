@@ -83,7 +83,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1793-human-diagnostic-output-parent-v2` | `DETACHED` | `a89dd44ea978` | 0 | behind 3, ahead 0 |
 | `agent-systems-benchmark-ar-1794-forward-merge` | `DETACHED` | `06514c0622c4` | 0 | behind 5, ahead 0 |
 | `agent-systems-benchmark-ar-1794-protected-main-merge-path` | `repair/ar-1794-protected-main-merge-path` | `198bf86975f6` | 0 | behind 50, ahead 1 |
-| `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `a89dd44ea978` | 3 | behind 3, ahead 0 |
+| `agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition` | `feature/ar-1798-pinned-source-checkout-acquisition` | `24f1872cdb33` | 3 | behind 0, ahead 0 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs`, `crates/asb-cli/src/source_builder.rs`, `crates/asb-cli/src/source_checkout.rs` |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 79, ahead 0 |
 | `agent-systems-benchmark-ar1786-repair-luna56` | `codex/ar-1786-control-state-protected-current` | `a5e589544f6d` | 0 | behind 80, ahead 0 |
