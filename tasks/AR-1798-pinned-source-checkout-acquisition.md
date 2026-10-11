@@ -18,19 +18,19 @@
   "schema_version": 1,
   "spec_acceptance": {
     "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_digest": "sha256:6fb4cddb905e6aa747fbd5645e45ff410ae22b1cd910213b58399e614894867b",
+    "evidence_ref": "evidence/AR-1798-post-merge-receipt.txt",
     "spec_ref": "specs/AR-1798.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage margin repair pushed at c5303c05.",
-  "task_revision": 131,
+  "task_revision": 132,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T17:11:47+00:00",
+  "updated_at": "2026-10-11T17:23:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -421,3 +421,7 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T17:11:47+00:00: Pushed signed+DCO coverage-margin repair 55a78934; focused
   source_checkout 26/26 and cargo test --locked --workspace passed.
+
+- 2026-10-11T17:23:32+00:00: Post-merge exact origin/main 24cb72d verified at 24cb72d. Receipt
+  records focused 26/26 and one-time hosted metrics failure followed by repeated green focused
+  passes. No product changes after merge.
