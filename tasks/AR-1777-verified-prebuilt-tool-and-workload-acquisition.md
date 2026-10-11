@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Resolve hosted policy coverage failure for PR #579 exact head 56ca12a7: no lcov artifact is published, so compare the hosted collector configuration/logs with a clean local run or add a focused repair AR; do not merge while required coverage is red.",
+  "next_action": "Repair LocalReplayProvisioner development fixture root collisions: process-local sequence starts at zero in each concurrent test binary, causing development replay authority unavailable and nondeterministic coverage. Add bounded per-process uniqueness and regression tests, then rerun exact hosted quality.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 56ca12a7; implementation/review and all checks except Policy, coverage, and supply chain pass. Hosted coverage reports 89.99% lines versus clean local 90.26%; run 38137549216 publishes no artifacts, so this is an unresolved collection discrepancy.",
-  "task_revision": 127,
+  "summary": "PR #579 exact head 56ca12a7 passes review and all hosted checks except coverage. Hosted is 89.99% lines; clean local is 90.27%. Investigation found a concrete shared /tmp/asb-dr-0 root collision from concurrent test binaries, so a focused fixture-isolation repair is in progress.",
+  "task_revision": 128,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:18:46+00:00",
+  "updated_at": "2026-10-11T12:18:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -453,3 +453,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:18:46+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T12:18:52+00:00: Fresh hosted rerun attempt 2 is still pending. Investigator reproduced
+  the authority collision without product changes; no floor weakening or merge authorized. Repair
+  worker assigned to implement unique bounded fixture roots with tests.

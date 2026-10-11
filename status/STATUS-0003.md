@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head 56ca12a7; implementation/review and all checks except Policy, coverage, and supply chain pass. Hosted coverage reports 89.99&#37; lines versus clean local 90.26&#37;; run 38137549216 publishes no artifacts, so this is an unresolved collection discrepancy. |
-| Next action | Resolve hosted policy coverage failure for PR #579 exact head 56ca12a7: no lcov artifact is published, so compare the hosted collector configuration/logs with a clean local run or add a focused repair AR; do not merge while required coverage is red. |
+| Summary | PR #579 exact head 56ca12a7 passes review and all hosted checks except coverage. Hosted is 89.99&#37; lines; clean local is 90.27&#37;. Investigation found a concrete shared /tmp/asb-dr-0 root collision from concurrent test binaries, so a focused fixture-isolation repair is in progress. |
+| Next action | Repair LocalReplayProvisioner development fixture root collisions: process-local sequence starts at zero in each concurrent test binary, causing development replay authority unavailable and nondeterministic coverage. Add bounded per-process uniqueness and regression tests, then rerun exact hosted quality. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
