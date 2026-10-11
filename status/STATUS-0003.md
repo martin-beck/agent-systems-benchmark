@@ -1232,7 +1232,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. |
-| Next action | Await exact-head PR #572 required checks, then merge and run post-merge verification before accepting and releasing. |
+| Next action | Await exact-head CI for repair commit 72abf364, then merge and post-merge verify before accept/release. |
 
 ### AR-1782 — Verified asb workload installation
 

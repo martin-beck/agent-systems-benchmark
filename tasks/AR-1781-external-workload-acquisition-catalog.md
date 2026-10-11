@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Await exact-head PR #572 required checks, then merge and run post-merge verification before accepting and releasing.",
+  "next_action": "Await exact-head CI for repair commit 72abf364, then merge and post-merge verify before accept/release.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 12,
+  "task_revision": 13,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:31:09+00:00",
+  "updated_at": "2026-10-11T09:31:12+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -75,3 +75,8 @@ labelled.
 - 2026-10-11T09:31:02+00:00: Heartbeat by ar1781-luna56.
 
 - 2026-10-11T09:31:09+00:00: Checkpointed source commit 3827523be8ee914c66368789e2c0dc841743d2de.
+
+- 2026-10-11T09:31:12+00:00: Rust CI root cause was generated catalog capability-family drift:
+  generator omitted agentops, helm, AI Agents That Matter, and swe-mini mappings. Added mappings and
+  regenerated catalog; focused parity and transcript tests pass. New signed head 72abf364 pushed to
+  PR #572.
