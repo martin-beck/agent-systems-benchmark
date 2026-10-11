@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head b53a929e; added workload lifecycle success-path coverage for list/status/select/remove plus proof negatives. Local clippy, focused tests, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge. |
+| Next action | PR #584 exact remote head 722b259c; added install/update/repair rejection, unavailable selection, symlink-safe removal, malformed archive/boundary coverage. Local clippy, focused tests, diagnostic identity, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
