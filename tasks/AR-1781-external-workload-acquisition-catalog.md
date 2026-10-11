@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T12:13:08+00:00",
   "depends_on": [
     "AR-1760"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "ar1781-luna56",
   "plan": "../plans/AR-1781-external-workload-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:12:57+00:00",
+  "updated_at": "2026-10-11T09:13:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -57,3 +57,5 @@ or source failures distinctly. Production qualification may remain separately
 labelled.
 
 - 2026-10-11T09:12:57+00:00: Dependency AR-1760 is done; promote AR-1781 for implementation.
+
+- 2026-10-11T09:13:08+00:00: Claimed by ar1781-luna56.

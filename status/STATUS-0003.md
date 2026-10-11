@@ -1224,11 +1224,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | ar1781-luna56 |
 | Parent | None |
 | Children | None |
 | Summary | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. |
@@ -2241,7 +2241,7 @@ flowchart LR
         AR_1778["AR-1778 - Done"]:::status_done
         AR_1779["AR-1779 - Planned"]:::status_planned
         AR_1780["AR-1780 - Planned"]:::status_planned
-        AR_1781["AR-1781 - Open"]:::status_open
+        AR_1781["AR-1781 - In progress"]:::status_in_progress
         AR_1782["AR-1782 - Planned"]:::status_planned
         AR_1783["AR-1783 - Planned"]:::status_planned
         AR_1784["AR-1784 - In progress"]:::status_in_progress

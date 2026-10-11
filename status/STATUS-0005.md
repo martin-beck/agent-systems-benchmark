@@ -150,19 +150,19 @@
 
 ## Complete AR inventory
 
-### In progress (2)
+### In progress (3)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. | Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage. |
+| P0 | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | ar1781-luna56 | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. | Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source. |
 | P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | coordinator | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish. |
 
-### Open (2)
+### Open (1)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
-| P0 | [AR-1781](../tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | Unclaimed | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. | Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source. |
 
 ### Blocked (85)
 
