@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 open at a1090297; monitor exact-head CI and complete independent review before merge. |
+| Next action | Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review. |
 
 ### AR-1783 — Installed workload selection and execution
 

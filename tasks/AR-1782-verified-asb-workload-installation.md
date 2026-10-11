@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 open at a1090297; monitor exact-head CI and complete independent review before merge.",
+  "next_action": "Wait for AR-1793 diagnostic identity repair to merge; then rebase PR #584 a1090297 onto updated main, rerun exact-head CI, and review.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:11:09+00:00",
+  "updated_at": "2026-10-11T14:12:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -104,3 +104,7 @@ remain mandatory.
 
 - 2026-10-11T14:11:09+00:00: Recorded command exit 0; command argv SHA-256
   e8fa5ae4c6687147b213085b0419c35165daa77f6f62165ff84de0a0ca2e56d4.
+
+- 2026-10-11T14:12:41+00:00: Rust checks failed only at diagnostic_contract ordinary producer
+  identity; local generated catalog repair passes focused test. Do not push overlapping repair
+  before AR-1793 merge.
