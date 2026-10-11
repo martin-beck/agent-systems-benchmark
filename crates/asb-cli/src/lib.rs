@@ -4284,24 +4284,16 @@ fn tool_install_with_progress(
         }
     }
     let kind = kind.ok_or_else(|| CliError::legacy_usage("tool install requires --kind"))?;
-    let fixture_source = source
-        .as_deref()
-        .and_then(tool_acquisition::fixture)
-        // Preserve the historical bounded unit fixture whose source is a
-        // regular file; production IDs must still resolve through the catalog.
-        .or_else(|| {
-            (id == "matrix"
-                && source
-                    .as_deref()
-                    .is_some_and(|value| !value.contains("://")))
-            .then(|| tool_acquisition::fixture("fixture://matrix").expect("fixture"))
-        });
+    let fixture_source = source.as_deref().and_then(tool_acquisition::fixture);
     if fixture_source.is_some() && version.is_none() {
         return Err(CliError::legacy_usage(
             "fixture tool installs require --version",
         ));
     }
-    let (catalog_entry, catalog_artifact) = if fixture_source.is_some() {
+    let local_source = source
+        .as_deref()
+        .is_some_and(|value| !value.contains("://"));
+    let (catalog_entry, catalog_artifact) = if fixture_source.is_some() || local_source {
         (None, None)
     } else {
         let (entry, artifact) = tool_acquisition::resolve(id)
@@ -4469,13 +4461,6 @@ fn tool_install_with_progress(
             created_destination = true;
         }
     }
-    tool_kind_map_mut(&mut config, kind).insert(id.to_owned(), record);
-    if let Err(error) = save_tool_project(&root, &config) {
-        if created_destination {
-            let _ = unlinkat(&parent.file, &destination_name, AtFlags::empty());
-        }
-        return Err(error);
-    }
     let receipt = json!({
         "schema_version": 1,
         "catalog_id": tool_catalog::CATALOG_ID,
@@ -4489,12 +4474,28 @@ fn tool_install_with_progress(
     });
     let receipt_bytes = serde_json::to_vec_pretty(&receipt)
         .map_err(|_| CliError::legacy_operation("tool acquisition receipt cannot be encoded"))?;
-    write_atomic_private(
-        &root.join(format!(".asb/tools/{id}/receipt.json")),
-        &receipt_bytes,
-        DirectoryPurpose::Tools,
-        None,
-    )?;
+    let receipt_path = root.join(format!(".asb/tools/{id}/receipt.json"));
+    let previous_receipt = fs::read(&receipt_path).ok();
+    if let Err(error) =
+        write_atomic_private(&receipt_path, &receipt_bytes, DirectoryPurpose::Tools, None)
+    {
+        if created_destination {
+            let _ = unlinkat(&parent.file, &destination_name, AtFlags::empty());
+        }
+        return Err(error);
+    }
+    tool_kind_map_mut(&mut config, kind).insert(id.to_owned(), record);
+    if let Err(error) = save_tool_project(&root, &config) {
+        if let Some(previous) = previous_receipt {
+            let _ = write_atomic_private(&receipt_path, &previous, DirectoryPurpose::Tools, None);
+        } else {
+            let _ = fs::remove_file(&receipt_path);
+        }
+        if created_destination {
+            let _ = unlinkat(&parent.file, &destination_name, AtFlags::empty());
+        }
+        return Err(error);
+    }
     write_json(
         output,
         &serde_json::json!({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": true, "command": "tool install", "id": id, "kind": kind, "path": path, "digest_sha256": digest, "dry_run": false}),
@@ -11137,6 +11138,45 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn tool_install_rolls_back_binary_when_receipt_publication_fails() {
+        let scratch = Scratch::new("tool-install-receipt-rollback");
+        let project = scratch.0.join("workspace");
+        let init = vec![
+            OsString::from("project"),
+            OsString::from("init"),
+            project.clone().into_os_string(),
+        ];
+        assert_eq!(
+            run_with_default_mode(&init, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        let receipt = project.join(".asb/tools/rollback/receipt.json");
+        fs::create_dir_all(&receipt).unwrap();
+        let install = vec![
+            OsString::from("tool"),
+            OsString::from("install"),
+            OsString::from("rollback"),
+            OsString::from("--kind"),
+            OsString::from("support"),
+            OsString::from("--source"),
+            OsString::from("fixture://rollback"),
+            OsString::from("--version"),
+            OsString::from("1.0.0"),
+            OsString::from("--project"),
+            project.clone().into_os_string(),
+        ];
+        assert_ne!(
+            run_with_default_mode(&install, &mut Vec::new(), &mut Vec::new(), false),
+            0
+        );
+        assert!(!project.join(".asb/tools/rollback/tool").exists());
+        let config =
+            decode_project_config(&fs::read(project.join(PROJECT_INIT_CONFIG)).unwrap()).unwrap();
+        assert!(config.support_tools.is_empty());
+        assert!(receipt.is_dir());
+    }
+
     #[cfg(unix)]
     #[test]
     fn tool_install_rejects_matching_destination_symlink_before_reading_target() {
@@ -11361,7 +11401,9 @@ pub(crate) mod tests {
         );
 
         let source = scratch.0.join("local-tool");
-        fs::write(&source, b"local tool bytes").unwrap();
+        fs::write(&source, b"ASB deterministic tool fixture matrix\n").unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&source, fs::Permissions::from_mode(0o700)).unwrap();
         let source_string = source.to_string_lossy().into_owned();
         let local = [
             "--kind",
