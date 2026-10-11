@@ -42,7 +42,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38146604525 | `24f1872cdb33` | push | Hosted portability and native qualification | completed:success |
 | 38146604519 | `24f1872cdb33` | push | Portable protected-main provenance | completed:success |
 | 38146604518 | `24f1872cdb33` | push | Credential-free benchmark path | completed:success |
-| 38146604500 | `24f1872cdb33` | push | Formal assurance | in_progress:- |
+| 38146604500 | `24f1872cdb33` | push | Formal assurance | completed:success |
 | 38146604492 | `24f1872cdb33` | push | Fault assurance | completed:success |
 | 38146604473 | `24f1872cdb33` | push | Repository quality | in_progress:- |
 | 38146071706 | `7c08cfb019ee` | pull_request | Emulated aarch64 portability | completed:success |
