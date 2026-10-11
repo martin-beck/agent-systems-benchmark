@@ -1266,11 +1266,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | open |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1784_dependency_registry_luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
@@ -2244,7 +2244,7 @@ flowchart LR
         AR_1781["AR-1781 - Planned"]:::status_planned
         AR_1782["AR-1782 - Planned"]:::status_planned
         AR_1783["AR-1783 - Planned"]:::status_planned
-        AR_1784["AR-1784 - In progress"]:::status_in_progress
+        AR_1784["AR-1784 - Open"]:::status_open
         AR_1785["AR-1785 - Done"]:::status_done
         AR_1786["AR-1786 - Done"]:::status_done
         AR_1787["AR-1787 - Done"]:::status_done
