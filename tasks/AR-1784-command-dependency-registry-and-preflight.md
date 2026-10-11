@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:23:11+00:00",
+  "updated_at": "2026-10-11T08:23:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -131,3 +131,6 @@ and end-to-end development-run tests in the same change.
   require install syntax only for mandatory tools); public command inventory lacked its preflight
   golden fixture (fixture row added); one existing human error-presentation assertion was
   environment/baseline-sensitive and showed output-parent wording, to be rechecked independently.
+
+- 2026-10-11T08:23:33+00:00: Recorded command exit 1; command argv SHA-256
+  6e451b47efa59de3b300c2fe3ff0278cab5c6d099c43967c15fb3b77515626c2.
