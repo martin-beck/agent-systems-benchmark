@@ -10,7 +10,7 @@
   "next_action": "PR #584 exact remote head b53a929e; added workload lifecycle success-path coverage for list/status/select/remove plus proof negatives. Local clippy, focused tests, provenance, and diff checks pass. Poll fresh exact-head coverage; independently review; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
-  "observed_head": "6fb228a26b95fa505a8a38618db9c373f0226510",
+  "observed_head": "b53a929e1c75ccee022c5ab6d33a8a30277995ac",
   "owner": "ar1782_workload_install_luna56",
   "plan": "../plans/AR-1782-verified-asb-workload-installation.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 67,
+  "task_revision": 68,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T15:18:51+00:00",
+  "updated_at": "2026-10-11T15:25:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
