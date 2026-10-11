@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "e85e6872 pushed; hosted provenance rejects non-tip sync merge topology",
-  "task_revision": 73,
+  "task_revision": 74,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:29:25+00:00",
+  "updated_at": "2026-10-11T10:31:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -262,3 +262,6 @@ and end-to-end development-run tests in the same change.
   gates pass. Portable protected-main provenance failed because existing merge 80062618 is followed
   by regular e85e6872, violating synchronization-merge-must-be-topic-tip. Existing branch/PR is
   preserved; no force-push or merge. Fresh clean superseding topic is required.
+
+- 2026-10-11T10:31:30+00:00: Recorded command exit 1; command argv SHA-256
+  776b65925810e8eb462189cd2abf9fb0a8246af2db7700172159b339b3f138ea.
