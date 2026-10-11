@@ -20,13 +20,21 @@
   "plan": "../plans/AR-1725-documentation-quickstart-and-platform-install.md",
   "priority": "P1",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:70152b91b50106d78434a4d5ed78119d744753e27c26e5f60c1055fdb31e1b05",
+    "evidence_ref": "quality/AR-1725-postmerge-receipt.txt",
+    "spec_ref": "specs/AR-1725.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1725.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 35,
+  "task_revision": 36,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:42:35+00:00",
+  "updated_at": "2026-10-11T07:43:18+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -150,3 +158,6 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T07:42:35+00:00: Recorded command exit 1; command argv SHA-256
   0fa2804bb302ff4d47a2656381e40f87ac9793f8655c974b4c12cbdae400b8d3.
+
+- 2026-10-11T07:43:18+00:00: Protected PR #565 merged at exact main 7e795589. Post-merge tutorial
+  freshness passed for 6 contracts and Markdown link audit passed with 0 broken links.
