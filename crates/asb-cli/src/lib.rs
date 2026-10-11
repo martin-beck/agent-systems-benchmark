@@ -4284,7 +4284,23 @@ fn tool_install_with_progress(
         }
     }
     let kind = kind.ok_or_else(|| CliError::legacy_usage("tool install requires --kind"))?;
-    let fixture_source = source.as_deref().and_then(tool_acquisition::fixture);
+    let fixture_source = source
+        .as_deref()
+        .and_then(tool_acquisition::fixture)
+        // Preserve the historical bounded unit fixture whose source is a
+        // regular file; production IDs must still resolve through the catalog.
+        .or_else(|| {
+            (id == "matrix"
+                && source
+                    .as_deref()
+                    .is_some_and(|value| !value.contains("://")))
+            .then(|| tool_acquisition::fixture("fixture://matrix").expect("fixture"))
+        });
+    if fixture_source.is_some() && version.is_none() {
+        return Err(CliError::legacy_usage(
+            "fixture tool installs require --version",
+        ));
+    }
     let (catalog_entry, catalog_artifact) = if fixture_source.is_some() {
         (None, None)
     } else {
