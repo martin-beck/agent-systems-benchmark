@@ -1232,7 +1232,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini. |
-| Next action | Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source. |
+| Next action | Await exact-head PR #572 required checks, then merge and run post-merge verification before accepting and releasing. |
 
 ### AR-1782 — Verified asb workload installation
 

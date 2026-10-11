@@ -7,7 +7,7 @@
     "AR-1760"
   ],
   "id": "AR-1781",
-  "next_action": "Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source.",
+  "next_action": "Await exact-head PR #572 required checks, then merge and run post-merge verification before accepting and releasing.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 9,
+  "task_revision": 10,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:26:59+00:00",
+  "updated_at": "2026-10-11T09:27:06+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -66,3 +66,8 @@ labelled.
 - 2026-10-11T09:26:53+00:00: Heartbeat by ar1781-luna56.
 
 - 2026-10-11T09:26:59+00:00: Checkpointed source commit fd5868cf4c33c67db01cca18eefa4b8aacc024f1.
+
+- 2026-10-11T09:27:06+00:00: PR #572 exact head 66b0df47; refreshed stale workflow provenance digest
+  after Rust CI failure. Focused tests and local gates pass; exact-head CI rerun has
+  platform/provenance/header/AWQ/fault/fuzz/credential/Kani/Loom green, remaining required jobs
+  pending.
