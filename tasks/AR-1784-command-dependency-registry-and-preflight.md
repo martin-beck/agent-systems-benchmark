@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Await remaining exact-head checks for PR #575 at e5f378aa (Policy/coverage, Rust, Emulated AArch64, TLC/Alloy); then merge only through signed local merge-integrity and verify exact-main workflows.",
+  "next_action": "Repair remaining hosted workspace coverage failure at 89.99% on PR #575 with additional bounded dependency-preflight execution/presenter tests; rerun full exact-head checks, then signed local merge and exact-main verification.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 2,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 227,
+  "task_revision": 228,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:47:01+00:00",
+  "updated_at": "2026-10-11T10:49:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -628,3 +628,7 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:47:01+00:00: Independent exact-head review at e5f378aa passed: scoped bounded
   coverage tests, synthetic fixtures only, no credentials/network/unbounded evidence, linear base
   af75cd06, SSH signature and DCO valid. Required hosted checks remain pending; no merge yet.
+
+- 2026-10-11T10:49:04+00:00: Hosted Policy, coverage, and supply chain run 38132981849 failed at
+  89.99% (97,704 total, 9,776 missed). e5f378aa coverage repair was insufficient; preserve the 90%
+  floor and add focused tests.
