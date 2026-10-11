@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for e25983f6 and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for ce16703c and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "ce16703c2ad73d227f6f507303dd7623302a7b74",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Repair pushed at e25983f6; regenerated 270 reviewed legacy diagnostic callsite identities and passed diagnostic contract.",
-  "task_revision": 60,
+  "summary": "Provenance fixture refreshed at ce16703c for intentional CLI source changes.",
+  "task_revision": 61,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:56:43+00:00",
+  "updated_at": "2026-10-11T14:56:51+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -210,3 +210,8 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:56:38+00:00: Recorded command exit 1; command argv SHA-256
   564b86f907ac793e229b4c30b3622c7121c37e54a992170eefcf1b88a948d95e.
+
+- 2026-10-11T14:56:51+00:00: Exact product head ce16703c2ad73d227f6f507303dd7623302a7b74; clean
+  worktree. workflow_transcript 3 passed; diagnostic_contract 9 passed; clippy all asb-cli targets
+  offline passed; diff-check passed. Updated cli_source_sha256 to
+  ce392396a0dde999dfbe58437039eb31413d5016562a7bb0b5c27c38a8aaca03. Fresh exact-head CI pending.

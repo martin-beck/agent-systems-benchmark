@@ -1469,8 +1469,8 @@
 | Owner | ar1798-source-checkout-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Repair pushed at e25983f6; regenerated 270 reviewed legacy diagnostic callsite identities and passed diagnostic contract. |
-| Next action | Monitor fresh exact-head CI for e25983f6 and obtain independent re-review; do not merge. |
+| Summary | Provenance fixture refreshed at ce16703c for intentional CLI source changes. |
+| Next action | Monitor fresh exact-head CI for ce16703c and obtain independent re-review; do not merge. |
 
 
 ## Dependency graph
