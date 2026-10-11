@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor fresh hosted checks at exact 2fc8b428; inspect any failure before review/merge.",
+  "next_action": "Repair hosted Policy coverage floor at exact 2fc8b428: all tests pass but hosted workspace is 89.98% lines (9848 missed of 98330; required 90%). Add meaningful coverage for uncovered behavior, rerun exact hosted gates and review; do not weaken the floor.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 2fc8b428; compact PID/sequence replay fixture roots preserve cross-process isolation and fit AF_UNIX relay path; serial asb-cli lib 376/376 green; exact replay regression passes.",
-  "task_revision": 152,
+  "summary": "PR #579 exact head 2fc8b428 fixes replay fixture isolation and passes full CLI/runtime validation plus independent review. Hosted Credential-free and AArch64 pass, but Policy coverage is 89.98% lines with all tests green, so a legitimate coverage repair remains before merge.",
+  "task_revision": 153,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:33:37+00:00",
+  "updated_at": "2026-10-11T12:40:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -541,3 +541,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:33:37+00:00: Recorded command exit 0; command argv SHA-256
   422de929f35a13a7206d8a95352061502a93f1785f7694e5184458196cd08b15.
+
+- 2026-10-11T12:40:55+00:00: Hosted run 38139674224 failed only at unchanged 90% workspace floor:
+  TOTAL 98330 lines, 9848 missed, 89.98%. No artifact available and no gate weakening authorized;
+  worker assigned to add substantive coverage.
