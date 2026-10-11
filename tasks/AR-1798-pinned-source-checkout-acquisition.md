@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage margin repair pushed at c5303c05.",
-  "task_revision": 112,
+  "task_revision": 113,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T16:36:57+00:00",
+  "updated_at": "2026-10-11T16:37:22+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -371,3 +371,6 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T16:36:57+00:00: Recorded command exit 0; command argv SHA-256
   88fa77de49a67c285ec0610fe9c728a7bba2b44397d7c9af8f43bd26cf14d437.
+
+- 2026-10-11T16:37:22+00:00: Recorded command exit 0; command argv SHA-256
+  8e7ad2e1157441140c544316fb3631277cea7d1b12d36633f955101fe28350c6.
