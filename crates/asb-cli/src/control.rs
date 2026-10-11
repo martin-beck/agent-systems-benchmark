@@ -11342,26 +11342,38 @@ printf '%s' 'not-json'
             }
         });
     }
+
+    #[test]
+    fn failed_same_process_contender_cannot_release_owner_lock() {
+        let scratch = Scratch::new();
+        let state = scratch.0.join("state");
+        prepare_root(&state).unwrap();
+        let backend = open_backend(state.clone()).unwrap();
+        let contender_file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(state.join("control.lock"))
+            .unwrap();
+        let contender =
+            nix::fcntl::Flock::lock(contender_file, nix::fcntl::FlockArg::LockExclusiveNonblock);
+        assert!(contender.is_err(), "a second opener must be rejected");
+        drop(contender);
+        assert!(open_backend(state.clone()).is_err());
+        drop(backend);
+        assert!(open_backend(state).is_ok());
+    }
 }
 
 static CONTROL_STATE_LOCK_OWNERS: std::sync::LazyLock<Mutex<BTreeSet<(u64, u64)>>> =
     std::sync::LazyLock::new(|| Mutex::new(BTreeSet::new()));
 
 struct ControlStateLock {
-    file: fs::File,
+    _file: nix::fcntl::Flock<fs::File>,
     identity: (u64, u64),
 }
 
 impl Drop for ControlStateLock {
     fn drop(&mut self) {
-        let unlock = libc::flock {
-            l_type: libc::F_UNLCK as libc::c_short,
-            l_whence: libc::SEEK_SET as libc::c_short,
-            l_start: 0,
-            l_len: 0,
-            l_pid: 0,
-        };
-        let _ = nix::fcntl::fcntl(&self.file, nix::fcntl::FcntlArg::F_SETLK(&unlock));
         let mut owners = CONTROL_STATE_LOCK_OWNERS
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -11384,21 +11396,23 @@ fn acquire_control_state_lock(file: fs::File) -> Result<ControlStateLock, CliErr
             ));
         }
     }
-    let lock = libc::flock {
-        l_type: libc::F_WRLCK as libc::c_short,
-        l_whence: libc::SEEK_SET as libc::c_short,
-        l_start: 0,
-        l_len: 0,
-        l_pid: 0,
+    // BSD `flock` locks are attached to the open file description. Unlike
+    // POSIX record locks, closing a separately opened failed contender cannot
+    // release the owner's lock in this process.
+    let file = match nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusiveNonblock) {
+        Ok(file) => file,
+        Err((_file, _error)) => {
+            let mut owners = CONTROL_STATE_LOCK_OWNERS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            owners.remove(&identity);
+            return Err(CliError::legacy_operation(
+                "control state root is already owned",
+            ));
+        }
     };
-    if nix::fcntl::fcntl(&file, nix::fcntl::FcntlArg::F_SETLK(&lock)).is_err() {
-        let mut owners = CONTROL_STATE_LOCK_OWNERS
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        owners.remove(&identity);
-        return Err(CliError::legacy_operation(
-            "control state root is already owned",
-        ));
-    }
-    Ok(ControlStateLock { file, identity })
+    Ok(ControlStateLock {
+        _file: file,
+        identity,
+    })
 }
