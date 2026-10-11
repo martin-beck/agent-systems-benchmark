@@ -22,7 +22,7 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 | #568 | `feature/ar-1778-pinned-source-build-and-project-dependencies@1c11b88d2790` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded pinned source builder |
-| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@b76706944d38` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
+| #569 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition@b76706944d38` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat: verified prebuilt tool acquisition |
 
 ## Recent workflows
 
@@ -37,6 +37,6 @@ Generated from local Git and GitHub. Do not edit.
 | 38125615461 | `b76706944d38` | pull_request | Portable protected-main provenance | completed:success |
 | 38125615451 | `b76706944d38` | pull_request | Fault assurance | completed:success |
 | 38125615448 | `b76706944d38` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38125615427 | `b76706944d38` | pull_request | Rust verification | in_progress:- |
+| 38125615427 | `b76706944d38` | pull_request | Rust verification | completed:failure |
 | 38125615372 | `b76706944d38` | pull_request | Hosted portability and native qualification | completed:success |
 | 38125571383 | `1c11b88d2790` | pull_request | Hosted portability and native qualification | completed:success |
