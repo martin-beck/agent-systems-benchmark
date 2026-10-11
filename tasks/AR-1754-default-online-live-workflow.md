@@ -11,7 +11,7 @@
     "AR-1733"
   ],
   "id": "AR-1754",
-  "next_action": "PR #558 is published at exact signed head ba12e5da; independent technical review must inspect the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure.",
+  "next_action": "PR #558 now points to exact signed head c943c276 after adding default-online record-live routes. Independent technical review must inspect the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure.",
   "owner": "codex-ar1754-online-integration",
   "plan": "../plans/AR-1754-default-online-live-workflow.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T02:33:30+00:00",
+  "updated_at": "2026-10-11T02:33:33+00:00",
   "worktree_key": ""
 }
 ---
@@ -165,3 +165,7 @@ production authority checks.
   adb32bf6a74b6b627f01047b0737454d216f0735b258693015fde95a32b063ce.
 
 - 2026-10-11T02:33:30+00:00: Heartbeat by codex-ar1754-online-integration.
+
+- 2026-10-11T02:33:33+00:00: Added default-online direct/easy record-live with explicit --local-mock
+  override; cargo fmt and focused asb-cli tests pass 342/342. PR #558 was force-with-lease updated
+  to c943c276; exact-head CI restarted.
