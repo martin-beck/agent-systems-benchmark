@@ -3,7 +3,9 @@
   "branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1760"],
+  "depends_on": [
+    "AR-1760"
+  ],
   "id": "AR-1781",
   "next_action": "Define the authoritative development external-workload catalog and make every documented suite installable, selectable, and executable through its pinned official source.",
   "observed_branch": "",
@@ -13,14 +15,21 @@
   "plan": "../plans/AR-1781-external-workload-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1781.json", "spec_revision": 2, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1781.json",
+    "spec_revision": 2,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
-  "status": "planned",
+  "status": "open",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-11T09:12:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -46,3 +55,5 @@ installation, selection, or bounded execution. Preserve pinned source identity
 and explicit legal/resource constraints; report genuine license, compatibility,
 or source failures distinctly. Production qualification may remain separately
 labelled.
+
+- 2026-10-11T09:12:57+00:00: Dependency AR-1760 is done; promote AR-1781 for implementation.
