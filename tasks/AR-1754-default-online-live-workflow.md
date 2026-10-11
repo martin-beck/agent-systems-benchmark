@@ -11,7 +11,7 @@
     "AR-1733"
   ],
   "id": "AR-1754",
-  "next_action": "PR #558 now points to exact signed head fffa180a. Independently review the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure.",
+  "next_action": "PR #558 now points to exact signed head 0dcd1472. The hosted Rust failure was a stale workflow provenance digest; it is repaired and the focused workflow-transcript gate passes locally. Independently review the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure.",
   "owner": "codex-ar1754-online-integration",
   "plan": "../plans/AR-1754-default-online-live-workflow.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 94,
+  "task_revision": 95,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:13:56+00:00",
+  "updated_at": "2026-10-11T03:14:09+00:00",
   "worktree_key": ""
 }
 ---
@@ -314,3 +314,7 @@ production authority checks.
 
 - 2026-10-11T03:13:56+00:00: Recorded command exit 0; command argv SHA-256
   adb32bf6a74b6b627f01047b0737454d216f0735b258693015fde95a32b063ce.
+
+- 2026-10-11T03:14:09+00:00: Repaired the workflow provenance JSON digest after hosted Rust
+  identified the exact lib.rs hash drift; workflow_transcript now passes locally. Pushed signed DCO
+  head 0dcd1472; exact-head CI restarted.
