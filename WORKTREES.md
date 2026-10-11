@@ -286,7 +286,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1709-integration` | `DETACHED` | `2c6f3083504c` | 0 | behind 46, ahead 0 |
 | `asb-ar1715-live-qualification` | `DETACHED` | `b79ad1597a1c` | 5 | behind 41, ahead 0 |
 | changed files | - | - | - | `config-home/`, `live-selected.toml`, `provider-catalog.json`, `selected.toml`, `selection.json` |
-| `asb-ar1725` | `codex/ar-1725-quickstart-platform-install` | `d77230ae46ce` | 0 | behind 0, ahead 1 |
+| `asb-ar1725` | `docs/ar-1725-quickstart-platform-install` | `d77230ae46ce` | 0 | behind 0, ahead 1 |
 | `asb-ar1743-integration` | `DETACHED` | `507559f636e0` | 0 | behind 234, ahead 0 |
 | `asb-ar1743-postmerge` | `DETACHED` | `fd956d857970` | 0 | behind 232, ahead 0 |
 | `asb-ar1744-main-repro` | `DETACHED` | `1ab175c30eb0` | 0 | behind 228, ahead 0 |
