@@ -8,7 +8,7 @@
     "AR-1791"
   ],
   "id": "AR-1792",
-  "next_action": "Promote and reproduce the hosted PTY fixture failure in a clean bound worktree; repair the underlying race without serializing or weakening coverage.",
+  "next_action": "Reproduce under repeated focused and coverage-equivalent execution; inspect PTY foreground/restore race and implement deterministic fixture repair without serialization or exclusion.",
   "observed_branch": "codex/ar-1792-pty-fixture-determinism",
   "observed_dirty": 0,
   "observed_head": "16d8512debab5515068d285fd820e1be0751c51b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the intermittent development broker foreground/restore PTY fixture exposed by PR #555 coverage.",
-  "task_revision": 7,
+  "task_revision": 8,
   "title": "Make development broker PTY fixture deterministic",
-  "updated_at": "2026-10-11T00:11:53+00:00",
+  "updated_at": "2026-10-11T00:12:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1792-pty-fixture-determinism"
 }
 ---
@@ -44,3 +44,12 @@ serial-only or exclusion-based gate.
 
 - 2026-10-11T00:11:53+00:00: Recorded command exit 0; command argv SHA-256
   b5bc845e79f2d8652b19f619d5c22b3d136c5d8e89b91c880d280fe2f10c18c3.
+
+- 2026-10-11T00:12:04+00:00: Dedicated worktree bound and reconciled:
+  /srv/data/projects/agent-systems-benchmark-ar-1792-pty-fixture-determinism, branch
+  codex/ar-1792-pty-fixture-determinism, protected base 16d8512debab5515068d285fd820e1be0751c51b.
+  First direct focused compile was blocked by /srv/data No space left on device. Reproduced current
+  candidate using isolated CARGO_TARGET_DIR=/tmp/ar1792-pty-target:
+  development_broker_foregrounds_interactive_child_and_restores_terminal passed in three immediate
+  repetitions (all exit 0). No product changes yet; continue coverage-equivalent repetition and race
+  analysis.
