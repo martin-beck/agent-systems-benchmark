@@ -16,20 +16,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:71b83e19e7a0883ff359599d963740488669e0467b19cb42cfe78d004e5199c8",
+    "evidence_ref": "github:martin-beck/agent-systems-benchmark/commit/a89dd44ea978ae6623912ae034fa7e2b40f2dbd0/ar1777-exact-main-workflows",
     "spec_ref": "specs/AR-1777.json",
     "spec_revision": 1,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened.",
-  "task_revision": 179,
+  "task_revision": 180,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:34:50+00:00",
+  "updated_at": "2026-10-11T13:51:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -633,3 +633,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T13:34:50+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T13:51:33+00:00: AR-1777 PR #579 content is included in signed local forward-repair
+  lineage; acquisition review and gates passed, exact-main workflows all passed at a89dd44e, with
+  parents 06514c06/f20f7bf2 and reviewed tree 7a5efc6b.
