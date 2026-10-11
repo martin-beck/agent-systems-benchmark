@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at c9867dce with bounded output and file-count tests.",
-  "task_revision": 71,
+  "task_revision": 72,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:25:24+00:00",
+  "updated_at": "2026-10-11T15:25:26+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -244,3 +244,6 @@ protected merge, and post-merge evidence path.
   tests 10 passed; hosted-equivalent locked workspace llvm-cov --fail-under-lines 90 passed: 90.23%
   lines (88.70% regions). Clippy all asb-cli targets offline and diff-check passed. No threshold
   changes.
+
+- 2026-10-11T15:25:26+00:00: Recorded command exit 0; command argv SHA-256
+  c13dc52f26704fa87af663a0b65e354e80b3edb2bef7090f1b65546f68015d0e.
