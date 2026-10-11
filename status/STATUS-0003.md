@@ -1224,11 +1224,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | coordinator |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | PR #578 merged at signed local merge 4a8f0925. |
@@ -2283,7 +2283,7 @@ flowchart LR
         AR_1778["AR-1778 - Done"]:::status_done
         AR_1779["AR-1779 - Planned"]:::status_planned
         AR_1780["AR-1780 - Planned"]:::status_planned
-        AR_1781["AR-1781 - In progress"]:::status_in_progress
+        AR_1781["AR-1781 - Done"]:::status_done
         AR_1782["AR-1782 - Planned"]:::status_planned
         AR_1783["AR-1783 - Planned"]:::status_planned
         AR_1784["AR-1784 - Done"]:::status_done

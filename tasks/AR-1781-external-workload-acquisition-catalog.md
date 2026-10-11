@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "checkpoint_commit": "cefc884dfbbb43aa9679821154d5d04892670a39",
-  "claim_expires": "2026-10-11T12:14:40+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1760"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "286cccd6d7c0337fe19fbfba4aadacfa0c8b40f5",
-  "owner": "coordinator",
+  "owner": "",
   "plan": "../plans/AR-1781-external-workload-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "done",
   "summary": "PR #578 merged at signed local merge 4a8f0925.",
-  "task_revision": 41,
+  "task_revision": 42,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:54:52+00:00",
+  "updated_at": "2026-10-11T11:55:19+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -165,3 +165,6 @@ labelled.
 
 - 2026-10-11T11:54:52+00:00: Recorded command exit 0; command argv SHA-256
   042079d0f402f52718ba78df47fa3d504e23ba09020e642893521014ec1b682c.
+
+- 2026-10-11T11:55:19+00:00: Post-merge verification complete: all exact-main workflows passed at
+  4a8f0925, including Rust verification and repository quality.
