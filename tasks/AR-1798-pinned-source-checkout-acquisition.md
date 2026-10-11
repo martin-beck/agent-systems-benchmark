@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for b0917d44 and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for 89ce603c and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "b0917d440e9ab7ef6d92428c6fe30b519b475743",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Coverage repair pushed at b0917d44 with checkout spawn-failure test.",
-  "task_revision": 84,
+  "summary": "Formatting repair pushed at 89ce603c after CI gate failure.",
+  "task_revision": 85,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:43:37+00:00",
+  "updated_at": "2026-10-11T15:44:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -276,3 +276,9 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T15:43:37+00:00: Recorded command exit 1; command argv SHA-256
   40f22e526b755659e7f33df7f4ead6e75ee9362fed734ad6ebdf6a26c5b63dab.
+
+- 2026-10-11T15:44:05+00:00: Exact product head 89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb; clean
+  worktree. cargo fmt --all -- --check passed; source-checkout focused tests 12 passed; clippy -p
+  asb-cli --all-targets -D warnings and git diff --check passed. Hosted-equivalent locked workspace
+  llvm-cov --fail-under-lines 90 passed: TOTAL lines 90.23%, regions 88.70%, exit 0. No threshold
+  changes.

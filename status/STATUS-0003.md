@@ -1469,8 +1469,8 @@
 | Owner | ar1798-source-checkout-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Coverage repair pushed at b0917d44 with checkout spawn-failure test. |
-| Next action | Monitor fresh exact-head CI for b0917d44 and obtain independent re-review; do not merge. |
+| Summary | Formatting repair pushed at 89ce603c after CI gate failure. |
+| Next action | Monitor fresh exact-head CI for 89ce603c and obtain independent re-review; do not merge. |
 
 
 ## Dependency graph
