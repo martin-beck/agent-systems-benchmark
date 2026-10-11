@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. | Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
-| P0 | [AR-1778](tasks/AR-1778-pinned-source-build-and-project-dependencies.md): Pinned source builds and project dependencies | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. | Accept AR-1778 with exact-main postmerge evidence at d64ac90a; then release done after durable acceptance. | codex-ar1778-luna56 |
 | P0 | [AR-1784](tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish. | ar1784_dependency_registry_luna56 |
 
 ## Open

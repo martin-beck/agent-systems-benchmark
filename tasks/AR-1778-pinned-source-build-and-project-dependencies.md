@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T10:46:12+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "observed_dirty": 0,
   "observed_head": "1c11b88d2790447c6d277342c8233fdf245ba391",
-  "owner": "codex-ar1778-luna56",
+  "owner": "",
   "plan": "../plans/AR-1778-pinned-source-build-and-project-dependencies.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1778.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 37,
+  "task_revision": 38,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:55:27+00:00",
+  "updated_at": "2026-10-11T08:55:50+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -139,3 +139,7 @@ limit are distinct actionable outcomes.
 - 2026-10-11T08:55:27+00:00: Accepted exact-main postmerge evidence at
   d64ac90ad96a0941ddf6acb2d60ffe7b2ab5f948: clean worktree, signed merge, 235/235 asb-cli library
   tests, 3/3 source-builder tests, and 3/3 workflow-transcript tests.
+
+- 2026-10-11T08:55:50+00:00: AR-1778 complete: PR #568 merged as
+  d64ac90ad96a0941ddf6acb2d60ffe7b2ab5f948; exact-main postmerge clean, signed, and tests passed.
+  Acceptance evidence recorded.

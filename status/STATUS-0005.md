@@ -150,12 +150,11 @@
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root. | Implement catalog-driven verified compatible-binary reuse and official prebuilt executable-tool acquisition into project-local storage. |
-| P0 | [AR-1778](../tasks/AR-1778-pinned-source-build-and-project-dependencies.md): Pinned source builds and project dependencies | codex-ar1778-luna56 | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. | Accept AR-1778 with exact-main postmerge evidence at d64ac90a; then release done after durable acceptance. |
 | P0 | [AR-1784](../tasks/AR-1784-command-dependency-registry-and-preflight.md): Command dependency registry and preflight | ar1784_dependency_registry_luna56 | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. | Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish. |
 
 ### Open (1)
@@ -355,7 +354,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (576)
+### Done (577)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -569,3 +568,5 @@
 | P0 | [AR-1526](../tasks/AR-1526.md): First-customer local/replay qualification | Unclaimed | Qualify the merged ASB production-shaped local/mock and strict-replay customer path with sanitized evidence. | No development action remains. Preserve the exact-main first-customer local/mock and strict-replay receipt; live-provider deployment remains optional future hardening. |
 | P0 | [AR-1527](../tasks/AR-1527.md): Normalize AR-1307/1308 development seed policy | Unclaimed | Remove reviewed seed and digest prerequisites from the AR-1307/1308 development path while preserving separate formal and release evidence gates. | Promote after state review; audit AR-1307/1308 and every active dependent for development-only seed/digest prerequisites, then normalize their task and plan language without changing formal gates. |
 | P0 | [AR-1528](../tasks/AR-1528.md): Rerun AR-1307/1308 development fixtures | Unclaimed | Run the repaired AR-1307/1308 unsigned-development fixture path and preserve separate formal qualification blockers. | No further action: development fixture rerun is complete; retain its non-qualifying evidence while formal work proceeds separately. |
+| P0 | [AR-1529](../tasks/AR-1529.md): AR-1307/1308 formal capacity decision successor | Unclaimed | Replace the stale AR-1309 dependency with a reviewed formal capacity/model decision grounded in the completed capacity and reduced-profile evidence. | No further action: the 8 GiB/8 GiB signed-capacity contract is recorded; AR-1530 owns implementation. |
+| P0 | [AR-1530](../tasks/AR-1530.md): State formal capacity profile for AR-1307/1308 | Unclaimed | Implement the state-owned 8G/8G formal capacity profile selected by AR-1529 and route it to AR-1522. | No further action: merged PR #31 provides the signed-capacity-8g profile; AR-1531 owns disposable fixture provisioning. |

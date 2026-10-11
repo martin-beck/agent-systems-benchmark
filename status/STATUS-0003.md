@@ -1182,11 +1182,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1778-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix. |
@@ -2238,7 +2238,7 @@ flowchart LR
         AR_1775["AR-1775 - Planned"]:::status_planned
         AR_1776["AR-1776 - Done"]:::status_done
         AR_1777["AR-1777 - In progress"]:::status_in_progress
-        AR_1778["AR-1778 - In progress"]:::status_in_progress
+        AR_1778["AR-1778 - Done"]:::status_done
         AR_1779["AR-1779 - Planned"]:::status_planned
         AR_1780["AR-1780 - Planned"]:::status_planned
         AR_1781["AR-1781 - Planned"]:::status_planned
