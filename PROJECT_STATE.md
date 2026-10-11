@@ -40,10 +40,10 @@ Generated from local Git and GitHub. Do not edit.
 | 38146604568 | `24f1872cdb33` | push | Rust verification | in_progress:- |
 | 38146604562 | `24f1872cdb33` | push | Huawei MIT source headers | completed:success |
 | 38146604525 | `24f1872cdb33` | push | Hosted portability and native qualification | in_progress:- |
-| 38146604519 | `24f1872cdb33` | push | Portable protected-main provenance | in_progress:- |
+| 38146604519 | `24f1872cdb33` | push | Portable protected-main provenance | completed:success |
 | 38146604518 | `24f1872cdb33` | push | Credential-free benchmark path | in_progress:- |
 | 38146604500 | `24f1872cdb33` | push | Formal assurance | in_progress:- |
-| 38146604492 | `24f1872cdb33` | push | Fault assurance | queued:- |
+| 38146604492 | `24f1872cdb33` | push | Fault assurance | in_progress:- |
 | 38146604473 | `24f1872cdb33` | push | Repository quality | in_progress:- |
 | 38146071706 | `7c08cfb019ee` | pull_request | Emulated aarch64 portability | in_progress:- |
 | 38146071694 | `7c08cfb019ee` | pull_request | Cross-repository development broker qualification | completed:success |
