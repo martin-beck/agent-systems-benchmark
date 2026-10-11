@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 56ca12a7 passes review and all hosted checks except coverage. Hosted is 89.99% lines; clean local is 90.27%. Investigation found a concrete shared /tmp/asb-dr-0 root collision from concurrent test binaries, so a focused fixture-isolation repair is in progress.",
-  "task_revision": 128,
+  "task_revision": 129,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:18:52+00:00",
+  "updated_at": "2026-10-11T12:20:01+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -457,3 +457,6 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T12:18:52+00:00: Fresh hosted rerun attempt 2 is still pending. Investigator reproduced
   the authority collision without product changes; no floor weakening or merge authorized. Repair
   worker assigned to implement unique bounded fixture roots with tests.
+
+- 2026-10-11T12:20:01+00:00: Recorded command exit 0; command argv SHA-256
+  45dea5913ff6fbbfdf799f3fa77d49c097d36bbea934ff4062adeaf61cdfc143.
