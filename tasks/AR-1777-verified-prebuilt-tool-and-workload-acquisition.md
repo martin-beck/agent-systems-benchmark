@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened.",
-  "task_revision": 175,
+  "task_revision": 176,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:10:08+00:00",
+  "updated_at": "2026-10-11T13:18:12+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -620,3 +620,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T13:10:08+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T13:18:12+00:00: Recorded command exit 1; command argv SHA-256
+  8cd334158e1bac6da2e0aeede5b3c6302480ab8bcca76ba545e8a772540d1a64.
