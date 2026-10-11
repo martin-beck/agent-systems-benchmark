@@ -1,6 +1,6 @@
 ---
 {
-  "branch": "",
+  "branch": "codex/ar-1724-easy-sweep-online",
   "checkpoint_commit": "",
   "claim_expires": "2026-10-11T02:08:46+00:00",
   "depends_on": [
@@ -20,7 +20,7 @@
   "task_revision": 4,
   "title": "Make the easy sweep default to online provider execution",
   "updated_at": "2026-10-11T01:38:52+00:00",
-  "worktree_key": ""
+  "worktree_key": "agent-systems-benchmark-ar-1724-easy-sweep"
 }
 ---
 
