@@ -22,20 +22,21 @@ Generated from local Git and GitHub. Do not edit.
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 | #565 | `docs/ar-1725-quickstart-platform-install-v2@8028fd66f26d` | `main` | BLOCKED | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
+| #566 | `codex/ar-1716-recording-fence@65ff69bbed88` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | fix(replay): fence recording provider identity diagnostics |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
+| 38121055978 | `65ff69bbed88` | pull_request | Fault assurance | in_progress:- |
+| 38121055956 | `65ff69bbed88` | pull_request | Portable protected-main provenance | completed:success |
+| 38121055914 | `65ff69bbed88` | pull_request | Emulated aarch64 portability | in_progress:- |
+| 38121055906 | `65ff69bbed88` | pull_request | Credential-free benchmark path | in_progress:- |
+| 38121055900 | `65ff69bbed88` | pull_request | Formal assurance | in_progress:- |
+| 38121055898 | `65ff69bbed88` | pull_request | Huawei MIT source headers | completed:success |
+| 38121055876 | `65ff69bbed88` | pull_request | Rust verification | in_progress:- |
+| 38121055867 | `65ff69bbed88` | pull_request | Cross-repository development broker qualification | in_progress:- |
+| 38121055850 | `65ff69bbed88` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38121055838 | `65ff69bbed88` | pull_request | Repository quality | in_progress:- |
+| 38121055819 | `65ff69bbed88` | pull_request | Hosted portability and native qualification | in_progress:- |
 | 38120752233 | `8028fd66f26d` | pull_request | Formal assurance | completed:success |
-| 38120752218 | `8028fd66f26d` | pull_request | Repository quality | completed:failure |
-| 38120752215 | `8028fd66f26d` | pull_request | Cross-repository development broker qualification | completed:success |
-| 38120752203 | `8028fd66f26d` | pull_request | Agent Workflow Quality shadow | completed:success |
-| 38120752197 | `8028fd66f26d` | pull_request | Huawei MIT source headers | completed:success |
-| 38120752181 | `8028fd66f26d` | pull_request | Hosted portability and native qualification | completed:success |
-| 38120752172 | `8028fd66f26d` | pull_request | Credential-free benchmark path | completed:success |
-| 38120752158 | `8028fd66f26d` | pull_request | Portable protected-main provenance | completed:success |
-| 38120752153 | `8028fd66f26d` | pull_request | Rust verification | in_progress:- |
-| 38120752152 | `8028fd66f26d` | pull_request | Emulated aarch64 portability | in_progress:- |
-| 38120752148 | `8028fd66f26d` | pull_request | Fault assurance | completed:success |
-| 38120658376 | `4cb87998c133` | push | Emulated aarch64 portability | in_progress:- |
