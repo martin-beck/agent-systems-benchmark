@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Commit signed fail-closed resolver/validator repair, push PR #576, run focused/full gates, and reconcile exact head.",
+  "next_action": "Run coverage/full applicable gates and monitor PR #576 hosted checks at exact head ec566dfd.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head 817de0ed; source-only fallback and compressed archive validation gaps under repair",
-  "task_revision": 109,
+  "summary": "PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused and full asb-cli tests pass",
+  "task_revision": 110,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:25:30+00:00",
+  "updated_at": "2026-10-11T11:25:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -388,3 +388,8 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:25:30+00:00: Recorded command exit 0; command argv SHA-256
   4c01cd291136d9f617724980f48525c5b9a2f531e929973bfe0189a1e1890d75.
+
+- 2026-10-11T11:25:43+00:00: 2026-10-11T11:39Z signed DCO repair ec566dfd pushed to PR #576. resolve
+  rejects source-only alternatives; verify_bytes rejects gzip/xz compressed archives before
+  digest/execution. Focused acquisition 13/13 and full asb-cli lib 362+1 tests pass; cargo fmt
+  passes.

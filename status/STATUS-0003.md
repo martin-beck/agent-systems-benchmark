@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #576 exact head 817de0ed; source-only fallback and compressed archive validation gaps under repair |
-| Next action | Commit signed fail-closed resolver/validator repair, push PR #576, run focused/full gates, and reconcile exact head. |
+| Summary | PR #576 exact head ec566dfd; fail-closed source/archive repair pushed; focused and full asb-cli tests pass |
+| Next action | Run coverage/full applicable gates and monitor PR #576 hosted checks at exact head ec566dfd. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
