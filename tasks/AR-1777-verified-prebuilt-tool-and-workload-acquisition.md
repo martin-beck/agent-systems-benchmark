@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head 2fc8b428; compact PID/sequence replay fixture roots preserve cross-process isolation and fit AF_UNIX relay path; serial asb-cli lib 376/376 green; exact replay regression passes.",
-  "task_revision": 151,
+  "task_revision": 152,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:33:27+00:00",
+  "updated_at": "2026-10-11T12:33:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -538,3 +538,6 @@ reporting contract when available while keeping machine-mode output safe.
 - 2026-10-11T12:33:27+00:00: Confirmed f299 path-too-long root cause. Signed 2fc8b428 shortens root
   identity to compact hex and removes debug instrumentation. Focused and serial full CLI gates pass;
   default parallel had separate unrelated fixture races.
+
+- 2026-10-11T12:33:37+00:00: Recorded command exit 0; command argv SHA-256
+  422de929f35a13a7206d8a95352061502a93f1785f7694e5184458196cd08b15.
