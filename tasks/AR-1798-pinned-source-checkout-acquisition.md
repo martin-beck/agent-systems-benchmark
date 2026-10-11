@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1798-pinned-source-checkout-acquisition",
-  "checkpoint_commit": "",
+  "checkpoint_commit": "8eccc3843db2f2ec4dec2de7ca63f42c1b5c31d2",
   "claim_expires": "2026-10-11T16:28:17+00:00",
   "depends_on": [
     "AR-1776",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 43,
+  "task_revision": 44,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:28:22+00:00",
+  "updated_at": "2026-10-11T14:28:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -166,3 +166,5 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:28:22+00:00: Repair commits b305ff82, 56f78e0c, ba981448 add catalog-bound checkout,
   bounded transfer checks, and AR-1779 source-recipe routing; exact-head CI pending.
+
+- 2026-10-11T14:28:32+00:00: Checkpointed source commit 8eccc3843db2f2ec4dec2de7ca63f42c1b5c31d2.
