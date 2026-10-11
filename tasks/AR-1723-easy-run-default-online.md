@@ -13,13 +13,21 @@
   "plan": "../plans/AR-1723-easy-run-default-online.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:05d7024ce0273f0ceb86532e009cae10dd7b7a7a93cc838bd4b0bd052debce8f",
+    "evidence_ref": "quality/AR-1723-postmerge-receipt.json",
+    "spec_ref": "specs/AR-1723.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1723.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 36,
+  "task_revision": 37,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T01:28:33+00:00",
+  "updated_at": "2026-10-11T01:29:04+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---
@@ -129,3 +137,7 @@ requested; live failures never silently select mock or replay.
 
 - 2026-10-11T01:28:33+00:00: Recorded command exit 0; command argv SHA-256
   f6c39788ecc816eeaf80af6cbb2744cb7b40705ba8d47ba4c746e5a9d3194228.
+
+- 2026-10-11T01:29:04+00:00: Accepted exact merge f090de5 and terminal-green post-merge workflows;
+  independent technical review, signatures/DCO, and local 341-test verification complete. GitHub
+  Reviews API approval was not required.
