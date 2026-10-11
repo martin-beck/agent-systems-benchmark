@@ -16,9 +16,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Require model catalogs and execution parity for every backend",
-  "updated_at": "2026-10-11T06:25:27+00:00",
+  "updated_at": "2026-10-11T06:26:12+00:00",
   "worktree_key": ""
 }
 ---
@@ -37,3 +37,6 @@ key services must not block this development AR.
   and execution parity implementation.
 
 - 2026-10-11T06:25:27+00:00: Claimed by codex-asb-ar1736-catalog-luna56-20261011.
+
+- 2026-10-11T06:26:12+00:00: Recorded command exit 0; command argv SHA-256
+  5345cd4b5f66285dc80cddfe59c0a95475263f9ff88d25d2639fce3c300aa4b9.
