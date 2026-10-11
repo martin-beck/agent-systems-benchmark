@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head 67d28a61: local source_ref is stable redacted local:<id>; tar extraction rejects all non-regular members; raw/extracted tools require little-endian ELF with valid type/machine/entrypoint. Focused acquisition 15/15, full serial asb-cli 377/377, clippy green. | Monitor fresh hosted Policy and all required checks at exact 67d28a61; inspect any failures and obtain independent re-review before merge. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
+| P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened. | Monitor hosted checks at exact d30079b7; inspect policy coverage result and obtain independent re-review before merge. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. | codex-ar1796-integration-liveness |
 
 ## Open

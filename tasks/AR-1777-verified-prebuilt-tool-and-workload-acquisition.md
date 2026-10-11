@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor fresh hosted Policy and all required checks at exact 67d28a61; inspect any failures and obtain independent re-review before merge.",
+  "next_action": "Monitor hosted checks at exact d30079b7; inspect policy coverage result and obtain independent re-review before merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 67d28a61: local source_ref is stable redacted local:<id>; tar extraction rejects all non-regular members; raw/extracted tools require little-endian ELF with valid type/machine/entrypoint. Focused acquisition 15/15, full serial asb-cli 377/377, clippy green.",
-  "task_revision": 173,
+  "summary": "PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened.",
+  "task_revision": 174,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T13:07:11+00:00",
+  "updated_at": "2026-10-11T13:07:32+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -611,3 +611,9 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T13:07:11+00:00: Recorded command exit 0; command argv SHA-256
   3d33cc39c5e315b7b1269c4bbda4bacc005ba2d17bbcc90cd0ebdfc99af96506.
+
+- 2026-10-11T13:07:32+00:00: Pushed signed DCO d30079b7. Focused sandbox_credential tests 3/3,
+  asb-runtime clippy, cargo fmt, and diff check pass. The bubblewrap contract test now always
+  validates --args descriptor construction and only skips external execution when /usr/bin/bwrap is
+  absent, addressing hosted coverage omission without weakening behavior. Hosted checks newly
+  queued: Policy run 38141912548 and Credential-free run 38141912575, all required checks pending.

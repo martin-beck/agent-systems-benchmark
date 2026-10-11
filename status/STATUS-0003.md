@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head 67d28a61: local source_ref is stable redacted local:&lt;id&gt;; tar extraction rejects all non-regular members; raw/extracted tools require little-endian ELF with valid type/machine/entrypoint. Focused acquisition 15/15, full serial asb-cli 377/377, clippy green. |
-| Next action | Monitor fresh hosted Policy and all required checks at exact 67d28a61; inspect any failures and obtain independent re-review before merge. |
+| Summary | PR #579 exact head d30079b7: credential-channel command construction is tested even when hosted bwrap is unavailable; source/archive validation remains hardened. |
+| Next action | Monitor hosted checks at exact d30079b7; inspect policy coverage result and obtain independent re-review before merge. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
@@ -4337,3 +4337,4 @@ flowchart LR
 | [AR-0513](../tasks/AR-0513-replay-miniswe.md) | [AR-0308](../tasks/AR-0308-agent-mini-swe.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0514](../tasks/AR-0514-replay-openhands.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md), [AR-0401](../tasks/AR-0401-engineering-workloads.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | [AR-0515](../tasks/AR-0515-replay-matrix.md) |
 | [AR-0515](../tasks/AR-0515-replay-matrix.md) | [AR-0506](../tasks/AR-0506-replay-opencode.md), [AR-0507](../tasks/AR-0507-replay-opendesk.md), [AR-0508](../tasks/AR-0508-replay-aider.md), [AR-0509](../tasks/AR-0509-replay-codex.md), [AR-0510](../tasks/AR-0510-replay-gemini.md), [AR-0511](../tasks/AR-0511-replay-qwen.md), [AR-0512](../tasks/AR-0512-replay-goose.md), [AR-0513](../tasks/AR-0513-replay-miniswe.md), [AR-0514](../tasks/AR-0514-replay-openhands.md) | None |
+| [AR-0516](../tasks/AR-0516-opendesk-strict-replay-http-compatibility.md) | [AR-0302](../tasks/AR-0302-agent-opendesk.md), [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0504](../tasks/AR-0504-replay-pacing.md) | None |
