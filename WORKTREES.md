@@ -265,7 +265,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `asb-ar1698-runtime-authority` | `codex-ar1698-runtime-authority` | `c5a7e64af8cd` | 0 | behind 286, ahead 1 |
 | `asb` | `DETACHED` | `457317b21dbe` | 0 | behind 264, ahead 0 |
 | `asb-ar1715-qualification` | `DETACHED` | `daae06efa2d7` | 0 | behind 34, ahead 0 |
-| `asb-ar1717-comparison-product` | `codex/ar-1717-comparison-product` | `a454f5483b60` | 0 | behind 0, ahead 5 |
+| `asb-ar1717-comparison-product` | `codex/ar-1717-comparison-product` | `a454f5483b60` | 2 | behind 0, ahead 5 |
+| changed files | - | - | - | `crates/asb-cli/src/diagnostic_legacy_catalog.rs`, `docs/examples/asb-cli-workflow-v1.provenance.json` |
 | `asb-ar1721-qualification-20261009` | `DETACHED` | `31ca7a481fca` | 0 | behind 215, ahead 0 |
 | `asb-ar1721-tui-provider-router` | `repair/ar-1721-tui-provider-router` | `8345a9890e5b` | 0 | behind 285, ahead 0 |
 | `asb-ar1723-merge` | `DETACHED` | `f090de56710d` | 0 | behind 25, ahead 0 |
