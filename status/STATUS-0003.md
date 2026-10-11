@@ -1204,7 +1204,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying. |
-| Next action | Independent review and exact-head CI for PR #583 at 32cb692a; source-only fallback remains to be resolved before merge. |
+| Next action | Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge. |
 
 ### AR-1780 — Installed tool and workload execution qualification
 

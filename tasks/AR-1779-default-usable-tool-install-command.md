@@ -9,7 +9,7 @@
     "AR-1784"
   ],
   "id": "AR-1779",
-  "next_action": "Independent review and exact-head CI for PR #583 at 32cb692a; source-only fallback remains to be resolved before merge.",
+  "next_action": "Independent review and exact-head CI for PR #583 at 7c08cfb0; source-only fallback remains to be resolved before merge.",
   "observed_branch": "feature/ar-1779-default-usable-tool-install-command",
   "observed_dirty": 0,
   "observed_head": "32cb692acebe3a9bd823d17b22cacc397124342b",
@@ -29,9 +29,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make default asb tool install produce and verify a usable project-local supported executable tool without manual source copying.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Default usable tool-install command",
-  "updated_at": "2026-10-11T14:09:54+00:00",
+  "updated_at": "2026-10-11T14:10:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1779-default-usable-tool-install-command"
 }
 ---
@@ -115,3 +115,7 @@ the adapter smoke check failed.
 
 - 2026-10-11T14:09:54+00:00: Recorded command exit 0; command argv SHA-256
   f18ad62f9c9d9a6760e09d95ece99cc58b831e4016946fa857d41e1688516b8c.
+
+- 2026-10-11T14:10:16+00:00: Pushed signed repair 7c08cfb0. Added explicit lifecycle repair/update
+  installed-ID validation, transactional rerun behavior, and human/machine
+  selection/source/build/reuse/path/next fields. Focused parser test passes.
