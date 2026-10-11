@@ -21,7 +21,7 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #560 | `codex/ar-1736-backend-model-catalog@89852e60c5bf` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
-| #564 | `docs/ar-1725-quickstart-platform-install@d77230ae46ce` | `main` | BEHIND | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
+| #564 | `docs/ar-1725-quickstart-platform-install@d77230ae46ce` | `main` | BEHIND | COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 
 ## Recent workflows
 
@@ -34,7 +34,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38119813902 | `c059e9a63dbc` | push | Credential-free benchmark path | in_progress:- |
 | 38119813897 | `c059e9a63dbc` | push | Hosted portability and native qualification | in_progress:- |
 | 38119813894 | `c059e9a63dbc` | push | Cross-repository development broker qualification | in_progress:- |
-| 38119813888 | `c059e9a63dbc` | push | Repository quality | in_progress:- |
+| 38119813888 | `c059e9a63dbc` | push | Repository quality | completed:failure |
 | 38119813879 | `c059e9a63dbc` | push | Fault assurance | in_progress:- |
 | 38119813877 | `c059e9a63dbc` | push | Rust verification | in_progress:- |
 | 38119658779 | `d77230ae46ce` | pull_request | Fault assurance | completed:success |
