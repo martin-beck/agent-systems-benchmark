@@ -1,5 +1,30 @@
 ---
-{"id":"AR-1754","title":"Make online execution the default across ASB workflows","priority":"P0","depends_on":["AR-1699","AR-1700","AR-1723","AR-1724","AR-1733"],"plan":"../plans/AR-1754-default-online-live-workflow.md","summary":"Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.","status":"planned","next_action":"Promote after AR-1723, AR-1724, and cli2key qualification AR-1733 are current; inventory every run/sweep/easy/record/campaign/TUI entry point, implement default-online routing with explicit --local-mock and offline replay alternatives, then qualify positive and negative paths.","owner":"","claim_expires":"","checkpoint_commit":"","worktree_key":"","branch":"","schema_version":1,"spec_ref":"specs/AR-1754.json","spec_revision":1,"task_revision":1,"updated_at":"2026-10-09T09:00:00+00:00"}
+{
+  "branch": "",
+  "checkpoint_commit": "",
+  "claim_expires": "",
+  "depends_on": [
+    "AR-1699",
+    "AR-1700",
+    "AR-1723",
+    "AR-1724",
+    "AR-1733"
+  ],
+  "id": "AR-1754",
+  "next_action": "Promote after AR-1723, AR-1724, and cli2key qualification AR-1733 are current; inventory every run/sweep/easy/record/campaign/TUI entry point, implement default-online routing with explicit --local-mock and offline replay alternatives, then qualify positive and negative paths.",
+  "owner": "",
+  "plan": "../plans/AR-1754-default-online-live-workflow.md",
+  "priority": "P0",
+  "schema_version": 1,
+  "spec_ref": "specs/AR-1754.json",
+  "spec_revision": 1,
+  "status": "open",
+  "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
+  "task_revision": 2,
+  "title": "Make online execution the default across ASB workflows",
+  "updated_at": "2026-10-11T02:17:31+00:00",
+  "worktree_key": ""
+}
 ---
 
 The user-facing ASB workflow currently requires explicit online/live flags in
@@ -16,3 +41,6 @@ cross-repository contract and dependency notes in the state plan. Preserve
 credential-reference-only configuration, bounded progress, network/cost
 warnings, provider/model/agent/workload identity, and all existing fail-closed
 production authority checks.
+
+- 2026-10-11T02:17:31+00:00: Dependencies AR-1699, AR-1700, AR-1723, AR-1724, and AR-1733 are
+  released/current; promote for canonical online-default integration.
