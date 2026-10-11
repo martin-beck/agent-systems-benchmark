@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "checkpoint_commit": "cefc884dfbbb43aa9679821154d5d04892670a39",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T12:14:40+00:00",
   "depends_on": [
     "AR-1760"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
   "observed_head": "286cccd6d7c0337fe19fbfba4aadacfa0c8b40f5",
-  "owner": "",
+  "owner": "coordinator",
   "plan": "../plans/AR-1781-external-workload-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1781.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved.",
-  "task_revision": 33,
+  "task_revision": 34,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:29:11+00:00",
+  "updated_at": "2026-10-11T11:44:40+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -143,3 +143,5 @@ labelled.
 
 - 2026-10-11T11:29:11+00:00: Independent review and all hosted checks are complete; coordinator
   resumes signed local merge.
+
+- 2026-10-11T11:44:40+00:00: Claimed by coordinator.
