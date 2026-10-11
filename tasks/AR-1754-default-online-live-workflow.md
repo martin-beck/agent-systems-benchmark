@@ -11,7 +11,7 @@
     "AR-1733"
   ],
   "id": "AR-1754",
-  "next_action": "Promote after AR-1723, AR-1724, and cli2key qualification AR-1733 are current; inventory every run/sweep/easy/record/campaign/TUI entry point, implement default-online routing with explicit --local-mock and offline replay alternatives, then qualify positive and negative paths.",
+  "next_action": "PR #558 is published at exact signed head ba12e5da; independent technical review must inspect the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure.",
   "owner": "codex-ar1754-online-integration",
   "plan": "../plans/AR-1754-default-online-live-workflow.md",
   "priority": "P0",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 32,
+  "task_revision": 33,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T02:30:10+00:00",
+  "updated_at": "2026-10-11T02:30:54+00:00",
   "worktree_key": ""
 }
 ---
@@ -132,3 +132,7 @@ production authority checks.
   cde28356e41ef2731532cbb9e97314b094f95b9838b287252d85503913314b3d.
 
 - 2026-10-11T02:30:10+00:00: Heartbeat by codex-ar1754-online-integration.
+
+- 2026-10-11T02:30:54+00:00: Published PR #558 for configured/provider-selection online-default
+  routing and explicit --local-mock alternatives. Focused asb-cli tests pass 342/342; exact-head CI
+  is pending.

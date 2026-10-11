@@ -7,7 +7,7 @@ Never edit this file directly.
 
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1754](tasks/AR-1754-default-online-live-workflow.md): Make online execution the default across ASB workflows | Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives. | Promote after AR-1723, AR-1724, and cli2key qualification AR-1733 are current; inventory every run/sweep/easy/record/campaign/TUI entry point, implement default-online routing with explicit --local-mock and offline replay alternatives, then qualify positive and negative paths. | codex-ar1754-online-integration |
+| P0 | [AR-1754](tasks/AR-1754-default-online-live-workflow.md): Make online execution the default across ASB workflows | Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives. | PR #558 is published at exact signed head ba12e5da; independent technical review must inspect the complete diff, then wait for all 15 exact-head checks to reach terminal success. No GitHub Reviews API approval object is required; merge only through the documented signed protected-main procedure. | codex-ar1754-online-integration |
 
 ## Open
 
