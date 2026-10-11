@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair P1 read_local fixture verification and transactional receipt/config/binary publication on exact head 883d7c13; add positive and negative tests, then sign/push and rerun CI.",
+  "next_action": "Monitor hosted CI for exact head 62951d56; inspect and repair only exact-head failures, then perform independent review and handoff for merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 78,
+  "task_revision": 79,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:04:30+00:00",
+  "updated_at": "2026-10-11T10:07:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -264,3 +264,8 @@ reporting contract when available while keeping machine-mode output safe.
   explicit local fixture IDs such as matrix; receipt publication occurs after active binary/config
   and can leave partial install on failure. Preserve safe explicit-local fixture verification and
   rollback prior install/config on receipt failure.
+
+- 2026-10-11T10:07:43+00:00: Checkpoint 62951d56: signed DCO repair makes explicit local fixture
+  verification catalog-independent but digest-bound, and publishes receipt before config with
+  rollback of receipt/binary on failure. Focused fixture, rollback, install-matrix, and full asb-cli
+  lib tests pass (357/357).
