@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair PR #574 coverage floor failure (workspace 89.99%) with bounded tests or equivalent coverage improvement; rerun Rust/policy/full gates, then review and local signed merge.",
+  "next_action": "Await required checks for PR #574 at 0a389a2f (coverage repaired to 90.28%); then obtain independent exact-head review, merge only through signed local merge-integrity, and verify exact-main workflows.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair",
   "observed_dirty": 216,
   "observed_head": "62951d5629fae89653497545952247c0cbed382f",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 67,
+  "task_revision": 68,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:30:46+00:00",
+  "updated_at": "2026-10-11T10:35:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -177,3 +177,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:30:46+00:00: Exact-head PR #574 fc4e8c9 is based on af75cd06 and all checks except
   Policy coverage and Rust are successful; Policy reports 89.99% workspace lines, no merge yet.
+
+- 2026-10-11T10:35:31+00:00: Coverage repair pushed as signed/DCO 0a389a2f: bounded
+  oversized-artifact, digest-mismatch, and local typed-error tests; focused 10/10 and full asb-cli
+  357+ integrations/docs pass. Hosted checks restarting.
