@@ -36,5 +36,5 @@ Generated from local Git and GitHub. Do not edit.
 | 38105342950 | `ba12e5da038e` | pull_request | Portable protected-main provenance | completed:success |
 | 38105342949 | `ba12e5da038e` | pull_request | Cross-repository development broker qualification | in_progress:- |
 | 38105342939 | `ba12e5da038e` | pull_request | Repository quality | in_progress:- |
-| 38105342937 | `ba12e5da038e` | pull_request | Fault assurance | in_progress:- |
+| 38105342937 | `ba12e5da038e` | pull_request | Fault assurance | completed:success |
 | 38104013799 | `a31232f40146` | push | Cross-repository development broker qualification | completed:success |
