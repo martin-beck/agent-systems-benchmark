@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provenance fixture refreshed at ce16703c for intentional CLI source changes.",
-  "task_revision": 61,
+  "task_revision": 62,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:56:51+00:00",
+  "updated_at": "2026-10-11T14:56:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -215,3 +215,6 @@ protected merge, and post-merge evidence path.
   worktree. workflow_transcript 3 passed; diagnostic_contract 9 passed; clippy all asb-cli targets
   offline passed; diff-check passed. Updated cli_source_sha256 to
   ce392396a0dde999dfbe58437039eb31413d5016562a7bb0b5c27c38a8aaca03. Fresh exact-head CI pending.
+
+- 2026-10-11T14:56:54+00:00: Recorded command exit 0; command argv SHA-256
+  d0a5a8f396e21b13fc4b5097d35443a2da50cf0b7abf7b95e2a4a40a7181d61f.
