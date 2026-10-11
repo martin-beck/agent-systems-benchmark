@@ -61,7 +61,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install` | `docs/ar-1725-quickstart-platform-install` | `695f1335c4ed` | 0 | behind 4, ahead 2 |
 | `agent-systems-benchmark-ar-1725-v2` | `docs/ar-1725-quickstart-platform-install-v2` | `348488689ff0` | 0 | behind 2, ahead 1 |
 | `agent-systems-benchmark-ar-1736-backend-model-catalog` | `codex/ar-1736-backend-model-catalog` | `fa1940c0b9b1` | 0 | behind 1, ahead 0 |
-| `agent-systems-benchmark-ar-1736-integration` | `DETACHED` | `c059e9a63dbc` | 0 | behind 2, ahead 0 |
+| `agent-systems-benchmark-ar-1736-integration` | `DETACHED` | `4cb87998c133` | 0 | behind 0, ahead 0 |
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 7, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 8, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 5, ahead 0 |
