@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #579 exact head b8cf6cb3 has hosted checks pending and coverage attribution repair, but independent review found three AR-1777 blockers in acquisition: private local path leakage, special tar entry acceptance, and insufficient executable/entrypoint validation. No merge.",
-  "task_revision": 162,
+  "task_revision": 163,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:52:43+00:00",
+  "updated_at": "2026-10-11T12:54:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -576,3 +576,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:52:43+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T12:54:25+00:00: Recorded command exit 0; command argv SHA-256
+  35fa36306630b5eadf392c3e630f57093dad7e74571199b183d5e2ed30040e40.
