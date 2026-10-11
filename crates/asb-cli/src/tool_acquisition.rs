@@ -223,4 +223,41 @@ mod tests {
         assert_eq!(alt.verifier, "sha256");
         assert_eq!(alt.sha256.len(), 64);
     }
+
+    #[test]
+    fn fixture_is_strict_deterministic_and_namespaced() {
+        assert!(fixture("matrix").is_none());
+        assert!(fixture("fixture://").is_none());
+        assert!(fixture("fixture://Bad").is_none());
+        assert!(fixture("fixture://tool/name").is_none());
+        let first = fixture("fixture://matrix").expect("fixture");
+        let second = fixture("fixture://matrix").expect("fixture");
+        assert_eq!(first.bytes, second.bytes);
+        assert_eq!(first.source_ref, "fixture://matrix");
+        assert_eq!(first.alternative.verifier, "fixture");
+        assert!(first.entry.development_only);
+    }
+
+    #[test]
+    fn acquisition_errors_have_stable_public_messages() {
+        let errors = [
+            AcquisitionError::UnknownTool,
+            AcquisitionError::UnsupportedPlatform,
+            AcquisitionError::UnverifiedSource,
+            AcquisitionError::Unavailable,
+            AcquisitionError::TooLarge,
+            AcquisitionError::DigestMismatch,
+            AcquisitionError::UnsafeArtifact,
+            AcquisitionError::LicenseMissing,
+        ];
+        assert!(errors.iter().all(|error| !error.message().is_empty()));
+    }
+
+    #[test]
+    fn empty_artifacts_fail_before_catalog_resolution() {
+        assert!(matches!(
+            verify_bytes("missing", "fixture://missing".into(), Vec::new()),
+            Err(AcquisitionError::UnsafeArtifact)
+        ));
+    }
 }
