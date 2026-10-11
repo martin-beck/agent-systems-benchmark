@@ -1,5 +1,8 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1628](../tasks/AR-1628.md) | [AR-1615](../tasks/AR-1615.md), [AR-1626](../tasks/AR-1626.md) | [AR-1629](../tasks/AR-1629.md), [AR-1630](../tasks/AR-1630.md) |
+| [AR-1629](../tasks/AR-1629.md) | [AR-1628](../tasks/AR-1628.md) | None |
+| [AR-1630](../tasks/AR-1630.md) | [AR-1628](../tasks/AR-1628.md) | None |
 | [AR-1631](../tasks/AR-1631.md) | [AR-1563](../tasks/AR-1563.md), [AR-1564](../tasks/AR-1564.md), [AR-1588](../tasks/AR-1588.md), [AR-1604](../tasks/AR-1604.md) | [AR-1632](../tasks/AR-1632.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md) |
 | [AR-1632](../tasks/AR-1632.md) | [AR-1622](../tasks/AR-1622.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1639](../tasks/AR-1639.md), [AR-1640](../tasks/AR-1640.md) | [AR-1623](../tasks/AR-1623.md), [AR-1644](../tasks/AR-1644.md) |
 | [AR-1633](../tasks/AR-1633.md) | [AR-1604](../tasks/AR-1604.md), [AR-1631](../tasks/AR-1631.md) | [AR-1632](../tasks/AR-1632.md), [AR-1634](../tasks/AR-1634.md) |
@@ -162,7 +165,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head 7019409f on protected-main base 14de8bce; bounded gzip extraction, diagnostic identities, provenance refreshed; local full coverage passes; hosted required checks pending | Monitor PR #579 hosted checks at exact head 7019409f to terminal result; merge only after independent review and all required checks green. |
+| P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head 56ca12a7 on protected-main base 14de8bce; source-only archive rejection and bounded archive validation preserved; obsolete generated diagnostic catalog removed; focused diagnostic contract 9/9 and clean local workspace coverage 90.26&#37; (148126 lines, 9574 missed); hosted checks must rerun at new head. | Monitor fresh exact-head PR #579 Policy/Rust/AArch64 and required checks; inspect any failure, then independent review before merge. |
 | P0 | [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | codex-ar1795-v051-coverage | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. |
 
 ### Open (3)
@@ -572,5 +575,3 @@
 | P0 | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md): AR-1309 capacity decision | Unclaimed | Select a reviewed AR-1309 capacity/model contract after runner failure. | Classify evidence and select AR-1309&#x27;s capacity/model contract. |
 | P0 | [AR-1519](../tasks/AR-1519.md): AR-1307/1308 reduced-model development profile | Unclaimed | Reduced development tier implemented with explicit 900s/1-worker/2G/2G/4G bounds and non-claiming attestation. | Independently review the exact head, then release this development-only repair; full AR-1307/1308 qualification remains separate. |
 | P0 | [AR-1520](../tasks/AR-1520.md): AR-1308 reduced-profile runtime qualification | Unclaimed | Reduced profile passes self-contained QEMU: transient admission, bounded models, sanitized non-claiming attestation, and clean poweroff. | Release after exact-head review; retain AR-1307/1308 formal qualification as separate blocked gates. |
-| P0 | [AR-1523](../tasks/AR-1523.md): Platform authority deployment adapter | Unclaimed | Qualify the central orchestration path with deterministic local/mock and strict-replay authority; deployment-owned live authority is optional future hardening, not a development prerequisite. | Development path is unblocked: promote and claim this AR, qualify the existing central orchestrator with deterministic local/mock and strict-replay authority, and run exact-head gates. A deployment-owned authenticated source is optional future production hardening and must not block development qualification. |
-| P0 | [AR-1524](../tasks/AR-1524.md): Repair live-dispatch dependency graph | Unclaimed | Repair the stale AR-1374/1375 dependency cycle and make AR-1523 the canonical live-dispatch successor. | Promote after dependency verification; supersede the stale AR-1375 cycle and route AR-1374 to AR-1523 without changing product code. |
