@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for ce16703c and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for 23c7d6a7 and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "ce16703c2ad73d227f6f507303dd7623302a7b74",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Provenance fixture refreshed at ce16703c for intentional CLI source changes.",
-  "task_revision": 64,
+  "summary": "Coverage repair pushed at 23c7d6a7 with focused source-checkout failure-branch tests.",
+  "task_revision": 65,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:57:13+00:00",
+  "updated_at": "2026-10-11T15:07:29+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -223,3 +223,8 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:57:13+00:00: Recorded command exit 0; command argv SHA-256
   58063010f5fa48ea54966f2175222b4cb499a1c842b889445ce839e9269ade1d.
+
+- 2026-10-11T15:07:29+00:00: Exact product head 23c7d6a7; clean worktree. Source-checkout focused
+  tests 9 passed; source_checkout coverage 92.66% lines / 95.13% line execution; cargo clippy
+  asb-cli all targets offline passed; git diff --check passed. Locked workspace coverage measured
+  88.68% (baseline workspace deficit remains below 90% floor); no threshold weakening.

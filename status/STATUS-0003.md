@@ -1469,8 +1469,8 @@
 | Owner | ar1798-source-checkout-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | Provenance fixture refreshed at ce16703c for intentional CLI source changes. |
-| Next action | Monitor fresh exact-head CI for ce16703c and obtain independent re-review; do not merge. |
+| Summary | Coverage repair pushed at 23c7d6a7 with focused source-checkout failure-branch tests. |
+| Next action | Monitor fresh exact-head CI for 23c7d6a7 and obtain independent re-review; do not merge. |
 
 
 ## Dependency graph
