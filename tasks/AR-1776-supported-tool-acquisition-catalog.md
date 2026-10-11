@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1776-supported-tool-acquisition-catalog",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T08:25:30+00:00",
   "depends_on": [
     "AR-1761",
     "AR-1762"
@@ -12,7 +12,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1776-tool-catalog-luna56",
   "plan": "../plans/AR-1776-supported-tool-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1776.json",
   "spec_revision": 2,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Define pinned official acquisition and build recipes for every ASB-supported executable tool.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Supported-tool acquisition catalog",
-  "updated_at": "2026-10-11T06:25:21+00:00",
+  "updated_at": "2026-10-11T06:25:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1776-supported-tool-acquisition-catalog"
 }
 ---
@@ -64,3 +64,5 @@ dependency/preflight catalog rather than falsely represented as downloadable
 tools.
 
 - 2026-10-11T06:25:21+00:00: dependencies verified
+
+- 2026-10-11T06:25:30+00:00: Claimed by codex-ar1776-tool-catalog-luna56.
