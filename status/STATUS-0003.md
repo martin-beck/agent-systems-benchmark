@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Independent exact diff review is complete; full asb-cli suite has one pre-existing human diagnostic assertion failure unrelated to AR-1784, while all four new registry tests and public-command inventory test pass. Parent should decide PR publication with this known baseline blocker. |
+| Next action | Repair PR #573 exact head 9d729dd6: add human-readable default asb preflight output with equivalent --json and scope dependency readiness to selected agent/runtime. Add positive/negative tests, signed DCO commit, push, and rerun applicable gates. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 

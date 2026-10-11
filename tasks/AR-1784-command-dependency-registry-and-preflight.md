@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Independent exact diff review is complete; full asb-cli suite has one pre-existing human diagnostic assertion failure unrelated to AR-1784, while all four new registry tests and public-command inventory test pass. Parent should decide PR publication with this known baseline blocker.",
+  "next_action": "Repair PR #573 exact head 9d729dd6: add human-readable default asb preflight output with equivalent --json and scope dependency readiness to selected agent/runtime. Add positive/negative tests, signed DCO commit, push, and rerun applicable gates.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 6,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 68,
+  "task_revision": 69,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:09:28+00:00",
+  "updated_at": "2026-10-11T10:09:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -237,3 +237,7 @@ and end-to-end development-run tests in the same change.
   7926f54e20391f644ebf2185aacdb6c382142b5d8ec883e1b3fd77ddc6089183.
 
 - 2026-10-11T10:09:28+00:00: Heartbeat by ar1784_dependency_registry_luna56.
+
+- 2026-10-11T10:09:33+00:00: Independent review P1 findings recorded: preflight currently lacks
+  human-readable default output; readiness evaluates all 11 agent IDs instead of selected
+  command/runtime scope. Preserve --json parity and fail-closed selected-scope checks.
