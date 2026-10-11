@@ -21,7 +21,7 @@ Generated from local Git and GitHub. Do not edit.
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
 | #560 | `codex/ar-1736-backend-model-catalog@89852e60c5bf` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | Bind backend model selections to catalog identity |
-| #563 | `codex/ar-1786-control-state-protected-current@a5e589544f6d` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(control): use descriptor-scoped state locks |
+| #563 | `codex/ar-1786-control-state-protected-current@a5e589544f6d` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | fix(control): use descriptor-scoped state locks |
 
 ## Recent workflows
 
@@ -34,7 +34,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38119108592 | `a5e589544f6d` | pull_request | Fault assurance | completed:success |
 | 38119108589 | `a5e589544f6d` | pull_request | Cross-repository development broker qualification | completed:success |
 | 38119108588 | `a5e589544f6d` | pull_request | Portable protected-main provenance | completed:success |
-| 38119108576 | `a5e589544f6d` | pull_request | Formal assurance | in_progress:- |
+| 38119108576 | `a5e589544f6d` | pull_request | Formal assurance | completed:success |
 | 38119108573 | `a5e589544f6d` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38119108571 | `a5e589544f6d` | pull_request | Rust verification | in_progress:- |
 | 38119108570 | `a5e589544f6d` | pull_request | Emulated aarch64 portability | in_progress:- |
