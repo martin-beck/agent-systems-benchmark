@@ -2,7 +2,7 @@
 {
   "branch": "docs/ar-1725-quickstart-platform-install",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T08:49:01+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1336",
     "AR-1338",
@@ -16,7 +16,7 @@
   "observed_branch": "docs/ar-1725-quickstart-platform-install",
   "observed_dirty": 0,
   "observed_head": "695f1335c4ede05b174cb6f369c4415ec1556fcf",
-  "owner": "ar1725-docs-luna56",
+  "owner": "",
   "plan": "../plans/AR-1725-documentation-quickstart-and-platform-install.md",
   "priority": "P1",
   "schema_version": 1,
@@ -30,11 +30,11 @@
   },
   "spec_ref": "specs/AR-1725.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 37,
+  "task_revision": 38,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:43:21+00:00",
+  "updated_at": "2026-10-11T07:43:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -164,3 +164,6 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T07:43:21+00:00: Recorded command exit 0; command argv SHA-256
   0356ba3e9812b436f79c6cbc066dde99101bb6b554d4b31a5181d281f46e4811.
+
+- 2026-10-11T07:43:38+00:00: AR-1725 complete: protected PR #565 merged at 7e795589; exact-main
+  tutorial freshness and link audit passed; hosted acceptance evidence recorded.

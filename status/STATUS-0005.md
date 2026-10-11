@@ -146,13 +146,12 @@
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1716](../tasks/AR-1716.md): Cassette provider-profile identity binding | codex-ar1716-recording-fence-luna56 | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | PR #566 rebased onto protected main 7e795589 at exact head 58a445a5; await fresh required checks green, then protected merge and exact-main verification. |
 | P0 | [AR-1717](../tasks/AR-1717.md): Comparison exact provider/settings/endpoint identity fences | codex-ar1717-comparison | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. | Monitor exact-head PR #567 checks at a454f5483b60ff9d837f8f49e718372315e45b02 to terminal green, obtain independent review, then protected merge/postmerge verify and accept/release. |
-| P1 | [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | ar1725-docs-luna56 | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | Post-merge exact main verified at 7e795589fd4dbefecf17a7d4457623e1de33d2b4: tutorial freshness passes and broken link audit reports 0. Accept and release with protected merge evidence. |
 
 ### Open (1)
 
@@ -353,7 +352,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (573)
+### Done (574)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -568,3 +567,4 @@
 | P0 | [AR-1527](../tasks/AR-1527.md): Normalize AR-1307/1308 development seed policy | Unclaimed | Remove reviewed seed and digest prerequisites from the AR-1307/1308 development path while preserving separate formal and release evidence gates. | Promote after state review; audit AR-1307/1308 and every active dependent for development-only seed/digest prerequisites, then normalize their task and plan language without changing formal gates. |
 | P0 | [AR-1528](../tasks/AR-1528.md): Rerun AR-1307/1308 development fixtures | Unclaimed | Run the repaired AR-1307/1308 unsigned-development fixture path and preserve separate formal qualification blockers. | No further action: development fixture rerun is complete; retain its non-qualifying evidence while formal work proceeds separately. |
 | P0 | [AR-1529](../tasks/AR-1529.md): AR-1307/1308 formal capacity decision successor | Unclaimed | Replace the stale AR-1309 dependency with a reviewed formal capacity/model decision grounded in the completed capacity and reduced-profile evidence. | No further action: the 8 GiB/8 GiB signed-capacity contract is recorded; AR-1530 owns implementation. |
+| P0 | [AR-1530](../tasks/AR-1530.md): State formal capacity profile for AR-1307/1308 | Unclaimed | Implement the state-owned 8G/8G formal capacity profile selected by AR-1529 and route it to AR-1522. | No further action: merged PR #31 provides the signed-capacity-8g profile; AR-1531 owns disposable fixture provisioning. |
