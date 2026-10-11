@@ -9,7 +9,7 @@
   "id": "AR-1778",
   "next_action": "Implement catalog-pinned source fallback builds and project-local dependency materialization for supported tools without root or ambient package-manager mutation.",
   "observed_branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
-  "observed_dirty": 0,
+  "observed_dirty": 1,
   "observed_head": "570cbf7c64ca1147cf6a9e7b5971d6d27f99254b",
   "owner": "codex-ar1778-luna56",
   "plan": "../plans/AR-1778-pinned-source-build-and-project-dependencies.md",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 16,
+  "task_revision": 17,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:30:56+00:00",
+  "updated_at": "2026-10-11T08:31:43+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---

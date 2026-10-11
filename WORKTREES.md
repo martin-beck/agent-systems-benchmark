@@ -68,7 +68,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 19, ahead 0 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `bb0f371d02df` | 1 | behind 8, ahead 2 |
 | changed files | - | - | - | `crates/asb-cli/src/lib.rs` |
-| `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `570cbf7c64ca` | 0 | behind 0, ahead 2 |
+| `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `570cbf7c64ca` | 1 | behind 0, ahead 2 |
+| changed files | - | - | - | `crates/asb-cli/src/source_builder.rs` |
 | `agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight` | `feature/ar-1784-command-dependency-registry-and-preflight` | `fe7f1ce8b34d` | 1 | behind 8, ahead 1 |
 | changed files | - | - | - | `crates/asb-cli/src/dependency_registry.rs` |
 | `agent-systems-benchmark-ar1710` | `codex/ar1710-provider-model-readiness` | `c059e9a63dbc` | 0 | behind 16, ahead 0 |
