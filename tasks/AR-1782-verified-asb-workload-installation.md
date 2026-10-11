@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 exact remote head 4b79404a; fresh exact-head policy/Rust/TUI/credential-free checks are pending after lifecycle/output repair. Local focused lifecycle, diagnostic contract, workflow transcript, clippy pass; inspect hosted results and repair only genuine failures. Do not merge.",
+  "next_action": "PR #584 exact remote head 35fef02b; stale duplicate legacy diagnostic identity removed for lib.rs:4143 (reviewed legacy_cli_ar1782_4094). Full credential-free-equivalent 384 asb-cli lib tests, diagnostic identity, diagnostic-contract 9 tests, lifecycle focused, workflow transcript, clippy/format pass. Poll fresh exact-head CI; do not merge.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 0,
   "observed_head": "12fbe26399975e9114a451ddee632bdadb65b820",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 106,
+  "task_revision": 107,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T16:20:17+00:00",
+  "updated_at": "2026-10-11T16:21:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -323,3 +323,7 @@ remain mandatory.
 
 - 2026-10-11T16:20:17+00:00: Recorded command exit 0; command argv SHA-256
   293c2148a179cf191174557f643f16f9891d390fd73eaa6feadfba1fcb474444.
+
+- 2026-10-11T16:21:33+00:00: Repaired hosted Rust and credential-free catalog mismatch by removing
+  duplicate lib.rs:4143 identity; signed+DCO commit 35fef02b pushed. Full credential-free lib suite
+  passes 384/384 locally.

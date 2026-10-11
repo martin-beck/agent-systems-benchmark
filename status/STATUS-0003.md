@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 exact remote head 4b79404a; fresh exact-head policy/Rust/TUI/credential-free checks are pending after lifecycle/output repair. Local focused lifecycle, diagnostic contract, workflow transcript, clippy pass; inspect hosted results and repair only genuine failures. Do not merge. |
+| Next action | PR #584 exact remote head 35fef02b; stale duplicate legacy diagnostic identity removed for lib.rs:4143 (reviewed legacy_cli_ar1782_4094). Full credential-free-equivalent 384 asb-cli lib tests, diagnostic identity, diagnostic-contract 9 tests, lifecycle focused, workflow transcript, clippy/format pass. Poll fresh exact-head CI; do not merge. |
 
 ### AR-1783 — Installed workload selection and execution
 
