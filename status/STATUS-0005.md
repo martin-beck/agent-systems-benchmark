@@ -150,7 +150,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | codex-ar1715-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Create a product-bound repair AR for the disposable config-path inconsistency: setup persisted a valid OpenRouter selection under the supplied XDG_CONFIG_HOME, but provider-plan --use-config reported configuration absent. After exact-head repair, regenerate one config-bound selection and rerun benchmark-live selected/all human and JSON plus the credential/no-fallback negative matrix. |
+| P0 | [AR-1715](../tasks/AR-1715.md): Credential-backed development OpenRouter qualification | codex-ar1715-qualification | Run the real OpenRouter selected/all live benchmark smoke and typed failure matrix with an operator API key, producing a privacy-safe exact-head receipt. | Run the post-AR-1785 CLI live qualification matrix on exact main: regenerate config-bound selection, exercise selected/all human and JSON, then complete credential-free typed negative cases without retaining the runtime key. |
 
 ### Open (2)
 
