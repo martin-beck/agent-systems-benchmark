@@ -17,9 +17,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T01:08:28+00:00",
+  "updated_at": "2026-10-11T01:15:14+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---
@@ -109,3 +109,6 @@ requested; live failures never silently select mock or replay.
   d49f406d52c1bc511b827cb7d4de12400fc31f65bb8e568939ef4f03358e2def.
 
 - 2026-10-11T01:08:28+00:00: Heartbeat by codex-ar1723-online-default.
+
+- 2026-10-11T01:15:14+00:00: Recorded command exit 0; command argv SHA-256
+  5e48b7ee436ee6ec8f242b93b89ca3f976d8c5cfec46dbbc160c76b3fd0cbf98.
