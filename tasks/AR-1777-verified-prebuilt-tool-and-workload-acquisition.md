@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor fresh exact-head PR #579 Policy/Rust/AArch64 and required checks; inspect any failure, then independent review before merge.",
+  "next_action": "Resolve hosted policy coverage failure for PR #579 exact head 56ca12a7: no lcov artifact is published, so compare the hosted collector configuration/logs with a clean local run or add a focused repair AR; do not merge while required coverage is red.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head 56ca12a7 on protected-main base 14de8bce; source-only archive rejection and bounded archive validation preserved; obsolete generated diagnostic catalog removed; focused diagnostic contract 9/9 and clean local workspace coverage 90.26% (148126 lines, 9574 missed); hosted checks must rerun at new head.",
-  "task_revision": 125,
+  "summary": "PR #579 exact head 56ca12a7; implementation/review and all checks except Policy, coverage, and supply chain pass. Hosted coverage reports 89.99% lines versus clean local 90.26%; run 38137549216 publishes no artifacts, so this is an unresolved collection discrepancy.",
+  "task_revision": 126,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:13:23+00:00",
+  "updated_at": "2026-10-11T12:13:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -446,3 +446,7 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:13:23+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T12:13:41+00:00: Verified via gh pr checks and Actions artifacts API: required Policy,
+  coverage, and supply chain check failed; all other hosted checks pass. Exact local driver and
+  independent review pass. No gate weakening or merge authorized.
