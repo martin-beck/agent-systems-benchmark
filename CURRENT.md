@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head f299ef1c has bounded allocator/clippy fixes but full CLI and hosted Credential-free still fail replay authority. Investigation points to AF_UNIX path overflow from the new PID-scoped root plus digest-named relay socket; repair worker is validating and fixing this. | Repair fixture socket path-length failure: PID-scoped /tmp/asb-dr-{pid}-{seq} makes relay path exceed AF_UNIX limit with replay digest socket names, yielding development replay authority unavailable. Shorten bounded fixture root identity while preserving cross-process isolation, add path-length regression, rerun full CLI and hosted checks. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
-| P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Publish the bounded policy repair, then add enforceable integration-queue and evidence-reuse controls without weakening merge-result assurance. | codex-ar1796-integration-liveness |
+| P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Implement candidate-bound publication admission before moving remote I/O outside the authority lock. | codex-ar1796-integration-liveness |
 
 ## Open
 

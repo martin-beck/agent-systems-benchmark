@@ -1442,7 +1442,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Keep autonomous development live during concurrent protected-main integration. |
-| Next action | Publish the bounded policy repair, then add enforceable integration-queue and evidence-reuse controls without weakening merge-result assurance. |
+| Next action | Implement candidate-bound publication admission before moving remote I/O outside the authority lock. |
 
 ### AR-1797 — Wire cli2key sidecar into live benchmark execution
 
