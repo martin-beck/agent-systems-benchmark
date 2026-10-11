@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 44,
+  "task_revision": 45,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T09:29:17+00:00",
+  "updated_at": "2026-10-11T09:29:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -166,3 +166,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T09:29:17+00:00: Recorded command exit 0; command argv SHA-256
   e45166d416386a84ac1c6ccdf6568aba68edc9b31afe819c372007130238329b.
+
+- 2026-10-11T09:29:37+00:00: Recorded command exit 0; command argv SHA-256
+  f78e3317aefc8f52c370a779a97f3484553f21ee8ffb202c888e81a132b00656.
