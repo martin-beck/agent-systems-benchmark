@@ -1420,11 +1420,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-ar1795-v051-coverage |
 | Parent | None |
 | Children | None |
 | Summary | Adopt v0.5.1 with strict coverage repair. |
@@ -2297,7 +2297,7 @@ flowchart LR
         AR_1792["AR-1792 - Done"]:::status_done
         AR_1793["AR-1793 - Planned"]:::status_planned
         AR_1794["AR-1794 - Open"]:::status_open
-        AR_1795["AR-1795 - Open"]:::status_open
+        AR_1795["AR-1795 - In progress"]:::status_in_progress
         AR_1796["AR-1796 - Open"]:::status_open
     end
     AR_0001 --> AR_0002

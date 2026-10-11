@@ -9,6 +9,7 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | PR #579 exact head 7019409f on protected-main base 14de8bce; bounded gzip extraction, diagnostic identities, provenance refreshed; local full coverage passes; hosted required checks pending | Monitor PR #579 hosted checks at exact head 7019409f to terminal result; merge only after independent review and all required checks green. | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | P0 | [AR-1781](tasks/AR-1781-external-workload-acquisition-catalog.md): External workload acquisition catalog | PR #578 merged at signed local merge 4a8f0925. | Wait for all exact-main workflows at 4a8f0925 to finish green, then post-merge verify and close AR-1781. | coordinator |
+| P0 | [AR-1795](tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. | codex-ar1795-v051-coverage |
 
 ## Open
 
@@ -16,7 +17,6 @@ Never edit this file directly.
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. | - |
 | P0 | [AR-1794](tasks/AR-1794-protected-main-merge-path-repair.md): Protected-main merge-path repair | Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity. | Keep open pending a clean signed local merge and green exact-main provenance receipt; do not use GitHub web merge. | - |
-| P0 | [AR-1795](tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | Adopt v0.5.1 with strict coverage repair. | Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate. | - |
 | P0 | [AR-1796](tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | Keep autonomous development live during concurrent protected-main integration. | Publish the bounded policy repair, then add enforceable integration-queue and evidence-reuse controls without weakening merge-result assurance. | - |
 
 ## Blocked

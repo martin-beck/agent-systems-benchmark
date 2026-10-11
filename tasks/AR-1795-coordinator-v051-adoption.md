@@ -2,21 +2,21 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T13:53:54+00:00",
   "depends_on": [
     "AR-1756"
   ],
   "id": "AR-1795",
   "next_action": "Add ASB-owned targeted tests until the strict 95 percent coverage gate passes, then independently review the exact candidate.",
-  "owner": "",
+  "owner": "codex-ar1795-v051-coverage",
   "plan": "../plans/AR-1795-coordinator-v051-adoption.md",
   "priority": "P0",
   "schema_version": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Adopt v0.5.1 with strict coverage repair.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Coordinator v0.5.1 adoption",
-  "updated_at": "2026-10-11T11:14:19+00:00",
+  "updated_at": "2026-10-11T11:53:54+00:00",
   "worktree_key": ""
 }
 ---
@@ -42,3 +42,5 @@ weakened.
 
 - 2026-10-11T11:14:19+00:00: Expired stale claim released; preserve coordinator adoption task for
   explicit reassignment.
+
+- 2026-10-11T11:53:54+00:00: Claimed by codex-ar1795-v051-coverage.
