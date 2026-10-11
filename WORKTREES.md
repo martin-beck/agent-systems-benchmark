@@ -68,7 +68,8 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `agent-systems-benchmark-ar-1754-merge` | `DETACHED` | `8e4dc926d4b8` | 0 | behind 52, ahead 0 |
 | `agent-systems-benchmark-ar-1754-online` | `codex/ar-1754-online-integration` | `0dcd147261d4` | 0 | behind 53, ahead 0 |
 | `agent-systems-benchmark-ar-1776` | `feature/ar-1776-supported-tool-acquisition-catalog` | `2521df12cc31` | 0 | behind 50, ahead 0 |
-| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `56ca12a79ec3` | 0 | behind 2, ahead 18 |
+| `agent-systems-benchmark-ar-1777-current` | `feature/ar-1777-verified-tool-current` | `56ca12a79ec3` | 1 | behind 2, ahead 18 |
+| changed files | - | - | - | `crates/asb-runtime/src/launch_factory.rs` |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2` | `0a389a2f8aa3` | 0 | behind 18, ahead 15 |
 | `agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-clean` | `ec566dfdcde2` | 0 | behind 18, ahead 18 |
 | `agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies` | `feature/ar-1778-pinned-source-build-and-project-dependencies` | `1c11b88d2790` | 0 | behind 26, ahead 0 |
