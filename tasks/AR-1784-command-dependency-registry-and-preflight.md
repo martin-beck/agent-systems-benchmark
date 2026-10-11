@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T11:49:45+00:00",
+  "claim_expires": "2026-10-11T12:04:42+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 merged at signed local merge 14de8bce.",
-  "task_revision": 96,
+  "task_revision": 97,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:31:03+00:00",
+  "updated_at": "2026-10-11T11:34:42+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -334,3 +334,5 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T11:31:03+00:00: Independent review passed repaired head b8a1d6a1; all PR checks were
   green. Signed local merge-integrity produced two-parent merge 14de8bce with base af75cd06, head
   b8a1d6a1, tree b4ca9f20, and published it with force-with-lease.
+
+- 2026-10-11T11:34:42+00:00: Heartbeat by coordinator.
