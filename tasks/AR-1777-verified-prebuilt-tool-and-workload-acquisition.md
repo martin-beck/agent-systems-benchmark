@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T10:19:17+00:00",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "",
+  "owner": "codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56",
   "plan": "../plans/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Acquire, verify, and atomically install official compatible prebuilt executable tools into a project-local root.",
-  "task_revision": 3,
+  "task_revision": 4,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T08:19:13+00:00",
+  "updated_at": "2026-10-11T08:19:17+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -52,3 +52,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T08:19:13+00:00: AR-1776 dependency is accepted on protected main; open AR-1777 for
   implementation.
+
+- 2026-10-11T08:19:17+00:00: Claimed by
+  codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
