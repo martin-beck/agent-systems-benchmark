@@ -8,7 +8,7 @@
     "AR-1778"
   ],
   "id": "AR-1798",
-  "next_action": "Monitor fresh exact-head CI for a8afc77c and obtain independent re-review; do not merge.",
+  "next_action": "Monitor fresh exact-head CI for aa9569a3 and obtain independent re-review; do not merge.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb",
@@ -27,10 +27,10 @@
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Coverage repair pushed at a8afc77c with checkout bounds tests.",
-  "task_revision": 108,
+  "summary": "Coverage repair pushed at aa9569a3 with nonzero command test.",
+  "task_revision": 109,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T16:10:23+00:00",
+  "updated_at": "2026-10-11T16:19:28+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -354,3 +354,9 @@ protected merge, and post-merge evidence path.
   claim.
 
 - 2026-10-11T16:10:23+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T16:19:28+00:00: Exact product head aa9569a361c4463259664e08cad7a3b84492b718; product
+  worktree clean. Added deterministic direct nonzero bounded-command failure test. Focused
+  source_checkout tests 16 passed; fmt, clippy, diff-check passed. Full locked workspace llvm-cov
+  --fail-under-lines 90 passed locally: TOTAL lines 90.23%, regions 88.70%, exit 0. No threshold
+  changes. Live projection remains affected by unrelated expired AR-1796 claim.
