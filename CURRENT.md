@@ -8,7 +8,7 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1736](tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. | codex-asb-ar1736-catalog-luna56-20261011 |
-| P0 | [AR-1786](tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Wait for PR #561 exact-head required CI on 378787cd; merge only through protected workflow when all required checks are green, then verify exact main. | codex-ar1786-review-merge-luna56 |
+| P0 | [AR-1786](tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Monitor PR #563 exact-head required CI at a5e58954 until all required checks are terminal green; then merge through protected workflow and verify exact protected main. | codex-ar1786-review-merge-luna56 |
 
 ## Open
 

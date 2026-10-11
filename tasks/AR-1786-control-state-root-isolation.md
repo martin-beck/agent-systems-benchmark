@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Wait for PR #561 exact-head required CI on 378787cd; merge only through protected workflow when all required checks are green, then verify exact main.",
+  "next_action": "Monitor PR #563 exact-head required CI at a5e58954 until all required checks are terminal green; then merge through protected workflow and verify exact protected main.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 124,
+  "task_revision": 125,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:46:47+00:00",
+  "updated_at": "2026-10-11T06:47:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -413,3 +413,8 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-11T06:46:47+00:00: Recorded command exit 0; command argv SHA-256
   de36d8360688f3b3f07070b0c6bd366f3be551430575207e3ec8712628f9b3b3.
+
+- 2026-10-11T06:47:25+00:00: PR #561 and #562 are closed as stale/conflicting superseded
+  publications. Current PR #563 is based on protected main fa9e0c6c at exact head
+  a5e589544f6d865c0e195780ec728e0b4d5cfff6. Portable protected-main provenance is green; remaining
+  required workflows are running or queued. No merge claimed.
