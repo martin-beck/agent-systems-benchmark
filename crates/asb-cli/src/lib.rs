@@ -9503,6 +9503,8 @@ fn parse_run_ref(path: &Path) -> Result<(&Path, &str), CliError> {
 fn comparison_field_name(value: ComparisonField) -> &'static str {
     match value {
         ComparisonField::Agent => "agent",
+        ComparisonField::Provider => "provider",
+        ComparisonField::Generation => "generation",
         ComparisonField::Model => "model",
         ComparisonField::ModelSettings => "model_settings",
         ComparisonField::ProviderProfile => "provider_profile",
