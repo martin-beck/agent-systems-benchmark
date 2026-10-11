@@ -3,7 +3,9 @@
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
   "claim_expires": "",
-  "depends_on": ["AR-1776"],
+  "depends_on": [
+    "AR-1776"
+  ],
   "id": "AR-1784",
   "next_action": "Derive a complete command-to-tool/host-capability dependency registry and fail-fast preflight from all ASB command paths, adapters, monitors, and build recipes.",
   "observed_branch": "",
@@ -13,14 +15,21 @@
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
   "schema_version": 1,
-  "spec_acceptance": {"evidence_class": "contract-test", "evidence_digest": "", "evidence_ref": "", "spec_ref": "specs/AR-1784.json", "spec_revision": 2, "status": "pending"},
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "",
+    "evidence_ref": "",
+    "spec_ref": "specs/AR-1784.json",
+    "spec_revision": 2,
+    "status": "pending"
+  },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
-  "status": "planned",
+  "status": "open",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-10T09:49:36+00:00",
+  "updated_at": "2026-10-11T08:10:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -47,3 +56,6 @@ uninstallable host-only conditions before a run starts. Generate coverage from
 authoritative dispatch/adapter/build/workload declarations, so adding future
 tools or workloads requires catalog, command-dependency, preflight, selection,
 and end-to-end development-run tests in the same change.
+
+- 2026-10-11T08:10:08+00:00: AR-1776 is complete and its tool catalog is available; promote
+  dependency-ready AR-1784 for implementation.
