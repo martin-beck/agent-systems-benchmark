@@ -16998,6 +16998,6 @@ fn recording_selection_error(error: asb_replay::SourceSelectionError) -> CliErro
     }
 }
 
-pub mod source_builder;
 pub mod dependency_registry;
+pub mod source_builder;
 pub mod tool_catalog;
