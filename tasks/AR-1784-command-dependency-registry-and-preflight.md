@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 81,
+  "task_revision": 82,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:48:04+00:00",
+  "updated_at": "2026-10-11T08:48:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -63,6 +63,7 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T08:10:11+00:00: Claimed by ar1784_dependency_registry_luna56.
 
 - 2026-10-11T08:10:16+00:00: Heartbeat by ar1784_dependency_registry_luna56.
+- 2026-10-11: Root cause repaired within AR-1784: baseline origin/main 4245b4a1 passed the human diagnostic assertion; AR-1784 initially failed because preflight additions shifted line-addressed legacy callsites. Preserved lib.rs callsite lines and catalogued preflight identity at line 1010. Added AR-1793 as a narrowly scoped dependent repair record for the legacy output-parent wording contract; state files committed and pushed. Focused diagnostic_contract 9/9, diagnostic_journey 1/1, human_cli 15/15, workflow_transcript 3/3, and unchanged cargo test --locked -p asb-cli (349 unit plus all integration/doc tests) are green at signed product head cd8473f925cb3e785f0d675d3c5f83b42acdf48c. cargo fmt --check reports rustfmt expansion of the dispatch arm, which would shift the repository legacy line-address contract; publication remains pending parent review of this gate constraint.
 
 - 2026-10-11T08:10:39+00:00: Recorded command exit 0; command argv SHA-256
   431771e25c6fcb63cee2c212739b3c89638fc0e4eea3b496d3f3b0603f464748.
@@ -267,3 +268,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T08:47:59+00:00: Recorded command exit 1; command argv SHA-256
   f7e20666638201d8567703a3d7bc028e04a5e8e4c6c509de13d4976b0c91a669.
+
+- 2026-10-11T08:48:24+00:00: Recorded command exit 0; command argv SHA-256
+  8f69a98bff5dc433ce76528a435169940f784109f3c631d40b08c25d78c6cc5e.
