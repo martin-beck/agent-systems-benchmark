@@ -2,7 +2,7 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T04:01:57+00:00",
+  "claim_expires": "2026-10-11T04:04:12+00:00",
   "depends_on": [
     "AR-1699",
     "AR-1700",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make configured online/live provider execution the default for canonical run, sweep, easy, recording/campaign, and TUI handoff paths while keeping local mock and strict replay explicit alternatives.",
-  "task_revision": 105,
+  "task_revision": 106,
   "title": "Make online execution the default across ASB workflows",
-  "updated_at": "2026-10-11T03:31:57+00:00",
+  "updated_at": "2026-10-11T03:34:12+00:00",
   "worktree_key": ""
 }
 ---
@@ -342,3 +342,5 @@ production authority checks.
 - 2026-10-11T03:28:35+00:00: Heartbeat by codex-ar1754-online-integration.
 
 - 2026-10-11T03:31:57+00:00: Heartbeat by codex-ar1754-online-integration.
+
+- 2026-10-11T03:34:12+00:00: Heartbeat by codex-ar1754-online-integration.
