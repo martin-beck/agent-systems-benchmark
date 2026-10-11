@@ -2,7 +2,7 @@
 {
   "branch": "codex/ar-1786-control-state",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T08:58:28+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1733"
@@ -12,7 +12,7 @@
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
-  "owner": "codex-ar1786-review-merge-luna56",
+  "owner": "",
   "plan": "../plans/AR-1786-control-state-root-isolation.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1786.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 142,
+  "task_revision": 143,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T07:01:30+00:00",
+  "updated_at": "2026-10-11T07:01:38+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -482,3 +482,7 @@ gate into a serial-only or exclusion-based check.
   at c059e9a6: diagnostic_contract 9/9 and
   rejected_same_process_contender_preserves_owner_lock_for_other_processes with external probe pass.
   Hosted PR checks terminal green; SSH-signed DCO candidate a5e58954 merged by protected workflow.
+
+- 2026-10-11T07:01:38+00:00: Released AR-1786 done after protected merge
+  c059e9a63dbc73f40020dd2da4d48a02c9958362, terminal-green PR #563 exact-head CI, and exact-main
+  post-merge diagnostic and lock regression verification.
