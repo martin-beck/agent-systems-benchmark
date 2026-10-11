@@ -2,14 +2,14 @@
 {
   "branch": "codex/ar-1723-easy-online",
   "checkpoint_commit": "daae06efa2d78b11acd6902c5ac6958091bfe546",
-  "claim_expires": "2026-10-11T02:22:11+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1711",
     "AR-1715"
   ],
   "id": "AR-1723",
   "next_action": "Implement easy run default-online on the bound worktree; keep --local-mock explicit, add human/JSON positive and no-fallback negative coverage, then run focused/full gates and publish a reviewed PR.",
-  "owner": "codex-ar1723-online-default",
+  "owner": "",
   "plan": "../plans/AR-1723-easy-run-default-online.md",
   "priority": "P0",
   "schema_version": 1,
@@ -23,11 +23,11 @@
   },
   "spec_ref": "specs/AR-1723.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make the shortest user-facing run use the configured live provider by default while keeping local mock explicit and development authentication warning-only.",
-  "task_revision": 37,
+  "task_revision": 38,
   "title": "Make the easy run default to online provider execution",
-  "updated_at": "2026-10-11T01:29:04+00:00",
+  "updated_at": "2026-10-11T01:29:08+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1723"
 }
 ---
@@ -141,3 +141,7 @@ requested; live failures never silently select mock or replay.
 - 2026-10-11T01:29:04+00:00: Accepted exact merge f090de5 and terminal-green post-merge workflows;
   independent technical review, signatures/DCO, and local 341-test verification complete. GitHub
   Reviews API approval was not required.
+
+- 2026-10-11T01:29:08+00:00: AR-1723 complete: exact reviewed PR #556 merged as f090de5; all
+  required exact-head and post-merge workflows terminal SUCCESS; no GitHub Reviews API approval
+  object required.
