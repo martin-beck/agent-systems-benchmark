@@ -1246,7 +1246,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Implement dedicated verified remote external workload installation and lifecycle through asb workload. |
-| Next action | PR #584 updated to signed+DCO head 16c9bbd9; diagnostic identity and 379 CLI lib tests pass locally. Monitor fresh exact-head CI, independently review, then merge only after all required checks pass. |
+| Next action | PR #584 exact remote head 16c9bbd9; fresh CI has AWQ, headers, provenance, Kani, Loom, retained-faults passing; remaining required checks pending. Independently review; do not merge until all required checks pass. |
 
 ### AR-1783 — Installed workload selection and execution
 

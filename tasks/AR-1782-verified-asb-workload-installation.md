@@ -7,7 +7,7 @@
     "AR-1781"
   ],
   "id": "AR-1782",
-  "next_action": "PR #584 updated to signed+DCO head 16c9bbd9; diagnostic identity and 379 CLI lib tests pass locally. Monitor fresh exact-head CI, independently review, then merge only after all required checks pass.",
+  "next_action": "PR #584 exact remote head 16c9bbd9; fresh CI has AWQ, headers, provenance, Kani, Loom, retained-faults passing; remaining required checks pending. Independently review; do not merge until all required checks pass.",
   "observed_branch": "feature/ar-1782-verified-asb-workload-installation",
   "observed_dirty": 1,
   "observed_head": "a1090297dede4412bcf1487d2d7bc00315c69dc5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 41,
+  "task_revision": 42,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T14:42:02+00:00",
+  "updated_at": "2026-10-11T14:42:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -159,3 +159,6 @@ remain mandatory.
 
 - 2026-10-11T14:42:02+00:00: Recorded command exit 8; command argv SHA-256
   78f325bde3962aea10f3844ad0018af88b2cf3e001f1e02858b67193c031b6ae.
+
+- 2026-10-11T14:42:33+00:00: Verified origin branch and local HEAD both equal 16c9bbd9. Fresh
+  workflow run 381481250xx has no failures; nine required checks remain pending.
