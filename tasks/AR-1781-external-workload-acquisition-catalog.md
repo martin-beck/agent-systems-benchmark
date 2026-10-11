@@ -10,7 +10,7 @@
   "next_action": "Monitor PR #572 exact-head checks for 286cccd6; parent merges only after all required checks pass.",
   "observed_branch": "feature/ar-1781-external-workload-acquisition-catalog",
   "observed_dirty": 0,
-  "observed_head": "0db5831b7e6d87bf0993fcfd38889abc19595b6f",
+  "observed_head": "286cccd6d7c0337fe19fbfba4aadacfa0c8b40f5",
   "owner": "ar1781-luna56",
   "plan": "../plans/AR-1781-external-workload-acquisition-catalog.md",
   "priority": "P0",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 24,
+  "task_revision": 25,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T10:02:29+00:00",
+  "updated_at": "2026-10-11T10:07:21+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
