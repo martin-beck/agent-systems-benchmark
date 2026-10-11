@@ -12,13 +12,21 @@
   "plan": "../plans/AR-1736-backend-model-catalog-execution.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_acceptance": {
+    "evidence_class": "contract-test",
+    "evidence_digest": "sha256:7adfb1d710f0aa5c02fe42edb23661c7f3b4c51810ae3cd1802b857cdf269731",
+    "evidence_ref": "quality/AR-1736-postmerge-receipt.json",
+    "spec_ref": "specs/AR-1736.json",
+    "spec_revision": 1,
+    "status": "pass"
+  },
   "spec_ref": "specs/AR-1736.json",
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
-  "task_revision": 29,
+  "task_revision": 30,
   "title": "Require model catalogs and execution parity for every backend",
-  "updated_at": "2026-10-11T07:14:54+00:00",
+  "updated_at": "2026-10-11T07:15:17+00:00",
   "worktree_key": ""
 }
 ---
@@ -115,3 +123,7 @@ key services must not block this development AR.
 
 - 2026-10-11T07:14:54+00:00: Recorded command exit 0; command argv SHA-256
   274ac4b59c64c88b5b79bec6e4c137d31d8fbb9ff43d5ee16001881a9a0001b6.
+
+- 2026-10-11T07:15:17+00:00: Accepted after protected merge 4cb87998; exact-main checkout
+  verification passed the AR-1736 generation/digest/backend selection fixture, and all PR plus
+  post-merge required workflows are green.
