@@ -12,7 +12,7 @@
     "AR-1724"
   ],
   "id": "AR-1725",
-  "next_action": "Focused tutorial tests, guide_examples, link audit, and diff review pass. Full workspace cargo test has one unrelated mini_swe cancellation failure because handoffctl runs from state root and the temp product path overlaps the detected repository; rerun from product-bound wrapper or record as environment blocker. Platform validator independently fails baseline stale native report ancestry/tree.",
+  "next_action": "PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725.",
   "observed_branch": "docs/ar-1725-quickstart-platform-install",
   "observed_dirty": 0,
   "observed_head": "695f1335c4ede05b174cb6f369c4415ec1556fcf",
@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:00:18+00:00",
+  "updated_at": "2026-10-11T07:06:25+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -110,3 +110,6 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T07:00:18+00:00: Recorded command exit 0; command argv SHA-256
   515bdac4e61da48c9b8a5251cd9c5546974c0f169cceb072236bd4918b157b59.
+
+- 2026-10-11T07:06:25+00:00: Reconciled durable state to clean squashed PR #565 head 34848868; prior
+  draft PR #564 had a gitleaks false positive and is superseded.
