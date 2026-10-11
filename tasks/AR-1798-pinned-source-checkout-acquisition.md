@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
-  "task_revision": 98,
+  "task_revision": 99,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:54:33+00:00",
+  "updated_at": "2026-10-11T15:54:54+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -319,3 +319,6 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T15:54:33+00:00: Recorded command exit 1; command argv SHA-256
   42be77b16ccb8954ebec3b41fc8ba6cf35ce7698f52d0734a4efdc53d5bcb988.
+
+- 2026-10-11T15:54:54+00:00: Recorded command exit 1; command argv SHA-256
+  f663c75bf9af9a1acf21e362d15273fd39352499927b9415eba09e21b8072a49.
