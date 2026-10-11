@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1776-supported-tool-acquisition-catalog",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T08:41:04+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1761",
     "AR-1762"
@@ -12,7 +12,7 @@
   "observed_branch": "",
   "observed_dirty": 0,
   "observed_head": "",
-  "owner": "codex-ar1776-tool-catalog-luna56",
+  "owner": "",
   "plan": "../plans/AR-1776-supported-tool-acquisition-catalog.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1776.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Define pinned official acquisition and build recipes for every ASB-supported executable tool.",
-  "task_revision": 18,
+  "task_revision": 19,
   "title": "Supported-tool acquisition catalog",
-  "updated_at": "2026-10-11T06:44:47+00:00",
+  "updated_at": "2026-10-11T06:44:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1776-supported-tool-acquisition-catalog"
 }
 ---
@@ -104,3 +104,7 @@ tools.
 
 - 2026-10-11T06:44:47+00:00: Protected PR #559 merged at fa9e0c6c9e71e030ea20be54149e9d8692e5414b;
   exact-head required workflows green; fresh origin/main focused tool_catalog tests pass.
+
+- 2026-10-11T06:44:55+00:00: AR-1776 accepted after protected PR #559 merge
+  fa9e0c6c9e71e030ea20be54149e9d8692e5414b, exact-main ancestry verification, green required
+  workflows, and fresh origin/main focused catalog tests.

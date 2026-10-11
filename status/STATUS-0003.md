@@ -1154,11 +1154,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | codex-ar1776-tool-catalog-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Define pinned official acquisition and build recipes for every ASB-supported executable tool. |
@@ -2222,7 +2222,7 @@ flowchart LR
         AR_1773["AR-1773 - Planned"]:::status_planned
         AR_1774["AR-1774 - Planned"]:::status_planned
         AR_1775["AR-1775 - Planned"]:::status_planned
-        AR_1776["AR-1776 - In progress"]:::status_in_progress
+        AR_1776["AR-1776 - Done"]:::status_done
         AR_1777["AR-1777 - Planned"]:::status_planned
         AR_1778["AR-1778 - Planned"]:::status_planned
         AR_1779["AR-1779 - Planned"]:::status_planned
