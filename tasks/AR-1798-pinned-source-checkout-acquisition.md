@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at bb9bde85 with checkout limit ceiling tests.",
-  "task_revision": 74,
+  "task_revision": 75,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:32:53+00:00",
+  "updated_at": "2026-10-11T15:32:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -252,3 +252,6 @@ protected merge, and post-merge evidence path.
   worktree. Source-checkout focused tests 11 passed; hosted-equivalent locked workspace llvm-cov
   --fail-under-lines 90 passed: TOTAL lines 90.22%, regions 88.69%, exit 0. Clippy -p asb-cli
   --all-targets -D warnings and git diff --check passed. No threshold changes.
+
+- 2026-10-11T15:32:55+00:00: Recorded command exit 0; command argv SHA-256
+  3c31648f00e211bcd5c9b6de83d1cde8e5814efdb5a68aec147024baf2ec1174.
