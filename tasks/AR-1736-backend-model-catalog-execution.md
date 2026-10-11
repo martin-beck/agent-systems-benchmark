@@ -2,23 +2,23 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "",
+  "claim_expires": "2026-10-11T08:25:27+00:00",
   "depends_on": [
     "AR-1733"
   ],
   "id": "AR-1736",
   "next_action": "Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures.",
-  "owner": "",
+  "owner": "codex-asb-ar1736-catalog-luna56-20261011",
   "plan": "../plans/AR-1736-backend-model-catalog-execution.md",
   "priority": "P0",
   "schema_version": 1,
   "spec_ref": "specs/AR-1736.json",
   "spec_revision": 1,
-  "status": "open",
+  "status": "in_progress",
   "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
-  "task_revision": 2,
+  "task_revision": 3,
   "title": "Require model catalogs and execution parity for every backend",
-  "updated_at": "2026-10-11T06:25:24+00:00",
+  "updated_at": "2026-10-11T06:25:27+00:00",
   "worktree_key": ""
 }
 ---
@@ -35,3 +35,5 @@ key services must not block this development AR.
 
 - 2026-10-11T06:25:24+00:00: Dependency AR-1733 is durably done; promote for backend model catalog
   and execution parity implementation.
+
+- 2026-10-11T06:25:27+00:00: Claimed by codex-asb-ar1736-catalog-luna56-20261011.

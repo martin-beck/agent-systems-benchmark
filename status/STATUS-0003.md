@@ -594,11 +594,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open |
+| Status | in_progress |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | Unclaimed |
+| Owner | codex-asb-ar1736-catalog-luna56-20261011 |
 | Parent | None |
 | Children | None |
 | Summary | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. |
@@ -2182,7 +2182,7 @@ flowchart LR
         AR_1733["AR-1733 - Done"]:::status_done
         AR_1734["AR-1734 - Done"]:::status_done
         AR_1735["AR-1735 - Done"]:::status_done
-        AR_1736["AR-1736 - Open"]:::status_open
+        AR_1736["AR-1736 - In progress"]:::status_in_progress
         AR_1737["AR-1737 - Done"]:::status_done
         AR_1738["AR-1738 - Done"]:::status_done
         AR_1739["AR-1739 - Done"]:::status_done
