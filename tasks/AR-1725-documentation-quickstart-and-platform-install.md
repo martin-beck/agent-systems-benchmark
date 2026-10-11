@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 23,
+  "task_revision": 24,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:06:25+00:00",
+  "updated_at": "2026-10-11T07:06:31+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -113,3 +113,6 @@ gates, independent review, and exact-head hosted CI.
 
 - 2026-10-11T07:06:25+00:00: Reconciled durable state to clean squashed PR #565 head 34848868; prior
   draft PR #564 had a gitleaks false positive and is superseded.
+
+- 2026-10-11T07:06:31+00:00: Recorded command exit 8; command argv SHA-256
+  1dd74d5c789009242632fac966edc34829f5316081d56f81f33fbdc485eaa9eb.
