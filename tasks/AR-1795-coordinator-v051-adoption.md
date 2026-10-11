@@ -12,6 +12,8 @@
   "plan": "../plans/AR-1795-coordinator-v051-adoption.md",
   "priority": "P0",
   "schema_version": 1,
+  "spec_ref": "specs/AR-1795.json",
+  "spec_revision": 1,
   "status": "in_progress",
   "summary": "Adopt v0.5.1 with strict coverage repair.",
   "task_revision": 7,
