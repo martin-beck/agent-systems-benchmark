@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Await required checks for PR #573 at d1b15fa7; then complete exact-head review, merge, post-merge assurance, and accept/release.",
+  "next_action": "Await required checks for PR #573 at 9d729dd6; then complete independent exact-head review, merge, post-merge assurance, and accept/release.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 0,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 211,
+  "task_revision": 212,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:08:09+00:00",
+  "updated_at": "2026-10-11T10:08:23+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -579,3 +579,7 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T10:08:09+00:00: Recorded command exit 0; command argv SHA-256
   7926f54e20391f644ebf2185aacdb6c382142b5d8ec883e1b3fd77ddc6089183.
+
+- 2026-10-11T10:08:23+00:00: Repaired workflow provenance cli_source_sha256 to exact lib.rs digest
+  224a13cb; focused workflow_transcript tests pass 3/3; signed DCO product commit 9d729dd6 pushed to
+  PR #573.
