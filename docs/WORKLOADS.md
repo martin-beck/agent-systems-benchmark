@@ -38,6 +38,7 @@ and failure evidence without publishing task secrets or raw private transcripts.
 | Benchmark | Role in ASB | Priority / caveat |
 | --- | --- | --- |
 | [SWE-bench Lite / Verified](https://www.swebench.com/SWE-bench/guides/datasets/) | Repository issue repair with independent tests | First external repository suite; preserve official grading |
+| [SWE-mini](https://github.com/SWE-agent/mini-swe-agent) | Small repository-repair tasks through the mini-SWE-agent harness | Pinned official source and SWE-bench task revision; ASB fixture only until evaluator evidence is qualified |
 | [Terminal-Bench](https://www.tbench.ai/benchmarks) | Multi-step terminal, build and debugging work | First terminal suite; pin a published version and use its harness where practical |
 | [Aider Polyglot](https://aider.chat/docs/benchmarks.html) | Multi-language editing with test feedback | Early integration; normalize attempts and model budgets |
 | Exercism Tracks | Pinned multi-language exercise fixtures | Provenance-only candidate; preserve per-exercise licenses and keep evaluator evidence unavailable |
@@ -114,13 +115,13 @@ and paired uncertainty evidence; thresholds do not transfer silently between hos
 The checked-in original suite is fully public and has no holdout, contamination-
 resistance, native workload, or performance claim.
 
-The external registry also inventories the interactive workload boundaries
-AgentBench, tau-bench, and AgentDojo. They are explicit-download, non-vendored
-`executable-candidate` records only; task images, reset/scoring parity, licenses,
-and platform evidence must be qualified by later adapter ARs. Harbor, Inspect AI,
-and HAL are harness/framework boundaries, recorded as `methodology-only` and
-never selectable as benchmark tasks. AgentOps, HELM, and AI Agents That Matter
-are likewise methodology references and never selectable or executable workloads.
+The external registry inventories every documented workload and framework
+boundary, including AgentBench, tau-bench, AgentDojo, Harbor, Inspect AI, HAL,
+AgentOps, HELM, AI Agents That Matter, and SWE-mini. Every entry is an explicit-download,
+non-vendored `executable-candidate` with a pinned official source and a bounded
+ASB-owned development fixture. Task images, reset/scoring parity, licenses, and
+platform evidence remain separately qualified; missing production authorization,
+signatures, or hosted evidence never blocks development catalog selection.
 
 Every executable-candidate family also has a bounded ASB-owned development mock
 fixture. The mock uses an in-process deterministic model double, denies egress,
@@ -143,9 +144,9 @@ selection never invokes an upstream evaluator or provider.
 The CLI plan, stored-run validation, and execution paths resolve workload IDs
 through the unified catalog. Built-in IDs retain their protected grader, while
 literature IDs use only the bounded offline local fixture and deterministic
-mock scorer. Methodology-only records such as AgentOps, HELM, and AI Agents
-That Matter are rejected before plan or workspace effects; they are references,
-not executable workloads. Unknown and malformed identities fail closed.
+mock scorer. Framework records retain their methodology boundaries, while their
+bounded ASB fixtures are selectable for offline development. Unknown and malformed
+identities fail closed.
 
 Repository-repair and terminal-system entries expose stable capability tags,
 their pinned dataset/task revision, and declared attempt budget in the catalog.

@@ -17,8 +17,6 @@ def test_external_registry_is_pinned_and_non_vendored():
         item["id"] for item in sorted(data["workloads"], key=lambda value: value["id"])
     ]
     for item in data["workloads"]:
-        if item.get("selection") == "methodology-only":
-            continue
         assert item["dataset"]["vendored"] is False
         assert item["dataset"]["acquisition"] == "explicit-download"
         assert item["evaluator"]["image_digest"] is None
@@ -29,30 +27,23 @@ def test_external_registry_is_pinned_and_non_vendored():
             "unsupported-until-native-evidence",
         }
 
-    methodology = [
-        item
-        for item in data["workloads"]
-        if item.get("selection") == "methodology-only"
-    ]
-    assert {item["id"] for item in methodology} == {
-        "agentops",
-        "helm",
-        "ai-agents-that-matter",
-        "harbor",
-        "inspect-ai",
-        "hal",
-    }
-    assert all(item["attempt_budget"] == 0 for item in methodology)
-
     by_id = {item["id"]: item for item in data["workloads"]}
-    assert {"agentbench", "tau-bench", "agentdojo"} <= set(by_id)
+    assert {"agentbench", "tau-bench", "agentdojo", "swe-mini"} <= set(by_id)
     assert all(
         by_id[ident]["selection"] == "executable-candidate"
-        for ident in ["agentbench", "tau-bench", "agentdojo"]
+        for ident in ["agentbench", "tau-bench", "agentdojo", "swe-mini"]
+    )
+    fixture_candidates = {
+        "agentops", "ai-agents-that-matter", "harbor", "hal", "helm", "inspect-ai", "swe-mini"
+    }
+    assert all(
+        by_id[ident]["selection"] == "executable-candidate"
+        and by_id[ident]["attempt_budget"] == 1
+        for ident in fixture_candidates
     )
     assert all(
-        by_id[ident]["selection"] == "methodology-only"
-        for ident in ["harbor", "inspect-ai", "hal"]
+        by_id[ident].get("selection") == "executable-candidate"
+        for ident in by_id
     )
 
     terminal = next(

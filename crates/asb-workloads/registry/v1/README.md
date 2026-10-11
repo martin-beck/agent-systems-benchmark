@@ -38,15 +38,10 @@ reproducibility workload rather than a speedup suite and still requires exact
 capsule identities and answer-oracle parity before qualification.
 
 The registry also records the interactive workload boundaries AgentBench,
-tau-bench, and AgentDojo, plus the Harbor, Inspect AI, and HAL harnesses. The
-workload boundaries are `executable-candidate` records, not claims that their
-task images, scorers, reset behavior, licenses, or platform cells are qualified.
-The harnesses are `methodology-only` records: they describe execution
-boundaries but are never selectable as benchmark tasks. All remain
-explicit-download and non-vendored; a separate adapter must bind any workload
-lifecycle and deterministic local fixture before execution.
-
-AgentOps, HELM, and AI Agents That Matter are `methodology-only` references.
-They are intentionally present for provenance and design traceability but have
-zero execution budget, a `not-applicable` evaluator, and cannot be selected as
-workloads. No methodology reference adds a runtime dependency or provider call.
+tau-bench, and AgentDojo, plus the Harbor, Inspect AI, HAL, AgentOps, HELM, and
+AI Agents That Matter boundaries. Every record is an `executable-candidate`,
+not a claim that task images, scorers, reset behavior, licenses, or platform
+cells are qualified. All remain explicit-download and non-vendored and expose a
+bounded ASB-owned development fixture. Missing production authorization,
+signatures, or hosted evidence never blocks development selection, and no
+record adds a runtime dependency or provider call.

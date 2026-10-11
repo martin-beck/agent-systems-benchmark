@@ -261,17 +261,7 @@ def main() -> int:
             fail(f"{ident}: unknown fields are not permitted: {sorted(unknown)}")
         kind = item.get("kind")
         selection = item.get("selection")
-        if selection == "methodology-only":
-            if item.get("attempt_budget") != 0:
-                fail(f"{ident}: methodology references cannot have execution attempts")
-            if (
-                kind == "methodology-reference"
-                and item.get("evaluator", {}).get("entrypoint") != "not-applicable"
-            ):
-                fail(f"{ident}: methodology references cannot define an evaluator")
-        elif kind == "methodology-reference":
-            fail(f"{ident}: methodology references must be methodology-only")
-        elif selection not in {None, "executable-candidate"}:
+        if selection not in {None, "executable-candidate"}:
             fail(f"{ident}: executable candidates must be selectable as workloads")
         source = item.get("source", {})
         for label, value, allowed in (
@@ -306,7 +296,10 @@ def main() -> int:
             if source.get("commit")
             else [x.split("@", 1)[1] for x in source.get("repositories", [])]
         )
-        if not commits and kind == "methodology-reference" and source.get("revision"):
+        if not commits and source.get("revision"):
+            # Paper and specification sources have immutable revisions but no
+            # Git commit.  Keep the revision explicit without pretending it is
+            # a repository checkout.
             commits = ["methodology-revision"]
         if not commits or any(
             commit != "methodology-revision" and not SHA.fullmatch(commit)
@@ -343,8 +336,6 @@ def main() -> int:
             )
         if not item.get("limitations"):
             fail(f"{ident}: limitations must be explicit")
-        if kind == "methodology-reference":
-            continue
         if ident == "terminal-bench":
             validate_terminal_bench(item)
         if ident in PERFORMANCE_PINS:

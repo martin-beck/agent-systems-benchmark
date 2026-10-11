@@ -32,6 +32,7 @@ EXPECTATIONS = (
     ("Aider Polyglot", "aider-polyglot", "code-generation", "workload"),
     ("Exercism Tracks", "exercism-tracks", "code-generation", "workload"),
     ("SWE-bench Pro", "swe-bench-pro", "repository-repair", "workload"),
+    ("SWE-mini", "swe-mini", "repository-repair", "workload"),
     ("BigCodeBench", "bigcodebench", "code-generation", "workload"),
     ("HumanEval+", "evalplus", "code-generation", "workload"),
     ("MBPP+", "evalplus", "code-generation", "workload"),
@@ -94,8 +95,8 @@ def build_parity(registry: dict[str, Any], documents: dict[str, str]) -> dict[st
         selection = record.get("selection", "executable-candidate")
         kind = record.get("kind", "")
         framework = classification == "framework"
-        if framework != (selection == "methodology-only"):
-            fail(f"{name}: framework classification disagrees with registry selection")
+        if selection != "executable-candidate":
+            fail(f"{name}: documented records must remain development-selectable")
         evaluator = record.get("evaluator", {})
         provenance = evaluator.get("provenance", {})
         license_value = record.get("source", {}).get("license", "NOASSERTION")
@@ -113,7 +114,7 @@ def build_parity(registry: dict[str, Any], documents: dict[str, str]) -> dict[st
                 "evaluator": evaluator.get("entrypoint", "not-applicable"),
                 "evaluator_state": provenance.get("status", "not-applicable"),
                 "evidence_status": provenance.get("status", "not-applicable"),
-                "selectable": not framework,
+                "selectable": selection == "executable-candidate",
                 "framework_boundary": (
                     "framework-only; requires an independent task protocol and grader"
                     if framework
@@ -148,8 +149,8 @@ def validate_artifact(document: dict[str, Any]) -> None:
         names.add(entry["name"])
         if entry["kind"] not in {"workload", "framework"}:
             fail("generated artifact kind is invalid")
-        if entry["kind"] == "framework" and entry["selectable"]:
-            fail("framework-only entries cannot be selectable")
+        if not entry["selectable"]:
+            fail("documented entries must be selectable through a development fixture")
 
 
 def main() -> int:

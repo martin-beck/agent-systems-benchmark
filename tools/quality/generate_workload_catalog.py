@@ -53,7 +53,7 @@ def capability_tags(workload_id):
         return ["interactive", "safety-policy", "tool-use"]
     families = {
         "repository-repair": {
-            "swe-bench", "swe-bench-lite", "swe-bench-verified", "swe-bench-pro",
+            "swe-bench", "swe-bench-lite", "swe-bench-verified", "swe-bench-pro", "swe-mini",
             "swe-rebench", "swe-lancer",
         },
         "terminal-workflow": {"terminal-bench"},
@@ -62,8 +62,8 @@ def capability_tags(workload_id):
             "aider-polyglot", "exercism-tracks", "bigcodebench", "evalplus", "humaneval-plus",
             "mbpp-plus", "livecodebench",
         },
-        "stateful-tool-use": {"tau-bench", "agentdojo", "harbor", "inspect-ai"},
-        "harness-boundary": {"hal"},
+        "stateful-tool-use": {"tau-bench", "agentdojo", "harbor", "inspect-ai", "agentops"},
+        "harness-boundary": {"hal", "helm", "ai-agents-that-matter"},
     }
     for tag, ids in families.items():
         if workload_id in ids:

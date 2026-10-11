@@ -28,7 +28,7 @@ class LiteratureParityTests(unittest.TestCase):
 
     def test_every_documented_identity_has_one_canonical_registry_record(self) -> None:
         parity = MODULE.build_parity(self.registry, self.documents)
-        self.assertEqual(len(parity["entries"]), 25)
+        self.assertEqual(len(parity["entries"]), 26)
         self.assertEqual(
             {entry["registry_id"] for entry in parity["entries"]}
             - {record["id"] for record in self.registry["workloads"]},
@@ -36,7 +36,7 @@ class LiteratureParityTests(unittest.TestCase):
         )
         frameworks = [entry for entry in parity["entries"] if entry["kind"] == "framework"]
         self.assertTrue(frameworks)
-        self.assertTrue(all(not entry["selectable"] for entry in frameworks))
+        self.assertTrue(all(entry["selectable"] for entry in frameworks))
 
     def test_missing_documentation_fails_closed(self) -> None:
         documents = dict(self.documents)
@@ -50,11 +50,11 @@ class LiteratureParityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate or invalid registry identity"):
             MODULE.build_parity(registry, self.documents)
 
-    def test_framework_activation_is_rejected(self) -> None:
+    def test_framework_demotion_is_rejected(self) -> None:
         registry = json.loads(json.dumps(self.registry))
         harbor = next(record for record in registry["workloads"] if record["id"] == "harbor")
-        harbor["selection"] = "executable-candidate"
-        with self.assertRaisesRegex(ValueError, "framework classification disagrees"):
+        harbor["selection"] = "methodology-only"
+        with self.assertRaisesRegex(ValueError, "development-selectable"):
             MODULE.build_parity(registry, self.documents)
 
 

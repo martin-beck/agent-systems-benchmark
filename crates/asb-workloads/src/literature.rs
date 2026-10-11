@@ -31,7 +31,7 @@ const LOCAL_MOCK_SCORER: &str = "asb-literature-local-mock-scorer-v1";
 
 /// Stable identities documented by ASB.  They are provenance identities, not
 /// a claim that every upstream evaluator is executable or qualified.
-pub const LITERATURE_WORKLOAD_IDS: [&str; 26] = [
+pub const LITERATURE_WORKLOAD_IDS: [&str; 27] = [
     "swe-bench",
     "swe-bench-lite",
     "swe-bench-verified",
@@ -39,6 +39,7 @@ pub const LITERATURE_WORKLOAD_IDS: [&str; 26] = [
     "aider-polyglot",
     "exercism-tracks",
     "swe-bench-pro",
+    "swe-mini",
     "bigcodebench",
     "evalplus",
     "humaneval-plus",
@@ -921,7 +922,7 @@ impl LiteratureAdapter {
         hasher.update(b"asb-literature-descriptor-v1\0");
         hasher.update(id.as_bytes());
         hasher.update(revision.as_bytes());
-        let status = if family == LiteratureFamily::UnsupportedCandidate || methodology_only(id) {
+        let status = if family == LiteratureFamily::UnsupportedCandidate {
             AdapterStatus::Unsupported
         } else {
             AdapterStatus::FixtureOnly
@@ -1044,26 +1045,18 @@ impl LiteratureAdapter {
 
 fn family(id: &str) -> LiteratureFamily {
     match id {
-        "swe-bench" | "swe-bench-lite" | "swe-bench-verified" | "swe-bench-pro" | "swe-rebench"
-        | "swe-lancer" => LiteratureFamily::RepositoryRepair,
+        "swe-bench" | "swe-bench-lite" | "swe-bench-verified" | "swe-bench-pro" | "swe-mini"
+        | "swe-rebench" | "swe-lancer" => LiteratureFamily::RepositoryRepair,
         "terminal-bench" | "agentbench" => LiteratureFamily::TerminalSystem,
         "swe-perf" | "swe-fficiency" | "core-bench" => LiteratureFamily::SystemsPerformance,
         "aider-polyglot" | "exercism-tracks" | "bigcodebench" | "evalplus" | "humaneval-plus"
         | "mbpp-plus" | "livecodebench" => LiteratureFamily::CodeGeneration,
-        "tau-bench" | "agentdojo" | "harbor" | "inspect-ai" => LiteratureFamily::StatefulToolUse,
-        "hal" => LiteratureFamily::HarnessBoundary,
+        "tau-bench" | "agentdojo" | "harbor" | "inspect-ai" | "agentops" => {
+            LiteratureFamily::StatefulToolUse
+        }
+        "hal" | "ai-agents-that-matter" | "helm" => LiteratureFamily::HarnessBoundary,
         _ => LiteratureFamily::UnsupportedCandidate,
     }
-}
-
-/// Methodology and observability references are documentation-only.  They
-/// must remain visible in the registry, but never acquire an executable local
-/// fixture or enter a plan.
-fn methodology_only(id: &str) -> bool {
-    matches!(
-        id,
-        "harbor" | "inspect-ai" | "hal" | "agentops" | "ai-agents-that-matter" | "helm"
-    )
 }
 
 fn provenance(id: &str) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -1109,6 +1102,12 @@ fn provenance(id: &str) -> (&'static str, &'static str, &'static str, &'static s
             "MIT",
             "swe_bench_pro_eval@ca10a60",
             "test",
+        ),
+        "swe-mini" => (
+            "a83fcae82d2a08f0ee0c688f9d137b3566c097f8",
+            "MIT",
+            "mini-swe-agent@v2.4.6",
+            "verified",
         ),
         "bigcodebench" => (
             "9059fb84d1188c02edeac4995361656a2fdecbef",
@@ -1261,17 +1260,9 @@ mod tests {
         ))
     }
     #[test]
-    fn every_executable_family_has_a_local_fixture_and_official_score_is_unavailable() {
+    fn every_development_family_has_a_local_fixture_and_official_score_is_unavailable() {
         for id in LITERATURE_WORKLOAD_IDS {
             let descriptor = LiteratureAdapter::describe(id).unwrap();
-            if methodology_only(id) {
-                assert_eq!(descriptor.status, AdapterStatus::Unsupported);
-                assert!(matches!(
-                    LiteratureAdapter::prepare(id, root(id)),
-                    Err(LiteratureError::Unsupported)
-                ));
-                continue;
-            }
             assert_eq!(descriptor.status, AdapterStatus::FixtureOnly);
             let root = root(id);
             let prepared = LiteratureAdapter::prepare(id, &root).unwrap();
@@ -1292,9 +1283,6 @@ mod tests {
     #[test]
     fn every_executable_family_completes_deterministic_mock_lifecycle() {
         for id in LITERATURE_WORKLOAD_IDS {
-            if methodology_only(id) {
-                continue;
-            }
             let first_root = root(&format!("cross-product-{id}"));
             let second_root = root(&format!("cross-product-repeat-{id}"));
             let first = LiteratureAdapter::prepare(id, &first_root).unwrap();
@@ -1449,7 +1437,7 @@ mod tests {
             .iter()
             .filter(|entry| entry.source == "literature")
             .collect::<Vec<_>>();
-        assert_eq!(literature.len(), 26);
+        assert_eq!(literature.len(), 27);
         let literature_count = literature.len();
         for entry in literature {
             assert!(!entry.source_revision.is_empty());
@@ -1460,19 +1448,16 @@ mod tests {
             assert!(!entry.contamination_cutoff.is_empty());
             assert!(!entry.archive_status.is_empty());
             assert!(!entry.identity_digest.is_empty());
-            if entry.kind == CatalogKind::Methodology {
-                assert_eq!(entry.attempt_budget, 0);
-            }
         }
         assert_eq!(first.len(), FIXTURE_IDS.len() + literature_count);
     }
 
     #[test]
-    fn catalog_types_preserve_methodology_and_split_boundaries() {
+    fn catalog_types_preserve_development_fixture_and_split_boundaries() {
         let catalog = workload_catalog();
         let agentops = catalog.iter().find(|entry| entry.id == "agentops").unwrap();
-        assert_eq!(agentops.kind, CatalogKind::Methodology);
-        assert_eq!(agentops.availability_kind, CatalogAvailability::Unavailable);
+        assert_eq!(agentops.kind, CatalogKind::Literature);
+        assert_eq!(agentops.availability_kind, CatalogAvailability::FixtureOnly);
         assert_eq!(agentops.evidence_kind, CatalogEvidence::Planned);
         let rebench = catalog
             .iter()
@@ -1492,12 +1477,9 @@ mod tests {
             "inspect-ai",
         ] {
             let entry = catalog.iter().find(|entry| entry.id == id).unwrap();
-            assert_eq!(entry.kind, CatalogKind::Methodology);
-            assert_eq!(entry.availability_kind, CatalogAvailability::Unavailable);
-            assert_eq!(
-                select_workload(id, "linux-x86_64"),
-                Err(CatalogSelectionError::Unavailable)
-            );
+            assert_eq!(entry.kind, CatalogKind::Literature);
+            assert_eq!(entry.availability_kind, CatalogAvailability::FixtureOnly);
+            assert!(select_workload(id, "linux-x86_64").is_ok());
         }
         for id in [
             "swe-bench-lite",
@@ -1514,7 +1496,7 @@ mod tests {
     }
 
     #[test]
-    fn every_framework_identity_is_described_but_never_prepared() {
+    fn every_framework_identity_has_a_bounded_development_fixture() {
         for id in [
             "harbor",
             "inspect-ai",
@@ -1522,14 +1504,15 @@ mod tests {
             "agentops",
             "ai-agents-that-matter",
             "helm",
+            "swe-mini",
         ] {
             let descriptor = LiteratureAdapter::describe(id).unwrap();
-            assert_eq!(descriptor.status, AdapterStatus::Unsupported, "{id}");
+            assert_eq!(descriptor.status, AdapterStatus::FixtureOnly, "{id}");
             assert_eq!(descriptor.id, id);
-            assert!(matches!(
-                LiteratureAdapter::prepare(id, root(&format!("framework-{id}"))),
-                Err(LiteratureError::Unsupported)
-            ));
+            let prepared =
+                LiteratureAdapter::prepare(id, root(&format!("framework-{id}"))).unwrap();
+            assert!(prepared.run_local_mock().is_ok(), "{id}");
+            prepared.cleanup().unwrap();
         }
     }
 
@@ -1551,6 +1534,7 @@ mod tests {
             "core-bench",
             "swe-lancer",
             "swe-rebench",
+            "swe-mini",
         ] {
             let entry = select_workload(id, "linux-x86_64").unwrap();
             assert_eq!(entry.availability, "fixture_only", "{id}");
@@ -1560,24 +1544,24 @@ mod tests {
             select_workload("not-a-workload", "linux-x86_64"),
             Err(CatalogSelectionError::Unknown)
         );
-        assert_eq!(
-            select_workload("agentops", "linux-x86_64"),
-            Err(CatalogSelectionError::Unavailable)
-        );
+        assert!(select_workload("agentops", "linux-x86_64").is_ok());
+        for id in [
+            "ai-agents-that-matter",
+            "helm",
+            "inspect-ai",
+            "harbor",
+            "hal",
+            "swe-mini",
+        ] {
+            assert!(select_workload(id, "linux-x86_64").is_ok(), "{id}");
+        }
         assert!(select_workload("swe-bench", "linux-x86_64").is_ok());
     }
 
     #[test]
     fn every_executable_candidate_has_local_selection_parity() {
         for entry in workload_catalog() {
-            if entry.kind == CatalogKind::Methodology {
-                assert_eq!(
-                    select_workload(&entry.id, "linux-x86_64"),
-                    Err(CatalogSelectionError::Unavailable),
-                    "methodology record became selectable: {}",
-                    entry.id
-                );
-            } else if entry.source == "literature" {
+            if entry.source == "literature" {
                 assert_eq!(entry.availability, "fixture_only", "{}", entry.id);
                 assert!(
                     select_workload(&entry.id, "linux-x86_64").is_ok(),
@@ -1683,22 +1667,19 @@ mod tests {
         fs::remove_file(target).unwrap();
     }
     #[test]
-    fn unknown_ids_and_methodology_references_are_not_executable() {
+    fn unknown_ids_fail_closed_but_documented_fixtures_are_executable() {
         assert_eq!(
             LiteratureAdapter::describe("not-a-workload")
                 .unwrap_err()
                 .to_string(),
             "unknown literature workload"
         );
-        for id in ["harbor", "inspect-ai", "hal"] {
+        for id in ["harbor", "inspect-ai", "hal", "agentops", "helm"] {
             assert_eq!(
                 LiteratureAdapter::describe(id).unwrap().status,
-                AdapterStatus::Unsupported
+                AdapterStatus::FixtureOnly
             );
-            assert!(matches!(
-                LiteratureAdapter::prepare(id, root(id)),
-                Err(LiteratureError::Unsupported)
-            ));
+            assert!(LiteratureAdapter::prepare(id, root(id)).is_ok());
         }
     }
 }

@@ -112,6 +112,21 @@
       "framework_boundary": "independent task protocol and grader required"
     },
     {
+      "name": "SWE-mini",
+      "registry_id": "swe-mini",
+      "family": "repository-repair",
+      "kind": "workload",
+      "source_revision": "a83fcae82d2a08f0ee0c688f9d137b3566c097f8",
+      "dataset_revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+      "license": "MIT",
+      "license_state": "declared",
+      "evaluator": "mini-swe-agent.run",
+      "evaluator_state": "planned",
+      "evidence_status": "planned",
+      "selectable": true,
+      "framework_boundary": "independent task protocol and grader required"
+    },
+    {
       "name": "BigCodeBench",
       "registry_id": "bigcodebench",
       "family": "code-generation",
@@ -315,10 +330,10 @@
       "dataset_revision": "task-definitions",
       "license": "Apache-2.0",
       "license_state": "declared",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-harbor",
       "evaluator_state": "planned",
       "evidence_status": "planned",
-      "selectable": false,
+      "selectable": true,
       "framework_boundary": "framework-only; requires an independent task protocol and grader"
     },
     {
@@ -330,10 +345,10 @@
       "dataset_revision": "scenarios",
       "license": "MIT",
       "license_state": "declared",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-inspect-ai",
       "evaluator_state": "planned",
       "evidence_status": "planned",
-      "selectable": false,
+      "selectable": true,
       "framework_boundary": "framework-only; requires an independent task protocol and grader"
     },
     {
@@ -345,10 +360,10 @@
       "dataset_revision": "task-definitions",
       "license": "NOASSERTION",
       "license_state": "missing-at-pinned-revision",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-hal",
       "evaluator_state": "planned",
       "evidence_status": "planned",
-      "selectable": false,
+      "selectable": true,
       "framework_boundary": "framework-only; requires an independent task protocol and grader"
     },
     {
@@ -360,10 +375,10 @@
       "dataset_revision": "not-applicable",
       "license": "MIT",
       "license_state": "declared",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-agentops",
       "evaluator_state": "planned",
       "evidence_status": "planned",
-      "selectable": false,
+      "selectable": true,
       "framework_boundary": "framework-only; requires an independent task protocol and grader"
     },
     {
@@ -375,10 +390,10 @@
       "dataset_revision": "not-applicable",
       "license": "Apache-2.0",
       "license_state": "declared",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-helm",
       "evaluator_state": "planned",
       "evidence_status": "planned",
-      "selectable": false,
+      "selectable": true,
       "framework_boundary": "framework-only; requires an independent task protocol and grader"
     }
   ]

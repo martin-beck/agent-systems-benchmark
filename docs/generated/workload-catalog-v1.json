@@ -36,32 +36,32 @@
     },
     {
       "id": "agentops",
-      "kind": "methodology",
+      "kind": "literature",
       "source": "literature",
       "source_revision": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
       "license": "MIT",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-agentops",
       "capability_tags": [
-        "unsupported"
+        "stateful-tool-use"
       ],
-      "adaptation": "not-applicable",
-      "platform": "not-applicable",
-      "availability": "unavailable",
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
       "id": "ai-agents-that-matter",
-      "kind": "methodology",
+      "kind": "literature",
       "source": "literature",
       "source_revision": "v1",
       "license": "NOASSERTION",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-ai-agents-that-matter",
       "capability_tags": [
-        "unsupported"
+        "harness-boundary"
       ],
-      "adaptation": "not-applicable",
-      "platform": "not-applicable",
-      "availability": "unavailable",
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -141,47 +141,47 @@
     },
     {
       "id": "hal",
-      "kind": "methodology",
+      "kind": "literature",
       "source": "literature",
       "source_revision": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
       "license": "NOASSERTION",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-hal",
       "capability_tags": [
         "harness-boundary"
       ],
-      "adaptation": "not-applicable",
-      "platform": "planned",
-      "availability": "unavailable",
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
       "id": "harbor",
-      "kind": "methodology",
+      "kind": "literature",
       "source": "literature",
       "source_revision": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
       "license": "Apache-2.0",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-harbor",
       "capability_tags": [
         "stateful-tool-use"
       ],
-      "adaptation": "not-applicable",
-      "platform": "planned",
-      "availability": "unavailable",
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
       "id": "helm",
-      "kind": "methodology",
+      "kind": "literature",
       "source": "literature",
       "source_revision": "63754d05db6f874e41a395880fb573890a13e791",
       "license": "Apache-2.0",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-helm",
       "capability_tags": [
-        "unsupported"
+        "harness-boundary"
       ],
-      "adaptation": "not-applicable",
-      "platform": "not-applicable",
-      "availability": "unavailable",
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -201,17 +201,17 @@
     },
     {
       "id": "inspect-ai",
-      "kind": "methodology",
+      "kind": "literature",
       "source": "literature",
       "source_revision": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
       "license": "MIT",
-      "evaluator": "not-applicable",
+      "evaluator": "asb-local-fixture-inspect-ai",
       "capability_tags": [
         "stateful-tool-use"
       ],
-      "adaptation": "not-applicable",
-      "platform": "planned",
-      "availability": "unavailable",
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
       "evidence": "planned"
     },
     {
@@ -431,6 +431,21 @@
       "source_revision": "51052cede8cc608f95bb00346635e03759013e5a",
       "license": "NOASSERTION",
       "evaluator": "frontier-evals/project/swelancer",
+      "capability_tags": [
+        "repository-repair"
+      ],
+      "adaptation": "fixture-only",
+      "platform": "linux-x86_64:fixture-only",
+      "availability": "fixture_only",
+      "evidence": "planned"
+    },
+    {
+      "id": "swe-mini",
+      "kind": "literature",
+      "source": "literature",
+      "source_revision": "a83fcae82d2a08f0ee0c688f9d137b3566c097f8",
+      "license": "MIT",
+      "evaluator": "mini-swe-agent.run",
       "capability_tags": [
         "repository-repair"
       ],

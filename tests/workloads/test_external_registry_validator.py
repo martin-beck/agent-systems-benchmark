@@ -16,7 +16,7 @@ def test_external_registry_validator_reports_stable_digest():
     result = json.loads(first)
     assert result == json.loads(second)
     assert result["schema_version"] == 1
-    assert result["workloads"] == 22
+    assert result["workloads"] == 23
     assert len(result["registry_sha256"]) == 64
 
 
@@ -136,16 +136,11 @@ def test_additional_suites_reject_pin_or_qualification_drift(tmp_path):
         _rejects(tmp_path, changed, f"{ident}: evaluator must remain unqualified")
 
 
-def test_methodology_references_are_not_executable(tmp_path):
+def test_documented_entries_cannot_be_downgraded_to_methodology_only(tmp_path):
     document = _terminal_document()
     methodology = _item(document, "helm")
-    methodology["selection"] = "executable-candidate"
-    _rejects(tmp_path, document, "methodology references must be methodology-only")
-
-    document = _terminal_document()
-    methodology = _item(document, "agentops")
-    methodology["attempt_budget"] = 1
-    _rejects(tmp_path, document, "methodology references cannot have execution attempts")
+    methodology["selection"] = "methodology-only"
+    _rejects(tmp_path, document, "executable candidates must be selectable")
 
 
 def test_registry_rejects_unknown_contract_fields(tmp_path):

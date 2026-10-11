@@ -11703,12 +11703,12 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn cli_dispatch_rejects_methodology_only_plan_before_execution() {
+    fn cli_dispatch_rejects_mismatched_development_fixture_plan_before_execution() {
         let scratch = Scratch::new("methodology-dispatch");
         let (_, mut plan) = plan_fixture(&scratch.0, "methodology");
         plan.workload = "agentops".into();
-        let error = validate_plan(&plan).expect_err("methodology-only workload must fail closed");
-        assert_eq!(error.message, "unknown or invalid workload");
+        let error = validate_plan(&plan).expect_err("workload identity must match experiment");
+        assert_eq!(error.message, "workload identity does not match experiment");
     }
 
     pub(crate) fn plan_fixture(root: &Path, run_id: &str) -> (PathBuf, PlanFile) {
@@ -14013,7 +14013,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn workload_catalog_is_stable_and_marks_methodology_unavailable() {
+    fn workload_catalog_is_stable_and_marks_development_fixtures_selectable() {
         let (exit, catalog) = run_json(&["workload-catalog".into()]);
         assert_eq!(exit, 0);
         assert_eq!(catalog["command"], "workload-catalog");
@@ -14023,10 +14023,18 @@ pub(crate) mod tests {
                 .iter()
                 .any(|entry| entry["id"] == "original.bug-fix")
         );
-        for id in ["harbor", "inspect-ai", "hal", "agentops"] {
+        for id in [
+            "harbor",
+            "inspect-ai",
+            "hal",
+            "agentops",
+            "ai-agents-that-matter",
+            "helm",
+            "swe-mini",
+        ] {
             let entry = entries.iter().find(|entry| entry["id"] == id).unwrap();
-            assert_eq!(entry["kind"], "methodology");
-            assert_eq!(entry["availability"], "unavailable");
+            assert_eq!(entry["kind"], "literature");
+            assert_eq!(entry["availability"], "fixture_only");
         }
     }
 
@@ -14057,7 +14065,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn plan_create_is_noninteractive_without_a_workload_and_rejects_unavailable_entries() {
+    fn plan_create_is_noninteractive_without_a_workload_and_accepts_development_fixtures() {
         let scratch = Scratch::new("plan-create-selection");
         let output_path = scratch.0.join("should-not-exist.toml");
         let missing_workload: Vec<OsString> = [
@@ -14074,7 +14082,7 @@ pub(crate) mod tests {
         let mut output = Vec::new();
         assert_ne!(run(&missing_workload, &mut output, &mut Vec::new()), 0);
         assert!(!output_path.exists());
-        let unavailable: Vec<OsString> = [
+        let supported_fixture: Vec<OsString> = [
             "plan",
             "create",
             "--workload",
@@ -14088,8 +14096,37 @@ pub(crate) mod tests {
         .map(OsString::from)
         .collect();
         output.clear();
-        assert_ne!(run(&unavailable, &mut output, &mut Vec::new()), 0);
-        assert!(!output_path.exists());
+        assert_eq!(run(&supported_fixture, &mut output, &mut Vec::new()), 0);
+        assert!(output_path.exists());
+        for workload in [
+            "ai-agents-that-matter",
+            "helm",
+            "inspect-ai",
+            "harbor",
+            "hal",
+            "swe-mini",
+        ] {
+            let output_path = scratch.0.join(format!("{workload}.toml"));
+            let args: Vec<OsString> = [
+                "plan",
+                "create",
+                "--workload",
+                workload,
+                "--agent-executable",
+                "/usr/bin/true",
+                "--output",
+                output_path.to_str().unwrap(),
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect();
+            assert_eq!(
+                run(&args, &mut Vec::new(), &mut Vec::new()),
+                0,
+                "{workload}"
+            );
+            assert!(output_path.exists(), "{workload}");
+        }
     }
 
     #[test]

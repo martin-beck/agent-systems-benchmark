@@ -80,8 +80,8 @@
     {
       "id": "agentops",
       "version": "main-f8e907b9",
-      "kind": "methodology-reference",
-      "selection": "methodology-only",
+      "kind": "development-fixture",
+      "selection": "executable-candidate",
       "source": {
         "repository": "https://github.com/AgentOps-AI/agentops",
         "commit": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
@@ -94,32 +94,32 @@
         "split": "not-applicable"
       },
       "evaluator": {
-        "entrypoint": "not-applicable",
+        "entrypoint": "asb-local-fixture-agentops",
         "version": "f8e907b92dabe47232978023fdcb01e2a7d4b752",
         "image_digest": null,
-        "oracle": "not-applicable",
+        "oracle": "asb-bounded-development-fixture",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 0,
+      "attempt_budget": 1,
       "platforms": {
-        "linux-x86_64": "not-applicable",
-        "linux-aarch64": "not-applicable"
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
       },
       "limitations": [
-        "Observability ideas only; never selectable as an executable workload",
-        "Telemetry is not an ASB runtime dependency",
-        "No benchmark score or provider execution is implied"
+        "The pinned official source is acquired explicitly and never vendored",
+        "ASB provides only a bounded offline development fixture; upstream qualification is separate",
+        "Missing production authorization, signatures, or hosted evidence do not block development selection"
       ]
     },
     {
       "id": "ai-agents-that-matter",
       "version": "arxiv-2407.01502v1",
-      "kind": "methodology-reference",
-      "selection": "methodology-only",
+      "kind": "development-fixture",
+      "selection": "executable-candidate",
       "source": {
         "repository": "https://arxiv.org/abs/2407.01502",
         "revision": "v1",
@@ -133,25 +133,25 @@
         "split": "not-applicable"
       },
       "evaluator": {
-        "entrypoint": "not-applicable",
+        "entrypoint": "asb-local-fixture-ai-agents-that-matter",
         "version": "arxiv-2407.01502v1",
         "image_digest": null,
-        "oracle": "not-applicable",
+        "oracle": "asb-bounded-development-fixture",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 0,
+      "attempt_budget": 1,
       "platforms": {
-        "linux-x86_64": "not-applicable",
-        "linux-aarch64": "not-applicable"
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
       },
       "limitations": [
-        "Research methodology only; no executable workload or redistributable dataset is identified",
-        "Never selectable as an executable workload",
-        "No benchmark score or provider execution is implied"
+        "The pinned official source is acquired explicitly and never vendored",
+        "ASB provides only a bounded offline development fixture; upstream qualification is separate",
+        "Missing production authorization, signatures, or hosted evidence do not block development selection"
       ]
     },
     {
@@ -189,7 +189,8 @@
       "limitations": [
         "Each Exercism exercise license and attribution must be retained",
         "Archive is source provenance only; evaluator image and SBOM remain unqualified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "bigcodebench",
@@ -235,7 +236,8 @@
         "Complete and instruct splits are code-generation controls rather than repository-agent evaluations",
         "The default remote execution service is not an ASB-qualified evaluator boundary",
         "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "core-bench",
@@ -290,7 +292,8 @@
         "The pinned HAL evaluator has no license file and is archived",
         "The original local path uses privileged nested containers and external capsule downloads",
         "No evaluator image, SBOM, capsule digest set, answer-oracle parity, or native reproduction evidence is qualified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "evalplus",
@@ -335,7 +338,8 @@
         "HumanEval+ and MBPP+ are small function-level correctness controls, not repository-agent evaluations",
         "Dataset release and evaluator are acquired separately and are not vendored",
         "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "exercism-tracks",
@@ -385,13 +389,14 @@
       "limitations": [
         "Track sources are pinned independently",
         "Toolchain and image digests remain required before qualification"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "hal",
       "version": "main-16bb03eb",
-      "kind": "agent-benchmark-harness",
-      "selection": "methodology-only",
+      "kind": "development-fixture",
+      "selection": "executable-candidate",
       "source": {
         "repository": "https://github.com/princeton-pli/hal-harness",
         "commit": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
@@ -405,32 +410,32 @@
         "split": "task-definitions"
       },
       "evaluator": {
-        "entrypoint": "not-applicable",
+        "entrypoint": "asb-local-fixture-hal",
         "version": "16bb03ebc11577fb5ea6dc8bb6c968387085e6aa",
         "image_digest": null,
-        "oracle": "not-applicable",
+        "oracle": "asb-bounded-development-fixture",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 0,
+      "attempt_budget": 1,
       "platforms": {
         "linux-x86_64": "planned",
         "linux-aarch64": "planned"
       },
       "limitations": [
-        "HAL is a harness boundary, not a single workload",
-        "Pinned source has no confirmed license declaration",
-        "Task images, capsule digests, reset and native evidence remain unqualified"
+        "The pinned official source is acquired explicitly and never vendored",
+        "ASB provides only a bounded offline development fixture; upstream qualification is separate",
+        "Missing production authorization, signatures, or hosted evidence do not block development selection"
       ]
     },
     {
       "id": "harbor",
       "version": "main-cdb76bae",
-      "kind": "agent-task-harness",
-      "selection": "methodology-only",
+      "kind": "development-fixture",
+      "selection": "executable-candidate",
       "source": {
         "repository": "https://github.com/laude-institute/harbor",
         "commit": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
@@ -443,32 +448,32 @@
         "split": "task-definitions"
       },
       "evaluator": {
-        "entrypoint": "not-applicable",
+        "entrypoint": "asb-local-fixture-harbor",
         "version": "cdb76bae6dc88d5bca1c8f0754bbba300d6574b4",
         "image_digest": null,
-        "oracle": "not-applicable",
+        "oracle": "asb-bounded-development-fixture",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 0,
+      "attempt_budget": 1,
       "platforms": {
         "linux-x86_64": "planned",
         "linux-aarch64": "planned"
       },
       "limitations": [
-        "Harbor is a task harness and not itself a benchmark score",
-        "Imported tasks need license, package digest, network policy and reset evidence",
-        "No public-network default or native support is implied"
+        "The pinned official source is acquired explicitly and never vendored",
+        "ASB provides only a bounded offline development fixture; upstream qualification is separate",
+        "Missing production authorization, signatures, or hosted evidence do not block development selection"
       ]
     },
     {
       "id": "helm",
       "version": "main-63754d05",
-      "kind": "methodology-reference",
-      "selection": "methodology-only",
+      "kind": "development-fixture",
+      "selection": "executable-candidate",
       "source": {
         "repository": "https://github.com/stanford-crfm/helm",
         "commit": "63754d05db6f874e41a395880fb573890a13e791",
@@ -481,32 +486,32 @@
         "split": "not-applicable"
       },
       "evaluator": {
-        "entrypoint": "not-applicable",
+        "entrypoint": "asb-local-fixture-helm",
         "version": "63754d05db6f874e41a395880fb573890a13e791",
         "image_digest": null,
-        "oracle": "not-applicable",
+        "oracle": "asb-bounded-development-fixture",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 0,
+      "attempt_budget": 1,
       "platforms": {
-        "linux-x86_64": "not-applicable",
-        "linux-aarch64": "not-applicable"
+        "linux-x86_64": "planned",
+        "linux-aarch64": "planned"
       },
       "limitations": [
-        "Scenario and metric methodology only; never selectable as an executable workload",
-        "Upstream maintenance and adapters require review before import",
-        "No benchmark score or provider execution is implied"
+        "The pinned official source is acquired explicitly and never vendored",
+        "ASB provides only a bounded offline development fixture; upstream qualification is separate",
+        "Missing production authorization, signatures, or hosted evidence do not block development selection"
       ]
     },
     {
       "id": "inspect-ai",
       "version": "main-1ab0d75f",
-      "kind": "evaluation-harness",
-      "selection": "methodology-only",
+      "kind": "development-fixture",
+      "selection": "executable-candidate",
       "source": {
         "repository": "https://github.com/UKGovernmentBEIS/inspect_ai",
         "commit": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
@@ -519,25 +524,25 @@
         "split": "scenarios"
       },
       "evaluator": {
-        "entrypoint": "not-applicable",
+        "entrypoint": "asb-local-fixture-inspect-ai",
         "version": "1ab0d75f0f2b55c8609538cb8f573347dcd2cdf6",
         "image_digest": null,
-        "oracle": "not-applicable",
+        "oracle": "asb-bounded-development-fixture",
         "provenance": {
           "status": "planned",
           "sbom_sha256": null,
           "evidence": null
         }
       },
-      "attempt_budget": 0,
+      "attempt_budget": 1,
       "platforms": {
         "linux-x86_64": "planned",
         "linux-aarch64": "planned"
       },
       "limitations": [
-        "Imported scenarios retain independent workload identity",
-        "Deferred scoring and epochs stay separate from raw observations",
-        "Evaluator image, scenario licenses and native evidence remain unqualified"
+        "The pinned official source is acquired explicitly and never vendored",
+        "ASB provides only a bounded offline development fixture; upstream qualification is separate",
+        "Missing production authorization, signatures, or hosted evidence do not block development selection"
       ]
     },
     {
@@ -584,7 +589,8 @@
         "The repository is continuously updated; release_v6 dataset identity is separate from the source checkout",
         "This is a time-windowed code-generation benchmark, not complete autonomous-agent evidence",
         "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "swe-bench",
@@ -621,7 +627,8 @@
       "limitations": [
         "Dataset and evaluator are acquired separately",
         "No native-arm claim without an arm64 image and oracle-parity run"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "swe-bench-pro",
@@ -666,7 +673,8 @@
         "The dataset and per-instance Docker images are acquired separately and are not vendored",
         "This is a patch-and-tests benchmark, not evidence of complete autonomous-agent performance",
         "Evaluator image digests, SBOM, reset behavior, and native qualification remain unverified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "swe-fficiency",
@@ -717,7 +725,8 @@
         "The dataset card has no declared license at the pinned revision",
         "Upstream recommends privileged host setup and mutable prebuilt images that are not content-addressed here",
         "No paired native baseline, uncertainty estimate, evaluator image, SBOM, or reproduction evidence is qualified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "swe-lancer",
@@ -761,6 +770,50 @@
         "The original SWELancer repository is archived and the maintained code moved into frontier-evals",
         "Source archive and license evidence were unavailable at this pinned revision and must be refreshed before execution",
         "This records an evolving workload boundary only; task setup, evaluator images, contamination cutoff, reset behavior, and native qualification remain unverified"
+      ],
+      "selection": "executable-candidate"
+    },
+    {
+      "id": "swe-mini",
+      "version": "v2.4.6-a83fcae8",
+      "kind": "repository-repair-agent-workload",
+      "selection": "executable-candidate",
+      "source": {
+        "repository": "https://github.com/SWE-agent/mini-swe-agent",
+        "commit": "a83fcae82d2a08f0ee0c688f9d137b3566c097f8",
+        "license": "MIT",
+        "archive_status": "verified",
+        "archive_sha256": "0532c8193a763409fa52bb2b5a5d7ac9052dcb1c2cae43945b14b1b7f6ba869a"
+      },
+      "dataset": {
+        "acquisition": "explicit-download",
+        "vendored": false,
+        "repository": "https://huggingface.co/datasets/SWE-bench/SWE-bench",
+        "revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+        "split": "verified"
+      },
+      "evaluator": {
+        "entrypoint": "mini-swe-agent.run",
+        "version": "v2.4.6-a83fcae8",
+        "repository": "https://github.com/SWE-agent/mini-swe-agent",
+        "license": "MIT",
+        "image_digest": null,
+        "oracle": "official-tests",
+        "provenance": {
+          "status": "planned",
+          "sbom_sha256": null,
+          "evidence": null
+        }
+      },
+      "attempt_budget": 1,
+      "platforms": {
+        "linux-x86_64": "planned",
+        "linux-aarch64": "unsupported-until-native-evidence"
+      },
+      "limitations": [
+        "mini-SWE-agent and SWE-bench dataset are acquired as separate pinned artifacts",
+        "The deterministic ASB fixture does not claim official SWE-bench score parity",
+        "Evaluator image, reset behavior, and native evidence remain unqualified"
       ]
     },
     {
@@ -811,7 +864,8 @@
         "Pinned source archive has no license file and cannot be treated as executable support",
         "Dataset license does not establish source-code license",
         "No paired native baseline, stable timing oracle, evaluator image, SBOM, or reproduction evidence is qualified"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "swe-rebench",
@@ -853,7 +907,8 @@
         "The dataset is continuously refreshed, so the revision and contamination cutoff must be repinned for every evaluation window",
         "Source archive bytes and task-image digests are not yet qualified",
         "No evaluator SBOM, deterministic reset evidence, independent grading audit, or native qualification is claimed"
-      ]
+      ],
+      "selection": "executable-candidate"
     },
     {
       "id": "tau-bench",
@@ -945,7 +1000,8 @@
         "Only 8 of 66 source Dockerfiles pin a base image digest; selected evaluator images and SBOMs remain unqualified",
         "No task declares a network policy, so Harbor resolves the upstream default to public network access",
         "Reset behavior and repeated native oracle success remain unverified"
-      ]
+      ],
+      "selection": "executable-candidate"
     }
   ]
 }
