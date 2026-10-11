@@ -9,7 +9,7 @@
   "id": "AR-1784",
   "next_action": "Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
-  "observed_dirty": 0,
+  "observed_dirty": 7,
   "observed_head": "af940cddad9861fa442b50462e80ee07e239387a",
   "owner": "coordinator",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 113,
+  "task_revision": 114,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T09:00:44+00:00",
+  "updated_at": "2026-10-11T09:00:49+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
