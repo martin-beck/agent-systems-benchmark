@@ -34,6 +34,19 @@ missing verification, revoked identities, unavailable official sources, and
 unavailable build recipes; it never falls back to an arbitrary package
 manager or shell installer. `cli2key` is explicitly development-only.
 
+When a verified prebuilt alternative is unavailable, a catalog source recipe
+may be selected. Source recipes carry the exact source revision, toolchain
+PATH, argv, output and byte/time ceilings. They execute with a cleared
+credential environment in a transaction-owned staging directory and publish
+the tool only after the declared entrypoint is present. Declared dependencies
+are recorded in the receipt; an existing system dependency is reusable only
+after its catalog identity and version match. Builds never invoke `sudo`, a
+shell, or a global package manager. `toolchain_unavailable`,
+`platform_unsupported`, `dependency_build_failed`, `build_policy_rejected`,
+`build_output_mismatch`, `build_resource_limit`, `build_timeout`,
+`build_cancelled`, and `build_cleanup_failed` remain distinct recovery
+outcomes.
+
 Use `--dry-run` to validate and preview an install without changing the
 project. Repeating an identical install is idempotent; a conflicting existing
 ID must be removed explicitly first. Inspect and remove records with:

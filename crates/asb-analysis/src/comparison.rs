@@ -11,6 +11,8 @@ use std::fmt;
 /// Required experiment dimension that differs between two manifests.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ComparisonField {
+    /// Provider family identity.
+    Provider,
     /// Agent implementation, revision, or executable.
     Agent,
     /// Model provider or identifier.
@@ -23,6 +25,8 @@ pub enum ComparisonField {
     ProviderEndpoint,
     /// Provider transport limits.
     ProviderTransport,
+    /// Provider enrollment/run generation.
+    Generation,
     /// Credential source or reference identity.
     CredentialReference,
     /// Tool policy name, revision, or content.
@@ -64,6 +68,94 @@ pub enum ComparisonField {
     /// Cancellation deadline.
     CancellationTimeout,
 }
+
+/// Credential-free identity required before online and offline results may be
+/// admitted to the same comparison.  Digests are retained instead of raw
+/// settings or endpoint values.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComparisonIdentity {
+    /// Stable provider family identity.
+    pub provider: String,
+    /// Exact model identity.
+    pub model: String,
+    /// Canonical model/settings digest.
+    pub settings_sha256: String,
+    /// Canonical endpoint identity digest.
+    pub endpoint_sha256: String,
+    /// Monotonic run/enrollment generation.
+    pub generation: u64,
+}
+
+impl ComparisonIdentity {
+    /// Validate the bounded, secret-free identity before admission.
+    pub fn validate(&self) -> Result<(), ComparisonIdentityError> {
+        if self.provider.is_empty() || self.provider.len() > 1024 {
+            return Err(ComparisonIdentityError::InvalidProvider);
+        }
+        if self.model.is_empty() || self.model.len() > 1024 {
+            return Err(ComparisonIdentityError::InvalidModel);
+        }
+        for (value, field) in [
+            (
+                &self.settings_sha256,
+                ComparisonIdentityField::ModelSettings,
+            ),
+            (&self.endpoint_sha256, ComparisonIdentityField::Endpoint),
+        ] {
+            if value.len() != 64
+                || !value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            {
+                return Err(ComparisonIdentityError::InvalidDigest(field));
+            }
+        }
+        if self.generation == 0 {
+            return Err(ComparisonIdentityError::InvalidGeneration);
+        }
+        Ok(())
+    }
+}
+
+/// Identity field reported when an admission identity is malformed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ComparisonIdentityField {
+    /// Model/settings digest.
+    ModelSettings,
+    /// Endpoint identity digest.
+    Endpoint,
+}
+
+/// Invalid comparison identity input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ComparisonIdentityError {
+    /// Provider identity is empty or oversized.
+    InvalidProvider,
+    /// Model identity is empty or oversized.
+    InvalidModel,
+    /// A digest is absent, uppercase, or not 64 hexadecimal characters.
+    InvalidDigest(ComparisonIdentityField),
+    /// Generation zero is not admissible.
+    InvalidGeneration,
+}
+
+impl fmt::Display for ComparisonIdentityError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidProvider => formatter.write_str("comparison provider identity is invalid"),
+            Self::InvalidModel => formatter.write_str("comparison model identity is invalid"),
+            Self::InvalidDigest(ComparisonIdentityField::ModelSettings) => {
+                formatter.write_str("comparison model settings digest is invalid")
+            }
+            Self::InvalidDigest(ComparisonIdentityField::Endpoint) => {
+                formatter.write_str("comparison endpoint identity digest is invalid")
+            }
+            Self::InvalidGeneration => formatter.write_str("comparison generation is invalid"),
+        }
+    }
+}
+
+impl Error for ComparisonIdentityError {}
 
 /// Whether an unqualified cross-experiment claim is permitted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -120,6 +212,8 @@ pub enum ComparisonError {
     InvalidLeftProviderProfile(ProviderProfileError),
     /// The right provider profile is invalid.
     InvalidRightProviderProfile(ProviderProfileError),
+    /// The left or right admission identity is malformed.
+    InvalidIdentity(bool, ComparisonIdentityError),
 }
 
 impl fmt::Display for ComparisonError {
@@ -132,6 +226,13 @@ impl fmt::Display for ComparisonError {
             }
             Self::InvalidRightProviderProfile(error) => {
                 write!(formatter, "invalid right provider profile: {error}")
+            }
+            Self::InvalidIdentity(left, error) => {
+                write!(
+                    formatter,
+                    "invalid {} comparison identity: {error}",
+                    if *left { "left" } else { "right" }
+                )
             }
         }
     }
@@ -388,6 +489,62 @@ pub fn compare_experiments_with_provider_profiles(
     Ok(report)
 }
 
+/// Compare two experiments only after admitting their exact provider identity.
+/// The returned fields are symmetric and contain no raw settings, URLs, or
+/// credentials.
+pub fn compare_experiments_with_identity(
+    left: &ExperimentManifestV1,
+    right: &ExperimentManifestV1,
+    left_identity: &ComparisonIdentity,
+    right_identity: &ComparisonIdentity,
+) -> Result<ComparisonReport, ComparisonError> {
+    let mut report = compare_experiments(left, right)?;
+    left_identity
+        .validate()
+        .map_err(|error| ComparisonError::InvalidIdentity(true, error))?;
+    right_identity
+        .validate()
+        .map_err(|error| ComparisonError::InvalidIdentity(false, error))?;
+    differing(
+        &mut report.differences,
+        ComparisonField::Provider,
+        &left_identity.provider,
+        &right_identity.provider,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::Model,
+        &left_identity.model,
+        &right_identity.model,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::ModelSettings,
+        &left_identity.settings_sha256,
+        &right_identity.settings_sha256,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::ProviderEndpoint,
+        &left_identity.endpoint_sha256,
+        &right_identity.endpoint_sha256,
+    );
+    differing(
+        &mut report.differences,
+        ComparisonField::Generation,
+        &left_identity.generation,
+        &right_identity.generation,
+    );
+    report.differences.sort_unstable();
+    report.differences.dedup();
+    report.qualification = if report.differences.is_empty() {
+        ComparisonQualification::Comparable
+    } else {
+        ComparisonQualification::Confounded
+    };
+    Ok(report)
+}
+
 fn differing<T: PartialEq>(
     differences: &mut Vec<ComparisonField>,
     field: ComparisonField,
@@ -481,6 +638,64 @@ mod tests {
         ))
         .unwrap();
         profile
+    }
+
+    fn identity(generation: u64) -> ComparisonIdentity {
+        ComparisonIdentity {
+            provider: "openrouter".into(),
+            model: "model-v1".into(),
+            settings_sha256: "a".repeat(64),
+            endpoint_sha256: "b".repeat(64),
+            generation,
+        }
+    }
+
+    #[test]
+    fn identity_fence_reports_each_mismatch_symmetrically() {
+        let experiment = manifest();
+        let left = identity(1);
+        let mut right = identity(1);
+        right.provider = "openai".into();
+        right.model = "other-model".into();
+        right.settings_sha256 = "c".repeat(64);
+        right.endpoint_sha256 = "d".repeat(64);
+        right.generation = 2;
+        let forward =
+            compare_experiments_with_identity(&experiment, &experiment, &left, &right).unwrap();
+        let reverse =
+            compare_experiments_with_identity(&experiment, &experiment, &right, &left).unwrap();
+        assert_eq!(forward, reverse);
+        assert_eq!(forward.qualification(), ComparisonQualification::Confounded);
+        assert!(forward.differences().contains(&ComparisonField::Model));
+        assert!(
+            forward
+                .differences()
+                .contains(&ComparisonField::ModelSettings)
+        );
+        assert!(
+            forward
+                .differences()
+                .contains(&ComparisonField::ProviderEndpoint)
+        );
+        assert!(forward.differences().contains(&ComparisonField::Generation));
+        assert!(!forward.permits_unqualified_claim());
+    }
+
+    #[test]
+    fn identity_fence_rejects_zero_generation_and_malformed_digest() {
+        let mut value = identity(0);
+        assert_eq!(
+            value.validate(),
+            Err(ComparisonIdentityError::InvalidGeneration)
+        );
+        value.generation = 1;
+        value.settings_sha256 = "A".repeat(64);
+        assert_eq!(
+            value.validate(),
+            Err(ComparisonIdentityError::InvalidDigest(
+                ComparisonIdentityField::ModelSettings
+            ))
+        );
     }
 
     #[test]

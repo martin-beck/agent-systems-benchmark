@@ -66,6 +66,31 @@ pub struct BuildRecipe {
     pub source_revision: String,
     pub argv: Vec<String>,
     pub output: String,
+    /// Immutable toolchain PATH used for the build; ambient PATH is ignored.
+    #[serde(default = "default_toolchain")]
+    pub toolchain: String,
+    /// Maximum wall-clock duration for the recipe.
+    #[serde(default = "default_timeout_ms")]
+    pub timeout_ms: u64,
+    /// Maximum combined diagnostic bytes retained by the runner.
+    #[serde(default = "default_max_output_bytes")]
+    pub max_output_bytes: u64,
+    /// Maximum produced entrypoint size.
+    #[serde(default = "default_max_artifact_bytes")]
+    pub max_artifact_bytes: u64,
+}
+
+fn default_toolchain() -> String {
+    "/usr/bin:/bin".into()
+}
+fn default_timeout_ms() -> u64 {
+    15 * 60 * 1000
+}
+fn default_max_output_bytes() -> u64 {
+    1024 * 1024
+}
+fn default_max_artifact_bytes() -> u64 {
+    1024 * 1024 * 1024
 }
 
 /// Return the immutable catalog shipped with this ASB version.
@@ -118,6 +143,13 @@ pub fn validate(catalog: &ToolCatalog) -> Result<(), &'static str> {
                     .iter()
                     .any(|arg| arg.contains('|') || arg.contains(';'))
                 || recipe.output.is_empty()
+                || recipe.toolchain.is_empty()
+                || recipe.timeout_ms == 0
+                || recipe.timeout_ms > 30 * 60 * 1000
+                || recipe.max_output_bytes == 0
+                || recipe.max_output_bytes > 1024 * 1024
+                || recipe.max_artifact_bytes == 0
+                || recipe.max_artifact_bytes > 1024 * 1024 * 1024
             {
                 return Err("catalog build recipe is unbounded or mismatched");
             }
