@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Post-merge provenance repair PR #577 open at signed DCO head 198bf869; historical af75cd06 preserved.",
-  "task_revision": 34,
+  "task_revision": 35,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T11:44:40+00:00",
+  "updated_at": "2026-10-11T11:44:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -145,3 +145,6 @@ labelled.
   resumes signed local merge.
 
 - 2026-10-11T11:44:40+00:00: Claimed by coordinator.
+
+- 2026-10-11T11:44:47+00:00: Recorded command exit 1; command argv SHA-256
+  666ffef27c4d7fe7010153f3c4a24bd27a3c204b2eee8c55e3f440147312054b.
