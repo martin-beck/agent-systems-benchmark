@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Reconcile through documented clean topic/superseding PR workflow against current protected main, then rerun exact-head hosted gates.",
+  "next_action": "Monitor PR #576 exact-head hosted checks; independently review and supersede stale PR #574 only after replacement checks are green. Preserve original PR #574 evidence.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "Signed repair 37fcf269 pushed; PR #571 conflicts with advanced main and has no new hosted checks",
-  "task_revision": 88,
+  "summary": "Clean superseding PR #576 published at exact head 28673883 after coverage repair",
+  "task_revision": 89,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:48:02+00:00",
+  "updated_at": "2026-10-11T10:48:30+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -306,3 +306,10 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:48:02+00:00: Recorded command exit 0; command argv SHA-256
   9ea78e1547bacb4a97d2d139396a54349f7b28ffccae0cba9050a45ce384a28d.
+
+- 2026-10-11T10:48:30+00:00: Hosted Policy run 38132471250 on PR #574 failed workspace line coverage
+  at 89.99% (97642 covered, 9770 missed). Built a fresh linear branch from protected main af75cd06,
+  replayed all signed AR-1777 product/repair commits without merge topology, and published PR #576.
+  Exact head 286738832020877b5b5ca0be159d13804591c00f. Local cargo fmt and focused tool_acquisition
+  tests pass (10/10); coverage command on corresponding code completed with workspace total above
+  90%. No quality floor changes or force-push.
