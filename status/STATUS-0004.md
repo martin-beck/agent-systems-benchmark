@@ -1,6 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) |
 | [AR-0519](../tasks/AR-0519-gemini-thinking-config-contract.md) | [AR-0518](../tasks/AR-0518-gemini-generate-content-replay.md) | None |
 | [AR-0520](../tasks/AR-0520-interaction-aware-redaction.md) | [AR-0502](../tasks/AR-0502-replay-cassettes.md), [AR-0503](../tasks/AR-0503-strict-replay.md), [AR-0517](../tasks/AR-0517-redacted-request-pointer-replay.md) | None |
 | [AR-0521](../tasks/AR-0521-openhands-environment-pin.md) | [AR-0309](../tasks/AR-0309-agent-openhands.md) | None |
@@ -578,3 +577,6 @@
 | [AR-1625](../tasks/AR-1625.md) | [AR-1615](../tasks/AR-1615.md) | [AR-1627](../tasks/AR-1627.md) |
 | [AR-1626](../tasks/AR-1626.md) | [AR-1615](../tasks/AR-1615.md) | [AR-1628](../tasks/AR-1628.md) |
 | [AR-1627](../tasks/AR-1627.md) | [AR-1615](../tasks/AR-1615.md), [AR-1625](../tasks/AR-1625.md) | None |
+| [AR-1628](../tasks/AR-1628.md) | [AR-1615](../tasks/AR-1615.md), [AR-1626](../tasks/AR-1626.md) | [AR-1629](../tasks/AR-1629.md), [AR-1630](../tasks/AR-1630.md) |
+| [AR-1629](../tasks/AR-1629.md) | [AR-1628](../tasks/AR-1628.md) | None |
+| [AR-1630](../tasks/AR-1630.md) | [AR-1628](../tasks/AR-1628.md) | None |

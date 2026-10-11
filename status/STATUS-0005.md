@@ -1,8 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-1628](../tasks/AR-1628.md) | [AR-1615](../tasks/AR-1615.md), [AR-1626](../tasks/AR-1626.md) | [AR-1629](../tasks/AR-1629.md), [AR-1630](../tasks/AR-1630.md) |
-| [AR-1629](../tasks/AR-1629.md) | [AR-1628](../tasks/AR-1628.md) | None |
-| [AR-1630](../tasks/AR-1630.md) | [AR-1628](../tasks/AR-1628.md) | None |
 | [AR-1631](../tasks/AR-1631.md) | [AR-1563](../tasks/AR-1563.md), [AR-1564](../tasks/AR-1564.md), [AR-1588](../tasks/AR-1588.md), [AR-1604](../tasks/AR-1604.md) | [AR-1632](../tasks/AR-1632.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md) |
 | [AR-1632](../tasks/AR-1632.md) | [AR-1622](../tasks/AR-1622.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1639](../tasks/AR-1639.md), [AR-1640](../tasks/AR-1640.md) | [AR-1623](../tasks/AR-1623.md), [AR-1644](../tasks/AR-1644.md) |
 | [AR-1633](../tasks/AR-1633.md) | [AR-1604](../tasks/AR-1604.md), [AR-1631](../tasks/AR-1631.md) | [AR-1632](../tasks/AR-1632.md), [AR-1634](../tasks/AR-1634.md) |
