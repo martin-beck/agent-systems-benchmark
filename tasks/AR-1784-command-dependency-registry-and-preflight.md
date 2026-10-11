@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish.",
+  "next_action": "Repair P1 review findings on PR #573: project-aware preflight, command-scoped dependency mapping, and honest host-only perf/bpftool classification; then rerun full gates.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 0,
   "observed_head": "85daea11134cb5ccf2018284a94797a40a0d1647",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 196,
+  "task_revision": 197,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T09:27:03+00:00",
+  "updated_at": "2026-10-11T09:28:55+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -543,3 +543,6 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T09:25:14+00:00: Heartbeat by coordinator.
 
 - 2026-10-11T09:27:03+00:00: Heartbeat by coordinator.
+
+- 2026-10-11T09:28:55+00:00: Independent review found three P1 omissions in 85daea11; repair
+  delegated before publication.

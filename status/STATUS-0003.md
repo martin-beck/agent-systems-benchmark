@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish. |
+| Next action | Repair P1 review findings on PR #573: project-aware preflight, command-scoped dependency mapping, and honest host-only perf/bpftool classification; then rerun full gates. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 
