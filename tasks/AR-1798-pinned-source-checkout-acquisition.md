@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
-  "task_revision": 102,
+  "task_revision": 103,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:55:59+00:00",
+  "updated_at": "2026-10-11T15:56:39+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -329,3 +329,9 @@ protected merge, and post-merge evidence path.
 - 2026-10-11T15:55:40+00:00: Heartbeat by ar1798-source-checkout-luna56.
 
 - 2026-10-11T15:55:59+00:00: Checkpointed source commit e6664e8a8a1b14a31837ec73592c49df38e8284f.
+
+- 2026-10-11T15:56:39+00:00: Exact product head dfe6fe7082f7381d4d6d95881cc477319b91b80f; product
+  worktree clean. Focused source_checkout stress 12 tests x10 passed; fmt, clippy, diff-check
+  passed. Full workspace runs reached 389 passed but each encountered unrelated flaky TUI tests.
+  Live projection reconciliation is blocked by unrelated expired AR-1796 claim; no threshold
+  changes.
