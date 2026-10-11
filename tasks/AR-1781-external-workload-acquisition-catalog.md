@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every documented external AI-agent workload a pinned, development-supported ASB workload, including SWE-mini.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T09:17:33+00:00",
+  "updated_at": "2026-10-11T09:17:53+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -59,3 +59,6 @@ labelled.
 - 2026-10-11T09:12:57+00:00: Dependency AR-1760 is done; promote AR-1781 for implementation.
 
 - 2026-10-11T09:13:08+00:00: Claimed by ar1781-luna56.
+
+- 2026-10-11T09:17:53+00:00: Recorded command exit 0; command argv SHA-256
+  379d22b10394143332e165d35aef5072d33bcfe42a074b67c37a24320167a0ea.
