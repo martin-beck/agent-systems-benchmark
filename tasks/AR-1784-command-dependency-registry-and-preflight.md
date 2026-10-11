@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T09:07:20+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776"
   ],
@@ -11,7 +11,7 @@
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 0,
   "observed_head": "af940cddad9861fa442b50462e80ee07e239387a",
-  "owner": "coordinator",
+  "owner": "",
   "plan": "../plans/AR-1784-command-dependency-registry-and-preflight.md",
   "priority": "P0",
   "schema_version": 1,
@@ -25,11 +25,11 @@
   },
   "spec_ref": "specs/AR-1784.json",
   "spec_revision": 2,
-  "status": "in_progress",
+  "status": "open",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 104,
+  "task_revision": 105,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:57:27+00:00",
+  "updated_at": "2026-10-11T08:57:44+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -327,3 +327,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T08:57:23+00:00: Recorded command exit 0; command argv SHA-256
   966a632519be9071ba2b1d479ab81378c7798f812bca0d3ef938d01b005d7c6f.
+
+- 2026-10-11T08:57:44+00:00: Coordinator hygiene reconciliation complete; returning AR-1784 to open
+  for independent review/publication after dependent AR-1793.
