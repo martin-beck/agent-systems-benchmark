@@ -336,7 +336,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Require exact provider, model settings, and endpoint identity equality before comparison admits online/offline results. |
-| Next action | Add focused comparison admission fences for provider, model/settings digest, endpoint identity, and generation; qualify symmetric/asymmetric mismatch diagnostics without weakening development setup. |
+| Next action | Run independent full review and full gates, publish exact PR, await exact-head hosted CI and protected merge. |
 
 ### AR-1718 — Portable fault-matrix network isolation repair
 
@@ -4263,3 +4263,4 @@ flowchart LR
 | [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md), [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0405](../tasks/AR-0405-performance-workloads.md), [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md), [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
 | [AR-0603](../tasks/AR-0603-csb-execution-assurance.md) | [AR-0101](../tasks/AR-0101-extension-contracts.md), [AR-0102](../tasks/AR-0102-process-runtime.md), [AR-0103](../tasks/AR-0103-sandbox-runtime.md), [AR-0104](../tasks/AR-0104-durable-results.md) | [AR-0601](../tasks/AR-0601-csb-integration.md) |
+| [AR-0604](../tasks/AR-0604-csb-native-qualification.md) | [AR-0201](../tasks/AR-0201-portable-metrics.md), [AR-0202](../tasks/AR-0202-kernel-diagnostics.md), [AR-0601](../tasks/AR-0601-csb-integration.md) | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md), [AR-1015](../tasks/AR-1015-csb-measurement-adapter.md) |
