@@ -20,7 +20,7 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #560 | `codex/ar-1736-backend-model-catalog@89852e60c5bf` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, QUEUED:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | Bind backend model selections to catalog identity |
+| #560 | `codex/ar-1736-backend-model-catalog@89852e60c5bf` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, QUEUED:, IN_PROGRESS:, QUEUED:, IN_PROGRESS: | Bind backend model selections to catalog identity |
 | #562 | `codex/ar-1786-control-state-current@ee8fd37bc05f` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS: | fix(control): use descriptor-scoped state locks |
 
 ## Recent workflows
@@ -35,7 +35,7 @@ Generated from local Git and GitHub. Do not edit.
 | 38118986978 | `89852e60c5bf` | pull_request | Fault assurance | queued:- |
 | 38118986964 | `89852e60c5bf` | pull_request | Repository quality | queued:- |
 | 38118986947 | `89852e60c5bf` | pull_request | Cross-repository development broker qualification | queued:- |
-| 38118986946 | `89852e60c5bf` | pull_request | Agent Workflow Quality shadow | queued:- |
+| 38118986946 | `89852e60c5bf` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38118986941 | `89852e60c5bf` | pull_request | Rust verification | in_progress:- |
 | 38118986936 | `89852e60c5bf` | pull_request | Credential-free benchmark path | in_progress:- |
 | 38118959379 | `ee8fd37bc05f` | pull_request | Cross-repository development broker qualification | in_progress:- |
