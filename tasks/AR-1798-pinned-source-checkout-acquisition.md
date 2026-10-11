@@ -1,7 +1,7 @@
 ---
 {
   "branch": "feature/ar-1798-pinned-source-checkout-acquisition",
-  "checkpoint_commit": "2d43e972ec7606b7e522c0624f35f7215efe4de8",
+  "checkpoint_commit": "e6664e8a8a1b14a31837ec73592c49df38e8284f",
   "claim_expires": "2026-10-11T17:55:40+00:00",
   "depends_on": [
     "AR-1776",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Exact fixture checkout repair pushed at dfe6fe70.",
-  "task_revision": 101,
+  "task_revision": 102,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:55:40+00:00",
+  "updated_at": "2026-10-11T15:55:59+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -327,3 +327,5 @@ protected merge, and post-merge evidence path.
   6c02a54d21fe5a154a6c6e72b3a7089965d308a5ae0dd58849fd672d03a6fd55.
 
 - 2026-10-11T15:55:40+00:00: Heartbeat by ar1798-source-checkout-luna56.
+
+- 2026-10-11T15:55:59+00:00: Checkpointed source commit e6664e8a8a1b14a31837ec73592c49df38e8284f.
