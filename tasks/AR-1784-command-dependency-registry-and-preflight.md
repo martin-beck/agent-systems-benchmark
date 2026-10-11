@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "PR #575 merged at signed local merge 14de8bce.",
-  "task_revision": 100,
+  "task_revision": 101,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:43:18+00:00",
+  "updated_at": "2026-10-11T11:43:33+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -345,3 +345,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:43:18+00:00: Recorded command exit 1; command argv SHA-256
   f48acabcb1cfa0053e1ec555abb9647071d9a049a398432bf5e116a8ff2b801e.
+
+- 2026-10-11T11:43:33+00:00: Recorded command exit 1; command argv SHA-256
+  7aaf09526d6b9e24c5b20f1c2bd5d92ee77415d4ab90c71ab0f62ac59ef33913.
