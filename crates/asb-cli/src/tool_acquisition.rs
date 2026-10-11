@@ -330,6 +330,25 @@ mod tests {
             extract_tar_entry(&tar_member(b"tool", b"payload", 0), "tool").unwrap(),
             b"payload"
         );
+
+        let mut invalid_name = tar_member(b"tool", b"payload", 0);
+        invalid_name[0] = 0xff;
+        assert_eq!(
+            extract_tar_entry(&invalid_name, "tool"),
+            Err(AcquisitionError::UnsafeArtifact)
+        );
+        let mut invalid_size = tar_member(b"tool", b"payload", 0);
+        invalid_size[124] = b'x';
+        assert_eq!(
+            extract_tar_entry(&invalid_size, "tool"),
+            Err(AcquisitionError::UnsafeArtifact)
+        );
+        let mut truncated = tar_member(b"tool", b"payload", 0);
+        truncated.truncate(516);
+        assert_eq!(
+            extract_tar_entry(&truncated, "tool"),
+            Err(AcquisitionError::TooLarge)
+        );
     }
 
     #[test]
