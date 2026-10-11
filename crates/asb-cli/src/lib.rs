@@ -772,6 +772,7 @@ fn run_local_mock_entry_result(
         stdout,
         stderr,
         presentation_context,
+        None,
     )
 }
 
@@ -1007,7 +1008,23 @@ fn dispatch(
                 .map(|()| 0)
                 .map_err(output_error)
         }
-        [command] if command == "doctor" => doctor(stdout).map(|()| 0),
+        [command] if command == "doctor" || command == "preflight" => {
+            if command == "doctor" {
+                doctor(stdout).map(|()| 0)
+            } else {
+                let view = dependency_registry::preflight_for("preflight", Path::new("."))
+                    .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
+                write_json(stdout, &view).map(|()| 0)
+            }
+        }
+        [command, project_flag, project]
+            if command == "preflight" && project_flag == "--project" =>
+        {
+            let view = dependency_registry::preflight_for("preflight", Path::new(project))
+                .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
+            write_json(stdout, &view).map(|()| 0)
+        }
+        [command, rest @ ..] if command == "preflight" => preflight_cli(rest, stdout),
         [command, project_flag, project] if command == "setup" && project_flag == "--project" => {
             project_run::ProjectExecution::validate_setup_project(Path::new(project))?;
             setup_with_progress(&[], stdout, stderr, presentation_context.is_some()).map(|()| 0)
@@ -2268,7 +2285,7 @@ fn guided_local_at(
         "sweep" => true,
         _ => return Err(CliError::legacy_usage("easy requires run or sweep")),
     };
-    execute_inner_from_source(
+    execute_inner_from_source_with_root(
         Path::new(&args[1]),
         SelectionSource::Config(store),
         sweep,
@@ -2278,6 +2295,7 @@ fn guided_local_at(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -2522,7 +2540,7 @@ fn command_name(args: &[OsString]) -> &'static str {
 fn write_help(output: &mut dyn Write) -> Result<(), CliError> {
     writeln!(
         output,
-        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config [--local-mock]\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb catalog generate|list|show ID|select ID --kind KIND --digest-sha256 SHA256 [--project PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run|sweep EXPERIMENT.toml [--provider-selection selection.json|--use-config] [--local-mock]\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json [--online] [--agents selected|all] [--workloads selected|all] [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
+        "Agent Systems Benchmark (ASB)\n\nUsage:\n  asb doctor [--json]\n  asb preflight [--json]\n  asb setup [--json|--format=json]\n  asb easy run|sweep EXPERIMENT.toml --use-config [--local-mock]\n  asb capabilities [--json|--format json]\n  asb project init [PATH]\n  asb catalog generate|list|show ID|select ID --kind KIND --digest-sha256 SHA256 [--project PATH]\n  asb tui [launch|status|doctor|remove|install|upgrade]\n  asb provider-catalog [--json]\n  asb adapter-catalog\n  asb provider-plan --catalog-sha256 SHA256 --provider-profile openai|openrouter --agent AGENT --credential-reference-sha256 SHA256\n  asb plan EXPERIMENT.toml --provider-selection selection.json\n  asb run|sweep EXPERIMENT.toml [--provider-selection selection.json|--use-config] [--local-mock]\n  asb benchmark-live EXPERIMENT.toml --provider-selection selection.json [--online] [--agents selected|all] [--workloads selected|all] [--sweep]\n  asb compare RUN...\n  asb report RUN...\n  asb completion bash\n  asb serve CONTROL.toml\n\nHuman-readable output is the default. Add --json for versioned machine output; --format json remains supported as a compatibility alias. Add --details for bounded diagnostic identifiers in human output. Progress is written to stderr."
     )
     .map_err(output_error)?;
     writeln!(
@@ -7517,6 +7535,7 @@ fn execute(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7541,6 +7560,7 @@ fn execute_project(
         output,
         progress,
         presentation_context,
+        Some(project.root()),
     )
 }
 
@@ -7562,6 +7582,7 @@ fn execute_with_selection(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7582,6 +7603,7 @@ fn execute_with_selection_local_mock(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7595,7 +7617,7 @@ fn execute_with_config(
 ) -> Result<u8, CliError> {
     let store = ConfigStore::from_environment()
         .map_err(|_| CliError::legacy_operation("ASB configuration location is unavailable"))?;
-    execute_inner_from_source(
+    execute_inner_from_source_with_root(
         path,
         SelectionSource::Config(&store),
         sweep,
@@ -7605,6 +7627,7 @@ fn execute_with_config(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7650,6 +7673,7 @@ fn execute_with_selection_live_provider(
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7838,6 +7862,14 @@ fn execute_live_benchmark_matrix(
     let mut cancelled = false;
     let mut provider_launch_sha256 = None;
     for entry in plans {
+        ensure_execution_dependencies(
+            "benchmark-live",
+            &entry,
+            Some(&selection),
+            false,
+            true,
+            None,
+        )?;
         let mut entry_output = Vec::new();
         let code = execute_loaded_plan(
             entry,
@@ -7849,6 +7881,7 @@ fn execute_live_benchmark_matrix(
             None,
             &mut entry_output,
             progress,
+            None,
             None,
         )?;
         let receipt: Value = serde_json::from_slice(&entry_output)
@@ -7933,8 +7966,9 @@ fn execute_inner(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
-    execute_inner_from_source(
+    execute_inner_from_source_with_root(
         path,
         SelectionSource::Path(selection_path),
         sweep,
@@ -7944,12 +7978,41 @@ fn execute_inner(
         output,
         progress,
         presentation_context,
+        project_root,
     )
 }
 
 enum SelectionSource<'a> {
     Path(Option<&'a Path>),
     Config(&'a ConfigStore),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_inner_from_source_with_root(
+    path: &Path,
+    source: SelectionSource<'_>,
+    sweep: bool,
+    live_provider: bool,
+    live_factory: Option<LiveProviderAttemptFactory>,
+    local_mock: bool,
+    output: &mut dyn Write,
+    progress: &mut dyn Write,
+    presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
+) -> Result<u8, CliError> {
+    execute_inner_from_source_with_owner(
+        path,
+        source,
+        sweep,
+        live_provider,
+        live_factory,
+        local_mock,
+        None,
+        output,
+        progress,
+        presentation_context,
+        project_root,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -7964,17 +8027,17 @@ fn execute_inner_from_source(
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
 ) -> Result<u8, CliError> {
-    execute_inner_from_source_with_owner(
+    execute_inner_from_source_with_root(
         path,
         source,
         sweep,
         live_provider,
         live_factory,
         local_mock,
-        None,
         output,
         progress,
         presentation_context,
+        None,
     )
 }
 
@@ -7990,6 +8053,7 @@ fn execute_inner_from_source_with_owner(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
     execute_inner_from_source_with_owner_project(
         path,
@@ -8003,6 +8067,7 @@ fn execute_inner_from_source_with_owner(
         output,
         progress,
         presentation_context,
+        project_root,
     )
 }
 
@@ -8019,6 +8084,7 @@ fn execute_inner_from_source_with_owner_project(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
     let (plan, selection) = match source {
         SelectionSource::Path(selection_path) => load_plan_and_selection(path, selection_path)?,
@@ -8045,7 +8111,42 @@ fn execute_inner_from_source_with_owner_project(
         output,
         progress,
         presentation_context,
+        project_root,
     )
+}
+
+fn ensure_execution_dependencies(
+    command: &str,
+    plan: &PlanFile,
+    selection: Option<&ProviderPlanOutput>,
+    local_mock: bool,
+    live_provider: bool,
+    project_root: Option<&Path>,
+) -> Result<(), CliError> {
+    if local_mock || selection.is_none() {
+        return Ok(());
+    }
+    let root = project_root.unwrap_or_else(|| Path::new("."));
+    // Standalone plans do not claim a project-local tool inventory.  Explicit
+    // projects do, and must pass the same selected-scope readiness gate before
+    // any result/work roots or provider effects are prepared.
+    if project_root.is_none() && !root.join(PROJECT_INIT_CONFIG).is_file() {
+        return Ok(());
+    }
+    let agent = plan.experiment.agent.implementation.as_str();
+    let runtime = if live_provider { "host" } else { "local" };
+    let view =
+        dependency_registry::preflight_for_selected(command, root, Some(agent), Some(runtime))
+            .map_err(|_| {
+                CliError::legacy_validation("dependency preflight could not be evaluated")
+            })?;
+    if view.ready {
+        return Ok(());
+    }
+    let _ = command;
+    Err(CliError::legacy_validation(
+        "dependency preflight is not ready; run `asb preflight` for remediation",
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -8060,7 +8161,16 @@ fn execute_loaded_plan(
     output: &mut dyn Write,
     progress: &mut dyn Write,
     presentation_context: Option<&mut human::PresentationContext>,
+    project_root: Option<&Path>,
 ) -> Result<u8, CliError> {
+    ensure_execution_dependencies(
+        if sweep { "sweep" } else { "run" },
+        &plan,
+        selection.as_ref(),
+        local_mock,
+        live_provider,
+        project_root,
+    )?;
     if live_provider && selection.is_none() {
         return Err(CliError::legacy_validation(
             "--live-provider requires an explicit provider selection",
@@ -17027,5 +17137,45 @@ fn recording_selection_error(error: asb_replay::SourceSelectionError) -> CliErro
     }
 }
 
+pub mod dependency_registry;
 pub mod source_builder;
 pub mod tool_catalog;
+
+fn preflight_cli(args: &[String], output: &mut dyn Write) -> Result<u8, CliError> {
+    let mut project = ".";
+    let mut agent = None;
+    let mut runtime = None;
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        let value = args.get(index + 1).ok_or_else(|| {
+            CliError::legacy_usage(
+                "preflight accepts --project PATH, --agent ID, and --runtime host|local",
+            )
+        })?;
+        if value.is_empty() || value.len() > MAX_ID_BYTES {
+            return Err(CliError::legacy_validation(
+                "preflight selector is empty or too long",
+            ));
+        }
+        match flag {
+            "--project" if project == "." => project = value,
+            "--agent" if agent.is_none() => agent = Some(value.as_str()),
+            "--runtime" if runtime.is_none() => runtime = Some(value.as_str()),
+            _ => {
+                return Err(CliError::legacy_usage(
+                    "preflight accepts --project PATH, --agent ID, and --runtime host|local",
+                ));
+            }
+        }
+        index += 2;
+    }
+    let view = dependency_registry::preflight_for_selected(
+        "preflight",
+        Path::new(project),
+        agent,
+        runtime,
+    )
+    .map_err(|_| CliError::legacy_operation("preflight could not be evaluated"))?;
+    write_json(output, &view).map(|()| 0)
+}

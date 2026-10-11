@@ -11,6 +11,7 @@ use super::*;
 /// Checked, project-local execution locations.
 #[derive(Debug)]
 pub(super) struct ProjectExecution {
+    root: PathBuf,
     result_root: PathBuf,
     work_root: PathBuf,
 }
@@ -56,9 +57,14 @@ impl ProjectExecution {
         ensure_project_child(&root, &result_root, "project results directory")?;
         ensure_project_child(&root, &work_root, "project work directory")?;
         Ok(Self {
+            root,
             result_root,
             work_root,
         })
+    }
+
+    pub(super) fn root(&self) -> &Path {
+        &self.root
     }
 
     /// Replace caller-selected output roots with the initialized project roots.
@@ -182,6 +188,7 @@ mod tests {
         let result = directory.path().join("results");
         let outside = tempdir().unwrap();
         let execution = ProjectExecution {
+            root: directory.path().to_path_buf(),
             result_root: fs::canonicalize(&result).unwrap(),
             work_root: directory.path().join(".asb/work"),
         };
