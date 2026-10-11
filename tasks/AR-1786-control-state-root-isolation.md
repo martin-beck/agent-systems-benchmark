@@ -8,7 +8,7 @@
     "AR-1733"
   ],
   "id": "AR-1786",
-  "next_action": "Independent exact-head review of 378787cd after diagnostic catalog repair, then full applicable gates; publish only from clean exact tree.",
+  "next_action": "Publish PR from clean exact candidate 378787cd after independent review and passing focused/full gates; await exact-head CI before protected merge.",
   "observed_branch": "codex/ar-1786-control-state",
   "observed_dirty": 0,
   "observed_head": "7be2fcb0dc0ee3ba4f30176c491a4d278ecd584b",
@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 87,
+  "task_revision": 88,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:35:36+00:00",
+  "updated_at": "2026-10-11T06:35:57+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -297,3 +297,9 @@ gate into a serial-only or exclusion-based check.
 
 - 2026-10-11T06:35:36+00:00: Recorded command exit 0; command argv SHA-256
   3b061dab12035f416b4d163de72cacc57d3c38f213ced4ea03ecc701d3750294.
+
+- 2026-10-11T06:35:57+00:00: Exact-head review of 378787cd passes: SSH signature and matching DCO
+  verified, diff-check clean, focused diagnostic_contract 9/9, failed same-process contender,
+  child-inheritance, and 16-way parallel isolation tests pass; cargo fmt --check, clippy --workspace
+  --all-targets -D warnings, and two ordinary cargo test --workspace --locked runs pass. Candidate
+  tree is clean. Ready for PR publication and exact-head hosted CI; no merge claimed.

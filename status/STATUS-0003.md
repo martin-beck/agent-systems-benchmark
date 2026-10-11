@@ -1302,7 +1302,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. |
-| Next action | Independent exact-head review of 378787cd after diagnostic catalog repair, then full applicable gates; publish only from clean exact tree. |
+| Next action | Publish PR from clean exact candidate 378787cd after independent review and passing focused/full gates; await exact-head CI before protected merge. |
 
 ### AR-1787 — Repair control lock lifetime semantics
 
