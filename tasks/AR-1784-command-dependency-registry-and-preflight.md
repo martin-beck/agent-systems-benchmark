@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Await all required checks for PR #573 at 4580f5c8; then complete independent review, merge, exact-main post-merge assurance, and accept/release.",
+  "next_action": "Repair PR #573 exact-head human_cli diagnostic matrix failure, then rerun Rust/policy and all required gates before review/merge.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 0,
   "observed_head": "85daea11134cb5ccf2018284a94797a40a0d1647",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 199,
+  "task_revision": 200,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T09:48:33+00:00",
+  "updated_at": "2026-10-11T09:50:48+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -551,3 +551,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T09:48:33+00:00: P1 repair and diagnostic identity refresh are pushed at 4580f5c8;
   focused test and fmt pass; hosted gates still pending.
+
+- 2026-10-11T09:50:48+00:00: Hosted Rust/policy exposed ar1769 human diagnostic matrix mismatch at
+  4580f5c8; worker is repairing the reviewed output contract.
