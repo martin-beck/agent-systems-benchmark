@@ -1,5 +1,8 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
+| [AR-1628](../tasks/AR-1628.md) | [AR-1615](../tasks/AR-1615.md), [AR-1626](../tasks/AR-1626.md) | [AR-1629](../tasks/AR-1629.md), [AR-1630](../tasks/AR-1630.md) |
+| [AR-1629](../tasks/AR-1629.md) | [AR-1628](../tasks/AR-1628.md) | None |
+| [AR-1630](../tasks/AR-1630.md) | [AR-1628](../tasks/AR-1628.md) | None |
 | [AR-1631](../tasks/AR-1631.md) | [AR-1563](../tasks/AR-1563.md), [AR-1564](../tasks/AR-1564.md), [AR-1588](../tasks/AR-1588.md), [AR-1604](../tasks/AR-1604.md) | [AR-1632](../tasks/AR-1632.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md) |
 | [AR-1632](../tasks/AR-1632.md) | [AR-1622](../tasks/AR-1622.md), [AR-1631](../tasks/AR-1631.md), [AR-1633](../tasks/AR-1633.md), [AR-1634](../tasks/AR-1634.md), [AR-1635](../tasks/AR-1635.md), [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md), [AR-1638](../tasks/AR-1638.md), [AR-1639](../tasks/AR-1639.md), [AR-1640](../tasks/AR-1640.md) | [AR-1623](../tasks/AR-1623.md), [AR-1644](../tasks/AR-1644.md) |
 | [AR-1633](../tasks/AR-1633.md) | [AR-1604](../tasks/AR-1604.md), [AR-1631](../tasks/AR-1631.md) | [AR-1632](../tasks/AR-1632.md), [AR-1634](../tasks/AR-1634.md) |
@@ -573,4 +576,3 @@
 | P0 | [AR-1516](../tasks/AR-1516-ar1308-qemu-fixture-evidence-repair.md): AR-1308 QEMU fixture repair | Unclaimed | Fixture repair passed boot/transient/JAR checks; full tier timed out at 1700s without attestation. | Close fixture repair; hand timeout to AR-1309 for capacity/model decision. |
 | P0 | [AR-1517](../tasks/AR-1517-ar1309-capacity-decision-unblock.md): AR-1309 capacity decision | Unclaimed | Select a reviewed AR-1309 capacity/model contract after runner failure. | Classify evidence and select AR-1309&#x27;s capacity/model contract. |
 | P0 | [AR-1519](../tasks/AR-1519.md): AR-1307/1308 reduced-model development profile | Unclaimed | Reduced development tier implemented with explicit 900s/1-worker/2G/2G/4G bounds and non-claiming attestation. | Independently review the exact head, then release this development-only repair; full AR-1307/1308 qualification remains separate. |
-| P0 | [AR-1520](../tasks/AR-1520.md): AR-1308 reduced-profile runtime qualification | Unclaimed | Reduced profile passes self-contained QEMU: transient admission, bounded models, sanitized non-claiming attestation, and clean poweroff. | Release after exact-head review; retain AR-1307/1308 formal qualification as separate blocked gates. |
