@@ -134,17 +134,65 @@ pub fn verify_bytes(
     if digest != alternative.sha256 {
         return Err(AcquisitionError::DigestMismatch);
     }
-    // A downloaded executable must be a regular file payload.  Archive and
-    // installer formats are never executed by this boundary.
-    if bytes.starts_with(b"#!") || bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"ustar") {
+    // Archives are accepted only after bounded tar member validation and
+    // extraction of the catalogued entrypoint.  Installer scripts and links
+    // are never executed or materialized.
+    let bytes = if bytes.len() > 262 && &bytes[257..262] == b"ustar" {
+        extract_tar_entry(&bytes, &entry.entrypoint)?
+    } else if bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"#!") {
         return Err(AcquisitionError::UnsafeArtifact);
-    }
+    } else {
+        bytes
+    };
     Ok(VerifiedArtifact {
         bytes,
         entry,
         alternative,
         source_ref,
     })
+}
+
+fn extract_tar_entry(archive: &[u8], entrypoint: &str) -> Result<Vec<u8>, AcquisitionError> {
+    let mut offset = 0usize;
+    let mut found = None;
+    while offset + 512 <= archive.len() {
+        let header = &archive[offset..offset + 512];
+        if header.iter().all(|byte| *byte == 0) {
+            break;
+        }
+        let name_end = header[..100].iter().position(|b| *b == 0).unwrap_or(100);
+        let name = std::str::from_utf8(&header[..name_end])
+            .map_err(|_| AcquisitionError::UnsafeArtifact)?;
+        if name.starts_with('/') || name.split('/').any(|part| part == "..") {
+            return Err(AcquisitionError::UnsafeArtifact);
+        }
+        let size_end = header[124..136].iter().position(|b| *b == 0).unwrap_or(12) + 124;
+        let size = usize::from_str_radix(
+            std::str::from_utf8(&header[124..size_end])
+                .unwrap_or("0")
+                .trim(),
+            8,
+        )
+        .map_err(|_| AcquisitionError::UnsafeArtifact)?;
+        let kind = header[156];
+        if kind != 0 && kind != b'0' {
+            if kind == b'2' || kind == b'1' {
+                return Err(AcquisitionError::UnsafeArtifact);
+            }
+        }
+        let start = offset + 512;
+        let end = start.checked_add(size).ok_or(AcquisitionError::TooLarge)?;
+        if end > archive.len() || size > MAX_ARTIFACT_BYTES {
+            return Err(AcquisitionError::TooLarge);
+        }
+        if name == entrypoint {
+            found = Some(archive[start..end].to_vec());
+        }
+        offset = start + size.div_ceil(512) * 512;
+    }
+    found
+        .filter(|bytes| !bytes.is_empty())
+        .ok_or(AcquisitionError::UnsafeArtifact)
 }
 
 pub fn read_local(id: &str, path: &Path) -> Result<VerifiedArtifact, AcquisitionError> {
