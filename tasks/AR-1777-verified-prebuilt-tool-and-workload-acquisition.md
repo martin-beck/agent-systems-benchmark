@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Repair independent-review blockers on exact b8cf6cb3: redact absolute local source paths from persisted identities, reject all non-regular tar entries, and validate executable format/entrypoint. Add regression tests, rerun hosted Policy and all required gates, then review exact head.",
+  "next_action": "Monitor fresh hosted Policy and all required checks at exact 67d28a61; inspect any failures and obtain independent re-review before merge.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair-v2",
   "observed_dirty": 0,
   "observed_head": "0a389a2f8aa3c0801e1b82d70d0d0021a9abd1b1",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #579 exact head b8cf6cb3 has hosted checks pending and coverage attribution repair, but independent review found three AR-1777 blockers in acquisition: private local path leakage, special tar entry acceptance, and insufficient executable/entrypoint validation. No merge.",
-  "task_revision": 165,
+  "summary": "PR #579 exact head 67d28a61: local source_ref is stable redacted local:<id>; tar extraction rejects all non-regular members; raw/extracted tools require little-endian ELF with valid type/machine/entrypoint. Focused acquisition 15/15, full serial asb-cli 377/377, clippy green.",
+  "task_revision": 166,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T12:54:37+00:00",
+  "updated_at": "2026-10-11T12:54:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -585,3 +585,8 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T12:54:37+00:00: Recorded command exit 0; command argv SHA-256
   15ba3a41c837c91311303c22c83caea2bb631caad71ee2ce32f5d07adb9f5e8b.
+
+- 2026-10-11T12:54:47+00:00: Signed DCO 67d28a61 hardens AR-1777 acquisition. Tests cover
+  absolute-path redaction, tar special types 1-7, arbitrary payload rejection,
+  missing/zero-entrypoint ELF, and big-endian rejection. Existing fixture/source archive behavior
+  preserved; no merge.
