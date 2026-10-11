@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Repair the protected-main publication path after a GitHub web merge produced a rejected committer identity.",
-  "task_revision": 5,
+  "task_revision": 6,
   "title": "Protected-main merge-path repair",
-  "updated_at": "2026-10-11T13:39:00+00:00",
+  "updated_at": "2026-10-11T13:39:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1794-protected-main-merge-path"
 }
 ---
@@ -47,3 +47,6 @@ inputs, not disposable evidence.
 
 - 2026-10-11T13:39:00+00:00: Recorded command exit 1; command argv SHA-256
   dc048d5ae1376edccb69d0edfa2e08017a6edcc7434452c85918d74ea1c1a5fa.
+
+- 2026-10-11T13:39:24+00:00: Recorded command exit 0; command argv SHA-256
+  44fe5a4fb53c7dd63dedb94e0eff27f7a65de8dc4ec82a0451f4b9d7f146e6e3.
