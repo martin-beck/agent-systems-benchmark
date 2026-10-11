@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Independent exact diff review is complete; full asb-cli suite has one pre-existing human diagnostic assertion failure unrelated to AR-1784, while all four new registry tests and public-command inventory test pass. Parent should decide PR publication with this known baseline blocker.",
+  "next_action": "Hold AR-1784 publication pending dependent AR-1793; focused diagnostic_contract now passes after preserving lib.rs callsite lines and cataloguing preflight legacy identity; rerun unchanged full asb-cli suite, then review and publish.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 3,
   "observed_head": "fe7f1ce8b34d286ae7e0a83d1d64b2211e7302a5",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 64,
+  "task_revision": 65,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T08:43:39+00:00",
+  "updated_at": "2026-10-11T08:43:52+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -223,3 +223,11 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T08:43:39+00:00: Recorded command exit 0; command argv SHA-256
   b26915d9a59ecd48b63a5b2ead4566d46def4559b2ec965d6146fbc0392fd8c3.
+
+- 2026-10-11T08:43:52+00:00: Root cause recorded: origin/main baseline 4245b4a1 passed
+  human::tests::error_presentations_name_cause_state_and_recovery_without_private_text; AR-1784
+  initially failed because added preflight dispatch/help/module lines shifted line-addressed legacy
+  diagnostic callsites, causing output-parent handling to emit No successful state change was
+  reported. Repair was within AR-1784: preserve lib.rs line positions and add reviewed catalog
+  identity at lib.rs:1010. AR-1793 is created and committed/pushed as narrowly scoped dependent
+  repair for the legacy wording contract, with AR-1784 dependency.
