@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Host-runtime dependency contract repaired on PR #575.",
-  "task_revision": 91,
+  "task_revision": 92,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T11:17:42+00:00",
+  "updated_at": "2026-10-11T11:17:58+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -318,3 +318,6 @@ and end-to-end development-run tests in the same change.
 
 - 2026-10-11T11:17:42+00:00: Recorded command exit 101; command argv SHA-256
   a0c780a3386af68b0d1556fb27352dc1f3e6cc8f01d7e0b6fb6367eedddbaa99.
+
+- 2026-10-11T11:17:58+00:00: Recorded command exit 0; command argv SHA-256
+  d6927b0c010b3ea7c4139ab9409f2c9937d1d582e408103d35663d7c7054dfa3.
