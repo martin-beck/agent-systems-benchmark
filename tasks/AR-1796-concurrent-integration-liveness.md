@@ -5,7 +5,7 @@
   "claim_expires": "2026-10-11T14:30:01+00:00",
   "depends_on": [],
   "id": "AR-1796",
-  "next_action": "Implement candidate-bound publication admission before moving remote I/O outside the authority lock.",
+  "next_action": "Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification.",
   "observed_branch": "policy/concurrent-integration-liveness",
   "observed_dirty": 0,
   "observed_head": "",
@@ -15,9 +15,9 @@
   "schema_version": 1,
   "status": "in_progress",
   "summary": "Keep autonomous development live during concurrent protected-main integration.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Concurrent integration liveness",
-  "updated_at": "2026-10-11T12:32:25+00:00",
+  "updated_at": "2026-10-11T12:40:17+00:00",
   "worktree_key": ""
 }
 ---
@@ -33,3 +33,8 @@ workers checkpoint, retry, and continue useful work during integration churn.
 - 2026-10-11T12:32:25+00:00: Independent source audit rejected a naive post-unlock push: it can
   publish a concurrent head. The repair now requires durable candidate identity, serialized
   admission, remote-base fencing, post-push ancestry observation, and explicit ambiguous recovery.
+
+- 2026-10-11T12:40:17+00:00: Implementation foundation now has candidate/key idempotency, publisher
+  lease fencing, exact candidate observation, v3 migration, and a new publication model. Focused
+  receipt tests pass. Canonical TLC queue is foreign-owned; isolated one-worker TLC cannot
+  initialize a JVM because the host returns pthread_create EAGAIN before parsing.

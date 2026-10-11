@@ -1442,7 +1442,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Keep autonomous development live during concurrent protected-main integration. |
-| Next action | Implement candidate-bound publication admission before moving remote I/O outside the authority lock. |
+| Next action | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. |
 
 ### AR-1797 — Wire cli2key sidecar into live benchmark execution
 

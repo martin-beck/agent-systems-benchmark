@@ -170,7 +170,7 @@
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head 2fc8b428; compact PID/sequence replay fixture roots preserve cross-process isolation and fit AF_UNIX relay path; serial asb-cli lib 376/376 green; exact replay regression passes. | Monitor fresh hosted checks at exact 2fc8b428; inspect any failure before review/merge. |
-| P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-integration-liveness | Keep autonomous development live during concurrent protected-main integration. | Implement candidate-bound publication admission before moving remote I/O outside the authority lock. |
+| P0 | [AR-1796](../tasks/AR-1796-concurrent-integration-liveness.md): Concurrent integration liveness | codex-ar1796-integration-liveness | Keep autonomous development live during concurrent protected-main integration. | Wire the reviewed publication-job primitive into the fast publisher, then run independent and formal verification. |
 
 ### Open (2)
 
