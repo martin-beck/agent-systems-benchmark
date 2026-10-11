@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Implement dedicated verified remote external workload installation and lifecycle through asb workload.",
-  "task_revision": 4,
+  "task_revision": 5,
   "title": "Verified asb workload installation",
-  "updated_at": "2026-10-11T13:53:59+00:00",
+  "updated_at": "2026-10-11T13:54:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1782-verified-asb-workload-installation"
 }
 ---
@@ -55,3 +55,6 @@ remain mandatory.
   exact-main evidence.
 
 - 2026-10-11T13:53:59+00:00: Claimed by ar1782_workload_install_luna56.
+
+- 2026-10-11T13:54:05+00:00: Recorded command exit 0; command argv SHA-256
+  ff6d1fa7a7185010f75fcfafe4bdc1bdd5b9804d8c2b3e7abdd8a1b96cd81c63.
