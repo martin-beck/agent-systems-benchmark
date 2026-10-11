@@ -1274,7 +1274,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure. |
-| Next action | Create clean superseding PR for AR-1784 from current main af75cd06, replay the reviewed topic linearly including b4ae226c fail-fast integration, refresh identities/provenance, then obtain green exact-head CI and independent review. |
+| Next action | Await required checks for clean superseding PR #575 at 5cabf776 (base af75cd06); then obtain independent exact-head review and merge only through signed local merge-integrity, followed by exact-main verification. |
 
 ### AR-1785 — Repair OpenRouter configuration identity for live benchmark qualification
 

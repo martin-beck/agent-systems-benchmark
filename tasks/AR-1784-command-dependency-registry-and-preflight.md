@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1784",
-  "next_action": "Create clean superseding PR for AR-1784 from current main af75cd06, replay the reviewed topic linearly including b4ae226c fail-fast integration, refresh identities/provenance, then obtain green exact-head CI and independent review.",
+  "next_action": "Await required checks for clean superseding PR #575 at 5cabf776 (base af75cd06); then obtain independent exact-head review and merge only through signed local merge-integrity, followed by exact-main verification.",
   "observed_branch": "feature/ar-1784-command-dependency-registry-and-preflight",
   "observed_dirty": 2,
   "observed_head": "9d729dd610d303b5ab5ba9815fff76bab1b917a7",
@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Make every ASB command dependency declared, installable or explicitly host-only, and fail-fast before a missing-tool runtime failure.",
-  "task_revision": 222,
+  "task_revision": 223,
   "title": "Command dependency registry and preflight",
-  "updated_at": "2026-10-11T10:29:53+00:00",
+  "updated_at": "2026-10-11T10:32:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1784-command-dependency-registry-and-preflight"
 }
 ---
@@ -612,3 +612,7 @@ and end-to-end development-run tests in the same change.
 - 2026-10-11T10:29:53+00:00: PR #573 head e85e6872 failed portable provenance because a commit
   followed synchronization merge 80062618; synchronization merges must be topic tip. Preserve PR
   #573 evidence; do not force-push. Use a clean superseding branch based on af75cd06.
+
+- 2026-10-11T10:32:24+00:00: Clean linear superseding branch/PR #575 created from current main after
+  PR #573 topology failure. Signed/DCO commits include mandatory run/sweep/benchmark-live preflight,
+  tests, diagnostic identities, and provenance refresh.
