@@ -153,11 +153,12 @@
 | P0 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | codex-asb-ar1736-catalog-luna56-20261011 | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. |
 | P0 | [AR-1786](../tasks/AR-1786-control-state-root-isolation.md): Repair control state-root isolation race | codex-ar1786-review-merge-luna56 | Eliminate control state-root ownership collisions in ordinary parallel workspace tests. | Monitor PR #563 exact-head required CI at a5e58954 until all required checks are terminal green; then merge through protected workflow and verify exact protected main. |
 
-### Open (1)
+### Open (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1686](../tasks/AR-1686.md): Current-head content-addressed plan generation and qualification repair | Unclaimed | Make the fresh-user qualification runner generate valid plans through the ASB plan-create path and prove run, capture, replay, and comparison end to end. | Complete AR-1687 provider-bound comparison and AR-1688 runner-owned capture/replay qualification, then publish exact-head paired evidence for AR-1613. |
+| P1 | [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | Unclaimed | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | Promote after coordinator integrity repair and dependency verification; audit existing docs, add the CLI/TUI tutorial and platform install matrix, then qualify links, commands, and visual evidence. |
 
 ### Blocked (85)
 
@@ -249,7 +250,7 @@
 | P2 | [AR-0706](../tasks/AR-0706-native-openeuler-capacity.md): Provide native openEuler capacity | Unclaimed | Qualify booted openEuler on native x86_64 and applicable QEMU AArch64; keep native ARM64 optional. | Qualify native x86_64 openEuler and required applicable pinned QEMU AArch64 behavior; document genuine native ARM64 as optional future evidence. |
 | P2 | [AR-1444](../tasks/AR-1444-first-class-journey-qualification.md): First-class journey qualification | Unclaimed | Optional cross-repository journey evidence; never an ASB release blocker. | Optional cross-repository qualification only: wait for external asb-tui AR-1327 to provide an exact pinned acceptance revision and credential-free journey transcript; this AR is not an ASB release or first-customer blocker. Do not modify asb-tui from this repository. |
 
-### Planned (96)
+### Planned (95)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -345,7 +346,6 @@
 | P1 | [AR-1682](../tasks/AR-1682.md): Restore formal hierarchy model contract | Unclaimed | Repair the PR-publication formal model fixture so its hierarchy invariant matches the declared task domain without weakening any invariant or hosted gate. | Run exact formal publication verification and independent review on the corrected model fixture. |
 | P1 | [AR-1683](../tasks/AR-1683.md): Provide approved TLC attestation resource bounds | Unclaimed | Make the hosted formal workflow export the approved TLC memory and swap bounds required by attestation. | Run formal publication verification and runner regression tests on the exact hosted head. |
 | P1 | [AR-1684](../tasks/AR-1684.md): Harden runtime selector helper matrix | Unclaimed | Lock in fail-closed rejection of hostile selector directory, symlink, and non-regular entries. | Run the targeted authority defensive matrix and full hosted checks on the signed head. |
-| P1 | [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | Unclaimed | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | Promote after coordinator integrity repair and dependency verification; audit existing docs, add the CLI/TUI tutorial and platform install matrix, then qualify links, commands, and visual evidence. |
 | P2 | [AR-0602](../tasks/AR-0602-csb-monitoring-contention.md): Validate CSB monitoring and contention diagnostics | Unclaimed | Validate and integrate optional CSB resource monitoring and kernel-contention evidence without double counting or overstating support. | Audit CSB monitoring using native x86_64 oracles and required pinned QEMU AArch64 portable mapping/lifecycle checks; keep native ARM64 counters and performance as optional future evidence. |
 | P2 | [AR-0903](../tasks/AR-0903-release-qualification.md): Package and qualify the first release | Unclaimed | Deliver reproducible native release artifacts with complete support and evidence statements. | Audit milestone completeness and run isolated release qualification. |
 | P2 | [AR-1016](../tasks/AR-1016-measurement-integration-audit.md): Integrate and audit measurement selection and CSB evidence | Unclaimed | Audit selectable and CSB-backed measurements across live and replay runs. | Add end-to-end live/replay comparison, release documentation, and independent audit after AR-1014 and AR-1015. |
