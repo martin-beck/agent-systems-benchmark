@@ -10,8 +10,8 @@
   "id": "AR-1798",
   "next_action": "Implement the bounded immutable source-checkout provider required by AR-1778 and consume it from AR-1779.",
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
-  "observed_dirty": 3,
-  "observed_head": "24f1872cdb335c13331bffb67d0f73aa3f50430d",
+  "observed_dirty": 0,
+  "observed_head": "b305ff826c1f06da84205e2f32899291b976ebc7",
   "owner": "ar1798-source-checkout-luna56",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:20:36+00:00",
+  "updated_at": "2026-10-11T14:20:41+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
