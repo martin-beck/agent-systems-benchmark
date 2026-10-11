@@ -30,7 +30,7 @@ Generated from local Git and GitHub. Do not edit.
 | --- | --- | --- | --- | --- |
 | 38126359256 | `d64ac90ad96a` | push | Cross-repository development broker qualification | completed:success |
 | 38126359253 | `d64ac90ad96a` | push | Hosted portability and native qualification | completed:success |
-| 38126359237 | `d64ac90ad96a` | push | Rust verification | in_progress:- |
+| 38126359237 | `d64ac90ad96a` | push | Rust verification | completed:success |
 | 38126359222 | `d64ac90ad96a` | push | Emulated aarch64 portability | completed:success |
 | 38126359215 | `d64ac90ad96a` | push | Fault assurance | completed:success |
 | 38126359211 | `d64ac90ad96a` | push | Portable protected-main provenance | completed:success |
