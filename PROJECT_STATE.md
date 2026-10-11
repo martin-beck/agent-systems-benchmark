@@ -25,7 +25,7 @@ Generated from local Git and GitHub. Do not edit.
 | #570 | `feature/ar-1784-command-dependency-registry@13cc2fb461fb` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
 | #571 | `feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition-repair@62951d5629fa` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | AR-1777: verified prebuilt tool acquisition repair |
 | #572 | `feature/ar-1781-external-workload-acquisition-catalog@286cccd6d7c0` | `main` | BLOCKED | IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(workloads): publish development external workload catalog |
-| #573 | `feature/ar-1784-command-dependency-registry-and-preflight@d1b15fa7bb06` | `main` | BLOCKED | COMPLETED:FAILURE, COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add command dependency preflight registry |
+| #573 | `feature/ar-1784-command-dependency-registry-and-preflight@9d729dd610d3` | `main` | UNKNOWN | QUEUED: | feat(cli): add command dependency preflight registry |
 
 ## Recent workflows
 
@@ -40,6 +40,6 @@ Generated from local Git and GitHub. Do not edit.
 | 38130834972 | `62951d5629fa` | pull_request | Hosted portability and native qualification | in_progress:- |
 | 38130834957 | `62951d5629fa` | pull_request | Huawei MIT source headers | completed:success |
 | 38130834944 | `62951d5629fa` | pull_request | Formal assurance | in_progress:- |
-| 38130834938 | `62951d5629fa` | pull_request | Portable protected-main provenance | in_progress:- |
+| 38130834938 | `62951d5629fa` | pull_request | Portable protected-main provenance | completed:success |
 | 38130834906 | `62951d5629fa` | pull_request | Agent Workflow Quality shadow | completed:success |
 | 38130519604 | `286cccd6d7c0` | pull_request | Formal assurance | completed:success |
