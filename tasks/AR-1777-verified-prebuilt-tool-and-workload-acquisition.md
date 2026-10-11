@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "PR #576 exact head a666bfda; PTY failure reproduced as hosted-only flaky",
-  "task_revision": 98,
+  "task_revision": 99,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T11:05:46+00:00",
+  "updated_at": "2026-10-11T11:07:10+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -352,3 +352,6 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T11:05:46+00:00: Recorded command exit 0; command argv SHA-256
   f93f57a89f15ac562431a2c0b20eb676ccc4f941d591d07c14272c443ba4b125.
+
+- 2026-10-11T11:07:10+00:00: Recorded command exit 0; command argv SHA-256
+  f1c18bab21f1a61a43ca4ad6d36127ec88e8a7a37840ef5c447a8e565b1301c6.
