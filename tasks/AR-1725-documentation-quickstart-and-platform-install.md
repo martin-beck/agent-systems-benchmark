@@ -24,9 +24,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Document two-agent OpenRouter and TUI quickstarts",
-  "updated_at": "2026-10-11T07:17:01+00:00",
+  "updated_at": "2026-10-11T07:26:56+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1725-documentation-quickstart-and-platform-install"
 }
 ---
@@ -135,3 +135,6 @@ gates, independent review, and exact-head hosted CI.
 - 2026-10-11T07:17:01+00:00: Rebased clean squashed PR #565 branch onto current protected main
   4cb87998 and force-with-lease published signed head 8028fd66. Prior head 34848868 was behind and
   superseded.
+
+- 2026-10-11T07:26:56+00:00: Recorded command exit 0; command argv SHA-256
+  92379fa5436963edcc9340b82b9eb11f9cf47432ebfa27753a6b08c7c28aa439.
