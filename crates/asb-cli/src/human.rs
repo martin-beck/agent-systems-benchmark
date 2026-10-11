@@ -59,6 +59,7 @@ impl PresentationContext {
 #[rustfmt::skip]
 pub(crate) const PUBLIC_COMMANDS: &[&str] = &[
     "doctor",
+    "preflight",
     "setup",
     "capabilities",
     "project",
@@ -203,6 +204,7 @@ pub(super) enum InvocationKind {
     Help,
     Version,
     Doctor,
+    Preflight,
     Setup,
     Easy(EasyKind),
     Tui(TuiKind),
@@ -247,6 +249,7 @@ impl InvocationKind {
             None | Some("--help" | "-h") => Self::Help,
             Some("--version" | "-V") => Self::Version,
             Some("doctor") => Self::Doctor,
+            Some("preflight") => Self::Preflight,
             Some("setup") => Self::Setup,
             Some("easy") => Self::Easy(match words.get(1).copied() {
                 None | Some("--help" | "-h") => EasyKind::Help,
@@ -330,6 +333,7 @@ impl InvocationKind {
             Self::Help => CommandKind::Help,
             Self::Version => CommandKind::Version,
             Self::Doctor => CommandKind::Doctor,
+            Self::Preflight => CommandKind::Doctor,
             Self::Setup | Self::Easy(EasyKind::Setup) => CommandKind::Setup,
             Self::Tui(_) => CommandKind::Tui,
             Self::Capabilities => CommandKind::Capabilities,
@@ -887,6 +891,17 @@ fn validate_typed_result(
         }
     }
     match invocation {
+        InvocationKind::Preflight => {
+            let value: serde_json::Value = decode(captured)?;
+            if value.get("command").and_then(Value::as_str) != Some("preflight")
+                || value
+                    .get("dependencies")
+                    .and_then(Value::as_array)
+                    .is_none()
+            {
+                return Err(invalid());
+            }
+        }
         InvocationKind::Doctor => {
             let value: DoctorView = decode(captured)?;
             if value.command != "doctor" || value.ok != value.linux || value.architecture.is_empty()
@@ -1359,6 +1374,9 @@ fn project_for_presentation(
     invocation: InvocationKind,
     object: &Map<String, Value>,
 ) -> Map<String, Value> {
+    if matches!(invocation, InvocationKind::Preflight) {
+        return object.clone();
+    }
     let fields: &[&str] = match invocation.family() {
         CommandKind::Doctor => &["ok", "linux", "architecture", "procfs", "cgroup_v2"],
         CommandKind::Setup => &["persisted", "provider_profile", "model", "selected_agents"],
@@ -1591,6 +1609,37 @@ fn present(
     object: &Map<String, Value>,
     context: &PresentationContext,
 ) -> Presentation {
+    if matches!(invocation, InvocationKind::Preflight) {
+        let ready = boolean(object, "ready").unwrap_or(false);
+        let mut value = Presentation::new(if ready {
+            "ASB preflight is ready to execute the selected paths."
+        } else {
+            "ASB preflight found dependencies requiring remediation."
+        });
+        if let Some(items) = object.get("dependencies").and_then(Value::as_array) {
+            let missing = items
+                .iter()
+                .filter_map(|item| {
+                    let unavailable = !item
+                        .get("available")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                        && !item
+                            .get("optional")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false);
+                    unavailable.then(|| item.get("id").and_then(Value::as_str).unwrap_or("unknown"))
+                })
+                .collect::<Vec<_>>();
+            if !missing.is_empty() {
+                value.fact(format!(
+                    "Missing required dependencies: {}.",
+                    missing.join(", ")
+                ));
+            }
+        }
+        return value;
+    }
     let kind = invocation.family();
     match kind {
         CommandKind::Doctor => present_doctor(object),
@@ -2885,6 +2934,7 @@ mod tests {
     fn public_command_inventory_is_explicit_and_has_no_unknown_fallback() {
         #[rustfmt::skip] let commands: &[&[&str]] = &[
             &["doctor"],
+            &["preflight"],
             &["setup"],
             &["easy", "run"],
             &["tui", "launch"],

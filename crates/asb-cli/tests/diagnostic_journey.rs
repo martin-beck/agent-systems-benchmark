@@ -10,8 +10,10 @@ use std::ffi::OsString;
 /// a new command must choose a negative journey before this suite can pass.
 fn invalid_args(command: &str) -> Vec<OsString> {
     let words: &[&str] = match command {
-        "doctor" | "setup" | "capabilities" | "provider-catalog" | "adapter-catalog"
-        | "workload-catalog" | "completion" | "serve" => &[command, "--invalid-diagnostic-fixture"],
+        "doctor" | "preflight" | "setup" | "capabilities" | "provider-catalog"
+        | "adapter-catalog" | "workload-catalog" | "completion" | "serve" => {
+            &[command, "--invalid-diagnostic-fixture"]
+        }
         "project" => &["project", "unknown-subcommand"],
         "tool" => &["tool", "unknown-subcommand"],
         "catalog" => &["catalog", "unknown-subcommand"],
@@ -34,6 +36,7 @@ fn invalid_args(command: &str) -> Vec<OsString> {
 fn every_public_command_has_a_specific_safe_negative_journey() {
     let expected = [
         "doctor",
+        "preflight",
         "setup",
         "capabilities",
         "project",
