@@ -1,7 +1,5 @@
 <!-- This page is generated; the root STATUS.md index links the complete view. -->
 
-| [AR-1637](../tasks/AR-1637.md) | [AR-1636](../tasks/AR-1636.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1638](../tasks/AR-1638.md), [AR-1726](../tasks/AR-1726-development-rustup-shim-permissions.md) |
-| [AR-1638](../tasks/AR-1638.md) | [AR-1636](../tasks/AR-1636.md), [AR-1637](../tasks/AR-1637.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1639](../tasks/AR-1639.md) |
 | [AR-1639](../tasks/AR-1639.md) | [AR-1638](../tasks/AR-1638.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md), [AR-1640](../tasks/AR-1640.md) |
 | [AR-1640](../tasks/AR-1640.md) | [AR-1639](../tasks/AR-1639.md) | [AR-1615](../tasks/AR-1615.md), [AR-1632](../tasks/AR-1632.md) |
 | [AR-1641](../tasks/AR-1641.md) | [AR-1608](../tasks/AR-1608.md), [AR-1609](../tasks/AR-1609.md), [AR-1614](../tasks/AR-1614.md) | [AR-1613](../tasks/AR-1613.md), [AR-1622](../tasks/AR-1622.md), [AR-1643](../tasks/AR-1643.md), [AR-1645](../tasks/AR-1645.md), [AR-1657](../tasks/AR-1657.md), [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md) |
@@ -148,12 +146,11 @@
 
 ## Complete AR inventory
 
-### In progress (3)
+### In progress (2)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1716](../tasks/AR-1716.md): Cassette provider-profile identity binding | codex-ar1716-recording-fence-luna56 | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. |
-| P0 | [AR-1736](../tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | codex-asb-ar1736-catalog-luna56-20261011 | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. |
 | P1 | [AR-1725](../tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | ar1725-docs-luna56 | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725. |
 
 ### Open (1)
@@ -356,7 +353,7 @@
 | --- | --- | --- | --- | --- |
 | P4 | [AR-0703](../tasks/AR-0703-native-platform-lab.md): Provision native platform qualification capacity | Unclaimed | Optionally provide native ARM64 Debian/openEuler capacity for future claim-scoped evidence. | When separately authorized, provision genuine ARM64 Debian/openEuler capacity for optional future native evidence; absence must not block any AR. |
 
-### Done (572)
+### Done (573)
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
@@ -568,3 +565,5 @@
 | P0 | [AR-1523](../tasks/AR-1523.md): Platform authority deployment adapter | Unclaimed | Qualify the central orchestration path with deterministic local/mock and strict-replay authority; deployment-owned live authority is optional future hardening, not a development prerequisite. | Development path is unblocked: promote and claim this AR, qualify the existing central orchestrator with deterministic local/mock and strict-replay authority, and run exact-head gates. A deployment-owned authenticated source is optional future production hardening and must not block development qualification. |
 | P0 | [AR-1524](../tasks/AR-1524.md): Repair live-dispatch dependency graph | Unclaimed | Repair the stale AR-1374/1375 dependency cycle and make AR-1523 the canonical live-dispatch successor. | Promote after dependency verification; supersede the stale AR-1375 cycle and route AR-1374 to AR-1523 without changing product code. |
 | P0 | [AR-1526](../tasks/AR-1526.md): First-customer local/replay qualification | Unclaimed | Qualify the merged ASB production-shaped local/mock and strict-replay customer path with sanitized evidence. | No development action remains. Preserve the exact-main first-customer local/mock and strict-replay receipt; live-provider deployment remains optional future hardening. |
+| P0 | [AR-1527](../tasks/AR-1527.md): Normalize AR-1307/1308 development seed policy | Unclaimed | Remove reviewed seed and digest prerequisites from the AR-1307/1308 development path while preserving separate formal and release evidence gates. | Promote after state review; audit AR-1307/1308 and every active dependent for development-only seed/digest prerequisites, then normalize their task and plan language without changing formal gates. |
+| P0 | [AR-1528](../tasks/AR-1528.md): Rerun AR-1307/1308 development fixtures | Unclaimed | Run the repaired AR-1307/1308 unsigned-development fixture path and preserve separate formal qualification blockers. | No further action: development fixture rerun is complete; retain its non-qualifying evidence while formal work proceeds separately. |

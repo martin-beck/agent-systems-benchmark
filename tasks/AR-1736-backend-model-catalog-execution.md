@@ -2,13 +2,13 @@
 {
   "branch": "",
   "checkpoint_commit": "",
-  "claim_expires": "2026-10-11T08:25:27+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1733"
   ],
   "id": "AR-1736",
   "next_action": "Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures.",
-  "owner": "codex-asb-ar1736-catalog-luna56-20261011",
+  "owner": "",
   "plan": "../plans/AR-1736-backend-model-catalog-execution.md",
   "priority": "P0",
   "schema_version": 1,
@@ -22,11 +22,11 @@
   },
   "spec_ref": "specs/AR-1736.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution.",
-  "task_revision": 30,
+  "task_revision": 31,
   "title": "Require model catalogs and execution parity for every backend",
-  "updated_at": "2026-10-11T07:15:17+00:00",
+  "updated_at": "2026-10-11T07:15:22+00:00",
   "worktree_key": ""
 }
 ---
@@ -127,3 +127,6 @@ key services must not block this development AR.
 - 2026-10-11T07:15:17+00:00: Accepted after protected merge 4cb87998; exact-main checkout
   verification passed the AR-1736 generation/digest/backend selection fixture, and all PR plus
   post-merge required workflows are green.
+
+- 2026-10-11T07:15:22+00:00: Released after protected merge 4cb87998, exact-main verification, and
+  all required PR/post-merge checks green.

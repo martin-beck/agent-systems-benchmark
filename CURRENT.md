@@ -8,7 +8,6 @@ Never edit this file directly.
 | Priority | Task | Summary | Next action | Owner |
 | --- | --- | --- | --- | --- |
 | P0 | [AR-1716](tasks/AR-1716.md): Cassette provider-profile identity binding | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. | Add a focused RecordingIndex::insert identity fence and deterministic positive/mismatch tests, then qualify exact human/JSON diagnostics and receipt integrity. | codex-ar1716-recording-fence-luna56 |
-| P0 | [AR-1736](tasks/AR-1736-backend-model-catalog-execution.md): Require model catalogs and execution parity for every backend | Make every supported model-bearing backend enumerate selectable models and carry the exact selection through complete run and sweep execution. | Promote after AR-1733; inventory the canonical backend registry and implement catalog, selection, run, and sweep parity with exhaustive fixtures. | codex-asb-ar1736-catalog-luna56-20261011 |
 | P1 | [AR-1725](tasks/AR-1725-documentation-quickstart-and-platform-install.md): Document two-agent OpenRouter and TUI quickstarts | Publish a linked, executable tutorial for two-agent OpenRouter benchmarking, ASB TUI workflows, dependencies, and per-distribution installation. | PR #565 is publication candidate at exact head 34848868 on docs/ar-1725-documentation-quickstart-platform-install-v2; required checks pending. Monitor to terminal green, merge protected, verify exact main, then accept/release AR-1725. | ar1725-docs-luna56 |
 
 ## Open
