@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "checkpoint_commit": "e6664e8a8a1b14a31837ec73592c49df38e8284f",
-  "claim_expires": "2026-10-11T19:11:20+00:00",
+  "claim_expires": "",
   "depends_on": [
     "AR-1776",
     "AR-1778"
@@ -12,7 +12,7 @@
   "observed_branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "observed_dirty": 0,
   "observed_head": "89ce603c9aa0a44dc10e52a0ab5dd5654682eeeb",
-  "owner": "ar1798-source-checkout-luna56",
+  "owner": "",
   "plan": "../plans/AR-1798-pinned-source-checkout-acquisition.md",
   "priority": "P0",
   "schema_version": 1,
@@ -26,11 +26,11 @@
   },
   "spec_ref": "specs/AR-1798.json",
   "spec_revision": 1,
-  "status": "in_progress",
+  "status": "done",
   "summary": "Coverage margin repair pushed at c5303c05.",
-  "task_revision": 133,
+  "task_revision": 134,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T17:23:44+00:00",
+  "updated_at": "2026-10-11T17:23:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -428,3 +428,7 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T17:23:44+00:00: Recorded command exit 0; command argv SHA-256
   799f74d71d967752e3df0bac11a28c267923f2eaf63486e615941bbc203dce83.
+
+- 2026-10-11T17:23:47+00:00: Merged PR #585 at exact origin/main 24cb72d. Post-merge receipt
+  accepted with 26/26 focused tests and documented one-time metrics failure followed by repeated
+  green passes.

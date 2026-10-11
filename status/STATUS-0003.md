@@ -1462,11 +1462,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | in_progress |
+| Status | done |
 | Priority | P0 |
 | Role | unassigned |
 | Team | unassigned |
-| Owner | ar1798-source-checkout-luna56 |
+| Owner | Unclaimed |
 | Parent | None |
 | Children | None |
 | Summary | Coverage margin repair pushed at c5303c05. |
@@ -2328,7 +2328,7 @@ flowchart LR
         AR_1795["AR-1795 - Done"]:::status_done
         AR_1796["AR-1796 - In progress"]:::status_in_progress
         AR_1797["AR-1797 - Planned"]:::status_planned
-        AR_1798["AR-1798 - In progress"]:::status_in_progress
+        AR_1798["AR-1798 - Done"]:::status_done
     end
     AR_0001 --> AR_0002
     AR_0001 --> AR_0003
