@@ -2,8 +2,8 @@
 
 Generated from local Git and GitHub. Do not edit.
 
-- Product remote main: `c059e9a63dbc73f40020dd2da4d48a02c9958362`
-- Local origin/main: `c059e9a63dbc73f40020dd2da4d48a02c9958362`
+- Product remote main: `4cb87998c13310f95f2a7202b866c0d52135274b`
+- Local origin/main: `4cb87998c13310f95f2a7202b866c0d52135274b`
 - Primary worktree head: `a9abcf2e63f761e314593e9abc6bf074b7418e5e`
 
 ## Open pull requests
@@ -20,23 +20,22 @@ Generated from local Git and GitHub. Do not edit.
 | #494 | `repair/ar-protected-provenance@26bdd021b0d3` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | repair: restore protected-main signed provenance |
 | #534 | `feature/ar-1761-tool-install-registry@b95c89db086a` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add bounded project tool installer |
 | #535 | `feature/ar-1762-tool-discovery@78bc38b6e88d` | `main` | DIRTY | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | feat(cli): add deterministic tool discovery |
-| #560 | `codex/ar-1736-backend-model-catalog@fa1940c0b9b1` | `main` | BLOCKED | QUEUED:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS:, IN_PROGRESS: | Bind backend model selections to catalog identity |
-| #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, COMPLETED:SUCCESS, QUEUED:, IN_PROGRESS:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
-| #565 | `docs/ar-1725-quickstart-platform-install-v2@348488689ff0` | `main` | BLOCKED | QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, QUEUED:, IN_PROGRESS:, QUEUED:, QUEUED:, QUEUED:, QUEUED: | docs: add two-agent OpenRouter and TUI walkthrough |
+| #564 | `docs/ar-1725-quickstart-platform-install@695f1335c4ed` | `main` | BEHIND | COMPLETED:FAILURE, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
+| #565 | `docs/ar-1725-quickstart-platform-install-v2@348488689ff0` | `main` | BEHIND | COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS, COMPLETED:SUCCESS | docs: add two-agent OpenRouter and TUI walkthrough |
 
 ## Recent workflows
 
 | Run | SHA | Event | Workflow | State |
 | --- | --- | --- | --- | --- |
-| 38119903740 | `348488689ff0` | pull_request | Agent Workflow Quality shadow | queued:- |
-| 38119903724 | `348488689ff0` | pull_request | Formal assurance | queued:- |
-| 38119903721 | `348488689ff0` | pull_request | Cross-repository development broker qualification | queued:- |
-| 38119903718 | `348488689ff0` | pull_request | Repository quality | queued:- |
-| 38119903708 | `348488689ff0` | pull_request | Credential-free benchmark path | queued:- |
-| 38119903704 | `348488689ff0` | pull_request | Emulated aarch64 portability | queued:- |
-| 38119903703 | `348488689ff0` | pull_request | Huawei MIT source headers | in_progress:- |
-| 38119903700 | `348488689ff0` | pull_request | Rust verification | queued:- |
-| 38119903688 | `348488689ff0` | pull_request | Fault assurance | queued:- |
-| 38119903678 | `348488689ff0` | pull_request | Portable protected-main provenance | queued:- |
-| 38119903677 | `348488689ff0` | pull_request | Hosted portability and native qualification | queued:- |
-| 38119884894 | `695f1335c4ed` | pull_request | Portable protected-main provenance | queued:- |
+| 38120658376 | `4cb87998c133` | push | Emulated aarch64 portability | in_progress:- |
+| 38120658349 | `4cb87998c133` | push | Rust verification | in_progress:- |
+| 38120658292 | `4cb87998c133` | push | Cross-repository development broker qualification | in_progress:- |
+| 38120658285 | `4cb87998c133` | push | Repository quality | in_progress:- |
+| 38120658263 | `4cb87998c133` | push | Huawei MIT source headers | completed:success |
+| 38120658254 | `4cb87998c133` | push | Credential-free benchmark path | in_progress:- |
+| 38120658219 | `4cb87998c133` | push | Hosted portability and native qualification | in_progress:- |
+| 38120658189 | `4cb87998c133` | push | Portable protected-main provenance | completed:success |
+| 38120658188 | `4cb87998c133` | push | Formal assurance | in_progress:- |
+| 38120658185 | `4cb87998c133` | push | Fault assurance | in_progress:- |
+| 38119903740 | `348488689ff0` | pull_request | Agent Workflow Quality shadow | completed:success |
+| 38119903724 | `348488689ff0` | pull_request | Formal assurance | completed:success |
