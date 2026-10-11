@@ -171,7 +171,7 @@
 
 | Priority | AR | Owner | Summary | Next action |
 | --- | --- | --- | --- | --- |
-| P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head 1cac935c on protected-main base 14de8bce. PID plus monotonic sequence replay fixture roots, stale-root retry, concurrent allocator and stale-root regression tests. Focused launch_factory fixture suite 4/4 passes; full asb-runtime prior run 178 passed/1 ignored with one unrelated flaky process-boundary failure. | Run fresh full applicable gates and monitor hosted Policy/Rust/AArch64 at exact 1cac935c; inspect any failures before review/merge. |
+| P0 | [AR-1777](../tasks/AR-1777-verified-prebuilt-tool-and-workload-acquisition.md): Verified prebuilt tool acquisition | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 | PR #579 exact head f299ef1c: PID plus monotonic sequence fixture roots, bounded 64-attempt stale-root retry, and allocator concurrency/stale-root tests. Prior review failure on 1cac935c was repaired; fresh review and hosted checks are pending. | Run independent review and monitor fresh hosted checks at exact f299ef1c; merge only after clippy, coverage, Rust, AArch64, and all required checks are green. |
 | P0 | [AR-1795](../tasks/AR-1795-coordinator-v051-adoption.md): Coordinator v0.5.1 adoption | codex-ar1795-v051-coverage | Adopt v0.5.1 with strict coverage repair. | Retry canonical publication-tier formal verification after the occupied shared admission lane clears; then independently review the exact state and release only with all required evidence. |
 
 ### Open (3)

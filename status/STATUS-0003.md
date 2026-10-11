@@ -1175,8 +1175,8 @@
 | Owner | codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56 |
 | Parent | None |
 | Children | None |
-| Summary | PR #579 exact head 1cac935c on protected-main base 14de8bce. PID plus monotonic sequence replay fixture roots, stale-root retry, concurrent allocator and stale-root regression tests. Focused launch_factory fixture suite 4/4 passes; full asb-runtime prior run 178 passed/1 ignored with one unrelated flaky process-boundary failure. |
-| Next action | Run fresh full applicable gates and monitor hosted Policy/Rust/AArch64 at exact 1cac935c; inspect any failures before review/merge. |
+| Summary | PR #579 exact head f299ef1c: PID plus monotonic sequence fixture roots, bounded 64-attempt stale-root retry, and allocator concurrency/stale-root tests. Prior review failure on 1cac935c was repaired; fresh review and hosted checks are pending. |
+| Next action | Run independent review and monitor fresh hosted checks at exact f299ef1c; merge only after clippy, coverage, Rust, AArch64, and all required checks are green. |
 
 ### AR-1778 — Pinned source builds and project dependencies
 
