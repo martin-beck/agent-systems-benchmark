@@ -261,6 +261,7 @@ Generated from live Git. Paths are privacy-safe worktree keys.
 | `ar1653-asb` | `ar-1653-dev-channel` | `b7be789fdf51` | 0 | behind 463, ahead 0 |
 | `ar1689-asb-fix` | `repair/ar-1678-tui-host-preflight` | `a186357977ad` | 0 | behind 423, ahead 0 |
 | `ar1777-review-0efe01f7` | `DETACHED` | `0efe01f79342` | 0 | behind 2, ahead 15 |
+| `ar1777-review-56ca12a7` | `DETACHED` | `56ca12a79ec3` | 0 | behind 2, ahead 18 |
 | `ar1777-review-7019409f` | `DETACHED` | `7019409f45a7` | 0 | behind 2, ahead 16 |
 | `ar1777-review-79c21f62` | `DETACHED` | `79c21f62b68e` | 0 | behind 2, ahead 17 |
 | `ar1781-review-198bf869` | `DETACHED` | `198bf86975f6` | 0 | behind 18, ahead 1 |
