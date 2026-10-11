@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1777",
-  "next_action": "Monitor PR #576 exact-head hosted checks; independently review and supersede stale PR #574 only after replacement checks are green. Preserve original PR #574 evidence.",
+  "next_action": "Rerun PR #576 hosted Policy/coverage at exact head a666bfda; no product mutation unless PTY failure reproduces locally. Preserve signed head and investigate runner scheduling if rerun fails.",
   "observed_branch": "feature/ar-1777-verified-prebuilt-tool-and-workload-acquisition",
   "observed_dirty": 0,
   "observed_head": "eff009eeefb1b7c4c95217044ba44de5c4d44853",
@@ -26,10 +26,10 @@
   "spec_ref": "specs/AR-1777.json",
   "spec_revision": 1,
   "status": "in_progress",
-  "summary": "PR #576 exact head a666bfda; local workspace coverage 90.28%",
-  "task_revision": 93,
+  "summary": "PR #576 exact head a666bfda; PTY failure reproduced as hosted-only flaky",
+  "task_revision": 94,
   "title": "Verified prebuilt tool acquisition",
-  "updated_at": "2026-10-11T10:57:58+00:00",
+  "updated_at": "2026-10-11T10:58:05+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1777-verified-prebuilt-tool-and-workload-acquisition"
 }
 ---
@@ -333,3 +333,10 @@ reporting contract when available while keeping machine-mode output safe.
 
 - 2026-10-11T10:57:58+00:00: Heartbeat by
   codex-ar1777-verified-prebuilt-tool-and-workload-acquisition-luna56.
+
+- 2026-10-11T10:58:05+00:00: Hosted Policy run 38133385609 failed only
+  tui::tests::development_broker_foregrounds_interactive_child_and_restores_terminal: nested server
+  worker panic at tui.rs:2258 and outer controlling PTY exit status 101. Exact test passed 5/5
+  repeated locally; full cargo test --locked --workspace --all-targets also passed the PTY test and
+  all completed tests. This is environmental/flaky hosted behavior, not a reproduced product
+  regression. No gate weakened and no code mutation made.
