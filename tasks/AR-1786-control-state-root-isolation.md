@@ -20,9 +20,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Eliminate control state-root ownership collisions in ordinary parallel workspace tests.",
-  "task_revision": 71,
+  "task_revision": 72,
   "title": "Repair control state-root isolation race",
-  "updated_at": "2026-10-11T06:28:47+00:00",
+  "updated_at": "2026-10-11T06:29:16+00:00",
   "worktree_key": "agent-systems-benchmark-ar1786-control-product"
 }
 ---
@@ -243,3 +243,6 @@ gate into a serial-only or exclusion-based check.
   db3dfad83c511fa51f4315e2dcb57981048970d9; no PR or merge until review and exact-head CI pass.
 
 - 2026-10-11T06:28:47+00:00: Claimed by codex-ar1786-review-merge-luna56.
+
+- 2026-10-11T06:29:16+00:00: Recorded command exit 101; command argv SHA-256
+  a2ae8499d4ead7710b77bfd594e50500ebf3445b07b753cf0548c8f80f92df62.
