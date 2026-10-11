@@ -322,7 +322,7 @@
 | Parent | None |
 | Children | None |
 | Summary | Bind every recording index insertion to the selected provider profile identity and reject mismatched cassette metadata before mutation. |
-| Next action | PR #566 reruns at exact head 436f49cf after deterministic diagnostic line-identity repair. Await all required checks green, then protected merge and exact-main verification. |
+| Next action | PR #566 rebased onto protected main 7e795589 at exact head 58a445a5; await fresh required checks green, then protected merge and exact-main verification. |
 
 ### AR-1717 — Comparison exact provider/settings/endpoint identity fences
 
