@@ -27,9 +27,9 @@
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Repair pushed as c4cd8ea6: SWE-mini documented and all seven fixture candidates covered by bounded selection/dispatch tests.",
-  "task_revision": 25,
+  "task_revision": 26,
   "title": "External workload acquisition catalog",
-  "updated_at": "2026-10-11T10:07:21+00:00",
+  "updated_at": "2026-10-11T10:13:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1781-external-workload-acquisition-catalog"
 }
 ---
@@ -120,3 +120,6 @@ labelled.
   3021fc... to actual 8d69d7f1c010bb9b3e70570f10e186a9473e2a8bec35846008508e06375aab70; all other
   pinned digests unchanged. Focused workflow_transcript: 3 passed. PR remains open and unmerged;
   hosted gates rerun on 286cccd6.
+
+- 2026-10-11T10:13:37+00:00: Recorded command exit 0; command argv SHA-256
+  279a83e801c2421a21b8ba2ad28361837263ce39e61279d163229ba361d275a4.
