@@ -7,7 +7,7 @@
     "AR-1776"
   ],
   "id": "AR-1778",
-  "next_action": "Implement catalog-pinned source fallback builds and project-local dependency materialization for supported tools without root or ambient package-manager mutation.",
+  "next_action": "Independent exact-head review and required CI for PR #568; merge only after separate review and all required checks pass.",
   "observed_branch": "feature/ar-1778-pinned-source-build-and-project-dependencies",
   "observed_dirty": 0,
   "observed_head": "30d397f3b119b5a86b70eaf18fda2d188a645b12",
@@ -27,9 +27,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Build supported tools from verified pinned source and materialize missing dependencies in a project-owned prefix.",
-  "task_revision": 22,
+  "task_revision": 23,
   "title": "Pinned source builds and project dependencies",
-  "updated_at": "2026-10-11T08:35:04+00:00",
+  "updated_at": "2026-10-11T08:35:24+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1778-pinned-source-build-and-project-dependencies"
 }
 ---
@@ -93,3 +93,8 @@ limit are distinct actionable outcomes.
   ff2282a95ca1c6c17ceac3ebe66584e5898db9c0b814b01f29105f3fc1b053a7.
 
 - 2026-10-11T08:35:04+00:00: Heartbeat by codex-ar1778-luna56.
+
+- 2026-10-11T08:35:24+00:00: Observed exact product head 30d397f3 after rebase onto protected main
+  4245b4a1; full asb-cli suite 348 passed, focused source-builder/catalog tests and clippy passed.
+  PR #568 required checks remain in progress; separate technical review and protected merge are
+  pending.
