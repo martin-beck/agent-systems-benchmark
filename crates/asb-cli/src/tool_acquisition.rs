@@ -279,6 +279,26 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn bounded_digest_checks_reject_large_and_mismatched_catalog_bytes() {
+        assert!(matches!(
+            verify_bytes(
+                "codex",
+                "https://example.invalid/codex".into(),
+                vec![0u8; MAX_ARTIFACT_BYTES + 1]
+            ),
+            Err(AcquisitionError::TooLarge)
+        ));
+        assert!(matches!(
+            verify_bytes(
+                "codex",
+                "https://example.invalid/codex".into(),
+                b"not-the-pinned-artifact".to_vec()
+            ),
+            Err(AcquisitionError::DigestMismatch)
+        ));
+    }
+
     fn tar_member(name: &[u8], body: &[u8], kind: u8) -> Vec<u8> {
         let mut header = [0u8; 512];
         header[..name.len()].copy_from_slice(name);
@@ -322,6 +342,18 @@ mod tests {
         assert!(matches!(
             read_local("codex", temporary.path()),
             Err(AcquisitionError::UnsafeArtifact)
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn local_catalog_mismatch_preserves_typed_error() {
+        let temporary = tempfile::NamedTempFile::new().unwrap();
+        fs::write(temporary.path(), b"not-the-pinned-artifact").unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(matches!(
+            read_local("codex", temporary.path()),
+            Err(AcquisitionError::DigestMismatch)
         ));
     }
 
