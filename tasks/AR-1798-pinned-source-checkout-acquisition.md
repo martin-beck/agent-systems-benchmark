@@ -2,7 +2,7 @@
 {
   "branch": "feature/ar-1798-pinned-source-checkout-acquisition",
   "checkpoint_commit": "8eccc3843db2f2ec4dec2de7ca63f42c1b5c31d2",
-  "claim_expires": "2026-10-11T16:28:17+00:00",
+  "claim_expires": "2026-10-11T16:31:34+00:00",
   "depends_on": [
     "AR-1776",
     "AR-1778"
@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Provide a bounded immutable source checkout so supported tool installation can invoke the pinned source builder without fabricating provenance.",
-  "task_revision": 46,
+  "task_revision": 47,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T14:31:25+00:00",
+  "updated_at": "2026-10-11T14:31:34+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -174,3 +174,5 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T14:31:25+00:00: Recorded command exit 0; command argv SHA-256
   8e7ad2e1157441140c544316fb3631277cea7d1b12d36633f955101fe28350c6.
+
+- 2026-10-11T14:31:34+00:00: Heartbeat by ar1798-source-checkout-luna56.
