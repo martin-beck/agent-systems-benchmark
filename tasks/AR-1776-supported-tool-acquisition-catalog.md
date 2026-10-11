@@ -17,20 +17,20 @@
   "priority": "P0",
   "schema_version": 1,
   "spec_acceptance": {
-    "evidence_class": "contract-test",
-    "evidence_digest": "",
-    "evidence_ref": "",
+    "evidence_class": "hosted",
+    "evidence_digest": "sha256:8d850bfa2ddd919a0cbb39031eddf34b384d5ae902c9a174c99ac704fdb2c517",
+    "evidence_ref": "PR-559-fa9e0c6c9e71e030ea20be54149e9d8692e5414b-post-merge-focused-catalog-test",
     "spec_ref": "specs/AR-1776.json",
     "spec_revision": 2,
-    "status": "pending"
+    "status": "pass"
   },
   "spec_ref": "specs/AR-1776.json",
   "spec_revision": 2,
   "status": "in_progress",
   "summary": "Define pinned official acquisition and build recipes for every ASB-supported executable tool.",
-  "task_revision": 17,
+  "task_revision": 18,
   "title": "Supported-tool acquisition catalog",
-  "updated_at": "2026-10-11T06:42:43+00:00",
+  "updated_at": "2026-10-11T06:44:47+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1776-supported-tool-acquisition-catalog"
 }
 ---
@@ -101,3 +101,6 @@ tools.
 
 - 2026-10-11T06:42:43+00:00: Recorded command exit 101; command argv SHA-256
   1dfd29a944ac6e7908c40e2b24ba7a2c73557e6767c369b1b000a4b4da6a9d97.
+
+- 2026-10-11T06:44:47+00:00: Protected PR #559 merged at fa9e0c6c9e71e030ea20be54149e9d8692e5414b;
+  exact-head required workflows green; fresh origin/main focused tool_catalog tests pass.
