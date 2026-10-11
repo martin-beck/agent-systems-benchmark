@@ -28,9 +28,9 @@
   "spec_revision": 1,
   "status": "in_progress",
   "summary": "Coverage repair pushed at b0917d44 with checkout spawn-failure test.",
-  "task_revision": 83,
+  "task_revision": 84,
   "title": "Pinned source-checkout acquisition",
-  "updated_at": "2026-10-11T15:41:28+00:00",
+  "updated_at": "2026-10-11T15:43:37+00:00",
   "worktree_key": "agent-systems-benchmark-ar-1798-pinned-source-checkout-acquisition"
 }
 ---
@@ -273,3 +273,6 @@ protected merge, and post-merge evidence path.
 
 - 2026-10-11T15:41:28+00:00: Recorded command exit 0; command argv SHA-256
   58686f2f8f4c11db7f4cb55686c91b7ab2e652e8ef60c966321e3a4fc1596c77.
+
+- 2026-10-11T15:43:37+00:00: Recorded command exit 1; command argv SHA-256
+  40f22e526b755659e7f33df7f4ead6e75ee9362fed734ad6ebdf6a26c5b63dab.
